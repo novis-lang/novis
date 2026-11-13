@@ -22,63 +22,63 @@ marked `~`: it is the machine, not the code.
 
 | Feature | statements | calls | allocations | bytes | Δ allocations | Δ bytes | Declares | Commit |
 |---|---:|---:|---:|---:|---:|---:|---|---|
-| `Core\Arr::all` | 6.00 | 5.00 | 1.00 | 80.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::any` | 6.00 | 5.00 | 1.00 | 80.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::append` | 4.00 | 2.00 | 4.00 | 320.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::appendAll` | 5.00 | 1.00 | 7.00 | 608.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::average` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::chunk` | 4.00 | 3.00 | 10.00 | 800.0 |  |  | complexity linear, calls 3 | b240924438e3 |
-| `Core\Arr::column` | 4.00 | 2.00 | 2.00 | 144.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::contains` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | b240924438e3 |
-| `Core\Arr::count` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
-| `Core\Arr::countBy` | 5.00 | 2.00 | 11.00 | 726.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::diff` | 5.00 | 2.00 | 25.45 | 1121.5 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::fill` | 4.00 | 1.00 | 2.00 | 224.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::fillKeys` | 4.00 | 1.00 | 12.00 | 951.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::filter` | 5.00 | 6.00 | 12.00 | 714.0 |  |  | complexity linear, allocations 12, calls 6 | b240924438e3 |
-| `Core\Arr::find` | 7.00 | 4.00 | 1.00 | 80.0 |  |  | complexity linear, allocations 1, calls 4 | b240924438e3 |
-| `Core\Arr::findKey` | 7.00 | 4.00 | 1.00 | 80.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::first` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b240924438e3 |
-| `Core\Arr::firstKey` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b240924438e3 |
-| `Core\Arr::flatten` | 4.00 | 2.00 | 3.00 | 288.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::flattenDeep` | 3.00 | 2.00 | 4.00 | 240.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::flip` | 4.00 | 2.00 | 24.00 | 1193.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::from` | 4.00 | 1.00 | 4.00 | 384.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::fromKeysAndValues` | 5.00 | 1.00 | 11.00 | 809.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::groupBy` | 5.00 | 5.00 | 37.00 | 1990.0 |  |  | complexity linear, calls 5 | b240924438e3 |
-| `Core\Arr::hasKey` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
-| `Core\Arr::intersect` | 5.00 | 2.00 | 25.50 | 1238.5 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::isEmpty` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
-| `Core\Arr::isList` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | b240924438e3 |
-| `Core\Arr::keyOf` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | b240924438e3 |
-| `Core\Arr::keys` | 5.00 | 1.00 | 2.00 | 144.0 |  |  | complexity linear, allocations 2, calls 1 | b240924438e3 |
-| `Core\Arr::last` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b240924438e3 |
-| `Core\Arr::lastKey` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b240924438e3 |
-| `Core\Arr::map` | 5.00 | 4.00 | 3.00 | 224.0 |  |  | complexity linear, calls 4 | b240924438e3 |
-| `Core\Arr::mapKeys` | 5.00 | 5.00 | 18.00 | 850.0 |  |  | complexity linear, calls 5 | b240924438e3 |
-| `Core\Arr::max` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::min` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::overlay` | 5.00 | 1.00 | 13.00 | 1468.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::overlayDeep` | 5.00 | 1.00 | 22.00 | 1760.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::padEnd` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::padStart` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::prepend` | 4.00 | 2.00 | 4.00 | 320.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::product` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::range` | 4.00 | 1.00 | 2.00 | 224.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::reduce` | 5.00 | 4.00 | 2.00 | 80.0 |  |  | complexity linear, calls 4 | b240924438e3 |
-| `Core\Arr::replaceRange` | 4.00 | 2.00 | 2.00 | 160.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::reverse` | 4.00 | 2.00 | 4.00 | 288.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::shapeAs` | 5.00 | 1.00 | 7.00 | 438.0 |  |  | complexity constant, calls 1 | b240924438e3 |
-| `Core\Arr::slice` | 7.00 | 2.00 | 2.00 | 144.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::sort` | 4.00 | 1.00 | 5.00 | 432.0 |  |  | complexity nlogn, calls 1 | b240924438e3 |
-| `Core\Arr::sortByKey` | 4.00 | 1.00 | 8.00 | 484.0 |  |  | complexity nlogn, calls 1 | b240924438e3 |
-| `Core\Arr::sum` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::underlay` | 5.00 | 1.00 | 15.00 | 1392.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::unique` | 5.00 | 2.00 | 28.00 | 1454.0 |  |  | complexity linear, calls 2 | b240924438e3 |
-| `Core\Arr::values` | 5.00 | 1.00 | 2.00 | 144.0 |  |  | complexity linear, calls 1 | b240924438e3 |
-| `Core\Arr::withoutFirst` | 5.00 | 1.00 | 12.00 | 563.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::withoutLast` | 5.00 | 1.00 | 2.00 | 144.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Arr::withoutNull` | 5.00 | 1.00 | 12.00 | 653.0 |  |  | complexity linear | b240924438e3 |
+| `Core\Arr::all` | 6.00 | 5.00 | 1.00 | 80.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::any` | 6.00 | 5.00 | 1.00 | 80.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::append` | 4.00 | 2.00 | 4.00 | 320.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::appendAll` | 5.00 | 1.00 | 7.00 | 608.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::average` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::chunk` | 4.00 | 3.00 | 10.00 | 800.0 |  |  | complexity linear, calls 3 | 7ec957692e53 |
+| `Core\Arr::column` | 4.00 | 2.00 | 2.00 | 144.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::contains` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Arr::count` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Arr::countBy` | 5.00 | 2.00 | 11.00 | 726.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::diff` | 5.00 | 2.00 | 25.45 | 1121.5 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::fill` | 4.00 | 1.00 | 2.00 | 224.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::fillKeys` | 4.00 | 1.00 | 12.00 | 951.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::filter` | 5.00 | 6.00 | 12.00 | 714.0 |  |  | complexity linear, allocations 12, calls 6 | 7ec957692e53 |
+| `Core\Arr::find` | 7.00 | 4.00 | 1.00 | 80.0 |  |  | complexity linear, allocations 1, calls 4 | 7ec957692e53 |
+| `Core\Arr::findKey` | 7.00 | 4.00 | 1.00 | 80.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::first` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Arr::firstKey` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Arr::flatten` | 4.00 | 2.00 | 3.00 | 288.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::flattenDeep` | 3.00 | 2.00 | 4.00 | 240.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::flip` | 4.00 | 2.00 | 24.00 | 1193.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::from` | 4.00 | 1.00 | 4.00 | 384.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::fromKeysAndValues` | 5.00 | 1.00 | 11.00 | 809.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::groupBy` | 5.00 | 5.00 | 37.00 | 1990.0 |  |  | complexity linear, calls 5 | 7ec957692e53 |
+| `Core\Arr::hasKey` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Arr::intersect` | 5.00 | 2.00 | 25.50 | 1238.5 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::isEmpty` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Arr::isList` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Arr::keyOf` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Arr::keys` | 5.00 | 1.00 | 2.00 | 144.0 |  |  | complexity linear, allocations 2, calls 1 | 7ec957692e53 |
+| `Core\Arr::last` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Arr::lastKey` | 9.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Arr::map` | 5.00 | 4.00 | 3.00 | 224.0 |  |  | complexity linear, calls 4 | 7ec957692e53 |
+| `Core\Arr::mapKeys` | 5.00 | 5.00 | 18.00 | 850.0 |  |  | complexity linear, calls 5 | 7ec957692e53 |
+| `Core\Arr::max` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::min` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::overlay` | 5.00 | 1.00 | 13.00 | 1468.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::overlayDeep` | 5.00 | 1.00 | 22.00 | 1760.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::padEnd` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::padStart` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::prepend` | 4.00 | 2.00 | 4.00 | 320.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::product` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::range` | 4.00 | 1.00 | 2.00 | 224.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::reduce` | 5.00 | 4.00 | 2.00 | 80.0 |  |  | complexity linear, calls 4 | 7ec957692e53 |
+| `Core\Arr::replaceRange` | 4.00 | 2.00 | 2.00 | 160.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::reverse` | 4.00 | 2.00 | 4.00 | 288.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::shapeAs` | 5.00 | 1.00 | 7.00 | 438.0 |  |  | complexity constant, calls 1 | 7ec957692e53 |
+| `Core\Arr::slice` | 7.00 | 2.00 | 2.00 | 144.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::sort` | 4.00 | 1.00 | 5.00 | 432.0 |  |  | complexity nlogn, calls 1 | 7ec957692e53 |
+| `Core\Arr::sortByKey` | 4.00 | 1.00 | 8.00 | 484.0 |  |  | complexity nlogn, calls 1 | 7ec957692e53 |
+| `Core\Arr::sum` | 4.00 | 1.00 | 3.00 | 288.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::underlay` | 5.00 | 1.00 | 15.00 | 1392.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::unique` | 5.00 | 2.00 | 28.00 | 1454.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Arr::values` | 5.00 | 1.00 | 2.00 | 144.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Arr::withoutFirst` | 5.00 | 1.00 | 12.00 | 563.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::withoutLast` | 5.00 | 1.00 | 2.00 | 144.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Arr::withoutNull` | 5.00 | 1.00 | 12.00 | 653.0 |  |  | complexity linear | 7ec957692e53 |
 | `Core\Ast::parse` | 4.00 | 3.00 | 32.00 | 5298.0 |  | -96.000 | complexity linear | b31d460051e9 |
 | `Core\Ast\Node::children` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity linear | b31d460051e9 |
 | `Core\Ast\Node::column` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b31d460051e9 |
@@ -115,27 +115,27 @@ marked `~`: it is the machine, not the code.
 | `Core\Budget::memoryHeld` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0, statements 3 | 12bd24661f00 |
 | `Core\Budget::memoryLimit` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.008 | complexity constant, calls 0, allocations 0, statements 3 | 12bd24661f00 |
 | `Core\Budget::memoryPeak` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0, statements 3 | 12bd24661f00 |
-| `Core\Bytes::at` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0, statements 3 | b31d460051e9 |
-| `Core\Bytes::compare` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0, statements 3 | b31d460051e9 |
-| `Core\Bytes::contains` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0, statements 3 | b31d460051e9 |
-| `Core\Bytes::endsWith` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | b31d460051e9 |
-| `Core\Bytes::fill` | 3.00 | 2.00 | 3.00 | 576.0 |  |  | complexity linear, calls 2 | b31d460051e9 |
-| `Core\Bytes::indexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | b31d460051e9 |
-| `Core\Bytes::join` | 4.00 | 2.00 | 6.50 | 176.5 |  |  | complexity linear, calls 2 | b31d460051e9 |
-| `Core\Bytes::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b31d460051e9 |
-| `Core\Bytes::pack` | 3.00 | 2.00 | 7.00 | 325.0 |  |  | complexity linear, calls 2 | b31d460051e9 |
-| `Core\Bytes::repeat` | 3.00 | 2.00 | 3.00 | 256.0 |  |  | complexity linear, calls 2 | b31d460051e9 |
-| `Core\Bytes::slice` | 3.00 | 2.00 | 1.00 | 56.0 |  |  | complexity linear, calls 2 | b31d460051e9 |
-| `Core\Bytes::startsWith` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | b31d460051e9 |
-| `Core\Bytes::unpack` | 5.00 | 1.00 | 3.00 | 256.0 |  |  | complexity linear, calls 1 | b31d460051e9 |
-| `Core\Cache::memory` | 5.00 | 3.00 | 16.00 | 239.0 |  |  | complexity linear, calls 3 | 3f9e0edb6a30 |
-| `Core\Cache\SecretEntry::of` | 5.00 | 1.00 | 1.00 | 64.0 |  |  | complexity constant, calls 1 | 3f9e0edb6a30 |
-| `Core\Cache\Store::forget` | 5.00 | 2.00 | 14.00 | 163.0 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\Cache\Store::get` | 3.00 | 1.00 | 4.00 | 51.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\Cache\Store::getSecret` | 5.00 | 1.00 | 10.00 | 292.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\Cache\Store::put` | 4.00 | 1.00 | 10.00 | 90.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\Cache\Store::putSecret` | 5.00 | 1.00 | 14.00 | 334.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\Cap::has` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 10ae2948f8a1 |
+| `Core\Bytes::at` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0, statements 3 | 9284f7e0c6f4 |
+| `Core\Bytes::compare` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0, statements 3 | 9284f7e0c6f4 |
+| `Core\Bytes::contains` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0, statements 3 | 9284f7e0c6f4 |
+| `Core\Bytes::endsWith` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Bytes::fill` | 3.00 | 2.00 | 3.00 | 576.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Bytes::indexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Bytes::join` | 4.00 | 2.00 | 6.50 | 176.5 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Bytes::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Bytes::pack` | 3.00 | 2.00 | 7.00 | 325.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Bytes::repeat` | 3.00 | 2.00 | 3.00 | 256.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Bytes::slice` | 3.00 | 2.00 | 1.00 | 56.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Bytes::startsWith` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Bytes::unpack` | 5.00 | 1.00 | 3.00 | 256.0 |  |  | complexity linear, calls 1 | 9284f7e0c6f4 |
+| `Core\Cache::memory` | 5.00 | 3.00 | 16.00 | 239.0 |  |  | complexity linear, calls 3 | 78eebf4cd175 |
+| `Core\Cache\SecretEntry::of` | 5.00 | 1.00 | 1.00 | 64.0 |  |  | complexity constant, calls 1 | 78eebf4cd175 |
+| `Core\Cache\Store::forget` | 5.00 | 2.00 | 14.00 | 163.0 |  |  | complexity linear, calls 2 | 78eebf4cd175 |
+| `Core\Cache\Store::get` | 3.00 | 1.00 | 4.00 | 51.0 |  |  | complexity linear, calls 1 | 78eebf4cd175 |
+| `Core\Cache\Store::getSecret` | 5.00 | 1.00 | 10.00 | 292.0 |  |  | complexity linear, calls 1 | 78eebf4cd175 |
+| `Core\Cache\Store::put` | 4.00 | 1.00 | 10.00 | 90.0 |  |  | complexity linear, calls 1 | 78eebf4cd175 |
+| `Core\Cache\Store::putSecret` | 5.00 | 1.00 | 14.00 | 334.0 |  |  | complexity linear, calls 1 | 78eebf4cd175 |
+| `Core\Cap::has` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | feeb9dfa26a3 |
 | `Core\Cldr::ordinalCategory` | 8.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4df0ce9fbced |
 | `Core\Cldr::pluralCategory` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4df0ce9fbced |
 | `Core\Cli::arguments` | 3.00 | 2.00 | 1.00 | 96.0 |  | -16.000 | complexity constant, calls 2, allocations 1 | bfb1fa66dfa4 |
@@ -164,41 +164,41 @@ marked `~`: it is the machine, not the code.
 | `Core\Command::completions` | 5.00 | 1.00 | 53.00 | 3013.0 |  |  | complexity linear, calls 1, allocations 53 | 4df0ce9fbced |
 | `Core\Command::help` | 5.00 | 1.00 | 37.00 | 1852.0 |  |  | complexity linear, calls 1, allocations 37 | 4df0ce9fbced |
 | `Core\Command::run` | 3.00 | 1.00 | 17.00 | 561.0 |  |  | complexity linear, calls 1, allocations 17 | 4df0ce9fbced |
-| `Core\Compress::compress` | 4.00 | 2.00 | 130.00 | 288201.0 |  |  | complexity linear, calls 2 | 9c8966d84f80 |
-| `Core\Compress::compressor` | 6.00 | 5.00 | 137.00 | 288490.0 |  |  | complexity linear, calls 5 | 9c8966d84f80 |
-| `Core\Compress::decompress` | 4.00 | 2.00 | 20.00 | 9233.0 |  |  | complexity linear, calls 2 | 9c8966d84f80 |
-| `Core\Compress::decompressor` | 8.00 | 8.00 | 29.00 | 9869.0 |  |  | complexity linear, calls 8 | 9c8966d84f80 |
-| `Core\Compress\Compressor::add` | 4.00 | 1.00 | 0.02 | 32.0 |  |  | complexity linear, calls 1, allocations 0 | 9c8966d84f80 |
-| `Core\Compress\Compressor::finish` | 54.00 | 19.00 | 162.33 | 294972.5 |  |  | complexity linear, calls 19 | 9c8966d84f80 |
-| `Core\Compress\Decompressor::add` | 4.00 | 1.00 | 0.02 | 32.0 |  |  | complexity linear, calls 1, allocations 0 | 9c8966d84f80 |
-| `Core\Compress\Decompressor::finish` | 53.00 | 17.00 | 48.00 | 11940.0 |  |  | complexity linear, calls 17 | 9c8966d84f80 |
-| `Core\Config::all` | 4.00 | 2.00 | 1172.00 | 77546.0 | +5.000 | +150.000 | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Config::get` | 4.00 | 2.00 | 2.00 | 46.0 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Config::restore` | 5.00 | 2.00 | 1.00 | 9.0 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Config::secret` | 5.00 | 1.00 | 2.50 | 51.0 |  |  | complexity constant, calls 1 | 3f9e0edb6a30 |
-| `Core\Config::set` | 5.00 | 2.00 | 10.00 | 38.0 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Config::setting` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 3f9e0edb6a30 |
-| `Core\Crypto::agree` | 4.00 | 1.00 | 1.00 | 72.0 |  |  | complexity constant, calls 1, allocations 1 | 3f9e0edb6a30 |
-| `Core\Crypto::deriveKey` | 5.00 | 1.00 | 1.00 | 72.1 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Crypto::expandKey` | 5.00 | 1.00 | 1.00 | 72.0 |  |  | complexity linear, calls 1, allocations 1 | 3f9e0edb6a30 |
-| `Core\Crypto::generateKey` | 5.00 | 1.00 | 1.00 | 72.0 |  |  | complexity constant, calls 1, allocations 1 | 3f9e0edb6a30 |
-| `Core\Crypto::generateKeyPair` | 5.00 | 2.00 | 3.00 | 200.0 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto::open` | 5.00 | 2.00 | 2.00 | 90.6 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto::seal` | 5.00 | 2.00 | 3.00 | 191.5 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto::sign` | 4.00 | 2.00 | 2.00 | 168.0 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto::verify` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\Crypto\KeyPair::publicKey` | 5.00 | 2.00 | 3.00 | 222.9 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto\KeyPair::read` | 6.00 | 2.00 | 3.00 | 212.5 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto\KeyPair::write` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 3f9e0edb6a30 |
-| `Core\Crypto\PublicKey::kind` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
-| `Core\Crypto\PublicKey::read` | 5.00 | 2.00 | 3.00 | 222.9 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\Crypto\PublicKey::write` | 4.00 | 2.00 | 3.00 | 241.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Csrf::issue` | 5.00 | 2.00 | 5.00 | 339.0 |  |  | complexity linear, calls 2 | 6ef3cda35825 |
-| `Core\Csrf::token` | 3.00 | 2.00 | 7.00 | 451.0 |  |  | complexity constant, calls 2 | 6ef3cda35825 |
-| `Core\Csrf::verify` | 6.00 | 1.00 | 3.00 | 124.0 |  |  | complexity linear, calls 1 | 6ef3cda35825 |
-| `Core\Csv::format` | 5.00 | 2.00 | 5.00 | 124.0 |  |  | complexity linear, calls 2 | 2bc5b2e64431 |
-| `Core\Csv::parse` | 5.00 | 2.00 | 21.00 | 979.8 |  |  | complexity linear, calls 2, allocations 21 | 2bc5b2e64431 |
-| `Core\Csv::rows` | 10.00 | 9.00 | 51.03 | 10869.0 |  |  | complexity linear, calls 9 | 2bc5b2e64431 |
+| `Core\Compress::compress` | 4.00 | 2.00 | 130.00 | 288201.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Compress::compressor` | 6.00 | 5.00 | 137.00 | 288490.0 |  |  | complexity linear, calls 5 | 7ec957692e53 |
+| `Core\Compress::decompress` | 4.00 | 2.00 | 20.00 | 9233.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Compress::decompressor` | 8.00 | 8.00 | 29.00 | 9869.0 |  |  | complexity linear, calls 8 | 7ec957692e53 |
+| `Core\Compress\Compressor::add` | 4.00 | 1.00 | 0.02 | 32.0 |  |  | complexity linear, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Compress\Compressor::finish` | 54.00 | 19.00 | 162.33 | 294972.5 |  |  | complexity linear, calls 19 | 7ec957692e53 |
+| `Core\Compress\Decompressor::add` | 4.00 | 1.00 | 0.02 | 32.0 |  |  | complexity linear, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Compress\Decompressor::finish` | 53.00 | 17.00 | 48.00 | 11940.0 |  |  | complexity linear, calls 17 | 7ec957692e53 |
+| `Core\Config::all` | 4.00 | 2.00 | 1172.00 | 77546.0 |  |  | complexity constant, calls 2 | feeb9dfa26a3 |
+| `Core\Config::get` | 4.00 | 2.00 | 2.00 | 46.0 |  |  | complexity constant, calls 2 | feeb9dfa26a3 |
+| `Core\Config::restore` | 5.00 | 2.00 | 1.00 | 9.0 |  |  | complexity constant, calls 2 | feeb9dfa26a3 |
+| `Core\Config::secret` | 5.00 | 1.00 | 2.50 | 51.0 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Config::set` | 5.00 | 2.00 | 10.00 | 38.0 |  |  | complexity constant, calls 2 | feeb9dfa26a3 |
+| `Core\Config::setting` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Crypto::agree` | 4.00 | 1.00 | 1.00 | 72.0 |  |  | complexity constant, calls 1, allocations 1 | 7ec957692e53 |
+| `Core\Crypto::deriveKey` | 5.00 | 1.00 | 3.00 | 138.1 | +2.000 | +66.000 | complexity linear | 7ec957692e53 |
+| `Core\Crypto::expandKey` | 5.00 | 1.00 | 1.00 | 72.0 |  |  | complexity linear, calls 1, allocations 1 | 7ec957692e53 |
+| `Core\Crypto::generateKey` | 5.00 | 1.00 | 1.00 | 72.0 |  |  | complexity constant, calls 1, allocations 1 | 7ec957692e53 |
+| `Core\Crypto::generateKeyPair` | 5.00 | 2.00 | 3.00 | 200.0 |  |  | complexity constant, calls 2 | 7ec957692e53 |
+| `Core\Crypto::open` | 5.00 | 2.00 | 2.00 | 90.6 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Crypto::seal` | 5.00 | 2.00 | 3.00 | 191.5 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Crypto::sign` | 4.00 | 2.00 | 2.00 | 168.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Crypto::verify` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Crypto\KeyPair::publicKey` | 5.00 | 2.00 | 3.00 | 222.9 |  |  | complexity constant, calls 2 | 7ec957692e53 |
+| `Core\Crypto\KeyPair::read` | 6.00 | 2.00 | 3.00 | 212.5 |  |  | complexity constant, calls 2 | 7ec957692e53 |
+| `Core\Crypto\KeyPair::write` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 7ec957692e53 |
+| `Core\Crypto\PublicKey::kind` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 7ec957692e53 |
+| `Core\Crypto\PublicKey::read` | 5.00 | 2.00 | 3.00 | 222.9 |  |  | complexity constant, calls 2 | 7ec957692e53 |
+| `Core\Crypto\PublicKey::write` | 4.00 | 2.00 | 3.00 | 241.0 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Csrf::issue` | 5.00 | 2.00 | 5.00 | 339.0 |  |  | complexity linear, calls 2 | bf2577065fcf |
+| `Core\Csrf::token` | 3.00 | 2.00 | 6.00 | 418.0 | -1.000 | -33.000 | complexity constant, calls 2 | bf2577065fcf |
+| `Core\Csrf::verify` | 6.00 | 1.00 | 3.00 | 124.0 |  |  | complexity linear, calls 1 | bf2577065fcf |
+| `Core\Csv::format` | 5.00 | 2.00 | 5.00 | 124.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Csv::parse` | 5.00 | 2.00 | 21.00 | 979.8 |  |  | complexity linear, calls 2, allocations 21 | 9284f7e0c6f4 |
+| `Core\Csv::rows` | 10.00 | 9.00 | 51.03 | 10869.0 |  |  | complexity linear, calls 9 | 9284f7e0c6f4 |
 | `Core\Db::connect` | 6.00 | 2.00 | 3.00 | 106.0 |  | -0.015 | complexity constant, calls 2 | c21e52f41dad |
 | `Core\Db::inList` | 4.00 | 1.00 | 1.00 | 48.0 |  | -0.015 | complexity constant, calls 1, allocations 1 | c21e52f41dad |
 | `Core\Db::open` | 6.00 | 2.00 | 4.00 | 140.0 |  | -0.015 | complexity constant, calls 2, allocations 4 | c21e52f41dad |
@@ -257,15 +257,15 @@ marked `~`: it is the machine, not the code.
 | `Core\Db\Write::affected` | 3.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, calls 1, allocations 0 | c21e52f41dad |
 | `Core\Db\Write::changed` | 6.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, calls 1, allocations 0 | c21e52f41dad |
 | `Core\Db\Write::lastId` | 6.00 | 1.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, calls 1, allocations 0 | c21e52f41dad |
-| `Core\Debug::coverage` | 4.00 | 2.00 | 27.00 | 2332.0 |  |  | complexity constant, calls 2 | 4df0ce9fbced |
-| `Core\Debug::dump` | 4.00 | 1.00 | 8.00 | 727.0 |  |  | complexity linear, calls 1 | 4df0ce9fbced |
-| `Core\Debug::render` | 5.00 | 1.00 | 31.00 | 1736.8 |  |  | complexity linear, calls 1 | 4df0ce9fbced |
-| `Core\Debug::startCoverage` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 4df0ce9fbced |
-| `Core\Debug::startProfile` | 5.00 | 2.00 | 26.00 | 10066.0 |  |  | complexity constant, calls 2 | 4df0ce9fbced |
-| `Core\Debug::startTrace` | 5.00 | 2.00 | 14.00 | 8807.0 |  |  | complexity constant, calls 2 | 4df0ce9fbced |
-| `Core\Debug::stopCoverage` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 4df0ce9fbced |
-| `Core\Debug::stopProfile` | 6.00 | 3.00 | 29.00 | 10114.0 |  |  | complexity constant, calls 3 | 4df0ce9fbced |
-| `Core\Debug::stopTrace` | 6.00 | 3.00 | 14.00 | 8807.0 |  |  | complexity constant, calls 3 | 4df0ce9fbced |
+| `Core\Debug::coverage` | 4.00 | 2.00 | 27.00 | 2332.0 |  |  | complexity constant, calls 2 | 5bdd38e329af |
+| `Core\Debug::dump` | 4.00 | 1.00 | 8.00 | 727.0 |  |  | complexity linear, calls 1 | 5bdd38e329af |
+| `Core\Debug::render` | 5.00 | 1.00 | 31.00 | 1736.8 |  |  | complexity linear, calls 1 | 5bdd38e329af |
+| `Core\Debug::startCoverage` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 5bdd38e329af |
+| `Core\Debug::startProfile` | 5.00 | 2.00 | 26.00 | 10066.0 |  |  | complexity constant, calls 2 | 5bdd38e329af |
+| `Core\Debug::startTrace` | 5.00 | 2.00 | 14.00 | 8807.0 |  |  | complexity constant, calls 2 | 5bdd38e329af |
+| `Core\Debug::stopCoverage` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 5bdd38e329af |
+| `Core\Debug::stopProfile` | 6.00 | 3.00 | 29.00 | 10114.0 |  |  | complexity constant, calls 3 | 5bdd38e329af |
+| `Core\Debug::stopTrace` | 6.00 | 3.00 | 14.00 | 8807.0 |  |  | complexity constant, calls 3 | 5bdd38e329af |
 | `Core\Decimal::allocate` | 4.00 | 0.00 | 3.00 | 272.0 |  | -0.003 | complexity constant | 12bd24661f00 |
 | `Core\Decimal::ceil` | 4.00 | 0.00 | 0.00 | 0.0 |  | +0.002 | complexity constant | 12bd24661f00 |
 | `Core\Decimal::divExact` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 12bd24661f00 |
@@ -274,41 +274,41 @@ marked `~`: it is the machine, not the code.
 | `Core\Decimal::pow` | 6.00 | 0.00 | 2.00 | 34.0 |  | -0.001 | complexity constant | 12bd24661f00 |
 | `Core\Decimal::round` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 12bd24661f00 |
 | `Core\Decimal::truncate` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 12bd24661f00 |
-| `Core\Encoding::decodeText` | 3.00 | 2.00 | 2.00 | 65.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::encodeText` | 3.00 | 2.00 | 2.00 | 78.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::fromBase32` | 3.00 | 2.00 | 3.00 | 112.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::fromBase64` | 3.00 | 2.00 | 2.00 | 68.5 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::fromBase64Url` | 3.00 | 2.00 | 2.00 | 98.5 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::fromHex` | 3.00 | 2.00 | 2.00 | 104.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::isValidText` | 5.00 | 1.00 | 0.50 | 3.5 |  |  | complexity linear, calls 1 | 1d5ff29e6510 |
-| `Core\Encoding::toBase32` | 3.00 | 2.00 | 2.00 | 104.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::toBase64` | 3.00 | 2.00 | 2.00 | 128.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::toBase64Url` | 3.00 | 2.00 | 2.00 | 84.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Encoding::toHex` | 3.00 | 2.00 | 2.00 | 168.0 |  |  | complexity linear, calls 2 | 1d5ff29e6510 |
-| `Core\Env::all` | 3.00 | 2.00 | 582.00 | 73427.0 |  |  | complexity linear, calls 0 | bfb1fa66dfa4 |
-| `Core\Env::context` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | bfb1fa66dfa4 |
-| `Core\Env::get` | 4.00 | 2.00 | 2.50 | 5844.0 |  |  | complexity constant, calls 2 | bfb1fa66dfa4 |
-| `Core\Env::mode` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | bfb1fa66dfa4 |
-| `Core\Env::secret` | 5.00 | 1.00 | 1.00 | 36.0 |  |  | complexity constant, calls 1 | 66ab3d2c74fc |
+| `Core\Encoding::decodeText` | 3.00 | 2.00 | 3.00 | 71.0 | +1.000 | +6.000 | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::encodeText` | 3.00 | 2.00 | 2.00 | 53.0 |  | -25.000 | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::fromBase32` | 3.00 | 2.00 | 4.00 | 137.0 | +1.000 | +25.000 | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::fromBase64` | 3.00 | 2.00 | 2.00 | 71.5 |  | +3.000 | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::fromBase64Url` | 3.00 | 2.00 | 2.00 | 98.5 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::fromHex` | 3.00 | 2.00 | 2.00 | 104.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::isValidText` | 5.00 | 1.00 | 2.00 | 21.0 | +1.500 | +17.500 | complexity linear, calls 1 | 7ec957692e53 |
+| `Core\Encoding::toBase32` | 3.00 | 2.00 | 2.00 | 104.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::toBase64` | 3.00 | 2.00 | 2.00 | 128.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::toBase64Url` | 3.00 | 2.00 | 2.00 | 86.0 |  | +2.000 | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Encoding::toHex` | 3.00 | 2.00 | 2.00 | 168.0 |  |  | complexity linear, calls 2 | 7ec957692e53 |
+| `Core\Env::all` | 3.00 | 2.00 | 649.00 | 76405.0 | +67.000 | +2978.000 | complexity linear, calls 2 | feeb9dfa26a3 |
+| `Core\Env::context` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Env::get` | 4.00 | 2.00 | 2.50 | 6044.0 |  | +200.000 | complexity constant, calls 2 | feeb9dfa26a3 |
+| `Core\Env::mode` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Env::secret` | 5.00 | 1.00 | 1.00 | 36.0 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
 | `Core\Fatal::onLimit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 764525d4bdf3 |
 | `Core\Fatal::onUncaughtThrow` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 764525d4bdf3 |
-| `Core\Hash::equals` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 2bc5b2e64431 |
-| `Core\Hash::hmac` | 4.00 | 2.00 | 1.00 | 72.0 |  |  | complexity linear, allocations 1, calls 2 | 2bc5b2e64431 |
-| `Core\Hash::of` | 4.00 | 2.00 | 3.00 | 509.0 |  |  | complexity linear, allocations 3, calls 2 | 2bc5b2e64431 |
-| `Core\Hash::stream` | 4.00 | 3.00 | 5.00 | 408.0 |  |  | complexity constant, calls 3 | 2bc5b2e64431 |
-| `Core\Hash\Stream::finish` | 5.00 | 4.00 | 6.00 | 472.0 |  |  | complexity constant, calls 4 | 2bc5b2e64431 |
-| `Core\Hash\Stream::update` | 3.00 | 1.00 | 0.02 | 32.0 |  |  | complexity linear, calls 1 | 2bc5b2e64431 |
+| `Core\Hash::equals` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7ec957692e53 |
+| `Core\Hash::hmac` | 4.00 | 2.00 | 1.00 | 72.0 |  |  | complexity linear, allocations 1, calls 2 | 7ec957692e53 |
+| `Core\Hash::of` | 4.00 | 2.00 | 3.00 | 509.0 |  |  | complexity linear, allocations 3, calls 2 | 7ec957692e53 |
+| `Core\Hash::stream` | 4.00 | 3.00 | 5.00 | 408.0 |  |  | complexity constant, calls 3 | 7ec957692e53 |
+| `Core\Hash\Stream::finish` | 5.00 | 4.00 | 6.00 | 472.0 |  |  | complexity constant, calls 4 | 7ec957692e53 |
+| `Core\Hash\Stream::update` | 3.00 | 1.00 | 0.02 | 32.0 |  |  | complexity linear, calls 1 | 7ec957692e53 |
 | `Core\Heap::count` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::isEmpty` | 5.00 | 0.00 | 0.00 | 0.0 |  | +0.002 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::peek` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::pop` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.157 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::push` | 5.00 | 0.00 | 0.02 | 32.0 | +0.009 | -0.857 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
-| `Core\Html::escape` | 3.00 | 3.00 | 3.00 | 118.0 |  |  | complexity linear, calls 3 | 87731092251e |
-| `Core\Html::join` | 3.00 | 3.00 | 3.00 | 157.0 |  |  | complexity linear, calls 3 | 87731092251e |
-| `Core\Html::later` | 4.00 | 3.00 | 176.02 | 25762.0 |  |  | complexity constant | 87731092251e |
-| `Core\Html::parse` | 4.00 | 3.00 | 89.00 | 13253.0 |  |  | complexity linear | 87731092251e |
-| `Core\Html::sanitize` | 3.00 | 3.00 | 51.50 | 9722.0 |  |  | complexity linear | 87731092251e |
-| `Core\Html::toSource` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | 87731092251e |
+| `Core\Html::escape` | 3.00 | 3.00 | 3.00 | 118.0 |  |  | complexity linear, calls 3 | 9284f7e0c6f4 |
+| `Core\Html::join` | 3.00 | 3.00 | 3.00 | 157.0 |  |  | complexity linear, calls 3 | 9284f7e0c6f4 |
+| `Core\Html::later` | 4.00 | 3.00 | 176.02 | 26218.0 |  | +456.000 | complexity constant | 9284f7e0c6f4 |
+| `Core\Html::parse` | 4.00 | 3.00 | 89.00 | 13253.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Html::sanitize` | 3.00 | 3.00 | 51.50 | 9722.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Html::toSource` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | 9284f7e0c6f4 |
 | `Core\Http::allowUrl` | 5.00 | 2.00 | 12.00 | 548.0 |  |  | complexity linear | 3f9e0edb6a30 |
 | `Core\Http::methodName` | 3.00 | 2.00 | 1.00 | 43.0 |  |  | complexity constant | 3f9e0edb6a30 |
 | `Core\Http\Client::delete` | 5.00 | 2.00 | 13.02 | 744.8 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
@@ -352,60 +352,60 @@ marked `~`: it is the machine, not the code.
 | `Core\Http\TlsInfo::subject` | 3.00 | 2.00 | 15.00 | 1919.9 |  | -2.094 | complexity linear, calls 2 | 3f9e0edb6a30 |
 | `Core\Http\TlsInfo::verified` | 4.00 | 1.00 | 0.00 | 0.0 |  | -0.016 | complexity constant, allocations 0, calls 1 | 3f9e0edb6a30 |
 | `Core\Http\TlsInfo::version` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.012 | complexity constant, allocations 0, calls 1 | 3f9e0edb6a30 |
-| `Core\IO::append` | 5.00 | 2.00 | 25.00 | 651.0 |  |  | complexity linear, calls 2 | 2bc5b2e64431 |
-| `Core\IO::canonicalize` | 3.00 | 2.00 | 12.33 | 675.3 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\IO::copy` | 4.00 | 2.00 | 72.00 | 1827.0 |  |  | complexity linear, calls 2 | 2bc5b2e64431 |
-| `Core\IO::exists` | 4.00 | 1.00 | 28.50 | 1052.5 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::isDir` | 4.00 | 1.00 | 29.50 | 1067.0 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::isFile` | 4.00 | 1.00 | 30.00 | 1080.0 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::isReadable` | 4.00 | 1.00 | 7.00 | 202.0 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::isWritable` | 4.00 | 1.00 | 7.00 | 202.0 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::lines` | 9.00 | 9.00 | 34.00 | 1136.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::list` | 4.00 | 2.00 | 40.34 | 66637.3 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::makeDir` | 5.00 | 2.00 | 26.00 | 635.0 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\IO::modifiedAt` | 4.00 | 2.00 | 26.00 | 723.0 |  | +0.141 | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\IO::move` | 4.00 | 1.00 | 55.00 | 1659.0 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::open` | 5.00 | 3.00 | 25.02 | 727.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO::read` | 3.00 | 2.00 | 27.00 | 784.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::readBytes` | 3.00 | 2.00 | 26.50 | 713.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::readText` | 4.00 | 2.00 | 29.00 | 786.5 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::remove` | 6.00 | 2.00 | 61.00 | 2284.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO::removeDir` | 6.00 | 2.00 | 59.00 | 2244.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO::size` | 3.00 | 1.00 | 25.00 | 652.7 |  |  | complexity constant, calls 1 | 2bc5b2e64431 |
-| `Core\IO::stat` | 7.00 | 3.00 | 28.00 | 876.6 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO::stdin` | 2.00 | 3.00 | 5.00 | 182576.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::stdinStream` | 5.00 | 7.00 | 12.00 | 211200.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::temporaryDir` | 3.00 | 2.00 | 15.02 | 910.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO::walk` | 10.00 | 9.00 | 92.00 | 133806.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::within` | 3.00 | 2.00 | 52.00 | 2473.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO::write` | 5.00 | 2.00 | 25.00 | 700.0 |  |  | complexity linear, calls 2 | 2bc5b2e64431 |
-| `Core\IO::writeStream` | 5.00 | 2.00 | 50.00 | 1332.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO\File::close` | 5.00 | 2.00 | 25.02 | 727.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO\File::flush` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO\File::lock` | 6.00 | 3.00 | 25.02 | 731.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO\File::read` | 5.00 | 3.00 | 4.00 | 328.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO\File::readBytes` | 5.00 | 3.00 | 4.00 | 328.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\IO\File::readLine` | 6.00 | 2.00 | 2.00 | 76.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO\File::seek` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\IO\File::tell` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\IO\File::truncate` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\IO\File::write` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\IO\Metadata::isDir` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\IO\Metadata::isFile` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\IO\Metadata::modifiedAt` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\IO\Metadata::size` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\Json::decode` | 4.00 | 2.00 | 22.05 | 1228.2 |  |  | complexity linear | 9f5a518a2e96 |
-| `Core\Json::decodeAs` | 7.00 | 1.00 | 6.00 | 368.0 |  |  | complexity linear, allocations 6 | 9f5a518a2e96 |
-| `Core\Json::decodeEach` | 15.92 | 8.97 | 61.80 | 2904.2 |  |  | complexity linear | 9f5a518a2e96 |
-| `Core\Json::encode` | 5.00 | 2.00 | 9.00 | 938.0 |  |  | complexity linear | 9f5a518a2e96 |
-| `Core\Json::encodeEach` | 5.00 | 6.00 | 13.62 | 1357.9 |  |  | complexity linear | 9f5a518a2e96 |
-| `Core\Json::isValid` | 5.00 | 1.00 | 21.50 | 1183.0 |  |  | complexity linear | 9f5a518a2e96 |
-| `Core\Jwe::decrypt` | 3.00 | 2.00 | 14.00 | 1063.0 |  | +8.000 | complexity linear | bfb1fa66dfa4 |
-| `Core\Jwe::encrypt` | 4.00 | 2.00 | 10.00 | 473.8 | -1.000 | +19.672 | complexity linear | bfb1fa66dfa4 |
-| `Core\Jwe\Key::own` | 5.00 | 1.00 | 2.00 | 197.5 |  | +8.000 | complexity constant | bfb1fa66dfa4 |
-| `Core\Jwe\Key::password` | 5.00 | 1.00 | 2.00 | 139.3 |  | +7.985 | complexity linear | bfb1fa66dfa4 |
-| `Core\Jwe\Key::recipient` | 5.00 | 1.00 | 2.00 | 180.2 |  | +7.984 | complexity constant | bfb1fa66dfa4 |
-| `Core\Jwe\Key::shared` | 5.00 | 1.00 | 2.00 | 152.0 |  | +7.985 | complexity constant | bfb1fa66dfa4 |
+| `Core\IO::append` | 5.00 | 2.00 | 25.00 | 651.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\IO::canonicalize` | 3.00 | 2.00 | 12.33 | 675.3 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\IO::copy` | 4.00 | 2.00 | 72.00 | 1827.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\IO::exists` | 4.00 | 1.00 | 28.50 | 1052.5 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::isDir` | 4.00 | 1.00 | 29.50 | 1067.0 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::isFile` | 4.00 | 1.00 | 30.00 | 1080.0 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::isReadable` | 4.00 | 1.00 | 7.00 | 202.0 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::isWritable` | 4.00 | 1.00 | 7.00 | 202.0 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::lines` | 9.00 | 9.00 | 34.00 | 1136.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::list` | 4.00 | 2.00 | 40.34 | 66637.3 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::makeDir` | 5.00 | 2.00 | 26.00 | 635.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\IO::modifiedAt` | 4.00 | 2.00 | 26.00 | 722.9 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\IO::move` | 4.00 | 1.00 | 55.00 | 1659.0 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::open` | 5.00 | 3.00 | 25.02 | 727.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO::read` | 3.00 | 2.00 | 27.00 | 784.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::readBytes` | 3.00 | 2.00 | 26.50 | 713.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::readText` | 4.00 | 2.00 | 29.00 | 786.5 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::remove` | 6.00 | 2.00 | 61.00 | 2284.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO::removeDir` | 6.00 | 2.00 | 59.00 | 2244.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO::size` | 3.00 | 1.00 | 25.00 | 652.7 |  |  | complexity constant, calls 1 | 9284f7e0c6f4 |
+| `Core\IO::stat` | 7.00 | 3.00 | 28.00 | 876.6 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO::stdin` | 2.00 | 3.00 | 5.00 | 182576.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::stdinStream` | 5.00 | 7.00 | 5.00 | 199008.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::temporaryDir` | 3.00 | 2.00 | 15.02 | 910.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO::walk` | 10.00 | 9.00 | 92.00 | 133806.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::within` | 3.00 | 2.00 | 52.00 | 2473.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO::write` | 5.00 | 2.00 | 25.00 | 700.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\IO::writeStream` | 5.00 | 2.00 | 50.00 | 1332.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO\File::close` | 5.00 | 2.00 | 25.02 | 727.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO\File::flush` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO\File::lock` | 6.00 | 3.00 | 25.02 | 731.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO\File::read` | 5.00 | 3.00 | 4.00 | 328.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO\File::readBytes` | 5.00 | 3.00 | 4.00 | 328.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\IO\File::readLine` | 6.00 | 2.00 | 2.00 | 76.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO\File::seek` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\IO\File::tell` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\IO\File::truncate` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\IO\File::write` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\IO\Metadata::isDir` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\IO\Metadata::isFile` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\IO\Metadata::modifiedAt` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\IO\Metadata::size` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Json::decode` | 4.00 | 2.00 | 18.03 | 1301.2 | -4.016 | +72.953 | complexity linear | 2ab1371f1660 |
+| `Core\Json::decodeAs` | 7.00 | 1.00 | 6.00 | 368.0 |  |  | complexity linear, allocations 6 | 9284f7e0c6f4 |
+| `Core\Json::decodeEach` | 15.92 | 8.97 | 56.83 | 3062.9 | -4.969 | +158.687 | complexity linear | 2ab1371f1660 |
+| `Core\Json::encode` | 5.00 | 2.00 | 9.00 | 938.0 |  |  | complexity linear | 2ab1371f1660 |
+| `Core\Json::encodeEach` | 5.00 | 6.00 | 13.62 | 1357.9 |  |  | complexity linear | 2ab1371f1660 |
+| `Core\Json::isValid` | 5.00 | 1.00 | 17.00 | 1217.5 | -4.500 | +34.500 | complexity linear | 2ab1371f1660 |
+| `Core\Jwe::decrypt` | 3.00 | 2.00 | 14.00 | 1063.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Jwe::encrypt` | 4.00 | 2.00 | 10.00 | 473.8 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Jwe\Key::own` | 5.00 | 1.00 | 2.00 | 197.5 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Jwe\Key::password` | 5.00 | 1.00 | 2.00 | 139.3 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Jwe\Key::recipient` | 5.00 | 1.00 | 2.00 | 180.2 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Jwe\Key::shared` | 5.00 | 1.00 | 2.00 | 152.0 |  |  | complexity constant | 7ec957692e53 |
 | `Core\Jwt::sign` | 4.00 | 2.00 | 33.00 | 1399.0 |  |  | complexity linear | b240924438e3 |
 | `Core\Jwt::signObject` | 7.00 | 3.00 | 26.00 | 2071.0 | -8.000 | -48.000 | complexity linear | b240924438e3 |
 | `Core\Jwt::verify` | 4.00 | 2.00 | 32.00 | 2312.0 |  |  | complexity linear | b240924438e3 |
@@ -513,16 +513,16 @@ marked `~`: it is the machine, not the code.
 | `Core\Ldap\Sid::parse` | 4.00 | 0.00 | 5.00 | 136.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Sid::rid` | 3.00 | 0.00 | 1.00 | 6.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Sid::toString` | 3.00 | 0.00 | 6.00 | 81.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Log::write` | 5.00 | 0.00 | 21.00 | 1866.0 |  | -2.000 | complexity linear | 8dd568f3f9f7 |
+| `Core\Log::write` | 5.00 | 2.00 | 21.00 | 2010.0 |  | +143.985 | complexity linear | 5bdd38e329af |
 | `Core\Mail::send` | 6.00 | 2.00 | 24.00 | 1793.0 |  | -7.000 | complexity linear | b29849c4daa9 |
-| `Core\Markdown::fromHtml` | 4.00 | 2.00 | 74.02 | 12445.2 |  |  | complexity constant, calls 2 | e576e37007c3 |
-| `Core\Markdown::live` | 4.00 | 4.00 | 6.02 | 1280.0 |  |  | complexity constant, calls 4 | e576e37007c3 |
-| `Core\Markdown::toHtml` | 3.00 | 3.00 | 63.95 | 26561.8 |  |  | complexity linear | e576e37007c3 |
-| `Core\Markdown::toHtmlEach` | 12.03 | 11.03 | 137.69 | 124078.4 |  |  | complexity linear | e576e37007c3 |
-| `Core\Markdown\Live::finish` | 5.00 | 5.00 | 57.08 | 55248.4 |  |  | complexity constant, calls 5 | e576e37007c3 |
-| `Core\Markdown\Live::push` | 4.00 | 4.00 | 58.16 | 72035.3 |  |  | complexity constant, calls 4 | e576e37007c3 |
-| `Core\Markdown\Update::done` | 3.00 | 3.00 | 0.00 | 0.0 |  |  | complexity constant, calls 3, allocations 0 | e576e37007c3 |
-| `Core\Markdown\Update::open` | 3.00 | 3.00 | 0.00 | 0.0 |  |  | complexity constant, calls 3, allocations 0 | e576e37007c3 |
+| `Core\Markdown::fromHtml` | 4.00 | 2.00 | 74.69 | 12518.3 | +0.672 | +73.094 | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Markdown::live` | 4.00 | 4.00 | 6.02 | 1280.0 |  |  | complexity constant, calls 4 | 9284f7e0c6f4 |
+| `Core\Markdown::toHtml` | 3.00 | 3.00 | 63.95 | 26561.8 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Markdown::toHtmlEach` | 12.03 | 11.03 | 137.69 | 124078.4 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Markdown\Live::finish` | 5.00 | 5.00 | 57.08 | 55248.4 |  |  | complexity constant, calls 5 | 9284f7e0c6f4 |
+| `Core\Markdown\Live::push` | 4.00 | 4.00 | 58.16 | 72035.3 |  |  | complexity constant, calls 4 | 9284f7e0c6f4 |
+| `Core\Markdown\Update::done` | 3.00 | 3.00 | 0.00 | 0.0 |  |  | complexity constant, calls 3, allocations 0 | 9284f7e0c6f4 |
+| `Core\Markdown\Update::open` | 3.00 | 3.00 | 0.00 | 0.0 |  |  | complexity constant, calls 3, allocations 0 | 9284f7e0c6f4 |
 | `Core\Math::abs` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
 | `Core\Math::acos` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
 | `Core\Math::acosh` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
@@ -565,24 +565,24 @@ marked `~`: it is the machine, not the code.
 | `Core\Metrics::gauge` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
 | `Core\Metrics::increment` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
 | `Core\Metrics::observe` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Mime::detect` | 5.00 | 1.00 | 1.00 | 12.0 |  |  | complexity constant, allocations 1, calls 1 | 2bc5b2e64431 |
-| `Core\Mime::mediaType` | 3.00 | 2.00 | 1.00 | 49.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Net::bindDatagram` | 5.00 | 2.00 | 2.02 | 168.0 |  | +16.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net::connect` | 7.00 | 4.00 | 5.02 | 449.0 |  | +64.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net::listen` | 5.00 | 2.00 | 2.02 | 168.0 |  | +16.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net\Datagram::close` | 5.00 | 3.00 | 2.02 | 168.0 |  | +16.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net\Datagram::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9c8966d84f80 |
-| `Core\Net\Datagram::receive` | 4.00 | 3.00 | 7.00 | 65751.5 |  | -1.500 | complexity linear | 9c8966d84f80 |
-| `Core\Net\Datagram::send` | 3.00 | 1.00 | 1.00 | 17.0 |  |  | complexity linear | 9c8966d84f80 |
-| `Core\Net\Datagram\Message::host` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9c8966d84f80 |
-| `Core\Net\Datagram\Message::payload` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9c8966d84f80 |
-| `Core\Net\Datagram\Message::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9c8966d84f80 |
-| `Core\Net\Listener::accept` | 11.00 | 8.00 | 10.02 | 898.0 |  | +128.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net\Listener::close` | 5.00 | 3.00 | 2.02 | 168.0 |  | +16.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net\Listener::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9c8966d84f80 |
-| `Core\Net\Stream::close` | 7.00 | 6.00 | 5.02 | 449.0 |  | +64.000 | complexity constant | 9c8966d84f80 |
-| `Core\Net\Stream::read` | 4.00 | 2.00 | 2.00 | 72.0 |  |  | complexity linear | 9c8966d84f80 |
-| `Core\Net\Stream::write` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 9c8966d84f80 |
+| `Core\Mime::detect` | 5.00 | 1.00 | 1.00 | 12.0 |  |  | complexity constant, allocations 1, calls 1 | 7ec957692e53 |
+| `Core\Mime::mediaType` | 3.00 | 2.00 | 1.00 | 49.0 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Net::bindDatagram` | 5.00 | 2.00 | 2.02 | 168.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net::connect` | 7.00 | 4.00 | 5.02 | 449.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net::listen` | 5.00 | 2.00 | 2.02 | 168.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Datagram::close` | 5.00 | 3.00 | 2.02 | 168.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Datagram::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Net\Datagram::receive` | 4.00 | 3.00 | 7.00 | 65753.0 |  | +1.500 | complexity linear | 9284f7e0c6f4 |
+| `Core\Net\Datagram::send` | 3.00 | 1.00 | 1.00 | 17.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Net\Datagram\Message::host` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Datagram\Message::payload` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Datagram\Message::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Net\Listener::accept` | 11.00 | 8.00 | 10.02 | 898.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Listener::close` | 5.00 | 3.00 | 2.02 | 168.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Listener::port` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Net\Stream::close` | 7.00 | 6.00 | 5.02 | 449.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Net\Stream::read` | 4.00 | 2.00 | 2.00 | 72.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Net\Stream::write` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 9284f7e0c6f4 |
 | `Core\ObjectMap::clear` | 5.00 | 3.00 | 10.00 | 812.0 |  | -0.015 | complexity linear | 673d8be1504f |
 | `Core\ObjectMap::count` | 3.00 | 1.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, allocations 0 | 673d8be1504f |
 | `Core\ObjectMap::get` | 3.00 | 1.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, allocations 0 | 673d8be1504f |
@@ -632,35 +632,35 @@ marked `~`: it is the machine, not the code.
 | `Core\Path::thisDir` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | c7a50598170e |
 | `Core\Path::thisFile` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | c7a50598170e |
 | `Core\Path::withExtension` | 3.00 | 2.00 | 9.00 | 360.0 |  |  | complexity linear | c7a50598170e |
-| `Core\Process::run` | 4.00 | 3.00 | 82.50 | 43518.0 |  | +505.000 | complexity constant, calls 3 | 3f9e0edb6a30 |
-| `Core\Process::spawn` | 9.00 | 6.00 | 89.53 | 44625.0 |  | +505.000 | complexity constant, calls 6 | 3f9e0edb6a30 |
-| `Core\Process\Handle::kill` | 5.00 | 4.00 | 84.03 | 44850.0 |  | +505.000 | complexity constant, calls 4 | 3f9e0edb6a30 |
-| `Core\Process\Handle::readStderr` | 7.00 | 3.00 | 6.00 | 329.0 |  |  | complexity constant, calls 3 | 3f9e0edb6a30 |
-| `Core\Process\Handle::readStdout` | 7.00 | 3.00 | 6.00 | 329.0 |  |  | complexity constant, calls 3 | 3f9e0edb6a30 |
-| `Core\Process\Handle::wait` | 4.00 | 4.00 | 83.03 | 44403.0 |  | +505.000 | complexity constant, calls 4 | 3f9e0edb6a30 |
-| `Core\Process\Handle::writeStdin` | 5.00 | 2.00 | 3.00 | 155.5 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\Process\Result::exitCode` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 3f9e0edb6a30 |
-| `Core\Process\Result::stderr` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | 3f9e0edb6a30 |
-| `Core\Process\Result::stdout` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | 3f9e0edb6a30 |
+| `Core\Process::run` | 4.00 | 3.00 | 82.50 | 41468.0 |  | -2050.000 | complexity constant, calls 3 | 9284f7e0c6f4 |
+| `Core\Process::spawn` | 9.00 | 6.00 | 89.53 | 42575.0 |  | -2050.000 | complexity constant, calls 6 | 9284f7e0c6f4 |
+| `Core\Process\Handle::kill` | 5.00 | 4.00 | 84.03 | 42800.0 |  | -2050.000 | complexity constant, calls 4 | 9284f7e0c6f4 |
+| `Core\Process\Handle::readStderr` | 7.00 | 3.00 | 6.00 | 329.0 |  |  | complexity constant, calls 3 | 9284f7e0c6f4 |
+| `Core\Process\Handle::readStdout` | 7.00 | 3.00 | 6.00 | 329.0 |  |  | complexity constant, calls 3 | 9284f7e0c6f4 |
+| `Core\Process\Handle::wait` | 4.00 | 4.00 | 83.03 | 42353.0 |  | -2050.000 | complexity constant, calls 4 | 9284f7e0c6f4 |
+| `Core\Process\Handle::writeStdin` | 5.00 | 2.00 | 3.00 | 155.5 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Process\Result::exitCode` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Process\Result::stderr` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | 9284f7e0c6f4 |
+| `Core\Process\Result::stdout` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | 9284f7e0c6f4 |
 | `Core\Program::constructors` | 6.00 | 3.00 | 10.00 | 704.0 | -1.000 | -48.015 | complexity constant, calls 3 | bfb1fa66dfa4 |
 | `Core\Program::id` | 3.00 | 2.00 | 2.00 | 168.0 |  | +8.000 | complexity constant | bfb1fa66dfa4 |
 | `Core\Program::implementing` | 3.00 | 1.00 | 6.00 | 320.0 |  | -16.000 | complexity constant, calls 1 | bfb1fa66dfa4 |
 | `Core\Program::implementingWith` | 9.00 | 3.00 | 11.00 | 608.0 |  | -16.015 | complexity constant, calls 3 | bfb1fa66dfa4 |
-| `Core\Queue::cancel` | 4.00 | 1.00 | 15.00 | 717.5 | +3.000 | +172.000 | complexity constant, calls 1 | 9f5a518a2e96 |
-| `Core\Queue::delete` | 4.00 | 1.00 | 34.00 | 1566.5 | +4.000 | +264.000 | complexity constant, calls 1 | 9f5a518a2e96 |
-| `Core\Queue::purge` | 3.00 | 1.00 | 17.00 | 1474.0 |  |  | complexity constant, calls 1 | 9f5a518a2e96 |
-| `Core\Queue::push` | 4.00 | 1.00 | 40.00 | 3261.1 | +3.000 | +204.000 | complexity constant, calls 1 | 9f5a518a2e96 |
-| `Core\Queue::stats` | 3.00 | 2.00 | 15.00 | 1213.0 |  |  | complexity linear, calls 2 | 9f5a518a2e96 |
-| `Core\Queue::status` | 4.00 | 1.00 | 18.00 | 1041.0 | +4.000 | +296.000 | complexity constant, calls 1 | 9f5a518a2e96 |
-| `Core\Queue\Id::parse` | 4.00 | 1.00 | 6.00 | 258.6 |  |  | complexity constant | d7460bf59d63 |
-| `Core\Queue\Id::toString` | 3.00 | 2.00 | 8.00 | 229.8 |  |  | complexity constant | d7460bf59d63 |
-| `Core\Queue\Id::tryParse` | 7.00 | 1.00 | 4.05 | 228.2 |  |  | complexity constant | d7460bf59d63 |
-| `Core\Queue\Stats::attempts` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9f5a518a2e96 |
-| `Core\Queue\Stats::claimed` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9f5a518a2e96 |
-| `Core\Queue\Stats::deadAttempts` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9f5a518a2e96 |
-| `Core\Queue\Stats::deadLettered` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9f5a518a2e96 |
-| `Core\Queue\Stats::nonTransactional` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9f5a518a2e96 |
-| `Core\Queue\Stats::pending` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9f5a518a2e96 |
+| `Core\Queue::cancel` | 4.00 | 1.00 | 15.00 | 717.5 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Queue::delete` | 4.00 | 1.00 | 34.00 | 1566.5 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Queue::purge` | 3.00 | 1.00 | 17.00 | 1474.0 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Queue::push` | 4.00 | 1.00 | 40.00 | 3261.1 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Queue::stats` | 3.00 | 2.00 | 15.00 | 1213.0 |  |  | complexity linear, calls 2 | feeb9dfa26a3 |
+| `Core\Queue::status` | 4.00 | 1.00 | 18.00 | 1041.0 |  |  | complexity constant, calls 1 | feeb9dfa26a3 |
+| `Core\Queue\Id::parse` | 4.00 | 1.00 | 6.00 | 258.6 |  |  | complexity constant | feeb9dfa26a3 |
+| `Core\Queue\Id::toString` | 3.00 | 2.00 | 8.00 | 229.8 |  |  | complexity constant | feeb9dfa26a3 |
+| `Core\Queue\Id::tryParse` | 7.00 | 1.00 | 4.05 | 228.2 |  |  | complexity constant | feeb9dfa26a3 |
+| `Core\Queue\Stats::attempts` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Queue\Stats::claimed` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Queue\Stats::deadAttempts` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Queue\Stats::deadLettered` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Queue\Stats::nonTransactional` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
+| `Core\Queue\Stats::pending` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | feeb9dfa26a3 |
 | `Core\Random::bytes` | 5.00 | 1.00 | 1.00 | 56.0 |  | +8.000 | complexity linear, calls 1, allocations 1 | bfb1fa66dfa4 |
 | `Core\Random::float` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | bfb1fa66dfa4 |
 | `Core\Random::int` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | bfb1fa66dfa4 |
@@ -680,208 +680,208 @@ marked `~`: it is the machine, not the code.
 | `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
 | `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
 | `Core\RateLimit\Decision::retryAfter` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
-| `Core\Reflect::forClass` | 6.00 | 3.00 | 14.50 | 1065.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect::forObject` | 4.00 | 3.00 | 10.50 | 807.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect::steps` | 3.00 | 2.00 | 10.00 | 699.0 |  |  | complexity linear, calls 2 | 6e6d02712713 |
-| `Core\Reflect::typeOf` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\AttributeInfo::field` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\AttributeInfo::fields` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\AttributeInfo::name` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\AttributeInfo::parameter` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\AttributeInfo::target` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::attributes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::call` | 4.00 | 1.00 | 7.00 | 296.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::constant` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::constants` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::construct` | 6.00 | 1.00 | 9.00 | 401.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::get` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::hasMethod` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::hasProperty` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::methods` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::name` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::properties` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::readableProperties` | 6.00 | 1.00 | 4.00 | 249.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\ClassInfo::set` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\ConstantInfo::hasValue` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ConstantInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ConstantInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\EnumInfo::cases` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\EnumInfo::isUnsigned` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\EnumInfo::name` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\EnumInfo::of` | 7.00 | 3.00 | 9.00 | 623.0 |  |  | complexity constant | 6e6d02712713 |
-| `Core\Reflect\EnumInfo::valueOf` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\MethodInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\MethodInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\MethodInfo::parameterCount` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\MethodInfo::parameters` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ParameterInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\ParameterInfo::type` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\PropertyInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\PropertyInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Reflect\PropertyInfo::type` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6e6d02712713 |
-| `Core\Regex::compile` | 5.00 | 1.00 | 2.00 | 114.5 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex::match` | 4.00 | 2.00 | 9.00 | 526.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex::matchAll` | 4.00 | 2.00 | 19.00 | 1097.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex::matches` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 3f9e0edb6a30 |
-| `Core\Regex::quote` | 4.00 | 2.00 | 2.00 | 53.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex::replace` | 4.00 | 2.00 | 6.50 | 414.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex::replaceWith` | 4.00 | 2.00 | 5.00 | 212.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex::split` | 4.00 | 2.00 | 4.00 | 252.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Regex\Match::group` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Regex\Match::groups` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Regex\Match::offset` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Regex\Match::text` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Request::body` | 6.00 | 1.00 | 1.00 | 136.0 |  |  | complexity linear, allocations 1, calls 1 | 2bc5b2e64431 |
-| `Core\Request::bodyStream` | 5.00 | 7.00 | 9.00 | 12422.0 |  |  | complexity linear, allocations 9 | 2bc5b2e64431 |
-| `Core\Request::bytes` | 4.00 | 2.00 | 1.00 | 150.0 |  |  | complexity linear, allocations 1 | 2bc5b2e64431 |
-| `Core\Request::clientIp` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request::cookie` | 4.00 | 2.00 | 1.00 | 49.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request::files` | 15.00 | 28.00 | 57.00 | 15068.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Request::header` | 4.00 | 2.00 | 2.00 | 79.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request::headers` | 4.00 | 2.00 | 65.00 | 4344.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Request::host` | 4.00 | 2.00 | 3.00 | 93.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request::isHead` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\Request::json` | 4.00 | 2.00 | 64.00 | 3405.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Request::jsonAs` | 15.00 | 2.00 | 28.00 | 2259.0 |  |  | complexity linear, allocations 28 | 2bc5b2e64431 |
-| `Core\Request::method` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\Request::mount` | 4.00 | 3.00 | 6.00 | 377.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request::path` | 4.00 | 2.00 | 1.00 | 62.0 |  |  | complexity constant, allocations 1, calls 2 | 2bc5b2e64431 |
-| `Core\Request::post` | 4.00 | 2.00 | 1.00 | 33.0 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\Request::postArray` | 4.00 | 2.00 | 1.66 | 85.5 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\Request::postAs` | 4.00 | 2.00 | 4.00 | 131.0 |  |  | complexity linear, calls 2 | 2bc5b2e64431 |
-| `Core\Request::query` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\Request::queryArray` | 4.00 | 2.00 | 0.67 | 53.4 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\Request::queryAs` | 4.00 | 2.00 | 3.00 | 98.0 |  |  | complexity linear, calls 2 | 2bc5b2e64431 |
-| `Core\Request::route` | 6.00 | 2.00 | 10.00 | 685.0 |  |  | complexity constant, calls 2 | 2bc5b2e64431 |
-| `Core\Request::scheme` | 4.00 | 2.00 | 1.00 | 45.0 |  |  | complexity constant, allocations 1, calls 2 | 2bc5b2e64431 |
-| `Core\Request\BodyStream::peek` | 3.00 | 2.00 | 2.00 | 72.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request\Mount::captures` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\Request\Mount::prefix` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2bc5b2e64431 |
-| `Core\Request\Part::content` | 7.00 | 12.00 | 27.00 | 13804.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Request\Part::contentType` | 9.00 | 16.00 | 51.00 | 14526.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request\Part::filename` | 9.00 | 16.00 | 51.00 | 14526.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request\Part::name` | 9.00 | 16.00 | 51.00 | 14526.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Request\Part::peek` | 3.00 | 2.00 | 2.00 | 72.0 |  |  | complexity constant, allocations 2, calls 2 | 2bc5b2e64431 |
-| `Core\Request\Part::readAll` | 5.00 | 8.00 | 27.00 | 14065.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Request\Part::saveTo` | 5.00 | 10.00 | 132.00 | 18387.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Response::addCookie` | 5.00 | 2.00 | 8.00 | 354.3 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response::bytes` | 5.00 | 1.00 | 1.00 | 16.0 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response::html` | 5.00 | 1.00 | 1.00 | 24.6 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response::json` | 5.00 | 1.00 | 5.00 | 464.0 | -4.000 | +97.000 | complexity linear | e3edb8a44a87 |
-| `Core\Response::redirect` | 5.00 | 2.00 | 2.00 | 16.0 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response::sendFile` | 5.00 | 1.00 | 32.00 | 706.3 |  |  | complexity constant | 09ec06bf607c |
-| `Core\Response::setHeader` | 5.00 | 2.00 | 2.00 | 21.0 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response::setStatus` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 09ec06bf607c |
-| `Core\Response::slotted` | 4.00 | 3.00 | 168.02 | 25577.0 |  | +248.000 | complexity linear | 09ec06bf607c |
-| `Core\Response::stream` | 5.00 | 1.00 | 2.00 | 48.5 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response::text` | 5.00 | 1.00 | 1.00 | 25.0 |  |  | complexity linear | 09ec06bf607c |
-| `Core\Response\Stream::end` | 4.00 | 1.00 | 0.02 | 6.9 |  |  | complexity constant | a29c3d4c1e34 |
-| `Core\Response\Stream::length` | 3.00 | 1.00 | 0.01 | 6.0 |  |  | complexity constant, allocations 0, calls 1 | a29c3d4c1e34 |
-| `Core\Response\Stream::offset` | 3.00 | 1.00 | 0.01 | 6.0 |  |  | complexity constant, allocations 0, calls 1 | a29c3d4c1e34 |
-| `Core\Response\Stream::write` | 5.00 | 1.00 | 0.00 | 0.6 |  |  | complexity linear | a29c3d4c1e34 |
-| `Core\Router::dispatch` | 5.00 | 1.00 | 21.00 | 875.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Router::match` | 7.00 | 1.00 | 8.02 | 617.2 |  |  | complexity linear | b240924438e3 |
-| `Core\Router::methodsFor` | 3.00 | 2.00 | 7.00 | 642.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Router::signedRoute` | 4.00 | 2.00 | 73.00 | 3455.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Router::url` | 6.00 | 0.00 | 15.00 | 589.7 |  |  | complexity linear | b240924438e3 |
-| `Core\Router::urlAbsolute` | 6.00 | 0.00 | 18.00 | 725.7 |  |  | complexity linear | b240924438e3 |
-| `Core\Router::urlSigned` | 4.00 | 1.00 | 48.00 | 2266.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Router\Match::access` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
-| `Core\Router\Match::accessAs` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
-| `Core\Router\Match::attribute` | 7.00 | 1.00 | 7.00 | 500.0 |  |  | complexity constant, calls 1 | b240924438e3 |
-| `Core\Router\Match::is` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | b240924438e3 |
-| `Core\Router\Match::method` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
+| `Core\Reflect::forClass` | 6.00 | 3.00 | 14.50 | 1065.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect::forObject` | 4.00 | 3.00 | 10.50 | 807.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect::steps` | 3.00 | 2.00 | 10.00 | 699.0 |  |  | complexity linear, calls 2 | 2afea1f166db |
+| `Core\Reflect::typeOf` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\AttributeInfo::field` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\AttributeInfo::fields` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\AttributeInfo::name` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\AttributeInfo::parameter` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\AttributeInfo::target` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\ClassInfo::attributes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::call` | 4.00 | 1.00 | 2.00 | 160.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\ClassInfo::constant` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::constants` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::construct` | 6.00 | 1.00 | 3.00 | 224.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\ClassInfo::get` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::hasMethod` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::hasProperty` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::methods` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\ClassInfo::name` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::properties` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ClassInfo::readableProperties` | 6.00 | 1.00 | 4.00 | 249.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\ClassInfo::set` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\ConstantInfo::hasValue` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ConstantInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ConstantInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\EnumInfo::cases` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\EnumInfo::isUnsigned` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\EnumInfo::name` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\EnumInfo::of` | 7.00 | 3.00 | 9.00 | 623.0 |  |  | complexity constant | 2afea1f166db |
+| `Core\Reflect\EnumInfo::valueOf` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\MethodInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\MethodInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\MethodInfo::parameterCount` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\MethodInfo::parameters` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\ParameterInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 7afa92ef94f1 |
+| `Core\Reflect\ParameterInfo::type` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 7afa92ef94f1 |
+| `Core\Reflect\PropertyInfo::isPublic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\PropertyInfo::name` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Reflect\PropertyInfo::type` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 2afea1f166db |
+| `Core\Regex::compile` | 5.00 | 1.00 | 2.00 | 114.5 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex::match` | 4.00 | 2.00 | 9.00 | 526.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex::matchAll` | 4.00 | 2.00 | 19.00 | 1097.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex::matches` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 7ec957692e53 |
+| `Core\Regex::quote` | 4.00 | 2.00 | 2.00 | 53.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex::replace` | 4.00 | 2.00 | 6.50 | 414.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex::replaceWith` | 4.00 | 2.00 | 5.00 | 212.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex::split` | 4.00 | 2.00 | 4.00 | 252.0 |  |  | complexity linear | 7ec957692e53 |
+| `Core\Regex\Match::group` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Regex\Match::groups` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Regex\Match::offset` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Regex\Match::text` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 7ec957692e53 |
+| `Core\Request::body` | 6.00 | 1.00 | 1.00 | 136.0 |  |  | complexity linear, allocations 1, calls 1 | 9284f7e0c6f4 |
+| `Core\Request::bodyStream` | 5.00 | 7.00 | 2.00 | 230.0 |  |  | complexity linear, allocations 2 | 9284f7e0c6f4 |
+| `Core\Request::bytes` | 4.00 | 2.00 | 1.00 | 150.0 |  |  | complexity linear, allocations 1 | 9284f7e0c6f4 |
+| `Core\Request::clientIp` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Request::cookie` | 4.00 | 2.00 | 1.00 | 49.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Request::files` | 15.00 | 28.00 | 50.00 | 2900.0 |  | +24.000 | complexity linear | 9284f7e0c6f4 |
+| `Core\Request::header` | 4.00 | 2.00 | 2.00 | 79.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Request::headers` | 4.00 | 2.00 | 65.00 | 4344.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Request::host` | 4.00 | 2.00 | 3.00 | 93.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Request::isHead` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Request::json` | 4.00 | 2.00 | 64.00 | 3405.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Request::jsonAs` | 15.00 | 2.00 | 28.00 | 2259.0 |  |  | complexity linear, allocations 28 | 9284f7e0c6f4 |
+| `Core\Request::method` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Request::mount` | 4.00 | 3.00 | 6.00 | 377.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Request::path` | 4.00 | 2.00 | 1.00 | 62.0 |  |  | complexity constant, allocations 1, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::post` | 4.00 | 2.00 | 1.00 | 33.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::postArray` | 4.00 | 2.00 | 1.66 | 85.5 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::postAs` | 4.00 | 2.00 | 4.00 | 131.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::query` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::queryArray` | 4.00 | 2.00 | 0.67 | 53.4 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::queryAs` | 4.00 | 2.00 | 3.00 | 98.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::route` | 6.00 | 2.00 | 10.00 | 685.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Request::scheme` | 4.00 | 2.00 | 1.00 | 45.0 |  |  | complexity constant, allocations 1, calls 2 | 9284f7e0c6f4 |
+| `Core\Request\BodyStream::peek` | 3.00 | 2.00 | 2.00 | 72.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Request\Mount::captures` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Request\Mount::prefix` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Request\Part::content` | 7.00 | 12.00 | 20.00 | 1636.0 |  | +24.000 | complexity linear | 9284f7e0c6f4 |
+| `Core\Request\Part::contentType` | 9.00 | 16.00 | 44.00 | 2358.0 |  | +24.000 | complexity constant | 9284f7e0c6f4 |
+| `Core\Request\Part::filename` | 9.00 | 16.00 | 44.00 | 2358.0 |  | +24.000 | complexity constant | 9284f7e0c6f4 |
+| `Core\Request\Part::name` | 9.00 | 16.00 | 44.00 | 2358.0 |  | +24.000 | complexity constant | 9284f7e0c6f4 |
+| `Core\Request\Part::peek` | 3.00 | 2.00 | 2.00 | 72.0 |  |  | complexity constant, allocations 2, calls 2 | 9284f7e0c6f4 |
+| `Core\Request\Part::readAll` | 5.00 | 8.00 | 20.00 | 1897.0 |  | +24.000 | complexity linear | 9284f7e0c6f4 |
+| `Core\Request\Part::saveTo` | 5.00 | 10.00 | 121.00 | 6155.0 |  | +24.000 | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::addCookie` | 5.00 | 2.00 | 8.00 | 354.3 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::bytes` | 5.00 | 1.00 | 1.00 | 16.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::html` | 5.00 | 1.00 | 1.00 | 24.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::json` | 5.00 | 1.00 | 5.00 | 464.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::redirect` | 5.00 | 2.00 | 2.00 | 16.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::sendFile` | 5.00 | 1.00 | 32.00 | 706.3 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Response::setHeader` | 5.00 | 2.00 | 2.00 | 21.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::setStatus` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Response::slotted` | 4.00 | 3.00 | 169.02 | 26078.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::stream` | 5.00 | 1.00 | 2.00 | 48.5 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response::text` | 5.00 | 1.00 | 1.00 | 25.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Response\Stream::end` | 4.00 | 1.00 | 0.01 | 1.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Response\Stream::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Response\Stream::offset` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Response\Stream::write` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Router::dispatch` | 5.00 | 1.00 | 16.00 | 771.0 | -5.000 | -104.000 | complexity constant | ba0f22eff7e6 |
+| `Core\Router::match` | 7.00 | 1.00 | 8.02 | 617.2 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Router::methodsFor` | 3.00 | 2.00 | 7.00 | 642.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Router::signedRoute` | 4.00 | 2.00 | 73.00 | 3455.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Router::url` | 6.00 | 0.00 | 15.00 | 589.7 |  |  | complexity linear | 0129bcd837ec |
+| `Core\Router::urlAbsolute` | 6.00 | 0.00 | 18.00 | 725.7 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Router::urlSigned` | 4.00 | 1.00 | 48.00 | 2266.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Router\Match::access` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
+| `Core\Router\Match::accessAs` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
+| `Core\Router\Match::attribute` | 7.00 | 1.00 | 7.00 | 500.0 |  |  | complexity constant, calls 1 | ba0f22eff7e6 |
+| `Core\Router\Match::is` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | ba0f22eff7e6 |
+| `Core\Router\Match::method` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
 | `Core\Router\Match::name` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b358c465f632 |
-| `Core\Router\Match::param` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b240924438e3 |
-| `Core\Router\Match::params` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | b240924438e3 |
+| `Core\Router\Match::param` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
+| `Core\Router\Match::params` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | ba0f22eff7e6 |
 | `Core\Router\Responder` | 4.00 | 4.00 | 85.02 | 7774.0 |  |  | complexity linear | f2ed85dbe899 |
-| `Core\Script::args` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 09ec06bf607c |
-| `Core\Script::onExit` | 5.00 | 2.00 | 1.02 | 112.0 |  |  | complexity constant | 09ec06bf607c |
-| `Core\Script\ExitReport::error` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a29c3d4c1e34 |
-| `Core\Script\ExitReport::memoryPeak` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a29c3d4c1e34 |
-| `Core\Script\ExitReport::reason` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a29c3d4c1e34 |
-| `Core\Script\ExitReport::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a29c3d4c1e34 |
+| `Core\Script::args` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | e24b0706338d |
+| `Core\Script::onExit` | 5.00 | 2.00 | 1.02 | 112.0 |  |  | complexity constant | e24b0706338d |
+| `Core\Script\ExitReport::error` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e24b0706338d |
+| `Core\Script\ExitReport::memoryPeak` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e24b0706338d |
+| `Core\Script\ExitReport::reason` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e24b0706338d |
+| `Core\Script\ExitReport::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e24b0706338d |
 | `Core\Secret::reveal` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 12bd24661f00 |
 | `Core\Secret::revealBytes` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 12bd24661f00 |
-| `Core\Serialize::decode` | 4.00 | 0.00 | 21.00 | 841.0 |  | +0.015 | complexity linear | 12bd24661f00 |
-| `Core\Serialize::encode` | 4.00 | 0.00 | 18.00 | 617.0 |  | +0.028 | complexity linear | 12bd24661f00 |
+| `Core\Serialize::decode` | 4.00 | 1.00 | 21.00 | 865.0 |  | +23.985 | complexity linear | 0c6ddd43a805 |
+| `Core\Serialize::encode` | 4.00 | 2.00 | 14.00 | 605.0 | -4.000 | -12.015 | complexity linear | 0c6ddd43a805 |
 | `Core\Server::isDraining` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | bfb1fa66dfa4 |
 | `Core\Server::traceId` | 4.00 | 2.00 | 1.00 | 72.0 |  | +8.000 | complexity constant, allocations 1, calls 2 | bfb1fa66dfa4 |
-| `Core\Session::clear` | 5.00 | 2.00 | 12.00 | 480.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Session::destroy` | 6.00 | 3.00 | 60.03 | 1525.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Session::get` | 3.00 | 1.00 | 11.00 | 540.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Session::getSecret` | 4.00 | 1.00 | 23.00 | 1162.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Session::regenerate` | 4.00 | 1.00 | 51.03 | 1254.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Session::remove` | 5.00 | 2.00 | 44.00 | 1592.0 | -2.000 | -4.000 | complexity linear | 3f9e0edb6a30 |
-| `Core\Session::set` | 4.00 | 1.00 | 24.00 | 868.0 | -1.000 | -2.000 | complexity linear | 3f9e0edb6a30 |
-| `Core\Session::setSecret` | 4.00 | 1.00 | 41.00 | 2209.0 | -3.000 | -153.000 | complexity linear | 3f9e0edb6a30 |
-| `Core\Session::start` | 5.00 | 2.00 | 13.00 | 161.0 |  |  | complexity constant | 3f9e0edb6a30 |
+| `Core\Session::clear` | 5.00 | 2.00 | 12.00 | 480.0 |  |  | complexity constant | 78eebf4cd175 |
+| `Core\Session::destroy` | 6.00 | 3.00 | 60.03 | 1529.0 |  | +4.000 | complexity constant | 78eebf4cd175 |
+| `Core\Session::get` | 3.00 | 1.00 | 11.00 | 540.0 |  |  | complexity linear | 78eebf4cd175 |
+| `Core\Session::getSecret` | 4.00 | 1.00 | 23.00 | 1162.0 |  |  | complexity linear | 78eebf4cd175 |
+| `Core\Session::regenerate` | 4.00 | 1.00 | 13.03 | 553.0 | -38.000 | -701.000 | complexity linear | 78eebf4cd175 |
+| `Core\Session::remove` | 5.00 | 2.00 | 44.00 | 1592.0 |  |  | complexity linear | 78eebf4cd175 |
+| `Core\Session::set` | 4.00 | 1.00 | 24.00 | 868.0 |  |  | complexity linear | 78eebf4cd175 |
+| `Core\Session::setSecret` | 4.00 | 1.00 | 41.00 | 2209.0 |  |  | complexity linear | 78eebf4cd175 |
+| `Core\Session::start` | 5.00 | 2.00 | 13.00 | 161.0 |  |  | complexity constant | 78eebf4cd175 |
 | `Core\Signal::onShutdown` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 764525d4bdf3 |
 | `Core\Signature::sign` | 4.00 | 2.00 | 18.00 | 851.9 | -1.000 | -11.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\Signature::verify` | 4.00 | 2.00 | 11.00 | 580.5 |  | +16.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\SignedCookie::open` | 4.00 | 2.00 | 4.00 | 125.0 | +1.000 | +17.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\SignedCookie::seal` | 4.00 | 2.00 | 7.00 | 348.0 |  | +14.000 | complexity linear | bfb1fa66dfa4 |
-| `Core\Socket::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Socket::receive` | 6.00 | 3.00 | 4.00 | 188.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Socket::send` | 5.00 | 2.00 | 3.00 | 45.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Socket::sendBytes` | 5.00 | 2.00 | 5.50 | 77.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Socket::upgrade` | 1.00 | 1.00 | 57.00 | 17826.0 |  | +80.000 | complexity constant | b240924438e3 |
-| `Core\Socket\Message::bytes` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Socket\Message::text` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Socket\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Socket\Message::value` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Sse::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Sse::receive` | 6.00 | 3.00 | 4.00 | 160.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Sse::retry` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Sse::send` | 4.00 | 1.00 | 2.00 | 66.0 |  |  | complexity linear | 3f9e0edb6a30 |
-| `Core\Sse::stream` | 4.00 | 1.00 | 6.00 | 103.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Sse::upgrade` | 1.00 | 1.00 | 53.00 | 18028.0 | -2.000 | -2854.000 | complexity constant | 3f9e0edb6a30 |
-| `Core\Sse\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Sse\Message::value` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 3f9e0edb6a30 |
-| `Core\Storage::delete` | 6.00 | 2.00 | 95.00 | 5517.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Storage::get` | 4.00 | 2.00 | 77.00 | 2760.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Storage::list` | 3.00 | 2.00 | 57.00 | 67498.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Storage::put` | 5.00 | 2.00 | 40.00 | 1624.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Str::after` | 6.00 | 1.00 | 1.00 | 46.0 |  |  | complexity linear, calls 1 | eadc9441d71f |
-| `Core\Str::at` | 4.00 | 2.00 | 1.00 | 41.3 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::before` | 6.00 | 1.00 | 1.00 | 44.0 |  |  | complexity linear, calls 1 | eadc9441d71f |
-| `Core\Str::chunk` | 3.00 | 2.00 | 6.00 | 335.7 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::codePoints` | 3.00 | 2.00 | 3.00 | 288.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::compare` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::contains` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::countOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::endsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::fold` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::format` | 3.00 | 1.00 | 1.00 | 59.1 |  |  | complexity linear, calls 1, allocations 1 | 9c8966d84f80 |
-| `Core\Str::fromCodePoint` | 3.00 | 2.00 | 1.00 | 43.0 |  |  | complexity constant, calls 2 | eadc9441d71f |
-| `Core\Str::fromCodePoints` | 3.00 | 2.00 | 2.00 | 54.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::graphemes` | 3.00 | 2.00 | 11.50 | 745.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::indexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::isEmpty` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::join` | 4.00 | 2.00 | 1.00 | 104.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::lastIndexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | eadc9441d71f |
-| `Core\Str::lines` | 4.00 | 2.00 | 4.00 | 258.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::lower` | 4.00 | 2.00 | 1.00 | 52.3 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::lowerFirst` | 4.00 | 2.00 | 1.00 | 51.4 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::normalize` | 4.00 | 2.00 | 2.00 | 67.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::padEnd` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::padStart` | 4.00 | 2.00 | 1.00 | 46.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::parts` | 4.00 | 3.00 | 10.00 | 543.0 |  |  | complexity linear, calls 3 | eadc9441d71f |
-| `Core\Str::repeat` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::replace` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::replaceAll` | 4.00 | 2.00 | 6.00 | 267.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::replaceRange` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::reverse` | 3.00 | 2.00 | 1.00 | 45.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::slice` | 4.00 | 2.00 | 1.00 | 49.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::split` | 3.00 | 2.00 | 5.00 | 292.0 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::startsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | eadc9441d71f |
-| `Core\Str::trim` | 3.00 | 2.00 | 1.00 | 51.0 |  |  | complexity linear | eadc9441d71f |
-| `Core\Str::trimEnd` | 3.00 | 2.00 | 1.00 | 55.0 |  |  | complexity linear | eadc9441d71f |
-| `Core\Str::trimStart` | 4.00 | 2.00 | 1.00 | 43.0 |  |  | complexity linear | eadc9441d71f |
-| `Core\Str::upper` | 4.00 | 2.00 | 1.00 | 49.3 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::upperFirst` | 4.00 | 2.00 | 1.00 | 48.7 |  |  | complexity linear, calls 2 | eadc9441d71f |
-| `Core\Str::wrap` | 4.00 | 2.00 | 1.00 | 65.3 |  |  | complexity linear, calls 2 | eadc9441d71f |
+| `Core\Socket::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Socket::receive` | 6.00 | 3.00 | 9.00 | 272.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Socket::send` | 5.00 | 2.00 | 3.00 | 45.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Socket::sendBytes` | 5.00 | 2.00 | 5.50 | 77.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Socket::upgrade` | 1.00 | 1.00 | 50.00 | 5706.0 |  | +48.000 | complexity constant | 9284f7e0c6f4 |
+| `Core\Socket\Message::bytes` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Socket\Message::text` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Socket\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Socket\Message::value` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse::receive` | 6.00 | 3.00 | 9.00 | 246.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Sse::retry` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse::send` | 4.00 | 1.00 | 2.00 | 66.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Sse::stream` | 4.00 | 1.00 | 6.00 | 103.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse::upgrade` | 1.00 | 1.00 | 46.00 | 5972.0 |  | +64.000 | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse\Message::value` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Storage::delete` | 6.00 | 2.00 | 95.00 | 5482.0 |  | -35.000 | complexity constant | 7ec957692e53 |
+| `Core\Storage::get` | 4.00 | 2.00 | 77.00 | 2745.0 |  | -15.000 | complexity linear | 7ec957692e53 |
+| `Core\Storage::list` | 3.00 | 2.00 | 57.00 | 67491.0 |  | -7.000 | complexity linear | 7ec957692e53 |
+| `Core\Storage::put` | 5.00 | 2.00 | 40.00 | 1614.0 |  | -10.000 | complexity linear | 7ec957692e53 |
+| `Core\Str::after` | 6.00 | 1.00 | 1.00 | 46.0 |  |  | complexity linear, calls 1 | 9284f7e0c6f4 |
+| `Core\Str::at` | 4.00 | 2.00 | 1.00 | 41.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::before` | 6.00 | 1.00 | 1.00 | 44.0 |  |  | complexity linear, calls 1 | 9284f7e0c6f4 |
+| `Core\Str::chunk` | 3.00 | 2.00 | 6.00 | 335.7 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::codePoints` | 3.00 | 2.00 | 3.00 | 288.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::compare` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::contains` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::countOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::endsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::fold` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::format` | 3.00 | 1.00 | 1.00 | 59.1 |  |  | complexity linear, calls 1, allocations 1 | 9284f7e0c6f4 |
+| `Core\Str::fromCodePoint` | 3.00 | 2.00 | 1.00 | 43.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::fromCodePoints` | 3.00 | 2.00 | 2.00 | 54.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::graphemes` | 3.00 | 2.00 | 11.50 | 745.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::indexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::isEmpty` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::join` | 4.00 | 2.00 | 1.00 | 104.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::lastIndexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::lines` | 4.00 | 2.00 | 4.00 | 258.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::lower` | 4.00 | 2.00 | 1.00 | 52.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::lowerFirst` | 4.00 | 2.00 | 1.00 | 51.4 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::normalize` | 4.00 | 2.00 | 2.00 | 67.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::padEnd` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::padStart` | 4.00 | 2.00 | 1.00 | 46.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::parts` | 4.00 | 3.00 | 10.00 | 543.0 |  |  | complexity linear, calls 3 | 9284f7e0c6f4 |
+| `Core\Str::repeat` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::replace` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::replaceAll` | 4.00 | 2.00 | 6.00 | 267.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::replaceRange` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::reverse` | 3.00 | 2.00 | 1.00 | 45.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::slice` | 4.00 | 2.00 | 1.00 | 49.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::split` | 3.00 | 2.00 | 5.00 | 292.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::startsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Str::trim` | 3.00 | 2.00 | 1.00 | 51.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Str::trimEnd` | 3.00 | 2.00 | 1.00 | 55.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Str::trimStart` | 4.00 | 2.00 | 1.00 | 43.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Str::upper` | 4.00 | 2.00 | 1.00 | 49.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::upperFirst` | 4.00 | 2.00 | 1.00 | 48.7 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::wrap` | 4.00 | 2.00 | 1.00 | 65.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
 | `Core\Taint::assertTrusted` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | bcd51e793119 |
 | `Core\Taint::assertTrustedBytes` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | bcd51e793119 |
 | `Core\Task::afterResponse` | 5.00 | 2.00 | 19.03 | 6220.0 | +1.000 | +1936.000 | complexity constant | bfb1fa66dfa4 |
@@ -889,112 +889,112 @@ marked `~`: it is the machine, not the code.
 | `Core\Task::map` | 5.00 | 1.00 | 42.02 | 32780.0 | +3.000 | +13232.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\Task\Channel::close` | 5.00 | 2.00 | 3.00 | 272.0 |  | -16.015 | complexity constant | 3f9e0edb6a30 |
 | `Core\Task\Channel::send` | 4.00 | 1.00 | 2.02 | 93.5 |  | +8.000 | complexity constant | 3f9e0edb6a30 |
-| `Core\Test::answerHttp` | 5.00 | 1.00 | 2.02 | 351.5 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::answerSocket` | 4.00 | 1.00 | 5.02 | 311.7 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::assertCalled` | 4.00 | 1.00 | 3.00 | 164.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::assertContains` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::assertCount` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::assertDoesNotThrow` | 6.00 | 3.00 | 1.00 | 80.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::assertEquals` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::assertEqualsDeep` | 5.00 | 1.00 | 36.45 | 887.6 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::assertMatchesInline` | 4.00 | 1.00 | 4.00 | 34.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::assertNeverCalled` | 4.00 | 1.00 | 1.00 | 6.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::assertNull` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::assertSame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::assertThrows` | 5.00 | 3.00 | 17.00 | 1600.0 |  | +8.000 | complexity constant | b240924438e3 |
-| `Core\Test::assertTrue` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::double` | 4.00 | 3.00 | 22.00 | 1244.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::expectFailure` | 4.00 | 3.00 | 13.00 | 960.0 |  | +1.000 | complexity constant | b240924438e3 |
-| `Core\Test::partial` | 4.00 | 3.00 | 29.00 | 1710.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::request` | 4.00 | 4.00 | 39.02 | 5172.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::scriptAnswers` | 4.00 | 3.00 | 6.00 | 309.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::sentHttp` | 3.00 | 2.00 | 20.00 | 1497.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::sentSocket` | 3.00 | 2.00 | 9.00 | 649.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test::serverUrl` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test::tlsSession` | 4.00 | 3.00 | 138.00 | 11802.9 |  | +0.828 | complexity constant | b240924438e3 |
-| `Core\Test\Response::body` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b240924438e3 |
-| `Core\Test\Response::bytes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b240924438e3 |
-| `Core\Test\Response::cookies` | 3.00 | 2.00 | 8.00 | 516.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test\Response::header` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b240924438e3 |
-| `Core\Test\Response::headers` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b240924438e3 |
-| `Core\Test\Response::json` | 4.00 | 2.00 | 16.00 | 843.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test\Response::jsonAs` | 6.00 | 2.00 | 6.00 | 318.0 |  |  | complexity linear | b240924438e3 |
-| `Core\Test\Response::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b240924438e3 |
-| `Core\Test\SentRequest::body` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test\SentRequest::header` | 4.00 | 2.00 | 1.00 | 9.5 |  |  | complexity constant | b240924438e3 |
-| `Core\Test\SentRequest::method` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Test\SentRequest::url` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | b240924438e3 |
-| `Core\Time::at` | 5.00 | 3.00 | 4.00 | 210.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time::fromEpoch` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time::fromIso` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time::monotonic` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant, allocations 1, calls 2 | 4df0ce9fbced |
-| `Core\Time::now` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant, allocations 1, calls 2 | 4df0ce9fbced |
-| `Core\Time::parse` | 3.00 | 3.00 | 4.00 | 210.0 |  |  | complexity linear | 4df0ce9fbced |
-| `Core\Time::sleep` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Date::at` | 5.00 | 2.00 | 1.00 | 80.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Date::compareTo` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Date::format` | 7.00 | 1.00 | 10.66 | 386.4 |  |  | complexity linear | 4df0ce9fbced |
-| `Core\Time\Date::minus` | 4.00 | 1.00 | 2.00 | 112.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Date::plus` | 4.00 | 1.00 | 2.00 | 112.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Date::with` | 4.00 | 1.00 | 1.00 | 80.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::date` | 7.00 | 2.00 | 1.00 | 80.0 |  |  | complexity constant, calls 2, allocations 1 | 4df0ce9fbced |
-| `Core\Time\DateTime::dayOfYear` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4df0ce9fbced |
-| `Core\Time\DateTime::difference` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4df0ce9fbced |
-| `Core\Time\DateTime::endOf` | 4.00 | 2.00 | 3.00 | 150.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::format` | 7.00 | 1.00 | 18.41 | 713.6 |  |  | complexity linear | 4df0ce9fbced |
-| `Core\Time\DateTime::isLeapYear` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4df0ce9fbced |
-| `Core\Time\DateTime::minus` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::next` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::plus` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::previous` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::startOf` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::timeOfDay` | 3.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant, calls 2, allocations 1 | 4df0ce9fbced |
-| `Core\Time\DateTime::toInstant` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant, calls 2 | 4df0ce9fbced |
-| `Core\Time\DateTime::weekday` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4df0ce9fbced |
-| `Core\Time\DateTime::with` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::withTime` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\DateTime::zone` | 4.00 | 3.00 | 3.34 | 149.0 |  |  | complexity constant, calls 3 | 4df0ce9fbced |
-| `Core\Time\Duration::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Duration::days` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::hours` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::microseconds` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::milliseconds` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::minus` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::minutes` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::multipliedBy` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::nanoseconds` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::negated` | 3.00 | 3.00 | 2.00 | 96.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::parse` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear | 4df0ce9fbced |
-| `Core\Time\Duration::plus` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::seconds` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Duration::toMicroseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Duration::toMilliseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Duration::toNanoseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Duration::toSeconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Duration::toString` | 3.00 | 2.00 | 1.00 | 47.0 |  |  | complexity constant, allocations 1 | 4df0ce9fbced |
-| `Core\Time\Duration::weeks` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\Instant::in` | 4.00 | 2.00 | 3.00 | 141.4 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::minus` | 4.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::plus` | 4.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::since` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::toEpochMicros` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::toEpochMillis` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::toEpochSeconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Instant::toIso` | 3.00 | 2.00 | 2.00 | 88.9 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\TimeOfDay::at` | 6.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\TimeOfDay::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4df0ce9fbced |
-| `Core\Time\TimeOfDay::format` | 3.00 | 2.00 | 6.00 | 153.0 |  |  | complexity linear | 4df0ce9fbced |
-| `Core\Time\TimeOfDay::minus` | 6.00 | 2.00 | 2.00 | 138.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\TimeOfDay::plus` | 6.00 | 2.00 | 2.00 | 138.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\TimeOfDay::with` | 6.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Zone::fixed` | 4.00 | 3.00 | 4.00 | 150.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Zone::of` | 4.00 | 3.00 | 3.00 | 150.5 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Zone::offsetAt` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Time\Zone::system` | 4.00 | 3.00 | 3.00 | 149.0 |  |  | complexity constant | 4df0ce9fbced |
-| `Core\Topic::publish` | 4.00 | 1.00 | 11.00 | 789.7 | -1.000 | -5.671 | complexity linear | b31d460051e9 |
-| `Core\Topic::subscribe` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | b31d460051e9 |
-| `Core\Topic::unsubscribe` | 6.00 | 2.00 | 3.00 | 27.0 |  |  | complexity constant | b31d460051e9 |
+| `Core\Test::answerHttp` | 5.00 | 1.00 | 2.02 | 351.5 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::answerSocket` | 4.00 | 1.00 | 5.02 | 311.7 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::assertCalled` | 4.00 | 1.00 | 3.00 | 164.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::assertContains` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::assertCount` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertDoesNotThrow` | 6.00 | 3.00 | 1.00 | 80.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertEquals` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertEqualsDeep` | 5.00 | 1.00 | 36.45 | 887.6 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::assertMatchesInline` | 4.00 | 1.00 | 4.00 | 34.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::assertNeverCalled` | 4.00 | 1.00 | 1.00 | 6.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertNull` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertSame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertThrows` | 5.00 | 3.00 | 17.00 | 1600.0 |  | +8.000 | complexity constant | ba0f22eff7e6 |
+| `Core\Test::assertTrue` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::double` | 4.00 | 3.00 | 22.00 | 1244.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::expectFailure` | 4.00 | 3.00 | 13.00 | 960.0 |  | +1.000 | complexity constant | ba0f22eff7e6 |
+| `Core\Test::partial` | 4.00 | 3.00 | 29.00 | 1710.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::request` | 4.00 | 4.00 | 40.02 | 5220.0 | +1.000 | +40.000 | complexity linear | ba0f22eff7e6 |
+| `Core\Test::scriptAnswers` | 4.00 | 3.00 | 6.00 | 309.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::sentHttp` | 3.00 | 2.00 | 20.00 | 1497.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::sentSocket` | 3.00 | 2.00 | 9.00 | 649.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test::serverUrl` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test::tlsSession` | 4.00 | 3.00 | 138.00 | 11802.6 |  | +1.110 | complexity constant | ba0f22eff7e6 |
+| `Core\Test\Response::body` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `Core\Test\Response::bytes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `Core\Test\Response::cookies` | 3.00 | 2.00 | 8.00 | 516.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test\Response::header` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `Core\Test\Response::headers` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `Core\Test\Response::json` | 4.00 | 2.00 | 16.00 | 843.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test\Response::jsonAs` | 6.00 | 2.00 | 6.00 | 318.0 |  |  | complexity linear | ba0f22eff7e6 |
+| `Core\Test\Response::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `Core\Test\SentRequest::body` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test\SentRequest::header` | 4.00 | 2.00 | 1.00 | 9.5 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test\SentRequest::method` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Test\SentRequest::url` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `Core\Time::at` | 5.00 | 3.00 | 4.00 | 210.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time::fromEpoch` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time::fromIso` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time::monotonic` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant, allocations 1, calls 2 | 9284f7e0c6f4 |
+| `Core\Time::now` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant, allocations 1, calls 2 | 9284f7e0c6f4 |
+| `Core\Time::parse` | 3.00 | 3.00 | 4.00 | 210.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Time::sleep` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Date::at` | 5.00 | 2.00 | 1.00 | 80.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Date::compareTo` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Date::format` | 7.00 | 1.00 | 10.66 | 386.4 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Time\Date::minus` | 4.00 | 1.00 | 2.00 | 112.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Date::plus` | 4.00 | 1.00 | 2.00 | 112.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Date::with` | 4.00 | 1.00 | 1.00 | 80.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::date` | 7.00 | 2.00 | 1.00 | 80.0 |  |  | complexity constant, calls 2, allocations 1 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::dayOfYear` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::difference` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::endOf` | 4.00 | 2.00 | 3.00 | 150.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::format` | 7.00 | 1.00 | 18.41 | 713.6 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Time\DateTime::isLeapYear` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::minus` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::next` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::plus` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::previous` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::startOf` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::timeOfDay` | 3.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant, calls 2, allocations 1 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::toInstant` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::weekday` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\DateTime::with` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::withTime` | 4.00 | 2.00 | 3.00 | 146.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\DateTime::zone` | 4.00 | 3.00 | 3.34 | 149.0 |  |  | complexity constant, calls 3 | 9284f7e0c6f4 |
+| `Core\Time\Duration::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Duration::days` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::hours` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::microseconds` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::milliseconds` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::minus` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::minutes` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::multipliedBy` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::nanoseconds` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::negated` | 3.00 | 3.00 | 2.00 | 96.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::parse` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Time\Duration::plus` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::seconds` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Duration::toMicroseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Duration::toMilliseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Duration::toNanoseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Duration::toSeconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Duration::toString` | 3.00 | 2.00 | 1.00 | 47.0 |  |  | complexity constant, allocations 1 | 9284f7e0c6f4 |
+| `Core\Time\Duration::weeks` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\Instant::in` | 4.00 | 2.00 | 3.00 | 141.4 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::minus` | 4.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::plus` | 4.00 | 2.00 | 1.00 | 64.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::since` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::toEpochMicros` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::toEpochMillis` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::toEpochSeconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Instant::toIso` | 3.00 | 2.00 | 2.00 | 88.9 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\TimeOfDay::at` | 6.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\TimeOfDay::compareTo` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9284f7e0c6f4 |
+| `Core\Time\TimeOfDay::format` | 3.00 | 2.00 | 6.00 | 153.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Time\TimeOfDay::minus` | 6.00 | 2.00 | 2.00 | 138.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\TimeOfDay::plus` | 6.00 | 2.00 | 2.00 | 138.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\TimeOfDay::with` | 6.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Zone::fixed` | 4.00 | 3.00 | 4.00 | 150.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Zone::of` | 4.00 | 3.00 | 3.00 | 150.5 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Zone::offsetAt` | 3.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Time\Zone::system` | 4.00 | 3.00 | 3.00 | 149.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Topic::publish` | 4.00 | 1.00 | 15.00 | 611.0 | +4.000 | -178.672 | complexity linear | 0c6ddd43a805 |
+| `Core\Topic::subscribe` | 4.00 | 1.00 | 1.00 | 23.5 | +1.000 | +23.514 | complexity constant | 0c6ddd43a805 |
+| `Core\Topic::unsubscribe` | 6.00 | 2.00 | 5.00 | 90.0 | +2.000 | +63.000 | complexity constant | 0c6ddd43a805 |
 | `Core\Totp::check` | 5.00 | 1.00 | 0.00 | 0.0 |  | -0.002 | complexity linear, allocations 0 | bfb1fa66dfa4 |
 | `Core\Totp::code` | 3.00 | 2.00 | 1.00 | 46.0 |  | +8.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\Uri::buildQuery` | 4.00 | 2.00 | 38.00 | 1226.0 |  |  | complexity linear | b31d460051e9 |
@@ -1039,31 +1039,31 @@ marked `~`: it is the machine, not the code.
 | `Core\WebPush\Sent::gone` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | d3b2b8946baf |
 | `Core\WebPush\Sent::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | d3b2b8946baf |
 | `Core\WebPush\Subscription::endpoint` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | d3b2b8946baf |
-| `Core\Xml::parse` | 6.00 | 4.00 | 65.00 | 5788.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml::reader` | 8.00 | 4.00 | 52.00 | 3314.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml::writer` | 11.00 | 10.00 | 23.00 | 1572.0 |  |  | complexity linear, allocations 23 | 2bc5b2e64431 |
-| `Core\Xml\Node::attributes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Xml\Node::children` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Xml\Node::kind` | 4.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 2bc5b2e64431 |
-| `Core\Xml\Node::name` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 2bc5b2e64431 |
-| `Core\Xml\Node::namespaceUri` | 4.50 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 2bc5b2e64431 |
-| `Core\Xml\Node::source` | 5.00 | 1.00 | 17.75 | 500.5 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Node::text` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 2bc5b2e64431 |
-| `Core\Xml\Reader::depth` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 2bc5b2e64431 |
-| `Core\Xml\Reader::read` | 6.00 | 1.00 | 16.00 | 1025.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::attribute` | 6.06 | 1.03 | 3.31 | 291.6 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::cdata` | 4.00 | 1.00 | 0.02 | 67.2 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::comment` | 4.00 | 1.00 | 0.02 | 55.3 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::content` | 0.50 | 0.13 | 0.22 | 14.6 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::doctype` | 6.00 | 3.00 | 7.00 | 682.0 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::endDocument` | 7.00 | 6.00 | 10.00 | 887.5 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::endElement` | 7.50 | 2.00 | 4.52 | 227.6 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::instruction` | 4.00 | 1.00 | 0.01 | 33.4 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Xml\Writer::startDocument` | 5.00 | 2.00 | 6.00 | 567.0 |  |  | complexity constant | 2bc5b2e64431 |
-| `Core\Xml\Writer::startElement` | 5.00 | 2.00 | 2.02 | 159.1 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Zip::entries` | 3.00 | 2.00 | 32.00 | 4388.5 |  |  | complexity constant, allocations 32, calls 2 | 2bc5b2e64431 |
-| `Core\Zip::extract` | 4.00 | 2.00 | 306.00 | 297343.9 |  |  | complexity linear | 2bc5b2e64431 |
-| `Core\Zip::read` | 3.00 | 2.00 | 16.00 | 142539.0 |  |  | complexity linear | 2bc5b2e64431 |
+| `Core\Xml::parse` | 6.00 | 4.00 | 65.00 | 5788.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml::reader` | 8.00 | 4.00 | 52.00 | 3314.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml::writer` | 11.00 | 10.00 | 23.00 | 1572.0 |  |  | complexity linear, allocations 23 | 9284f7e0c6f4 |
+| `Core\Xml\Node::attributes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Xml\Node::children` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Xml\Node::kind` | 4.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Xml\Node::name` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Xml\Node::namespaceUri` | 4.50 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Xml\Node::source` | 5.00 | 1.00 | 17.75 | 500.5 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Node::text` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Xml\Reader::depth` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
+| `Core\Xml\Reader::read` | 6.00 | 1.00 | 16.00 | 1025.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::attribute` | 6.06 | 1.03 | 3.31 | 291.6 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::cdata` | 4.00 | 1.00 | 0.02 | 67.2 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::comment` | 4.00 | 1.00 | 0.02 | 55.3 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::content` | 0.50 | 0.13 | 0.22 | 8.6 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::doctype` | 6.00 | 3.00 | 7.00 | 682.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::endDocument` | 7.00 | 6.00 | 10.00 | 887.5 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::endElement` | 7.50 | 2.00 | 4.52 | 227.6 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::instruction` | 4.00 | 1.00 | 0.01 | 33.4 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml\Writer::startDocument` | 5.00 | 2.00 | 6.00 | 567.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Xml\Writer::startElement` | 5.00 | 2.00 | 2.02 | 159.1 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Zip::entries` | 3.00 | 2.00 | 32.00 | 4388.5 |  |  | complexity constant, allocations 32, calls 2 | 9284f7e0c6f4 |
+| `Core\Zip::extract` | 4.00 | 2.00 | 306.00 | 297343.9 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Zip::read` | 3.00 | 2.00 | 16.00 | 142539.0 |  |  | complexity linear | 9284f7e0c6f4 |
 | `Novis\Image\Barcode::render` | 10.00 | 1.00 | 81.95 | 105423.5 |  |  | complexity constant | c283504a5d22 |
 | `Novis\Image\Barcode::svg` | 10.00 | 1.00 | 86.00 | 107293.4 |  |  | complexity constant | c283504a5d22 |
 | `Novis\Image\Codec::info` | 4.00 | 0.00 | 100.31 | 12662.5 |  |  | complexity constant | 25c4779f7055 |
@@ -1147,8 +1147,8 @@ marked `~`: it is the machine, not the code.
 | `Novis\Pdf\Reader::open` | 7.00 | 2.00 | 117.00 | 388510.4 |  |  | complexity linear | befd41122133 |
 | `Novis\Pdf\Reader::text` | 6.00 | 1.00 | 27.00 | 572871.4 |  |  | complexity linear | befd41122133 |
 | `Novis\Pdf\Rendered::constructor` | 4.00 | 1.00 | 1.00 | 112.0 |  |  | complexity constant | cab1388b299b |
-| `Novis\Rest\AuthorizationCode` | 16.00 | 18.00 | 365.00 | 19672.2 |  |  | complexity constant | 75dda47fe5c0 |
-| `Novis\Rest\Client` | 36.00 | 22.00 | 69.34 | 4059.4 |  |  | complexity constant | 75dda47fe5c0 |
+| `Novis\Rest\AuthorizationCode` | 16.00 | 18.00 | 365.00 | 19672.2 |  |  | complexity constant | 4c25de4bed0b |
+| `Novis\Rest\Client` | 36.00 | 22.00 | 68.34 | 4003.4 | -1.000 | -56.000 | complexity constant | 4c25de4bed0b |
 | `Novis\Rest\ClientCredentials` | 29.00 | 21.00 | 36.00 | 2513.0 |  |  | complexity constant | 75dda47fe5c0 |
 | `Novis\Rest\DPoP` | 13.00 | 13.00 | 77.00 | 6828.0 |  |  | complexity constant | 75dda47fe5c0 |
 | `Novis\Rest\Discovery` | 56.00 | 44.00 | 83.02 | 7053.0 |  |  | complexity constant | 75dda47fe5c0 |
@@ -1209,14 +1209,14 @@ marked `~`: it is the machine, not the code.
 | `Novis\Spreadsheet\Workbook::finish` | 534.00 | 76.00 | 2055.38 | 726188.6 |  |  | complexity constant | ae24fcfb94a2 |
 | `Novis\Spreadsheet\Workbook::fromRows` | 7802.00 | 934.00 | 12007.38 | 1694989.1 |  |  | complexity linear | 00fb51fccdd9 |
 | `Novis\Spreadsheet\Workbook::sheet` | 148.00 | 20.00 | 594.38 | 141492.1 |  |  | complexity constant | ae24fcfb94a2 |
-| `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | ca0f16c955a5 |
-| `lang:attributes/core-command-and-core-option-the-command-table` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | ca0f16c955a5 |
-| `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec` | 6.00 | 3.00 | 6.00 | 413.9 |  |  | complexity linear | ca0f16c955a5 |
+| `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | a6abcd8c5843 |
+| `lang:attributes/core-command-and-core-option-the-command-table` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | a6abcd8c5843 |
+| `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec` | 6.00 | 3.00 | 5.00 | 517.9 |  |  | complexity linear | a6abcd8c5843 |
 | `lang:attributes/core-program-implementing-i-every-class-implementing-an-interface` | 5.00 | 1.00 | 8.00 | 370.0 |  |  | calls 1 | d50aaafc6446 |
-| `lang:attributes/core-program-implementing-i-every-class-that-is-an-i` | 5.00 | 2.00 | 6.00 | 320.0 |  |  | complexity linear, calls 2 | ca0f16c955a5 |
-| `lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute` | 5.00 | 2.00 | 11.00 | 608.0 |  |  | complexity linear, calls 2 | ca0f16c955a5 |
-| `lang:attributes/core-route-and-core-access-the-route-table` | 4.00 | 1.00 | 14.00 | 598.0 |  |  | complexity linear, calls 1 | ca0f16c955a5 |
-| `lang:attributes/reading-attributes-back-core-attributes-get-and-all` | 11.00 | 2.00 | 8.00 | 464.0 |  |  | complexity constant, calls 2, allocations 8 | ca0f16c955a5 |
+| `lang:attributes/core-program-implementing-i-every-class-that-is-an-i` | 5.00 | 2.00 | 6.00 | 320.0 |  |  | complexity linear, calls 2 | a6abcd8c5843 |
+| `lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute` | 5.00 | 2.00 | 11.00 | 608.0 |  |  | complexity linear, calls 2 | a6abcd8c5843 |
+| `lang:attributes/core-route-and-core-access-the-route-table` | 4.00 | 1.00 | 14.00 | 598.0 |  |  | complexity linear, calls 1 | a6abcd8c5843 |
+| `lang:attributes/reading-attributes-back-core-attributes-get-and-all` | 11.00 | 2.00 | 8.00 | 464.0 |  |  | complexity constant, calls 2, allocations 8 | a6abcd8c5843 |
 | `lang:classes/comparable` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 6dd248f1889e |
 | `lang:classes/constants-and-class` | 6.00 | 1.00 | 1.00 | 46.0 |  |  | complexity constant, allocations 1 | 6dd248f1889e |
 | `lang:classes/covariant` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 6dd248f1889e |
@@ -1254,16 +1254,16 @@ marked `~`: it is the machine, not the code.
 | `lang:enums/match-and-switch-over-an-enum` | 7.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 45f826e1ae52 |
 | `lang:enums/what-an-enum-does-not-have` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 45f826e1ae52 |
 | `lang:enums/what-replaces-php-s-enum-members` | 5.00 | 1.00 | 0.00 | 0.0 |  | +0.008 | complexity constant | 12bd24661f00 |
-| `lang:errors/assertion-failures` | 5.00 | 2.00 | 21.00 | 1795.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/capability-denials-are-catchable` | 5.00 | 2.00 | 16.00 | 2236.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/constructing-and-subclassing` | 5.00 | 2.00 | 1.00 | 112.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/inspecting-a-value` | 5.00 | 1.00 | 23.00 | 1192.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/properties-not-accessors` | 7.00 | 3.00 | 9.02 | 1201.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/recursion-depth` | 38.00 | 17.00 | 0.00 | 0.0 |  |  | complexity constant, calls 17, allocations 0 | 6dd248f1889e |
-| `lang:errors/rethrowing` | 8.00 | 2.00 | 19.02 | 2211.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/the-throwable-tree` | 5.00 | 2.00 | 15.00 | 1496.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:errors/throw` | 6.00 | 3.00 | 14.00 | 1402.0 |  |  | complexity constant, calls 3 | 6dd248f1889e |
-| `lang:errors/try-catch-finally` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 6dd248f1889e |
+| `lang:errors/assertion-failures` | 5.00 | 2.00 | 21.00 | 1795.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/capability-denials-are-catchable` | 5.00 | 2.00 | 16.00 | 2236.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/constructing-and-subclassing` | 5.00 | 2.00 | 1.00 | 112.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/inspecting-a-value` | 5.00 | 1.00 | 23.00 | 1192.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/properties-not-accessors` | 7.00 | 3.00 | 9.02 | 1201.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/recursion-depth` | 38.00 | 17.00 | 0.00 | 0.0 |  |  | complexity constant, calls 17, allocations 0 | a6abcd8c5843 |
+| `lang:errors/rethrowing` | 8.00 | 2.00 | 19.02 | 2211.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/the-throwable-tree` | 5.00 | 2.00 | 15.00 | 1496.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:errors/throw` | 6.00 | 3.00 | 14.00 | 1402.0 |  |  | complexity constant, calls 3 | a6abcd8c5843 |
+| `lang:errors/try-catch-finally` | 8.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | a6abcd8c5843 |
 | `lang:expressions/and-the-ternary` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3634d7e5642a |
 | `lang:expressions/anonymous-functions` | 7.00 | 3.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 3 | 3634d7e5642a |
 | `lang:expressions/anonymous-objects` | 5.00 | 0.00 | 1.00 | 64.0 |  |  | complexity constant | 3634d7e5642a |
@@ -1284,59 +1284,59 @@ marked `~`: it is the machine, not the code.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 30.00 | 2.00 | 31.00 | 884.0 |  |  | complexity linear | 86a90a32a544 |
 | `lang:iteration/the-two-interfaces` | 45.00 | 18.00 | 1.00 | 64.0 |  |  | complexity linear | 86a90a32a544 |
 | `lang:iteration/what-foreach-walks` | 19.00 | 0.00 | 0.00 | 0.0 |  |  | complexity linear | 86a90a32a544 |
-| `lang:programs/a-complete-program-annotated` | 11.00 | 1.00 | 6.00 | 392.0 |  |  | complexity nlogn | 9b0b971b3abe |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9b0b971b3abe |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9b0b971b3abe |
-| `lang:programs/code-mode-and-html-mode` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 9b0b971b3abe |
-| `lang:programs/comments` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9b0b971b3abe |
-| `lang:programs/doc-comments` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9b0b971b3abe |
-| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 9.00 | 1.00 | 39.50 | 2938.0 | +20.000 | +186.000 | complexity constant | 9b0b971b3abe |
-| `lang:programs/names-and-casing` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9b0b971b3abe |
-| `lang:programs/namespaces-and-use` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9b0b971b3abe |
-| `lang:programs/require-run-another-file-in-this-frame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9b0b971b3abe |
-| `lang:statements/break-and-continue` | 29.41 | 0.00 | 0.00 | 0.0 |  | +0.002 | complexity linear, allocations 0, calls 0 | 9b0b971b3abe |
-| `lang:statements/catch-as-an-expression` | 6.33 | 1.33 | 4.67 | 341.6 |  | +0.002 | complexity constant | 9b0b971b3abe |
-| `lang:statements/echo-print-unset-exit-yield` | 6.00 | 0.00 | 1.00 | 1.0 |  |  | complexity constant, calls 0 | 9b0b971b3abe |
-| `lang:statements/expression-statements-blocks-and-declarations` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:statements/for` | 2.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:statements/foreach` | 2.38 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:statements/if-elseif-else` | 7.80 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:statements/return` | 4.25 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9b0b971b3abe |
-| `lang:statements/statement-forms-that-do-not-parse` | 12.51 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:statements/switch` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:statements/while-and-do-while` | 8.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | 9b0b971b3abe |
-| `lang:testing/a-test-is-a-method-marked-test` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b31d460051e9 |
-| `lang:testing/assertions` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b31d460051e9 |
-| `lang:testing/bench-and-nvs-test-bench` | 7.00 | 2.00 | 3.00 | 137.9 |  |  | complexity constant | b31d460051e9 |
-| `lang:testing/core-test-fixture-built-once-injected-by-type` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b31d460051e9 |
-| `lang:testing/core-test-property-generated-inputs` | 9.00 | 4.00 | 1.00 | 32.0 |  |  | complexity constant | b31d460051e9 |
-| `lang:testing/core-test-testwith-data-rows` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b31d460051e9 |
-| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 5.00 | 1.00 | 4.00 | 272.0 |  |  | complexity constant, calls 1 | b31d460051e9 |
-| `lang:testing/hooks-beforeclass-afterclass-and-aftereachtest` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | b31d460051e9 |
-| `lang:testing/running-tests-nvs-test` | 7.00 | 3.00 | 1.00 | 48.0 |  |  | complexity constant | b31d460051e9 |
-| `lang:testing/test-options` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | b31d460051e9 |
-| `lang:types/a-member-every-class-of-a-union-declares` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | 6dd248f1889e |
-| `lang:types/array-t` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/callable-classes-object-shapes` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/every-binding-has-a-type` | 10.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/mixed` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/narrowing` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/nullable-union-single-value-and-enum-case-types` | 7.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | 6dd248f1889e |
-| `lang:types/numbers-bool-int-uint-float-decimal` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 6dd248f1889e |
-| `lang:types/parameters` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/properties-and-constants` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/property-keys` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/property-paths` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 6dd248f1889e |
-| `lang:types/qualifiers-tainted-and-secret` | 7.00 | 1.00 | 1.00 | 53.0 |  |  | complexity linear | 6dd248f1889e |
-| `lang:types/strings-with-holes` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 6dd248f1889e |
-| `lang:types/text-string-and-bytes` | 7.00 | 2.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 6dd248f1889e |
-| `lang:types/the-conversion-operator-as` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/truthiness` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
-| `lang:types/type-aliases` | 7.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | 6dd248f1889e |
-| `lang:types/values-written-in-the-code` | 6.00 | 2.00 | 2.00 | 141.6 |  |  | complexity constant, calls 2, allocations 2 | 9c8966d84f80 |
-| `lang:types/void-never-self-static` | 10.00 | 5.00 | 1.00 | 48.0 |  |  | complexity constant, allocations 1, calls 5 | 6dd248f1889e |
-| `lang:types/what-does-not-exist` | 7.31 | 3.00 | 1.00 | 41.0 |  |  | complexity linear | 6dd248f1889e |
-| `lang:types/widening-without-as` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 6dd248f1889e |
+| `lang:programs/a-complete-program-annotated` | 11.00 | 1.00 | 6.00 | 392.0 |  |  | complexity nlogn | ba0f22eff7e6 |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/code-mode-and-html-mode` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `lang:programs/comments` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/doc-comments` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 9.00 | 1.00 | 39.50 | 2938.0 |  |  | complexity constant | ba0f22eff7e6 |
+| `lang:programs/names-and-casing` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/namespaces-and-use` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/require-run-another-file-in-this-frame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | ba0f22eff7e6 |
+| `lang:statements/break-and-continue` | 29.41 | 0.00 | 0.00 | 0.0 |  | -0.002 | complexity linear, allocations 0, calls 0 | e57596567000 |
+| `lang:statements/catch-as-an-expression` | 6.33 | 1.33 | 4.67 | 341.6 |  | -0.002 | complexity constant | e57596567000 |
+| `lang:statements/echo-print-unset-exit-yield` | 6.00 | 0.00 | 1.00 | 1.0 |  |  | complexity constant, calls 0 | e57596567000 |
+| `lang:statements/expression-statements-blocks-and-declarations` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e57596567000 |
+| `lang:statements/for` | 2.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e57596567000 |
+| `lang:statements/foreach` | 2.38 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, calls 0, allocations 0 | e57596567000 |
+| `lang:statements/if-elseif-else` | 7.80 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e57596567000 |
+| `lang:statements/return` | 4.25 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | e57596567000 |
+| `lang:statements/statement-forms-that-do-not-parse` | 12.51 | 0.00 | 0.00 | 0.0 |  |  | complexity linear, calls 0, allocations 0 | e57596567000 |
+| `lang:statements/switch` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e57596567000 |
+| `lang:statements/while-and-do-while` | 8.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0 | e57596567000 |
+| `lang:testing/a-test-is-a-method-marked-test` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4724df76acf1 |
+| `lang:testing/assertions` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | ac020ccaa03b |
+| `lang:testing/bench-and-nvs-test-bench` | 7.00 | 2.00 | 3.00 | 137.9 |  |  | complexity constant | 4724df76acf1 |
+| `lang:testing/core-test-fixture-built-once-injected-by-type` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4724df76acf1 |
+| `lang:testing/core-test-property-generated-inputs` | 9.00 | 4.00 | 1.00 | 32.0 |  |  | complexity constant | 4724df76acf1 |
+| `lang:testing/core-test-testwith-data-rows` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4724df76acf1 |
+| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 5.00 | 1.00 | 4.00 | 272.0 |  |  | complexity constant, calls 1 | 4724df76acf1 |
+| `lang:testing/hooks-beforeclass-afterclass-and-aftereachtest` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | 4724df76acf1 |
+| `lang:testing/running-tests-nvs-test` | 7.00 | 3.00 | 1.00 | 48.0 |  |  | complexity constant | 4724df76acf1 |
+| `lang:testing/test-options` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 4724df76acf1 |
+| `lang:types/a-member-every-class-of-a-union-declares` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | a6abcd8c5843 |
+| `lang:types/array-t` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/callable-classes-object-shapes` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/every-binding-has-a-type` | 10.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/mixed` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/narrowing` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/nullable-union-single-value-and-enum-case-types` | 7.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | a6abcd8c5843 |
+| `lang:types/numbers-bool-int-uint-float-decimal` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | a6abcd8c5843 |
+| `lang:types/parameters` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/properties-and-constants` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/property-keys` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/property-paths` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | a6abcd8c5843 |
+| `lang:types/qualifiers-tainted-and-secret` | 7.00 | 1.00 | 1.00 | 53.0 |  |  | complexity linear | a6abcd8c5843 |
+| `lang:types/strings-with-holes` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | a6abcd8c5843 |
+| `lang:types/text-string-and-bytes` | 7.00 | 2.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | a6abcd8c5843 |
+| `lang:types/the-conversion-operator-as` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/truthiness` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
+| `lang:types/type-aliases` | 7.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | a6abcd8c5843 |
+| `lang:types/values-written-in-the-code` | 6.00 | 2.00 | 2.00 | 141.6 |  |  | complexity constant, calls 2, allocations 2 | a6abcd8c5843 |
+| `lang:types/void-never-self-static` | 10.00 | 5.00 | 1.00 | 48.0 |  |  | complexity constant, allocations 1, calls 5 | a6abcd8c5843 |
+| `lang:types/what-does-not-exist` | 7.31 | 3.00 | 1.00 | 41.0 |  |  | complexity linear | a6abcd8c5843 |
+| `lang:types/widening-without-as` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | a6abcd8c5843 |
 | `tools:cli/profiling` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 31037f4101f1 |
 
 ## Candidates
@@ -1348,18 +1348,34 @@ a person with a profiler looks first; it is not a verdict.
 
 | Feature | Group | Why |
 |---|---|---|
-| `Core\Arr::hasKey` | Core\Arr | 17080.1 units against a `constant` ceiling of 100 |
-| `Core\Arr::last` | Core\Arr | 449.4 units against a `constant` ceiling of 100 |
-| `Core\Arr::shapeAs` | Core\Arr | 849.5 units against a `constant` ceiling of 100 |
-| `Core\Cap::has` | Core\Cap | 36841.8 units against a `constant` ceiling of 100 |
+| `Core\Arr::hasKey` | Core\Arr | 1030.5 units against a `constant` ceiling of 100 |
+| `Core\Arr::shapeAs` | Core\Arr | 388.5 units against a `constant` ceiling of 100 |
+| `Core\Bytes::join` | Core\Bytes | 45.8x its group's median of 3512.2 units |
+| `Core\Bytes::length` | Core\Bytes | 6.8x its group's median of 3512.2 units — 23974.9 units against a `constant` ceiling of 100 |
+| `Core\Bytes::pack` | Core\Bytes | 6.9x its group's median of 3512.2 units |
+| `Core\Bytes::slice` | Core\Bytes | 130.8x its group's median of 3512.2 units |
+| `Core\Bytes::startsWith` | Core\Bytes | 21.0x its group's median of 3512.2 units |
+| `Core\Cap::has` | Core\Cap | 1601.6 units against a `constant` ceiling of 100 |
 | `Core\Cldr::ordinalCategory` | Core\Cldr | 345.8 units against a `constant` ceiling of 100 |
 | `Core\Cli::live` | Core\Cli | 2133.9 units against a `constant` ceiling of 100 |
 | `Core\Cli::progress` | Core\Cli | 2228.6 units against a `constant` ceiling of 100 |
 | `Core\Cli\Color::rgb` | Core\Cli\Color | 310.1 units against a `constant` ceiling of 100 |
 | `Core\Cli\Progress::advance` | Core\Cli\Progress | 863.6 units against a `constant` ceiling of 100 |
-| `Core\Config::all` | Core\Config | 9641.5 units against a `constant` ceiling of 100 |
-| `Core\Crypto::agree` | Core\Crypto | 8058.1 units against a `constant` ceiling of 100 |
-| `Core\Crypto\KeyPair::publicKey` | Core\Crypto\KeyPair | 68614.3 units against a `constant` ceiling of 100 |
+| `Core\Config::all` | Core\Config | 51.2x its group's median of 1557.8 units — 79802.4 units against a `constant` ceiling of 100 |
+| `Core\Config::secret` | Core\Config | 575.2 units against a `constant` ceiling of 100 |
+| `Core\Config::set` | Core\Config | 86.0x its group's median of 1557.8 units — 134013.2 units against a `constant` ceiling of 100 |
+| `Core\Config::setting` | Core\Config | 1557.8 units against a `constant` ceiling of 100 |
+| `Core\Crypto::agree` | Core\Crypto | 8.2x its group's median of 1625.5 units — 13326.6 units against a `constant` ceiling of 100 |
+| `Core\Crypto::deriveKey` | Core\Crypto | 2004.0x its group's median of 1625.5 units |
+| `Core\Crypto::generateKey` | Core\Crypto | 946.4 units against a `constant` ceiling of 100 |
+| `Core\Crypto::generateKeyPair` | Core\Crypto | 1162.3 units against a `constant` ceiling of 100 |
+| `Core\Crypto::sign` | Core\Crypto | 13.1x its group's median of 1625.5 units |
+| `Core\Crypto::verify` | Core\Crypto | 8.4x its group's median of 1625.5 units |
+| `Core\Crypto\KeyPair::publicKey` | Core\Crypto\KeyPair | 9.6x its group's median of 4256.3 units — 40853.7 units against a `constant` ceiling of 100 |
+| `Core\Crypto\KeyPair::read` | Core\Crypto\KeyPair | 4256.3 units against a `constant` ceiling of 100 |
+| `Core\Crypto\KeyPair::write` | Core\Crypto\KeyPair | 178.3 units against a `constant` ceiling of 100 |
+| `Core\Crypto\PublicKey::read` | Core\Crypto\PublicKey | 564.8 units against a `constant` ceiling of 100 |
+| `Core\Crypto\PublicKey::write` | Core\Crypto\PublicKey | 538.9 units against a `constant` ceiling of 100 |
 | `Core\Db::connect` | Core\Db | 112680.1 units against a `constant` ceiling of 100 |
 | `Core\Db::inList` | Core\Db | 53919.9 units against a `constant` ceiling of 100 |
 | `Core\Db::open` | Core\Db | 123103.8 units against a `constant` ceiling of 100 |
@@ -1398,20 +1414,19 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db\Write::affected` | Core\Db\Write | 2934.6 units against a `constant` ceiling of 100 |
 | `Core\Db\Write::changed` | Core\Db\Write | 4666.2 units against a `constant` ceiling of 100 |
 | `Core\Db\Write::lastId` | Core\Db\Write | 1340.2 units against a `constant` ceiling of 100 |
-| `Core\Debug::coverage` | Core\Debug | 1434.8 units against a `constant` ceiling of 100 |
-| `Core\Debug::startCoverage` | Core\Debug | 119.6 units against a `constant` ceiling of 100 |
-| `Core\Debug::startProfile` | Core\Debug | 98.5x its group's median of 1434.8 units — 141403.7 units against a `constant` ceiling of 100 |
-| `Core\Debug::startTrace` | Core\Debug | 100.1x its group's median of 1434.8 units — 143573.9 units against a `constant` ceiling of 100 |
-| `Core\Debug::stopCoverage` | Core\Debug | 545.5 units against a `constant` ceiling of 100 |
-| `Core\Debug::stopProfile` | Core\Debug | 98.9x its group's median of 1434.8 units — 141890.0 units against a `constant` ceiling of 100 |
-| `Core\Debug::stopTrace` | Core\Debug | 103.9x its group's median of 1434.8 units — 149121.7 units against a `constant` ceiling of 100 |
-| `Core\Encoding::fromBase32` | Core\Encoding | 5.6x its group's median of 135.1 units |
-| `Core\Encoding::fromBase64` | Core\Encoding | 9.0x its group's median of 135.1 units |
-| `Core\Encoding::fromHex` | Core\Encoding | 5.2x its group's median of 135.1 units |
-| `Core\Env::all` | Core\Env | 226.5x its group's median of 57.1 units — recorded as known-gap: declares `calls 0` per op and did 2.000; declares `complexity linear` and has no benches/members/core/Env/all.scale.nvs to ramp its input |
-| `Core\Env::get` | Core\Env | 37.8x its group's median of 57.1 units — 2157.6 units against a `constant` ceiling of 100 |
+| `Core\Debug::coverage` | Core\Debug | 2550.7 units against a `constant` ceiling of 100 |
+| `Core\Debug::startCoverage` | Core\Debug | 728.5 units against a `constant` ceiling of 100 |
+| `Core\Debug::startProfile` | Core\Debug | 10.5x its group's median of 3584.4 units — 37525.2 units against a `constant` ceiling of 100 |
+| `Core\Debug::startTrace` | Core\Debug | 7.2x its group's median of 3584.4 units — 25844.8 units against a `constant` ceiling of 100 |
+| `Core\Debug::stopCoverage` | Core\Debug | 138.1 units against a `constant` ceiling of 100 |
+| `Core\Debug::stopProfile` | Core\Debug | 6.5x its group's median of 3584.4 units — 23274.3 units against a `constant` ceiling of 100 |
+| `Core\Debug::stopTrace` | Core\Debug | 7.1x its group's median of 3584.4 units — 25603.5 units against a `constant` ceiling of 100 |
+| `Core\Env::all` | Core\Env | 140.9x its group's median of 77.5 units |
+| `Core\Env::get` | Core\Env | 16.4x its group's median of 77.5 units — 1268.0 units against a `constant` ceiling of 100 |
+| `Core\Hash::stream` | Core\Hash | 2914.8 units against a `constant` ceiling of 100 |
+| `Core\Hash\Stream::finish` | Core\Hash\Stream | 2880.0 units against a `constant` ceiling of 100 |
 | `Core\Heap::pop` | Core\Heap | 240.6 units against a `constant` ceiling of 100 |
-| `Core\Html::later` | Core\Html | 12.3x its group's median of 330.0 units — 4050.4 units against a `constant` ceiling of 100 |
+| `Core\Html::later` | Core\Html | 4617.9 units against a `constant` ceiling of 100 |
 | `Core\Http\Event::data` | Core\Http\Event | 2749.9 units against a `constant` ceiling of 100 |
 | `Core\Http\Part::file` | Core\Http\Part | 11608.5 units against a `constant` ceiling of 100 |
 | `Core\Http\Stream::lines` | Core\Http\Stream | 22.4x its group's median of 1145.4 units |
@@ -1420,28 +1435,24 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Http\TlsInfo::subject` | Core\Http\TlsInfo | 93.6x its group's median of 114.1 units |
 | `Core\Http\TlsInfo::verified` | Core\Http\TlsInfo | 43.1x its group's median of 114.1 units — 4917.9 units against a `constant` ceiling of 100 |
 | `Core\Http\TlsInfo::version` | Core\Http\TlsInfo | 114.1 units against a `constant` ceiling of 100 |
-| `Core\IO::canonicalize` | Core\IO | 7345.1 units against a `constant` ceiling of 100 |
-| `Core\IO::exists` | Core\IO | 57496.9 units against a `constant` ceiling of 100 |
-| `Core\IO::isDir` | Core\IO | 52427.9 units against a `constant` ceiling of 100 |
-| `Core\IO::isFile` | Core\IO | 48406.5 units against a `constant` ceiling of 100 |
-| `Core\IO::isWritable` | Core\IO | 1558.9 units against a `constant` ceiling of 100 |
-| `Core\IO::makeDir` | Core\IO | 40201.2 units against a `constant` ceiling of 100 |
-| `Core\IO::modifiedAt` | Core\IO | 35563.4 units against a `constant` ceiling of 100 |
-| `Core\IO::move` | Core\IO | 175919.9 units against a `constant` ceiling of 100 |
-| `Core\IO::open` | Core\IO | 42152.0 units against a `constant` ceiling of 100 |
-| `Core\IO::remove` | Core\IO | 5.2x its group's median of 52295.5 units — 270788.3 units against a `constant` ceiling of 100 |
-| `Core\IO::removeDir` | Core\IO | 249284.7 units against a `constant` ceiling of 100 |
-| `Core\IO::size` | Core\IO | 45767.8 units against a `constant` ceiling of 100 |
-| `Core\IO::stat` | Core\IO | 42783.0 units against a `constant` ceiling of 100 |
-| `Core\IO::temporaryDir` | Core\IO | 112126.0 units against a `constant` ceiling of 100 |
-| `Core\IO\File::close` | Core\IO\File | 41289.9 units against a `constant` ceiling of 100 |
-| `Core\IO\File::lock` | Core\IO\File | 36209.1 units against a `constant` ceiling of 100 |
-| `Core\IO\File::seek` | Core\IO\File | 3124.4 units against a `constant` ceiling of 100 |
-| `Core\IO\File::truncate` | Core\IO\File | 6730.3 units against a `constant` ceiling of 100 |
-| `Core\IO\Metadata::size` | Core\IO\Metadata | 694.9 units against a `constant` ceiling of 100 |
-| `Core\Jwe\Key::own` | Core\Jwe\Key | 448.6 units against a `constant` ceiling of 100 |
-| `Core\Jwe\Key::recipient` | Core\Jwe\Key | 2548.7 units against a `constant` ceiling of 100 |
-| `Core\Jwe\Key::shared` | Core\Jwe\Key | 1727.6 units against a `constant` ceiling of 100 |
+| `Core\IO::canonicalize` | Core\IO | 3163.7 units against a `constant` ceiling of 100 |
+| `Core\IO::exists` | Core\IO | 26550.9 units against a `constant` ceiling of 100 |
+| `Core\IO::isDir` | Core\IO | 28241.0 units against a `constant` ceiling of 100 |
+| `Core\IO::isFile` | Core\IO | 28033.5 units against a `constant` ceiling of 100 |
+| `Core\IO::makeDir` | Core\IO | 22730.2 units against a `constant` ceiling of 100 |
+| `Core\IO::modifiedAt` | Core\IO | 24651.2 units against a `constant` ceiling of 100 |
+| `Core\IO::move` | Core\IO | 92336.4 units against a `constant` ceiling of 100 |
+| `Core\IO::open` | Core\IO | 26876.1 units against a `constant` ceiling of 100 |
+| `Core\IO::remove` | Core\IO | 109750.4 units against a `constant` ceiling of 100 |
+| `Core\IO::removeDir` | Core\IO | 124834.2 units against a `constant` ceiling of 100 |
+| `Core\IO::size` | Core\IO | 33602.9 units against a `constant` ceiling of 100 |
+| `Core\IO::stat` | Core\IO | 28995.5 units against a `constant` ceiling of 100 |
+| `Core\IO::temporaryDir` | Core\IO | 33919.9 units against a `constant` ceiling of 100 |
+| `Core\IO\File::close` | Core\IO\File | 22047.5 units against a `constant` ceiling of 100 |
+| `Core\IO\File::lock` | Core\IO\File | 22971.1 units against a `constant` ceiling of 100 |
+| `Core\Jwe\Key::own` | Core\Jwe\Key | 3698.6 units against a `constant` ceiling of 100 |
+| `Core\Jwe\Key::recipient` | Core\Jwe\Key | 6918.7 units against a `constant` ceiling of 100 |
+| `Core\Jwe\Key::shared` | Core\Jwe\Key | 9387.1 units against a `constant` ceiling of 100 |
 | `Core\Ldap::connect` | Core\Ldap | 120.0 units against a `constant` ceiling of 100 |
 | `Core\Ldap::open` | Core\Ldap | 125.2 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad::bitOr` | Core\Ldap\Ad | 340.0 units against a `constant` ceiling of 100 |
@@ -1519,24 +1530,20 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ldap\Filter::equals` | Core\Ldap\Filter | 184.0 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Filter::parse` | Core\Ldap\Filter | 119.1 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Filter::startsWith` | Core\Ldap\Filter | 283.5 units against a `constant` ceiling of 100 |
-| `Core\Markdown::toHtmlEach` | Core\Markdown | 22.3x its group's median of 6297.8 units |
-| `Core\Markdown\Live::finish` | Core\Markdown\Live | 8719.3 units against a `constant` ceiling of 100 |
 | `Core\Math::sqrt` | Core\Math | 419.7 units against a `constant` ceiling of 100 |
 | `Core\Metrics::observe` | Core\Metrics | 171.2 units against a `constant` ceiling of 100 |
-| `Core\Mime::detect` | Core\Mime | 19679.6 units against a `constant` ceiling of 100 |
-| `Core\Mime::mediaType` | Core\Mime | 17261.6 units against a `constant` ceiling of 100 |
-| `Core\Net::bindDatagram` | Core\Net | 79963.6 units against a `constant` ceiling of 100 |
-| `Core\Net::connect` | Core\Net | 283667.8 units against a `constant` ceiling of 100 |
-| `Core\Net::listen` | Core\Net | 139834.7 units against a `constant` ceiling of 100 |
-| `Core\Net\Datagram::close` | Core\Net\Datagram | 103540.5 units against a `constant` ceiling of 100 |
-| `Core\Net\Datagram::port` | Core\Net\Datagram | 10942.4 units against a `constant` ceiling of 100 |
-| `Core\Net\Datagram\Message::host` | Core\Net\Datagram\Message | 2683.0 units against a `constant` ceiling of 100 |
-| `Core\Net\Datagram\Message::payload` | Core\Net\Datagram\Message | 4416.5 units against a `constant` ceiling of 100 |
-| `Core\Net\Datagram\Message::port` | Core\Net\Datagram\Message | 854.3 units against a `constant` ceiling of 100 |
-| `Core\Net\Listener::accept` | Core\Net\Listener | 508336.0 units against a `constant` ceiling of 100 |
-| `Core\Net\Listener::close` | Core\Net\Listener | 115133.2 units against a `constant` ceiling of 100 |
-| `Core\Net\Listener::port` | Core\Net\Listener | 2822.6 units against a `constant` ceiling of 100 |
-| `Core\Net\Stream::close` | Core\Net\Stream | 15.1x its group's median of 17713.1 units — 268079.0 units against a `constant` ceiling of 100 |
+| `Core\Net::bindDatagram` | Core\Net | 33304.4 units against a `constant` ceiling of 100 |
+| `Core\Net::connect` | Core\Net | 118709.6 units against a `constant` ceiling of 100 |
+| `Core\Net::listen` | Core\Net | 61279.6 units against a `constant` ceiling of 100 |
+| `Core\Net\Datagram::close` | Core\Net\Datagram | 34654.1 units against a `constant` ceiling of 100 |
+| `Core\Net\Datagram::port` | Core\Net\Datagram | 5507.5 units against a `constant` ceiling of 100 |
+| `Core\Net\Datagram\Message::host` | Core\Net\Datagram\Message | 599.1 units against a `constant` ceiling of 100 |
+| `Core\Net\Datagram\Message::payload` | Core\Net\Datagram\Message | 717.2 units against a `constant` ceiling of 100 |
+| `Core\Net\Datagram\Message::port` | Core\Net\Datagram\Message | 5.1x its group's median of 717.2 units — 3670.8 units against a `constant` ceiling of 100 |
+| `Core\Net\Listener::accept` | Core\Net\Listener | 230681.5 units against a `constant` ceiling of 100 |
+| `Core\Net\Listener::close` | Core\Net\Listener | 58294.7 units against a `constant` ceiling of 100 |
+| `Core\Net\Listener::port` | Core\Net\Listener | 1822.8 units against a `constant` ceiling of 100 |
+| `Core\Net\Stream::close` | Core\Net\Stream | 14.4x its group's median of 8686.3 units — 124845.7 units against a `constant` ceiling of 100 |
 | `Core\ObjectMap::clear` | Core\ObjectMap | 16.2x its group's median of 893.4 units |
 | `Core\ObjectMap::count` | Core\ObjectMap | 893.4 units against a `constant` ceiling of 100 |
 | `Core\ObjectMap::get` | Core\ObjectMap | 481.9 units against a `constant` ceiling of 100 |
@@ -1558,149 +1565,97 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Path::split` | Core\Path | 36.7x its group's median of 67.3 units |
 | `Core\Path::thisDir` | Core\Path | 118.7x its group's median of 67.3 units — 7985.5 units against a `constant` ceiling of 100 |
 | `Core\Path::withExtension` | Core\Path | 53.7x its group's median of 67.3 units |
-| `Core\Process::run` | Core\Process | 3267375.8 units against a `constant` ceiling of 100 |
-| `Core\Process::spawn` | Core\Process | 3730376.0 units against a `constant` ceiling of 100 |
-| `Core\Process\Handle::kill` | Core\Process\Handle | 49.4x its group's median of 37509.0 units — 1851898.1 units against a `constant` ceiling of 100 |
-| `Core\Process\Handle::readStderr` | Core\Process\Handle | 31814.5 units against a `constant` ceiling of 100 |
-| `Core\Process\Handle::readStdout` | Core\Process\Handle | 37509.0 units against a `constant` ceiling of 100 |
-| `Core\Process\Handle::wait` | Core\Process\Handle | 111.3x its group's median of 37509.0 units — 4175992.9 units against a `constant` ceiling of 100 |
-| `Core\Process\Result::exitCode` | Core\Process\Result | 9598.2 units against a `constant` ceiling of 100 |
-| `Core\Process\Result::stderr` | Core\Process\Result | 4365.9 units against a `constant` ceiling of 100 |
-| `Core\Process\Result::stdout` | Core\Process\Result | 2393.0 units against a `constant` ceiling of 100 |
+| `Core\Process::run` | Core\Process | 5297636.3 units against a `constant` ceiling of 100 |
+| `Core\Process::spawn` | Core\Process | 5105868.1 units against a `constant` ceiling of 100 |
+| `Core\Process\Handle::kill` | Core\Process\Handle | 20.9x its group's median of 65771.4 units — 1375774.1 units against a `constant` ceiling of 100 |
+| `Core\Process\Handle::readStderr` | Core\Process\Handle | 51077.4 units against a `constant` ceiling of 100 |
+| `Core\Process\Handle::readStdout` | Core\Process\Handle | 65771.4 units against a `constant` ceiling of 100 |
+| `Core\Process\Handle::wait` | Core\Process\Handle | 96.0x its group's median of 65771.4 units — 6311062.7 units against a `constant` ceiling of 100 |
+| `Core\Process\Result::exitCode` | Core\Process\Result | 16269.7 units against a `constant` ceiling of 100 |
+| `Core\Process\Result::stderr` | Core\Process\Result | 7587.5 units against a `constant` ceiling of 100 |
+| `Core\Process\Result::stdout` | Core\Process\Result | 3944.7 units against a `constant` ceiling of 100 |
 | `Core\Program::constructors` | Core\Program | 3254.3 units against a `constant` ceiling of 100 |
 | `Core\Program::id` | Core\Program | 3933.9 units against a `constant` ceiling of 100 |
 | `Core\Program::implementing` | Core\Program | 2514.4 units against a `constant` ceiling of 100 |
 | `Core\Program::implementingWith` | Core\Program | 4487.0 units against a `constant` ceiling of 100 |
-| `Core\Queue::cancel` | Core\Queue | 52422.0 units against a `constant` ceiling of 100 |
-| `Core\Queue::delete` | Core\Queue | 59538.2 units against a `constant` ceiling of 100 |
-| `Core\Queue::purge` | Core\Queue | 57190.9 units against a `constant` ceiling of 100 |
-| `Core\Queue::push` | Core\Queue | 7938.9 units against a `constant` ceiling of 100 |
-| `Core\Queue::status` | Core\Queue | 6626.6 units against a `constant` ceiling of 100 |
-| `Core\Queue\Id::toString` | Core\Queue\Id | 19.5x its group's median of 39.6 units — 771.5 units against a `constant` ceiling of 100 |
-| `Core\Queue\Stats::attempts` | Core\Queue\Stats | 589.1 units against a `constant` ceiling of 100 |
-| `Core\Queue\Stats::claimed` | Core\Queue\Stats | 619.2 units against a `constant` ceiling of 100 |
-| `Core\Queue\Stats::deadAttempts` | Core\Queue\Stats | 312.3 units against a `constant` ceiling of 100 |
-| `Core\Queue\Stats::deadLettered` | Core\Queue\Stats | 469.8 units against a `constant` ceiling of 100 |
-| `Core\Queue\Stats::nonTransactional` | Core\Queue\Stats | 335.6 units against a `constant` ceiling of 100 |
-| `Core\Queue\Stats::pending` | Core\Queue\Stats | 358.5 units against a `constant` ceiling of 100 |
+| `Core\Queue::cancel` | Core\Queue | 35458.3 units against a `constant` ceiling of 100 |
+| `Core\Queue::delete` | Core\Queue | 41605.1 units against a `constant` ceiling of 100 |
+| `Core\Queue::purge` | Core\Queue | 40577.8 units against a `constant` ceiling of 100 |
+| `Core\Queue::push` | Core\Queue | 4839.1 units against a `constant` ceiling of 100 |
+| `Core\Queue::status` | Core\Queue | 4516.7 units against a `constant` ceiling of 100 |
+| `Core\Queue\Id::parse` | Core\Queue\Id | 447.9 units against a `constant` ceiling of 100 |
+| `Core\Queue\Id::tryParse` | Core\Queue\Id | 333.2 units against a `constant` ceiling of 100 |
+| `Core\Queue\Stats::attempts` | Core\Queue\Stats | 268.4 units against a `constant` ceiling of 100 |
+| `Core\Queue\Stats::claimed` | Core\Queue\Stats | 506.1 units against a `constant` ceiling of 100 |
+| `Core\Queue\Stats::deadAttempts` | Core\Queue\Stats | 369.2 units against a `constant` ceiling of 100 |
+| `Core\Queue\Stats::deadLettered` | Core\Queue\Stats | 309.6 units against a `constant` ceiling of 100 |
+| `Core\Queue\Stats::nonTransactional` | Core\Queue\Stats | 746.3 units against a `constant` ceiling of 100 |
+| `Core\Queue\Stats::pending` | Core\Queue\Stats | 359.0 units against a `constant` ceiling of 100 |
 | `Core\Random::float` | Core\Random | 890.7 units against a `constant` ceiling of 100 |
 | `Core\Random::pick` | Core\Random | 152.0 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::float` | Core\Random\Seeded | 1140.7 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::int` | Core\Random\Seeded | 1037.4 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::pick` | Core\Random\Seeded | 271.0 units against a `constant` ceiling of 100 |
-| `Core\Reflect\AttributeInfo::target` | Core\Reflect\AttributeInfo | 1515.3 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::attributes` | Core\Reflect\ClassInfo | 896.9 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::constant` | Core\Reflect\ClassInfo | 11143.9 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::constants` | Core\Reflect\ClassInfo | 9.2x its group's median of 2730.7 units — 25226.9 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::construct` | Core\Reflect\ClassInfo | 92.6x its group's median of 2730.7 units — 252969.8 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::get` | Core\Reflect\ClassInfo | 16.9x its group's median of 2730.7 units — 46030.4 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::hasMethod` | Core\Reflect\ClassInfo | 16.7x its group's median of 2730.7 units — 45722.6 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::hasProperty` | Core\Reflect\ClassInfo | 5.4x its group's median of 2730.7 units — 14703.0 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::methods` | Core\Reflect\ClassInfo | 938.7 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::name` | Core\Reflect\ClassInfo | 413.0 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::properties` | Core\Reflect\ClassInfo | 445.8 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::readableProperties` | Core\Reflect\ClassInfo | 2730.7 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ClassInfo::set` | Core\Reflect\ClassInfo | 396.6 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ConstantInfo::hasValue` | Core\Reflect\ConstantInfo | 1062.3 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ConstantInfo::isPublic` | Core\Reflect\ConstantInfo | 388.0 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ConstantInfo::name` | Core\Reflect\ConstantInfo | 4202.7 units against a `constant` ceiling of 100 |
-| `Core\Reflect\EnumInfo::isUnsigned` | Core\Reflect\EnumInfo | 9.2x its group's median of 84.4 units — 780.2 units against a `constant` ceiling of 100 |
-| `Core\Reflect\EnumInfo::valueOf` | Core\Reflect\EnumInfo | 309.9 units against a `constant` ceiling of 100 |
-| `Core\Reflect\MethodInfo::parameterCount` | Core\Reflect\MethodInfo | 6.9x its group's median of 84.7 units — 584.6 units against a `constant` ceiling of 100 |
-| `Core\Reflect\ParameterInfo::name` | Core\Reflect\ParameterInfo | 162.9 units against a `constant` ceiling of 100 |
-| `Core\Reflect\PropertyInfo::isPublic` | Core\Reflect\PropertyInfo | 116.4 units against a `constant` ceiling of 100 |
-| `Core\Request\Part::contentType` | Core\Request\Part | 519063.2 units against a `constant` ceiling of 100 |
-| `Core\Request\Part::filename` | Core\Request\Part | 627048.2 units against a `constant` ceiling of 100 |
-| `Core\Request\Part::name` | Core\Request\Part | 903445.0 units against a `constant` ceiling of 100 |
-| `Core\Request\Part::peek` | Core\Request\Part | 1645.1 units against a `constant` ceiling of 100 |
-| `Core\Response::redirect` | Core\Response | 15.9x its group's median of 50.1 units |
-| `Core\Response::sendFile` | Core\Response | 350.6x its group's median of 50.1 units — 17579.4 units against a `constant` ceiling of 100 |
-| `Core\Response::slotted` | Core\Response | 51.5x its group's median of 50.1 units |
-| `Core\Response\Stream::length` | Core\Response\Stream | 164.3 units against a `constant` ceiling of 100 |
-| `Core\Response\Stream::offset` | Core\Response\Stream | 202.7 units against a `constant` ceiling of 100 |
-| `Core\Router::dispatch` | Core\Router | 12.5x its group's median of 10094.6 units — 126177.7 units against a `constant` ceiling of 100 |
-| `Core\Router\Match::attribute` | Core\Router\Match | 255.7 units against a `constant` ceiling of 100 |
+| `Core\Reflect::forClass` | Core\Reflect | 952.1 units against a `constant` ceiling of 100 |
+| `Core\Reflect::forObject` | Core\Reflect | 4756.9 units against a `constant` ceiling of 100 |
+| `Core\Reflect::typeOf` | Core\Reflect | 904.7 units against a `constant` ceiling of 100 |
+| `Core\Reflect\AttributeInfo::fields` | Core\Reflect\AttributeInfo | 5.5x its group's median of 33.1 units — 182.6 units against a `constant` ceiling of 100 |
+| `Core\Reflect\AttributeInfo::parameter` | Core\Reflect\AttributeInfo | 5.8x its group's median of 33.1 units — 190.7 units against a `constant` ceiling of 100 |
+| `Core\Reflect\ClassInfo::attributes` | Core\Reflect\ClassInfo | 627.1 units against a `constant` ceiling of 100 |
+| `Core\Reflect\ClassInfo::call` | Core\Reflect\ClassInfo | 696.6 units against a `constant` ceiling of 100 |
+| `Core\Reflect\EnumInfo::isUnsigned` | Core\Reflect\EnumInfo | 230.4 units against a `constant` ceiling of 100 |
+| `Core\Reflect\EnumInfo::name` | Core\Reflect\EnumInfo | 167.9 units against a `constant` ceiling of 100 |
+| `Core\Reflect\EnumInfo::of` | Core\Reflect\EnumInfo | 714.2 units against a `constant` ceiling of 100 |
+| `Core\Reflect\EnumInfo::valueOf` | Core\Reflect\EnumInfo | 307.6 units against a `constant` ceiling of 100 |
+| `Core\Reflect\MethodInfo::isPublic` | Core\Reflect\MethodInfo | 103.9 units against a `constant` ceiling of 100 |
+| `Core\Reflect\PropertyInfo::name` | Core\Reflect\PropertyInfo | 223.8 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::group` | Core\Regex\Match | 476.3 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::groups` | Core\Regex\Match | 8908.8 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::offset` | Core\Regex\Match | 528.6 units against a `constant` ceiling of 100 |
+| `Core\Regex\Match::text` | Core\Regex\Match | 7747.3 units against a `constant` ceiling of 100 |
+| `Core\Request\Part::contentType` | Core\Request\Part | 1038328.1 units against a `constant` ceiling of 100 |
+| `Core\Request\Part::filename` | Core\Request\Part | 537305.5 units against a `constant` ceiling of 100 |
+| `Core\Request\Part::name` | Core\Request\Part | 216392.5 units against a `constant` ceiling of 100 |
+| `Core\Request\Part::peek` | Core\Request\Part | 886.5 units against a `constant` ceiling of 100 |
+| `Core\Response::redirect` | Core\Response | 5.1x its group's median of 159.0 units |
+| `Core\Response::sendFile` | Core\Response | 302.8x its group's median of 159.0 units — 48143.7 units against a `constant` ceiling of 100 |
+| `Core\Response::slotted` | Core\Response | 39.2x its group's median of 159.0 units |
+| `Core\Router::dispatch` | Core\Router | 1035.1 units against a `constant` ceiling of 100 |
 | `Core\Router\Match::name` | Core\Router\Match | 271.2 units against a `constant` ceiling of 100 |
-| `Core\Script::args` | Core\Script | 574.9 units against a `constant` ceiling of 100 |
-| `Core\Script::onExit` | Core\Script | 5775.2 units against a `constant` ceiling of 100 |
 | `Core\Server::traceId` | Core\Server | 1487.2 units against a `constant` ceiling of 100 |
-| `Core\Session::clear` | Core\Session | 18579.4 units against a `constant` ceiling of 100 |
-| `Core\Session::destroy` | Core\Session | 7.5x its group's median of 19064.0 units — 143083.5 units against a `constant` ceiling of 100 |
-| `Core\Session::regenerate` | Core\Session | 13.0x its group's median of 19064.0 units |
-| `Core\Session::start` | Core\Session | 20409.9 units against a `constant` ceiling of 100 |
-| `Core\Socket::current` | Core\Socket | 29220.3 units against a `constant` ceiling of 100 |
-| `Core\Socket::upgrade` | Core\Socket | 648.1x its group's median of 29220.3 units — 18938307.5 units against a `constant` ceiling of 100 |
-| `Core\Socket\Message::bytes` | Core\Socket\Message | 5888.9 units against a `constant` ceiling of 100 |
-| `Core\Socket\Message::text` | Core\Socket\Message | 208.6 units against a `constant` ceiling of 100 |
-| `Core\Socket\Message::topic` | Core\Socket\Message | 8260.7 units against a `constant` ceiling of 100 |
-| `Core\Sse::upgrade` | Core\Sse | 4878824.9 units against a `constant` ceiling of 100 |
-| `Core\Sse\Message::topic` | Core\Sse\Message | 25141.0 units against a `constant` ceiling of 100 |
-| `Core\Sse\Message::value` | Core\Sse\Message | 25310.8 units against a `constant` ceiling of 100 |
-| `Core\Storage::delete` | Core\Storage | 263964.9 units against a `constant` ceiling of 100 |
-| `Core\Str::after` | Core\Str | 10.5x its group's median of 657.3 units |
-| `Core\Str::at` | Core\Str | 8.8x its group's median of 657.3 units |
-| `Core\Str::before` | Core\Str | 5.0x its group's median of 657.3 units |
-| `Core\Str::chunk` | Core\Str | 8.3x its group's median of 657.3 units |
-| `Core\Str::codePoints` | Core\Str | 9.1x its group's median of 657.3 units |
-| `Core\Str::fold` | Core\Str | 7.6x its group's median of 657.3 units |
-| `Core\Str::fromCodePoint` | Core\Str | 8.8x its group's median of 657.3 units — 5760.2 units against a `constant` ceiling of 100 |
-| `Core\Str::fromCodePoints` | Core\Str | 7.1x its group's median of 657.3 units |
-| `Core\Str::graphemes` | Core\Str | 13.4x its group's median of 657.3 units |
-| `Core\Str::isEmpty` | Core\Str | 657.3 units against a `constant` ceiling of 100 |
-| `Core\Str::join` | Core\Str | 5.9x its group's median of 657.3 units |
+| `Core\Session::destroy` | Core\Session | 59183.4 units against a `constant` ceiling of 100 |
+| `Core\Sse\Message::topic` | Core\Sse\Message | 35710.5 units against a `constant` ceiling of 100 |
+| `Core\Sse\Message::value` | Core\Sse\Message | 46007.3 units against a `constant` ceiling of 100 |
+| `Core\Storage::delete` | Core\Storage | 79085.0 units against a `constant` ceiling of 100 |
 | `Core\Task::afterResponse` | Core\Task | 28464.9 units against a `constant` ceiling of 100 |
 | `Core\Task::all` | Core\Task | 32167.6 units against a `constant` ceiling of 100 |
-| `Core\Test::assertDoesNotThrow` | Core\Test | 387.3 units against a `constant` ceiling of 100 |
-| `Core\Test::assertSame` | Core\Test | 1567.4 units against a `constant` ceiling of 100 |
-| `Core\Test::assertThrows` | Core\Test | 8.0x its group's median of 676.0 units — 5438.3 units against a `constant` ceiling of 100 |
-| `Core\Test::assertTrue` | Core\Test | 16.1x its group's median of 676.0 units — 10898.1 units against a `constant` ceiling of 100 |
-| `Core\Test::double` | Core\Test | 5.4x its group's median of 676.0 units — 3623.8 units against a `constant` ceiling of 100 |
-| `Core\Test::expectFailure` | Core\Test | 794.6 units against a `constant` ceiling of 100 |
-| `Core\Test::partial` | Core\Test | 2277.9 units against a `constant` ceiling of 100 |
-| `Core\Test::scriptAnswers` | Core\Test | 6.7x its group's median of 676.0 units |
-| `Core\Test::sentHttp` | Core\Test | 39.5x its group's median of 676.0 units |
-| `Core\Test::sentSocket` | Core\Test | 5.1x its group's median of 676.0 units |
-| `Core\Test::serverUrl` | Core\Test | 363.6 units against a `constant` ceiling of 100 |
-| `Core\Test::tlsSession` | Core\Test | 32.0x its group's median of 676.0 units — 21664.1 units against a `constant` ceiling of 100 |
-| `Core\Test\Response::json` | Core\Test\Response | 6.8x its group's median of 23.6 units |
-| `Core\Time::at` | Core\Time | 12028.6 units against a `constant` ceiling of 100 |
-| `Core\Time::fromEpoch` | Core\Time | 15537.6 units against a `constant` ceiling of 100 |
-| `Core\Time::fromIso` | Core\Time | 12201.2 units against a `constant` ceiling of 100 |
-| `Core\Time::monotonic` | Core\Time | 14111.3 units against a `constant` ceiling of 100 |
-| `Core\Time::now` | Core\Time | 12287.0 units against a `constant` ceiling of 100 |
-| `Core\Time::sleep` | Core\Time | 6780.9 units against a `constant` ceiling of 100 |
-| `Core\Time\Date::at` | Core\Time\Date | 12060.6 units against a `constant` ceiling of 100 |
-| `Core\Time\Date::compareTo` | Core\Time\Date | 3088.4 units against a `constant` ceiling of 100 |
-| `Core\Time\Date::minus` | Core\Time\Date | 8733.4 units against a `constant` ceiling of 100 |
-| `Core\Time\Date::plus` | Core\Time\Date | 9256.0 units against a `constant` ceiling of 100 |
-| `Core\Time\Date::with` | Core\Time\Date | 14202.3 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::date` | Core\Time\DateTime | 97.7x its group's median of 149.7 units — 14620.0 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::dayOfYear` | Core\Time\DateTime | 12.4x its group's median of 149.7 units — 1855.8 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::difference` | Core\Time\DateTime | 56.6x its group's median of 149.7 units — 8467.1 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::endOf` | Core\Time\DateTime | 89.8x its group's median of 149.7 units — 13432.8 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::format` | Core\Time\DateTime | 6.3x its group's median of 149.7 units |
-| `Core\Time\DateTime::minus` | Core\Time\DateTime | 6.7x its group's median of 149.7 units — 1000.6 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::startOf` | Core\Time\DateTime | 149.7 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::timeOfDay` | Core\Time\DateTime | 220.5 units against a `constant` ceiling of 100 |
-| `Core\Time\DateTime::weekday` | Core\Time\DateTime | 224.6 units against a `constant` ceiling of 100 |
-| `Core\Time\Duration::hours` | Core\Time\Duration | 109.5 units against a `constant` ceiling of 100 |
-| `Core\Time\Duration::toString` | Core\Time\Duration | 3206.0 units against a `constant` ceiling of 100 |
-| `Core\Time\Duration::weeks` | Core\Time\Duration | 5229.7 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::compareTo` | Core\Time\Instant | 218.6 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::in` | Core\Time\Instant | 3674.6 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::minus` | Core\Time\Instant | 1858.1 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::plus` | Core\Time\Instant | 1535.6 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::since` | Core\Time\Instant | 1464.8 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::toEpochMicros` | Core\Time\Instant | 763.3 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::toEpochMillis` | Core\Time\Instant | 246.3 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::toEpochSeconds` | Core\Time\Instant | 349.0 units against a `constant` ceiling of 100 |
-| `Core\Time\Instant::toIso` | Core\Time\Instant | 4508.1 units against a `constant` ceiling of 100 |
-| `Core\Time\TimeOfDay::at` | Core\Time\TimeOfDay | 1424.2 units against a `constant` ceiling of 100 |
-| `Core\Time\TimeOfDay::compareTo` | Core\Time\TimeOfDay | 428.7 units against a `constant` ceiling of 100 |
-| `Core\Time\TimeOfDay::minus` | Core\Time\TimeOfDay | 2257.1 units against a `constant` ceiling of 100 |
-| `Core\Time\TimeOfDay::plus` | Core\Time\TimeOfDay | 2673.6 units against a `constant` ceiling of 100 |
-| `Core\Time\TimeOfDay::with` | Core\Time\TimeOfDay | 351.1 units against a `constant` ceiling of 100 |
-| `Core\Time\Zone::system` | Core\Time\Zone | 801.8 units against a `constant` ceiling of 100 |
+| `Core\Test::assertDoesNotThrow` | Core\Test | 3893.2 units against a `constant` ceiling of 100 |
+| `Core\Test::assertEquals` | Core\Test | 184.7 units against a `constant` ceiling of 100 |
+| `Core\Test::assertNeverCalled` | Core\Test | 920.7 units against a `constant` ceiling of 100 |
+| `Core\Test::assertSame` | Core\Test | 848.7 units against a `constant` ceiling of 100 |
+| `Core\Test::assertThrows` | Core\Test | 1478.4 units against a `constant` ceiling of 100 |
+| `Core\Test::assertTrue` | Core\Test | 6051.8 units against a `constant` ceiling of 100 |
+| `Core\Test::double` | Core\Test | 6.1x its group's median of 1285.3 units — 7778.8 units against a `constant` ceiling of 100 |
+| `Core\Test::expectFailure` | Core\Test | 2204.8 units against a `constant` ceiling of 100 |
+| `Core\Test::partial` | Core\Test | 4345.7 units against a `constant` ceiling of 100 |
+| `Core\Test::serverUrl` | Core\Test | 996.3 units against a `constant` ceiling of 100 |
+| `Core\Test::tlsSession` | Core\Test | 42.2x its group's median of 1285.3 units — 54235.1 units against a `constant` ceiling of 100 |
+| `Core\Test\SentRequest::body` | Core\Test\SentRequest | 229.7 units against a `constant` ceiling of 100 |
+| `Core\Test\SentRequest::header` | Core\Test\SentRequest | 6.5x its group's median of 229.7 units — 1490.8 units against a `constant` ceiling of 100 |
+| `Core\Test\SentRequest::url` | Core\Test\SentRequest | 219.1 units against a `constant` ceiling of 100 |
+| `Core\Time::fromEpoch` | Core\Time | 139660.2 units against a `constant` ceiling of 100 |
+| `Core\Time::fromIso` | Core\Time | 186087.3 units against a `constant` ceiling of 100 |
+| `Core\Time::monotonic` | Core\Time | 219258.3 units against a `constant` ceiling of 100 |
+| `Core\Time::now` | Core\Time | 276188.5 units against a `constant` ceiling of 100 |
+| `Core\Time::sleep` | Core\Time | 133247.5 units against a `constant` ceiling of 100 |
+| `Core\Time\Date::at` | Core\Time\Date | 130994.8 units against a `constant` ceiling of 100 |
+| `Core\Time\Date::compareTo` | Core\Time\Date | 43218.4 units against a `constant` ceiling of 100 |
+| `Core\Time\Date::minus` | Core\Time\Date | 39058.1 units against a `constant` ceiling of 100 |
+| `Core\Time\Date::plus` | Core\Time\Date | 182628.6 units against a `constant` ceiling of 100 |
+| `Core\Time\Date::with` | Core\Time\Date | 17486.7 units against a `constant` ceiling of 100 |
+| `Core\Time\DateTime::date` | Core\Time\DateTime | 6276.9 units against a `constant` ceiling of 100 |
+| `Core\Topic::publish` | Core\Topic | 5.4x its group's median of 312.4 units |
+| `Core\Topic::unsubscribe` | Core\Topic | 312.4 units against a `constant` ceiling of 100 |
 | `Core\Uuid::fromBytes` | Core\Uuid | 4926.2 units against a `constant` ceiling of 100 |
 | `Core\Uuid::parse` | Core\Uuid | 1261.2 units against a `constant` ceiling of 100 |
 | `Core\Uuid::toBytes` | Core\Uuid | 253.2 units against a `constant` ceiling of 100 |
@@ -1713,8 +1668,8 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\WebPush::applicationServerKey` | Core\WebPush | 102596.9 units against a `constant` ceiling of 100 |
 | `Core\WebPush\Sent::gone` | Core\WebPush\Sent | 827.1 units against a `constant` ceiling of 100 |
 | `Core\WebPush\Sent::status` | Core\WebPush\Sent | 1036.3 units against a `constant` ceiling of 100 |
-| `Core\Zip::entries` | Core\Zip | 17601.4 units against a `constant` ceiling of 100 |
-| `Core\Zip::extract` | Core\Zip | 54.9x its group's median of 17601.4 units |
+| `Core\Zip::entries` | Core\Zip | 13145.7 units against a `constant` ceiling of 100 |
+| `Core\Zip::extract` | Core\Zip | 40.5x its group's median of 13145.7 units |
 | `Novis\Image\Barcode::render` | Novis\Image\Barcode | 1960563.0 units against a `constant` ceiling of 100 |
 | `Novis\Image\Barcode::svg` | Novis\Image\Barcode | 1953154.9 units against a `constant` ceiling of 100 |
 | `Novis\Image\Codec::info` | Novis\Image\Codec | 38301.3 units against a `constant` ceiling of 100 |
@@ -1807,9 +1762,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Spreadsheet\Template::open` | Novis\Spreadsheet\Template | 643877.1 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Template::set` | Novis\Spreadsheet\Template | 323944.1 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Workbook::createForStream` | Novis\Spreadsheet\Workbook | 920611.7 units against a `constant` ceiling of 100 |
-| `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | lang:attributes | 2162.6 units against a `constant` ceiling of 100 |
-| `lang:attributes/core-command-and-core-option-the-command-table` | lang:attributes | 626.3 units against a `constant` ceiling of 100 |
-| `lang:attributes/reading-attributes-back-core-attributes-get-and-all` | lang:attributes | 3321.5 units against a `constant` ceiling of 100 |
+| `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | lang:attributes | 784.8 units against a `constant` ceiling of 100 |
+| `lang:attributes/core-command-and-core-option-the-command-table` | lang:attributes | 400.3 units against a `constant` ceiling of 100 |
+| `lang:attributes/core-route-and-core-access-the-route-table` | lang:attributes | 9.4x its group's median of 1929.6 units |
+| `lang:attributes/reading-attributes-back-core-attributes-get-and-all` | lang:attributes | 23.5x its group's median of 1929.6 units — 45275.6 units against a `constant` ceiling of 100 |
 | `lang:classes/constants-and-class` | lang:classes | 1499.9 units against a `constant` ceiling of 100 |
 | `lang:classes/covariant` | lang:classes | 236.7 units against a `constant` ceiling of 100 |
 | `lang:classes/interfaces` | lang:classes | 1172.2 units against a `constant` ceiling of 100 |
@@ -1827,16 +1783,15 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:enums/from-an-integer-back-to-a-case` | lang:enums | 254.7 units against a `constant` ceiling of 100 |
 | `lang:enums/match-and-switch-over-an-enum` | lang:enums | 11.7x its group's median of 103.6 units — 1207.6 units against a `constant` ceiling of 100 |
 | `lang:enums/what-replaces-php-s-enum-members` | lang:enums | 10.2x its group's median of 103.6 units — 1055.2 units against a `constant` ceiling of 100 |
-| `lang:errors/assertion-failures` | lang:errors | 1116.8 units against a `constant` ceiling of 100 |
-| `lang:errors/capability-denials-are-catchable` | lang:errors | 1994.9 units against a `constant` ceiling of 100 |
-| `lang:errors/constructing-and-subclassing` | lang:errors | 322.7 units against a `constant` ceiling of 100 |
-| `lang:errors/inspecting-a-value` | lang:errors | 1000.4 units against a `constant` ceiling of 100 |
-| `lang:errors/properties-not-accessors` | lang:errors | 1463.1 units against a `constant` ceiling of 100 |
-| `lang:errors/recursion-depth` | lang:errors | 138.5 units against a `constant` ceiling of 100 |
-| `lang:errors/rethrowing` | lang:errors | 896.2 units against a `constant` ceiling of 100 |
-| `lang:errors/the-throwable-tree` | lang:errors | 316.4 units against a `constant` ceiling of 100 |
-| `lang:errors/throw` | lang:errors | 2093.0 units against a `constant` ceiling of 100 |
-| `lang:errors/try-catch-finally` | lang:errors | 204.4 units against a `constant` ceiling of 100 |
+| `lang:errors/assertion-failures` | lang:errors | 17222.1 units against a `constant` ceiling of 100 |
+| `lang:errors/capability-denials-are-catchable` | lang:errors | 12886.5 units against a `constant` ceiling of 100 |
+| `lang:errors/constructing-and-subclassing` | lang:errors | 11950.3 units against a `constant` ceiling of 100 |
+| `lang:errors/inspecting-a-value` | lang:errors | 6069.6 units against a `constant` ceiling of 100 |
+| `lang:errors/properties-not-accessors` | lang:errors | 2422.6 units against a `constant` ceiling of 100 |
+| `lang:errors/recursion-depth` | lang:errors | 159.1 units against a `constant` ceiling of 100 |
+| `lang:errors/the-throwable-tree` | lang:errors | 3310.6 units against a `constant` ceiling of 100 |
+| `lang:errors/throw` | lang:errors | 3490.8 units against a `constant` ceiling of 100 |
+| `lang:errors/try-catch-finally` | lang:errors | 707.6 units against a `constant` ceiling of 100 |
 | `lang:expressions/and-the-ternary` | lang:expressions | 1155.9 units against a `constant` ceiling of 100 |
 | `lang:expressions/anonymous-functions` | lang:expressions | 7.2x its group's median of 636.9 units — 4567.1 units against a `constant` ceiling of 100 |
 | `lang:expressions/anonymous-objects` | lang:expressions | 5.9x its group's median of 636.9 units — 3784.0 units against a `constant` ceiling of 100 |
@@ -1847,83 +1802,101 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:expressions/logical-operators-and-truth` | lang:expressions | 447.7 units against a `constant` ceiling of 100 |
 | `lang:expressions/precedence-and-associativity` | lang:expressions | 636.9 units against a `constant` ceiling of 100 |
 | `lang:expressions/string-operators` | lang:expressions | 5.3x its group's median of 636.9 units |
-| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | lang:programs | 2683.7 units against a `constant` ceiling of 100 |
-| `lang:statements/echo-print-unset-exit-yield` | lang:statements | 221.0 units against a `constant` ceiling of 100 |
-| `lang:statements/expression-statements-blocks-and-declarations` | lang:statements | 2593.1 units against a `constant` ceiling of 100 |
-| `lang:statements/for` | lang:statements | 2931.2 units against a `constant` ceiling of 100 |
-| `lang:statements/if-elseif-else` | lang:statements | 634.5 units against a `constant` ceiling of 100 |
-| `lang:statements/return` | lang:statements | 1857.7 units against a `constant` ceiling of 100 |
-| `lang:statements/switch` | lang:statements | 1606.2 units against a `constant` ceiling of 100 |
-| `lang:statements/while-and-do-while` | lang:statements | 6.5x its group's median of 634.5 units — 4130.2 units against a `constant` ceiling of 100 |
-| `Novis\Rest\AuthorizationCode` | package:Novis\Rest | 6323.7 units against a `constant` ceiling of 100 |
-| `Novis\Rest\Client` | package:Novis\Rest | 12985.3 units against a `constant` ceiling of 100 |
+| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | lang:programs | 30101.9x its group's median of 0.7 units — 22567.4 units against a `constant` ceiling of 100 |
+| `lang:statements/echo-print-unset-exit-yield` | lang:statements | 373.4 units against a `constant` ceiling of 100 |
+| `lang:statements/for` | lang:statements | 9.2x its group's median of 131.7 units — 1211.3 units against a `constant` ceiling of 100 |
+| `lang:statements/if-elseif-else` | lang:statements | 131.7 units against a `constant` ceiling of 100 |
+| `lang:statements/switch` | lang:statements | 544.9 units against a `constant` ceiling of 100 |
+| `lang:statements/while-and-do-while` | lang:statements | 13.1x its group's median of 131.7 units — 1725.1 units against a `constant` ceiling of 100 |
+| `lang:testing/assertions` | lang:testing | 1035.3 units against a `constant` ceiling of 100 |
+| `lang:testing/bench-and-nvs-test-bench` | lang:testing | 10.1x its group's median of 12255.3 units — 124001.0 units against a `constant` ceiling of 100 |
+| `lang:testing/core-test-fixture-built-once-injected-by-type` | lang:testing | 3465.8 units against a `constant` ceiling of 100 |
+| `lang:testing/core-test-property-generated-inputs` | lang:testing | 19562.4 units against a `constant` ceiling of 100 |
+| `lang:testing/core-test-testwith-data-rows` | lang:testing | 11405.8 units against a `constant` ceiling of 100 |
+| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | lang:testing | 59.2x its group's median of 12255.3 units — 725625.8 units against a `constant` ceiling of 100 |
+| `lang:testing/hooks-beforeclass-afterclass-and-aftereachtest` | lang:testing | 12255.3 units against a `constant` ceiling of 100 |
+| `lang:testing/running-tests-nvs-test` | lang:testing | 17037.7 units against a `constant` ceiling of 100 |
+| `lang:testing/test-options` | lang:testing | 2171.5 units against a `constant` ceiling of 100 |
+| `lang:types/a-member-every-class-of-a-union-declares` | lang:types | 530.2 units against a `constant` ceiling of 100 |
+| `lang:types/array-t` | lang:types | 188.2 units against a `constant` ceiling of 100 |
+| `lang:types/callable-classes-object-shapes` | lang:types | 7.4x its group's median of 227.8 units — 1684.2 units against a `constant` ceiling of 100 |
+| `lang:types/every-binding-has-a-type` | lang:types | 962.5 units against a `constant` ceiling of 100 |
+| `lang:types/mixed` | lang:types | 267.9 units against a `constant` ceiling of 100 |
+| `lang:types/narrowing` | lang:types | 655.7 units against a `constant` ceiling of 100 |
+| `lang:types/nullable-union-single-value-and-enum-case-types` | lang:types | 347.4 units against a `constant` ceiling of 100 |
+| `lang:types/numbers-bool-int-uint-float-decimal` | lang:types | 105.2 units against a `constant` ceiling of 100 |
+| `lang:types/parameters` | lang:types | 227.8 units against a `constant` ceiling of 100 |
+| `lang:types/property-keys` | lang:types | 181.0 units against a `constant` ceiling of 100 |
+| `lang:types/values-written-in-the-code` | lang:types | 354.1 units against a `constant` ceiling of 100 |
+| `Novis\Rest\AuthorizationCode` | package:Novis\Rest | 10694.8 units against a `constant` ceiling of 100 |
+| `Novis\Rest\Client` | package:Novis\Rest | 12145.3 units against a `constant` ceiling of 100 |
 | `Novis\Rest\ClientCredentials` | package:Novis\Rest | 1403.7 units against a `constant` ceiling of 100 |
-| `Novis\Rest\DPoP` | package:Novis\Rest | 22.5x its group's median of 6489.8 units — 145834.1 units against a `constant` ceiling of 100 |
+| `Novis\Rest\DPoP` | package:Novis\Rest | 13.6x its group's median of 10694.8 units — 145834.1 units against a `constant` ceiling of 100 |
 | `Novis\Rest\Discovery` | package:Novis\Rest | 6489.8 units against a `constant` ceiling of 100 |
-| `Novis\Rest\Session` | package:Novis\Rest | 5.7x its group's median of 6489.8 units — 36702.4 units against a `constant` ceiling of 100 |
+| `Novis\Rest\Session` | package:Novis\Rest | 36702.4 units against a `constant` ceiling of 100 |
 | `Novis\Rest\Token` | package:Novis\Rest | 651.5 units against a `constant` ceiling of 100 |
 
 ## AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD · windows · 16 cores  (`4d013d6e25b9`)
 
 | Feature | ns/op | median | units | Δ | Scaling | Measured at | Implementation |
 |---|---:|---:|---:|---:|---|---|---|
-| `Core\Arr::all` | 948.0 | 4360.2 | 333.790 | -77.0% ~ | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::any` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::append` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::appendAll` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::average` | 0.0 | 8827.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::chunk` | 1604.7 | 40530.1 | 564.981 | -14.0% ~ | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::column` | 12117.6 | 19595.3 | 4266.377 | +337.5% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::contains` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::count` | 0.0 | 1444.0 | 0.000 | -100.0% | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::countBy` | 29126.2 | 75626.2 | 10254.792 | +13262.5% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::diff` | 28378.1 | 47614.5 | 9991.418 | +329.6% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::fill` | 0.0 | 6174.6 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::fillKeys` | 34334.0 | 332683.2 | 12088.367 | +883.6% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::filter` | 160250.0 | 283775.0 | 56421.090 | +6392.2% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::find` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::findKey` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::first` | 0.0 | 363.7 | 0.000 | -100.0% | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::firstKey` | 0.0 | 803.6 | 0.000 | -100.0% | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::flatten` | 0.0 | 35791.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::flattenDeep` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::flip` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::from` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::fromKeysAndValues` | 110844.5 | 287636.7 | 39026.329 | +1978.7% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::groupBy` | 39884.0 | 77665.2 | 14042.420 | +876.1% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::hasKey` | 48511.7 | 65136.7 | 17080.088 |  | unclear | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::intersect` | 0.0 | 23924.6 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::isEmpty` | 0.0 | 6996.9 | 0.000 |  | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::isList` | 0.0 | 3446.9 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::keyOf` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::keys` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::last` | 1276.4 | 6372.7 | 449.385 |  | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::lastKey` | 0.0 | 2750.6 | 0.000 |  | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::map` | 0.0 | 21371.9 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::mapKeys` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::max` | 0.0 | 28634.4 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::min` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::overlay` | 294.5 | 7508.2 | 103.699 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::overlayDeep` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::padEnd` | 158.2 | 8903.1 | 55.700 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::padStart` | 0.0 | 26207.8 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::prepend` | 54957.8 | 74031.6 | 19349.639 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::product` | 13970.7 | 20600.0 | 4918.829 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::range` | 0.0 | 1834.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::reduce` | 1408.2 | 24009.8 | 495.803 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::replaceRange` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::reverse` | 0.0 | 9529.3 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::shapeAs` | 2412.9 | 13403.9 | 849.535 |  | flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::slice` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::sort` | 0.0 | 2590.2 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::sortByKey` | 2592.6 | 10303.9 | 912.799 |  | flat, unclear | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::sum` | 0.0 | 8121.9 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::underlay` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::unique` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::values` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::withoutFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::withoutLast` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
-| `Core\Arr::withoutNull` | 0.0 | 746.9 | 0.000 |  | flat, flat | b240924438e3 | 0e65decef95f00abb1ae87039c139c26 |
+| `Core\Arr::all` | 0.0 | 9234.8 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::any` | 2116.8 | 9751.6 | 687.484 | +496.8% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::append` | 576.2 | 8598.0 | 187.126 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::appendAll` | 9541.0 | 14803.1 | 3098.688 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::average` | 3016.4 | 8678.5 | 979.655 | -92.2% ~ | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::chunk` | 24321.1 | 30888.7 | 7898.895 | -27.0% ~ | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::column` | 1240.2 | 3096.9 | 402.798 | +1961.7% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::contains` | 0.0 | 0.0 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::count` | 0.0 | 11.0 | 0.000 |  | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::countBy` | 0.0 | 0.0 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::diff` | 0.0 | 55.9 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::fill` | 0.0 | 1324.2 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::fillKeys` | 0.0 | 584.0 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::filter` | 0.0 | 618.0 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::find` | 0.0 | 547.7 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::findKey` | 0.0 | 319.5 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::first` | 0.0 | 59.6 | 0.000 | -100.0% | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::firstKey` | 0.0 | 388.6 | 0.000 | -100.0% | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::flatten` | 0.0 | 1513.7 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::flattenDeep` | 0.0 | 0.0 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::flip` | 956.2 | 13537.9 | 310.567 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::from` | 0.0 | 1515.2 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::fromKeysAndValues` | 0.0 | 0.0 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::groupBy` | 0.0 | 5247.7 | 0.000 |  | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::hasKey` | 3411.3 | 10579.3 | 1030.457 | -93.4% ~ | unclear | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::intersect` | 3307.8 | 5373.4 | 1074.296 | -94.5% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::isEmpty` | 0.0 | 650.8 | 0.000 | -100.0% | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::isList` | 0.0 | 208.6 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::keyOf` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::keys` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::last` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::lastKey` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::map` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::mapKeys` | 0.0 | 186.7 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::max` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::min` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::overlay` | 0.0 | 844.5 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::overlayDeep` | 0.0 | 1828.5 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::padEnd` | 0.0 | 2072.7 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::padStart` | 6448.8 | 14457.8 | 2094.421 | -86.8% ~ | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::prepend` | 6026.2 | 8957.0 | 1957.153 | -88.9% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::product` | 0.0 | 2250.4 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::range` | 0.0 | 502.3 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::reduce` | 0.0 | 1943.8 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::replaceRange` | 7469.9 | 10932.8 | 2426.048 | -87.2% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::reverse` | 1950.0 | 8628.1 | 633.312 | -94.7% ~ | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::shapeAs` | 1196.1 | 4630.9 | 388.462 | -97.9% ~ | flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::slice` | 0.0 | 2089.1 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::sort` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::sortByKey` | 2606.2 | 18696.5 | 846.446 | -95.7% ~ | flat, unclear | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::sum` | 2428.9 | 13729.3 | 788.849 | -96.9% ~ | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::underlay` | 0.0 | 8053.9 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::unique` | 0.0 | 4777.7 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::values` | 4785.5 | 18498.8 | 1554.228 | -83.4% ~ | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::withoutFirst` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::withoutLast` | 0.0 | 494.1 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
+| `Core\Arr::withoutNull` | 0.0 | 4106.6 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 22e7a6ebfcb1210dbc15b613fc427684 |
 | `Core\Ast::parse` | 1617.2 | 37604.3 | 689.779 |  | flat, flat | b31d460051e9 | 9fe4b43674ae7d306516a196be9a9024 |
 | `Core\Ast\Node::children` | 0.0 | 78.8 | 0.000 |  | flat, flat | b31d460051e9 | 9fe4b43674ae7d306516a196be9a9024 |
 | `Core\Ast\Node::column` | 0.0 | 3131.0 | 0.000 |  | flat | b31d460051e9 | 9fe4b43674ae7d306516a196be9a9024 |
@@ -1960,27 +1933,27 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Budget::memoryHeld` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bbfe493f30a832bc0794e5d01c8f8289 |
 | `Core\Budget::memoryLimit` | 0.0 | 46.3 | 0.000 | -100.0% | flat | 12bd24661f00 | bbfe493f30a832bc0794e5d01c8f8289 |
 | `Core\Budget::memoryPeak` | 0.0 | 195.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bbfe493f30a832bc0794e5d01c8f8289 |
-| `Core\Bytes::at` | 0.0 | 3196.8 | 0.000 | -100.0% | flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::compare` | 0.0 | 4933.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::contains` | 0.0 | 3503.6 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::endsWith` | 0.0 | 4638.8 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::fill` | 549.2 | 23234.0 | 234.258 | -90.0% ~ | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::indexOf` | 0.0 | 5452.9 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::join` | 0.0 | 7068.4 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::length` | 0.0 | 3661.1 | 0.000 | -100.0% | flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::pack` | 0.0 | 33464.1 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::repeat` | 291.4 | 3214.5 | 124.293 | -96.5% ~ | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::slice` | 0.0 | 23774.6 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::startsWith` | 0.0 | 4765.5 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Bytes::unpack` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 7627788ff3e51bda229eab67b6fdc2ae |
-| `Core\Cache::memory` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cache\SecretEntry::of` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cache\Store::forget` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cache\Store::get` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cache\Store::getSecret` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cache\Store::put` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cache\Store::putSecret` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | c787dd78bd5b5db3d57f9472415f4ce8 |
-| `Core\Cap::has` | 32080.0 | 57206.8 | 36841.780 | +36278.5% | flat | 10ae2948f8a1 | 4f0c466bfeb64250783039a35e9f861c |
+| `Core\Bytes::at` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::compare` | 5783.9 | 20027.1 | 3429.013 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::contains` | 5924.3 | 7186.0 | 3512.238 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::endsWith` | 2006.7 | 10013.6 | 1189.707 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::fill` | 16888.3 | 32529.7 | 10012.320 | +2975.0% | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::indexOf` | 0.0 | 9706.7 | 0.000 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::join` | 271471.9 | 382448.8 | 160943.753 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::length` | 40439.7 | 44485.8 | 23974.920 |  | flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::pack` | 40862.1 | 43880.1 | 24225.350 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::repeat` | 0.0 | 29622.7 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::slice` | 774952.7 | 1179767.6 | 459435.443 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::startsWith` | 124306.2 | 147640.2 | 73695.659 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Bytes::unpack` | 0.0 | 13499.6 | 0.000 |  | flat, flat | 9284f7e0c6f4 | f01d02954c0e9a65d07dc2aba9739349 |
+| `Core\Cache::memory` | 13865.6 | 37890.2 | 2360.448 |  | flat, flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cache\SecretEntry::of` | 0.0 | 31284.4 | 0.000 |  | flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cache\Store::forget` | 0.0 | 0.0 | 0.000 |  | flat, flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cache\Store::get` | 0.0 | 0.0 | 0.000 |  | flat, flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cache\Store::getSecret` | 0.0 | 8805.1 | 0.000 |  | flat, flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cache\Store::put` | 135929.7 | 166212.9 | 23140.316 |  | flat, flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cache\Store::putSecret` | 18081.6 | 36623.0 | 3078.171 |  | flat, flat | 78eebf4cd175 | eddef083ba27e98c7c5bb684321c6909 |
+| `Core\Cap::has` | 6337.5 | 37442.6 | 1601.633 | -80.2% ~ | flat | feeb9dfa26a3 | f64d9c8532f021d8def5085fa0be3ded |
 | `Core\Cldr::ordinalCategory` | 1043.4 | 2181.5 | 345.798 | -49.3% ~ | flat | 4df0ce9fbced | 3cc119242b600cc4ed47a3256352d3a4 |
 | `Core\Cldr::pluralCategory` | 31.6 | 206.5 | 10.487 |  | flat | 4df0ce9fbced | 3cc119242b600cc4ed47a3256352d3a4 |
 | `Core\Cli::arguments` | 0.0 | 17419.9 | 0.000 |  | flat | bfb1fa66dfa4 | 7f3ebb05275ec285259f8e8174354a4e |
@@ -2009,41 +1982,41 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Command::completions` | 12838.3 | 27044.9 | 2339.252 | +15.2% ~ | flat, flat | 4df0ce9fbced | 71c90015fb9d12d3a6956ae39b17ba54 |
 | `Core\Command::help` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4df0ce9fbced | 71c90015fb9d12d3a6956ae39b17ba54 |
 | `Core\Command::run` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4df0ce9fbced | 71c90015fb9d12d3a6956ae39b17ba54 |
-| `Core\Compress::compress` | 82437.5 | 146687.1 | 68555.094 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress::compressor` | 62162.9 | 426134.0 | 51694.712 | +610.4% | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress::decompress` | 0.0 | 66945.7 | 0.000 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress::decompressor` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress\Compressor::add` | 0.0 | 137228.9 | 0.000 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress\Compressor::finish` | 13530.1 | 89285.2 | 11251.624 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress\Decompressor::add` | 0.0 | 61428.5 | 0.000 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Compress\Decompressor::finish` | 0.0 | 11948.8 | 0.000 |  | flat, flat | 9c8966d84f80 | 69fd92e73f757eaea66126fa6235bb0c |
-| `Core\Config::all` | 28389.5 | 36589.8 | 9641.519 | -45.2% | flat | 3f9e0edb6a30 | bb564a80ac888164938a60ded7c7402c |
-| `Core\Config::get` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bb564a80ac888164938a60ded7c7402c |
-| `Core\Config::restore` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bb564a80ac888164938a60ded7c7402c |
-| `Core\Config::secret` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bb564a80ac888164938a60ded7c7402c |
-| `Core\Config::set` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bb564a80ac888164938a60ded7c7402c |
-| `Core\Config::setting` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bb564a80ac888164938a60ded7c7402c |
-| `Core\Crypto::agree` | 23727.0 | 27057.0 | 8058.058 | -42.5% | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::deriveKey` | 11497630.0 | 11750310.0 | 3904781.797 | -14.1% | flat, flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::expandKey` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::generateKey` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::generateKeyPair` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::open` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::seal` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::sign` | 49573.8 | 53339.8 | 16836.077 | -32.4% | flat, flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto::verify` | 27602.3 | 28248.0 | 9374.204 | -29.3% | flat, flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto\KeyPair::publicKey` | 202034.8 | 203766.8 | 68614.286 | +2.2% | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto\KeyPair::read` | 0.0 | 929.7 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto\KeyPair::write` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto\PublicKey::kind` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto\PublicKey::read` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Crypto\PublicKey::write` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | 48f749b2448ea9e8705a6a7c03ba970f |
-| `Core\Csrf::issue` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6ef3cda35825 | 0643af379d4c3c462d4cc8ca4fea87cc |
-| `Core\Csrf::token` | 0.0 | 0.0 | 0.000 |  | flat | 6ef3cda35825 | 0643af379d4c3c462d4cc8ca4fea87cc |
-| `Core\Csrf::verify` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6ef3cda35825 | 0643af379d4c3c462d4cc8ca4fea87cc |
-| `Core\Csv::format` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 7751d796ae69f7a6a20c7e1d2d46804e |
-| `Core\Csv::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 7751d796ae69f7a6a20c7e1d2d46804e |
-| `Core\Csv::rows` | 89242.2 | 126354.3 | 71330.979 | -22.3% ~ | flat, flat | 2bc5b2e64431 | 7751d796ae69f7a6a20c7e1d2d46804e |
+| `Core\Compress::compress` | 11592.6 | 33964.1 | 3764.985 | -85.9% ~ | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress::compressor` | 5846.9 | 7550.8 | 1898.922 | -90.6% | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress::decompress` | 2520.3 | 18223.4 | 818.536 |  | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress::decompressor` | 1170.3 | 3546.9 | 380.089 |  | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress\Compressor::add` | 626.6 | 2555.1 | 203.492 |  | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress\Compressor::finish` | 14919.1 | 18861.3 | 4845.372 | +10.3% ~ | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress\Decompressor::add` | 0.0 | 0.0 | 0.000 |  | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Compress\Decompressor::finish` | 5367.2 | 7578.9 | 1743.131 |  | flat, flat | 7ec957692e53 | 6c9683847d6b900e3060104553fb2fc7 |
+| `Core\Config::all` | 315770.3 | 450911.3 | 79802.450 | +1012.3% | flat | feeb9dfa26a3 | 651154f2d2bb775020acd6f3c09d9cc0 |
+| `Core\Config::get` | 0.0 | 3975.4 | 0.000 |  | flat | feeb9dfa26a3 | 651154f2d2bb775020acd6f3c09d9cc0 |
+| `Core\Config::restore` | 0.0 | 524064.1 | 0.000 |  | flat | feeb9dfa26a3 | 651154f2d2bb775020acd6f3c09d9cc0 |
+| `Core\Config::secret` | 2276.2 | 423311.7 | 575.241 |  | flat | feeb9dfa26a3 | 651154f2d2bb775020acd6f3c09d9cc0 |
+| `Core\Config::set` | 530277.0 | 544932.0 | 134013.231 |  | flat | feeb9dfa26a3 | 651154f2d2bb775020acd6f3c09d9cc0 |
+| `Core\Config::setting` | 6164.1 | 639019.1 | 1557.801 |  | flat | feeb9dfa26a3 | 651154f2d2bb775020acd6f3c09d9cc0 |
+| `Core\Crypto::agree` | 43257.4 | 44539.8 | 13326.583 | -24.4% | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::deriveKey` | 10573675.0 | 10803010.0 | 3257497.805 | +0.2% ~ | flat, flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::expandKey` | 3193.0 | 8134.0 | 983.678 |  | flat, flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::generateKey` | 3071.9 | 4178.1 | 946.372 |  | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::generateKeyPair` | 3772.7 | 5544.9 | 1162.266 |  | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::open` | 5276.2 | 5908.2 | 1625.463 | -50.6% | flat, flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::seal` | 4515.2 | 5962.5 | 1391.036 | -65.0% | flat, flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::sign` | 69296.1 | 71217.6 | 21348.479 | -53.3% | flat, flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto::verify` | 44159.0 | 49631.6 | 13604.333 | +15.0% | flat, flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto\KeyPair::publicKey` | 132609.0 | 138021.9 | 40853.674 | -14.8% | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto\KeyPair::read` | 13815.6 | 17456.2 | 4256.266 | -33.5% | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto\KeyPair::write` | 578.9 | 4889.1 | 178.332 | -66.8% ~ | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto\PublicKey::kind` | 211.7 | 395.0 | 65.233 | -69.9% ~ | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto\PublicKey::read` | 1833.2 | 7807.0 | 564.766 | -78.0% ~ | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Crypto\PublicKey::write` | 1749.2 | 3496.5 | 538.893 | -82.0% ~ | flat | 7ec957692e53 | f6d94c27518120e9cb76f00f17db80f9 |
+| `Core\Csrf::issue` | 2556.6 | 3527.7 | 841.609 |  | flat, flat | bf2577065fcf | 7a7d10e38bfa70f7df15f39ee47dd8d4 |
+| `Core\Csrf::token` | 0.0 | 0.0 | 0.000 |  | flat | bf2577065fcf | 7a7d10e38bfa70f7df15f39ee47dd8d4 |
+| `Core\Csrf::verify` | 3500.8 | 8716.4 | 969.249 |  | flat, flat | bf2577065fcf | 7a7d10e38bfa70f7df15f39ee47dd8d4 |
+| `Core\Csv::format` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 1b447443b0bd9ae8bcc86911816ee3ae |
+| `Core\Csv::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 1b447443b0bd9ae8bcc86911816ee3ae |
+| `Core\Csv::rows` | 50403.9 | 57181.2 | 29882.262 | -42.2% | flat, flat | 9284f7e0c6f4 | 1b447443b0bd9ae8bcc86911816ee3ae |
 | `Core\Db::connect` | 385518.0 | 487546.5 | 112680.073 | +1006.5% | flat | c21e52f41dad | cb070067dc0f5773d8f6b955468f34bb |
 | `Core\Db::inList` | 184478.9 | 250127.7 | 53919.916 | +283.4% | flat | c21e52f41dad | cb070067dc0f5773d8f6b955468f34bb |
 | `Core\Db::open` | 421181.2 | 457951.2 | 123103.819 | +568.8% | flat | c21e52f41dad | cb070067dc0f5773d8f6b955468f34bb |
@@ -2102,15 +2075,15 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db\Write::affected` | 10040.3 | 20270.7 | 2934.611 | -12.0% ~ | flat | c21e52f41dad | cb070067dc0f5773d8f6b955468f34bb |
 | `Core\Db\Write::changed` | 15964.6 | 23268.1 | 4666.184 | +22.8% ~ | flat | c21e52f41dad | cb070067dc0f5773d8f6b955468f34bb |
 | `Core\Db\Write::lastId` | 4585.3 | 4978.2 | 1340.203 | -34.4% | flat | c21e52f41dad | cb070067dc0f5773d8f6b955468f34bb |
-| `Core\Debug::coverage` | 4329.3 | 4928.9 | 1434.849 |  | flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::dump` | 3428.9 | 6664.5 | 1136.434 |  | flat, flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::render` | 3320.3 | 5382.0 | 1100.444 |  | flat, flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::startCoverage` | 360.7 | 1610.2 | 119.560 |  | flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::startProfile` | 426650.4 | 440016.0 | 141403.726 |  | flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::startTrace` | 433198.4 | 442881.2 | 143573.929 |  | flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::stopCoverage` | 1645.9 | 2702.1 | 545.496 |  | flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::stopProfile` | 428117.6 | 435250.0 | 141889.992 |  | flat | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
-| `Core\Debug::stopTrace` | 449937.5 | 464096.9 | 149121.717 |  | unclear | 4df0ce9fbced | 95ec67d7ca10d7c1c2ff755f1a0a0d6d |
+| `Core\Debug::coverage` | 10373.0 | 20885.2 | 2550.728 | +139.6% | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::dump` | 854.3 | 8120.3 | 210.071 | -75.1% ~ | flat, flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::render` | 14576.6 | 21735.2 | 3584.371 | +339.0% | flat, flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::startCoverage` | 2962.5 | 4151.4 | 728.478 | +721.2% | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::startProfile` | 152603.9 | 177965.2 | 37525.243 | -64.2% | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::startTrace` | 105103.1 | 115865.6 | 25844.819 | -75.7% | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::stopCoverage` | 561.5 | 3486.3 | 138.078 | -65.9% ~ | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::stopProfile` | 94649.6 | 101539.8 | 23274.303 | -77.9% | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
+| `Core\Debug::stopTrace` | 104121.9 | 107498.4 | 25603.530 | -76.9% | flat | 5bdd38e329af | bf2939441c4bebec3b443e7afa0704ff |
 | `Core\Decimal::allocate` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | dc9de5412971120c258aedecf052c775 |
 | `Core\Decimal::ceil` | 0.0 | 42.5 | 0.000 | -100.0% | flat | 12bd24661f00 | dc9de5412971120c258aedecf052c775 |
 | `Core\Decimal::divExact` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | dc9de5412971120c258aedecf052c775 |
@@ -2119,41 +2092,41 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Decimal::pow` | 0.0 | 707.4 | 0.000 | -100.0% | flat | 12bd24661f00 | dc9de5412971120c258aedecf052c775 |
 | `Core\Decimal::round` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | dc9de5412971120c258aedecf052c775 |
 | `Core\Decimal::truncate` | 0.0 | 2.4 | 0.000 | -100.0% | flat | 12bd24661f00 | dc9de5412971120c258aedecf052c775 |
-| `Core\Encoding::decodeText` | 4230.5 | 5762.1 | 378.168 | +2959.3% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::encodeText` | 0.0 | 10369.1 | 0.000 | -100.0% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::fromBase32` | 8492.2 | 25893.0 | 759.129 | +254.0% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::fromBase64` | 13589.8 | 54904.7 | 1214.816 | +437.5% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::fromBase64Url` | 1141.4 | 304135.9 | 102.032 | -80.4% ~ | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::fromHex` | 7803.9 | 35749.6 | 697.603 |  | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::isValidText` | 0.0 | 3332.8 | 0.000 | -100.0% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::toBase32` | 0.0 | 840.6 | 0.000 | -100.0% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::toBase64` | 1761.3 | 3819.1 | 157.448 | +203.4% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::toBase64Url` | 1511.7 | 11897.7 | 135.135 | -5.9% ~ | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Encoding::toHex` | 0.0 | 2297.3 | 0.000 | -100.0% | flat, flat | 1d5ff29e6510 | fa9cfda2ef859dbed6e1a322b7a61ee3 |
-| `Core\Env::all` | 47512.9 | 63483.6 | 12930.789 | +36.7% | flat | bfb1fa66dfa4 | bbea42344580e5524436e91aa77ff4c4 |
-| `Core\Env::context` | 0.0 | 926.6 | 0.000 | -100.0% | flat | bfb1fa66dfa4 | bbea42344580e5524436e91aa77ff4c4 |
-| `Core\Env::get` | 7927.7 | 21148.0 | 2157.559 | +52.8% ~ | flat | bfb1fa66dfa4 | bbea42344580e5524436e91aa77ff4c4 |
-| `Core\Env::mode` | 209.8 | 528.0 | 57.102 | -53.3% ~ | flat | bfb1fa66dfa4 | bbea42344580e5524436e91aa77ff4c4 |
-| `Core\Env::secret` | 0.0 | 13913.7 | 0.000 |  | flat | 66ab3d2c74fc | bbea42344580e5524436e91aa77ff4c4 |
+| `Core\Encoding::decodeText` | 912.9 | 4750.0 | 281.240 | -78.4% ~ | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::encodeText` | 0.0 | 2349.2 | 0.000 |  | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::fromBase32` | 7097.3 | 11513.7 | 2186.499 | -16.4% ~ | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::fromBase64` | 17395.7 | 23052.7 | 5359.202 | +28.0% ~ | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::fromBase64Url` | 0.0 | 3644.1 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::fromHex` | 485.2 | 2695.3 | 149.465 | -93.8% ~ | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::isValidText` | 8219.9 | 31070.7 | 2532.363 |  | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::toBase32` | 16268.4 | 21390.2 | 5011.895 |  | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::toBase64` | 4630.9 | 11697.7 | 1426.658 | +162.9% | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::toBase64Url` | 6770.3 | 9363.7 | 2085.772 | +347.9% | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Encoding::toHex` | 6675.8 | 12004.7 | 2056.649 |  | flat, flat | 7ec957692e53 | 50e2e8a9058d8b71cfe83d5dfac4b4a2 |
+| `Core\Env::all` | 36948.8 | 44087.1 | 10919.975 | -22.2% | flat, unclear | feeb9dfa26a3 | aa7f816ed8de45e4221b30c650c601b2 |
+| `Core\Env::context` | 0.0 | 2147.4 | 0.000 |  | flat | feeb9dfa26a3 | aa7f816ed8de45e4221b30c650c601b2 |
+| `Core\Env::get` | 5017.2 | 5763.3 | 1267.959 | -36.7% | flat | feeb9dfa26a3 | aa7f816ed8de45e4221b30c650c601b2 |
+| `Core\Env::mode` | 0.0 | 3946.6 | 0.000 | -100.0% | flat | feeb9dfa26a3 | aa7f816ed8de45e4221b30c650c601b2 |
+| `Core\Env::secret` | 306.6 | 1911.3 | 77.495 |  | flat | feeb9dfa26a3 | aa7f816ed8de45e4221b30c650c601b2 |
 | `Core\Fatal::onLimit` | 52.8 | 283.9 | 19.865 |  | flat | 764525d4bdf3 | 0e90f57ae998481457f8a4db00f9005f |
 | `Core\Fatal::onUncaughtThrow` | 0.0 | 132.6 | 0.000 |  | flat | 764525d4bdf3 | 0e90f57ae998481457f8a4db00f9005f |
-| `Core\Hash::equals` | 0.0 | 3386.3 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 071f4d1f09c607f2b4fa8114d6d64355 |
-| `Core\Hash::hmac` | 0.0 | 1626.6 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 071f4d1f09c607f2b4fa8114d6d64355 |
-| `Core\Hash::of` | 2700.8 | 11992.2 | 2158.725 | -82.2% ~ | flat, flat | 2bc5b2e64431 | 071f4d1f09c607f2b4fa8114d6d64355 |
-| `Core\Hash::stream` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 071f4d1f09c607f2b4fa8114d6d64355 |
-| `Core\Hash\Stream::finish` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 071f4d1f09c607f2b4fa8114d6d64355 |
-| `Core\Hash\Stream::update` | 0.0 | 5369.5 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 071f4d1f09c607f2b4fa8114d6d64355 |
+| `Core\Hash::equals` | 3005.5 | 4176.4 | 925.913 |  | flat, flat | 7ec957692e53 | 9ec83476c67cf2e7e4589d87a941023c |
+| `Core\Hash::hmac` | 5466.8 | 36386.3 | 1684.190 |  | flat, flat | 7ec957692e53 | 9ec83476c67cf2e7e4589d87a941023c |
+| `Core\Hash::of` | 39146.1 | 48713.3 | 12059.981 | +1349.4% | flat, flat | 7ec957692e53 | 9ec83476c67cf2e7e4589d87a941023c |
+| `Core\Hash::stream` | 9461.3 | 16146.5 | 2914.810 |  | flat | 7ec957692e53 | 9ec83476c67cf2e7e4589d87a941023c |
+| `Core\Hash\Stream::finish` | 9348.4 | 12183.6 | 2880.031 |  | flat | 7ec957692e53 | 9ec83476c67cf2e7e4589d87a941023c |
+| `Core\Hash\Stream::update` | 9930.5 | 10913.3 | 3059.341 |  | flat, flat | 7ec957692e53 | 9ec83476c67cf2e7e4589d87a941023c |
 | `Core\Heap::count` | 0.0 | 10.8 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::isEmpty` | 314.1 | 369.3 | 91.511 | +895.5% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::peek` | 0.0 | 151.5 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::pop` | 825.7 | 1849.8 | 240.587 | -5.9% ~ | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::push` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
-| `Core\Html::escape` | 0.0 | 3785.5 | 0.000 |  | flat, flat | 87731092251e | 7cb39b41ddf9d7964f0c4fefa05f3b5b |
-| `Core\Html::join` | 0.0 | 3106.2 | 0.000 |  | flat, flat | 87731092251e | 7cb39b41ddf9d7964f0c4fefa05f3b5b |
-| `Core\Html::later` | 11333.5 | 11558.1 | 4050.427 | +12.6% | flat | 87731092251e | 7cb39b41ddf9d7964f0c4fefa05f3b5b |
-| `Core\Html::parse` | 923.4 | 4062.9 | 330.023 |  | flat, flat | 87731092251e | 7cb39b41ddf9d7964f0c4fefa05f3b5b |
-| `Core\Html::sanitize` | 2328.9 | 3580.5 | 723.285 |  | flat, flat | 87731092251e | 7cb39b41ddf9d7964f0c4fefa05f3b5b |
-| `Core\Html::toSource` | 0.0 | 713.2 | 0.000 |  | flat | 87731092251e | 7cb39b41ddf9d7964f0c4fefa05f3b5b |
+| `Core\Html::escape` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
+| `Core\Html::join` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
+| `Core\Html::later` | 7789.3 | 8184.1 | 4617.934 | -31.3% | flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
+| `Core\Html::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
+| `Core\Html::sanitize` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
+| `Core\Html::toSource` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
 | `Core\Http::allowUrl` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
 | `Core\Http::methodName` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
 | `Core\Http\Client::delete` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
@@ -2197,60 +2170,60 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Http\TlsInfo::subject` | 31429.3 | 40155.9 | 10673.899 | +371.9% | flat, flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
 | `Core\Http\TlsInfo::verified` | 14480.9 | 20308.6 | 4917.935 | +744.1% | unclear | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
 | `Core\Http\TlsInfo::version` | 335.9 | 510.9 | 114.090 | +29.7% ~ | unclear | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
-| `Core\IO::append` | 107812.9 | 135497.3 | 86174.479 | +13.9% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::canonicalize` | 9189.5 | 31012.5 | 7345.099 | -68.0% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::copy` | 264602.0 | 305141.0 | 211495.446 | +1.0% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::exists` | 71934.4 | 77991.4 | 57496.903 | +5.3% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::isDir` | 65592.6 | 81897.7 | 52427.926 | -19.9% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::isFile` | 60561.3 | 68313.7 | 48406.465 | -25.4% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::isReadable` | 0.0 | 8882.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::isWritable` | 1950.4 | 4506.6 | 1558.941 | -83.3% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::lines` | 60984.0 | 71102.0 | 48744.292 | -33.8% | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::list` | 85230.5 | 133004.7 | 68124.426 | -5.1% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::makeDir` | 50295.7 | 62293.0 | 40201.185 | -35.3% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::modifiedAt` | 44493.4 | 58739.1 | 35563.391 | -38.2% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::move` | 220093.4 | 245827.7 | 175919.878 | +21.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::open` | 52736.3 | 69323.8 | 42151.969 | -4.8% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::read` | 58636.7 | 71887.5 | 46868.131 | -18.4% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::readBytes` | 49048.4 | 76614.1 | 39204.250 | -22.4% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::readText` | 65427.0 | 68434.8 | 52295.542 | -21.7% | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::remove` | 338783.2 | 373901.2 | 270788.269 | +19.9% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::removeDir` | 311880.1 | 331743.4 | 249284.692 | +19.9% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::size` | 57260.2 | 77755.9 | 45767.849 | -24.9% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::stat` | 53525.8 | 74903.9 | 42782.976 | -21.0% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::stdin` | 0.0 | 10170100.0 | 0.000 | -100.0% | skipped, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::stdinStream` | 0.0 | 1180800.0 | 0.000 | -100.0% | skipped, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::temporaryDir` | 140280.9 | 194991.0 | 112126.016 | -5.2% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::walk` | 170019.5 | 252237.5 | 135896.036 | -25.2% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::within` | 110235.5 | 160877.3 | 88110.900 | -16.5% ~ | flat, unclear | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::write` | 104909.4 | 152586.3 | 83853.709 | -23.0% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO::writeStream` | 179641.4 | 202207.8 | 143586.768 | -8.7% ~ | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::close` | 51657.8 | 94861.3 | 41289.914 | -45.1% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::flush` | 0.0 | 11914.1 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::lock` | 45301.2 | 87969.1 | 36209.074 | -46.3% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::read` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::readBytes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::readLine` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::seek` | 3909.0 | 27847.3 | 3124.438 | -84.4% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::tell` | 0.0 | 2484.4 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::truncate` | 8420.3 | 41581.6 | 6730.327 | -68.4% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\File::write` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\Metadata::isDir` | 0.0 | 824.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\Metadata::isFile` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\Metadata::modifiedAt` | 0.0 | 3712.4 | 0.000 | -100.0% | unclear | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\IO\Metadata::size` | 869.3 | 4084.0 | 694.857 | -82.1% ~ | flat | 2bc5b2e64431 | 94c9794df4fdbafb8434dec5285a99af |
-| `Core\Json::decode` | 25540.2 | 31824.2 | 8726.185 | +359.8% | flat, flat | 9f5a518a2e96 | fb88f4334239499665242ec33c841796 |
-| `Core\Json::decodeAs` | 0.0 | 2680.5 | 0.000 | -100.0% | flat, flat | 9f5a518a2e96 | fb88f4334239499665242ec33c841796 |
-| `Core\Json::decodeEach` | 89228.9 | 100873.8 | 30486.327 | -14.5% | unclear, flat | 9f5a518a2e96 | fb88f4334239499665242ec33c841796 |
-| `Core\Json::encode` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9f5a518a2e96 | fb88f4334239499665242ec33c841796 |
-| `Core\Json::encodeEach` | 0.0 | 1862.5 | 0.000 | -100.0% | flat, flat | 9f5a518a2e96 | fb88f4334239499665242ec33c841796 |
-| `Core\Json::isValid` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9f5a518a2e96 | fb88f4334239499665242ec33c841796 |
-| `Core\Jwe::decrypt` | 13642.2 | 21919.9 | 3712.766 | +13229.7% | flat, flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
-| `Core\Jwe::encrypt` | 8702.0 | 16149.6 | 2368.265 |  | flat, flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
-| `Core\Jwe\Key::own` | 1648.2 | 10895.3 | 448.575 |  | flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
-| `Core\Jwe\Key::password` | 0.0 | 21541.4 | 0.000 |  | flat, flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
-| `Core\Jwe\Key::recipient` | 9364.8 | 18617.6 | 2548.673 |  | flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
-| `Core\Jwe\Key::shared` | 6348.0 | 16009.8 | 1727.642 |  | flat | bfb1fa66dfa4 | 1fbfb960d396c31b5ed5b594956a1d79 |
+| `Core\IO::append` | 55935.5 | 58752.7 | 33161.729 | -32.6% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::canonicalize` | 5336.3 | 7114.8 | 3163.675 | -80.6% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::copy` | 203455.9 | 208651.2 | 120620.044 | -5.9% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::exists` | 44784.8 | 48351.6 | 26550.921 | -31.2% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::isDir` | 47635.5 | 50830.1 | 28241.024 | -35.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::isFile` | 47285.5 | 49228.5 | 28033.524 | -39.9% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::isReadable` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::isWritable` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::lines` | 38814.8 | 43227.7 | 23011.616 | -41.9% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::list` | 59507.0 | 65135.5 | 35279.105 | -33.1% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::makeDir` | 38340.2 | 46952.3 | 22730.241 | -41.4% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::modifiedAt` | 41580.5 | 46680.9 | 24651.234 | -37.5% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::move` | 155748.4 | 221539.8 | 92336.409 | +5.7% ~ | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::open` | 45333.2 | 47126.2 | 26876.065 | -34.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::read` | 52800.0 | 55395.3 | 31302.801 | -36.0% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::readBytes` | 56968.0 | 62199.6 | 33773.807 | -20.0% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::readText` | 55073.0 | 56657.0 | 32650.391 | -19.3% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::remove` | 185121.5 | 225311.7 | 109750.398 | -22.1% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::removeDir` | 210564.1 | 225715.2 | 124834.185 | -13.3% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::size` | 56679.7 | 62704.3 | 33602.898 | -11.1% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::stat` | 48908.2 | 55767.2 | 28995.526 | -22.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::stdin` | 0.0 | 0.0 | 0.000 | -100.0% | skipped, unclear | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::stdinStream` | 0.0 | 0.0 | 0.000 |  | skipped, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::temporaryDir` | 57214.5 | 65153.1 | 33919.937 | -38.9% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::walk` | 136407.4 | 141907.8 | 80869.970 | -22.6% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::within` | 92939.1 | 102682.8 | 55099.488 | -33.2% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::write` | 60615.6 | 64319.1 | 35936.342 | -69.8% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO::writeStream` | 129242.6 | 134985.9 | 76622.249 | -42.9% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::close` | 37188.7 | 38893.8 | 22047.531 | -56.4% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::flush` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::lock` | 38746.5 | 41409.4 | 22971.089 | -44.1% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::read` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::readBytes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::readLine` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::seek` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::tell` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::truncate` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\File::write` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\Metadata::isDir` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\Metadata::isFile` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\Metadata::modifiedAt` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\IO\Metadata::size` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 77b6a2bc800c4add6f1a9d49224b614a |
+| `Core\Json::decode` | 0.0 | 2118.4 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
+| `Core\Json::decodeAs` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 1592d27baefa51f4b11422e9899f4794 |
+| `Core\Json::decodeEach` | 98482.8 | 111314.1 | 28075.779 | +36.4% | unclear, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
+| `Core\Json::encode` | 0.0 | 2049.6 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
+| `Core\Json::encodeEach` | 0.0 | 1450.4 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
+| `Core\Json::isValid` | 0.0 | 5500.8 | 0.000 |  | flat, flat | 2ab1371f1660 | 654a754a946cf28f1343a6abf7af578d |
+| `Core\Jwe::decrypt` | 23750.4 | 24842.2 | 7316.931 | +74.1% | flat, flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
+| `Core\Jwe::encrypt` | 29152.7 | 39168.8 | 8981.264 | +235.0% | flat, flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
+| `Core\Jwe\Key::own` | 12005.5 | 13748.2 | 3698.599 | +628.4% | flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
+| `Core\Jwe\Key::password` | 20200.8 | 27132.4 | 6223.380 |  | flat, flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
+| `Core\Jwe\Key::recipient` | 22457.8 | 28546.5 | 6918.718 | +139.8% | flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
+| `Core\Jwe\Key::shared` | 30469.9 | 41591.4 | 9387.058 | +380.0% | flat | 7ec957692e53 | bf2196b0c69143783f1095d038847a85 |
 | `Core\Jwt::sign` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 1fdcfa8c7528f01e7013d7a895baf52f |
 | `Core\Jwt::signObject` | 31402.0 | 38025.8 | 25293.559 | -54.0% | flat, flat | b240924438e3 | 1fdcfa8c7528f01e7013d7a895baf52f |
 | `Core\Jwt::verify` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 1fdcfa8c7528f01e7013d7a895baf52f |
@@ -2358,16 +2331,16 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ldap\Sid::parse` | 176.9 | 258.8 | 46.063 | +49.8% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Sid::rid` | 90.5 | 117.5 | 23.575 |  | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Sid::toString` | 139.2 | 161.0 | 36.248 | +183.6% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Log::write` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 8dd568f3f9f7 | 8cd285cda3037c99e276553b496a1c2b |
+| `Core\Log::write` | 4522.3 | 9065.6 | 1112.024 |  | flat, flat | 5bdd38e329af | a3ee36fdf72202a3f8362d2afdb7b0c2 |
 | `Core\Mail::send` | 4958.2 | 8959.0 | 1497.065 |  | flat, flat | b29849c4daa9 | 226a24ec88faf8287597adfcf0dabad5 |
-| `Core\Markdown::fromHtml` | 0.0 | 1716.0 | 0.000 |  | flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown::live` | 0.0 | 64893.8 | 0.000 |  | flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown::toHtml` | 18133.2 | 46339.8 | 6297.782 |  | unclear, flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown::toHtmlEach` | 404824.2 | 622784.4 | 140598.138 |  | flat, flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown\Live::finish` | 25105.5 | 96753.5 | 8719.296 |  | flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown\Live::push` | 0.0 | 8879.3 | 0.000 |  | flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown\Update::done` | 0.0 | 0.0 | 0.000 |  | unclear | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
-| `Core\Markdown\Update::open` | 0.0 | 0.0 | 0.000 |  | flat | e576e37007c3 | dc823711f236a567d9d92c8f7ff6c106 |
+| `Core\Markdown::fromHtml` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown::live` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown::toHtml` | 0.0 | 8639.1 | 0.000 | -100.0% | unclear, flat | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown::toHtmlEach` | 63112.9 | 70193.0 | 37416.861 | -84.4% | flat, flat | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown\Live::finish` | 0.0 | 6184.4 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown\Live::push` | 0.0 | 3035.9 | 0.000 |  | unclear | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown\Update::done` | 0.0 | 0.0 | 0.000 |  | unclear | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
+| `Core\Markdown\Update::open` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 43ffba4c2d28b92607afc7b26f344000 |
 | `Core\Math::abs` | 0.0 | 1225.3 | 0.000 | -100.0% | flat | b31d460051e9 | 6099fe69b1e157ff1248336573e0141a |
 | `Core\Math::acos` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | 6099fe69b1e157ff1248336573e0141a |
 | `Core\Math::acosh` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | 6099fe69b1e157ff1248336573e0141a |
@@ -2410,24 +2383,24 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Metrics::gauge` | 0.0 | 460.6 | 0.000 |  | flat | 4df0ce9fbced | 246953c69b9736ffd873579352d57d22 |
 | `Core\Metrics::increment` | 0.0 | 372.2 | 0.000 |  | flat | 4df0ce9fbced | 246953c69b9736ffd873579352d57d22 |
 | `Core\Metrics::observe` | 516.5 | 745.4 | 171.184 |  | flat | 4df0ce9fbced | 246953c69b9736ffd873579352d57d22 |
-| `Core\Mime::detect` | 57917.2 | 65053.5 | 19679.643 | +354.5% | flat, flat | 2bc5b2e64431 | 86344a4710baf5ed3bf1ad1c638387f4 |
-| `Core\Mime::mediaType` | 50800.8 | 70105.5 | 17261.563 | +215.8% | flat | 2bc5b2e64431 | 86344a4710baf5ed3bf1ad1c638387f4 |
-| `Core\Net::bindDatagram` | 96156.2 | 121960.9 | 79963.617 | +70.5% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net::connect` | 341110.5 | 388008.0 | 283667.775 | -97.7% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net::listen` | 168151.2 | 227043.4 | 139834.655 | +124.0% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram::close` | 124507.4 | 177168.4 | 103540.476 | +128.3% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram::port` | 13158.2 | 19138.7 | 10942.373 | +168.3% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram::receive` | 27051.6 | 36628.9 | 22496.102 | +34.1% ~ | flat, flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram::send` | 21406.2 | 30634.8 | 17801.455 | +86.0% | flat, flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram\Message::host` | 3226.3 | 3780.6 | 2682.969 | +105.7% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram\Message::payload` | 5310.8 | 16990.7 | 4416.499 | +160.9% ~ | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Datagram\Message::port` | 1027.3 | 10515.6 | 854.340 | -87.5% ~ | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Listener::accept` | 611274.0 | 643593.5 | 508335.967 | -97.9% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Listener::close` | 138447.7 | 156486.7 | 115133.186 | +55.8% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Listener::port` | 3394.1 | 15203.5 | 2822.570 | -50.3% ~ | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Stream::close` | 322365.0 | 355423.0 | 268079.002 | -97.9% | flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Stream::read` | 19677.3 | 23778.1 | 16363.696 | -68.8% | flat, flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
-| `Core\Net\Stream::write` | 21300.0 | 26299.2 | 17713.098 | -65.9% | flat, flat | 9c8966d84f80 | 1dd3fff22c8e1efcb1cc608c2cf50d81 |
+| `Core\Mime::detect` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 7ec957692e53 | 343be109c55a04a826f4c7a1b84bb1f8 |
+| `Core\Mime::mediaType` | 0.0 | 1321.9 | 0.000 | -100.0% | flat | 7ec957692e53 | 343be109c55a04a826f4c7a1b84bb1f8 |
+| `Core\Net::bindDatagram` | 56176.2 | 83857.0 | 33304.385 | -41.6% ~ | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net::connect` | 200233.5 | 262737.5 | 118709.649 | -41.3% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net::listen` | 103363.3 | 136460.5 | 61279.550 | -38.5% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram::close` | 58452.7 | 67630.1 | 34654.059 | -53.1% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram::port` | 9289.8 | 12318.8 | 5507.541 | -29.4% ~ | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram::receive` | 14017.6 | 19299.2 | 8310.406 | -48.2% | flat, flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram::send` | 21833.2 | 34007.8 | 12943.947 | +2.0% ~ | flat, flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram\Message::host` | 1010.4 | 1655.0 | 599.051 | -68.7% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram\Message::payload` | 1209.8 | 1627.5 | 717.217 | -77.2% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Datagram\Message::port` | 6191.8 | 7684.4 | 3670.845 | +502.7% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Listener::accept` | 389102.0 | 437777.5 | 230681.488 | -36.3% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Listener::close` | 98328.5 | 114193.0 | 58294.659 | -29.0% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Listener::port` | 3074.6 | 4358.2 | 1822.801 | -9.4% ~ | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Stream::close` | 210583.5 | 254682.5 | 124845.709 | -34.7% | flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Stream::read` | 8606.6 | 10878.5 | 5102.499 | -56.3% | flat, flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
+| `Core\Net\Stream::write` | 14651.6 | 26964.1 | 8686.268 | -31.2% ~ | flat, flat | 9284f7e0c6f4 | 673037248513f085105e77ac93a6d227 |
 | `Core\ObjectMap::clear` | 47137.1 | 93083.6 | 14470.777 |  | flat, flat | 673d8be1504f | 6afe4e7893ae0f98d81af9b51808ffc8 |
 | `Core\ObjectMap::count` | 2910.2 | 3749.8 | 893.413 |  | flat | 673d8be1504f | 6afe4e7893ae0f98d81af9b51808ffc8 |
 | `Core\ObjectMap::get` | 1569.7 | 5376.3 | 481.881 |  | flat | 673d8be1504f | 6afe4e7893ae0f98d81af9b51808ffc8 |
@@ -2477,35 +2450,35 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Path::thisDir` | 22215.6 | 28110.5 | 7985.487 | +133.0% | flat | c7a50598170e | 08212c1b8dc11c08ce59732f6521ce20 |
 | `Core\Path::thisFile` | 0.0 | 20171.9 | 0.000 | -100.0% | flat | c7a50598170e | 08212c1b8dc11c08ce59732f6521ce20 |
 | `Core\Path::withExtension` | 10040.6 | 16403.9 | 3609.139 | +121.1% | flat, flat | c7a50598170e | 08212c1b8dc11c08ce59732f6521ce20 |
-| `Core\Process::run` | 9620788.0 | 10317040.0 | 3267375.785 | -21.9% | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process::spawn` | 10984092.0 | 11227965.0 | 3730375.955 | +21.0% | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Handle::kill` | 5452914.0 | 5632804.0 | 1851898.115 | +108.4% | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Handle::readStderr` | 93677.7 | 180748.4 | 31814.479 | -1.3% ~ | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Handle::readStdout` | 110445.3 | 112848.8 | 37509.021 | -10.5% | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Handle::wait` | 12296211.0 | 12407217.0 | 4175992.868 | +14.3% | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Handle::writeStdin` | 95652.0 | 102443.8 | 32484.956 | +12.4% | flat, flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Result::exitCode` | 28261.8 | 29859.4 | 9598.172 | +2.5% ~ | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Result::stderr` | 12855.5 | 13582.8 | 4365.943 | +0.0% ~ | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
-| `Core\Process\Result::stdout` | 7046.2 | 7344.2 | 2393.009 | +0.9% ~ | flat | 3f9e0edb6a30 | 895565a8c26848941431ebbdc72e84de |
+| `Core\Process::run` | 8935788.0 | 13131369.0 | 5297636.283 | -7.1% ~ | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process::spawn` | 8612323.0 | 8795549.0 | 5105868.089 | -21.6% | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Handle::kill` | 2320587.0 | 2402867.0 | 1375774.122 | -57.4% | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Handle::readStderr` | 86154.9 | 93257.2 | 51077.447 | -8.0% ~ | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Handle::readStdout` | 110939.8 | 118977.0 | 65771.361 | +0.4% ~ | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Handle::wait` | 10645185.0 | 10823572.0 | 6311062.695 | -13.4% | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Handle::writeStdin` | 87206.6 | 102399.6 | 51700.988 | -8.8% ~ | flat, flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Result::exitCode` | 27443.0 | 30755.3 | 16269.731 | -2.9% ~ | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Result::stderr` | 12798.2 | 25742.4 | 7587.516 | -0.4% ~ | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
+| `Core\Process\Result::stdout` | 6653.7 | 7217.1 | 3944.707 | -5.6% ~ | flat | 9284f7e0c6f4 | 486b5a4b685dccf894b15c595589f53d |
 | `Core\Program::constructors` | 14850.8 | 36216.4 | 3254.324 |  | flat | bfb1fa66dfa4 | b65a087234ae57972df419d76a89ac04 |
 | `Core\Program::id` | 14454.7 | 31915.2 | 3933.891 |  | flat | bfb1fa66dfa4 | b65a087234ae57972df419d76a89ac04 |
 | `Core\Program::implementing` | 11474.2 | 13485.9 | 2514.401 |  | flat | bfb1fa66dfa4 | b65a087234ae57972df419d76a89ac04 |
 | `Core\Program::implementingWith` | 20475.8 | 32211.3 | 4486.957 |  | flat | bfb1fa66dfa4 | b65a087234ae57972df419d76a89ac04 |
-| `Core\Queue::cancel` | 153431.2 | 161301.6 | 52421.972 | -29.9% | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue::delete` | 174259.4 | 194621.5 | 59538.198 | -11.0% ~ | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue::purge` | 167389.1 | 169746.9 | 57190.858 | -18.6% | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue::push` | 23235.9 | 25705.5 | 7938.889 | -10.1% ~ | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue::stats` | 21636.3 | 22978.9 | 7392.360 | +5.3% ~ | flat, flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue::status` | 19394.9 | 19691.4 | 6626.551 | -36.9% | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Id::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | d7460bf59d63 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Id::toString` | 2145.7 | 3351.6 | 771.475 |  | flat | d7460bf59d63 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Id::tryParse` | 110.2 | 2584.8 | 39.606 |  | flat | d7460bf59d63 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Stats::attempts` | 1724.1 | 3103.9 | 589.071 | -1.1% ~ | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Stats::claimed` | 1812.3 | 2534.5 | 619.200 | +43.4% | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Stats::deadAttempts` | 914.0 | 2599.4 | 312.269 | -9.0% ~ | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Stats::deadLettered` | 1375.1 | 2054.6 | 469.822 | -55.3% | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Stats::nonTransactional` | 982.1 | 1268.0 | 335.558 | -35.9% | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
-| `Core\Queue\Stats::pending` | 1049.2 | 1782.3 | 358.481 | -54.5% ~ | flat | 9f5a518a2e96 | 7e4b86fbe5ead93346740446c07254cc |
+| `Core\Queue::cancel` | 140305.1 | 146781.2 | 35458.333 | -8.6% | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue::delete` | 164627.3 | 168412.1 | 41605.131 | -5.5% | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue::purge` | 160562.1 | 163642.2 | 40577.753 | -4.1% | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue::push` | 19147.7 | 58516.8 | 4839.055 | -17.6% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue::stats` | 20766.4 | 21965.6 | 5248.150 | -4.0% ~ | flat, flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue::status` | 17872.3 | 20923.8 | 4516.734 | -7.9% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Id::parse` | 1772.3 | 8959.0 | 447.892 |  | flat, flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Id::toString` | 0.0 | 2998.0 | 0.000 | -100.0% | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Id::tryParse` | 1318.4 | 34844.5 | 333.180 | +1096.8% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Stats::attempts` | 1062.2 | 1653.4 | 268.444 | -38.4% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Stats::claimed` | 2002.4 | 2420.8 | 506.063 | +10.5% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Stats::deadAttempts` | 1460.9 | 10525.5 | 369.212 | +59.8% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Stats::deadLettered` | 1225.2 | 2193.7 | 309.635 | -10.9% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Stats::nonTransactional` | 2953.2 | 3846.9 | 746.348 | +200.7% | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
+| `Core\Queue\Stats::pending` | 1420.4 | 2037.4 | 358.970 | +35.4% ~ | flat | feeb9dfa26a3 | 20d324051d55190ad4dc927139a94131 |
 | `Core\Random::bytes` | 7300.8 | 12620.3 | 1986.931 | -95.7% | flat, flat | bfb1fa66dfa4 | 86a0769bcb90f97a75936220b11fd72d |
 | `Core\Random::float` | 3272.7 | 16567.6 | 890.664 | -94.9% ~ | flat | bfb1fa66dfa4 | 86a0769bcb90f97a75936220b11fd72d |
 | `Core\Random::int` | 0.0 | 4366.8 | 0.000 | -100.0% | flat | bfb1fa66dfa4 | 86a0769bcb90f97a75936220b11fd72d |
@@ -2525,208 +2498,208 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
 | `Core\RateLimit\Decision::remaining` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
 | `Core\RateLimit\Decision::retryAfter` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
-| `Core\Reflect::forClass` | 0.0 | 0.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect::forObject` | 0.0 | 5803.1 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect::steps` | 0.0 | 44807.0 | 0.000 |  | flat, flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect::typeOf` | 0.0 | 0.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\AttributeInfo::field` | 0.0 | 0.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\AttributeInfo::fields` | 0.0 | 0.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\AttributeInfo::name` | 0.0 | 0.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\AttributeInfo::parameter` | 0.0 | 15858.5 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\AttributeInfo::target` | 4875.3 | 13328.4 | 1515.258 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::attributes` | 2885.6 | 38178.8 | 896.859 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::call` | 0.0 | 482569.9 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::constant` | 35855.5 | 73528.9 | 11143.891 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::constants` | 81167.7 | 108507.8 | 25226.939 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::construct` | 813930.5 | 1224975.8 | 252969.843 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::get` | 148102.7 | 151719.1 | 46030.376 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::hasMethod` | 147112.6 | 407663.0 | 45722.641 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::hasProperty` | 47306.9 | 95650.1 | 14703.010 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::methods` | 3020.2 | 3863.7 | 938.684 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::name` | 1328.8 | 1955.5 | 412.979 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::properties` | 1434.3 | 2401.1 | 445.789 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::readableProperties` | 8785.9 | 10493.4 | 2730.672 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ClassInfo::set` | 1276.2 | 1801.7 | 396.650 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ConstantInfo::hasValue` | 3418.1 | 5288.7 | 1062.336 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ConstantInfo::isPublic` | 1248.5 | 1663.1 | 388.030 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ConstantInfo::name` | 13522.2 | 119918.7 | 4202.694 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\EnumInfo::cases` | 99.1 | 232.8 | 30.792 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\EnumInfo::isUnsigned` | 2510.3 | 13513.6 | 780.188 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\EnumInfo::name` | 271.7 | 6627.9 | 84.438 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\EnumInfo::of` | 0.0 | 6487.9 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\EnumInfo::valueOf` | 997.2 | 1589.1 | 309.920 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\MethodInfo::isPublic` | 272.6 | 321.0 | 84.711 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\MethodInfo::name` | 0.0 | 85.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\MethodInfo::parameterCount` | 1880.9 | 5500.4 | 584.572 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\MethodInfo::parameters` | 0.0 | 238.4 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ParameterInfo::name` | 524.2 | 614.5 | 162.920 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\ParameterInfo::type` | 77.9 | 1345.7 | 24.213 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\PropertyInfo::isPublic` | 374.6 | 2689.6 | 116.414 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\PropertyInfo::name` | 0.0 | 7981.5 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Reflect\PropertyInfo::type` | 0.0 | 0.0 | 0.000 |  | flat | 6e6d02712713 | 0af9594eea520f63c39a9db3df2a432e |
-| `Core\Regex::compile` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::match` | 0.0 | 2008.6 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::matchAll` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::matches` | 4341.8 | 7532.0 | 1474.545 | -17.5% ~ | unclear, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::quote` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::replace` | 0.0 | 6742.2 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::replaceWith` | 0.0 | 4561.7 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex::split` | 0.0 | 133.2 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex\Match::group` | 0.0 | 86.8 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex\Match::groups` | 49.6 | 4820.7 | 16.848 | -99.9% ~ | flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex\Match::offset` | 0.0 | 189.4 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Regex\Match::text` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | fc1bd272fbb2ded5bd7439e4bd478a42 |
-| `Core\Request::body` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::bodyStream` | 0.0 | 666200.0 | 0.000 | -100.0% | skipped, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::bytes` | 0.0 | 15298.4 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::clientIp` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::cookie` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::files` | 0.0 | 0.0 | 0.000 | -100.0% | skipped, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::header` | 0.0 | 28102.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::headers` | 0.0 | 2421.1 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::host` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::isHead` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::json` | 0.0 | 24267.6 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::jsonAs` | 0.0 | 0.0 | 0.000 |  | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::method` | 0.0 | 6848.3 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::mount` | 0.0 | 0.0 | 0.000 |  | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::path` | 0.0 | 0.0 | 0.000 |  | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::post` | 0.0 | 5660.5 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::postArray` | 0.0 | 0.0 | 0.000 |  | unclear | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::postAs` | 0.0 | 872721.1 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::query` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::queryArray` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::queryAs` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::route` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request::scheme` | 0.0 | 678.5 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\BodyStream::peek` | 0.0 | 3558.2 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Mount::captures` | 0.0 | 3258.7 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Mount::prefix` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::content` | 3300.0 | 473400.0 | 2637.679 | -99.6% ~ | skipped, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::contentType` | 649400.0 | 895800.0 | 519063.224 | +386.1% | skipped | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::filename` | 784500.0 | 1356800.0 | 627048.198 | +121.9% | skipped | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::name` | 1130300.0 | 1740000.0 | 903444.968 | +27.0% ~ | skipped | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::peek` | 2058.2 | 3672.3 | 1645.115 | -22.7% ~ | flat, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::readAll` | 887600.0 | 1682400.0 | 709455.679 | -64.5% ~ | skipped, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Request\Part::saveTo` | 1200800.0 | 1356000.0 | 959795.380 | -53.0% | skipped, flat | 2bc5b2e64431 | 1c73b91331722fe0b42d4e478ea4e9d5 |
-| `Core\Response::addCookie` | 306.4 | 319.1 | 66.734 | -8.2% | skipped, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::bytes` | 120.3 | 163.9 | 26.212 | +16.7% ~ | skipped, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::html` | 157.1 | 176.4 | 34.227 | +43.6% | skipped, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::json` | 358.2 | 459.9 | 97.414 | -49.1% | skipped, flat | e3edb8a44a87 | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::redirect` | 3650.4 | 4389.8 | 795.084 | -11.9% ~ | flat, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::sendFile` | 80710.6 | 82094.9 | 17579.417 | -21.7% | skipped | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::setHeader` | 107.8 | 120.7 | 23.483 | -29.2% | skipped, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::setStatus` | 14.2 | 16.4 | 3.099 | -77.2% | skipped | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::slotted` | 11856.1 | 13872.4 | 2582.353 | -30.6% | flat, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::stream` | 71.8 | 79.9 | 15.633 | -27.2% | skipped, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response::text` | 230.2 | 268.1 | 50.138 | -79.2% | skipped, flat | 09ec06bf607c | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response\Stream::end` | 301.7 | 400.9 | 88.013 | -97.0% | skipped | a29c3d4c1e34 | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response\Stream::length` | 563.2 | 943.2 | 164.316 | -92.9% | skipped | a29c3d4c1e34 | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response\Stream::offset` | 694.7 | 2245.2 | 202.695 | -85.5% ~ | skipped | a29c3d4c1e34 | b1a102375c80257d265b115cc89ff937 |
-| `Core\Response\Stream::write` | 179.6 | 197.8 | 52.405 | -92.0% | skipped, flat | a29c3d4c1e34 | b1a102375c80257d265b115cc89ff937 |
-| `Core\Router::dispatch` | 270859.4 | 472661.5 | 126177.707 | +5908.9% | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router::match` | 3751.6 | 11530.7 | 1747.636 | +22.3% ~ | flat, flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router::methodsFor` | 58136.7 | 229290.2 | 27082.533 | +952.1% | flat, flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router::signedRoute` | 21669.5 | 50377.7 | 10094.580 | +145.6% | flat, flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router::url` | 46999.6 | 371214.8 | 21894.398 | +1770.0% | flat, flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router::urlAbsolute` | 11857.8 | 16856.6 | 5523.868 | +90.0% | flat, flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router::urlSigned` | 10677.3 | 14489.8 | 4973.957 | +113.6% | flat, flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router\Match::access` | 0.0 | 1107.9 | 0.000 | -100.0% | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router\Match::accessAs` | 0.0 | 1951.0 | 0.000 |  | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router\Match::attribute` | 252.7 | 1247.9 | 255.700 |  | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router\Match::is` | 0.0 | 322.0 | 0.000 |  | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router\Match::method` | 0.0 | 2925.3 | 0.000 |  | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
+| `Core\Reflect::forClass` | 2961.3 | 8628.1 | 952.134 | -43.3% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect::forObject` | 14794.9 | 22031.6 | 4756.904 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect::steps` | 14519.5 | 22705.9 | 4668.359 | +301.0% | flat, flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect::typeOf` | 2813.9 | 5397.0 | 904.722 | +437.0% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\AttributeInfo::field` | 100.2 | 2000.6 | 33.087 | -78.0% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\AttributeInfo::fields` | 553.0 | 1172.1 | 182.623 | +84.2% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\AttributeInfo::name` | 23.3 | 60.7 | 7.691 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\AttributeInfo::parameter` | 577.3 | 1158.1 | 190.653 | +3689.8% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\AttributeInfo::target` | 0.0 | 273.5 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::attributes` | 2560.7 | 3848.0 | 627.126 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::call` | 2844.5 | 12890.2 | 696.625 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::constant` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::constants` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::construct` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::get` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::hasMethod` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::hasProperty` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::methods` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::name` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::properties` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::readableProperties` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ClassInfo::set` | 0.0 | 0.0 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ConstantInfo::hasValue` | 0.0 | 116.9 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ConstantInfo::isPublic` | 77.2 | 171.2 | 28.100 | +8682.4% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ConstantInfo::name` | 0.0 | 274.6 | 0.000 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\EnumInfo::cases` | 325.0 | 541.8 | 99.266 | +20.5% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\EnumInfo::isUnsigned` | 754.2 | 6775.9 | 230.392 | -22.6% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\EnumInfo::name` | 549.7 | 855.7 | 167.909 | +84.2% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\EnumInfo::of` | 2337.9 | 7873.0 | 714.176 | +49.7% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\EnumInfo::valueOf` | 1007.0 | 1393.7 | 307.627 | -11.0% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\MethodInfo::isPublic` | 332.1 | 914.9 | 103.906 | -51.0% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\MethodInfo::name` | 167.8 | 502.3 | 52.503 | +341.2% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\MethodInfo::parameterCount` | 302.7 | 640.7 | 94.709 | +485.5% | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\MethodInfo::parameters` | 289.3 | 1413.0 | 90.493 | +33.8% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ParameterInfo::name` | 58.3 | 348.7 | 21.000 | +33.9% ~ | flat | 7afa92ef94f1 | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\ParameterInfo::type` | 21.1 | 202.8 | 7.610 | -90.8% ~ | flat | 7afa92ef94f1 | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\PropertyInfo::isPublic` | 226.8 | 451.3 | 73.580 | -55.2% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\PropertyInfo::name` | 689.8 | 1501.3 | 223.797 | -0.6% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Reflect\PropertyInfo::type` | 175.9 | 277.8 | 57.074 | +44.5% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
+| `Core\Regex::compile` | 30631.6 | 42093.4 | 9436.880 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::match` | 25593.0 | 33703.5 | 7884.585 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::matchAll` | 28471.9 | 33166.0 | 8771.508 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::matches` | 158652.0 | 551494.9 | 48876.894 | +3554.1% | unclear, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::quote` | 69766.0 | 85865.2 | 21493.250 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::replace` | 62221.5 | 65948.0 | 19168.960 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::replaceWith` | 57173.4 | 72578.9 | 17613.777 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex::split` | 25995.7 | 32243.8 | 8008.658 |  | flat, flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex\Match::group` | 1546.0 | 1745.1 | 476.277 |  | flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex\Match::groups` | 28917.6 | 32237.5 | 8908.818 | +58191.0% | flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex\Match::offset` | 1715.7 | 2089.2 | 528.566 |  | flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Regex\Match::text` | 25147.3 | 28879.7 | 7747.275 |  | flat | 7ec957692e53 | 6e54a0778337935420886585a89f5a02 |
+| `Core\Request::body` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::bodyStream` | 0.0 | 0.0 | 0.000 |  | skipped, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::bytes` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::clientIp` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::cookie` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::files` | 0.0 | 0.0 | 0.000 | -100.0% | skipped, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::header` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::headers` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::host` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::isHead` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::json` | 0.0 | 1452.3 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::jsonAs` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::method` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::mount` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::path` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::post` | 0.0 | 3207.4 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::postArray` | 0.0 | 4925.8 | 0.000 |  | unclear | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::postAs` | 0.0 | 1322.3 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::query` | 0.0 | 106.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::queryArray` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::queryAs` | 0.0 | 5150.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::route` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request::scheme` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\BodyStream::peek` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Mount::captures` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Mount::prefix` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::content` | 593800.0 | 841500.0 | 352037.943 |  | skipped, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::contentType` | 1751400.0 | 2363300.0 | 1038328.146 | -56.6% | skipped | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::filename` | 906300.0 | 1333100.0 | 537305.469 | -95.0% | skipped | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::name` | 365000.0 | 4318100.0 | 216392.471 | -97.5% ~ | skipped | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::peek` | 1495.3 | 11640.2 | 886.505 | -93.8% ~ | flat, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::readAll` | 603400.0 | 1251300.0 | 357729.361 | -73.1% ~ | skipped, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Request\Part::saveTo` | 1414100.0 | 6028500.0 | 838357.789 | -60.0% ~ | skipped, flat | 9284f7e0c6f4 | 7ae0a88d9e7a2aec0b7af8f3e1b28bd8 |
+| `Core\Response::addCookie` | 302.4 | 579.0 | 179.262 | -22.2% ~ | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::bytes` | 91.7 | 127.8 | 54.383 | -10.3% ~ | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::html` | 113.9 | 142.6 | 67.532 | +1.8% ~ | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::json` | 415.3 | 471.5 | 246.204 | +52.4% | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::redirect` | 1380.1 | 15715.6 | 818.188 |  | flat, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::sendFile` | 81206.3 | 82366.5 | 48143.658 | -1.4% ~ | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::setHeader` | 71.8 | 114.0 | 42.568 | -9.5% ~ | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::setStatus` | 7.6 | 16.1 | 4.477 | -8.9% ~ | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::slotted` | 10503.5 | 15073.4 | 6227.093 | -2.4% ~ | flat, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::stream` | 51.3 | 56.4 | 30.408 | -7.9% ~ | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response::text` | 268.2 | 294.3 | 159.019 | +693.1% | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response\Stream::end` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response\Stream::length` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response\Stream::offset` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Response\Stream::write` | 0.0 | 71.9 | 0.000 | -100.0% | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
+| `Core\Router::dispatch` | 3636.9 | 6604.1 | 1035.067 | -98.7% | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::match` | 1452.5 | 3944.1 | 413.393 | -61.3% ~ | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::methodsFor` | 4146.5 | 4516.4 | 1180.091 | -92.9% | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::signedRoute` | 8319.5 | 10906.6 | 2367.741 | -61.6% | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::url` | 4704.3 | 7878.9 | 1156.856 | -94.5% | flat, flat | 0129bcd837ec | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::urlAbsolute` | 4271.9 | 4733.2 | 1215.777 | -64.0% | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::urlSigned` | 11691.0 | 22812.5 | 3327.266 | +9.5% ~ | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::access` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::accessAs` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::attribute` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::is` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::method` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
 | `Core\Router\Match::name` | 1057.4 | 4533.1 | 271.186 |  | flat | b358c465f632 | b0c8c8209978f0bbe6b373fe336b1489 |
-| `Core\Router\Match::param` | 28.9 | 5936.3 | 29.245 | +163.1% ~ | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
-| `Core\Router\Match::params` | 0.0 | 12168.6 | 0.000 |  | flat | b240924438e3 | 0df1789211603fd252e75d33498bb575 |
+| `Core\Router\Match::param` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::params` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
 | `Core\Router\Responder` | 134607.4 | 146628.9 | 25422.330 |  | flat, flat | f2ed85dbe899 |  |
-| `Core\Script::args` | 2639.3 | 3722.5 | 574.862 |  | flat | 09ec06bf607c | 79d4b50cb942a816c33b740870eead59 |
-| `Core\Script::onExit` | 26515.2 | 32109.4 | 5775.230 |  | flat | 09ec06bf607c | 79d4b50cb942a816c33b740870eead59 |
-| `Core\Script\ExitReport::error` | 35.9 | 41.4 | 10.474 | +256.2% | flat | a29c3d4c1e34 | 79d4b50cb942a816c33b740870eead59 |
-| `Core\Script\ExitReport::memoryPeak` | 30.0 | 37.5 | 8.758 | +114.5% | flat | a29c3d4c1e34 | 79d4b50cb942a816c33b740870eead59 |
-| `Core\Script\ExitReport::reason` | 27.1 | 32.0 | 7.893 | +321.5% | flat | a29c3d4c1e34 | 79d4b50cb942a816c33b740870eead59 |
-| `Core\Script\ExitReport::status` | 30.6 | 32.9 | 8.926 | +76.1% | flat | a29c3d4c1e34 | 79d4b50cb942a816c33b740870eead59 |
+| `Core\Script::args` | 0.0 | 0.0 | 0.000 | -100.0% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
+| `Core\Script::onExit` | 0.0 | 0.0 | 0.000 | -100.0% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
+| `Core\Script\ExitReport::error` | 15.1 | 16.4 | 5.946 | -57.9% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
+| `Core\Script\ExitReport::memoryPeak` | 9.8 | 12.0 | 3.856 | -67.4% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
+| `Core\Script\ExitReport::reason` | 5.3 | 8.4 | 2.070 | -80.6% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
+| `Core\Script\ExitReport::status` | 10.1 | 12.7 | 3.965 | -67.1% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
 | `Core\Secret::reveal` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | c5b401885cad8bf7ec5a77b2049a5758 |
 | `Core\Secret::revealBytes` | 0.0 | 2677.7 | 0.000 | -100.0% | flat | 12bd24661f00 | c5b401885cad8bf7ec5a77b2049a5758 |
-| `Core\Serialize::decode` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | b003f6325bdfcc606912348784223ffe |
-| `Core\Serialize::encode` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 12bd24661f00 | b003f6325bdfcc606912348784223ffe |
+| `Core\Serialize::decode` | 0.0 | 0.0 | 0.000 |  | flat, flat | 0c6ddd43a805 | 7a65f4748b1a392a44786645c7153f79 |
+| `Core\Serialize::encode` | 0.0 | 1506.2 | 0.000 |  | flat, flat | 0c6ddd43a805 | 7a65f4748b1a392a44786645c7153f79 |
 | `Core\Server::isDraining` | 297.7 | 3290.9 | 81.021 | -95.4% ~ | flat | bfb1fa66dfa4 | 44d221498df80fc5657fb55a74c34933 |
 | `Core\Server::traceId` | 5464.5 | 25089.1 | 1487.169 | -88.4% ~ | flat | bfb1fa66dfa4 | 44d221498df80fc5657fb55a74c34933 |
-| `Core\Session::clear` | 54707.0 | 62394.9 | 18579.396 | -13.1% ~ | flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::destroy` | 421309.4 | 426054.3 | 143083.503 | +1.9% | flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::get` | 55892.2 | 59267.2 | 18981.894 | -9.2% | flat, flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::getSecret` | 55765.2 | 71685.5 | 18938.779 | -7.4% ~ | flat, flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::regenerate` | 731700.0 | 764950.0 | 248497.198 | -2.1% ~ | flat, unclear | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::remove` | 55272.7 | 63919.5 | 18771.491 | -12.8% ~ | flat, flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::set` | 56134.0 | 63528.1 | 19064.012 | -13.0% ~ | flat, flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::setSecret` | 60564.8 | 62083.6 | 20568.804 | -2.5% ~ | flat, flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
-| `Core\Session::start` | 60096.9 | 62015.6 | 20409.874 | +1.9% ~ | flat | 3f9e0edb6a30 | 081c7cf323d13c8906e3a2fa00fdc90d |
+| `Core\Session::clear` | 0.0 | 12234.8 | 0.000 | -100.0% | flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::destroy` | 347652.0 | 413941.8 | 59183.363 | -1.6% ~ | flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::get` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::getSecret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::regenerate` | 0.0 | 458.2 | 0.000 | -100.0% | flat, flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::remove` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::set` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::setSecret` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
+| `Core\Session::start` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 78eebf4cd175 | 3b5c65ee95d096940e8954eda24d2864 |
 | `Core\Signal::onShutdown` | 0.0 | 245.2 | 0.000 |  | flat | 764525d4bdf3 | 44163f5794d3fbe7041834e474e9035a |
 | `Core\Signature::sign` | 6087.1 | 47869.1 | 1656.627 |  | flat, flat | bfb1fa66dfa4 | fa83db4f7fb9ee9345d0b4078e6b44a0 |
 | `Core\Signature::verify` | 5732.0 | 13154.3 | 1559.991 |  | flat, flat | bfb1fa66dfa4 | fa83db4f7fb9ee9345d0b4078e6b44a0 |
 | `Core\SignedCookie::open` | 2100.4 | 9237.5 | 571.628 |  | flat, flat | bfb1fa66dfa4 | bbea47abbebd3af8b917d01c9a71ab0b |
 | `Core\SignedCookie::seal` | 2916.4 | 9934.8 | 793.709 |  | flat, flat | bfb1fa66dfa4 | bbea47abbebd3af8b917d01c9a71ab0b |
-| `Core\Socket::current` | 50206.2 | 76660.9 | 29220.260 |  | flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket::receive` | 30937.5 | 151323.4 | 18005.762 |  | flat, flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket::send` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket::sendBytes` | 76866.4 | 109112.9 | 44736.588 |  | flat, flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket::upgrade` | 32539800.0 | 47079500.0 | 18938307.531 | +122.0% | skipped | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket\Message::bytes` | 17604.3 | 23505.8 | 5888.907 |  | flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket\Message::text` | 623.5 | 2490.9 | 208.566 |  | flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket\Message::topic` | 24694.4 | 42465.6 | 8260.666 |  | flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Socket\Message::value` | 0.0 | 174.7 | 0.000 |  | flat | b240924438e3 | 3360fd8d63adb7efeb3476f8b3dbfc9d |
-| `Core\Sse::current` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse::receive` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse::retry` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse::send` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse::stream` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse::upgrade` | 14365700.0 | 30741000.0 | 4878824.928 | -53.7% ~ | skipped | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse\Message::topic` | 74027.5 | 76254.0 | 25140.954 | +0.5% ~ | flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Sse\Message::value` | 74527.6 | 75062.0 | 25310.795 | +6.5% | flat | 3f9e0edb6a30 | 33b0200334ca0f58f39ce5012a91e31b |
-| `Core\Storage::delete` | 330246.5 | 330789.1 | 263964.898 | -76.8% | flat | 2bc5b2e64431 | 75e01dbc4a6cd4a6c00c9309c8f65ec0 |
-| `Core\Storage::get` | 143846.9 | 152246.5 | 114976.321 | +2.4% ~ | flat, flat | 2bc5b2e64431 | 75e01dbc4a6cd4a6c00c9309c8f65ec0 |
-| `Core\Storage::list` | 72800.4 | 75926.2 | 58189.106 | -14.0% | flat, flat | 2bc5b2e64431 | 75e01dbc4a6cd4a6c00c9309c8f65ec0 |
-| `Core\Storage::put` | 115241.8 | 118405.9 | 92112.379 | -81.9% | flat, flat | 2bc5b2e64431 | 75e01dbc4a6cd4a6c00c9309c8f65ec0 |
-| `Core\Str::after` | 21477.3 | 34985.9 | 6880.015 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::at` | 17969.9 | 28488.7 | 5756.454 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::before` | 10312.9 | 16806.2 | 3303.614 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::chunk` | 17100.8 | 29364.5 | 5478.035 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::codePoints` | 18718.0 | 23918.4 | 5996.082 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::compare` | 2163.9 | 3198.1 | 693.169 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::contains` | 10075.6 | 19006.6 | 3227.596 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::countOf` | 2172.9 | 2851.8 | 696.048 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::endsWith` | 3474.6 | 5709.0 | 1113.050 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::fold` | 15537.9 | 20896.1 | 4977.381 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::format` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9c8966d84f80 | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::fromCodePoint` | 17981.6 | 20612.5 | 5760.208 |  | flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::fromCodePoints` | 14525.0 | 26218.4 | 4652.913 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::graphemes` | 27463.3 | 34528.5 | 8797.540 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::indexOf` | 6185.5 | 16192.2 | 1981.467 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::isEmpty` | 2051.8 | 2355.0 | 657.264 |  | flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::join` | 12053.9 | 20811.3 | 3861.327 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::lastIndexOf` | 695.8 | 1454.5 | 222.876 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::length` | 73.2 | 272.8 | 23.462 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::lines` | 2947.3 | 26638.7 | 944.122 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::lower` | 3240.6 | 5632.8 | 1038.096 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::lowerFirst` | 0.0 | 1518.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::normalize` | 0.0 | 4662.1 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::padEnd` | 0.0 | 7016.8 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::padStart` | 0.0 | 6291.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::parts` | 0.0 | 1843.8 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::repeat` | 9671.1 | 30718.4 | 3098.022 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::replace` | 0.0 | 0.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::replaceAll` | 0.0 | 3828.1 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::replaceRange` | 0.0 | 8628.1 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::reverse` | 0.0 | 0.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::slice` | 0.0 | 2926.6 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::split` | 0.0 | 4631.2 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::startsWith` | 0.0 | 0.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::trim` | 0.0 | 0.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::trimEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::trimStart` | 4812.1 | 10619.1 | 1541.503 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::upper` | 0.0 | 2770.3 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::upperFirst` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
-| `Core\Str::wrap` | 0.0 | 2890.2 | 0.000 |  | flat, flat | eadc9441d71f | 56cb67f55ee2be32b0d57442cba0a268 |
+| `Core\Socket::current` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket::receive` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket::send` | 0.0 | 1435.5 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket::sendBytes` | 0.0 | 4684.4 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket::upgrade` | 0.0 | 1051900.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket\Message::bytes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket\Message::text` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket\Message::topic` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Socket\Message::value` | 0.0 | 567.8 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
+| `Core\Sse::current` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse::receive` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse::retry` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse::send` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse::stream` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse::upgrade` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse\Message::topic` | 60234.8 | 75567.9 | 35710.548 | -4.0% ~ | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse\Message::value` | 77602.8 | 107697.5 | 46007.311 | +35.6% ~ | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Storage::delete` | 256705.9 | 261568.4 | 79084.970 | -22.3% | flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
+| `Core\Storage::get` | 139893.0 | 146106.6 | 43097.697 | -2.7% ~ | flat, flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
+| `Core\Storage::list` | 84407.8 | 90819.1 | 26004.040 | +15.9% | flat, flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
+| `Core\Storage::put` | 106456.2 | 115593.4 | 32796.639 | -7.6% ~ | flat, flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
+| `Core\Str::after` | 27769.1 | 38418.8 | 16463.104 | +29.3% ~ | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::at` | 1471.5 | 30369.9 | 872.378 | -91.8% ~ | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::before` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::chunk` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::codePoints` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::compare` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::contains` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::countOf` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::endsWith` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::fold` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::format` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::fromCodePoint` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::fromCodePoints` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::graphemes` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::indexOf` | 0.0 | 853.1 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::isEmpty` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::join` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::lastIndexOf` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::length` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::lines` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::lower` | 0.0 | 3911.3 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::lowerFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::normalize` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::padEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::padStart` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::parts` | 16437.1 | 36051.6 | 9744.840 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::repeat` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::replace` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::replaceAll` | 55078.1 | 130743.0 | 32653.401 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::replaceRange` | 220150.8 | 307360.9 | 130517.730 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::reverse` | 77216.8 | 106238.3 | 45778.448 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::slice` | 104795.3 | 267416.0 | 62128.538 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::split` | 33201.6 | 35808.6 | 19683.749 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::startsWith` | 62521.1 | 135065.6 | 37066.011 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::trim` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::trimEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::trimStart` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::upper` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::upperFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::wrap` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
 | `Core\Taint::assertTrusted` | 0.0 | 925.3 | 0.000 |  | flat | bcd51e793119 | f435f5854ce5445252827c55c30a1022 |
 | `Core\Taint::assertTrustedBytes` | 0.0 | 1088.2 | 0.000 |  | flat | bcd51e793119 | f435f5854ce5445252827c55c30a1022 |
 | `Core\Task::afterResponse` | 104591.4 | 137521.1 | 28464.894 | -78.4% | flat | bfb1fa66dfa4 | 700584153fc07378c101ba32e67c9ab7 |
@@ -2734,112 +2707,112 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Task::map` | 91401.2 | 113379.7 | 24875.128 | -75.5% | flat, flat | bfb1fa66dfa4 | 700584153fc07378c101ba32e67c9ab7 |
 | `Core\Task\Channel::close` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | ad149e7e76ad6303fc7070b4ae963dea |
 | `Core\Task\Channel::send` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | ad149e7e76ad6303fc7070b4ae963dea |
-| `Core\Test::answerHttp` | 902.3 | 3180.5 | 266.930 | -80.3% ~ | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::answerSocket` | 0.0 | 0.0 | 0.000 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertCalled` | 610.5 | 11594.9 | 180.611 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertContains` | 0.0 | 736.7 | 0.000 | -100.0% | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertCount` | 247.4 | 743.8 | 73.175 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertDoesNotThrow` | 1309.4 | 4404.3 | 387.337 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertEquals` | 0.0 | 140.0 | 0.000 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertEqualsDeep` | 1906.2 | 5535.7 | 563.904 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertMatchesInline` | 2285.2 | 10455.9 | 675.992 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertNeverCalled` | 0.0 | 0.0 | 0.000 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertNull` | 0.0 | 425.4 | 0.000 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertSame` | 5513.7 | 9080.1 | 1567.386 |  | unclear | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertThrows` | 18384.0 | 578611.7 | 5438.324 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::assertTrue` | 36840.6 | 44412.1 | 10898.142 | +2183.6% | unclear | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::double` | 12250.0 | 25170.3 | 3623.778 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::expectFailure` | 2685.9 | 18188.3 | 794.550 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::partial` | 7700.4 | 14518.0 | 2277.919 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::request` | 5300.7 | 12669.8 | 1568.046 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::scriptAnswers` | 15270.7 | 42304.3 | 4517.358 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::sentHttp` | 90182.8 | 93767.2 | 26677.754 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::sentSocket` | 11548.8 | 20129.3 | 3416.358 |  | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::serverUrl` | 1229.0 | 1409.8 | 363.562 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test::tlsSession` | 73234.5 | 79375.0 | 21664.128 | +184.7% | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::body` | 61.6 | 82.1 | 15.711 | +75.0% | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::bytes` | 52.2 | 55.1 | 13.304 | +61.2% | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::cookies` | 304.9 | 326.0 | 77.758 | +9.7% | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::header` | 92.4 | 94.5 | 23.570 | +12.7% | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::headers` | 55.5 | 58.4 | 14.157 | +107.2% | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::json` | 631.1 | 676.2 | 160.939 | +26.2% | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::jsonAs` | 420.0 | 444.1 | 107.122 | +31.3% | flat, flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\Response::status` | 45.5 | 45.9 | 11.606 | +131.9% | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\SentRequest::body` | 113.0 | 2306.2 | 1.776 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\SentRequest::header` | 0.0 | 0.0 | 0.000 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\SentRequest::method` | 2196.5 | 5813.3 | 34.532 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Test\SentRequest::url` | 1763.1 | 4852.9 | 27.718 |  | flat | b240924438e3 | 6108c01473cf3f23bb0ff5ffa6acd062 |
-| `Core\Time::at` | 36293.4 | 48809.8 | 12028.622 | +1719.6% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time::fromEpoch` | 46880.9 | 49413.3 | 15537.612 | +505.8% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time::fromIso` | 36814.1 | 40791.4 | 12201.197 | +718.2% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time::monotonic` | 42577.3 | 44702.7 | 14111.308 | +2429.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time::now` | 37073.0 | 38318.4 | 12287.032 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time::parse` | 26846.5 | 41523.0 | 8897.666 | +440.4% | flat, flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time::sleep` | 20459.8 | 21594.5 | 6780.932 | +335.8% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Date::at` | 36389.8 | 40997.7 | 12060.600 | +1010.1% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Date::compareTo` | 9318.6 | 10739.0 | 3088.427 | +741.2% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Date::format` | 37955.9 | 43398.8 | 12579.620 | +7884.1% | flat, flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Date::minus` | 26350.8 | 29168.8 | 8733.377 | +1161.8% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Date::plus` | 27927.7 | 33834.4 | 9256.022 | +778.4% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Date::with` | 42852.0 | 53398.4 | 14202.321 | +852.7% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::date` | 44112.1 | 55198.4 | 14619.971 | +2147.8% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::dayOfYear` | 5599.4 | 9502.3 | 1855.801 | +6378.9% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::difference` | 25547.3 | 27696.3 | 8467.070 | +374.2% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::endOf` | 40530.1 | 41193.4 | 13432.788 | +1787.5% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::format` | 2853.1 | 5809.8 | 945.604 | +170.2% | unclear, flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::isLeapYear` | 29.8 | 185.1 | 9.880 | -94.5% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::minus` | 3019.1 | 7750.0 | 1000.627 | -45.2% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::next` | 0.0 | 578.9 | 0.000 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::plus` | 0.0 | 780.9 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::previous` | 0.0 | 2796.9 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::startOf` | 451.6 | 1789.1 | 149.661 | -96.0% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::timeOfDay` | 665.2 | 4880.9 | 220.477 | -87.6% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::toInstant` | 0.0 | 4833.6 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::weekday` | 677.7 | 1022.9 | 224.620 | -85.1% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::with` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::withTime` | 0.0 | 798.0 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\DateTime::zone` | 0.0 | 1910.9 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::compareTo` | 0.0 | 656.5 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::days` | 0.0 | 8602.3 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::hours` | 330.5 | 3982.4 | 109.527 | -94.1% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::microseconds` | 121.9 | 2652.3 | 40.393 | -86.4% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::milliseconds` | 0.0 | 1292.2 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::minus` | 0.0 | 1143.0 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::minutes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::multipliedBy` | 190.2 | 11157.0 | 63.049 | -93.7% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::nanoseconds` | 0.0 | 516.8 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::negated` | 0.0 | 465.2 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::parse` | 0.0 | 2892.2 | 0.000 | -100.0% | flat, flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::plus` | 0.0 | 1841.8 | 0.000 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::seconds` | 0.0 | 602.0 | 0.000 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::toMicroseconds` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::toMilliseconds` | 0.0 | 0.0 | 0.000 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::toNanoseconds` | 0.0 | 913.7 | 0.000 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::toSeconds` | 0.0 | 23.0 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::toString` | 9673.4 | 20366.8 | 3206.044 | +18.6% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Duration::weeks` | 15779.3 | 20234.0 | 5229.695 | +50.5% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::compareTo` | 659.5 | 991.7 | 218.568 | +12.0% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::in` | 11087.1 | 20165.6 | 3674.574 | +17.5% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::minus` | 5606.2 | 9787.9 | 1858.066 | -16.1% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::plus` | 4633.2 | 8149.2 | 1535.572 | +149.3% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::since` | 4419.5 | 5679.7 | 1464.755 | +96.1% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::toEpochMicros` | 2303.0 | 3279.1 | 763.271 | +138.2% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::toEpochMillis` | 743.1 | 1207.3 | 246.289 | +1.6% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::toEpochSeconds` | 1053.1 | 3287.0 | 349.035 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Instant::toIso` | 13602.0 | 22838.7 | 4508.063 | +28.3% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\TimeOfDay::at` | 4297.3 | 5177.0 | 1424.233 | -18.6% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\TimeOfDay::compareTo` | 1293.5 | 5487.5 | 428.687 |  | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\TimeOfDay::format` | 5825.4 | 8141.8 | 1930.696 | -52.2% | flat, flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\TimeOfDay::minus` | 6810.2 | 14464.8 | 2257.074 | +626.4% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\TimeOfDay::plus` | 8066.8 | 12852.3 | 2673.559 | +63.2% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\TimeOfDay::with` | 1059.4 | 2357.4 | 351.106 | -92.9% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Zone::fixed` | 0.0 | 167.2 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Zone::of` | 0.0 | 45.3 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Zone::offsetAt` | 0.0 | 584.8 | 0.000 | -100.0% | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Time\Zone::system` | 2419.1 | 3838.3 | 801.770 | -20.5% ~ | flat | 4df0ce9fbced | 90ff07b71e9af982cc5b5496f5b52c0c |
-| `Core\Topic::publish` | 0.0 | 1270.3 | 0.000 |  | flat, flat | b31d460051e9 | d8d6f40e58807054e084ad33374cf739 |
-| `Core\Topic::subscribe` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | d8d6f40e58807054e084ad33374cf739 |
-| `Core\Topic::unsubscribe` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | d8d6f40e58807054e084ad33374cf739 |
+| `Core\Test::answerHttp` | 0.0 | 2582.0 | 0.000 | -100.0% | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::answerSocket` | 91.4 | 2911.7 | 33.558 | -74.0% ~ | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertCalled` | 3500.8 | 8819.9 | 1285.256 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertContains` | 0.0 | 310.8 | 0.000 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertCount` | 14.4 | 472.2 | 5.270 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertDoesNotThrow` | 10604.3 | 14777.0 | 3893.200 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertEquals` | 503.1 | 2287.1 | 184.696 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertEqualsDeep` | 1.6 | 2000.0 | 0.574 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertMatchesInline` | 89.8 | 2076.2 | 32.985 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertNeverCalled` | 2507.8 | 5443.8 | 920.703 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertNull` | 267.9 | 770.9 | 98.363 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertSame` | 2311.7 | 5271.9 | 848.711 | -86.2% ~ | unclear | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertThrows` | 4027.0 | 6325.4 | 1478.432 | -71.5% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::assertTrue` | 16484.0 | 18455.9 | 6051.833 |  | unclear | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::double` | 21187.9 | 22718.0 | 7778.798 | +4235.8% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::expectFailure` | 6005.5 | 13125.4 | 2204.813 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::partial` | 11836.7 | 19369.9 | 4345.664 | -5.3% ~ | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::request` | 4173.8 | 4992.1 | 1532.344 | +105.4% | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::scriptAnswers` | 5815.2 | 9971.9 | 2134.971 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::sentHttp` | 6065.2 | 32315.2 | 2226.755 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::sentSocket` | 9025.0 | 17223.0 | 3313.386 |  | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::serverUrl` | 2713.7 | 4612.1 | 996.300 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test::tlsSession` | 147725.5 | 152987.5 | 54235.076 | +162.3% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::body` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::bytes` | 0.0 | 283.4 | 0.000 | -100.0% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::cookies` | 667.1 | 1086.6 | 20.919 | +151.7% | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::header` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::headers` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::json` | 641.6 | 3577.7 | 20.118 | +11.5% ~ | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::jsonAs` | 84.3 | 368.6 | 2.642 | -80.3% ~ | flat, flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\Response::status` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\SentRequest::body` | 867.8 | 1926.8 | 229.664 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\SentRequest::header` | 5632.8 | 9648.4 | 1490.773 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\SentRequest::method` | 80.0 | 1529.0 | 21.167 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Test\SentRequest::url` | 827.9 | 5886.9 | 219.119 |  | flat | ba0f22eff7e6 | b0641c2605114e0687a4ec07e371608c |
+| `Core\Time::at` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time::fromEpoch` | 235571.9 | 290445.3 | 139660.219 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time::fromIso` | 313882.8 | 586798.8 | 186087.335 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time::monotonic` | 369834.0 | 420647.7 | 219258.328 | +11159.1% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time::now` | 465860.9 | 533707.4 | 276188.491 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time::parse` | 449666.4 | 841053.5 | 266587.465 |  | flat, flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time::sleep` | 224755.3 | 275735.0 | 133247.531 | +5308.2% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Date::at` | 220955.5 | 307699.6 | 130994.794 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Date::compareTo` | 72898.6 | 130071.9 | 43218.398 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Date::format` | 252894.9 | 497861.3 | 149930.293 | +14261.4% | flat, flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Date::minus` | 65881.2 | 104326.6 | 39058.100 | +252.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Date::plus` | 308048.8 | 496735.5 | 182628.622 | +12712.4% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Date::with` | 29495.7 | 32581.2 | 17486.707 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::date` | 10587.5 | 21828.1 | 6276.864 | -3.2% ~ | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::dayOfYear` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::difference` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::endOf` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::format` | 0.0 | 0.0 | 0.000 |  | unclear, flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::isLeapYear` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::minus` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::next` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::plus` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::previous` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::startOf` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::timeOfDay` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::toInstant` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::weekday` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::with` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::withTime` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\DateTime::zone` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::compareTo` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::days` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::hours` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::microseconds` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::milliseconds` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::minus` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::minutes` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::multipliedBy` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::nanoseconds` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::negated` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::plus` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::seconds` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::toMicroseconds` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::toMilliseconds` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::toNanoseconds` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::toSeconds` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::toString` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Duration::weeks` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::compareTo` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::in` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::minus` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::plus` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::since` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::toEpochMicros` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::toEpochMillis` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::toEpochSeconds` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Instant::toIso` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\TimeOfDay::at` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\TimeOfDay::compareTo` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\TimeOfDay::format` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\TimeOfDay::minus` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\TimeOfDay::plus` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\TimeOfDay::with` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Zone::fixed` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Zone::of` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Zone::offsetAt` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Time\Zone::system` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | a1ebfbbe7c076745ebd17347a31abf9a |
+| `Core\Topic::publish` | 5213.3 | 11291.4 | 1681.026 |  | flat, flat | 0c6ddd43a805 | 17daab7dba8614bc3028334bd7169134 |
+| `Core\Topic::subscribe` | 272.9 | 746.2 | 87.997 |  | flat | 0c6ddd43a805 | 17daab7dba8614bc3028334bd7169134 |
+| `Core\Topic::unsubscribe` | 968.8 | 4634.0 | 312.374 |  | flat | 0c6ddd43a805 | 17daab7dba8614bc3028334bd7169134 |
 | `Core\Totp::check` | 427.3 | 1646.9 | 116.303 | +61.3% ~ | flat, flat | bfb1fa66dfa4 | a375e575f0bfb10fa649c455786d7f90 |
 | `Core\Totp::code` | 96.9 | 25217.6 | 26.365 |  | flat, flat | bfb1fa66dfa4 | a375e575f0bfb10fa649c455786d7f90 |
 | `Core\Uri::buildQuery` | 0.0 | 443.8 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
@@ -2884,31 +2857,31 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\WebPush\Sent::gone` | 2957.3 | 4248.2 | 827.108 |  | unclear | d3b2b8946baf | 38dbddefadb59a2b11566697f09b0118 |
 | `Core\WebPush\Sent::status` | 3705.5 | 4227.9 | 1036.350 |  | flat | d3b2b8946baf | 38dbddefadb59a2b11566697f09b0118 |
 | `Core\WebPush\Subscription::endpoint` | 54.3 | 202.7 | 16.925 |  | flat | d3b2b8946baf | 38dbddefadb59a2b11566697f09b0118 |
-| `Core\Xml::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml::reader` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml::writer` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::attributes` | 0.0 | 0.0 | 0.000 |  | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::children` | 0.0 | 0.0 | 0.000 |  | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::kind` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::name` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::namespaceUri` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::source` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Node::text` | 0.0 | 316.9 | 0.000 | -100.0% | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Reader::depth` | 0.0 | 3691.1 | 0.000 |  | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Reader::read` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::attribute` | 0.0 | 33992.2 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::cdata` | 0.0 | 61993.8 | 0.000 |  | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::comment` | 0.0 | 17561.7 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::content` | 0.0 | 0.0 | 0.000 | -100.0% | skipped, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::doctype` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::endDocument` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::endElement` | 0.0 | 7170.7 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::instruction` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::startDocument` | 0.0 | 0.0 | 0.000 |  | flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Xml\Writer::startElement` | 0.0 | 0.0 | 0.000 | -100.0% | unclear, flat | 2bc5b2e64431 | 14860340d35c58ace3d3b302e90a2996 |
-| `Core\Zip::entries` | 22021.1 | 25731.2 | 17601.386 | -55.3% | flat, flat | 2bc5b2e64431 | a1715c51e2ab931c13246a666083ba22 |
-| `Core\Zip::extract` | 1209695.3 | 1292524.6 | 966905.374 | -68.4% | flat, flat | 2bc5b2e64431 | a1715c51e2ab931c13246a666083ba22 |
-| `Core\Zip::read` | 6727.3 | 11687.1 | 5377.143 | +28.0% ~ | flat, flat | 2bc5b2e64431 | a1715c51e2ab931c13246a666083ba22 |
+| `Core\Xml::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml::reader` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml::writer` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::attributes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::children` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::kind` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::name` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::namespaceUri` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::source` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Node::text` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Reader::depth` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Reader::read` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::attribute` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::cdata` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::comment` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::content` | 0.0 | 0.0 | 0.000 |  | skipped, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::doctype` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::endDocument` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::endElement` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::instruction` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::startDocument` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Xml\Writer::startElement` | 0.0 | 0.0 | 0.000 |  | unclear, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
+| `Core\Zip::entries` | 22173.4 | 26473.4 | 13145.658 | -24.5% | flat, flat | 9284f7e0c6f4 | c1da3ac22b6874cb36049e4c72b3b282 |
+| `Core\Zip::extract` | 897448.4 | 922426.2 | 532057.767 | +4.5% | flat, flat | 9284f7e0c6f4 | c1da3ac22b6874cb36049e4c72b3b282 |
+| `Core\Zip::read` | 8008.6 | 11335.5 | 4747.944 | +12.0% ~ | flat, flat | 9284f7e0c6f4 | c1da3ac22b6874cb36049e4c72b3b282 |
 | `Novis\Image\Barcode::render` | 7983118.4 | 8030926.6 | 1960562.977 |  | unclear | c283504a5d22 |  |
 | `Novis\Image\Barcode::svg` | 7952953.9 | 7979355.5 | 1953154.931 |  | flat | c283504a5d22 |  |
 | `Novis\Image\Codec::info` | 251339.1 | 532615.6 | 38301.328 |  | unclear | 25c4779f7055 |  |
@@ -2992,8 +2965,8 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Pdf\Reader::open` | 63993915.6 | 64186959.4 | 23306533.962 |  | flat, flat | befd41122133 |  |
 | `Novis\Pdf\Reader::text` | 64055996.9 | 64232446.9 | 15467979.541 |  | flat, flat | befd41122133 |  |
 | `Novis\Pdf\Rendered::constructor` | 0.0 | 675.9 | 0.000 |  | flat | cab1388b299b |  |
-| `Novis\Rest\AuthorizationCode` | 29839.5 | 37691.8 | 6323.727 |  | flat | 75dda47fe5c0 | 954356497b17f0d5b3d1c9ea1de789c5 |
-| `Novis\Rest\Client` | 40825.0 | 59671.1 | 12985.257 |  | flat | 75dda47fe5c0 | 9bc4686b39892a0d4ca4406ebd65089d |
+| `Novis\Rest\AuthorizationCode` | 30686.7 | 31498.8 | 10694.845 | +2.8% | flat | 4c25de4bed0b | c191cd51e90dd0b92e040640e26dcbae |
+| `Novis\Rest\Client` | 34848.4 | 41071.1 | 12145.275 | -14.6% ~ | flat | 4c25de4bed0b | 110eedd873679c15758ad3fab1ebd617 |
 | `Novis\Rest\ClientCredentials` | 6623.3 | 7018.1 | 1403.651 |  | flat | 75dda47fe5c0 | d3ec902d1eefb61b65666d5a11fa7fa8 |
 | `Novis\Rest\DPoP` | 688139.8 | 748565.6 | 145834.051 |  | flat | 75dda47fe5c0 | 97c85841778e76d81b506eb5d4faba5d |
 | `Novis\Rest\Discovery` | 30623.0 | 35419.9 | 6489.790 |  | flat | 75dda47fe5c0 | 5c1598e9a81b0f8ba9c33313748779ee |
@@ -3054,14 +3027,14 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Spreadsheet\Workbook::finish` | 0.0 | 19931.2 | 0.000 |  | flat | ae24fcfb94a2 |  |
 | `Novis\Spreadsheet\Workbook::fromRows` | 2679340.6 | 2767650.0 | 731071.536 |  | flat, flat | 00fb51fccdd9 |  |
 | `Novis\Spreadsheet\Workbook::sheet` | 0.0 | 0.0 | 0.000 |  | unclear | ae24fcfb94a2 |  |
-| `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | 6759.0 | 9375.0 | 2162.633 |  | flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
-| `lang:attributes/core-command-and-core-option-the-command-table` | 1957.4 | 15769.5 | 626.305 | -43.5% ~ | flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
-| `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec` | 3782.8 | 10798.0 | 1210.365 |  | flat, flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
+| `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | 2859.4 | 22282.4 | 784.766 |  | flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
+| `lang:attributes/core-command-and-core-option-the-command-table` | 1458.6 | 9848.8 | 400.317 |  | flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
+| `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec` | 7030.9 | 19558.6 | 1929.646 |  | flat, flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
 | `lang:attributes/core-program-implementing-i-every-class-implementing-an-interface` | 239.2 | 295.3 | 82.314 | +29.8% |  | d50aaafc6446 | 209f3661b6bd511e8746fac4cd47e8b8 |
-| `lang:attributes/core-program-implementing-i-every-class-that-is-an-i` | 6304.7 | 12755.9 | 2017.274 |  | flat, flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
-| `lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute` | 6603.1 | 23679.3 | 2112.763 | +11.5% ~ | flat, flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
-| `lang:attributes/core-route-and-core-access-the-route-table` | 22206.2 | 29661.7 | 7105.204 | +640.2% | flat, flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
-| `lang:attributes/reading-attributes-back-core-attributes-get-and-all` | 10380.9 | 16041.0 | 3321.503 |  | flat | ca0f16c955a5 | 44f571c7d038a07dc4e09f8714d6a3ca |
+| `lang:attributes/core-program-implementing-i-every-class-that-is-an-i` | 674.6 | 7494.5 | 185.149 | +43.2% ~ | flat, flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
+| `lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute` | 8544.1 | 39386.3 | 2344.972 | +2148.0% | flat, flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
+| `lang:attributes/core-route-and-core-access-the-route-table` | 65889.5 | 126433.6 | 18083.613 |  | flat, flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
+| `lang:attributes/reading-attributes-back-core-attributes-get-and-all` | 164966.0 | 340322.7 | 45275.556 | +45654.4% | flat | a6abcd8c5843 | db7f07331ea92ed405029de8b287943a |
 | `lang:classes/comparable` | 0.0 | 0.0 | 0.000 |  | flat | 6dd248f1889e | ad31b95c5206d242b769b5beff26e6dc |
 | `lang:classes/constants-and-class` | 3548.8 | 12923.0 | 1499.896 |  | flat | 6dd248f1889e | ad31b95c5206d242b769b5beff26e6dc |
 | `lang:classes/covariant` | 560.0 | 871.4 | 236.675 |  | flat | 6dd248f1889e | ad31b95c5206d242b769b5beff26e6dc |
@@ -3099,16 +3072,16 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:enums/match-and-switch-over-an-enum` | 3966.0 | 10241.8 | 1207.642 | +1322.0% | flat | 45f826e1ae52 | d01c52a791c0a9e62d69360faacce665 |
 | `lang:enums/what-an-enum-does-not-have` | 0.0 | 2064.6 | 0.000 |  | flat | 45f826e1ae52 | d01c52a791c0a9e62d69360faacce665 |
 | `lang:enums/what-replaces-php-s-enum-members` | 3621.5 | 5015.2 | 1055.226 | +20270.6% | flat | 12bd24661f00 | 6b505d96a70599d0b2c542765e99dbc7 |
-| `lang:errors/assertion-failures` | 2996.1 | 11023.8 | 1116.841 |  | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/capability-denials-are-catchable` | 5351.6 | 5770.7 | 1994.879 |  | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/constructing-and-subclassing` | 865.6 | 9447.3 | 322.675 | -86.8% ~ | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/inspecting-a-value` | 2683.6 | 5674.6 | 1000.352 | -80.3% ~ | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/properties-not-accessors` | 3925.0 | 12028.1 | 1463.105 | +349.2% | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/recursion-depth` | 371.6 | 385.1 | 138.513 |  | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/rethrowing` | 2404.3 | 10066.4 | 896.240 | -15.1% ~ | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/the-throwable-tree` | 848.8 | 5150.8 | 316.414 |  | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/throw` | 5614.8 | 10822.7 | 2093.021 | +1259.9% | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
-| `lang:errors/try-catch-finally` | 548.4 | 937.1 | 204.439 |  | flat | 6dd248f1889e | 55c7178cebfb282146dc81b5f830d439 |
+| `lang:errors/assertion-failures` | 62750.4 | 80997.7 | 17222.086 | +1994.4% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/capability-denials-are-catchable` | 46953.1 | 61391.4 | 12886.465 | +777.4% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/constructing-and-subclassing` | 43542.2 | 49648.4 | 11950.320 | +4930.1% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/inspecting-a-value` | 22115.2 | 38609.4 | 6069.611 | +724.1% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/properties-not-accessors` | 8827.0 | 14280.5 | 2422.591 | +124.9% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/recursion-depth` | 579.6 | 4267.4 | 159.084 | +56.0% ~ | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/rethrowing` | 0.0 | 4396.5 | 0.000 | -100.0% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/the-throwable-tree` | 12062.5 | 15808.2 | 3310.599 | +1321.1% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/throw` | 12719.1 | 15853.9 | 3490.817 | +126.5% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
+| `lang:errors/try-catch-finally` | 2578.3 | 4195.6 | 707.616 | +370.1% | flat | a6abcd8c5843 | 5623b00d9fb02f3c5a8bda06dc2cddd8 |
 | `lang:expressions/and-the-ternary` | 4232.9 | 8257.9 | 1155.885 | -49.8% ~ | flat | 3634d7e5642a | 7a17805bd79b2819e59a5e20c349dfd7 |
 | `lang:expressions/anonymous-functions` | 16725.0 | 30150.0 | 4567.114 |  | unclear | 3634d7e5642a | 7a17805bd79b2819e59a5e20c349dfd7 |
 | `lang:expressions/anonymous-objects` | 13857.0 | 22547.7 | 3783.955 | +827.4% | flat | 3634d7e5642a | 7a17805bd79b2819e59a5e20c349dfd7 |
@@ -3129,57 +3102,57 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 0.0 | 0.0 | 0.000 |  | flat, flat | 86a90a32a544 | 5f521933d911b84d02e632c19e7e36a1 |
 | `lang:iteration/the-two-interfaces` | 0.0 | 0.0 | 0.000 |  | flat, flat | 86a90a32a544 | 5f521933d911b84d02e632c19e7e36a1 |
 | `lang:iteration/what-foreach-walks` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 86a90a32a544 | 5f521933d911b84d02e632c19e7e36a1 |
-| `lang:programs/a-complete-program-annotated` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 0.0 | 0.0 | 0.000 |  | skipped | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 0.0 | 0.0 | 0.000 |  | flat | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/code-mode-and-html-mode` | 0.0 | 0.0 | 0.000 |  | skipped | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/comments` | 0.0 | 0.0 | 0.000 |  | skipped | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/doc-comments` | 0.0 | 0.0 | 0.000 |  | skipped | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 12955.5 | 26026.2 | 2683.681 |  | flat | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/names-and-casing` | 0.0 | 0.0 | 0.000 |  | skipped | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/namespaces-and-use` | 0.0 | 0.0 | 0.000 |  | flat | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:programs/require-run-another-file-in-this-frame` | 0.0 | 0.0 | 0.000 |  | flat | 9b0b971b3abe | 2fd69e0c32002644e0653d465135ef00 |
-| `lang:statements/break-and-continue` | 63.6 | 66.0 | 18.442 | +39.1% | skipped, flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/catch-as-an-expression` | 308.9 | 315.1 | 89.582 | +157.2% | skipped | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/echo-print-unset-exit-yield` | 761.9 | 4071.7 | 220.976 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/expression-statements-blocks-and-declarations` | 8941.0 | 10398.0 | 2593.140 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/for` | 10106.6 | 22912.5 | 2931.203 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/foreach` | 13.3 | 17.2 | 3.861 |  | skipped, flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/if-elseif-else` | 2187.7 | 2351.0 | 634.491 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/return` | 6405.3 | 7897.7 | 1857.705 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/statement-forms-that-do-not-parse` | 1280.6 | 2886.6 | 371.413 |  | flat, flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/switch` | 5538.1 | 10762.3 | 1606.197 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:statements/while-and-do-while` | 14240.6 | 16994.5 | 4130.172 |  | flat | 9b0b971b3abe | 533bb96e41cc5cab38c8267df50d069d |
-| `lang:testing/a-test-is-a-method-marked-test` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/assertions` | 0.0 | 2955.5 | 0.000 |  | unclear | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/bench-and-nvs-test-bench` | 0.0 | 2178.5 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/core-test-fixture-built-once-injected-by-type` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/core-test-property-generated-inputs` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/core-test-testwith-data-rows` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/hooks-beforeclass-afterclass-and-aftereachtest` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/running-tests-nvs-test` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:testing/test-options` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | e217f273bec4a36549a33bc8f8fe85be |
-| `lang:types/a-member-every-class-of-a-union-declares` | 0.0 | 1306.9 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/array-t` | 0.0 | 241.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/callable-classes-object-shapes` | 0.0 | 4932.4 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/every-binding-has-a-type` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/mixed` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/narrowing` | 0.0 | 3397.7 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/nullable-union-single-value-and-enum-case-types` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/numbers-bool-int-uint-float-decimal` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/parameters` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/properties-and-constants` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/property-keys` | 47.7 | 1493.2 | 13.400 | -99.4% ~ | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/property-paths` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/qualifiers-tainted-and-secret` | 0.0 | 26366.8 | 0.000 | -100.0% | flat, flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/strings-with-holes` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/text-string-and-bytes` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/the-conversion-operator-as` | 0.0 | 172.6 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/truthiness` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/type-aliases` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/values-written-in-the-code` | 0.0 | 13711.3 | 0.000 | -100.0% | flat | 9c8966d84f80 | 625bb08738d91192b390564bd28b500c |
-| `lang:types/void-never-self-static` | 0.0 | 12118.8 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/what-does-not-exist` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
-| `lang:types/widening-without-as` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 6dd248f1889e | 625bb08738d91192b390564bd28b500c |
+| `lang:programs/a-complete-program-annotated` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.7 | 3.6 | 1.040 | -15.7% ~ | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/code-mode-and-html-mode` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/comments` | 2.2 | 2.4 | 0.859 | -31.7% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/doc-comments` | 1.9 | 2.3 | 0.750 | -35.1% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 58216.0 | 69439.1 | 22567.409 | -16.2% ~ | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/names-and-casing` | 2.4 | 2.6 | 0.934 | -13.0% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/namespaces-and-use` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/require-run-another-file-in-this-frame` | 0.0 | 1685.4 | 0.000 | -100.0% | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:statements/break-and-continue` | 68.2 | 77.6 | 20.353 | +7.3% ~ | skipped, flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/catch-as-an-expression` | 120.4 | 137.1 | 35.913 | -61.0% | skipped | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/echo-print-unset-exit-yield` | 1251.6 | 2502.5 | 373.434 | +64.3% ~ | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/expression-statements-blocks-and-declarations` | 0.0 | 217.6 | 0.000 | -100.0% | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/for` | 4059.8 | 5703.9 | 1211.328 | -59.8% | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/foreach` | 6.4 | 8.9 | 1.911 | -51.9% | skipped, flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/if-elseif-else` | 441.3 | 836.8 | 131.661 | -79.8% ~ | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/return` | 0.0 | 0.0 | 0.000 | -100.0% | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/statement-forms-that-do-not-parse` | 639.7 | 1166.0 | 190.869 | -50.0% ~ | flat, flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/switch` | 1826.2 | 3453.3 | 544.882 | -67.0% ~ | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:statements/while-and-do-while` | 5781.6 | 7342.2 | 1725.091 | -59.4% | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
+| `lang:testing/a-test-is-a-method-marked-test` | 0.0 | 0.0 | 0.000 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/assertions` | 2716.4 | 6584.8 | 1035.334 |  | unclear | ac020ccaa03b | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/bench-and-nvs-test-bench` | 406109.4 | 544429.3 | 124000.970 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/core-test-fixture-built-once-injected-by-type` | 11350.7 | 16689.8 | 3465.805 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/core-test-property-generated-inputs` | 64067.9 | 86371.1 | 19562.425 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/core-test-testwith-data-rows` | 37354.6 | 65793.7 | 11405.808 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup` | 2376460.9 | 2519508.2 | 725625.849 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/hooks-beforeclass-afterclass-and-aftereachtest` | 40136.6 | 44791.1 | 12255.270 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/running-tests-nvs-test` | 55799.2 | 74994.9 | 17037.669 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:testing/test-options` | 7111.9 | 8860.6 | 2171.544 |  | flat | 4724df76acf1 | 5fd11f3002e206402e1ea9dd6728fe00 |
+| `lang:types/a-member-every-class-of-a-union-declares` | 1931.8 | 3440.5 | 530.200 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/array-t` | 685.7 | 981.9 | 188.191 | +678.4% | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/callable-classes-object-shapes` | 6136.7 | 7980.1 | 1684.246 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/every-binding-has-a-type` | 3507.0 | 10922.7 | 962.518 | -13.4% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/mixed` | 976.1 | 1175.8 | 267.887 | +11.7% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/narrowing` | 2389.1 | 4223.0 | 655.687 | +37.2% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/nullable-union-single-value-and-enum-case-types` | 1265.8 | 2549.3 | 347.409 | +1384.8% | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/numbers-bool-int-uint-float-decimal` | 383.3 | 1129.1 | 105.198 | +89.1% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/parameters` | 830.1 | 2360.5 | 227.818 | -89.7% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/properties-and-constants` | 38.8 | 309.6 | 10.661 | +205.4% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/property-keys` | 659.6 | 4633.6 | 181.022 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/property-paths` | 1248.6 | 2392.2 | 342.692 | -33.4% ~ | flat, flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/qualifiers-tainted-and-secret` | 768.0 | 4862.1 | 210.772 |  | flat, flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/strings-with-holes` | 1016.8 | 1188.5 | 279.064 | +811.7% | flat, flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/text-string-and-bytes` | 235.3 | 698.1 | 64.566 | -7.5% ~ | flat, flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/the-conversion-operator-as` | 209.4 | 1693.3 | 57.464 | +1.1% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/truthiness` | 208.6 | 1318.4 | 57.249 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/type-aliases` | 156.6 | 326.9 | 42.977 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/values-written-in-the-code` | 1290.2 | 2373.0 | 354.110 | -34.6% ~ | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/void-never-self-static` | 31.6 | 3021.1 | 8.684 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/what-does-not-exist` | 1775.8 | 2612.5 | 487.370 |  | flat, flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
+| `lang:types/widening-without-as` | 0.0 | 1425.3 | 0.000 |  | flat | a6abcd8c5843 | 8f81e2197a324c8afb125e2c0f6d7698 |
 | `tools:cli/profiling` | 170.8 | 175.7 | 63.713 |  | flat | 31037f4101f1 | 5c2651441f8a9172aa8d2b9465bcfba2 |
