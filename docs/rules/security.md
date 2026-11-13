@@ -2378,7 +2378,8 @@ would cost a round trip per release and undoes one level only. `crates/nvs-db/sr
 each kind of session state per driver, and a live test walks it on every server. SQLite allows a `PRAGMA` by name from one table, and refuses every other one when the
 statement is prepared, so a pragma a later SQLite adds is refused until it has a row. A row only
 reads, reads a file's value with no argument, or names session state with the value the reset writes
-back. A process-wide pragma never has a row. SQLite's reset rolls back, writes every session row's
+back. A process-wide pragma never has a row, and neither does `writable_schema`, because a schema it
+let a request damage stays in the file after any reset. SQLite's reset rolls back, writes every session row's
 value back, drops every table, view and trigger in the `temp` schema, and returns
 `last_insert_rowid()` to zero. **What it spends:** one table scan per prepared `PRAGMA`, and a cached
 statement pays nothing. A SQLite connection refuses `ATTACH` and `DETACH` when a statement

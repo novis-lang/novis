@@ -866,6 +866,8 @@ enum Pragma {
 /// process-wide pragma (`hard_heap_limit`, `soft_heap_limit`,
 /// `temp_store_directory`, `data_store_directory`) never gets a row, since one
 /// request would change it for every connection in the process.
+/// `writable_schema` never gets a row either. It lets a statement edit
+/// `sqlite_schema`, and a damaged schema stays in the file after the reset.
 ///
 /// `foreign_keys` is the one session row the open needs for its own sake (see
 /// [`open`]). The other values are SQLite's defaults, written out because each
@@ -911,7 +913,6 @@ const PRAGMAS: &[(&str, Pragma)] = &[
     ("ignore_check_constraints", Pragma::Session("OFF")),
     ("defer_foreign_keys", Pragma::Session("OFF")),
     ("reverse_unordered_selects", Pragma::Session("OFF")),
-    ("writable_schema", Pragma::Session("OFF")),
     ("busy_timeout", Pragma::Session("5000")),
 ];
 
@@ -3488,6 +3489,17 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// `writable_schema` has no row, so a request cannot edit `sqlite_schema`,
+    /// which no reset could repair.
+    #[test]
+    fn a_request_cannot_make_the_schema_writable() {
+        let conn = connect();
+        for sql in ["PRAGMA writable_schema", "PRAGMA writable_schema = ON"] {
+            let ran = conn.query(sql, Vec::new());
+            assert!(refused_as_permission(&ran), "`{sql}` was allowed");
         }
     }
 
