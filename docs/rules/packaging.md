@@ -2998,6 +2998,14 @@ it, and a wasmtime bump that turns a new one on by default does not widen the sa
 `nvs_ext::call::PROPOSALS`, and `crates/nvs-ext/tests/proposals.rs` loads every built-in component
 under it and checks that a guest using each excluded proposal does not compile.
 
+**wasmtime is built with only the features the engine uses**: `runtime`, `cranelift`,
+`component-model`, `async`, `pooling-allocator`, `std` and `parallel-compilation`. A feature for an
+excluded proposal (GC, threads, stack switching, the component model's async) is not built at all, and
+neither is a core dump, a profiler, guest debugging or the text format, which nothing calls. A
+component loads from its binary alone (`Component::from_binary`). The workspace `Cargo.toml`'s row
+gives each feature its reason, and `crates/nvs-ext/tests/wasmtime_features.rs` fails naming a feature
+the engine turns off or does not use.
+
 What this buys: one binary for every platform; bindings generated for any language with a wasm target
 rather than C only; a crashing or malicious extension that harms one request and not the process; and
 calls that are type-checked at compile time ([`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed)).
@@ -3048,7 +3056,7 @@ reserved for them, so a loaded extension declaring a class there does not load, 
 reserved for Tier 0 ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)).
 
 Nothing is paid until a program calls one. The embedded bytes are compiled on a component's first use
-in a process and stored in the artifact cache like any other module
+in a process, or at start in `nvs serve` (below), and stored in the artifact cache like any other module
 ([`packaging/a-wasm-module-cache-reuses-the-artifact-cache`](packaging.md#packaging-a-wasm-module-cache-reuses-the-artifact-cache)). What it spends is the binary's size:
 mostly CLDR data, the codecs and the PDF engine with its fonts, on disk and in the page cache. The intl
 component is ICU4X with every CLDR locale compiled in, and its classes are
@@ -3060,6 +3068,26 @@ optional component.
 
 - **Memory:** nothing until a program calls a component. Then the compiled module is held once per
   process and shared by every core, and each calling request has its own instance under its own cap.
+
+**Stored compressed.** The binary stores each `.nvsx` compressed with Brotli at quality 9 and a 4 MiB
+window, with its manifest and source sections plain beside it (`nvs_ext::builtin::Stored`). The four
+components are 14.5 MB stored and about 44 MB expanded: image 4.7 of 16.2, intl 3.9 of 10.3, PDF
+5.4 of 15.8 and spreadsheet 0.6 of 1.8, each expanded figure its wasm plus its two sections. Reading a manifest expands nothing. The pin is the SHA-256 of the
+expanded `.nvsx`, so `env_hash` and every cache key are those of the plain bytes. A compile that hits
+the artifact cache never expands. A miss expands the one component into one buffer
+(`nvs_ext::builtin::expanded`), checks it against the pin, compiles, stores and frees the buffer.
+**What a miss spends:** tens of milliseconds and the expanded size, at most about 16 MB, for the
+compile beside it. The idle process holds no expanded bytes. `crates/nvs-ext/tests/builtin_stored.rs`
+holds the pin, the ratio, a manifest read and a cached load.
+
+**Loaded before the first request.** `nvs serve` loads each built-in component its compiled mounts
+call once they have compiled and before it binds a socket, and prints one `loaded the built-in
+component` line for each. The classes come from each unit's `ExtensionCall`s
+(`nvs_codegen::Unit::extension_classes`), read off the IR on a compile and on a cache load alike.
+**What a start spends:** nothing for a program that calls none. Otherwise one cache read per called
+component, or one expand and compile on a cold cache, once per binary. That work leaves the first
+request. A file compiled after start, in development, still loads its components on its first call
+(`crates/nvs-cli/tests/builtin_warm.rs`).
 
 A build script compiles their Rust crates, under `extensions/` and outside the workspace, for
 `wasm32-wasip2`, and packs each with the packer `nvs ext build` uses
@@ -3104,6 +3132,11 @@ extras of a workbook, and the template's, which fill the placeholders of a workb
   whether one exists without asking its deployment.
 - **Both finished `.nvsx` files committed.** Tens of megabytes of binary in git on every CLDR or codec
   update.
+- **Stored with deflate.** It stores more than Brotli does.
+- **Stored with `ruzstd`.** It has no strong encoder.
+- **Components compiled at build time.** The compiled form is larger than the wasm and fixed to one
+  CPU.
+- **The expanded bytes kept for the process.** That adds the expanded size to idle memory.
 
 <sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster).</sub>
 

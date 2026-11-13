@@ -1624,6 +1624,7 @@ dependencies = [
  "unicode-segmentation",
  "uuid",
  "x25519-dalek",
+ "zmij",
 ]
 
 [[package]]

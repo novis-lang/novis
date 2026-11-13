@@ -8,5 +8,5 @@
   "editorTests": 580,
   "crates": 22,
   "cratesWithoutUnsafe": 15,
-  "fuzzTargets": 18
+  "fuzzTargets": 19
 }

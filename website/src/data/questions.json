@@ -6613,13 +6613,14 @@
   },
   "/reference/core/json/decode/": {
     "feature": "Core\\Json::decode",
-    "hash": "21112c1e6aa21afc",
+    "hash": "7bcaf58fe4f43971",
     "questions": [
       "How do I parse a JSON string into an array?",
       "Read the fields of a JSON object",
       "What happens when JSON text is not valid?",
       "Limit how deeply nested a JSON document may be",
-      "Convert JSON text to a value without a class"
+      "Convert JSON text to a value without a class",
+      "What happens to a JSON number too large for int?"
     ]
   },
   "/reference/core/json/decodeas/": {
@@ -6671,12 +6672,13 @@
   },
   "/reference/core/json/isvalid/": {
     "feature": "Core\\Json::isValid",
-    "hash": "be130121751b51fa",
+    "hash": "e08caca433d1d83d",
     "questions": [
       "How do I check if a string is valid JSON?",
-      "Test JSON text without parsing it into a value",
+      "Test JSON text without catching an error",
       "Reject a request body that is not JSON",
-      "Validate each line of a JSON log file"
+      "Validate each line of a JSON log file",
+      "Is JSON with a number too large for int valid?"
     ]
   },
   "/reference/core/json-elements/": {
