@@ -15,8 +15,8 @@
 //!
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
-//!   [`Value`]s *directly*. `decodeAs<T>`'s [`Fill`] is a visitor driven by the
-//!   class's field list, so an object the class fills becomes one slot per
+//!   [`Value`]s *directly*. `decodeAs<T>`'s [`fill`] is a loop over [`reader`]'s
+//!   events, driven by the class's field list, so an object the class fills becomes one slot per
 //!   field and never an array. Nothing is ever materialized twice. That is
 //!   what keeps latency, in `rule:programs/memory-priority`'s ordering, honest
 //!   on a member every request path uses.
@@ -282,7 +282,7 @@
 //! # `decodeAs` reads the text against the class
 //!
 //! `Core\Json::decodeAs` and `Core\Request::jsonAs` parse once, through
-//! [`decode_as`], with [`Fill`] driven by the class's field list, and build
+//! [`decode_as`], with [`fill`] driven by the class's field list, and build
 //! every instance while they parse. A JSON object the class fills pushes one
 //! slot per field onto a stack the whole decode shares ([`Builder`]). Its keys
 //! are matched against the field list as they are read, borrowed from the
@@ -390,7 +390,6 @@
 //! **What it spends:** one coroutine stack per walk in flight, plus one chunk
 //! of the source and the element being built.
 
-use std::borrow::Cow;
 use std::fmt;
 
 use nvs_runtime::budget::ChunkWriter;
@@ -2489,14 +2488,12 @@ fn over_memory<E: serde::de::Error>() -> E {
     E::custom("the document does not fit in the request's memory limit")
 }
 
-/// The longest text [`read_against`] and `secret_spans` parse on the caller's
-/// own stack.
+/// The longest text `secret_spans` parses on the caller's own stack.
 ///
 /// Each nesting level takes at least one byte, so a text this short nests at
 /// most this deep. A helper is entered with at least `nvs_runtime`'s
-/// `STACK_RESERVE` of stack left, and
-/// `a_decode_as_parses_its_deepest_short_text_in_the_unwinding_reserve` checks
-/// that this many levels fit in it on the debug profile.
+/// `STACK_RESERVE` of stack left, and 64 levels of `serde_json`'s recursion
+/// fit in it on the debug profile.
 const IN_PLACE_BYTES: usize = 64;
 
 /// Reads one whole document, refusing anything after it.
@@ -2604,8 +2601,68 @@ fn build<S: reader::Source>(
     lists: Option<&Lists>,
     deadline: Option<&Deadline>,
 ) -> Result<Value, reader::Error> {
+    build_in(reader, Vec::new(), lists, deadline)
+}
+
+/// [`build`] for a container whose start the caller has read already: an
+/// array where `list` is `true`, and an object where it is `false`.
+fn build_open<S: reader::Source>(
+    reader: &mut reader::Reader<S>,
+    list: bool,
+    lists: Option<&Lists>,
+    deadline: Option<&Deadline>,
+) -> Result<Value, reader::Error> {
+    let mut open = Vec::new();
+    push_open(&mut open, list).map_err(|code| reader.refuse(code))?;
+    build_in(reader, open, lists, deadline)
+}
+
+/// Opens one more container on `open`, asking the request's budget for the
+/// vector's growth first.
+fn push_open(open: &mut Vec<Open>, list: bool) -> Result<(), reader::Code> {
+    let grow = open.capacity().max(4).saturating_mul(size_of::<Open>());
+    if open.len() == open.capacity() && !nvs_runtime::budget::affords(grow) {
+        return Err(reader::Code::OverMemory);
+    }
+    let Some(array) = NvsArray::try_new() else {
+        return Err(reader::Code::OverMemory);
+    };
+    open.push(Open {
+        array,
+        key: None,
+        list,
+    });
+    Ok(())
+}
+
+/// The value a scalar event is, as `Core\Json::decode` gives it. A string's
+/// place is asked from the request's budget first.
+fn scalar_of(event: reader::Event<'_>) -> Result<Value, reader::Code> {
     use reader::{Code, Event};
-    let mut open: Vec<Open> = Vec::new();
+    match event {
+        Event::Null => Ok(Value::null()),
+        Event::Bool(value) => Ok(Value::bool(value)),
+        Event::Number(number) => number_of(number),
+        Event::Str(text) => {
+            if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(text.len())) {
+                return Err(Code::OverMemory);
+            }
+            Ok(Value::text(text))
+        }
+        // Unreachable: every caller hands a scalar here.
+        _ => Err(Code::ExpectedSomeValue),
+    }
+}
+
+/// [`build`]'s loop, with the containers in `open` already open. It returns
+/// once every container it opened, and those in `open`, are closed again.
+fn build_in<S: reader::Source>(
+    reader: &mut reader::Reader<S>,
+    mut open: Vec<Open>,
+    lists: Option<&Lists>,
+    deadline: Option<&Deadline>,
+) -> Result<Value, reader::Error> {
+    use reader::{Code, Event};
     loop {
         let Some(event) = reader.next()? else {
             // Unreachable: the reader refuses a text that ends inside a value.
@@ -2647,36 +2704,12 @@ fn build<S: reader::Source>(
                 {
                     return Err(reader.refuse(Code::OverMemory));
                 }
-                match start {
-                    Event::Null => Value::null(),
-                    Event::Bool(value) => Value::bool(value),
-                    Event::Number(number) => {
-                        number_of(number).map_err(|code| reader.refuse(code))?
-                    }
-                    Event::Str(text) => {
-                        let ask = size_of::<Value>().saturating_add(text.len());
-                        if !nvs_runtime::budget::affords(ask) {
-                            return Err(reader.refuse(Code::OverMemory));
-                        }
-                        Value::text(text)
-                    }
-                    _ => {
-                        let list = matches!(start, Event::StartArray);
-                        let grow = open.capacity().max(4).saturating_mul(size_of::<Open>());
-                        if open.len() == open.capacity() && !nvs_runtime::budget::affords(grow) {
-                            return Err(reader.refuse(Code::OverMemory));
-                        }
-                        let Some(array) = NvsArray::try_new() else {
-                            return Err(reader.refuse(Code::OverMemory));
-                        };
-                        open.push(Open {
-                            array,
-                            key: None,
-                            list,
-                        });
-                        continue;
-                    }
+                if matches!(start, Event::StartArray | Event::StartObject) {
+                    let list = matches!(start, Event::StartArray);
+                    push_open(&mut open, list).map_err(|code| reader.refuse(code))?;
+                    continue;
                 }
+                scalar_of(start).map_err(|code| reader.refuse(code))?
             }
         };
         let Some(top) = open.last_mut() else {
@@ -2716,10 +2749,12 @@ fn number_of(number: reader::Number) -> Result<Value, reader::Code> {
         Number::Big {
             negative: false,
             digits,
+            ..
         } => Err(Code::TooLarge(digits)),
         Number::Big {
             negative: true,
             digits,
+            ..
         } => Err(Code::TooSmall(digits)),
     }
 }
@@ -2741,9 +2776,9 @@ fn stopped(deadline: Option<&Deadline>) -> bool {
 /// document wrote. A class decodes from an object only, and this is how it
 /// tells a list apart. An address is unique while the document is alive,
 /// which is the whole of the decode that asks. [`read_marked`] notes every
-/// list it builds. [`decode_as`]'s parse notes each list [`Decode`] builds
-/// inside it, and a list [`FillList`] reads is a [`Found::List`], which needs
-/// no note.
+/// list it builds. [`decode_as`]'s read notes each list [`build`] builds
+/// inside it, and a list [`fill`] reads against a list field is a
+/// [`Found::List`], which needs no note.
 ///
 /// **What it spends:** one address per array built from a JSON list, on a
 /// class decode only, freed with the decode. The document's own size bounds
@@ -2811,7 +2846,7 @@ nvs_runtime::nvs_helper! {
     /// is three more than the registry row's.
     ///
     /// **What it spends:** the instances it builds, and no copy of the
-    /// document, plus [`Fill`]'s slot stack, which grows with the nesting
+    /// document, plus [`fill`]'s slot stack, which grows with the nesting
     /// depth and not with the size.
     fn nvs_core_json_decode_as(ctx, args: [5]) {
         // Unreachable from source, because arguments 0 to 2 are not a
@@ -2853,15 +2888,16 @@ nvs_runtime::nvs_helper! {
 /// contract checked once, the document read once, and then one instance —
 /// or, for `list`, one per element of a JSON array.
 ///
-/// The text is read in one pass against the contract ([`Fill`]): an object
+/// The text is read in one pass against the contract ([`fill`]): an object
 /// the class fills is read into one slot per field, and never into an array.
-/// Every check [`Decode`] makes still applies, at the same place, with the
-/// same message. Each object is built when its closing brace is read, from
+/// Every check [`build`] makes still applies, at the same place, with the
+/// same message. The read is a loop on the caller's own stack, so each
+/// constructor runs on the stack the call came in on. Each object is built when its closing brace is read, from
 /// slots on one stack the whole decode shares ([`Builder`]), so the parse ends
 /// with the document's outermost value already built. A constructor may run
 /// before a later part of the document fails to parse, and that failure frees
 /// every instance built. A class that wrote [`DECODE`] is handed the document
-/// as it arrived, so its text is read by [`read_marked`] and built by
+/// as it arrived, so its text is read by [`read_polled`] and built by
 /// [`hydrate`]. The context is in hand for the whole call, so a caller whose
 /// text is the request's body holds a handle on the bytes and not a borrow of
 /// the context (`Core\Request::jsonAs`).
@@ -2869,7 +2905,7 @@ nvs_runtime::nvs_helper! {
 /// # Errors
 ///
 /// `ParseError`, worded `{member}(): ...`, where `text` is not one document
-/// [`Fill`] reads against the class at `max`, and every issue the build finds.
+/// [`fill`] reads against the class at `max`, and every issue the build finds.
 ///
 /// The two shapes share this frame because the codec questions are the
 /// contract's and not the document's: an `Opaque` field is a decoder this crate
@@ -2927,23 +2963,22 @@ pub(crate) unsafe fn decode_as(
         return unsafe { hydrate(ctx, class, shape, document, list, reading, member) };
     }
     let deadline = deadline_of(ctx);
-    let build = std::cell::RefCell::new(Builder::new(&mut *ctx));
-    let read = read_against(text, max, contract, list, &build, Some(&deadline));
-    // The slots of an object the parse left open, and the arrays kept for
+    let mut builder = Builder::new(&mut *ctx);
+    let read = read_against(text, max, contract, list, &mut builder, Some(&deadline));
+    // The slots of an object the read left open, and the arrays kept for
     // `Lists`, drop with this and release what they hold.
-    let Builder {
-        ctx, fault, kept, ..
-    } = build.into_inner();
-    // A parse the deadline stopped is the deadline's FATAL. What it read is
+    let Builder { ctx, kept, .. } = builder;
+    // A read the deadline stopped is the deadline's FATAL. What it read is
     // dropped with `read`.
     deadline_finished(&deadline, ctx, member)?;
-    // A fault a build raised ends the parse, and is what the call throws.
-    if let Some(fault) = fault {
-        return Err(fault);
-    }
     // The outermost value: an instance or its issues, a list of those, or a
-    // value of the wrong JSON type, which the calls below report.
-    let found = read.map_err(|why| unparsed(&why))?;
+    // value of the wrong JSON type, which the calls below report. A fault a
+    // build raised ends the read, and is what the call throws.
+    let found = match read {
+        Ok(found) => found,
+        Err(Halt::Built(fault)) => return Err(fault),
+        Err(Halt::Read(why)) => return Err(unparsed(&why)),
+    };
     #[expect(
         unsafe_code,
         reason = "the same live descriptor the caller vouched for, and a value this \
@@ -2967,7 +3002,7 @@ pub(crate) unsafe fn decode_as(
 // Reading a document against a contract — `decodeAs`'s one pass
 // ============================================================================
 
-/// One value [`Fill`] read: the generic value [`Decode`] builds, an object
+/// One value [`fill`] read: the generic value [`build`] builds, an object
 /// built against the contract, or a list of such objects.
 ///
 /// An object the contract fills is built while the parse reads its closing
@@ -2980,7 +3015,7 @@ pub(crate) unsafe fn decode_as(
 /// others, and lists nest only as deep as the field's declared element chain,
 /// so the drop's depth is the program's and never the document's.
 enum Found<'a> {
-    /// A value [`Decode`] read, with the one reference that read made.
+    /// A value [`build`] read, with the one reference that read made.
     Value(Value),
     /// A JSON list whose elements were read against a list field's element.
     List(Vec<Found<'a>>),
@@ -3021,7 +3056,7 @@ impl Drop for Found<'_> {
 }
 
 /// One value the walk reads: the document's own value, or an object or a list
-/// [`Fill`] built against the contract.
+/// [`fill`] built against the contract.
 ///
 /// The walk is one walk over both. [`hydrate`]'s callers hand it values, and
 /// [`build_object`] hands it the slots of the object whose closing brace the
@@ -3064,7 +3099,7 @@ fn taken<'a>(found: Seen<'a>) -> Option<Result<Value, DecodeFailure<'a>>> {
 enum Object<'a> {
     /// An array the document built, borrowed. A field is found by its key.
     Array(std::mem::ManuallyDrop<NvsArray>),
-    /// The slots of an object [`Fill`] read, one per field, on the decode's
+    /// The slots of an object [`fill`] read, one per field, on the decode's
     /// slot stack. A field is found by its index.
     Slots(&'a [Option<Found<'a>>]),
 }
@@ -3094,7 +3129,7 @@ enum Sequence<'a> {
         /// The same array, borrowed.
         items: std::mem::ManuallyDrop<NvsArray>,
     },
-    /// A list [`Fill`] read.
+    /// A list [`fill`] read.
     Read(&'a [Found<'a>]),
 }
 
@@ -3135,7 +3170,7 @@ impl<'a> Sequence<'a> {
 /// take there: an object or a list where the wire type reads a value, or the
 /// reverse.
 ///
-/// Unreachable from source with no diagnostic to name: [`Fill`] builds an
+/// Unreachable from source with no diagnostic to name: [`fill`] builds an
 /// object or a list only where the walk takes one, and both read the same
 /// contract. `key` is the field the walk was
 /// reading, and `None` for the document itself.
@@ -3148,7 +3183,7 @@ fn misread(contract: Contract<'_>, key: Option<&str>) -> Fault {
 }
 
 /// The contract the `index`th field of `contract` fills field by field, or
-/// `None` where [`Decode`] reads its value instead.
+/// `None` where [`build`] reads its value instead.
 ///
 /// `None` where the field names no class, where the class wrote [`DECODE`],
 /// and where a class carries no field list. In each of those the walk takes
@@ -3170,63 +3205,406 @@ unsafe fn filled<'a>(contract: Contract<'a>, index: usize) -> Option<Contract<'a
     walked.then_some(nested)
 }
 
-/// The visitor methods [`Fill`] and [`FillList`] hand to [`Decode`] unchanged:
-/// a scalar is the same value whatever reads it.
-macro_rules! decoded_scalars {
-    () => {
-        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.write_str("a JSON value")
-        }
-
-        fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
-            Visitor::visit_unit(self.decode).map(Found::Value)
-        }
-
-        fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Self::Value, E> {
-            Visitor::visit_bool(self.decode, value).map(Found::Value)
-        }
-
-        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Self::Value, E> {
-            Visitor::visit_i64(self.decode, value).map(Found::Value)
-        }
-
-        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
-            Visitor::visit_u64(self.decode, value).map(Found::Value)
-        }
-
-        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Self::Value, E> {
-            Visitor::visit_f64(self.decode, value).map(Found::Value)
-        }
-
-        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-            Visitor::visit_str(self.decode, value).map(Found::Value)
-        }
-    };
-}
-
-/// The visitor that reads one value where `contract` fills an object: a JSON
-/// object becomes an instance built at its closing brace, and every other
-/// value is [`Decode`]'s.
-///
-/// `Copy`, as [`Decode`] is, and small, because the parse takes one native
-/// frame of it per nesting level. The slots live on the heap.
+/// Where [`fill`] puts the next value the reader gives, and how it reads it.
 #[derive(Clone, Copy)]
-struct Fill<'a, 'c> {
-    /// This value's level, its cap, and the lists the parse notes.
-    decode: Decode<'a>,
-    /// The class or shape the object fills.
-    contract: Contract<'a>,
-    /// The decode's context, slot stack and first fault.
-    build: Shared<'c, 'a>,
+enum Target<'a> {
+    /// An object `contract` fills, built at its closing brace. Any other
+    /// value is [`build`]'s, with the contract's lists.
+    Fill(Contract<'a>),
+    /// A JSON list whose elements are each read against `element`, or each
+    /// filled as an object of `contract` where `element` is `None`. Any other
+    /// value is [`build`]'s, with the contract's lists.
+    FillList {
+        /// The contract whose field this list is, or whose objects it lists.
+        contract: Contract<'a>,
+        /// That field's index. Every label at every depth is read through it.
+        index: usize,
+        /// The element each position is read against.
+        element: Option<&'a nvs_runtime::CodecElement>,
+    },
+    /// A value [`build`] reads, noting each JSON list in `lists`.
+    Value {
+        /// Where the lists are noted, and `None` for a value no field takes.
+        lists: Option<&'a Lists>,
+        /// Whether the value is a scalar field's own. There an integer
+        /// literal outside `int` is a number the field judges, and not a
+        /// refusal (§ *The refusals*).
+        field: bool,
+    },
 }
 
-impl<'de, 'a> DeserializeSeed<'de> for Fill<'a, '_> {
-    type Value = Found<'a>;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        self.decode.polled()?;
-        deserializer.deserialize_any(self)
+impl<'a> Target<'a> {
+    /// The target for a value of wire type `ty`: the `index`th field of
+    /// `contract`, or a link of that field's element chain.
+    fn typed(
+        contract: Contract<'a>,
+        index: usize,
+        ty: CodecTy,
+        element: Option<&'a nvs_runtime::CodecElement>,
+    ) -> Self {
+        match ty {
+            CodecTy::Class | CodecTy::Shape => {
+                #[expect(
+                    unsafe_code,
+                    reason = "every descriptor under a decode is the caller's or one \
+                              `nvs-codegen` resolved out of the same class table"
+                )]
+                let nested = unsafe { filled(contract, index) };
+                if let Some(nested) = nested {
+                    return Self::Fill(nested);
+                }
+            }
+            CodecTy::List => {
+                if let Some(element) = element
+                    && matches!(element.terminal(), CodecTy::Class | CodecTy::Shape)
+                {
+                    return Self::FillList {
+                        contract,
+                        index,
+                        element: Some(element),
+                    };
+                }
+            }
+            _ => {}
+        }
+        Self::Value {
+            lists: lists_of(contract),
+            field: matches!(
+                ty,
+                CodecTy::Bool
+                    | CodecTy::Int
+                    | CodecTy::Uint
+                    | CodecTy::Float
+                    | CodecTy::Decimal
+                    | CodecTy::Str
+                    | CodecTy::Bytes
+                    | CodecTy::Instant
+                    | CodecTy::Enum
+            ),
+        }
     }
+
+    /// Where a value [`build`] reads here notes its lists.
+    fn lists(self) -> Option<&'a Lists> {
+        match self {
+            Self::Fill(contract) | Self::FillList { contract, .. } => lists_of(contract),
+            Self::Value { lists, .. } => lists,
+        }
+    }
+}
+
+/// The lists a read against `contract` notes: its [`Reading::Wire`]'s.
+const fn lists_of<'a>(contract: Contract<'a>) -> Option<&'a Lists> {
+    match contract.reading {
+        Reading::Wire(lists) => Some(lists),
+        Reading::Values => None,
+    }
+}
+
+/// The value a scalar field reads from `number`. An integer literal outside
+/// `int` is a `uint` up to `u64::MAX`, and its nearest `float` past that, so
+/// [`scalar`] converts it for a `float` field, takes it for a `uint` field
+/// that fits, and reports it as every other field's issue.
+fn field_number(number: reader::Number) -> Value {
+    match number {
+        reader::Number::Int(value) => Value::int(value),
+        reader::Number::Uint(value) => Value::uint(value),
+        reader::Number::Float(value) => Value::float(value),
+        reader::Number::Big { nearest, .. } => Value::float(nearest),
+    }
+}
+
+/// One container [`fill`] has open.
+enum Filling<'a> {
+    /// An object `contract` fills, whose slots start at `base` on the
+    /// decode's slot stack.
+    Object {
+        /// The class or shape the object fills.
+        contract: Contract<'a>,
+        /// Where its slots start.
+        base: usize,
+        /// Where the value after the last key goes.
+        next: Next,
+        /// The keys the contract does not declare, kept only to refuse a
+        /// repeat, and made only once the first one appears.
+        undeclared: Option<std::collections::HashSet<Box<str>>>,
+    },
+    /// A JSON list whose elements nest an object a contract fills.
+    List {
+        /// The contract whose field this list is, or whose objects it lists.
+        contract: Contract<'a>,
+        /// That field's index.
+        index: usize,
+        /// The element each position is read against, and `None` for an
+        /// `array<T>` document.
+        element: Option<&'a nvs_runtime::CodecElement>,
+        /// What each element read.
+        items: Vec<Found<'a>>,
+    },
+}
+
+/// Where an open object's next value goes.
+enum Next {
+    /// Nowhere yet: the reader gives a key first.
+    Key,
+    /// The slot of the `n`th declared field.
+    Field(usize),
+    /// Nowhere: the key is not declared. The value is read in full, so every
+    /// check on it is made, and then released.
+    Undeclared(Box<str>),
+}
+
+/// Why [`fill`] stopped.
+enum Halt {
+    /// The text did not read: its syntax, its depth, a value it refuses, the
+    /// request's memory limit or its deadline.
+    Read(reader::Error),
+    /// A build raised this fault, and the read stopped there. [`decode_as`]
+    /// returns it.
+    Built(Fault),
+}
+
+impl From<reader::Error> for Halt {
+    fn from(why: reader::Error) -> Self {
+        Self::Read(why)
+    }
+}
+
+impl fmt::Display for Halt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Read(why) => why.fmt(f),
+            Self::Built(_) => f.write_str(BUILD_FAULT),
+        }
+    }
+}
+
+/// Whether the request can afford one more element in `items`, and the
+/// vector's growth when it is full. The ask is in front of the push, and is
+/// never zero.
+fn affords_push<T>(items: &Vec<T>) -> bool {
+    let grow = if items.len() == items.capacity() {
+        items.capacity().max(4).saturating_mul(size_of::<T>())
+    } else {
+        0
+    };
+    nvs_runtime::budget::affords(size_of::<T>().saturating_add(grow))
+}
+
+/// Reads the one value `reader` gives next against `root`: `decodeAs`'s one
+/// pass, on the caller's own stack at any depth.
+///
+/// A loop over the reader's events, which checks the grammar and the depth.
+/// `frames` keeps the objects and lists a contract fills that are not closed
+/// yet, and each growth is asked from the request's budget first. An object
+/// is built at its closing brace ([`build_object`]), so a constructor runs on
+/// the stack the call came in on. A value no contract fills is [`build`]'s.
+/// A declared key is matched from the borrowed text. Each value counts one
+/// step of `deadline`'s poll. Every check [`build`] makes still applies, with
+/// the same message, and a repeated key is refused once its value is read.
+///
+/// **What it spends:** one [`Filling`] per open level a contract fills, on the
+/// heap, and one boxed key per undeclared key. Both are freed with the call.
+/// On an error, dropping `frames` frees every list read so far, and the
+/// slots stay on the builder until it drops.
+fn fill<'a, S: reader::Source>(
+    reader: &mut reader::Reader<S>,
+    root: Target<'a>,
+    builder: &mut Builder<'a>,
+    deadline: Option<&Deadline>,
+) -> Result<Found<'a>, Halt> {
+    use reader::{Code, Event};
+    let mut frames: Vec<Filling<'a>> = Vec::new();
+    loop {
+        let Some(event) = reader.next()? else {
+            // Unreachable: the reader refuses a text that ends inside a value.
+            return Err(reader.refuse(Code::EofWhileParsingValue).into());
+        };
+        let found = match event {
+            Event::Key(key) => {
+                let Some(Filling::Object { contract, next, .. }) = frames.last_mut() else {
+                    // Unreachable: the reader gives a key only inside an
+                    // object, and an object a contract does not fill is
+                    // `build`'s.
+                    return Err(reader.refuse(Code::KeyMustBeAString).into());
+                };
+                if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(key.len())) {
+                    return Err(reader.refuse(Code::OverMemory).into());
+                }
+                *next = match contract.fields().iter().position(|field| field.key == key) {
+                    Some(index) => Next::Field(index),
+                    None => Next::Undeclared(key.into()),
+                };
+                continue;
+            }
+            Event::EndObject => {
+                let Some(Filling::Object { contract, base, .. }) = frames.pop() else {
+                    // Unreachable: the reader closes only what it opened.
+                    return Err(reader.refuse(Code::TrailingCharacters).into());
+                };
+                build_object(builder, contract, base).map_err(|fault| {
+                    fault.map_or_else(|| Halt::Read(reader.refuse(Code::OverMemory)), Halt::Built)
+                })?
+            }
+            Event::EndArray => {
+                let Some(Filling::List { items, .. }) = frames.pop() else {
+                    // Unreachable: the reader closes only what it opened.
+                    return Err(reader.refuse(Code::TrailingCharacters).into());
+                };
+                Found::List(items)
+            }
+            value => {
+                if stopped(deadline) {
+                    return Err(reader.refuse(Code::Stopped).into());
+                }
+                let target = match frames.last() {
+                    None => root,
+                    Some(Filling::Object { contract, next, .. }) => match next {
+                        Next::Field(index) => {
+                            let field = &contract.fields()[*index];
+                            Target::typed(*contract, *index, field.ty, field.element.as_ref())
+                        }
+                        Next::Undeclared(_) => Target::Value {
+                            lists: None,
+                            field: false,
+                        },
+                        // Unreachable: the reader gives a member's key before
+                        // its value.
+                        Next::Key => return Err(reader.refuse(Code::KeyMustBeAString).into()),
+                    },
+                    Some(Filling::List {
+                        contract,
+                        index,
+                        element,
+                        ..
+                    }) => match element {
+                        None => Target::Fill(*contract),
+                        Some(element) => Target::typed(
+                            *contract,
+                            *index,
+                            element.ty,
+                            element.element.as_deref(),
+                        ),
+                    },
+                };
+                match (target, value) {
+                    (Target::Fill(contract), Event::StartObject) => {
+                        // The object's slots go on the decode's stack, after
+                        // its parent's.
+                        let Some(base) = builder.open(contract.fields().len()) else {
+                            return Err(reader.refuse(Code::OverMemory).into());
+                        };
+                        if !affords_push(&frames) {
+                            return Err(reader.refuse(Code::OverMemory).into());
+                        }
+                        frames.push(Filling::Object {
+                            contract,
+                            base,
+                            next: Next::Key,
+                            undeclared: None,
+                        });
+                        continue;
+                    }
+                    (
+                        Target::FillList {
+                            contract,
+                            index,
+                            element,
+                        },
+                        Event::StartArray,
+                    ) => {
+                        if !affords_push(&frames) {
+                            return Err(reader.refuse(Code::OverMemory).into());
+                        }
+                        frames.push(Filling::List {
+                            contract,
+                            index,
+                            element,
+                            items: Vec::new(),
+                        });
+                        continue;
+                    }
+                    (target, Event::StartArray | Event::StartObject) => {
+                        let list = matches!(value, Event::StartArray);
+                        Found::Value(build_open(reader, list, target.lists(), deadline)?)
+                    }
+                    (Target::Value { field: true, .. }, Event::Number(number)) => {
+                        Found::Value(field_number(number))
+                    }
+                    (_, scalar) => {
+                        Found::Value(scalar_of(scalar).map_err(|code| reader.refuse(code))?)
+                    }
+                }
+            }
+        };
+        let Some(top) = frames.last_mut() else {
+            return Ok(found);
+        };
+        match top {
+            Filling::List { items, .. } => {
+                // On the refusal, dropping `found` releases what it read.
+                if !affords_push(items) {
+                    return Err(reader.refuse(Code::OverMemory).into());
+                }
+                items.push(found);
+            }
+            Filling::Object {
+                contract,
+                base,
+                next,
+                undeclared,
+            } => match std::mem::replace(next, Next::Key) {
+                Next::Field(index) => {
+                    // Each object has one slot per field. On the refusal,
+                    // dropping `found` releases what it read.
+                    if fill_slot(&mut builder.slots[*base + index], found) {
+                        let key = contract.fields()[index].key.as_str();
+                        return Err(reader.refuse(Code::Repeated(key.into())).into());
+                    }
+                }
+                Next::Undeclared(key) => {
+                    // No field takes it. Its lists were not noted, because
+                    // `Lists` is keyed by address and this release frees that
+                    // address for an array the read builds later.
+                    drop(found);
+                    let seen = undeclared.get_or_insert_with(std::collections::HashSet::new);
+                    if seen.contains(&key) {
+                        return Err(reader.refuse(Code::Repeated(key)).into());
+                    }
+                    // The entry, and the set's growth when it is full, are
+                    // asked for in front of the insert that allocates them.
+                    let grow = if seen.len() == seen.capacity() {
+                        seen.capacity()
+                            .max(4)
+                            .saturating_mul(size_of::<Box<str>>())
+                    } else {
+                        0
+                    };
+                    if !nvs_runtime::budget::affords(
+                        size_of::<Box<str>>()
+                            .saturating_add(key.len())
+                            .saturating_add(grow),
+                    ) {
+                        return Err(reader.refuse(Code::OverMemory).into());
+                    }
+                    seen.insert(key);
+                }
+                // Unreachable: the reader gives a member's key before its
+                // value. Dropping `found` releases it.
+                Next::Key => return Err(reader.refuse(Code::KeyMustBeAString).into()),
+            },
+        }
+    }
+}
+
+/// The refusal of a key written twice in one object, for [`Decode::visit_map`]
+/// and `decodeEach`. The key is quoted, so a long key costs the message
+/// [`nvs_runtime::QUOTED_BYTES`] and no more.
+fn repeated<E: serde::de::Error>(key: &str) -> E {
+    E::custom(format!(
+        "the key {:?} appears twice in one object",
+        nvs_runtime::quoted(key)
+    ))
 }
 
 /// Writes `found` into `slot`, or returns `true` where the slot is filled
@@ -3239,130 +3617,35 @@ fn fill_slot<'a>(slot: &mut Option<Found<'a>>, found: Found<'a>) -> bool {
     false
 }
 
-impl<'de, 'a> Visitor<'de> for Fill<'a, '_> {
-    type Value = Found<'a>;
-
-    decoded_scalars!();
-
-    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<Self::Value, A::Error> {
-        Visitor::visit_seq(self.decode, seq).map(Found::Value)
-    }
-
-    /// [`Decode::visit_map`]'s checks in the same order, with the same
-    /// messages: the depth first, the memory asked for in front of each step,
-    /// and a repeated key refused once its value is read.
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let Self {
-            decode,
-            contract,
-            build,
-        } = self;
-        if decode.depth >= decode.max {
-            return Err(decode.too_deep());
-        }
-        let fields = contract.fields();
-        // The object's slots go on the decode's stack, after its parent's.
-        let base = build
-            .borrow_mut()
-            .open(fields.len())
-            .ok_or_else(over_memory)?;
-        // The keys the contract does not declare, kept only to refuse a
-        // repeat, and made only once the first one appears.
-        let mut undeclared: Option<std::collections::HashSet<Cow<'de, str>>> = None;
-        while let Some(key) = map.next_key_seed(Key)? {
-            if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(key.len())) {
-                return Err(over_memory());
-            }
-            let child = decode.child();
-            if let Some(index) = fields.iter().position(|field| field.key == *key) {
-                let found = map.next_value_seed(Typed::field(child, contract, index, build))?;
-                // Each object has one slot per field. On the refusal, dropping
-                // `found` releases what it read.
-                let twice = fill_slot(&mut build.borrow_mut().slots[base + index], found);
-                if twice {
-                    return Err(repeated(&key));
-                }
-            } else {
-                // Read in full, so every check on it is made, and then
-                // released: no field takes it. Its lists are not noted,
-                // because `Lists` is keyed by address and the release frees
-                // that address for an array the parse builds later.
-                let value = map.next_value_seed(Decode {
-                    lists: None,
-                    ..child
-                })?;
-                #[expect(
-                    unsafe_code,
-                    reason = "the value is the one reference this read made, and \
-                              nothing else holds it"
-                )]
-                unsafe {
-                    value.release();
-                }
-                let seen = undeclared.get_or_insert_with(std::collections::HashSet::new);
-                if seen.contains(&*key) {
-                    return Err(repeated(&key));
-                }
-                // The entry, and the set's growth when it is full, are asked
-                // for in front of the insert that allocates them.
-                let grow = if seen.len() == seen.capacity() {
-                    seen.capacity()
-                        .max(4)
-                        .saturating_mul(size_of::<Cow<'_, str>>())
-                } else {
-                    0
-                };
-                if !nvs_runtime::budget::affords(
-                    size_of::<Cow<'_, str>>()
-                        .saturating_add(key.len())
-                        .saturating_add(grow),
-                ) {
-                    return Err(over_memory());
-                }
-                seen.insert(key);
-            }
-        }
-        build_object(build, contract, base)
-    }
-}
-
-/// The decode's state that every [`Fill`] reaches: the context, the slot
-/// stack, and the first fault a build raised.
+/// The decode's state [`fill`] builds with: the context and the slot stack.
 ///
-/// One per typed decode, shared as a [`Shared`] so that [`Fill`] stays `Copy`.
+/// One per typed decode.
 ///
 /// **What it spends:** the slot stack, `size_of::<Option<Found>>()` per field
 /// of the objects open on it at once, and the arrays [`Builder::close`] keeps.
 /// Both are freed when the decode returns.
 struct Builder<'a> {
     /// The context a constructor runs with. [`decode_as`] takes it back
-    /// once the parse has ended.
+    /// once the read has ended.
     ctx: &'a mut nvs_runtime::Ctx,
-    /// The field values of every object the parse is inside,
+    /// The field values of every object the read is inside,
     /// each object's slots after its parent's, one per field.
     slots: Vec<Option<Found<'a>>>,
     /// Each array a closed object's slots held. They live until the decode
     /// returns, because [`Lists`] knows a JSON list by its address, and a freed
-    /// address may be given to an array the parse builds later.
+    /// address may be given to an array the read builds later.
     kept: Vec<Found<'a>>,
-    /// The fault a build raised. The parse ends with [`BUILD_FAULT`], and the
-    /// decode returns this in its place.
-    fault: Option<Fault>,
 }
 
-/// The decode's [`Builder`], as every [`Fill`], [`FillList`] and [`Typed`]
-/// holds it.
-type Shared<'c, 'a> = &'c std::cell::RefCell<Builder<'a>>;
-
-/// The message of the error a parse ends with once a build raised a fault.
-/// [`decode_as`] returns [`Builder::fault`] in its place, so no program sees
-/// it.
+/// What [`Halt::Built`] prints. [`decode_as`] returns the fault itself, so no
+/// program sees it.
 ///
-/// So a fault a build raised wins over a parse error later in the text, and
-/// constructors run in document order: of two that throw, the first in the
-/// document is the one thrown. A constructor may also run before a later part
-/// of the document fails to parse. Every instance built is then freed, and the
-/// `ParseError` and its message are the ones a tree-first decode would give.
+/// A fault a build raised stops the read, so it wins over a parse error later
+/// in the text, and constructors run in document order: of two that throw,
+/// the first in the document is the one thrown. A constructor may also run
+/// before a later part of the document fails to parse. Every instance built
+/// is then freed, and the `ParseError` and its message are the ones a
+/// tree-first decode would give.
 const BUILD_FAULT: &str = "the decode stopped at a fault its build raised";
 
 impl<'a> Builder<'a> {
@@ -3372,7 +3655,6 @@ impl<'a> Builder<'a> {
             ctx,
             slots: Vec::new(),
             kept: Vec::new(),
-            fault: None,
         }
     }
 
@@ -3428,14 +3710,7 @@ fn keep_arrays<'a>(kept: &mut Vec<Found<'a>>, mut found: Found<'a>) -> bool {
     if !matches!(&found, Found::Value(value) if value.array_ptr().is_some()) {
         return true;
     }
-    let grow = if kept.len() == kept.capacity() {
-        kept.capacity()
-            .max(4)
-            .saturating_mul(size_of::<Found<'_>>())
-    } else {
-        0
-    };
-    if !nvs_runtime::budget::affords(size_of::<Found<'_>>().saturating_add(grow)) {
+    if !affords_push(kept) {
         return false;
     }
     kept.push(found);
@@ -3449,26 +3724,27 @@ fn keep_arrays<'a>(kept: &mut Vec<Found<'a>>, mut found: Found<'a>) -> bool {
 /// walk's. A field that nests an object or a list of them already holds what
 /// its own closing brace built, and [`taken`] takes it from there. Its issues
 /// are kept in a [`Found::Failed`], so the enclosing object reports them in the
-/// walk's order. A fault ends the parse with [`BUILD_FAULT`], and
-/// [`decode_as`] returns the fault.
-fn build_object<'a, E: serde::de::Error>(
-    build: Shared<'_, 'a>,
+/// walk's order.
+///
+/// # Errors
+///
+/// The fault a build raised, or `None` where the request cannot afford the
+/// place an array needs.
+fn build_object<'a>(
+    builder: &mut Builder<'a>,
     contract: Contract<'a>,
     base: usize,
-) -> Result<Found<'a>, E> {
-    let mut builder = build.borrow_mut();
-    let builder = &mut *builder;
+) -> Result<Found<'a>, Option<Fault>> {
     // [`decode_each`]'s check, in front of each object: an instance is several
-    // allocations that ask nothing, so this stops the parse at the crossing.
+    // allocations that ask nothing, so this stops the read at the crossing.
     // Two thread-local reads per object.
     if nvs_runtime::budget::over_ceiling() || nvs_runtime::budget::refused() {
-        builder.fault = Some(builder.ctx.memory_breach().unwrap_or_else(|| {
-            // no case can reach this: the parse's own ask or the budget's
+        return Err(Some(builder.ctx.memory_breach().unwrap_or_else(|| {
+            // no case can reach this: the read's own ask or the budget's
             // breach names the memory limit first.
             // `a_typed_decode_past_the_memory_limit_reports_the_limit` asserts it.
             Fault::fatal("the decoded document does not fit in the request's memory limit")
-        }));
-        return Err(E::custom(BUILD_FAULT));
+        })));
     }
     let open = &builder.slots[base..];
     #[expect(
@@ -3488,342 +3764,43 @@ fn build_object<'a, E: serde::de::Error>(
     let found = match outcome {
         Ok(value) => Found::Built(value),
         Err(DecodeFailure::Issues(issues)) => Found::Failed(issues),
-        Err(DecodeFailure::Fault(fault)) => {
-            builder.fault = Some(fault);
-            return Err(E::custom(BUILD_FAULT));
-        }
+        Err(DecodeFailure::Fault(fault)) => return Err(Some(fault)),
     };
     if !builder.close(base) {
-        return Err(over_memory());
+        return Err(None);
     }
     Ok(found)
 }
 
-/// The visitor that reads one value where a JSON list is expected whose
-/// elements nest an object the contract fills: a JSON list becomes a
-/// [`Found::List`] of what each element built, and every other value is
-/// [`Decode`]'s.
-///
-/// `element` is the link of the field's element chain each element is read
-/// against, and `None` for a document that is an `array<T>`, whose every
-/// element is an object of `contract` itself.
-#[derive(Clone, Copy)]
-struct FillList<'a, 'c> {
-    /// This value's level, its cap, and the lists the parse notes.
-    decode: Decode<'a>,
-    /// The contract whose field this list is, or whose objects it lists.
-    contract: Contract<'a>,
-    /// That field's index. Every label at every depth is read through it.
-    index: usize,
-    /// The element each position is read against.
-    element: Option<&'a nvs_runtime::CodecElement>,
-    /// The decode's context, slot stack and first fault.
-    build: Shared<'c, 'a>,
-}
-
-impl<'de, 'a> Visitor<'de> for FillList<'a, '_> {
-    type Value = Found<'a>;
-
-    decoded_scalars!();
-
-    /// [`Decode::visit_seq`]'s checks in the same order, with the same
-    /// messages.
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-        let Self {
-            decode,
-            contract,
-            index,
-            element,
-            build,
-        } = self;
-        if decode.depth >= decode.max {
-            return Err(decode.too_deep());
-        }
-        let mut items = Vec::new();
-        loop {
-            // Each element's place, and the vector's growth when it is full,
-            // are asked for in front of the push that allocates them. The
-            // first growth is the vector itself.
-            let grow = if items.len() == items.capacity() {
-                items
-                    .capacity()
-                    .max(4)
-                    .saturating_mul(size_of::<Found<'_>>())
-            } else {
-                0
-            };
-            if !nvs_runtime::budget::affords(size_of::<Found<'_>>().saturating_add(grow)) {
-                return Err(over_memory());
-            }
-            let child = decode.child();
-            let next = match element {
-                None => seq.next_element_seed(Fill {
-                    decode: child,
-                    contract,
-                    build,
-                })?,
-                Some(element) => {
-                    seq.next_element_seed(Typed::link(child, contract, index, element, build))?
-                }
-            };
-            let Some(found) = next else {
-                break;
-            };
-            items.push(found);
-        }
-        Ok(Found::List(items))
-    }
-
-    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-        Visitor::visit_map(self.decode, map).map(Found::Value)
-    }
-}
-
-/// The seed that reads one value by its wire type: a field's, or a link of a
-/// list field's element chain.
-///
-/// A class or a shape the walk fills is read by [`Fill`], and a list whose
-/// chain ends in one by [`FillList`]. Everything else is read by [`Decode`],
-/// whose own visitor, unchanged, makes every check on it.
-#[derive(Clone, Copy)]
-struct Typed<'a, 'c> {
-    /// This value's level, its cap, and the lists the parse notes.
-    decode: Decode<'a>,
-    /// The contract whose field this value is.
-    contract: Contract<'a>,
-    /// That field's index, which every label is read through.
-    index: usize,
-    /// The wire type the value is read as.
-    ty: CodecTy,
-    /// The element of a list, where `ty` is one.
-    element: Option<&'a nvs_runtime::CodecElement>,
-    /// The decode's context, slot stack and first fault.
-    build: Shared<'c, 'a>,
-}
-
-impl<'a, 'c> Typed<'a, 'c> {
-    /// The seed for the `index`th field's value.
-    fn field(
-        decode: Decode<'a>,
-        contract: Contract<'a>,
-        index: usize,
-        build: Shared<'c, 'a>,
-    ) -> Self {
-        let field = &contract.fields()[index];
-        Self {
-            decode,
-            contract,
-            index,
-            ty: field.ty,
-            element: field.element.as_ref(),
-            build,
-        }
-    }
-
-    /// The seed for one position of a list read against `element`.
-    fn link(
-        decode: Decode<'a>,
-        contract: Contract<'a>,
-        index: usize,
-        element: &'a nvs_runtime::CodecElement,
-        build: Shared<'c, 'a>,
-    ) -> Self {
-        Self {
-            decode,
-            contract,
-            index,
-            ty: element.ty,
-            element: element.element.as_deref(),
-            build,
-        }
-    }
-}
-
-impl<'de, 'a> DeserializeSeed<'de> for Typed<'a, '_> {
-    type Value = Found<'a>;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        let Self {
-            decode,
-            contract,
-            index,
-            ty,
-            element,
-            build,
-        } = self;
-        // One poll for the value, whichever visitor reads it below.
-        decode.polled()?;
-        match ty {
-            CodecTy::Class | CodecTy::Shape => {
-                #[expect(
-                    unsafe_code,
-                    reason = "every descriptor under a decode is the caller's or one \
-                              `nvs-codegen` resolved out of the same class table"
-                )]
-                let nested = unsafe { filled(contract, index) };
-                if let Some(nested) = nested {
-                    return deserializer.deserialize_any(Fill {
-                        decode,
-                        contract: nested,
-                        build,
-                    });
-                }
-            }
-            CodecTy::List => {
-                if let Some(element) = element
-                    && matches!(element.terminal(), CodecTy::Class | CodecTy::Shape)
-                {
-                    return deserializer.deserialize_any(FillList {
-                        decode,
-                        contract,
-                        index,
-                        element: Some(element),
-                        build,
-                    });
-                }
-            }
-            _ => {}
-        }
-        deserializer.deserialize_any(decode).map(Found::Value)
-    }
-}
-
-/// The seed for one object key: borrowed from the text where the key has no
-/// escape in it, and copied only where it has one.
-struct Key;
-
-impl<'de> DeserializeSeed<'de> for Key {
-    type Value = Cow<'de, str>;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        deserializer.deserialize_str(self)
-    }
-}
-
-impl<'de> Visitor<'de> for Key {
-    type Value = Cow<'de, str>;
-
-    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("a string")
-    }
-
-    fn visit_borrowed_str<E: serde::de::Error>(self, value: &'de str) -> Result<Self::Value, E> {
-        Ok(Cow::Borrowed(value))
-    }
-
-    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-        Ok(Cow::Owned(value.to_owned()))
-    }
-
-    fn visit_string<E: serde::de::Error>(self, value: String) -> Result<Self::Value, E> {
-        Ok(Cow::Owned(value))
-    }
-}
-
-/// The refusal of a key written twice in one object, for [`Decode::visit_map`]
-/// and the typed decoder alike. The key is quoted, so a long key costs the
-/// message [`nvs_runtime::QUOTED_BYTES`] and no more.
-fn repeated<E: serde::de::Error>(key: &str) -> E {
-    E::custom(format!(
-        "the key {:?} appears twice in one object",
-        nvs_runtime::quoted(key)
-    ))
-}
-
-/// Reads one whole document against `contract`, refusing anything after it:
-/// [`read_with`]'s choice of stack, for [`Fill`]'s parse.
+/// Reads one whole document against `contract`, refusing anything after it,
+/// on the caller's own stack.
 ///
 /// `list` reads an `array<T>` document, whose elements are each an object of
 /// `contract`. The contract's reading is [`Reading::Wire`], and its lists are
-/// where the parse notes each JSON list [`Decode`] builds.
-///
-/// The parse builds objects as it reads them, and a constructor is compiled
-/// code. So a parse on the spare stack arms the context with that stack's
-/// bounds while it runs, and [`TaskBounds`] arms the task's again on every way
-/// out.
+/// where the read notes each JSON list [`build`] builds.
 fn read_against<'a>(
     text: &str,
     max: u32,
     contract: Contract<'a>,
     list: bool,
-    build: Shared<'_, 'a>,
-    deadline: Option<&'a Deadline>,
-) -> Result<Found<'a>, serde_json::Error> {
-    if text.len() <= IN_PLACE_BYTES {
-        parse_against(text, max, contract, list, build, deadline)
-    } else {
-        nvs_host::on_spare_stack_within(|base, ceiling| {
-            let _task = TaskBounds::arm(build, base, ceiling);
-            parse_against(text, max, contract, list, build, deadline)
-        })
-    }
-}
-
-/// The task's stack bounds, set aside while a parse runs on the spare stack,
-/// and armed on the context again when this drops.
-struct TaskBounds<'b, 'a> {
-    /// The decode's builder, which holds the context.
-    build: Shared<'b, 'a>,
-    /// The pair [`nvs_runtime::Ctx::stack_bounds`] returned before the parse.
-    saved: (usize, usize),
-}
-
-impl<'b, 'a> TaskBounds<'b, 'a> {
-    /// Arms the context with the stack from `base` down `ceiling` bytes, and
-    /// keeps the pair it had.
-    fn arm(build: Shared<'b, 'a>, base: usize, ceiling: usize) -> Self {
-        let mut builder = build.borrow_mut();
-        let saved = builder.ctx.stack_bounds();
-        builder.ctx.arm_stack_limit(base, ceiling);
-        Self { build, saved }
-    }
-}
-
-impl Drop for TaskBounds<'_, '_> {
-    fn drop(&mut self) {
-        self.build.borrow_mut().ctx.restore_stack_bounds(self.saved);
-    }
-}
-
-/// [`read_against`]'s parse, on whatever stack it is called on, with
-/// [`parse`]'s reason for `disable_recursion_limit`.
-fn parse_against<'a>(
-    text: &str,
-    max: u32,
-    contract: Contract<'a>,
-    list: bool,
-    build: Shared<'_, 'a>,
-    deadline: Option<&'a Deadline>,
-) -> Result<Found<'a>, serde_json::Error> {
-    let lists = match contract.reading {
-        Reading::Wire(lists) => Some(lists),
-        Reading::Values => None,
-    };
-    let mut deserializer = serde_json::Deserializer::from_str(text);
-    deserializer.disable_recursion_limit();
-    let decode = Decode {
-        depth: 1,
-        max,
-        lists,
-        deadline,
-    };
-    let found = if list {
-        (&mut deserializer).deserialize_any(FillList {
-            decode,
+    builder: &mut Builder<'a>,
+    deadline: Option<&Deadline>,
+) -> Result<Found<'a>, Halt> {
+    let mut reader = reader::Reader::new(reader::Text(text.as_bytes()), max);
+    let root = if list {
+        Target::FillList {
             contract,
             index: 0,
             element: None,
-            build,
-        })?
+        }
     } else {
-        (&mut deserializer).deserialize_any(Fill {
-            decode,
-            contract,
-            build,
-        })?
+        Target::Fill(contract)
     };
-    // On an error, `found` drops here and releases everything it read.
-    deserializer.end()?;
+    let found = fill(&mut reader, root, builder, deadline)?;
+    // The reader gives `None` only at the text's end, and refuses anything
+    // but whitespace after the document. On an error, `found` drops here and
+    // releases everything it read.
+    reader.next()?;
     Ok(found)
 }
 
@@ -4196,7 +4173,7 @@ unsafe fn hand_written(
 /// The door for a caller that holds the document's values already.
 /// `Core\Arr::shapeAs` and the request wrappers over it are handed arrays a
 /// program or a form built. [`decode_as`] and [`read_as`] read their text
-/// against the class itself ([`Fill`]), and come here only for a class that
+/// against the class itself ([`fill`]), and come here only for a class that
 /// wrote [`DECODE`], whose member is handed the document as it arrived. The
 /// caller owes [`check_codec`] first.
 ///
@@ -5752,18 +5729,24 @@ unsafe fn scalar(
         CodecTy::Int if coerce => nvs_runtime::to_int(found).map(Value::int),
         CodecTy::Int => found.as_int().map(Value::int),
         CodecTy::Uint if coerce => nvs_runtime::to_uint(found).map(Value::uint),
+        // A literal past `i64::MAX` arrives as a `uint` (`field_number`).
         CodecTy::Uint => found
-            .as_int()
-            .and_then(|number| u64::try_from(number).ok())
+            .as_uint()
+            .or_else(|| found.as_int().and_then(|number| u64::try_from(number).ok()))
             .map(Value::uint),
         CodecTy::Float if coerce => nvs_runtime::to_float(found).map(Value::float),
         // A JSON `1` reaching a `float` field widens, which is the one place
         // Novis does that — `rule:types/conversion` has no int-to-float widening in the
         // language, but a wire format has one number type and refusing an
         // unfractional literal would make `1.0` and `1` different documents.
+        // A literal past `i64::MAX` arrives as a `uint`, or as its nearest
+        // `float`, which is infinite past `f64::MAX` and then the field's
+        // issue (`field_number`).
         CodecTy::Float => found
             .as_float()
+            .filter(|number| number.is_finite())
             .or_else(|| found.as_int().map(|number| number as f64))
+            .or_else(|| found.as_uint().map(|number| number as f64))
             .map(Value::float),
         // `rule:types/conversion`'s "anything → `string`: total for scalars",
         // which is the one converting row that allocates. An array or an
@@ -6471,8 +6454,8 @@ pub(crate) mod tests {
                 )]
                 let contract = unsafe { Contract::new(class, None) }.over(Reading::Wire(&lists));
                 let mut ctx = nvs_runtime::Ctx::buffered();
-                let build = std::cell::RefCell::new(Builder::new(&mut ctx));
-                read_against(&text, max, contract, false, &build, None)
+                let mut builder = Builder::new(&mut ctx);
+                read_against(&text, max, contract, false, &mut builder, None)
                     .map(drop)
                     .map_err(|why| why.to_string())
             })
@@ -6481,32 +6464,13 @@ pub(crate) mod tests {
             .expect("the parsing thread does not panic")
     }
 
-    /// The deepest text [`read_against`] parses in place fits in the stack a
-    /// helper is always entered with, as [`read`]'s does. Each text nests a
-    /// class in itself, directly and through a list, and fails only at its
-    /// end.
-    #[test]
-    fn a_decode_as_parses_its_deepest_short_text_in_the_unwinding_reserve() {
-        let direct = r#"{"":"#.repeat(IN_PLACE_BYTES / 4);
-        let listed = format!(r#"{}{{"":"#, r#"{"":["#.repeat((IN_PLACE_BYTES - 4) / 5));
-        for (through_a_list, text) in [(false, direct), (true, listed)] {
-            assert!(text.len() <= IN_PLACE_BYTES, "{text}");
-            let why = read_against_on_a_thread(through_a_list, text, nvs_runtime::STACK_RESERVE)
-                .expect_err("an unclosed object is not a document");
-            assert!(why.contains("EOF while parsing a value"), "{why}");
-        }
-    }
-
     /// [`a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has`]
-    /// for [`read_against`]: a class nested in itself to the ceiling parses,
-    /// and its tree drops, on a thread whose own stack could not hold that
-    /// parse.
-    #[cfg_attr(
-        miri,
-        ignore = "a guard page needs `mprotect`, which Miri does not emulate"
-    )]
+    /// for [`read_against`]: a class nested in itself to the ceiling, directly
+    /// and through a list, is read and built, and its tree drops, on a thread
+    /// of 64 KiB. The read is a loop on the caller's own stack, so no level
+    /// takes a native frame.
     #[test]
-    fn a_decode_as_document_at_the_ceiling_parses_whatever_stack_the_caller_has() {
+    fn a_typed_decode_reads_its_deepest_document_on_a_small_stack() {
         let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
         let direct = format!(r#"{}null{}"#, r#"{"":"#.repeat(levels), "}".repeat(levels));
         // Each unit is an object and a list, two levels, so one more object
@@ -6528,14 +6492,22 @@ pub(crate) mod tests {
     ///
     /// Leaked for [`holder_class`]'s reason.
     fn int_shape(keys: &[&str]) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
-        let fields = keys
+        let fields: Vec<_> = keys.iter().map(|key| (*key, CodecTy::Int)).collect();
+        typed_shape(&fields)
+    }
+
+    /// [`int_shape`] with a wire type per key.
+    fn typed_shape(fields: &[(&str, CodecTy)]) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let keys: Vec<&str> = fields.iter().map(|(key, _)| *key).collect();
+        let keys = &keys[..];
+        let fields = fields
             .iter()
             .enumerate()
-            .map(|(at, key)| CodecField {
+            .map(|(at, (key, ty))| CodecField {
                 key: (*key).to_owned(),
                 slot: at,
                 param: at,
-                ty: CodecTy::Int,
+                ty: *ty,
                 element: None,
                 class: None,
                 cases: None,
@@ -6555,6 +6527,77 @@ pub(crate) mod tests {
         );
         let table: &'static ClassTable = Box::leak(Box::new(table));
         (table.desc(id), shape)
+    }
+
+    /// An integer literal outside `int` under a typed field follows the field:
+    /// a `float` field converts it, a `uint` field takes it up to `u64::MAX`,
+    /// and any other field reports it as its own issue. A key no field
+    /// declares reads it as `decode` does, which throws.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_typed_integer_too_large_for_its_field_is_that_fields_issue() {
+        let (class, shape) = typed_shape(&[
+            ("f", CodecTy::Float),
+            ("i", CodecTy::Int),
+            ("u", CodecTy::Uint),
+        ]);
+        let lists = Lists::default();
+        #[expect(
+            unsafe_code,
+            reason = "`typed_shape` leaks its table, so both addresses outlive the read"
+        )]
+        let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
+        // The `f` and `u` an instance was built with, or each issue's path
+        // and message.
+        type Read = Result<(f64, u64), Vec<(String, String)>>;
+        let read = |text: &str| -> Result<Read, String> {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let mut builder = Builder::new(&mut ctx);
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &mut builder, None)
+                .map_err(|why| why.to_string())?;
+            Ok(match &found {
+                Found::Built(value) => {
+                    let ptr = value.obj_ptr().expect("a built shape is an object");
+                    #[expect(
+                        unsafe_code,
+                        reason = "`found` owns a reference to a live allocation, and the \
+                                  rebuilt handle is never dropped"
+                    )]
+                    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+                    let float = object.field(0).as_float().expect("`f` is a float");
+                    let uint = object.field(2).as_uint().expect("`u` is a uint");
+                    Ok((float, uint))
+                }
+                Found::Failed(issues) => Err(issues
+                    .iter()
+                    .map(|issue| (issue.render(), issue.message.clone()))
+                    .collect()),
+                _ => panic!("{text} is an object"),
+            })
+        };
+        let past_u64 = "18446744073709551616";
+        let long = "9".repeat(400);
+
+        let fitted = read(&format!(r#"{{"f":{past_u64},"i":1,"u":18446744073709551615}}"#));
+        assert_eq!(fitted, Ok(Ok((18_446_744_073_709_551_616.0, u64::MAX))));
+
+        for (text, key, wanted) in [
+            (r#"{"f":1,"i":9223372036854775808,"u":1}"#.to_owned(), "i", "int"),
+            (format!(r#"{{"f":1,"i":1,"u":{past_u64}}}"#), "u", "uint"),
+            (format!(r#"{{"f":{long},"i":1,"u":1}}"#), "f", "float"),
+            (format!(r#"{{"f":1,"i":-{long},"u":1}}"#), "i", "int"),
+        ] {
+            let issues = read(&text).expect("the document reads").expect_err(&text);
+            assert_eq!(
+                issues,
+                [(key.to_owned(), format!("expected {wanted}, found a number"))],
+                "{text}"
+            );
+        }
+
+        let why = read(&format!(r#"{{"f":1,"i":1,"u":1,"x":{past_u64}}}"#))
+            .expect_err("an undeclared key reads as `decode` does");
+        assert!(why.contains("is too large for `int`"), "{why}");
     }
 
     /// `decodeAs` reads an object the shape fills into its slots, and builds
@@ -6648,9 +6691,9 @@ pub(crate) mod tests {
         )]
         let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
         let read = |ctx: &mut nvs_runtime::Ctx, text: &str| {
-            let build = std::cell::RefCell::new(Builder::new(ctx));
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, true, &build, None);
-            let open = build.borrow().slots.len();
+            let mut builder = Builder::new(ctx);
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, true, &mut builder, None);
+            let open = builder.slots.len();
             (
                 found.map(|found| match found {
                     Found::List(ref items) => items
@@ -7612,10 +7655,11 @@ pub(crate) mod tests {
                 reason = "both helpers leak their tables, so the addresses outlive the parse"
             )]
             let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
-            let build = std::cell::RefCell::new(Builder::new(&mut ctx));
-            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &build, None)
+            let mut builder = Builder::new(&mut ctx);
+            let found = read_against(text, DEFAULT_MAX_DEPTH_U32, contract, false, &mut builder, None)
+                .map_err(|why| why.to_string())
                 .expect("the document parses");
-            assert_eq!(build.borrow().slots.len(), 0, "{text} leaves no slot open");
+            assert_eq!(builder.slots.len(), 0, "{text} leaves no slot open");
             let Found::Built(value) = &found else {
                 panic!("{text} arrives built");
             };

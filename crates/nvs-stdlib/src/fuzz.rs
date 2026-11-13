@@ -655,7 +655,9 @@ pub(crate) fn tokens_of<S: crate::json::reader::Source>(
                 Event::Number(Number::Int(value)) => JsonToken::Int(value),
                 Event::Number(Number::Uint(value)) => JsonToken::Uint(value),
                 Event::Number(Number::Float(value)) => JsonToken::Float(value.to_bits()),
-                Event::Number(Number::Big { negative, digits }) => {
+                Event::Number(Number::Big {
+                    negative, digits, ..
+                }) => {
                     JsonToken::Big(negative, digits.count(), digits.to_string())
                 }
                 Event::Str(text) => JsonToken::Str(text.to_owned()),

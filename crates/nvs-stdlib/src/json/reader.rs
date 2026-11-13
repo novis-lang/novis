@@ -140,6 +140,9 @@ pub(crate) enum Number {
         negative: bool,
         /// Its digits.
         digits: Digits,
+        /// The nearest `f64`, which is infinite past `f64::MAX`. A typed
+        /// decode reads it into a `float` field.
+        nearest: f64,
     },
 }
 
@@ -983,8 +986,17 @@ impl<S: Source> Reader<S> {
             });
         }
         if !float {
-            let digits = Digits::of(&self.token_bytes(usize::from(negative))?);
-            return Ok(Number::Big { negative, digits });
+            let bytes = self.token_bytes(0)?;
+            let digits = Digits::of(bytes.get(usize::from(negative)..).unwrap_or_default());
+            let nearest = std::str::from_utf8(&bytes)
+                .ok()
+                .and_then(|text| text.parse::<f64>().ok())
+                .unwrap_or(f64::INFINITY);
+            return Ok(Number::Big {
+                negative,
+                digits,
+                nearest,
+            });
         }
         let parsed = std::str::from_utf8(&self.token_bytes(0)?)
             .ok()
