@@ -130,9 +130,8 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Checked links between modules.** *Working on it now.* `Core\Router::url` can link to a page of another module on the same server. The compiler checks the link, and the server adds the right prefix.
-2. **A JSON reader and writer made for Novis.** `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
-3. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
+1. **A JSON reader and writer made for Novis.** *Working on it now.* `Core\Json` reads and writes Novis values directly. The `nvs` binary also becomes smaller.
+2. **Scheduled jobs that run on server events.** A `[[schedule]]` entry can run its script when the server starts, stops or reloads. It can also run when a scheduled job or a queue job fails.
 <!-- roadmap:end -->
 
 ## Contributing
