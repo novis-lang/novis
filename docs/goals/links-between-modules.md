@@ -6,7 +6,7 @@ context: [docs/rules/programs/autoload.md, docs/rules/routing/link-target-and-pa
 stages:
   - id: 1
     title: autoload links and a prefixed discover build the map
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-cli/src/check.rs, editors/vscode/syntaxes/nvs.tmLanguage.json, website/config/novis.tmLanguage.json, docs/rules/classes/reserved-spellings-are-lower-case.md, data/rules/programs.json]
   - id: 2
     title: a link to a link-only root is checked and lowered
@@ -274,23 +274,23 @@ no longer exists. Inside stages 5 and 6 the writing is split across subagents, a
 
 **Does:** parse `links` and the discover prefix, build the map with links roots apart, and show them.
 
-- [ ] `AutoloadDecl` gets `links: bool`, and `AutoloadKind::Discover` gets `prefix: Option<..>`
+- [x] `AutoloadDecl` gets `links: bool`, and `AutoloadKind::Discover` gets `prefix: Option<..>`
   (`crates/nvs-syntax/src/ast.rs:1984`, `crates/nvs-syntax/src/ast.rs:2009`).
-- [ ] `parse_autoload_decl` reads `links` after `autoload`, and `discover 'Prefix' from 'glob'` beside
+- [x] `parse_autoload_decl` reads `links` after `autoload`, and `discover 'Prefix' from 'glob'` beside
   today's `discover 'glob'` (`crates/nvs-syntax/src/parser/decl.rs:725`).
-- [ ] `AutoloadMap::build` keeps links roots in their own map, applies the discover prefix, and lets an
+- [x] `AutoloadMap::build` keeps links roots in their own map, applies the discover prefix, and lets an
   ordinary root beat a links root at one prefix (`crates/nvs-hir/src/autoload.rs:367`,
   `crates/nvs-hir/src/autoload.rs:432`, `crates/nvs-hir/src/autoload.rs:449`,
   `crates/nvs-hir/src/autoload.rs:1120`).
-- [ ] `AutoloadMap::render` lists links roots in their own section for `nvs check --autoload-map`, and
+- [x] `AutoloadMap::render` lists links roots in their own section for `nvs check --autoload-map`, and
   the flag's help says so (`crates/nvs-hir/src/autoload.rs:741`, `crates/nvs-cli/src/check.rs:73`).
-- [ ] Both grammars highlight `links` after `autoload` (`editors/vscode/syntaxes/nvs.tmLanguage.json:387`,
+- [x] Both grammars highlight `links` after `autoload` (`editors/vscode/syntaxes/nvs.tmLanguage.json:387`,
   `website/config/novis.tmLanguage.json:587`). The editor completes `links` and `discover` after
   `autoload` (`crates/nvs-lsp/src/completion.rs:814`).
-- [ ] Tests `a_links_declaration_parses_in_both_forms`, `discover_puts_its_prefix_in_front_of_each_folder`,
+- [x] Tests `a_links_declaration_parses_in_both_forms`, `discover_puts_its_prefix_in_front_of_each_folder`,
   `an_ordinary_root_beats_a_links_root_at_the_same_prefix` and `the_autoload_map_lists_links_roots_apart`
   beside the map's own tests (`crates/nvs-hir/src/autoload.rs:1`).
-- [ ] `rule:programs/autoload` gets the discover prefix and the links form, with the Declined
+- [x] `rule:programs/autoload` gets the discover prefix and the links form, with the Declined
   spellings above. `rule:classes/reserved-spellings-are-lower-case` lists `links`
   (`docs/rules/programs/autoload.md:1`, `docs/rules/classes/reserved-spellings-are-lower-case.md:3`).
 
@@ -444,27 +444,35 @@ users. The session then runs `bun nv render --website` once.
 
 ### State
 
-Nothing is built yet. The design is settled in § *Standing decisions*. The goal waits behind
-`request-path-per-core` on the chain, and stage 3 is gated on that goal's retirement.
+Stage 1 is done and its check's four tests pass. `autoload links` and `discover 'Prefix' from 'glob'`
+parse (`AutoloadDecl::links`, `AutoloadKind::Discover::prefix`), and `nvs_hir::autoload::Site` carries
+`links`. `AutoloadMap` keeps links entries in its own `links` vector, built by the same `fill` pass
+as the ordinary half, then dropped into `links_shadowed` where an ordinary entry owns the prefix
+(`crates/nvs-hir/src/autoload.rs:410`). Nothing reads `links` but `render` yet. The four tests sit in
+`crates/nvs-hir/src/requires.rs`'s tests beside the map's others, with helpers `links` and
+`discover_under`, and the parser test in `crates/nvs-syntax/src/parser/tests/decl.rs`.
+
+The sweep's reds were handled first. `env-secret-proofs` is no check any more: `looper check` finds
+none, it was the retired `request-path-per-core`'s. The nightly's jobs were cancelled by the push
+that superseded it. The last push's two real reds are fixed: the debug-viewer shots now open the
+token link (`tools/nv/lib/shoot.ts`, checked red-then-green locally), and the waiting-request host
+stack bound is 11 for CI's Linux x86_64 runner (`crates/nvs-cli/src/serve.rs:5284`).
+
+Stage 3's gate is met: `docs/goals/request-path-per-core.md` no longer exists.
 
 ### Next
 
-Stage 1, autoload links and a prefixed discover build the map. Files: `crates/nvs-syntax/src/ast.rs`,
-`crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-hir/src/autoload.rs`, `crates/nvs-cli/src/check.rs`,
-the two grammars and two rule fragments.
+Stage 2, a link to a link-only root is checked and lowered. Its items carry their anchors. Start at:
 
-- [ ] `crates/nvs-syntax/src/ast.rs:1984`: `links` on `AutoloadDecl`, a prefix on `Discover`.
-- [ ] `crates/nvs-syntax/src/parser/decl.rs:725`: parse both.
-- [ ] `crates/nvs-hir/src/autoload.rs:432`: links roots apart, the discover prefix, ordinary beats links.
-- [ ] `crates/nvs-hir/src/autoload.rs:741`: `--autoload-map` lists links roots
-  (`crates/nvs-cli/src/check.rs:73`).
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:387`: highlight `links`
-  (`website/config/novis.tmLanguage.json:587`, `crates/nvs-lsp/src/completion.rs:814`).
-- [ ] `crates/nvs-hir/src/autoload.rs:1`: the four tests of check `links-roots-build-the-map`.
-- [ ] `docs/rules/programs/autoload.md:1`: the two forms
-  (`docs/rules/classes/reserved-spellings-are-lower-case.md:3`).
+- `crates/nvs-hir/src/autoload.rs:410`: add a `resolve_link(&QName) -> Probe` over `self.links`, the
+  same longest-prefix probe as `resolve` (`crates/nvs-hir/src/autoload.rs:595`), recording its tried
+  paths into the trace so the target file joins the cache key.
+- `crates/nvs-types/src/expr/calls.rs:1559` and `crates/nvs-hir/src/members.rs:1082`: resolve the
+  route argument's class through it when the ordinary map has none.
+- `crates/nvs-types/src/links.rs:206`, `crates/nvs-types/src/links.rs:403`: the four checks.
+- `crates/nvs-diagnostics/src/code/types_e08.rs:1`: the two codes and their cards.
 
-No existing test is expected red. A parser test that lists `AutoloadKind` fields is updated with the
-new field.
+The updated render test, `the_rendered_map_names_what_was_skipped_and_what_was_shadowed`, has a
+`links (0)` line and was not run. No test is expected red.
 
 ### Backlog
