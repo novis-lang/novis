@@ -3,8 +3,6 @@
 
 # Configuration
 
-*1 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
 ## The configuration file is `nvs.toml`, and it is TOML
@@ -2543,7 +2541,7 @@ make "runs once a day" true, which is what the operator wrote down.
 
 <a id="config-an-entry-runs-on-a-server-event"></a>
 
-## A `[[schedule]]` entry with `on` runs on a server start, stop, reload or failure  *(designed — owned by goal server-events)*
+## A `[[schedule]]` entry with `on` runs on a server start, stop, reload or failure
 
 `rule:config/an-entry-runs-on-a-server-event`
 
