@@ -23,12 +23,21 @@
 //! inside such a function answers nothing, because which of the two it names
 //! is not recorded.
 //!
+//! **A parameter's `@param` name is one of its sites.** The `$name` after an
+//! `@param` in the method's `///` run is written for the parameter, so
+//! references, highlight, definition and rename treat it as one more place the
+//! parameter is written, and a cursor on it finds the parameter
+//! (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
+//!
 //! - **Memory:** nothing held. One request tokenizes the open document and
 //!   walks its tree once.
 
 use std::collections::BTreeSet;
 
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span};
+use nvs_syntax::ast::{
+    ClassMember, ClassMemberKind, DocComment, DocTagKind, MethodMember, Param, Stmt, StmtKind,
+};
 use nvs_syntax::{Token, TokenKind, tokenize, walk};
 use nvs_types::LocalBinding;
 
@@ -49,8 +58,12 @@ pub(crate) struct Local<'a> {
     /// Whether a `global` statement in the body writes the name.
     pub global: bool,
     /// Every place the body writes the local, the declaration included, in
-    /// source order.
+    /// source order. A parameter's `@param` name is one of them.
     pub sites: Vec<Span>,
+    /// The method that declares the local as a parameter, and that parameter.
+    /// `None` for every other local, an anonymous function's parameter
+    /// included.
+    pub parameter: Option<(&'a MethodMember, &'a Param)>,
 }
 
 impl Local<'_> {
@@ -70,6 +83,11 @@ impl Local<'_> {
 pub(crate) fn at(analysed: &Analysed, offset: BytePos) -> Option<Local<'_>> {
     let file = analysed.map.file(analysed.entry);
     let tokens = tokenize(file, &mut Diagnostics::new());
+    if let Some((target, param)) = param_tag_at(analysed, offset) {
+        let written = text_of(file, param.name);
+        let local = of(analysed, file, &tokens, param.name, written.get(1..)?)?;
+        return local.sites.contains(&target).then_some(local);
+    }
     let token = variable_at(&tokens, offset)?;
     let written = text_of(file, token.span);
     if written == "$this" {
@@ -127,12 +145,7 @@ pub(crate) fn of<'a>(
         .find(|(_, bindings)| bindings.iter().any(|binding| binding.name == name))?;
     let binding = bindings.iter().find(|binding| binding.name == name)?;
 
-    let stmts = analysed
-        .loaded
-        .iter()
-        .find(|loaded| loaded.id == analysed.entry)
-        .map(|loaded| loaded.stmts.as_slice())
-        .unwrap_or_default();
+    let stmts = entry_stmts(analysed);
     let roots = walk::of_stmts(stmts);
     let nodes: Vec<&walk::Node> = roots
         .iter()
@@ -187,6 +200,14 @@ pub(crate) fn of<'a>(
     if text_of(file, binding.declared) == spelled {
         sites.push(binding.declared);
     }
+    let parameter = methods(stmts).into_iter().find_map(|(method, doc)| {
+        let param = method
+            .params
+            .iter()
+            .find(|param| param.name == binding.declared)?;
+        sites.extend(param_tags(doc, file, &spelled));
+        Some((method, param))
+    });
     sites.sort_by_key(|span| (span.start, span.end));
     sites.dedup();
     Some(Local {
@@ -196,7 +217,79 @@ pub(crate) fn of<'a>(
         nested,
         global,
         sites,
+        parameter,
     })
+}
+
+/// The `$name` of each `@param` line in `doc` that names `spelled`.
+fn param_tags(doc: Option<&DocComment>, file: &SourceFile, spelled: &str) -> Vec<Span> {
+    doc.into_iter()
+        .flat_map(|doc| &doc.tags)
+        .filter(|tag| tag.kind == DocTagKind::Param)
+        .filter_map(|tag| tag.target)
+        .filter(|target| text_of(file, *target) == spelled)
+        .collect()
+}
+
+/// The `$name` of an `@param` line under the cursor at `offset` in the entry
+/// document, and the parameter of the method below it that it names.
+pub(crate) fn param_tag_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, &Param)> {
+    let file = analysed.map.file(analysed.entry);
+    let stmts = entry_stmts(analysed);
+    methods(stmts).into_iter().find_map(|(method, doc)| {
+        let target = doc?
+            .tags
+            .iter()
+            .filter(|tag| tag.kind == DocTagKind::Param)
+            .filter_map(|tag| tag.target)
+            .find(|target| covers(*target, offset))?;
+        let written = text_of(file, target);
+        let param = method
+            .params
+            .iter()
+            .find(|param| text_of(file, param.name) == written)?;
+        Some((target, param))
+    })
+}
+
+/// The entry document's statements.
+fn entry_stmts(analysed: &Analysed) -> &[Stmt] {
+    analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)
+        .map(|loaded| loaded.stmts.as_slice())
+        .unwrap_or_default()
+}
+
+/// Every method a class, an interface or an enum in `stmts` declares, a
+/// bracketed namespace's included, each with its `///` run.
+fn methods(stmts: &[Stmt]) -> Vec<(&MethodMember, Option<&DocComment>)> {
+    stmts
+        .iter()
+        .flat_map(|stmt| match &stmt.kind {
+            StmtKind::NamespaceDecl(decl) => decl
+                .body
+                .as_ref()
+                .map(|body| methods(&body.stmts))
+                .unwrap_or_default(),
+            StmtKind::ClassDecl(decl) => methods_of(&decl.members),
+            StmtKind::InterfaceDecl(decl) => methods_of(&decl.members),
+            StmtKind::EnumDecl(decl) => methods_of(&decl.members),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+/// The methods among `members`, each with its `///` run.
+fn methods_of(members: &[ClassMember]) -> Vec<(&MethodMember, Option<&DocComment>)> {
+    members
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::Method(method) => Some((method, member.doc.as_ref())),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Every name the anonymous function `function` binds: its block body's own

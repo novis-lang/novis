@@ -39,12 +39,21 @@
 //!   declaration included. A nested function or method is a scope of its own
 //!   and is skipped. An anonymous function reads the body's locals by value,
 //!   so a capture inside one is renamed with the rest.
+//! - **A parameter of a method**, as a local, and also its `@param` name in
+//!   the method's `///` run and the `name:` of each named argument at every
+//!   call the index holds for that method ([`named_arguments`]). A cursor on
+//!   the `$name` of the `@param` line renames the parameter too. An override
+//!   keeps its own parameter names, because a named argument binds to the
+//!   method the call resolved to.
 //!
 //! # What is refused, each with a message the editor shows
 //!
 //! A cursor on no symbol; `$this`; a type
-//! whose name is written somewhere the index holds no site; a parameter, because a call may
-//! pass it by name; a local an anonymous function inside the body declares
+//! whose name is written somewhere the index holds no site; a parameter of a
+//! constructor or of an anonymous function, and a promoted parameter, because
+//! a call may pass it by name at a place the index does not hold; a method's
+//! parameter where a call the index holds cannot be read; a local an anonymous
+//! function inside the body declares
 //! again; a symbol whose declaration the index does not hold, which is every
 //! `Core` name and every file outside the workspace; a method that overrides
 //! one declared outside the workspace; and a new name that is no identifier
@@ -69,14 +78,19 @@
 //! # What it costs
 //!
 //! Nothing is kept. A rename reads the index the server already holds and the
-//! text of each file a site is in, once per request. A file move analyses
-//! each entry point that read a moved file once, per request.
+//! text of each file a site is in, once per request. A parameter's rename also
+//! parses each file that calls its method once, per request. A file move
+//! analyses each entry point that read a moved file once, per request.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Component, Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceId, SourceMap, Span, canonical_key};
-use nvs_syntax::{Token, TokenKind, tokenize};
+use nvs_syntax::ast::{
+    CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, MemberName, Stmt, StmtKind,
+};
+use nvs_syntax::visit::{StmtChild, each_child_expr, each_child_of_stmt};
+use nvs_syntax::{Token, TokenKind, parse_file, tokenize};
 use nvs_types::LocalBinding;
 
 use crate::definition::{covers, text_of};
@@ -188,6 +202,7 @@ pub fn rename(
             bindings,
             nested,
             sites,
+            calls,
         } => {
             if new == name {
                 return Err("The new name is the same as the old one.".to_owned());
@@ -201,7 +216,7 @@ pub fn rename(
             if bindings.iter().any(|binding| binding.name == new) || nested.contains(new) {
                 return Err(format!("This code already has a variable named `${new}`."));
             }
-            let rewrites = sites
+            let mut rewrites: Vec<Rewrite> = sites
                 .into_iter()
                 .map(|span| Rewrite {
                     site: Site {
@@ -212,6 +227,11 @@ pub fn rename(
                     text: format!("${new}"),
                 })
                 .collect();
+            if let Some(method) = calls {
+                rewrites.extend(named_arguments(documents, index, &method, &name, new)?);
+                rewrites.sort();
+                rewrites.dedup();
+            }
             Ok(Renamed {
                 rewrites,
                 file: None,
@@ -349,6 +369,9 @@ enum What {
         nested: BTreeSet<String>,
         /// Every place the body writes the local.
         sites: Vec<Span>,
+        /// The method a parameter belongs to, spelled as the index spells it,
+        /// whose calls pass it by name. `None` for every other local.
+        calls: Option<String>,
     },
 }
 
@@ -357,6 +380,19 @@ fn subject(index: &SymbolIndex, analysed: &Analysed, offset: BytePos) -> Result<
     let file = analysed.map.file(analysed.entry);
     let entry = file.path().map(canonical_key).ok_or(NOTHING)?;
     let tokens = tokenize(file, &mut Diagnostics::new());
+    // The `$name` of an `@param` line is in a comment, so no token covers it.
+    if let Some((target, param)) = locals::param_tag_at(analysed, offset) {
+        let written = text_of(file, param.name);
+        return local(
+            analysed,
+            file,
+            &tokens,
+            &entry,
+            param.name,
+            target,
+            &written[1..],
+        );
+    }
     let token = token_at(&tokens, offset).ok_or(NOTHING)?;
 
     // A use resolves outward from the innermost node, so the `$u` of
@@ -380,7 +416,15 @@ fn subject(index: &SymbolIndex, analysed: &Analysed, offset: BytePos) -> Result<
                 "`$this` is the object a method runs on, and it cannot be renamed.".to_owned(),
             );
         }
-        return local(analysed, file, &tokens, &entry, token.span, &written[1..]);
+        return local(
+            analysed,
+            file,
+            &tokens,
+            &entry,
+            token.span,
+            token.span,
+            &written[1..],
+        );
     }
     match symbol {
         // A type whose name the index records nowhere under the cursor, such
@@ -935,13 +979,16 @@ impl Texts {
 }
 
 /// The local subject for the variable `$name` written at `token`, with the
-/// refusals a rename makes on top of [`crate::locals::of`]'s sites.
+/// refusals a rename makes on top of [`crate::locals::of`]'s sites. `at` is
+/// the site under the cursor: `token` itself, or the `@param` name of the
+/// parameter `token` declares.
 fn local(
     analysed: &Analysed,
     file: &SourceFile,
     tokens: &[Token],
     entry: &Path,
     token: Span,
+    at: Span,
     name: &str,
 ) -> Result<Subject, String> {
     let Some(found) = locals::of(analysed, file, tokens, token, name) else {
@@ -949,12 +996,28 @@ fn local(
             "`${name}` is not declared here, so it cannot be renamed."
         ));
     };
-    if found.is_parameter() {
-        return Err(format!(
-            "`${name}` is a parameter, and a call can pass it by name. Renaming a parameter is \
-             not available."
-        ));
-    }
+    let calls = if found.is_parameter() {
+        let Some((method, param)) = found.parameter else {
+            return Err(format!(
+                "`${name}` is a parameter of an anonymous function, and a call can pass it by \
+                 name. It cannot be renamed."
+            ));
+        };
+        if !param.modifiers.is_empty() {
+            return Err(format!(
+                "`${name}` is also a property of the class, so it cannot be renamed here."
+            ));
+        }
+        if text_of(file, method.name) == CONSTRUCTOR {
+            return Err(format!(
+                "`${name}` is a parameter of a constructor, and `new` can pass it by name. It \
+                 cannot be renamed."
+            ));
+        }
+        Some(symbol_at(analysed, method.name.start).ok_or(NOTHING)?)
+    } else {
+        None
+    };
     if found.nested.contains(name) {
         return Err(format!(
             "An anonymous function in this code also declares `${name}`, so `${name}` cannot be \
@@ -966,14 +1029,14 @@ fn local(
             "`${name}` is a global variable here, so it cannot be renamed."
         ));
     }
-    if !found.sites.contains(&token) {
+    if !found.sites.contains(&at) {
         return Err(NOTHING.to_owned());
     }
     Ok(Subject {
         at: Site {
             path: entry.to_path_buf(),
-            start: token.start,
-            end: token.end,
+            start: at.start,
+            end: at.end,
         },
         what: What::Local {
             path: entry.to_path_buf(),
@@ -981,8 +1044,134 @@ fn local(
             bindings: found.bindings.to_vec(),
             nested: found.nested,
             sites: found.sites,
+            calls,
         },
     })
+}
+
+/// The edit to the `name:` of each argument named `old` at every call the
+/// index holds for `method`, read off each call's own arguments in a parse of
+/// its file.
+///
+/// # Errors
+///
+/// A call the index holds and the parse does not find refuses the rename,
+/// because its argument names are a site the edits would miss.
+fn named_arguments(
+    documents: &Documents,
+    index: &SymbolIndex,
+    method: &str,
+    old: &str,
+    new: &str,
+) -> Result<Vec<Rewrite>, String> {
+    let mut texts = Texts::new(documents);
+    let mut rewrites = Vec::new();
+    for occurrence in index.occurrences(method) {
+        let site = &occurrence.site;
+        let unread = || {
+            format!(
+                "A call to `{method}` in `{}` cannot be read, so its parameters cannot be renamed.",
+                plain(&site.path).display()
+            )
+        };
+        let file = texts.file(&site.path).ok_or_else(unread)?;
+        let stmts = parse_file(file, &mut Diagnostics::new());
+        let Some(args) = call_in_stmts(&stmts, site.start, site.end) else {
+            return Err(unread());
+        };
+        let CallArgs::List(args) = args else {
+            continue;
+        };
+        for name in args.iter().filter_map(|arg| arg.name) {
+            if text_of(file, name) == old {
+                rewrites.push(Rewrite {
+                    site: Site {
+                        path: site.path.clone(),
+                        start: name.start,
+                        end: name.end,
+                    },
+                    text: new.to_owned(),
+                });
+            }
+        }
+    }
+    Ok(rewrites)
+}
+
+/// The arguments of the method call in `stmts` whose method name is written
+/// from `start` to `end`.
+fn call_in_stmts(stmts: &[Stmt], start: BytePos, end: BytePos) -> Option<&CallArgs> {
+    stmts
+        .iter()
+        .filter(|stmt| stmt.span.start <= start && end <= stmt.span.end)
+        .find_map(|stmt| call_in_stmt(stmt, start, end))
+}
+
+/// [`call_in_stmts`] over one statement: a type's method bodies, a
+/// namespace's statements, and what any other statement runs.
+fn call_in_stmt(stmt: &Stmt, start: BytePos, end: BytePos) -> Option<&CallArgs> {
+    match &stmt.kind {
+        StmtKind::NamespaceDecl(decl) => call_in_stmts(&decl.body.as_ref()?.stmts, start, end),
+        StmtKind::ClassDecl(decl) => call_in_members(&decl.members, start, end),
+        StmtKind::InterfaceDecl(decl) => call_in_members(&decl.members, start, end),
+        StmtKind::EnumDecl(decl) => call_in_members(&decl.members, start, end),
+        _ => {
+            let mut found = None;
+            each_child_of_stmt(stmt, &mut |child| {
+                if found.is_none() {
+                    found = match child {
+                        StmtChild::Stmt(inner) => {
+                            call_in_stmts(std::slice::from_ref(inner), start, end)
+                        }
+                        StmtChild::Expr(expr) => call_in_expr(expr, start, end),
+                    };
+                }
+            });
+            found
+        }
+    }
+}
+
+/// [`call_in_stmts`] over the method bodies among `members`.
+fn call_in_members(members: &[ClassMember], start: BytePos, end: BytePos) -> Option<&CallArgs> {
+    members.iter().find_map(|member| match &member.kind {
+        ClassMemberKind::Method(method) => call_in_stmts(&method.body.as_ref()?.stmts, start, end),
+        _ => None,
+    })
+}
+
+/// [`call_in_stmts`] over one expression, an anonymous function's body
+/// included.
+fn call_in_expr(expr: &Expr, start: BytePos, end: BytePos) -> Option<&CallArgs> {
+    if !(expr.span.start <= start && end <= expr.span.end) {
+        return None;
+    }
+    match &expr.kind {
+        ExprKind::MethodCall {
+            method: MemberName::Ident(name),
+            args,
+            ..
+        }
+        | ExprKind::StaticCall {
+            method: MemberName::Ident(name),
+            args,
+            ..
+        } if name.start == start && name.end == end => return Some(args),
+        ExprKind::Fn(function) => {
+            return match &function.body {
+                FnBody::Expr(body) => call_in_expr(body, start, end),
+                FnBody::Block(body) => call_in_stmts(&body.stmts, start, end),
+            };
+        }
+        _ => {}
+    }
+    let mut found = None;
+    each_child_expr(expr, &mut |child| {
+        if found.is_none() {
+            found = call_in_expr(child, start, end);
+        }
+    });
+    found
 }
 
 /// Whether `name` can be written as a variable, a method, a property, a

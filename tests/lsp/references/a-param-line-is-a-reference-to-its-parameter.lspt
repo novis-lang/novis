@@ -1,0 +1,20 @@
+--TEST--
+the `$name` after `@param` is one more place the parameter is written, so references on the parameter list it beside the declaration and the read, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Greeter
+{
+    /// Greets one person.
+    ///
+    /// @param $name the person to greet
+    public function greet(string $name): string
+    {
+        return "Hello, " . $na<|>me;
+    }
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:6:16
+case.nvs:7:34
+case.nvs:9:28

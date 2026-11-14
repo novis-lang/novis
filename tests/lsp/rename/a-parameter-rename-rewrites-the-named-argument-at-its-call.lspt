@@ -1,0 +1,19 @@
+--TEST--
+a method's parameter is renamed in its body and in the `name:` of the call that passes it by name, so the call still binds to it, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Greeter
+{
+    public function greet(string $name): string
+    {
+        return "Hello, " . $na<|>me;
+    }
+}
+
+echo new Greeter()->greet(name: "Ada");
+--REQUEST--
+rename to=person
+--EXPECT--
+case.nvs:4:34 $person
+case.nvs:6:28 $person
+case.nvs:10:27 person

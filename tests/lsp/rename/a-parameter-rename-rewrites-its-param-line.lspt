@@ -1,0 +1,20 @@
+--TEST--
+renaming a parameter rewrites the `$name` of its `@param` line too, so the comment still documents it, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Greeter
+{
+    /// Greets one person.
+    ///
+    /// @param $name the person to greet
+    public function greet(string $name): string
+    {
+        return "Hello, " . $na<|>me;
+    }
+}
+--REQUEST--
+rename to=person
+--EXPECT--
+case.nvs:6:16 $person
+case.nvs:7:34 $person
+case.nvs:9:28 $person

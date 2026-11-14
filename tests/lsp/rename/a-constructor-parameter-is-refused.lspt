@@ -1,0 +1,19 @@
+--TEST--
+a constructor's parameter is refused, because `new` can pass it by name and the index holds no `new` call as a call of the constructor, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Greeter
+{
+    private string $greeting;
+
+    public function constructor(string $word)
+    {
+        $this->greeting = $wo<|>rd;
+    }
+}
+
+echo new Greeter(word: "Hello")->greeting;
+--REQUEST--
+rename to=text
+--EXPECT--
+refused: `$word` is a parameter of a constructor, and `new` can pass it by name. It cannot be renamed.
