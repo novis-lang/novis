@@ -41,7 +41,7 @@ The chain holds 1 goal(s). `doc-tags` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`doc-tags`](doc-tags.md) **live** | Reached when @param, @return and @throws are checked doc comment tags that never repeat a type, the editor completes, fixes, renames and shows them, nvs meta --json and nvs doc print them in the Core card's shape, and the feature has its proofs. | 1 ✓ the rule and the parser know five tags, and a tag never carries a type · 2 ✓ the checker holds every tag to the signature, and each mistake carries its fix · 3 ✓ meta, doc, hover and signature help show the tags in the Core card's shape · 4 ✓ the editor completes, renames, finds and colours the tags · **5 the feature's proofs and its pages say what the five tags do** · 6 the goal is verified once, and every failure is fixed |
+| 1 | [`doc-tags`](doc-tags.md) **live** | Reached when @param, @return and @throws are checked doc comment tags that never repeat a type, the editor completes, fixes, renames and shows them, nvs meta --json and nvs doc print them in the Core card's shape, and the feature has its proofs. | 1 ✓ the rule and the parser know five tags, and a tag never carries a type · 2 ✓ the checker holds every tag to the signature, and each mistake carries its fix · 3 ✓ meta, doc, hover and signature help show the tags in the Core card's shape · 4 ✓ the editor completes, renames, finds and colours the tags · 5 ✓ the feature's proofs and its pages say what the five tags do · **6 the goal is verified once, and every failure is fixed** |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 

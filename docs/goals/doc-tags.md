@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/query.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/actions.rs, editors/vscode/syntaxes/nvs.tmLanguage.json, editors/vscode/test/grammar/comments.test.ts, tests/lsp/README.md, docs/rules/ide/completion-offers-only-what-the-compiler-derived.md]
   - id: 5
     title: the feature's proofs and its pages say what the five tags do
-    status: open
+    status: done
     context: [docs/examples/lang/programs/doc-comments/about.md, docs/examples/lang/programs/doc-comments/details.md, docs/reference/lang/10-programs.md, docs/reference/tools/40-editor.md, docs/reference/tools/35-packages.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -337,17 +337,17 @@ file here is text an end user reads (`AGENTS.md` § *Text an end user reads*).
 **Split:** one writing subagent writes the examples and their `.out` files, and another the hostile
 case. Their files are disjoint. The session writes `about.md`, `details.md` and the reference pages.
 
-- [ ] `docs/examples/lang/programs/doc-comments/04-a-param-tag-has-no-type.nvs:1` and its `.out` are
-  renamed to `05-a-tag-never-repeats-a-type.nvs` and keep showing `E0138`. A new
+- [x] `docs/examples/lang/programs/doc-comments/05-a-tag-never-repeats-a-type.nvs:1` and its `.out`
+  are renamed from `04-a-param-tag-has-no-type` and keep showing `E0138`. A new
   `04-describe-parameters-return-and-errors.nvs` takes number 4, with its `.out`.
-- [ ] `docs/examples/lang/programs/doc-comments/about.md:1` and `details.md:1` say what the five tags
+- [x] `docs/examples/lang/programs/doc-comments/about.md:1` and `details.md:1` say what the five tags
   do and what each checks, within about.md's length bound.
-- [ ] `tests/hostile/lang/programs/doc-comments/02-tags-that-point-at-code-that-is-not-there.nvs:1`:
+- [x] `tests/hostile/lang/programs/doc-comments/02-tags-that-point-at-code-that-is-not-there.nvs:1`:
   an `@param`, an `@throws` and an `@return` that each name something absent, and each is an error.
-- [ ] `docs/reference/lang/10-programs.md:404` re-rendered with `bun nv render`, and the
+- [x] `docs/reference/lang/10-programs.md:404` re-rendered with `bun nv render`, and the
   editor features written into `docs/reference/tools/40-editor.md:1`. `35-packages.md` says a
   package's cards come from these tags.
-- [ ] `bun nv proofs --comments` over the new `.nvs` files, then the `feature-proofs` check.
+- [x] `bun nv proofs --comments` over the new `.nvs` files, then the `feature-proofs` check.
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -359,35 +359,34 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
 
 ### State
 
-Stages 1 to 4 are done, and `tags-parse`, `tags-checked`, `tags-shown` and `editor-answers` are
-green. Every reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`.
+Stages 1 to 5 are done. `tags-parse`, `tags-checked`, `tags-shown`, `editor-answers` and
+`feature-proofs` are green. Every reader takes the card from `DocComment` in
+`crates/nvs-syntax/src/ast.rs:1705`.
 
-Stage 4 landed in five commits. `locals::of` in `crates/nvs-lsp/src/locals.rs` adds each `@param`
-target to a parameter's sites, and `locals::param_tag_at` resolves a cursor on that `$name` to the
-parameter. References, highlight and definition read those sites. `Local::parameter` carries the
-method, the parameter and its `///` run. Rename (`crates/nvs-lsp/src/rename.rs`, `local` and
-`named_arguments`) renames a method's parameter, its `@param` name and the `name:` at every call
-`SymbolIndex::occurrences` holds, read off a parse of each calling file. A call it cannot find
-refuses the rename. A constructor's, a promoted and an anonymous function's parameter stay refused,
-each with its own message (`tests/lsp/rename/a-constructor-parameter-is-refused.lspt`). Hover on a
-parameter shows its `@param` sentence (`parameter_sentence` in `crates/nvs-lsp/src/hover.rs`).
-Semantic tokens colour the `$name` as a parameter. The TextMate grammar's `#doc-tags` rule colours
-the five tag names, the `@param` name and the `@throws` class, and the website's copy is rendered.
+Stage 5 landed in three commits. `d7f0320236` moves the unknown-`@param` error from `E0330`, which
+`E_REQUIRE_PATH_NOT_STATIC` already had, to `E0335`. `no_code_is_declared_twice` in
+`crates/nvs-diagnostics/src/code/mod.rs` would have failed on it in stage 6, and it passes now. That
+commit also carries the `git mv` of example 04 to 05. `87e5bf1f00` fixes `bun nv proofs
+--comments` (`commentProblemsOf` in `tools/nv/proofs/collect.ts`): a `///` tag line is one sentence
+and not a line of prose, and a `//` run and a `///` run are two blocks. `tools/nv/test/proof-comments.test.ts`
+pins it. `1933a59559` adds example 04, the attack `02-tags-that-point-at-code-that-is-not-there.nvs`
+(it gives `E0335`, `E0334` and `E0333`, one per step), `about.md`, `details.md`, the section
+*Doc comment tags* in `docs/reference/tools/40-editor.md`, a paragraph in `35-packages.md` § *nvs pkg
+api and nvs pkg diff*, and the rendered `10-programs.md`.
 
-`docs/reference/lang/10-programs.md` was rendered again with `bun nv render`, so stage 5's
-reference item needs only its editor and packages pages. `bun nv render --website` fails on
-`Novis\Image\Color::$r`'s registry signature (`uint $r` does not parse), which is not this goal's.
+The perf proof of `lang:programs/doc-comments` is stale, because `10-programs.md` changed. It is
+owed at a release, as `docs/agent/commands.md` § *Verifying* says, and `feature-proofs` is green
+with it.
 
-The sweep's `env-secret-proofs` is still stale: no check by that name exists. The nightly Miri
-failures predate 8bd6b6eda9, so the next nightly shows whether they pass. Expected red: none known.
+The sweep's `env-secret-proofs` is stale: no check by that name exists, and its log is gone. The
+nightly run 43581848915 ran on `be62f3f5a7` before 8bd6b6eda9 landed, so its Miri failures are the
+ones that fix answers. The next nightly shows whether they pass. Expected red: none known.
 
 ### Next
 
-- `docs/examples/lang/programs/doc-comments/04-a-param-tag-has-no-type.nvs:1`: stage 5, through
-  the two writing subagents its `**Split:**` names, then `about.md`, `details.md`,
-  `docs/reference/tools/40-editor.md:1` and `35-packages.md` by the session.
-- `docs/goals/doc-tags.md:350`: `bun nv proofs --comments` over the new `.nvs` files, then the
-  `feature-proofs` check.
+- `docs/goals/doc-tags.md:354`: stage 6. Start `looper verify` with `run_in_background`, fix every
+  failure it names in one pass, and run it once more. Then the goal-end gates AGENTS.md § *In the
+  loop* names: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and `bun nv ci --check`.
 
 ### Backlog
 
@@ -395,4 +394,5 @@ failures predate 8bd6b6eda9, so the next nightly shows whether they pass. Expect
   `image-*` cases failed once in the 123-case `tags-checked` run, and passed alone and on the rerun.
   Stage 6's verify shows whether they fail under load.
 - `crates/nvs-stdlib/src/registry.rs:1`: `bun nv render --website` stops at `Novis\Image\Color::$r`,
-  whose signature `uint $r` does not parse. The website render job may be red for it.
+  whose signature `uint $r` does not parse. The website render job may be red for it, and `bun nv ci
+  --check` in stage 6 shows it.
