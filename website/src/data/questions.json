@@ -1357,14 +1357,14 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "544c0fc48f1a6c6f",
+    "hash": "57b3bc37cb4b9e03",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Why does the editor command hang with no output in my terminal?",
       "See every method that calls this method in my editor",
       "Which routes and tests use this method, and how do I run those tests?",
       "Where did this tainted value in my code come from?",
-      "How many queries did my last request run at this line?"
+      "How does the editor use @param, @return and @throws in doc comments?"
     ]
   },
   "/reference/cli/nvs-lsp-test/": {
@@ -8919,7 +8919,7 @@
   },
   "/reference/core/novis-image-barcode/render/": {
     "feature": "Novis\\Image\\Barcode::render",
-    "hash": "0011fe5e3fea0f38",
+    "hash": "feba6e6bd56d1e69",
     "questions": [
       "Make a barcode as a PNG image",
       "Print an EAN-13 product barcode",
@@ -8930,7 +8930,7 @@
   },
   "/reference/core/novis-image-barcode/svg/": {
     "feature": "Novis\\Image\\Barcode::svg",
-    "hash": "5c86c787cb66ed2d",
+    "hash": "c6a6d333533a8083",
     "questions": [
       "Make a barcode as SVG for a web page",
       "Sharp barcode that scales to any size",
@@ -8940,17 +8940,18 @@
   },
   "/reference/core/novis-image-color/": {
     "feature": "Novis\\Image\\Color",
-    "hash": "d32f382fa7a9745d",
+    "hash": "2656fcd3c91ee777",
     "questions": [
       "How do I describe a color for image functions?",
       "Colors with red, green, blue and transparency",
-      "Work with colors in images",
-      "Make a transparent color"
+      "Read the r, g, b and alpha values of a color",
+      "Make a transparent color",
+      "Can I change a color after I create it?"
     ]
   },
   "/reference/core/novis-image-color/hex/": {
     "feature": "Novis\\Image\\Color::hex",
-    "hash": "88ffa3aec64f354c",
+    "hash": "ca831c8c750a39ae",
     "questions": [
       "How do I use a hex color like #ff8800?",
       "Convert a hex color code to RGB",
@@ -8960,7 +8961,7 @@
   },
   "/reference/core/novis-image-color/rgba/": {
     "feature": "Novis\\Image\\Color::rgba",
-    "hash": "f6470d8890d0e685",
+    "hash": "5e53aafc3083d4d7",
     "questions": [
       "How do I make a color from red, green and blue numbers?",
       "Set a half transparent color",
@@ -8970,37 +8971,40 @@
   },
   "/reference/core/novis-image-diff/": {
     "feature": "Novis\\Image\\Diff",
-    "hash": "5c8f3ef7f1eb5c37",
+    "hash": "8dd0800878240de1",
     "questions": [
       "What does an image comparison return?",
       "Read the result of comparing two pictures",
       "How many pixels are different between two images?",
-      "Meaning of the similarity score after image comparison"
+      "What do identical, maxDelta and ssim mean in an image diff?",
+      "Get the PNG that shows changed pixels in red"
     ]
   },
   "/reference/core/novis-image-diff/constructor/": {
     "feature": "Novis\\Image\\Diff::constructor",
-    "hash": "0216be573f4e9137",
+    "hash": "56c757044c61ebf4",
     "questions": [
       "How do I create an image comparison result by hand?",
       "Make a fake image diff in my tests",
       "Build a comparison result without comparing images",
+      "Which parameters does new Diff take, and in what order?",
       "Properties of an image comparison result"
     ]
   },
   "/reference/core/novis-image-font/": {
     "feature": "Novis\\Image\\Font",
-    "hash": "339da8893a82936c",
+    "hash": "05562f5694a40e2b",
     "questions": [
       "How do I use a custom font to draw text on images?",
       "Which fonts can I use to write on a picture?",
       "Are system fonts available for image text?",
-      "Draw text on images with my own font file"
+      "Draw text on images with my own font file",
+      "Get the bytes of a loaded font file"
     ]
   },
   "/reference/core/novis-image-font/frombytes/": {
     "feature": "Novis\\Image\\Font::fromBytes",
-    "hash": "b74763944374e237",
+    "hash": "ba916e0c20af3e4b",
     "questions": [
       "How do I load a TTF or OTF font file?",
       "Load a font once and use it for many images",
@@ -9021,7 +9025,7 @@
   },
   "/reference/core/novis-image-image/blur/": {
     "feature": "Novis\\Image\\Image::blur",
-    "hash": "4fc6034e04f81552",
+    "hash": "5ea824ea1fd78cda",
     "questions": [
       "How do I make an image blurry?",
       "Blur a background behind text",
@@ -9031,7 +9035,7 @@
   },
   "/reference/core/novis-image-image/brightness/": {
     "feature": "Novis\\Image\\Image::brightness",
-    "hash": "97a14a143d223168",
+    "hash": "eb660e2eed36f3e5",
     "questions": [
       "How do I make a photo brighter?",
       "Darken an image by half",
@@ -9041,7 +9045,7 @@
   },
   "/reference/core/novis-image-image/compare/": {
     "feature": "Novis\\Image\\Image::compare",
-    "hash": "0c62261dde3f514d",
+    "hash": "b83b978a6ca513de",
     "questions": [
       "How do I check if two images are the same?",
       "Compare two screenshots in a visual test",
@@ -9053,7 +9057,7 @@
   },
   "/reference/core/novis-image-image/composite/": {
     "feature": "Novis\\Image\\Image::composite",
-    "hash": "49024d5f2c21561b",
+    "hash": "bd2add08a4c2cd10",
     "questions": [
       "How do I put a watermark on a photo?",
       "Draw a logo in the bottom-right corner of an image",
@@ -9064,7 +9068,7 @@
   },
   "/reference/core/novis-image-image/contrast/": {
     "feature": "Novis\\Image\\Image::contrast",
-    "hash": "c0abeabcef62931e",
+    "hash": "06394ba159233e36",
     "questions": [
       "How do I increase the contrast of a photo?",
       "Make dark parts darker and light parts lighter",
@@ -9074,7 +9078,7 @@
   },
   "/reference/core/novis-image-image/create/": {
     "feature": "Novis\\Image\\Image::create",
-    "hash": "432a313c2f8a74a6",
+    "hash": "fab172b9d652ba35",
     "questions": [
       "How do I make a blank image of one colour?",
       "Create an empty transparent canvas",
@@ -9085,7 +9089,7 @@
   },
   "/reference/core/novis-image-image/crop/": {
     "feature": "Novis\\Image\\Image::crop",
-    "hash": "e522caa3dfbe5714",
+    "hash": "4f8b6ae489c1b361",
     "questions": [
       "How do I cut out part of an image?",
       "Crop a picture to a box at x and y",
@@ -9105,7 +9109,7 @@
   },
   "/reference/core/novis-image-image/extension/": {
     "feature": "Novis\\Image\\Image::extension",
-    "hash": "bac339a298871201",
+    "hash": "c613ebeee97a210d",
     "questions": [
       "Which file extension should an uploaded image get?",
       "Get jpg or png from an image format",
@@ -9115,7 +9119,7 @@
   },
   "/reference/core/novis-image-image/flatten/": {
     "feature": "Novis\\Image\\Image::flatten",
-    "hash": "f0217f99eb654136",
+    "hash": "fdb090cdc1c5e6b1",
     "questions": [
       "How do I remove transparency from a PNG?",
       "Put a transparent image on a white background",
@@ -9125,7 +9129,7 @@
   },
   "/reference/core/novis-image-image/flip/": {
     "feature": "Novis\\Image\\Image::flip",
-    "hash": "fd9d6dae4f164a1c",
+    "hash": "0d6f0b81d3ebe899",
     "questions": [
       "How do I mirror an image?",
       "Flip a picture upside down",
@@ -9135,7 +9139,7 @@
   },
   "/reference/core/novis-image-image/format/": {
     "feature": "Novis\\Image\\Image::format",
-    "hash": "b1b5d0d255bd2c42",
+    "hash": "82467bead9d9cda4",
     "questions": [
       "How do I convert a PNG to WebP?",
       "Set the JPEG quality of an output image",
@@ -9146,7 +9150,7 @@
   },
   "/reference/core/novis-image-image/fromraw/": {
     "feature": "Novis\\Image\\Image::fromRaw",
-    "hash": "526e0eaa9f62f01d",
+    "hash": "4bf4a7dc21ac885b",
     "questions": [
       "How do I build an image from pixel data?",
       "Turn an array of RGBA bytes into a PNG",
@@ -9156,7 +9160,7 @@
   },
   "/reference/core/novis-image-image/gamma/": {
     "feature": "Novis\\Image\\Image::gamma",
-    "hash": "9809e28b84f95e05",
+    "hash": "d377a5707faf0d37",
     "questions": [
       "How do I lighten the shadows of a dark photo?",
       "Change the middle tones but keep black and white",
@@ -9176,7 +9180,7 @@
   },
   "/reference/core/novis-image-image/hash/": {
     "feature": "Novis\\Image\\Image::hash",
-    "hash": "89f8b2fdf0405254",
+    "hash": "58f3880972e8f161",
     "questions": [
       "How do I find duplicate images?",
       "Make a fingerprint of a picture to store in a database",
@@ -9188,7 +9192,7 @@
   },
   "/reference/core/novis-image-image/hashdistance/": {
     "feature": "Novis\\Image\\Image::hashDistance",
-    "hash": "0189a7730b635ab0",
+    "hash": "2d74e96be4fd04f7",
     "questions": [
       "How similar are two image fingerprints?",
       "Count the different bits between two hashes",
@@ -9198,7 +9202,7 @@
   },
   "/reference/core/novis-image-image/info/": {
     "feature": "Novis\\Image\\Image::info",
-    "hash": "3f829fcb7c1908da",
+    "hash": "18c4b379fe603fe7",
     "questions": [
       "How do I get the width and height of an image?",
       "Read the image size without loading the pixels",
@@ -9210,7 +9214,7 @@
   },
   "/reference/core/novis-image-image/measuretext/": {
     "feature": "Novis\\Image\\Image::measureText",
-    "hash": "3211cb0376083363",
+    "hash": "5764ffb61c13bbf8",
     "questions": [
       "How wide will my text be in pixels?",
       "Measure a caption before drawing it",
@@ -9221,7 +9225,7 @@
   },
   "/reference/core/novis-image-image/metadata/": {
     "feature": "Novis\\Image\\Image::metadata",
-    "hash": "35eb5a8bb65d686b",
+    "hash": "f7a6c6c9cb6667d6",
     "questions": [
       "How do I keep EXIF data in a photo?",
       "Remove GPS location from uploaded photos",
@@ -9231,7 +9235,7 @@
   },
   "/reference/core/novis-image-image/mime/": {
     "feature": "Novis\\Image\\Image::mime",
-    "hash": "c8413ff5cccd7f61",
+    "hash": "ce6db94ebf6d9282",
     "questions": [
       "What Content-Type header should I send for an image?",
       "Get image/webp from an image format",
@@ -9241,7 +9245,7 @@
   },
   "/reference/core/novis-image-image/open/": {
     "feature": "Novis\\Image\\Image::open",
-    "hash": "2de09af5b9c5c643",
+    "hash": "d66dba6d0f77eea6",
     "questions": [
       "How do I load an uploaded image?",
       "Open a JPEG, AVIF or JPEG XL file from disk",
@@ -9253,7 +9257,7 @@
   },
   "/reference/core/novis-image-image/palette/": {
     "feature": "Novis\\Image\\Image::palette",
-    "hash": "9de4992324d2c269",
+    "hash": "2265039b56ce10e7",
     "questions": [
       "How do I get the main colours of a photo?",
       "Find the dominant colour of an image",
@@ -9263,7 +9267,7 @@
   },
   "/reference/core/novis-image-image/placeholder/": {
     "feature": "Novis\\Image\\Image::placeholder",
-    "hash": "59fb547d05887bb5",
+    "hash": "f00076624dedafe1",
     "questions": [
       "How do I show a blurred preview while an image loads?",
       "Make a BlurHash for an uploaded image",
@@ -9283,7 +9287,7 @@
   },
   "/reference/core/novis-image-image/resize/": {
     "feature": "Novis\\Image\\Image::resize",
-    "hash": "7081ad5e52b04d1c",
+    "hash": "af65cbe6df88f59e",
     "questions": [
       "How do I resize an image to fit a thumbnail?",
       "Scale a photo to 800 pixels wide and keep proportions",
@@ -9294,7 +9298,7 @@
   },
   "/reference/core/novis-image-image/rotate/": {
     "feature": "Novis\\Image\\Image::rotate",
-    "hash": "f80ea995c29eaa17",
+    "hash": "877b77895d177158",
     "questions": [
       "How do I rotate an image 90 degrees?",
       "Turn a picture by any angle",
@@ -9304,7 +9308,7 @@
   },
   "/reference/core/novis-image-image/sharpen/": {
     "feature": "Novis\\Image\\Image::sharpen",
-    "hash": "6b8f9490c38e313b",
+    "hash": "1ff452a4b00ff0ed",
     "questions": [
       "How do I make a blurry image sharper?",
       "Make a thumbnail look clear after resizing",
@@ -9314,7 +9318,7 @@
   },
   "/reference/core/novis-image-image/text/": {
     "feature": "Novis\\Image\\Image::text",
-    "hash": "cfd3830e1cd5c95d",
+    "hash": "0ccb85285871c623",
     "questions": [
       "How do I write text on an image?",
       "Add a caption at the bottom of a photo",
@@ -9326,7 +9330,7 @@
   },
   "/reference/core/novis-image-image/tint/": {
     "feature": "Novis\\Image\\Image::tint",
-    "hash": "387571f3786d3b8e",
+    "hash": "1f7a20110efa5304",
     "questions": [
       "How do I colour an image with one colour?",
       "Make a sepia or old brown photo effect",
@@ -9336,7 +9340,7 @@
   },
   "/reference/core/novis-image-image/trim/": {
     "feature": "Novis\\Image\\Image::trim",
-    "hash": "d62aa98dbbbdad5a",
+    "hash": "7a818fcfed57c30a",
     "questions": [
       "How do I remove white borders from an image?",
       "Cut off empty space around a picture",
@@ -9346,7 +9350,7 @@
   },
   "/reference/core/novis-image-image/variants/": {
     "feature": "Novis\\Image\\Image::variants",
-    "hash": "bcbefe504ff4f40a",
+    "hash": "d590693c0e270336",
     "questions": [
       "How do I make several sizes of one image at once?",
       "Create images for responsive srcset widths",
@@ -9366,7 +9370,7 @@
   },
   "/reference/core/novis-image-qrcode/girocode/": {
     "feature": "Novis\\Image\\QrCode::giroCode",
-    "hash": "aad85dd577e6ba71",
+    "hash": "d954c403666cf12f",
     "questions": [
       "How do I put a bank transfer QR code on an invoice?",
       "SEPA payment QR code for a banking app",
@@ -9377,7 +9381,7 @@
   },
   "/reference/core/novis-image-qrcode/render/": {
     "feature": "Novis\\Image\\QrCode::render",
-    "hash": "cdb3a29f1b0678fb",
+    "hash": "e81e0c0beacd9a90",
     "questions": [
       "How do I turn a link into a QR code image?",
       "Make a QR code PNG of a set size",
@@ -9388,7 +9392,7 @@
   },
   "/reference/core/novis-image-qrcode/svg/": {
     "feature": "Novis\\Image\\QrCode::svg",
-    "hash": "119894db210cb1f1",
+    "hash": "978d713db05d71c7",
     "questions": [
       "QR code as SVG for a web page",
       "Make a QR code that stays sharp at any size",
@@ -9409,7 +9413,7 @@
   },
   "/reference/core/novis-intl-collator/sort/": {
     "feature": "Novis\\Intl\\Collator::sort",
-    "hash": "801e94814f9c787e",
+    "hash": "7048eab84e2a9960",
     "questions": [
       "Sort names in German alphabetical order",
       "How do I sort a list of strings for Swedish users?",
@@ -9420,7 +9424,7 @@
   },
   "/reference/core/novis-intl-collator/sortkeys/": {
     "feature": "Novis\\Intl\\Collator::sortKeys",
-    "hash": "140c561cbc991fa6",
+    "hash": "b5c6d5f4724b5c2d",
     "questions": [
       "How do I store a sort order in a database column?",
       "Sort database rows by name in the user's language",
@@ -9441,7 +9445,7 @@
   },
   "/reference/core/novis-intl-dateformat/dates/": {
     "feature": "Novis\\Intl\\DateFormat::dates",
-    "hash": "f292d1b75c2872f0",
+    "hash": "d41a680e8afbf3d0",
     "questions": [
       "How do I write a date as 24.12.2026 for German users?",
       "Show a date with the month name in the user's language",
@@ -9452,7 +9456,7 @@
   },
   "/reference/core/novis-intl-dateformat/datetimes/": {
     "feature": "Novis\\Intl\\DateFormat::dateTimes",
-    "hash": "3235d012be7b29f0",
+    "hash": "189d7a34d78fbba0",
     "questions": [
       "How do I show a date and time with the time zone?",
       "Show when an order was placed, with date and hour",
@@ -9463,7 +9467,7 @@
   },
   "/reference/core/novis-intl-dateformat/times/": {
     "feature": "Novis\\Intl\\DateFormat::times",
-    "hash": "daaa251497b4671a",
+    "hash": "d3a312d7363029c5",
     "questions": [
       "How do I show 21:30 or 9:30 PM depending on the country?",
       "12-hour or 24-hour clock for the user's language",
@@ -9484,7 +9488,7 @@
   },
   "/reference/core/novis-intl-listformat/join/": {
     "feature": "Novis\\Intl\\ListFormat::join",
-    "hash": "82b1eeb1e44cbfd5",
+    "hash": "7f3c5fbe49785aca",
     "questions": [
       "Join items as \"a, b, and c\"",
       "How do I join a list with or instead of and?",
@@ -9505,7 +9509,7 @@
   },
   "/reference/core/novis-intl-locale/negotiate/": {
     "feature": "Novis\\Intl\\Locale::negotiate",
-    "hash": "a88b819517694a85",
+    "hash": "16a2b1082c3701d1",
     "questions": [
       "How do I read the Accept-Language header?",
       "Choose the best page language from the browser settings",
@@ -9516,7 +9520,7 @@
   },
   "/reference/core/novis-intl-locale/resolve/": {
     "feature": "Novis\\Intl\\Locale::resolve",
-    "hash": "f686782aa4516f97",
+    "hash": "0d6f639dd12d1e82",
     "questions": [
       "Which language data is used for my locale tag?",
       "Check if a language has its own date rules",
@@ -9537,7 +9541,7 @@
   },
   "/reference/core/novis-intl-numberformat/compact/": {
     "feature": "Novis\\Intl\\NumberFormat::compact",
-    "hash": "0ccd02f875a0de15",
+    "hash": "76436356cfe8f123",
     "questions": [
       "How do I show 1500000 as 1.5M?",
       "Write large numbers short, like 1.2K",
@@ -9547,7 +9551,7 @@
   },
   "/reference/core/novis-intl-numberformat/currency/": {
     "feature": "Novis\\Intl\\NumberFormat::currency",
-    "hash": "af8130e9122108eb",
+    "hash": "1d212f3a47fb6c41",
     "questions": [
       "How do I show a price in the user's currency?",
       "Format money as €1,234.50 or 1.234,50 €",
@@ -9558,7 +9562,7 @@
   },
   "/reference/core/novis-intl-numberformat/decimal/": {
     "feature": "Novis\\Intl\\NumberFormat::decimal",
-    "hash": "b33290ad63069252",
+    "hash": "1b483f809d68c9f2",
     "questions": [
       "How do I add thousands separators to a number?",
       "Write 1234.5 as 1.234,5 for German users",
@@ -9569,7 +9573,7 @@
   },
   "/reference/core/novis-intl-numberformat/percent/": {
     "feature": "Novis\\Intl\\NumberFormat::percent",
-    "hash": "d08ff21a62adb9a2",
+    "hash": "d6d577d4674e1a48",
     "questions": [
       "How do I show 0.25 as 25%?",
       "Format a percentage for the user's language",
@@ -9589,7 +9593,7 @@
   },
   "/reference/core/novis-intl-pluralrules/cardinal/": {
     "feature": "Novis\\Intl\\PluralRules::cardinal",
-    "hash": "4100c7a589dbd741",
+    "hash": "96b0a29d3489f88e",
     "questions": [
       "Show \"1 item\" or \"3 items\" correctly",
       "Which plural form does a count need in Russian?",
@@ -9600,7 +9604,7 @@
   },
   "/reference/core/novis-intl-pluralrules/ordinal/": {
     "feature": "Novis\\Intl\\PluralRules::ordinal",
-    "hash": "16e02e88b0a6037c",
+    "hash": "44564b39e484a051",
     "questions": [
       "How do I write 1st, 2nd, 3rd and 4th?",
       "Ordinal number endings for a ranking",
@@ -9620,7 +9624,7 @@
   },
   "/reference/core/novis-intl-relativetime/format/": {
     "feature": "Novis\\Intl\\RelativeTime::format",
-    "hash": "761f4a4057a400de",
+    "hash": "1e411b317037359f",
     "questions": [
       "Write \"in 2 hours\" or \"3 days ago\"",
       "How do I show yesterday instead of 1 day ago?",
@@ -9641,7 +9645,7 @@
   },
   "/reference/core/novis-intl-segmenter/sentences/": {
     "feature": "Novis\\Intl\\Segmenter::sentences",
-    "hash": "f8fda88117b7181a",
+    "hash": "130d999ce3dfc1a1",
     "questions": [
       "How do I split a paragraph into sentences?",
       "Find where each sentence ends in a text",
@@ -9651,7 +9655,7 @@
   },
   "/reference/core/novis-intl-segmenter/words/": {
     "feature": "Novis\\Intl\\Segmenter::words",
-    "hash": "78cc82e899c56b79",
+    "hash": "a19abfc48e8ffd35",
     "questions": [
       "How do I count the words in a text?",
       "Split Japanese or Chinese text into words",
@@ -9672,7 +9676,7 @@
   },
   "/reference/core/novis-pdf-document/asset/": {
     "feature": "Novis\\Pdf\\Document::asset",
-    "hash": "ab5a37470ed3a14a",
+    "hash": "422db5f3fc2dbcfe",
     "questions": [
       "Add a logo image to a PDF",
       "Why does my PDF render fail for an image file?",
@@ -9683,7 +9687,7 @@
   },
   "/reference/core/novis-pdf-document/created/": {
     "feature": "Novis\\Pdf\\Document::created",
-    "hash": "982625f61567b25d",
+    "hash": "78203bed4d290479",
     "questions": [
       "Set the creation date of a PDF",
       "Why does PDF/A need a creation time?",
@@ -9693,7 +9697,7 @@
   },
   "/reference/core/novis-pdf-document/footer/": {
     "feature": "Novis\\Pdf\\Document::footer",
-    "hash": "123a25d99a69a329",
+    "hash": "080b4586834f6487",
     "questions": [
       "Add a footer to every PDF page",
       "Show a running total at the bottom of each page",
@@ -9704,7 +9708,7 @@
   },
   "/reference/core/novis-pdf-document/fromhtml/": {
     "feature": "Novis\\Pdf\\Document::fromHtml",
-    "hash": "94e71ebf12ec2c7b",
+    "hash": "209a035324fc07cb",
     "questions": [
       "Start a PDF from an HTML string",
       "Escape user text in a PDF with an html template",
@@ -9716,7 +9720,7 @@
   },
   "/reference/core/novis-pdf-document/header/": {
     "feature": "Novis\\Pdf\\Document::header",
-    "hash": "bbc092f49130938b",
+    "hash": "0e01bfdc3b46f548",
     "questions": [
       "Add a header to every PDF page",
       "Number the pages of a PDF report",
@@ -9727,7 +9731,7 @@
   },
   "/reference/core/novis-pdf-document/invoicexml/": {
     "feature": "Novis\\Pdf\\Document::invoiceXml",
-    "hash": "a04615086b8e0892",
+    "hash": "7d8baefa698f12eb",
     "questions": [
       "Create a ZUGFeRD or Factur-X invoice PDF",
       "Attach invoice XML to a PDF",
@@ -9739,7 +9743,7 @@
   },
   "/reference/core/novis-pdf-document/password/": {
     "feature": "Novis\\Pdf\\Document::password",
-    "hash": "261632cbadc0c18a",
+    "hash": "100acb46c4541563",
     "questions": [
       "Protect a PDF with a password",
       "Encrypt a bank statement before sending it by email",
@@ -9761,7 +9765,7 @@
   },
   "/reference/core/novis-pdf-document/slots/": {
     "feature": "Novis\\Pdf\\Document::slots",
-    "hash": "bab34d85ec06b6cd",
+    "hash": "91b8a8f84c793d87",
     "questions": [
       "Carry a total forward in a table that spans pages",
       "Fill a cell in the repeated table header on each page",
@@ -9773,7 +9777,7 @@
   },
   "/reference/core/novis-pdf-document/standard/": {
     "feature": "Novis\\Pdf\\Document::standard",
-    "hash": "7f45b7602f582545",
+    "hash": "95dcbe28816ff7f2",
     "questions": [
       "Make a PDF/A file for long-term archiving",
       "Create an accessible PDF for screen readers",
@@ -9784,20 +9788,22 @@
   },
   "/reference/core/novis-pdf-page/": {
     "feature": "Novis\\Pdf\\Page",
-    "hash": "5d61783aa3da536a",
+    "hash": "c1d6f441fcd7249f",
     "questions": [
       "What can a header function read about the current page?",
-      "Which page is the header being drawn for?",
-      "PDF page object for headers and footers",
-      "Information about one page of a rendered PDF"
+      "Get the page number and page count in a PDF footer",
+      "Get the CSS page name of the current PDF page",
+      "Check if a page is the first or last page",
+      "PDF page object for headers and footers"
     ]
   },
   "/reference/core/novis-pdf-page/constructor/": {
     "feature": "Novis\\Pdf\\Page::constructor",
-    "hash": "efe204055ee004b0",
+    "hash": "c042ab5377b64152",
     "questions": [
       "Test a footer function without rendering a PDF",
       "Make a page object by hand for a test",
+      "Pass string-set values and data-mark values to a test page",
       "Get the name of a named cover page",
       "Print the number and count of each page"
     ]
@@ -9824,7 +9830,7 @@
   },
   "/reference/core/novis-pdf-page/marks/": {
     "feature": "Novis\\Pdf\\Page::marks",
-    "hash": "7bfdb829e96fc407",
+    "hash": "a7617d8601619671",
     "questions": [
       "Add up the amounts on one page of a PDF",
       "Count the table rows on each page",
@@ -9834,7 +9840,7 @@
   },
   "/reference/core/novis-pdf-page/marksupto/": {
     "feature": "Novis\\Pdf\\Page::marksUpTo",
-    "hash": "5df056ade0dd8b38",
+    "hash": "e5325d733e5aee1c",
     "questions": [
       "Running total up to the current page",
       "Total of the earlier pages in the header",
@@ -9844,7 +9850,7 @@
   },
   "/reference/core/novis-pdf-page/string/": {
     "feature": "Novis\\Pdf\\Page::string",
-    "hash": "92587a2590176de7",
+    "hash": "2165c8183b6b32c5",
     "questions": [
       "Read a CSS string-set value in a header",
       "Customer name on every page of a batch of invoices",
@@ -9865,7 +9871,7 @@
   },
   "/reference/core/novis-pdf-pages/merge/": {
     "feature": "Novis\\Pdf\\Pages::merge",
-    "hash": "9b2b2ad061b86ca3",
+    "hash": "f8e4d7e640330e44",
     "questions": [
       "How do I merge several PDF files into one?",
       "Add terms and conditions to a contract PDF",
@@ -9877,7 +9883,7 @@
   },
   "/reference/core/novis-pdf-pages/of/": {
     "feature": "Novis\\Pdf\\Pages::of",
-    "hash": "bc582170820da3a1",
+    "hash": "0051fe7d1fd97c6f",
     "questions": [
       "Choose pages 1 and 3 of a PDF",
       "Reorder the pages of a PDF",
@@ -9889,12 +9895,13 @@
   },
   "/reference/core/novis-pdf-reader/": {
     "feature": "Novis\\Pdf\\Reader",
-    "hash": "53e847f5d80fae71",
+    "hash": "06e80aa457d4cf90",
     "questions": [
       "Read an existing PDF file",
-      "Get information from an uploaded PDF",
+      "Get the page count and title of an uploaded PDF",
       "PDF reader for page count, text and attachments",
-      "Inspect a PDF someone sent me"
+      "Inspect a PDF someone sent me",
+      "Is text read from a PDF file tainted?"
     ]
   },
   "/reference/core/novis-pdf-reader/attachments/": {
@@ -9919,7 +9926,7 @@
   },
   "/reference/core/novis-pdf-reader/open/": {
     "feature": "Novis\\Pdf\\Reader::open",
-    "hash": "be815d1bb77a1e94",
+    "hash": "ffff4d26da2c397d",
     "questions": [
       "Get the page count of an uploaded PDF",
       "Read the title and author of a PDF",
@@ -9931,7 +9938,7 @@
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "d5aa73ec7da316fa",
+    "hash": "d87cd58a741a0966",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
@@ -9943,30 +9950,32 @@
   },
   "/reference/core/novis-pdf-rendered/": {
     "feature": "Novis\\Pdf\\Rendered",
-    "hash": "0181dabd783bb9e2",
+    "hash": "f4757891346d7c98",
     "questions": [
       "What does rendering a PDF return?",
-      "PDF bytes, page count and render problems",
-      "Result object of a PDF render",
-      "Lists of what a PDF render could not draw"
+      "Get the PDF bytes and page count after a render",
+      "Find CSS that the PDF render does not support",
+      "Find text that no font in my PDF can draw",
+      "Find header or footer content that is too tall"
     ]
   },
   "/reference/core/novis-pdf-rendered/constructor/": {
     "feature": "Novis\\Pdf\\Rendered::constructor",
-    "hash": "514b8d81db5f2785",
+    "hash": "62abcd7b3d779345",
     "questions": [
       "Fail a test when the PDF ignores CSS",
       "Make a fake render result for a test",
+      "Create a render result with bytes, page count and empty lists",
       "Header or footer content too tall for its area",
       "Selector, line and column of unsupported CSS"
     ]
   },
   "/reference/core/novis-spreadsheet-cell/": {
     "feature": "Novis\\Spreadsheet\\Cell",
-    "hash": "4781d0349e6ce31a",
+    "hash": "681f7b5e0818a2c5",
     "questions": [
       "Style a single cell in an Excel export",
-      "Spreadsheet value with its own style",
+      "Read the value, style and rich text parts of a cell",
       "Put a styled cell in a row instead of a plain value",
       "What is a Cell in a spreadsheet export?",
       "Write rich text with a bold word in one cell"
@@ -9974,18 +9983,19 @@
   },
   "/reference/core/novis-spreadsheet-cell/constructor/": {
     "feature": "Novis\\Spreadsheet\\Cell::constructor",
-    "hash": "751bab433aac7e2b",
+    "hash": "6a9906abf2c186ea",
     "questions": [
       "Create a cell with a value and style by hand",
       "Read the value and style of a cell object",
-      "Cell constructor arguments",
+      "Which parameters does new Cell take?",
+      "Is the runs parameter of a cell optional?",
       "Which values can a styled cell contain?",
       "Read the parts of a rich text cell"
     ]
   },
   "/reference/core/novis-spreadsheet-cell/of/": {
     "feature": "Novis\\Spreadsheet\\Cell::of",
-    "hash": "d7fff88ba35be108",
+    "hash": "ed891dfd31b40126",
     "questions": [
       "Make a total red in an Excel file",
       "Highlight a name in a spreadsheet row",
@@ -9995,7 +10005,7 @@
   },
   "/reference/core/novis-spreadsheet-cell/rich/": {
     "feature": "Novis\\Spreadsheet\\Cell::rich",
-    "hash": "2e3a86ecf219f2c2",
+    "hash": "de5072df100b8993",
     "questions": [
       "Make one word bold inside an Excel cell",
       "Use two colors of text in one cell",
@@ -10006,17 +10016,18 @@
   },
   "/reference/core/novis-spreadsheet-chart/": {
     "feature": "Novis\\Spreadsheet\\Chart",
-    "hash": "fdf948fdfd96352b",
+    "hash": "d12be35d8b8e7ab1",
     "questions": [
       "Add a chart to an Excel file",
       "Which chart types can a spreadsheet have?",
       "Excel charts from my data",
-      "Build a chart and add data series"
+      "Build a chart and add data series",
+      "Read the title, legend and series of a chart"
     ]
   },
   "/reference/core/novis-spreadsheet-chart/area/": {
     "feature": "Novis\\Spreadsheet\\Chart::area",
-    "hash": "d670bef2a4cadb8c",
+    "hash": "2751d33dce994860",
     "questions": [
       "Area chart in an Excel export",
       "Line chart with the space under the line filled",
@@ -10026,7 +10037,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/bar/": {
     "feature": "Novis\\Spreadsheet\\Chart::bar",
-    "hash": "6eb5874519150490",
+    "hash": "bfc43631374e0aed",
     "questions": [
       "Horizontal bar chart in Excel",
       "Chart for long product or shop names",
@@ -10036,7 +10047,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/column/": {
     "feature": "Novis\\Spreadsheet\\Chart::column",
-    "hash": "0638e6e7ba6f15b9",
+    "hash": "eecd88ef470ebd5a",
     "questions": [
       "Column chart of monthly sales",
       "Add axis titles to an Excel chart",
@@ -10047,7 +10058,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/combine/": {
     "feature": "Novis\\Spreadsheet\\Chart::combine",
-    "hash": "369183b694b42b44",
+    "hash": "e8b7642283beadfe",
     "questions": [
       "Columns of sales with a line of costs",
       "Two chart types on the same axes",
@@ -10058,17 +10069,18 @@
   },
   "/reference/core/novis-spreadsheet-chart/constructor/": {
     "feature": "Novis\\Spreadsheet\\Chart::constructor",
-    "hash": "b35042f96e05d6e9",
+    "hash": "9eab06af590b22c2",
     "questions": [
-      "Make a chart with new Chart",
+      "Which parameters does new Chart take?",
       "Read the kind and series of a chart object",
       "Which properties does a chart have?",
+      "Read the axis titles and legend of a chart",
       "See the parts added with combine"
     ]
   },
   "/reference/core/novis-spreadsheet-chart/doughnut/": {
     "feature": "Novis\\Spreadsheet\\Chart::doughnut",
-    "hash": "8246d92b952891fe",
+    "hash": "d3fbb66a4a6d253a",
     "questions": [
       "Doughnut chart in Excel",
       "Pie chart with a hole in the middle",
@@ -10078,7 +10090,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/line/": {
     "feature": "Novis\\Spreadsheet\\Chart::line",
-    "hash": "46bb18584a60268f",
+    "hash": "d4f7d744a038b991",
     "questions": [
       "Line chart of visitors per day",
       "Show values over time in Excel",
@@ -10088,7 +10100,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/pie/": {
     "feature": "Novis\\Spreadsheet\\Chart::pie",
-    "hash": "1663bf2f0e9af200",
+    "hash": "dc95d2584c9d8b4d",
     "questions": [
       "Pie chart of sales per shop",
       "Show the value on each pie slice",
@@ -10098,7 +10110,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/scatter/": {
     "feature": "Novis\\Spreadsheet\\Chart::scatter",
-    "hash": "303b83d36ffc997c",
+    "hash": "74465a08435cd139",
     "questions": [
       "Scatter plot of price against units sold",
       "Chart of points with x and y values",
@@ -10108,7 +10120,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/series/": {
     "feature": "Novis\\Spreadsheet\\Chart::series",
-    "hash": "1d2634ecd2a9a952",
+    "hash": "5b9cb71f76e3fe23",
     "questions": [
       "Add data to an Excel chart",
       "Set the color of a chart line or bar",
@@ -10140,18 +10152,18 @@
   },
   "/reference/core/novis-spreadsheet-export/constructor/": {
     "feature": "Novis\\Spreadsheet\\Export::constructor",
-    "hash": "727a81a4cf326be1",
+    "hash": "d0d8c0686cb4a22e",
     "questions": [
       "Create an export with my own write function",
       "Short export call for a workbook with several sheets",
       "When is the export file written?",
-      "new Export arguments",
+      "Which parameters does new Export take?",
       "Allow an export to be written only once"
     ]
   },
   "/reference/core/novis-spreadsheet-export/download/": {
     "feature": "Novis\\Spreadsheet\\Export::download",
-    "hash": "e23d75c7b4401c34",
+    "hash": "88a22bb774c48641",
     "questions": [
       "Let the user download an Excel file",
       "Send a CSV download to the browser",
@@ -10161,7 +10173,7 @@
   },
   "/reference/core/novis-spreadsheet-export/save/": {
     "feature": "Novis\\Spreadsheet\\Export::save",
-    "hash": "9c8733495654a91e",
+    "hash": "790e53a296abf713",
     "questions": [
       "Save a spreadsheet to a file path",
       "Write an xlsx file to disk",
@@ -10172,7 +10184,7 @@
   },
   "/reference/core/novis-spreadsheet-export/to/": {
     "feature": "Novis\\Spreadsheet\\Export::to",
-    "hash": "224eb98f9bb10c58",
+    "hash": "634534f228483af2",
     "questions": [
       "Write a spreadsheet to an open file",
       "Export into a file I already opened",
@@ -10182,17 +10194,17 @@
   },
   "/reference/core/novis-spreadsheet-formula/": {
     "feature": "Novis\\Spreadsheet\\Formula",
-    "hash": "09e491bf4c221e4b",
+    "hash": "9c26105ef9fb7501",
     "questions": [
       "Excel formulas in an export",
       "Why is my formula written as text?",
       "Difference between a string and a formula in a cell",
-      "Formula object for one cell"
+      "Read the text and cached result of a formula"
     ]
   },
   "/reference/core/novis-spreadsheet-formula/constructor/": {
     "feature": "Novis\\Spreadsheet\\Formula::constructor",
-    "hash": "f778574dac145189",
+    "hash": "a8862e6d0e1450b9",
     "questions": [
       "Read the text of a formula from a file",
       "Why is formula text tainted?",
@@ -10202,7 +10214,7 @@
   },
   "/reference/core/novis-spreadsheet-formula/of/": {
     "feature": "Novis\\Spreadsheet\\Formula::of",
-    "hash": "5bfb509124b721e2",
+    "hash": "f406c15ccb941ff7",
     "questions": [
       "Add a SUM formula to an Excel cell",
       "Can user text run as a formula?",
@@ -10236,7 +10248,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/images/": {
     "feature": "Novis\\Spreadsheet\\Reader::images",
-    "hash": "ef1a4f08f79415d9",
+    "hash": "81b70125facdc15b",
     "questions": [
       "Get pictures from an Excel sheet",
       "Extract product images from a spreadsheet",
@@ -10248,7 +10260,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/links/": {
     "feature": "Novis\\Spreadsheet\\Reader::links",
-    "hash": "037930890ec2e82c",
+    "hash": "e29a2b18e0bd975f",
     "questions": [
       "Read hyperlinks from an Excel sheet",
       "Tell a website link from a link to a cell",
@@ -10269,7 +10281,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/merged/": {
     "feature": "Novis\\Spreadsheet\\Reader::merged",
-    "hash": "bde7285a147c534d",
+    "hash": "8db98cb1ef9f3e0c",
     "questions": [
       "Find merged cells in a sheet",
       "Why are cells of a merged area null?",
@@ -10290,7 +10302,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/notes/": {
     "feature": "Novis\\Spreadsheet\\Reader::notes",
-    "hash": "6036d3b56d061d42",
+    "hash": "66ddc331a5790634",
     "questions": [
       "Read cell comments from an Excel file",
       "Get the author of a cell note",
@@ -10302,7 +10314,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/open/": {
     "feature": "Novis\\Spreadsheet\\Reader::open",
-    "hash": "891141c8abfdfb31",
+    "hash": "b380bd76670a89c1",
     "questions": [
       "Open an uploaded spreadsheet",
       "Read a CSV file that starts with a sep= line",
@@ -10325,7 +10337,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/rows/": {
     "feature": "Novis\\Spreadsheet\\Reader::rows",
-    "hash": "60593174b68bc310",
+    "hash": "16983a16b555cce4",
     "questions": [
       "Read rows of an Excel sheet one by one",
       "Use the first row as column names",
@@ -10349,7 +10361,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/tables/": {
     "feature": "Novis\\Spreadsheet\\Reader::tables",
-    "hash": "5e9f86661718469f",
+    "hash": "5f49c15f2a23bb2d",
     "questions": [
       "Find the Excel tables in a sheet",
       "Read the rows of a named table",
@@ -10361,7 +10373,7 @@
   },
   "/reference/core/novis-spreadsheet-row/": {
     "feature": "Novis\\Spreadsheet\\Row",
-    "hash": "0485880addeff5ba",
+    "hash": "3c00a280a8e10ca5",
     "questions": [
       "What does each row from a spreadsheet read contain?",
       "Row number and values of an imported row",
@@ -10371,12 +10383,13 @@
   },
   "/reference/core/novis-spreadsheet-row/constructor/": {
     "feature": "Novis\\Spreadsheet\\Row::constructor",
-    "hash": "c31470cea2feb8a2",
+    "hash": "5923db80259ca5e8",
     "questions": [
       "Create a row by hand for a test",
       "Test import code without a spreadsheet file",
       "Are row keys tainted?",
-      "new Row with number and values"
+      "new Row with number and values",
+      "Does the row number start at 0 or 1?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/": {
@@ -10391,7 +10404,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/add/": {
     "feature": "Novis\\Spreadsheet\\Sheet::add",
-    "hash": "b87ede64094bf5dc",
+    "hash": "abd489d5dab5a934",
     "questions": [
       "Add one row to an Excel sheet",
       "Set the height of a row",
@@ -10403,7 +10416,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addall/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addAll",
-    "hash": "f74aa6815f97a091",
+    "hash": "f0008225a2b13e31",
     "questions": [
       "Add many rows to a sheet at once",
       "Write rows from a generator",
@@ -10413,7 +10426,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/cell/": {
     "feature": "Novis\\Spreadsheet\\Sheet::cell",
-    "hash": "3e643b13befed9aa",
+    "hash": "f24703450d0f7990",
     "questions": [
       "Get the address of a cell such as C7",
       "Use a cell address in a formula",
@@ -10424,19 +10437,19 @@
   },
   "/reference/core/novis-spreadsheet-sheet/chart/": {
     "feature": "Novis\\Spreadsheet\\Sheet::chart",
-    "hash": "f6896e57565f1a77",
+    "hash": "c240d08dbd7b0373",
     "questions": [
       "Place a chart at a cell in a sheet",
       "Set the size of a chart in pixels",
       "Report with a total row and a chart",
       "Does a chart added early show every row?",
       "Which cell ranges can a chart series use?",
-      "Why does a pie chart combined with a line throw an error?"
+      "How long can a chart title be?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/column/": {
     "feature": "Novis\\Spreadsheet\\Sheet::column",
-    "hash": "c4b31b675f7647d7",
+    "hash": "613f078354c52e42",
     "questions": [
       "Get the range of a column such as C2:C1043",
       "Add a total row with SUM over a column",
@@ -10447,7 +10460,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/conditional/": {
     "feature": "Novis\\Spreadsheet\\Sheet::conditional",
-    "hash": "d2d3b018846e7971",
+    "hash": "8f8b6934121fa331",
     "questions": [
       "Mark low stock in red",
       "Conditional formatting in an Excel export",
@@ -10458,7 +10471,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/constructor/": {
     "feature": "Novis\\Spreadsheet\\Sheet::constructor",
-    "hash": "c1181f167c5ab5d7",
+    "hash": "1849c821da2a5739",
     "questions": [
       "Can I create a sheet with new Sheet?",
       "How is a sheet connected to its workbook?",
@@ -10468,7 +10481,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/group/": {
     "feature": "Novis\\Spreadsheet\\Sheet::group",
-    "hash": "542c7429f6f9b63d",
+    "hash": "dbabc010a7377df0",
     "questions": [
       "Group rows so they can be collapsed",
       "Hide a group of columns",
@@ -10478,7 +10491,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/image/": {
     "feature": "Novis\\Spreadsheet\\Sheet::image",
-    "hash": "9dfd3285990a71fa",
+    "hash": "ec07c47175f1c146",
     "questions": [
       "Put a logo at the top of an Excel report",
       "Add a picture for each product",
@@ -10490,7 +10503,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/link/": {
     "feature": "Novis\\Spreadsheet\\Sheet::link",
-    "hash": "fb08923f52788c2d",
+    "hash": "98cb6c3f3dfc134c",
     "questions": [
       "Add a hyperlink to a cell",
       "Link to a cell on another sheet",
@@ -10500,7 +10513,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/merge/": {
     "feature": "Novis\\Spreadsheet\\Sheet::merge",
-    "hash": "186b80270445deef",
+    "hash": "8765e36449d24d33",
     "questions": [
       "Merge cells for a title over three columns",
       "Join cells A1 to C1",
@@ -10510,7 +10523,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/note/": {
     "feature": "Novis\\Spreadsheet\\Sheet::note",
-    "hash": "b90c815b472f64f2",
+    "hash": "2bc0ed0f1807fe20",
     "questions": [
       "Add a comment to an Excel cell",
       "Note with an author name",
@@ -10520,7 +10533,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/print/": {
     "feature": "Novis\\Spreadsheet\\Sheet::print",
-    "hash": "0620866052366885",
+    "hash": "2f8be4db5ab34452",
     "questions": [
       "Print a wide report on one page",
       "Repeat the header row on every printed page",
@@ -10531,7 +10544,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/protect/": {
     "feature": "Novis\\Spreadsheet\\Sheet::protect",
-    "hash": "6da3997d697bee02",
+    "hash": "741c3ff5ef9e5251",
     "questions": [
       "Lock a sheet so people cannot change it",
       "Allow sorting and filters on a locked sheet",
@@ -10541,7 +10554,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/table/": {
     "feature": "Novis\\Spreadsheet\\Sheet::table",
-    "hash": "107f05a07daa6198",
+    "hash": "4276e4ffff3587dd",
     "questions": [
       "Make an Excel table with filter buttons",
       "Add a totals row with sum or average",
@@ -10551,7 +10564,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/validate/": {
     "feature": "Novis\\Spreadsheet\\Sheet::validate",
-    "hash": "304813bc4c457391",
+    "hash": "c37915d383c47167",
     "questions": [
       "Limit a whole column to a list of choices",
       "Allow only whole numbers between two limits",
@@ -10563,17 +10576,17 @@
   },
   "/reference/core/novis-spreadsheet-style/": {
     "feature": "Novis\\Spreadsheet\\Style",
-    "hash": "3bdb61411a1c5361",
+    "hash": "a77848ed01d7041c",
     "questions": [
       "Styles for cells, rows and columns",
       "Which style wins: cell, row or column?",
       "Format the look of a spreadsheet",
-      "Style object for an Excel export"
+      "Read the fields and key of a style"
     ]
   },
   "/reference/core/novis-spreadsheet-style/constructor/": {
     "feature": "Novis\\Spreadsheet\\Style::constructor",
-    "hash": "c549c3c9cb84b558",
+    "hash": "20f2f34e174e094f",
     "questions": [
       "Create a style with new Style",
       "Why do two equal styles share one key?",
@@ -10583,7 +10596,7 @@
   },
   "/reference/core/novis-spreadsheet-style/of/": {
     "feature": "Novis\\Spreadsheet\\Style::of",
-    "hash": "cc7b484d73c35e15",
+    "hash": "1b193adc47f3accc",
     "questions": [
       "Make text bold in an Excel cell",
       "Set a background color and border",
@@ -10604,7 +10617,7 @@
   },
   "/reference/core/novis-spreadsheet-template/fill/": {
     "feature": "Novis\\Spreadsheet\\Template::fill",
-    "hash": "25e56a04b848b1e3",
+    "hash": "226a2dddfe5ccf20",
     "questions": [
       "Fill placeholders with my data",
       "Repeat a row for each item in a list",
@@ -10616,7 +10629,7 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "654c2a96d46444b4",
+    "hash": "733476d1605cf559",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",
@@ -10627,7 +10640,7 @@
   },
   "/reference/core/novis-spreadsheet-template/set/": {
     "feature": "Novis\\Spreadsheet\\Template::set",
-    "hash": "466ae231038da2d3",
+    "hash": "aac92f4d8fbf210c",
     "questions": [
       "Write a value into one cell of a template",
       "Set a title cell by its address",
@@ -10648,7 +10661,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createfordownload/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForDownload",
-    "hash": "8fd6e39adf2c5dd3",
+    "hash": "ec2799cbd967cded",
     "questions": [
       "Stream an Excel download to the browser",
       "Large CSV export download without memory problems",
@@ -10659,7 +10672,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForFile",
-    "hash": "3156798f8852ccfa",
+    "hash": "878ae2a69d87da13",
     "questions": [
       "Write an Excel file to a path row by row",
       "Is the old file kept when writing the new one fails?",
@@ -10671,7 +10684,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforstream/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForStream",
-    "hash": "4a0bab2c705ebf55",
+    "hash": "e91cf1816387d9e7",
     "questions": [
       "Stream rows into a file I opened myself",
       "Write two exports into one file",
@@ -10681,7 +10694,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createinmemory/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createInMemory",
-    "hash": "b38ca94fd36123e0",
+    "hash": "162612c91089ea2e",
     "questions": [
       "Make an Excel file in memory",
       "Build a CSV in memory and get the bytes",
@@ -10691,7 +10704,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/define/": {
     "feature": "Novis\\Spreadsheet\\Workbook::define",
-    "hash": "61c8174e8c71693a",
+    "hash": "d2279e996b92ba26",
     "questions": [
       "Give a range a name for formulas",
       "Create a named range",
@@ -10713,7 +10726,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "62f653d12ebcbe74",
+    "hash": "2686e177acd1c046",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
@@ -10725,7 +10738,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/sheet/": {
     "feature": "Novis\\Spreadsheet\\Workbook::sheet",
-    "hash": "5051e4e4f5875b77",
+    "hash": "6b304f7ffc3ad1d3",
     "questions": [
       "Add a second sheet to a workbook",
       "Rules for sheet names",
@@ -10737,7 +10750,7 @@
   },
   "/reference/core/novis-spreadsheet-written/": {
     "feature": "Novis\\Spreadsheet\\Written",
-    "hash": "c681c27d62cd00e8",
+    "hash": "f53cd12802256dbd",
     "questions": [
       "What does finishing a spreadsheet return?",
       "How many rows did each sheet get after writing?",
@@ -10747,12 +10760,13 @@
   },
   "/reference/core/novis-spreadsheet-written/constructor/": {
     "feature": "Novis\\Spreadsheet\\Written::constructor",
-    "hash": "46827df4205446ca",
+    "hash": "00a2195af5529b8c",
     "questions": [
       "Create a spreadsheet result object in a test",
       "Make a Written value without writing a file",
       "Fake the result of writing a workbook for a unit test",
-      "In what order do rows, size and bytes go?"
+      "In what order do rows, size and bytes go?",
+      "Does the row count include the header row?"
     ]
   },
   "/reference/core/objectmap/": {
@@ -17944,12 +17958,13 @@
   },
   "/syntax/basics/comments/": {
     "feature": "syntax/basics/comments.mdx",
-    "hash": "1608333290e5de9f",
+    "hash": "7ec0b1edd3e91691",
     "questions": [
       "How do I write a comment in Novis?",
       "Write a comment over several lines",
       "How do I document a method so the editor shows it?",
-      "Why does @param in a doc comment not compile?",
+      "How do I describe each parameter and the return value in a doc comment?",
+      "Why can I not write a type after @param?",
       "Can I use Markdown in documentation comments?"
     ]
   },
@@ -18657,10 +18672,10 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "f589583f4bc5111c",
+    "hash": "bfb1de390ec12738",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
-      "Rename a method in every file of my project at once",
+      "Rename a method or a parameter in every file of my project",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
       "How do I change a colour of the Novis Dark theme?",
