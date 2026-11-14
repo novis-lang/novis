@@ -4,7 +4,7 @@
   "seeAlso": [
     "tooling/meta-json",
     "tooling/one-json-several-renderers",
-    "tooling/doc-comment-tags-are-see-and-example",
+    "tooling/doc-comment-tags-are-closed-and-checked",
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
   ],
   "guardedBy": [

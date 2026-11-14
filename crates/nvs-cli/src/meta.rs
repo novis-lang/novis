@@ -112,7 +112,7 @@
 //! one of: it has no value, no visibility and no runtime existence. A declaration's
 //! `doc` is the `///` run above it: its prose under `short`, the key the
 //! registry's card already spells prose with, and its two tags as `see` and
-//! `example` lists (`rule:tooling/doc-comment-tags-are-see-and-example`). The
+//! `example` lists (`rule:tooling/doc-comment-tags-are-closed-and-checked`). The
 //! omission rule is the registry's, key for key: a declaration with no `///`
 //! has no `doc`, and no array is ever emitted empty.
 //!
@@ -1430,7 +1430,8 @@ fn put_doc(out: &mut Map<String, Value>, doc: Option<&DocComment>, src: &SourceF
 /// further in is the author's own indentation, which a fenced code block in the
 /// Markdown depends on. A tag line is one whose text begins with `@`, and that
 /// is exact rather than approximate — the parser refused every spelling but the
-/// two, so nothing else can start that way.
+/// five, so nothing else can start that way. A line continuing the text of an
+/// `@param`, `@return` or `@throws` is still read as prose here.
 fn prose(doc: &DocComment, src: &SourceFile) -> String {
     let lines: Vec<&str> = doc
         .lines

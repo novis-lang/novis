@@ -17,7 +17,7 @@ answered only inside a `string<K>` literal, at a `string<K>` parameter or under 
 opens a hole: `{{` is a literal brace and opens nothing, and inside a hole that holds a path `.` starts the
 next segment. A client offers nothing inside a string unless asked. Everywhere else a quote opens a
 string, `/` divides, `.` concatenates and `{` is text. `@` is answered only first on a `///` line, where
-it opens a tag (`rule:tooling/doc-comment-tags-are-see-and-example`). A request the developer raised by
+it opens a tag (`rule:tooling/doc-comment-tags-are-closed-and-checked`). A request the developer raised by
 hand, or by typing a name, is not held to this.
 
 **A comment offers nothing, whoever asked, except a doc comment's tag and its target.** The `@` of a tag

@@ -19,7 +19,7 @@
 //! alias gets no page: it is one line, and a line is not a page.
 //!
 //! **Text is rendered, never escaped.** A doc comment's prose is Markdown by
-//! `rule:tooling/doc-comment-tags-are-see-and-example`, so it is written out as
+//! `rule:tooling/doc-comment-tags-are-closed-and-checked`, so it is written out as
 //! it was authored, and the lexer has already refused an unterminated
 //! directional control anywhere in the file
 //! (`rule:security/bidi-boundaries`) — this renderer grows no check of its own.

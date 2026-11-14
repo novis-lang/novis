@@ -200,7 +200,7 @@
 //! # What a comment offers
 //!
 //! Nothing, except on a `///` line's tag
-//! (`rule:tooling/doc-comment-tags-are-see-and-example`). A comment is prose,
+//! (`rule:tooling/doc-comment-tags-are-closed-and-checked`). A comment is prose,
 //! and the words that open a statement or a member parse nowhere in it. An `@`
 //! at the start of a doc line is offered the two tags. The target of a `@see`
 //! is offered the types in reach, and after `Class::` every member of that
@@ -1781,10 +1781,11 @@ fn doc_tag_at(analysed: &Analysed, comment: nvs_syntax::Trivia, offset: BytePos)
     match DocTagKind::named(name)? {
         DocTagKind::See => Some(DocTag::See(start)),
         DocTagKind::Example => Some(DocTag::Example(start)),
+        DocTagKind::Param | DocTagKind::Return | DocTagKind::Throws => None,
     }
 }
 
-/// The two doc comment tags, each replacing the `written` bytes of one already
+/// The five doc comment tags, each replacing the `written` bytes of one already
 /// typed. Accepting one writes the space after it and opens the list of its
 /// targets.
 fn doc_tag_names(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
@@ -1796,6 +1797,9 @@ fn doc_tag_names(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
             let detail = match kind {
                 DocTagKind::See => "links to a class, method, property, constant or enum case",
                 DocTagKind::Example => "links to an example file under `examples/` or `tests/`",
+                DocTagKind::Param => "says what one parameter means",
+                DocTagKind::Return => "says what the returned value means",
+                DocTagKind::Throws => "names an error the call may throw, and when",
             };
             (rank, tag, detail)
         })

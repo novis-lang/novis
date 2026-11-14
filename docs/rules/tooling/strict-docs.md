@@ -16,9 +16,9 @@ the check is a walk over names it already has.
 
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
-there is nothing to generate. With no `@param` and no `@return`
-(`rule:tooling/doc-comment-tags-are-see-and-example`), a synthesized `///` would be empty, so no autofix is
-possible and the only way to satisfy the check is to write a sentence. A diagnostic in every project was
+there is nothing to generate. Every tag needs a sentence, and a tag with no text is an error
+(`rule:tooling/doc-comment-tags-are-closed-and-checked`). A fix may insert an `@param` line, but never its
+sentence, so no autofix satisfies the check and the only way to satisfy it is to write a sentence. A diagnostic in every project was
 rejected for the same reason: the pressure would be answered by `/// Charges the card.` above
 `chargeTheCard()`, noise a human typed that will outlive the method's behaviour. Demanding the sentence
 again above every implementation of an interface would be that same noise, which is why an override
@@ -33,8 +33,8 @@ sentence — that is a lint's design and belongs with the publisher.
 graph per undocumented public member.
 
 **Declined:**
-- **An explicit marker such as `/// @inheritdoc`.** It is a third tag, which
-  `rule:tooling/doc-comment-tags-are-see-and-example` refuses, and it is a line that says nothing, which
+- **An explicit marker such as `/// @inheritdoc`.** It is a sixth tag, which
+  `rule:tooling/doc-comment-tags-are-closed-and-checked` refuses, and it is a line that says nothing, which
   is what this rule exists to prevent.
 - **Inheriting only from interfaces.** Overriding a documented parent method has the same problem, and
   one rule for both is simpler.

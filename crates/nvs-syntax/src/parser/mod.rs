@@ -406,28 +406,38 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
-    /// The `@see` and `@example` lines of a run, reporting every other `@tag`
-    /// written at the start of one
-    /// (`rule:tooling/doc-comment-tags-are-see-and-example`).
+    /// The tag lines of a run, reporting every `@tag` outside the five written
+    /// at the start of one (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
     ///
     /// A tag is recognised only at the start of a line, past the marker and its
     /// indentation, so an `@` anywhere in the prose is a character. That is why
     /// this reads the lines rather than the run's text: the distinction lives
-    /// nowhere else, and a run is otherwise just Markdown.
+    /// nowhere else, and a run is otherwise just Markdown. A line that is
+    /// neither a tag nor blank, after an `@param`, `@return` or `@throws`,
+    /// continues that tag's text. Once the run is read, each of those three
+    /// with no text at all is `E0139`.
     fn doc_tags(&mut self, lines: &[Span]) -> Vec<DocTag> {
         let text = self.file.text();
-        let mut tags = Vec::new();
+        let mut tags: Vec<DocTag> = Vec::new();
+        let mut open = false;
         for line in lines {
             let Some(body) = text
                 .get(line.start as usize..line.end as usize)
                 .and_then(|line| line.get(DOC_MARKER.len()..))
             else {
+                open = false;
                 continue;
             };
             let indent = body.len() - body.trim_start().len();
             let Some(rest) = body[indent..].strip_prefix('@') else {
+                if body.trim().is_empty() {
+                    open = false;
+                } else if open && let Some(tag) = tags.last_mut() {
+                    tag.text = Span::new(line.file, tag.text.start, line.end);
+                }
                 continue;
             };
+            open = false;
             let name_len = rest.bytes().take_while(u8::is_ascii_alphabetic).count();
             let (name, after) = rest.split_at(name_len);
             let lead = after.len() - after.trim_start().len();
@@ -441,43 +451,142 @@ impl<'src, 'd> Parser<'src, 'd> {
                 argument_start + in_line(written.len()),
             );
             let Some(kind) = DocTagKind::named(name) else {
-                self.report_unknown_doc_tag(span, name);
+                let name_span = Span::new(line.file, at + 1, at + in_line(1 + name_len));
+                self.report_unknown_doc_tag(span, name_span, name);
                 continue;
             };
+            let (target, text_span) = match kind {
+                DocTagKind::See | DocTagKind::Example => {
+                    (None, Span::new(line.file, line.end, line.end))
+                }
+                DocTagKind::Return => (None, argument),
+                DocTagKind::Param => self.doc_param_target(argument, written),
+                DocTagKind::Throws => {
+                    let name_len = written.len()
+                        - written
+                            .trim_start_matches(|c: char| !c.is_whitespace())
+                            .len();
+                    split_doc_target(argument, written, name_len)
+                }
+            };
+            open = kind.has_text();
             tags.push(DocTag {
                 kind,
                 span,
                 argument,
+                target,
+                text: text_span,
             });
+        }
+        for tag in &tags {
+            if tag.kind.has_text() && tag.text_in(text).is_empty() {
+                self.report_doc_tag_without_text(tag, text);
+            }
         }
         tags
     }
 
-    /// Refuses one tag, naming what to write instead.
-    ///
-    /// The three PHPDoc spellings get their own help because each has a
-    /// specific answer and an author reaching for one is not guessing — they
-    /// are writing what every other PHP project taught them. Everything else,
-    /// invented or merely retired, gets the rule: the set is two.
-    fn report_unknown_doc_tag(&mut self, span: Span, name: &str) {
-        let help = match name {
-            "param" => {
-                "name the parameter in a sentence instead — its type is already in the signature"
-            }
-            "return" | "returns" => {
-                "the return type is already in the signature; a sentence says what the value means"
-            }
-            "throws" => "say in a sentence what it throws",
-            _ => "a doc comment is Markdown. The only tags are `@see` and `@example`",
+    /// The `$name` and the text of one `@param`, whose `argument` reads
+    /// `written`. Anything before the `$name` is `E0138`, with a fix that
+    /// deletes it where there is a `$name` to keep, and the tag is then read as
+    /// if the fix were applied.
+    fn doc_param_target(&mut self, argument: Span, written: &str) -> (Option<Span>, Span) {
+        let dollar = written
+            .char_indices()
+            .find(|&(at, c)| c == '$' && doc_name_len(&written[at + 1..]) > 0)
+            .map(|(at, _)| at);
+        let Some(dollar) = dollar else {
+            self.diags.report(
+                Diagnostic::error(code::E_DOC_PARAM_NAME_FIRST, "`@param` names no parameter")
+                    .with_primary(argument, "no `$name` here")
+                    .with_help("write the parameter's `$name` directly after `@param`"),
+            );
+            return (None, argument);
+        };
+        if dollar > 0 {
+            let before = Span::new(
+                argument.file,
+                argument.start,
+                argument.start + in_line(dollar),
+            );
+            let (message, label) = if written[..dollar].trim() == "..." {
+                (
+                    "a variadic parameter is written `$name` after `@param`",
+                    "delete the `...`",
+                )
+            } else {
+                (
+                    "`@param` cannot contain a type",
+                    "the type is already in the signature",
+                )
+            };
+            self.diags.report(
+                Diagnostic::error(code::E_DOC_PARAM_NAME_FIRST, message)
+                    .with_primary(before, label)
+                    .with_fix(before, "", "delete this text before the `$name`"),
+            );
+        }
+        let rest = &written[dollar..];
+        let at = Span::new(
+            argument.file,
+            argument.start + in_line(dollar),
+            argument.end,
+        );
+        split_doc_target(at, rest, 1 + doc_name_len(&rest[1..]))
+    }
+
+    /// Reports an `@param`, `@return` or `@throws` with no sentence after it.
+    fn report_doc_tag_without_text(&mut self, tag: &DocTag, source: &str) {
+        let target = tag
+            .target
+            .and_then(|target| source.get(target.start as usize..target.end as usize));
+        let (message, label) = match (tag.kind, target) {
+            (DocTagKind::Param, Some(name)) => (
+                format!("`@param {name}` has no text"),
+                format!("write what `{name}` means"),
+            ),
+            (DocTagKind::Throws, Some(name)) => (
+                format!("`@throws {name}` has no text"),
+                format!("write when `{name}` is thrown"),
+            ),
+            (DocTagKind::Throws, None) => (
+                "`@throws` names no class".to_owned(),
+                "write the class, then when it is thrown".to_owned(),
+            ),
+            (DocTagKind::Param, None) => return,
+            _ => (
+                "`@return` has no text".to_owned(),
+                "write what the returned value means".to_owned(),
+            ),
         };
         self.diags.report(
-            Diagnostic::error(
-                code::E_DOC_COMMENT_UNKNOWN_TAG,
-                format!("`@{name}` is not a documentation tag"),
-            )
-            .with_primary(span, "not `@see` or `@example`")
-            .with_help(help),
+            Diagnostic::error(code::E_DOC_TAG_HAS_NO_TEXT, message).with_primary(tag.span, label),
         );
+    }
+
+    /// Refuses one tag, naming what to write instead.
+    ///
+    /// `@returns` gets its own help and a fix because an author reaching for it
+    /// is not guessing: it is the spelling JSDoc taught them, and the tag they
+    /// mean is `@return`. Everything else, invented or merely retired, gets the
+    /// rule: the set is five.
+    fn report_unknown_doc_tag(&mut self, span: Span, name_span: Span, name: &str) {
+        let diagnostic = Diagnostic::error(
+            code::E_DOC_COMMENT_UNKNOWN_TAG,
+            format!("`@{name}` is not a documentation tag"),
+        )
+        .with_primary(span, "not one of the five tags");
+        let diagnostic = if name == "returns" {
+            diagnostic
+                .with_help("write `@return`")
+                .with_fix(name_span, "return", "write `@return`")
+        } else {
+            diagnostic.with_help(
+                "a doc comment is Markdown. The only tags are `@see`, `@example`, `@param`, \
+                 `@return` and `@throws`",
+            )
+        };
+        self.diags.report(diagnostic);
     }
 
     /// Reports every `///` run no declaration took
@@ -999,6 +1108,25 @@ pub const DOC_MARKER: &str = "///";
 /// always fits.
 fn in_line(bytes: usize) -> BytePos {
     BytePos::try_from(bytes).expect("an offset within one line of a source file")
+}
+
+/// The length of the variable name at the start of `rest`, the `$` already
+/// off: the bytes an identifier may hold.
+fn doc_name_len(rest: &str) -> usize {
+    rest.bytes()
+        .take_while(|&b| b.is_ascii_alphanumeric() || b == b'_' || b >= 0x80)
+        .count()
+}
+
+/// Splits a tag's `written` argument, which `at` covers, into its first
+/// `target_len` bytes and the text after them. No target where `target_len`
+/// is zero.
+fn split_doc_target(at: Span, written: &str, target_len: usize) -> (Option<Span>, Span) {
+    let target_end = at.start + in_line(target_len);
+    let target = (target_len > 0).then(|| Span::new(at.file, at.start, target_end));
+    let after = &written[target_len..];
+    let text_start = target_end + in_line(after.len() - after.trim_start().len());
+    (target, Span::new(at.file, text_start, at.end))
 }
 
 /// Whether `[from, to)` is nothing but whitespace crossing at most one line

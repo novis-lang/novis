@@ -1,5 +1,5 @@
 --TEST--
-An `@example` outside every directory the test corpus walks is `E0325`, asked before the file is looked for at all — `rule:tooling/doc-comment-tags-are-see-and-example`
+An `@example` outside every directory the test corpus walks is `E0325`, asked before the file is looked for at all — `rule:tooling/doc-comment-tags-are-closed-and-checked`
 --FILE--
 <?nvs
 // The directory question is asked first and answers on the written path

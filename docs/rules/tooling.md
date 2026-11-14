@@ -1639,7 +1639,7 @@ public function charge(uint $cents): void { … }
 ```
 
 The comment documents the declaration it precedes ([`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration)),
-its body is Markdown plus two tags ([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)), and it belongs
+its body is Markdown plus five tags ([`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked)), and it belongs
 to *Novis* source only: a `Core` member is Rust and documents itself in the registry
 ([`core-api/reference-card`](core-api.md#core-api-reference-card)), so it never carries one. There is no module-level doc spelling either — a
 file's declarations are its surface, and the class is the unit.
@@ -1666,7 +1666,7 @@ to HTML crosses the bidi boundary the lexer already checks for every comment spa
 - **An attribute, `#[Doc("…")]`.** Its payload is a compile-time constant expression, which makes
   several paragraphs of Markdown hard to write and harder to read in place.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 
@@ -1687,55 +1687,109 @@ Requiring the marker
 
 <sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs).</sub>
 
-<a id="tooling-doc-comment-tags-are-see-and-example"></a>
+<a id="tooling-doc-comment-tags-are-closed-and-checked"></a>
 
-## A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic
+## A doc comment is Markdown plus five checked tags, `@see`, `@example`, `@param`, `@return` and `@throws`, none of which carries a type, and any other `@tag` is a diagnostic
 
-`rule:tooling/doc-comment-tags-are-see-and-example`
+`rule:tooling/doc-comment-tags-are-closed-and-checked`
 
-The body of a doc comment is Markdown. Two tags may appear, each on its own line in a trailing block:
+The body of a doc comment is Markdown. Five tags may appear, each at the start of its own line:
 
 ```nvs
-/// The price in cents, never a float.
+/// Charges a card, in the smallest unit the currency has.
 ///
+/// @param $cents the amount, in cents
+/// @param $card the card to charge; it must not be expired
+/// @return the ledger id of the charge
+/// @throws CardDeclined when the bank declines the card
 /// @see Core\Money::fromCents
 /// @example examples/charge.nvs
 ```
 
-`@see <member>` names a class, member, enum or constant, and must resolve or it is a diagnostic.
-`@example <path>` names a file that must exist **and must be inside a directory the test corpus walks**,
-so an example that stops compiling fails the build rather than rotting in a page. **Any other `@tag` at
-the start of a line is a diagnostic**, and that one sentence is the entire difference between a closed set
-and a convention: an unenforced set grows, and the growth is how PHPDoc arrived at documenting a signature
-twice. An `@` anywhere else in the prose is just a character.
+**The set is closed, and every tag in it is checked.** Any other `@tag` at the start of a line is a
+diagnostic, `E0128`, and that one sentence is the entire difference between a closed set and a convention:
+an unenforced set grows, and the growth is how PHPDoc arrived at documenting a signature twice. An `@`
+anywhere else in the prose is just a character. `@returns` gets its own help and a suggestion that rewrites
+it to `@return`. `@var` has nothing to say, since every binding is annotated; `@deprecated` is an attribute
+([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)); `@since` and `@internal` are history and
+visibility, which the package and the modifiers already state ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)
+covers "this touches the filesystem"); `@inheritdoc` is a line that says nothing, because a member without
+a comment of its own inherits one ([`tooling/strict-docs`](tooling.md#tooling-strict-docs)). Each stays an error.
 
-**Both tags repeat, and every one of them is checked.** A declaration carries as many `@see` and
-`@example` lines as it has cross-references and examples, in whatever order they are written, and the
-order they are written is the order they are read back: `nvs meta --json` emits `see` and `example` as
-lists ([`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program)) and `nvs doc` renders each list on one line. A second
-tag is not a weaker one — a `@see` that does not resolve is the same diagnostic whether it is the first
-line of the block or the last.
+**The shapes.**
+- `@see <member>` names a class, member, enum or constant, and must resolve.
+- `@example <path>` names a file that must exist **and must be inside a directory the test corpus walks**,
+  so an example that stops compiling fails the build rather than rotting in a page.
+- `@param $name text`: `$name` comes directly after the tag. A variadic parameter is written `$name` too,
+  without `...`.
+- `@return text`.
+- `@throws Name text`: `Name` resolves like a type name in that file, `use` lines included.
 
-There is no `@param`, `@return`, `@throws`, `@var`, `@deprecated`, `@since` or `@internal`, because almost
-nothing PHPDoc carried survives as prose. Parameter and return types are the signature, which cannot drift
-from itself; a callable carries its own ([`types/callable-signature`](types.md#types-callable-signature)); what a `Core` member throws is
-its registry card ([`core-api/reference-card`](core-api.md#core-api-reference-card)) and for user code is a sentence; every binding is
-annotated, so `@var` has nothing to say; deprecation is an attribute ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code));
-"this touches the filesystem" is a declared capability ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)). A
-parameter that needs explaining is named in a sentence — "the timeout is in **milliseconds**" — and the
-diagnostic says so: *`@param` is not a documentation tag; name the parameter in a sentence instead — its
-type is in the signature*, and likewise for `@throws` and `@returns`.
+The text of `@param`, `@return` and `@throws` is Markdown and runs to the end of the line. A following
+`///` line that is not a tag and is not blank continues the text of the tag above it, so a long sentence
+can wrap. The text is required: a tag with no text is an error that says to write what the parameter means.
+That is the error a newly inserted `@param` line shows until its author writes the sentence.
 
-The two tags survive because each buys a *check* — a cross-reference that must resolve, an example that
-must still compile — and a third has to meet the same standard, never merely improve a rendering.
+**A tag never carries a type.** The signature is the one place a type is written, and a second copy drifts.
+- After `@param`, anything but `$name` is an error, the parser's: `@param int $x` and JSDoc's
+  `@param {int} $x`. Its suggestion deletes the type.
+- If the first word of the text is the declared type, it is an error, the checker's, with a suggestion that
+  deletes the word: the parameter's type after `@param $x`, and the return type after `@return`. A union or
+  nullable type counts if the word is the whole type or one of its members. `null` alone is never flagged,
+  because "null when the card is declined" is a normal sentence, and a word that only looks like some other
+  type is never flagged.
+- `@throws Name` is not a repeated type: a signature has no `throws` clause.
+
+**Where each tag may go.** `@param` and `@throws` go on a function, a method (abstract and interface ones
+included) or a constructor. `@return` goes on a function or method whose declared return type is neither
+`void` nor `never`, and never on a constructor. Anywhere else each of the three is an error naming the
+declaration kind. An anonymous function is not a declaration and carries no doc comment.
+
+**What the checker holds each tag to.** Every one of these errors carries a suggestion, so its quick fix is
+a translation ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
+- `@param $name` names a parameter of this declaration, at most once. If the name is unknown and exactly
+  one parameter has no `@param`, the suggestion renames the tag to it: that is the fix after a parameter
+  was renamed by hand. Otherwise the suggestion deletes the line. A second `@param` for one parameter, and a
+  second `@return`, are deleted by theirs.
+- `@throws Name` resolves to a class that is a `Throwable`, and names each class at most once. The body is
+  not checked against it: Novis has no checked exceptions, and the tag documents intent.
+- **A missing `@param` is a warning only where the same comment already has at least one `@param`.** Its
+  suggestion inserts `/// @param $name ` after the `@param` of the parameter before it in signature order,
+  or before the first `@param`. A comment with no `@param` at all is never warned, for
+  [`tooling/strict-docs`](tooling.md#tooling-strict-docs)'s reason, and a fix never writes a sentence.
+
+**Every tag repeats where it can, and the order is free.** A declaration carries as many `@see`, `@example`
+and `@throws` lines as it needs. `@see` and `@example` are read back in the order they are written, as lists
+in `nvs meta --json` ([`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program)). `@param` is read by parameter: `nvs doc`,
+`nvs meta --json`, hover and signature help show signature order whatever order the lines are in, and
+`nvs fmt` does not reorder them, because a format pass never reads the signature
+([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)). A user member's card has the `Core` card's shape
+([`core-api/reference-card`](core-api.md#core-api-reference-card)): `short`, `params` as `{name, desc}` in signature order, `return`,
+`errors` as `{name, desc}`, `see` and `example`.
+
+**Inheritance.** A member with no `///` of its own inherits the whole comment
+([`tooling/strict-docs`](tooling.md#tooling-strict-docs)). An inherited `@param` is shown under the overriding member's parameter at the
+same position, because an override may name its parameters differently. A member with its own comment
+shows only its own tags. A promoted constructor parameter's `@param` is its property's documentation.
+
+**Memory:** nothing at run time, in speed or in memory. The tags are read by the checker, `nvs meta`,
+`nvs doc` and the language server, and the AST holds two more spans per tag line.
 
 **Declined:**
-- **Prose only, with no tags.** A Markdown link and a fenced block buy neither check.
-- **Per-parameter documentation as a tag.** If a published package needs it the way a `Core` member
-  has it, it is a registry-shaped field in the JSON [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program) emits,
-  never an `@param` line.
+- **Prose only, with no tags.** A Markdown link and a fenced block buy no check, and signature help has no
+  sentence per parameter.
+- **A type in the tag**, as in PHPDoc. The signature is the one place a type is written, and a second copy
+  drifts.
+- **A warning for every undocumented parameter.** A required tag is answered with generated noise. The
+  warning fires only where the author already documented the others.
+- **Swift's Markdown list form** (`- Parameter x:`). A reader cannot tell a structured list from an
+  ordinary one.
+- **Dart's checked references in prose only.** They buy a check, but signature help still has no sentence
+  per parameter.
+- **`nvs fmt` sorting the tag lines.** A format pass would need the signature, and the readers already show
+  signature order.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/strict-docs`](tooling.md#tooling-strict-docs), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 
 <a id="tooling-strict-docs"></a>
 
@@ -1761,9 +1815,9 @@ the check is a walk over names it already has.
 
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
-there is nothing to generate. With no `@param` and no `@return`
-([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)), a synthesized `///` would be empty, so no autofix is
-possible and the only way to satisfy the check is to write a sentence. A diagnostic in every project was
+there is nothing to generate. Every tag needs a sentence, and a tag with no text is an error
+([`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked)). A fix may insert an `@param` line, but never its
+sentence, so no autofix satisfies the check and the only way to satisfy it is to write a sentence. A diagnostic in every project was
 rejected for the same reason: the pressure would be answered by `/// Charges the card.` above
 `chargeTheCard()`, noise a human typed that will outlive the method's behaviour. Demanding the sentence
 again above every implementation of an interface would be that same noise, which is why an override
@@ -1778,8 +1832,8 @@ sentence — that is a lint's design and belongs with the publisher.
 graph per undocumented public member.
 
 **Declined:**
-- **An explicit marker such as `/// @inheritdoc`.** It is a third tag, which
-  [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example) refuses, and it is a line that says nothing, which
+- **An explicit marker such as `/// @inheritdoc`.** It is a sixth tag, which
+  [`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked) refuses, and it is a line that says nothing, which
   is what this rule exists to prevent.
 - **Inheriting only from interfaces.** Overriding a documented parent method has the same problem, and
   one rule for both is simpler.
@@ -1787,7 +1841,7 @@ graph per undocumented public member.
   redeclaration has its own value. The doc comment says what the member means, and a redeclaration keeps
   that meaning just as an overriding method keeps its contract; one rule for every member is simpler.
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
+<sub>See also [`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="tooling-a-todo-is-a-comment-the-tools-list"></a>
 
@@ -1943,7 +1997,7 @@ nvs meta --json app.nvs         # the Core registry, plus that program's own dec
 The second form is **program-dependent** — it parses and resolves the program — which is a materially
 different command wearing the same name, so it is stated here rather than discovered. A user declaration
 is emitted in a shape mirroring the registry's own: name, signature, the doc comment's prose, its `@see`
-list and its `@example` list ([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)). The `Core` half of that
+list and its `@example` list ([`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked)). The `Core` half of that
 shape is the registry's and is unchanged by this; the user half is this rule's.
 
 A user class also names its lineage: `extends` is its parent class and `implements` the interfaces it
@@ -1982,7 +2036,7 @@ lineage edge, and by one schema per derived class plus one per class a `$ref` re
   derive rules, and [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen) keeps literal text out of machine output.
 - **Both the raw attributes and `json`.** That is two ways to read one fact, and they can disagree.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 

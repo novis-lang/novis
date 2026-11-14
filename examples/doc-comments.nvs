@@ -2,8 +2,8 @@
 /// A line of a page, carrying the text a reader sees.
 ///
 /// A doc comment is `///` and nothing else marks one. Its content is prose
-/// plus exactly two tags, and every other `@tag` is a diagnostic rather than a
-/// convention — `rule:tooling/doc-comment-tags-are-see-and-example`.
+/// plus five tags, and every other `@tag` is a diagnostic rather than a
+/// convention — `rule:tooling/doc-comment-tags-are-closed-and-checked`.
 ///
 /// An `@example` path is relative to the file that wrote it, as a `require`
 /// path is, and must name a directory the test corpus walks — so a file that

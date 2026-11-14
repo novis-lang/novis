@@ -1,8 +1,8 @@
 --TEST--
-An `@example` naming a file that is not on disk is `E0324`, because an example nothing compiles rots while the member it documents moves on — `rule:tooling/doc-comment-tags-are-see-and-example`
+An `@example` naming a file that is not on disk is `E0324`, because an example nothing compiles rots while the member it documents moves on — `rule:tooling/doc-comment-tags-are-closed-and-checked`
 --FILE--
 <?nvs
-// `rule:tooling/doc-comment-tags-are-see-and-example`: an `@example` names a
+// `rule:tooling/doc-comment-tags-are-closed-and-checked`: an `@example` names a
 // file that exists, and the path is relative to the file that wrote it, as a
 // `require` path is.
 /// A receipt, and the one file that would show it in use.

@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "tooling/doc-comment-attaches-to-the-next-declaration",
-    "tooling/doc-comment-tags-are-see-and-example",
+    "tooling/doc-comment-tags-are-closed-and-checked",
     "core-api/reference-card",
     "security/bidi-boundaries",
     "statements/nothing-gets-a-second-name",

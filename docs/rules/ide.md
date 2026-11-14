@@ -691,7 +691,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 - **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
   the editor would jump to a class the program then fails to find.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method).</sub>
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
@@ -2298,7 +2298,7 @@ answered only inside a `string<K>` literal, at a `string<K>` parameter or under 
 opens a hole: `{{` is a literal brace and opens nothing, and inside a hole that holds a path `.` starts the
 next segment. A client offers nothing inside a string unless asked. Everywhere else a quote opens a
 string, `/` divides, `.` concatenates and `{` is text. `@` is answered only first on a `///` line, where
-it opens a tag ([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)). A request the developer raised by
+it opens a tag ([`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked)). A request the developer raised by
 hand, or by typing a name, is not held to this.
 
 **A comment offers nothing, whoever asked, except a doc comment's tag and its target.** The `@` of a tag

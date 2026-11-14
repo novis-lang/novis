@@ -43,7 +43,7 @@
 //!
 //! Both of a doc comment's tags are checked here too, by [`check_doc`], and
 //! for the same reason: each is a name that must resolve against something
-//! declared. `rule:tooling/doc-comment-tags-are-see-and-example` keeps the tag
+//! declared. `rule:tooling/doc-comment-tags-are-closed-and-checked` keeps the tag
 //! set at two by making each buy a check — `@see` resolves against the very
 //! [`MemberTable`] a `Class::member` reference does (`E0323`), and `@example`
 //! against a file on disk, which must exist (`E0324`) and must sit in a
@@ -739,12 +739,13 @@ fn check_doc(doc: Option<&DocComment>, src: &SourceFile, ctx: &Ctx<'_>, env: &mu
         match tag.kind {
             DocTagKind::See => check_see(tag, src, ctx, env),
             DocTagKind::Example => check_example(tag, src, env),
+            DocTagKind::Param | DocTagKind::Return | DocTagKind::Throws => {}
         }
     }
 }
 
 /// One `@see`'s target, which
-/// `rule:tooling/doc-comment-tags-are-see-and-example` requires to resolve.
+/// `rule:tooling/doc-comment-tags-are-closed-and-checked` requires to resolve.
 /// The spelling is a class name, optionally followed by `::member`, and the
 /// member half may carry a `$` sigil or a trailing `()` so a page may write a
 /// property or a call the way a reader would say it. `self`, `static` and
@@ -830,7 +831,7 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 
 /// The directories a Novis project's test corpus walks, and so the only ones
 /// an `@example` may name a file inside
-/// (`rule:tooling/doc-comment-tags-are-see-and-example`): `examples/`, and
+/// (`rule:tooling/doc-comment-tags-are-closed-and-checked`): `examples/`, and
 /// `tests/`, where a project's own cases live and which `nvs test` walks. The list is here rather than in configuration because the
 /// guarantee the tag buys is that *something* compiles the file, and a
 /// directory a project could name in a config file it also controls buys
@@ -838,7 +839,7 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 const WALKED_DIRECTORIES: [&str; 2] = ["examples", "tests"];
 
 /// One `@example`'s target, which
-/// `rule:tooling/doc-comment-tags-are-see-and-example` requires to exist and to
+/// `rule:tooling/doc-comment-tags-are-closed-and-checked` requires to exist and to
 /// sit where the corpus walks it — an example nothing compiles is one that rots
 /// while the member it documents moves on.
 ///

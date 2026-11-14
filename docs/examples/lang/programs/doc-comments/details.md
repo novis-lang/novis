@@ -3,7 +3,8 @@ and the editor shows it when you hover over the name.
 
 `@see` and `@example` are tags only at the start of a line. `@see` must name a class or member that
 exists, or the program does not compile (`E0323`). `@example` must name a file under `examples/` or
-`tests/` (`E0325`). Any other tag, such as `@param` or `@return`, does not compile (`E0128`).
+`tests/` (`E0325`). `@param`, `@return` and `@throws` need a sentence after them (`E0139`), and an
+`@param` cannot contain a type (`E0138`). Any other tag, such as `@since`, does not compile (`E0128`).
 
 A `///` comment must be directly above a class, a constant, a property, a method or an enum case. If it
 is above a statement, above a blank line or at the end of the file, the program does not compile

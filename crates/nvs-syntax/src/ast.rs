@@ -1626,32 +1626,73 @@ pub struct DocComment {
     pub span: Span,
     /// The run's lines, in source order. Never empty.
     pub lines: Vec<Span>,
-    /// The `@see` and `@example` lines, in source order. Any other tag was
-    /// refused where it was written, so this holds only the two.
+    /// The tag lines, in source order. A tag outside the closed set was
+    /// refused where it was written, so this holds only the five kinds.
     pub tags: Vec<DocTag>,
 }
 
-/// One tag line of a [`DocComment`]
-/// (`rule:tooling/doc-comment-tags-are-see-and-example`).
+/// One tag of a [`DocComment`]
+/// (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
+///
+/// Which span each kind fills:
+///
+/// | kind | `argument` | `target` | `text` |
+/// |---|---|---|---|
+/// | `@see` | the member | `None` | empty, at the line's end |
+/// | `@example` | the path | `None` | empty, at the line's end |
+/// | `@param` | all after the tag | `$name`, its `$` included | after `$name` |
+/// | `@return` | all after the tag | `None` | all after the tag |
+/// | `@throws` | all after the tag | the class name | after the name |
+///
+/// The `text` of `@param`, `@return` and `@throws` runs on over each following
+/// `///` line that is neither a tag nor blank, so it may cover several lines,
+/// markers included. A reader of the prose skips every line from `span`'s
+/// start through `text`'s end, and strips the markers inside `text` itself.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocTag {
-    /// Which of the two this is.
+    /// Which of the five this is.
     pub kind: DocTagKind,
-    /// The `@` through the end of the line.
+    /// The `@` through the end of the tag's own line.
     pub span: Span,
-    /// What the tag names — a member for `@see`, a path for `@example` — with
-    /// the whitespace around it already off. Empty where nothing was written
-    /// after the tag, which the check that resolves it answers rather than the
-    /// grammar: a tag naming nothing and a tag naming something absent are the
-    /// same mistake and deserve the same diagnostic.
+    /// Everything written after the tag name on its own line, with the
+    /// whitespace around it already off. Empty where nothing was written
+    /// after the tag, which for `@see` and `@example` the check that resolves
+    /// it answers rather than the grammar: a tag naming nothing and a tag
+    /// naming something absent are the same mistake and deserve the same
+    /// diagnostic.
     pub argument: Span,
+    /// The `$name` of an `@param` or the class of an `@throws`. `None` for the
+    /// other three kinds, and for an `@param` or `@throws` that names nothing.
+    pub target: Option<Span>,
+    /// The sentence of an `@param`, `@return` or `@throws`, from its first
+    /// word through the end of its last continuation line.
+    pub text: Span,
+}
+
+impl DocTag {
+    /// The tag's text with each continuation line's `///` and indentation off,
+    /// the lines joined by one space.
+    #[must_use]
+    pub fn text_in(&self, source: &str) -> String {
+        source
+            .get(self.text.start as usize..self.text.end as usize)
+            .unwrap_or_default()
+            .lines()
+            .map(|line| {
+                let line = line.trim_start();
+                line.strip_prefix(crate::DOC_MARKER).unwrap_or(line).trim()
+            })
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 }
 
 /// The closed set of doc-comment tags.
 ///
 /// Deliberately not `#[non_exhaustive]`, for
 /// [`TriviaKind`](crate::TriviaKind)'s reason: the set is closed by
-/// `rule:tooling/doc-comment-tags-are-see-and-example`, and a third tag has to
+/// `rule:tooling/doc-comment-tags-are-closed-and-checked`, and a sixth tag has to
 /// fail to compile everywhere one is read rather than fall into a `_` arm that
 /// renders it as prose.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1661,11 +1702,23 @@ pub enum DocTagKind {
     /// `@example <path>` — a file that must exist and must be one the test
     /// corpus walks, so it cannot stop compiling unnoticed.
     Example,
+    /// `@param $name text` — what one parameter means.
+    Param,
+    /// `@return text` — what the returned value means.
+    Return,
+    /// `@throws Name text` — a `Throwable` the call may throw, and when.
+    Throws,
 }
 
 impl DocTagKind {
     /// Every tag, in the order the rule lists them.
-    pub const ALL: [Self; 2] = [Self::See, Self::Example];
+    pub const ALL: [Self; 5] = [
+        Self::See,
+        Self::Example,
+        Self::Param,
+        Self::Return,
+        Self::Throws,
+    ];
 
     /// The tag's name, as written after its `@`.
     #[must_use]
@@ -1673,7 +1726,16 @@ impl DocTagKind {
         match self {
             Self::See => "see",
             Self::Example => "example",
+            Self::Param => "param",
+            Self::Return => "return",
+            Self::Throws => "throws",
         }
+    }
+
+    /// Whether the tag carries a sentence that a following line may continue.
+    #[must_use]
+    pub const fn has_text(self) -> bool {
+        matches!(self, Self::Param | Self::Return | Self::Throws)
     }
 
     /// The tag written as `name` after an `@`, if it is one.

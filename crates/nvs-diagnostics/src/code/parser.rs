@@ -203,16 +203,17 @@ codes! {
         "This doc comment (`///`) has no declaration under it. A doc comment must be directly \
          above a declaration, with no blank line between them. For a normal note, write `//`.",
     );
-    /// An `@tag` at the start of a doc comment line that is neither `@see` nor
-    /// `@example` — `rule:tooling/doc-comment-tags-are-see-and-example`. One
-    /// code for every rejected spelling, with the help naming what to write
-    /// instead, because the answer for `@param` and the answer for an invented
-    /// tag differ in wording and not in kind: the set is closed, and this
+    /// An `@tag` at the start of a doc comment line that is not one of the
+    /// five — `rule:tooling/doc-comment-tags-are-closed-and-checked`. One code
+    /// for every rejected spelling, with the help naming what to write instead,
+    /// because the answer for `@returns` and the answer for an invented tag
+    /// differ in wording and not in kind: the set is closed, and this
     /// diagnostic is the entire difference between a closed set and a
-    /// convention.
+    /// convention. `@returns` alone carries a fix, the rewrite to `@return`.
     pub const E_DOC_COMMENT_UNKNOWN_TAG: Code = Code::new("E0128").card(
-        "A doc comment allows only two tags: `@see` and `@example`. Delete this tag, and write \
-         what it says as normal text.",
+        "A doc comment allows only five tags: `@see`, `@example`, `@param`, `@return` and \
+         `@throws`. Write `@return`, not `@returns`. For any other tag, delete it and write what \
+         it says as normal text.",
     );
     /// The right side of a `|>` with no `$_` in it — the help names the shape
     /// (`Str::trim($_)`), and when the right side is a method reference
@@ -308,5 +309,23 @@ codes! {
     pub const E_METHOD_REF_DROPPED: Code = Code::new("E0137").card(
         "This statement is a method reference, and it does nothing. To call the method, add \
          `()`, for example `Cache::flush()`.",
+    );
+    /// An `@param` whose first word is not `$name` —
+    /// `rule:tooling/doc-comment-tags-are-closed-and-checked`. A tag never
+    /// carries a type, so `@param int $x` and `@param {int} $x` get a fix that
+    /// deletes everything before the `$`, as does a variadic's `...`. An
+    /// `@param` with no `$name` anywhere has nothing to fix toward.
+    pub const E_DOC_PARAM_NAME_FIRST: Code = Code::new("E0138").card(
+        "Write the parameter's name directly after `@param`, for example \
+         `@param $cents the amount, in cents`. Do not write a type: the type is in the function's \
+         signature. Write a variadic parameter as `$name`, without `...`.",
+    );
+    /// An `@param`, `@return` or `@throws` with no sentence after it —
+    /// `rule:tooling/doc-comment-tags-are-closed-and-checked`. No fix: a fix
+    /// never writes a sentence, and this is the error a newly inserted
+    /// `@param` line shows until its author writes one.
+    pub const E_DOC_TAG_HAS_NO_TEXT: Code = Code::new("E0139").card(
+        "An `@param`, `@return` or `@throws` tag needs a sentence after it. Write what the \
+         parameter means, what the returned value means, or when the error is thrown.",
     );
 }

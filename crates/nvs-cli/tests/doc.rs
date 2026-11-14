@@ -45,7 +45,7 @@ echo $page->line()->render() . "\n";
 "#;
 
 /// One class carrying two of each tag, which
-/// `rule:tooling/doc-comment-tags-are-see-and-example` allows and a card
+/// `rule:tooling/doc-comment-tags-are-closed-and-checked` allows and a card
 /// therefore carries as lists. `Core\Str::length` is the target with no page in
 /// this run, so the rendered line has one of each kind in it.
 const REPEATED_TAGS: &str = r#"<?nvs
@@ -228,7 +228,7 @@ fn nvs_doc_renders_a_see_target_as_a_link() {
 
 #[test]
 fn nvs_doc_renders_every_see_and_every_example() {
-    // `rule:tooling/doc-comment-tags-are-see-and-example`: both tags repeat, so
+    // `rule:tooling/doc-comment-tags-are-closed-and-checked`: both tags repeat, so
     // a card carries lists and the page renders each list on one line, in the
     // order the tags were written. A renderer that read the first of each would
     // drop the rest silently, which is the one failure a single-tag page cannot

@@ -49,7 +49,7 @@
     "tooling/fmt-exit-status-says-what-it-found",
     "tooling/doc-comment-is-three-slashes",
     "tooling/doc-comment-attaches-to-the-next-declaration",
-    "tooling/doc-comment-tags-are-see-and-example",
+    "tooling/doc-comment-tags-are-closed-and-checked",
     "tooling/strict-docs",
     "tooling/a-todo-is-a-comment-the-tools-list",
     "tooling/nvs-doc-renders-and-decides-nothing",

@@ -13,7 +13,7 @@ public function charge(uint $cents): void { … }
 ```
 
 The comment documents the declaration it precedes (`rule:tooling/doc-comment-attaches-to-the-next-declaration`),
-its body is Markdown plus two tags (`rule:tooling/doc-comment-tags-are-see-and-example`), and it belongs
+its body is Markdown plus five tags (`rule:tooling/doc-comment-tags-are-closed-and-checked`), and it belongs
 to *Novis* source only: a `Core` member is Rust and documents itself in the registry
 (`rule:core-api/reference-card`), so it never carries one. There is no module-level doc spelling either — a
 file's declarations are its surface, and the class is the unit.

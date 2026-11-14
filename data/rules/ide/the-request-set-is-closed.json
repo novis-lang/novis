@@ -6,7 +6,7 @@
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
     "ide/diagnostics-are-phase-gated",
     "ide/the-index-answers-the-cursor",
-    "tooling/doc-comment-tags-are-see-and-example",
+    "tooling/doc-comment-tags-are-closed-and-checked",
     "ide/every-feature-is-staged-behind-its-dependency",
     "ide/five-features-are-one-reference-index",
     "ide/used-by-counts-the-routes-and-tests-that-reach-a-method"

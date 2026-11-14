@@ -201,7 +201,7 @@ mod tests {
     /// registry. A code allocated into a hole leaves this test failing.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
-        assert_eq!(code::E_METHOD_REF_DROPPED.as_str(), "E0137");
+        assert_eq!(code::E_DOC_TAG_HAS_NO_TEXT.as_str(), "E0139");
 
         let mut band = parser_band();
         assert!(band.len() > 3, "the band did not parse: {band:?}");
@@ -211,7 +211,7 @@ mod tests {
         assert_eq!(band, unique, "two parser-band codes share a number");
         assert_eq!(
             band.pop(),
-            Some(37),
+            Some(39),
             "the newest code is no longer the band's highest, so the number after \
              it is no longer the next free one",
         );

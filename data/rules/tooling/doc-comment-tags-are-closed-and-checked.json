@@ -1,9 +1,12 @@
 {
-  "title": "A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic",
+  "title": "A doc comment is Markdown plus five checked tags, `@see`, `@example`, `@param`, `@return` and `@throws`, none of which carries a type, and any other `@tag` is a diagnostic",
   "status": "shipped",
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",
     "tooling/meta-json-takes-a-program",
+    "tooling/strict-docs",
+    "tooling/fmt-is-never-a-diagnostic",
+    "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
     "attributes/inert-metadata",
     "security/capability-check-at-the-door",
     "types/callable-signature",
@@ -11,7 +14,7 @@
   ],
   "guardedBy": [
     "crates/nvs-syntax/tests/doc_comments.rs",
-    "tests/conformance/syntax/doc-comment/a-tag-that-is-not-see-or-example-is-a-diagnostic.nvst",
+    "tests/conformance/syntax/doc-comment/a-tag-outside-the-five-is-a-diagnostic.nvst",
     "tests/conformance/syntax/doc-comment/a-see-that-names-no-member-is-a-diagnostic.nvst"
   ]
 }

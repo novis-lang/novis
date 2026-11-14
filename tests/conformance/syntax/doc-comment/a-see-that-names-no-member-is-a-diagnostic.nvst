@@ -1,8 +1,8 @@
 --TEST--
-An `@see` whose target no class declares is `E0323`, resolved against the same member table a `Class::member` reference is — `rule:tooling/doc-comment-tags-are-see-and-example`
+An `@see` whose target no class declares is `E0323`, resolved against the same member table a `Class::member` reference is — `rule:tooling/doc-comment-tags-are-closed-and-checked`
 --FILE--
 <?nvs
-// `rule:tooling/doc-comment-tags-are-see-and-example`: `@see` names a member
+// `rule:tooling/doc-comment-tags-are-closed-and-checked`: `@see` names a member
 // the compiler can find, so a name nothing declares is a diagnostic rather
 // than a link that quietly goes nowhere.
 /// Every entry this ledger has taken.

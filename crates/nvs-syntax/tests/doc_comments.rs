@@ -5,7 +5,7 @@
 //! subject. The lexer's half — which comment is a doc comment at all — is
 //! `trivia.rs`, and these cases take it as settled.
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap, Span, code};
+use nvs_diagnostics::{Code, Diagnostic, Diagnostics, SourceMap, Span, code};
 use nvs_syntax::ast::{ClassMemberKind, DocComment, DocTagKind, Stmt, StmtKind};
 use nvs_syntax::parse_file;
 
@@ -210,49 +210,180 @@ fn see_and_example_parse_as_tags() {
     );
 }
 
-/// `@param` is refused, and the help says the parameter goes in a sentence
-/// because its type is already in the signature.
+/// The `@param`, `@return` and `@throws` of one run, as (kind, target, text).
+fn tag_parts(map: &SourceMap, doc: &DocComment) -> Vec<(DocTagKind, Option<String>, String)> {
+    let source = map.file(doc.span.file).text();
+    doc.tags
+        .iter()
+        .map(|tag| {
+            (
+                tag.kind,
+                tag.target.map(|target| text(map, target).to_owned()),
+                tag.text_in(source),
+            )
+        })
+        .collect()
+}
+
+/// Every diagnostic this parse reported with `code`, as its headline and the
+/// text its first fix writes.
+fn reported(diags: &Diagnostics, code: Code) -> Vec<(String, Option<String>)> {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code))
+        .map(|d| {
+            let fix = d.suggestions.first().map(|fix| fix.replacement.clone());
+            (d.message.clone(), fix)
+        })
+        .collect()
+}
+
+/// `@param`, `@return` and `@throws` parse with the `$name` or class they
+/// target and the sentence after it. A following line that is neither a tag
+/// nor blank continues the sentence, and a blank line ends it.
 #[test]
-fn param_is_refused_naming_the_signature() {
-    let (_, doc, diags) = doc_above_a_class("/// Charges a card.\n/// @param $cents the amount");
+fn param_return_and_throws_parse_with_their_text() {
+    let (map, doc, diags) = doc_above_a_class(concat!(
+        "/// Charges a card.\n",
+        "///\n",
+        "/// @param $cents the amount, in cents\n",
+        "/// @param $card the card to charge;\n",
+        "///   it must not be expired\n",
+        "/// @return the ledger id\n",
+        "/// @throws Shop\\CardDeclined when the bank declines it\n",
+        "/// @see Core\\Str"
+    ));
+    assert!(!diags.has_errors(), "unexpected diagnostics: {diags:?}");
+    assert_eq!(
+        tag_parts(&map, &doc),
+        [
+            (
+                DocTagKind::Param,
+                Some("$cents".into()),
+                "the amount, in cents".into()
+            ),
+            (
+                DocTagKind::Param,
+                Some("$card".into()),
+                "the card to charge; it must not be expired".into()
+            ),
+            (DocTagKind::Return, None, "the ledger id".into()),
+            (
+                DocTagKind::Throws,
+                Some("Shop\\CardDeclined".into()),
+                "when the bank declines it".into()
+            ),
+            (DocTagKind::See, None, String::new()),
+        ],
+    );
+
+    let (map, doc, _) = doc_above_a_class(concat!(
+        "/// @return the total\n",
+        "///\n",
+        "/// A paragraph after a blank line is prose."
+    ));
+    assert_eq!(
+        tag_parts(&map, &doc)[0].2,
+        "the total",
+        "a blank line ends the text"
+    );
+}
+
+/// A type before the `$name`, PHPDoc's or JSDoc's, is `E0138`, and its fix
+/// deletes the type. The tag is still read as if the fix were applied. An
+/// `@param` with no `$name` at all has no fix.
+#[test]
+fn a_type_before_the_parameter_name_is_a_diagnostic() {
+    for written in [
+        "int $cents",
+        "{int} $cents",
+        "?int|string $cents",
+        "...$cents",
+    ] {
+        let (map, doc, diags) =
+            doc_above_a_class(&format!("/// Charges.\n/// @param {written} the amount"));
+        let refused = reported(&diags, code::E_DOC_PARAM_NAME_FIRST);
+        assert_eq!(refused.len(), 1, "{written}: {diags:?}");
+        assert_eq!(
+            refused[0].1.as_deref(),
+            Some(""),
+            "{written}: the fix deletes the type"
+        );
+        assert_eq!(
+            tag_parts(&map, &doc),
+            [(
+                DocTagKind::Param,
+                Some("$cents".into()),
+                "the amount".into()
+            )],
+            "{written}"
+        );
+    }
+    let (_, _, diags) = doc_above_a_class("/// Charges.\n/// @param cents the amount");
+    assert_eq!(
+        reported(&diags, code::E_DOC_PARAM_NAME_FIRST),
+        [("`@param` names no parameter".to_owned(), None)]
+    );
+}
+
+/// An `@param`, `@return` or `@throws` with no sentence is `E0139`, and no fix
+/// writes one. A continuation line counts as the sentence.
+#[test]
+fn a_tag_with_no_text_is_a_diagnostic() {
+    for (written, message) in [
+        ("@param $cents", "`@param $cents` has no text"),
+        ("@return", "`@return` has no text"),
+        (
+            "@throws Shop\\CardDeclined",
+            "`@throws Shop\\CardDeclined` has no text",
+        ),
+        ("@throws", "`@throws` names no class"),
+    ] {
+        let (_, _, diags) = doc_above_a_class(&format!("/// Charges.\n/// {written}"));
+        assert_eq!(
+            reported(&diags, code::E_DOC_TAG_HAS_NO_TEXT),
+            [(message.to_owned(), None)],
+            "{written}"
+        );
+    }
+    let (_, _, diags) = doc_above_a_class("/// @return\n///   the ledger id");
+    assert!(
+        !diags.has_errors(),
+        "a continuation line is the text: {diags:?}"
+    );
+}
+
+/// `@returns` is `E0128`, and its fix rewrites it to `@return`.
+#[test]
+fn returns_is_spelled_return() {
+    let (map, doc, diags) = doc_above_a_class("/// Charges a card.\n/// @returns the price");
     assert!(doc.tags.is_empty(), "a refused tag is not kept as one");
     let (message, help) = only_refused_tag(&diags);
-    assert_eq!(message, "`@param` is not a documentation tag");
-    assert!(help.contains("signature"), "help was {help:?}");
-}
-
-/// `@returns` — and `@return`, the other spelling — is refused for the same
-/// reason: the type is in the signature.
-#[test]
-fn returns_is_refused_naming_the_signature() {
-    for tag in ["returns", "return"] {
-        let (_, _, diags) =
-            doc_above_a_class(&format!("/// Charges a card.\n/// @{tag} the price"));
-        let (message, help) = only_refused_tag(&diags);
-        assert_eq!(message, format!("`@{tag}` is not a documentation tag"));
-        assert!(help.contains("signature"), "help was {help:?}");
-    }
-}
-
-/// `@throws` is refused naming the prose — for user code a sentence, and for a
-/// `Core` member the registry card that already carries it.
-#[test]
-fn throws_is_refused_naming_the_prose() {
-    let (_, _, diags) = doc_above_a_class("/// Charges a card.\n/// @throws Core\\Error\\Invalid");
-    let (message, help) = only_refused_tag(&diags);
-    assert_eq!(message, "`@throws` is not a documentation tag");
-    assert!(help.contains("sentence"), "help was {help:?}");
+    assert_eq!(message, "`@returns` is not a documentation tag");
+    assert_eq!(help, "write `@return`");
+    let refused = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_DOC_COMMENT_UNKNOWN_TAG))
+        .expect("the tag was refused");
+    let fix = &refused.suggestions[0];
+    assert_eq!(
+        (text(&map, fix.span), fix.replacement.as_str()),
+        ("returns", "return")
+    );
 }
 
 /// A tag nobody has ever written is refused exactly like the ones PHPDoc
-/// taught, and the help is the rule: the set is two.
+/// taught, and the help is the rule: the set is five.
 #[test]
 fn an_invented_tag_is_refused() {
     let (map, doc, diags) = doc_above_a_class("/// A page.\n/// @audience internal");
     assert!(doc.tags.is_empty(), "a refused tag is not kept as one");
     let (message, help) = only_refused_tag(&diags);
     assert_eq!(message, "`@audience` is not a documentation tag");
-    assert!(help.contains("`@see` and `@example`"), "help was {help:?}");
+    assert!(
+        help.contains("`@return` and `@throws`"),
+        "help was {help:?}"
+    );
     assert_eq!(
         text(&map, doc.lines[1]),
         "/// @audience internal",

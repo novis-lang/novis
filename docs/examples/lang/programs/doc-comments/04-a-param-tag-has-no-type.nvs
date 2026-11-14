@@ -1,5 +1,5 @@
 <?nvs
-// Shows that `@param` is not a tag in a doc comment, so this program does not
+// Shows that an `@param` tag cannot contain a type, so this program does not
 // compile. The signature already gives the type of `$cents`.
 // proof: compile-error
 

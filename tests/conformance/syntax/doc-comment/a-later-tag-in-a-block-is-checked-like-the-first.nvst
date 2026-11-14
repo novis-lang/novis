@@ -1,8 +1,8 @@
 --TEST--
-A `@see` and an `@example` past the first line of a block are checked exactly as the opening one is, so no tag rots behind a good one — `rule:tooling/doc-comment-tags-are-see-and-example`
+A `@see` and an `@example` past the first line of a block are checked exactly as the opening one is, so no tag rots behind a good one — `rule:tooling/doc-comment-tags-are-closed-and-checked`
 --FILE--
 <?nvs
-// `rule:tooling/doc-comment-tags-are-see-and-example`: every tag of a block is
+// `rule:tooling/doc-comment-tags-are-closed-and-checked`: every tag of a block is
 // resolved, not just the one that opens it. The first `@see` and the first
 // `@example` here are good, and the two under them are the diagnostics.
 /// A ledger, documented with one target that resolves and one that does not.
