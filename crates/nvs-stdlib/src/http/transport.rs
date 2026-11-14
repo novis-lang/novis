@@ -3530,13 +3530,18 @@ pub(crate) mod tests {
     }
 
     /// A call to `at` with one attempt, no redirects and a generous deadline.
+    ///
+    /// Under Miri one exchange takes most of a minute on CI's runner, and the
+    /// test runner stops a case at five minutes. The deadline there is an hour,
+    /// so no case that waits on its origin can meet it first. A case that is
+    /// about the deadline sets its own.
     pub(crate) fn call<'a>(at: SocketAddr, member: &'a str) -> Call<'a> {
         Call {
             member,
             verb: "GET",
             url: format!("http://{at}/ok"),
             addresses: vec![at.ip()],
-            deadline: Instant::now() + Duration::from_secs(10),
+            deadline: Instant::now() + Duration::from_secs(if cfg!(miri) { 3600 } else { 10 }),
             connect_timeout: Duration::from_secs(5),
             // Longer than [`ORIGIN_READ_WAIT`], which is how long an origin
             // waits before it closes the connection that ends a body.

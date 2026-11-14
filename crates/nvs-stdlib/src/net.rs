@@ -2506,11 +2506,16 @@ mod tests {
     fn no_door_dispatches_on_a_url_scheme() {
         const GRANTED: &str = "[capabilities.net]\nconnect = true\nlisten = true\n";
 
+        // Under Miri only the first URL is asked of the five doors. Each
+        // refusal takes Miri seconds, and the three URLs are fifteen of them.
         for written in [
             "unix:/run/novis/app.sock",
             "tcp://127.0.0.1:80",
             "php://filter/read=convert.base64-encode/resource=/etc/passwd",
-        ] {
+        ]
+        .into_iter()
+        .take(if cfg!(miri) { 1 } else { 3 })
+        {
             let mut ctx = Ctx::buffered();
             ctx.set_config(crate::tests::granting(GRANTED));
             let args = [Value::text(written), Value::uint(80), a_second()];

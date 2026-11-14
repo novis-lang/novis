@@ -2495,7 +2495,10 @@ mod tests {
         let table = descriptors();
         let resolve = nvs_runtime::Receiving::over(None, Some(core_class_desc));
         let mut neither = Vec::new();
-        for (name, id) in &table.by_name {
+        // Under Miri every eighth descriptor is walked, spread over the whole
+        // table. Each one is a decode per slot, which Miri runs for minutes over
+        // the whole table.
+        for (name, id) in table.by_name.iter().step_by(if cfg!(miri) { 8 } else { 1 }) {
             #[expect(
                 unsafe_code,
                 reason = "the leaked table owns the descriptor for the whole process"

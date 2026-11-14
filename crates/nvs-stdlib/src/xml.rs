@@ -5534,13 +5534,13 @@ mod tests {
     /// A document of a million empty elements builds a Rust tree some thirty
     /// times its own size. The parse asks the budget as it builds, so the
     /// request stops near its ceiling instead of holding that whole tree first.
-    /// Under Miri the document is a twentieth of that and the ceiling 1 MiB, so
+    /// Under Miri the document is a fortieth of that and the ceiling 512 KiB, so
     /// the tree it would build is still six times the ceiling.
     // covers: Core\Xml::parse
     #[test]
     fn a_parse_stops_at_the_memory_limit_while_it_builds_the_tree() {
         let (elements, limit) = if cfg!(miri) {
-            (50_000, 1 << 20)
+            (25_000, 1 << 19)
         } else {
             (1_000_000, 16 << 20)
         };

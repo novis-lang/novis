@@ -776,7 +776,10 @@ mod tests {
                 pair[1].0
             );
         }
-        let checked = if cfg!(miri) { 16 } else { reported.len() };
+        // Under Miri four variables are read back one at a time. Each read
+        // makes a context of its own, which takes Miri about a second, and CI's
+        // runner has over a hundred variables.
+        let checked = if cfg!(miri) { 4 } else { reported.len() };
         for (name, value) in reported.iter().take(checked) {
             let platform = platform(name)
                 .unwrap_or_else(|| panic!("`all` reported {name:?}, which the platform does not"));

@@ -3735,11 +3735,19 @@ mod tests {
         // links may write to neither stream, so the detail a counting test owes
         // its reader rides on the assertion itself
         // (`rule:ide/stdout-belongs-to-the-protocol`).
+        // Under Miri every fourth payload runs, which still reaches each group
+        // of the corpus. Each payload is three parses, which Miri runs for
+        // seconds each.
+        let corpus: Vec<&str> = CORPUS
+            .iter()
+            .step_by(if cfg!(miri) { 4 } else { 1 })
+            .copied()
+            .collect();
         let mut mutating = Vec::new();
         let mut escaping = Vec::new();
         let mut closed = 0;
         let mut fixed = 0;
-        for payload in CORPUS {
+        for payload in &corpus {
             let once = cleaned(payload);
             let twice = cleaned(&once);
             if once == twice {
@@ -3778,13 +3786,13 @@ mod tests {
 
         assert_eq!(
             fixed,
-            CORPUS.len(),
+            corpus.len(),
             "sanitizing an answer again must change nothing, or the document \
              approved is not the document that renders: {mutating:?}"
         );
         assert_eq!(
             closed,
-            CORPUS.len(),
+            corpus.len(),
             "the reparse of an answer holds nothing outside the allowlist: {escaping:?}"
         );
     }
@@ -3880,10 +3888,10 @@ mod tests {
     // covers: Core\Html::parse
     #[test]
     fn many_siblings_stop_at_the_memory_limit_before_the_arena_doubles() {
-        // Under Miri, 4,000 line breaks build an arena of about 560 KB, more than
-        // twice the 256 KiB limit.
+        // Under Miri, 2,000 line breaks build an arena of about 280 KB, more than
+        // twice the 128 KiB limit.
         let (count, limit) = if cfg!(miri) {
-            (4_000, 1 << 18)
+            (2_000, 1 << 17)
         } else {
             (500_000, 8 << 20)
         };

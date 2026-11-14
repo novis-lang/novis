@@ -1374,8 +1374,12 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn a_long_subject_is_folded_and_unfolds_to_itself() {
-        let plain = "word ".repeat(400);
-        let encoded = "é\r\nBcc: x@example.com ".repeat(300);
+        // Under Miri the two subjects with spaces are a quarter as long, which
+        // is still many folds. The unbroken one keeps its 1,200 bytes, past the
+        // 998 a server takes on one line.
+        let times = if cfg!(miri) { 1 } else { 4 };
+        let plain = "word ".repeat(100 * times);
+        let encoded = "é\r\nBcc: x@example.com ".repeat(75 * times);
         let unbroken = "x".repeat(1200);
         for subject in [plain.as_str(), encoded.as_str(), unbroken.as_str()] {
             let line = subject_line(subject);

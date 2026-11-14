@@ -584,6 +584,11 @@ mod tests {
     /// exists for, run once rather than left to whichever program first calls
     /// the missing one.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "looks up every registered symbol by name, which Miri runs for minutes, and \
+                  the registry is a constant with no smaller size"
+    )]
     fn every_registered_member_has_an_implementation_address() {
         let symbols = symbols();
         assert_eq!(

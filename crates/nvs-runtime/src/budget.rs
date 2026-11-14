@@ -2204,14 +2204,15 @@ mod tests {
     /// grow to 64 MiB in one call, stops near its ceiling, and records the
     /// breach the request's next poll reports.
     ///
-    /// Under Miri, the ceiling is 16 KiB and each is asked for 256 KiB, still
-    /// sixteen times the ceiling. Every append past the ceiling is refused one
-    /// at a time, and Miri runs 65,536 of them past nextest's 300 s timeout.
+    /// Under Miri, the ceiling is 16 KiB and each is asked for 64 KiB, still
+    /// four times the ceiling. Every append past the ceiling is refused one at
+    /// a time: 65,536 of them ran past nextest's 300 s timeout under Miri, and
+    /// 16,384 took about three minutes on CI.
     mod a_buffer_stops_at_its_ceiling {
         use crate::budget::{ByteWriter, Stopped};
 
         const CEILING: usize = if cfg!(miri) { 16 << 10 } else { 1 << 20 };
-        const ASKED: usize = if cfg!(miri) { 256 << 10 } else { 64 << 20 };
+        const ASKED: usize = if cfg!(miri) { 64 << 10 } else { 64 << 20 };
 
         #[test]
         fn an_array_a_producer_fills_stops_growing_at_the_ceiling() {
