@@ -2,12 +2,12 @@
 looper: 1
 title: "a doc comment describes each parameter, the return value and the errors"
 summary: "Reached when @param, @return and @throws are checked doc comment tags that never repeat a type, the editor completes, fixes, renames and shows them, nvs meta --json and nvs doc print them in the Core card's shape, and the feature has its proofs."
-context: [docs/rules/tooling/doc-comment-tags-are-see-and-example.md, crates/nvs-syntax/src/ast.rs, crates/nvs-hir/src/members.rs]
+context: [docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md, crates/nvs-syntax/src/ast.rs, crates/nvs-hir/src/members.rs]
 stages:
   - id: 1
     title: the rule and the parser know five tags, and a tag never carries a type
-    status: open
-    context: [crates/nvs-syntax/src/parser/mod.rs, crates/nvs-diagnostics/src/code/parser.rs, crates/nvs-syntax/tests/doc_comments.rs, docs/rules/tooling/strict-docs.md, tests/conformance/syntax/doc-comment/a-tag-that-is-not-see-or-example-is-a-diagnostic.nvst]
+    status: done
+    context: [crates/nvs-syntax/src/parser/mod.rs, crates/nvs-diagnostics/src/code/parser.rs, crates/nvs-syntax/tests/doc_comments.rs, docs/rules/tooling/strict-docs.md, tests/conformance/syntax/doc-comment/a-tag-outside-the-five-is-a-diagnostic.nvst]
   - id: 2
     title: the checker holds every tag to the signature, and each mistake carries its fix
     status: open
@@ -225,21 +225,21 @@ It raises the parser's diagnostics: a type before `$name`, an empty text, and `@
 **Split:** an `Explore` subagent lists every citation of `tooling/doc-comment-tags-are-see-and-example`
 across `docs/`, `crates/`, `tools/` and `data/`, as `path:line`.
 
-- [ ] `docs/rules/tooling/doc-comment-tags-are-see-and-example.md:1` renamed to
+- [x] `docs/rules/tooling/doc-comment-tags-are-see-and-example.md:1` renamed to
   `doc-comment-tags-are-closed-and-checked.md` and rewritten from § *Standing decisions*, with every
   citation the subagent lists updated. `strict-docs.md:19` says the same about autofixes with the new
   tags, and `bun nv rules --check` is green.
-- [ ] `crates/nvs-syntax/src/ast.rs:1658`: `DocTagKind` gains `Param`, `Return` and `Throws`, and
+- [x] `crates/nvs-syntax/src/ast.rs:1658`: `DocTagKind` gains `Param`, `Return` and `Throws`, and
   `ALL` lists five. `DocTag` gains `target: Option<Span>` (the `$name` or the class) and `text: Span`,
   and its doc comment says which kind fills which.
-- [ ] `crates/nvs-syntax/src/parser/mod.rs:417`: `doc_tags` parses the three, joins a continuation
+- [x] `crates/nvs-syntax/src/parser/mod.rs:417`: `doc_tags` parses the three, joins a continuation
   line's text, and raises a type before `$name` and an empty text, each with its suggestion. Then
   `report_unknown_doc_tag` at `:462` drops `param` and `throws` and gives `returns` its suggestion.
   `E0128`'s card at `crates/nvs-diagnostics/src/code/parser.rs:213` names five tags.
-- [ ] Every `match` on `DocTagKind` builds, so each reader takes the new arms. `members.rs:739`,
+- [x] Every `match` on `DocTagKind` builds, so each reader takes the new arms. `members.rs:739`,
   `meta.rs:1415`, `doc.rs:300` and `completion.rs:1781` give them a no-op arm for now. Stages 2 to 4
   fill them in.
-- [ ] `crates/nvs-syntax/tests/doc_comments.rs:216`: the refusals of `@param`, `@returns` and `@throws`
+- [x] `crates/nvs-syntax/tests/doc_comments.rs:216`: the refusals of `@param`, `@returns` and `@throws`
   are rewritten into the four tests the `tags-parse` check names. `tests/conformance/syntax/doc-comment/a-tag-that-is-not-see-or-example-is-a-diagnostic.nvst:1`
   is renamed to `a-tag-outside-the-five-is-a-diagnostic.nvst` and uses `@since`.
 
@@ -309,9 +309,9 @@ file here is text an end user reads (`AGENTS.md` § *Text an end user reads*).
 **Split:** one writing subagent writes the examples and their `.out` files, and another the hostile
 case. Their files are disjoint. The session writes `about.md`, `details.md` and the reference pages.
 
-- [ ] `docs/examples/lang/programs/doc-comments/04-param-is-not-a-tag.nvs:1` and its `.out` are
-  replaced by `04-describe-parameters-return-and-errors.nvs`. A new
-  `05-a-tag-never-repeats-a-type.nvs:1` shows the error, with its `.out`.
+- [ ] `docs/examples/lang/programs/doc-comments/04-a-param-tag-has-no-type.nvs:1` and its `.out` are
+  renamed to `05-a-tag-never-repeats-a-type.nvs` and keep showing `E0138`. A new
+  `04-describe-parameters-return-and-errors.nvs` takes number 4, with its `.out`.
 - [ ] `docs/examples/lang/programs/doc-comments/about.md:1` and `details.md:1` say what the five tags
   do and what each checks, within about.md's length bound.
 - [ ] `tests/hostile/lang/programs/doc-comments/02-tags-that-point-at-code-that-is-not-there.nvs:1`:
@@ -331,12 +331,26 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
 
 ### State
 
-Written on 2026-11-14 from the person's decisions. Nothing is built yet.
+Stage 1 is done, and its `tags-parse` check is green. The rule is
+`docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md`, with every citation renamed.
+`DocTag` keeps `argument` (all after the tag on its own line) and gains `target` and `text`. The
+table on `DocTag` says which kind fills which. `text` spans continuation lines, markers included, and
+`DocTag::text_in` joins them. The parser raises `E0138` (a type or `...` before `$name`, fix deletes
+it, or no `$name` at all, no fix) and `E0139` (no text, no fix). `@returns` is `E0128` with a fix to
+`@return`. The example `04-param-is-not-a-tag` is now `04-a-param-tag-has-no-type` and shows `E0138`.
+The checker, `meta.rs`, `doc.rs`, hover and completion read the new kinds as no-ops.
+
+Expected red until its stage lands: `crates/nvs-lsp/tests/completion_edits.rs:1024`
+(`a_comment_offers_nothing_but_the_tags_of_a_doc_line`) now sees five tag names after `@`. Stage 4
+narrows the list per declaration and rewrites that assertion. `meta.rs`'s `prose` and hover's
+`markdown` still show a continuation line of a tag as prose, and stage 3 skips every line from a
+tag's `span.start` through its `text.end`. `docs/rules/tooling/meta-json-takes-a-program.md:13`
+still names only `see` and `example`, and stage 3 rewrites it with the card's shape.
 
 ### Next
 
-Stage 1, top to bottom. Its first item's citation list goes to an `Explore` subagent, and its last
-item's test rewrite at `crates/nvs-syntax/tests/doc_comments.rs:216` will go red until the parser
-lands.
+Stage 2, top to bottom, from `crates/nvs-hir/src/members.rs:734` (`check_doc`). The new codes go
+in `crates/nvs-diagnostics/src/code/names.rs:188` beside `E0323`. A parameter's `$name` is
+`tag.target`, its `$` included, and the text to check for a repeated type is `tag.text_in(src)`.
 
 ### Backlog
