@@ -1001,8 +1001,9 @@ class Shop {
     public function total(int $a): int { return $a; }
 ";
 
-/// A comment offers nothing, and the `@` of a doc comment's tag offers the two
-/// tags, each writing the space after it and opening the list again.
+/// A comment offers nothing, and the `@` of a doc comment's tag above a
+/// property offers the two tags a property takes, each writing the space after
+/// it and opening the list again.
 #[test]
 fn a_comment_offers_nothing_but_the_tags_of_a_doc_line() {
     for source in [
@@ -1018,7 +1019,8 @@ fn a_comment_offers_nothing_but_the_tags_of_a_doc_line() {
         assert_eq!(labels(source), Vec::<String>::new(), "`{source}`");
     }
     for written in ["@", "@s", "@ex"] {
-        let source = format!("<?nvs\nclass A {{\n    /// {written}");
+        let source =
+            format!("<?nvs\nclass A {{\n    /// {written}<|>\n    public int $x = 1;\n}}\n");
         let items = offered_to(EDITOR, &source);
         let names: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
         assert_eq!(names, ["@example", "@see"], "`{written}`");
@@ -1046,6 +1048,67 @@ fn a_comment_offers_nothing_but_the_tags_of_a_doc_line() {
             Some(Client::SUGGEST)
         );
     }
+}
+
+/// The `@` of a doc comment's tag offers only the tags the declaration under
+/// it takes: every tag above a method that returns a value, no `@return` above
+/// a `void` one, and all five above a run attached to nothing yet.
+#[test]
+fn a_doc_tag_is_offered_only_where_the_declaration_takes_it() {
+    let above = |declaration: &str| {
+        labels(&format!(
+            "<?nvs\nclass A {{\n    /// @<|>\n    {declaration}\n}}\n"
+        ))
+    };
+    let all = ["@example", "@param", "@return", "@see", "@throws"];
+    assert_eq!(
+        above("public function total(int $a): int { return $a; }"),
+        all
+    );
+    assert_eq!(
+        above("public function clear(int $a): void {}"),
+        ["@example", "@param", "@see", "@throws"]
+    );
+    assert_eq!(
+        above("public function constructor(int $a) {}"),
+        ["@example", "@param", "@see", "@throws"]
+    );
+    assert_eq!(labels("<?nvs\nclass A {\n    /// @"), all);
+}
+
+/// An `@param` target is offered the parameters no other `@param` documents,
+/// each writing `$name` and the space before its sentence, and an `@throws`
+/// target the classes that are a `Throwable`.
+#[test]
+fn a_param_and_a_throws_are_offered_their_targets() {
+    let source = "<?nvs
+class Declined extends RuntimeError {}
+class Shop {
+    /// Charges a card.
+    ///
+    /// @param $card the card
+    /// @param <|>
+    public function charge(int $cents, string $card, bool $retry): int { return $cents; }
+}
+";
+    let items = offered_to(EDITOR, source);
+    let names: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+    assert_eq!(names, ["$cents", "$retry"]);
+    let cents = named(&items, "$cents");
+    assert_eq!(cents.sort_text.as_deref(), Some("0"));
+    assert!(
+        matches!(&cents.text_edit, Some(CompletionTextEdit::Edit(edit)) if edit.new_text == "$cents "),
+        "{:?}",
+        cents.text_edit
+    );
+
+    let thrown = labels(&source.replace("@param <|>", "@throws <|>"));
+    assert!(thrown.iter().any(|name| name == "Declined"), "{thrown:?}");
+    assert!(
+        thrown.iter().any(|name| name == "RuntimeError"),
+        "{thrown:?}"
+    );
+    assert!(!thrown.iter().any(|name| name == "Shop"), "{thrown:?}");
 }
 
 /// A `@see` target is offered the types in reach, and after `Class::` every

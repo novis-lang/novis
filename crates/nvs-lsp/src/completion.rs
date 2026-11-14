@@ -354,8 +354,8 @@ use nvs_stdlib::registry::{
     self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
 };
 use nvs_syntax::ast::{
-    AutoloadKind, ClassMember, ClassMemberKind, DocTagKind, EnumCase, MethodMember, Modifier,
-    PropertyMember, StmtKind, Visibility,
+    AutoloadKind, ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumCase, MethodMember,
+    Modifier, PropertyMember, StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
@@ -453,6 +453,8 @@ pub fn at(
         Asked::AttributeKey(written, doc) => attribute_keys(&cursor, written, doc),
         Asked::DocTag(DocTag::Name(written)) => doc_tag_names(&cursor, written),
         Asked::DocTag(DocTag::See(start)) => see_targets(&cursor, start),
+        Asked::DocTag(DocTag::Param(start)) => param_targets(&cursor, start),
+        Asked::DocTag(DocTag::Throws(start)) => throws_targets(&cursor, start),
         Asked::DocTag(DocTag::Example(start)) => paths(
             &cursor,
             &WrittenPath {
@@ -1725,6 +1727,95 @@ enum DocTag {
     See(BytePos),
     /// The path of an `@example`, which starts at this byte.
     Example(BytePos),
+    /// The `$name` of an `@param`, which starts at this byte.
+    Param(BytePos),
+    /// The class of an `@throws`, which starts at this byte.
+    Throws(BytePos),
+}
+
+/// The declaration a `///` run documents, as far as which tags it takes.
+#[derive(Clone, Copy)]
+enum Documented<'a> {
+    /// A method, a constructor and an abstract or interface method included.
+    Method(&'a MethodMember),
+    /// A class, an interface, an enum, an enum case, a property, a constant or
+    /// a type alias, none of which takes `@param`, `@return` or `@throws`.
+    Other,
+    /// A run the parser attached to nothing, such as one above a declaration
+    /// still being written. Every tag is offered there.
+    Unknown,
+}
+
+impl Documented<'_> {
+    /// Whether the checker accepts a tag of `kind` on this declaration, read
+    /// the way `nvs_hir`'s doc check reads it: `@param` and `@throws` on a
+    /// method, and `@return` on a method that is no constructor and returns
+    /// neither `void` nor `never`.
+    fn takes(self, kind: DocTagKind, file: &SourceFile) -> bool {
+        match (self, kind) {
+            (_, DocTagKind::See | DocTagKind::Example) | (Self::Unknown, _) => true,
+            (Self::Other, _) => false,
+            (Self::Method(_), DocTagKind::Param | DocTagKind::Throws) => true,
+            (Self::Method(method), DocTagKind::Return) => {
+                let returns = method
+                    .return_type
+                    .as_ref()
+                    .map(|ty| text_of(file, ty.span).trim());
+                text_of(file, method.name) != "constructor"
+                    && !matches!(returns, Some("void" | "never"))
+            }
+        }
+    }
+}
+
+/// The declaration whose `///` run the cursor at `offset` is in.
+fn documented_at(analysed: &Analysed, offset: BytePos) -> Documented<'_> {
+    let stmts = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)
+        .map(|loaded| loaded.stmts.as_slice())
+        .unwrap_or_default();
+    documented_in(stmts, offset).unwrap_or(Documented::Unknown)
+}
+
+/// [`documented_at`]'s walk over `stmts`, a bracketed namespace's body
+/// included.
+fn documented_in<'a>(
+    stmts: &'a [nvs_syntax::ast::Stmt],
+    offset: BytePos,
+) -> Option<Documented<'a>> {
+    let covers = |doc: Option<&DocComment>| {
+        doc.is_some_and(|doc| doc.span.start <= offset && offset <= doc.span.end)
+    };
+    let in_members = |members: &'a [ClassMember]| {
+        members.iter().find_map(|member| {
+            if !covers(member.doc.as_ref()) {
+                return None;
+            }
+            Some(match &member.kind {
+                ClassMemberKind::Method(method) => Documented::Method(method),
+                _ => Documented::Other,
+            })
+        })
+    };
+    let in_cases = |cases: &'a [EnumCase]| {
+        cases
+            .iter()
+            .any(|case| covers(case.doc.as_ref()))
+            .then_some(Documented::Other)
+    };
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::NamespaceDecl(decl) => documented_in(&decl.body.as_ref()?.stmts, offset),
+        StmtKind::ClassDecl(decl) if covers(decl.doc.as_ref()) => Some(Documented::Other),
+        StmtKind::ClassDecl(decl) => in_members(&decl.members),
+        StmtKind::InterfaceDecl(decl) if covers(decl.doc.as_ref()) => Some(Documented::Other),
+        StmtKind::InterfaceDecl(decl) => in_members(&decl.members),
+        StmtKind::EnumDecl(decl) if covers(decl.doc.as_ref()) => Some(Documented::Other),
+        StmtKind::EnumDecl(decl) => in_cases(&decl.cases).or_else(|| in_members(&decl.members)),
+        StmtKind::TypeAliasDecl(decl) => covers(decl.doc.as_ref()).then_some(Documented::Other),
+        _ => None,
+    })
 }
 
 /// The comment the cursor at `offset` is writing inside, if it is in one.
@@ -1781,16 +1872,22 @@ fn doc_tag_at(analysed: &Analysed, comment: nvs_syntax::Trivia, offset: BytePos)
     match DocTagKind::named(name)? {
         DocTagKind::See => Some(DocTag::See(start)),
         DocTagKind::Example => Some(DocTag::Example(start)),
-        DocTagKind::Param | DocTagKind::Return | DocTagKind::Throws => None,
+        DocTagKind::Param => Some(DocTag::Param(start)),
+        DocTagKind::Throws => Some(DocTag::Throws(start)),
+        DocTagKind::Return => None,
     }
 }
 
-/// The five doc comment tags, each replacing the `written` bytes of one already
-/// typed. Accepting one writes the space after it and opens the list of its
-/// targets.
+/// The doc comment tags the declaration under the comment takes, each
+/// replacing the `written` bytes of one already typed: no `@param` above a
+/// property, and no `@return` above a method that returns `void`. Accepting
+/// one writes the space after it and opens the list of its targets.
 fn doc_tag_names(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
+    let documented = documented_at(cursor.analysed, cursor.offset);
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
     DocTagKind::ALL
         .into_iter()
+        .filter(|kind| documented.takes(*kind, file))
         .enumerate()
         .map(|(rank, kind)| {
             let tag = format!("@{}", kind.name());
@@ -1813,6 +1910,137 @@ fn doc_tag_names(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
                 arguments: None,
             }),
             ..item(tag, CompletionItemKind::KEYWORD, detail.to_owned())
+        })
+        .collect()
+}
+
+/// The parameters of the method under the comment that no other `@param` line
+/// documents yet, in signature order, for an `@param` target starting at
+/// `start`. Each item writes `$name` and the space before its sentence.
+fn param_targets(cursor: &Cursor<'_>, start: BytePos) -> Vec<CompletionItem> {
+    let analysed = cursor.analysed;
+    let Documented::Method(method) = documented_at(analysed, cursor.offset) else {
+        return Vec::new();
+    };
+    let file = analysed.map.file(analysed.entry);
+    let written = file
+        .text()
+        .get(start as usize..cursor.offset as usize)
+        .unwrap_or_default();
+    let documented: FxHashSet<&str> = documented_doc(analysed, cursor.offset)
+        .map(|doc| {
+            doc.tags
+                .iter()
+                .filter(|tag| tag.kind == DocTagKind::Param)
+                .filter(|tag| !(tag.span.start <= cursor.offset && cursor.offset <= tag.span.end))
+                .filter_map(|tag| tag.target)
+                .map(|target| text_of(file, target))
+                .collect()
+        })
+        .unwrap_or_default();
+    method
+        .params
+        .iter()
+        .map(|param| text_of(file, param.name))
+        .filter(|name| !documented.contains(name))
+        .enumerate()
+        .map(|(rank, name)| {
+            let detail = method
+                .params
+                .iter()
+                .find(|param| text_of(file, param.name) == name)
+                .and_then(|param| param.ty.as_ref())
+                .map_or_else(String::new, |ty| text_of(file, ty.span).to_owned());
+            CompletionItem {
+                text_edit: Some(cursor.replacing(written.len(), format!("{name} "))),
+                filter_text: Some(name.to_owned()),
+                sort_text: Some(rank.to_string()),
+                ..item(name.to_owned(), CompletionItemKind::VARIABLE, detail)
+            }
+        })
+        .collect()
+}
+
+/// The `///` run the cursor at `offset` is in, as the parser attached it to a
+/// member.
+fn documented_doc(analysed: &Analysed, offset: BytePos) -> Option<&DocComment> {
+    let stmts = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)
+        .map(|loaded| loaded.stmts.as_slice())
+        .unwrap_or_default();
+    member_doc_in(stmts, offset)
+}
+
+/// [`documented_doc`]'s walk over the members of each type in `stmts`.
+fn member_doc_in<'a>(
+    stmts: &'a [nvs_syntax::ast::Stmt],
+    offset: BytePos,
+) -> Option<&'a DocComment> {
+    let in_members = |members: &'a [ClassMember]| {
+        members.iter().find_map(|member| {
+            member
+                .doc
+                .as_ref()
+                .filter(|doc| doc.span.start <= offset && offset <= doc.span.end)
+        })
+    };
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::NamespaceDecl(decl) => member_doc_in(&decl.body.as_ref()?.stmts, offset),
+        StmtKind::ClassDecl(decl) => in_members(&decl.members),
+        StmtKind::InterfaceDecl(decl) => in_members(&decl.members),
+        StmtKind::EnumDecl(decl) => in_members(&decl.members),
+        _ => None,
+    })
+}
+
+/// The classes an `@throws` target starting at `start` may name: the types in
+/// reach that are a `Throwable`, read off the hierarchy walk the checker holds
+/// the tag to, and the language's own error classes.
+fn throws_targets(cursor: &Cursor<'_>, start: BytePos) -> Vec<CompletionItem> {
+    let written = cursor.upto().get(start as usize..).unwrap_or_default();
+    let graph = &cursor.analysed.module.graph;
+    let throwable = QName::parse(nvs_hir::errors::ROOT);
+    let language = |name: &str| {
+        name != nvs_hir::errors::FINISH_MARKER
+            && nvs_hir::errors::TREE
+                .iter()
+                .any(|(error, _)| *error == name)
+    };
+    let mut offered: Vec<CompletionItem> = in_reach(cursor, Spelled::WithoutImport)
+        .into_iter()
+        .filter(|found| {
+            found
+                .data
+                .as_ref()
+                .and_then(|data| data.get("type"))
+                .and_then(Value::as_str)
+                .is_some_and(|symbol| {
+                    language(symbol)
+                        || nvs_hir::hierarchy::implements_interface(
+                            &QName::parse(symbol),
+                            &throwable,
+                            graph,
+                        )
+                })
+        })
+        .collect();
+    for (name, _) in nvs_hir::errors::TREE {
+        if language(name) && !offered.iter().any(|found| found.label == *name) {
+            offered.push(item(
+                (*name).to_owned(),
+                CompletionItemKind::CLASS,
+                (*name).to_owned(),
+            ));
+        }
+    }
+    offered
+        .into_iter()
+        .map(|found| CompletionItem {
+            text_edit: Some(cursor.replacing(written.len(), found.label.clone())),
+            filter_text: Some(found.label.clone()),
+            ..found
         })
         .collect()
 }
