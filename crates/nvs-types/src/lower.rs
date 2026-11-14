@@ -1346,12 +1346,15 @@ mod tests {
 
     #[test]
     fn array_nesting_past_32_deep_is_diagnosed() {
+        // One `array<` more than `MAX_ARRAY_DEPTH`, so the `int` inside is
+        // lowered one level past the limit.
+        let levels = MAX_ARRAY_DEPTH + 1;
         let mut src = "<?nvs\ntype Probe = ".to_owned();
-        for _ in 0..40 {
+        for _ in 0..levels {
             src.push_str("array<");
         }
         src.push_str("int");
-        for _ in 0..40 {
+        for _ in 0..levels {
             src.push('>');
         }
         src.push_str(";\n");

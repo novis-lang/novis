@@ -881,13 +881,17 @@ fn a_malformed_switch_does_not_hang_or_grow_without_bound() {
 /// regresses, this crashes the test process rather than failing it
 /// cleanly.
 ///
-/// Under Miri the input is one order of magnitude past the limit, not two.
-/// What Miri checks here is the parse that runs once the guard has tripped,
-/// and a thousand levels reach that as surely as ten thousand. The native
-/// run keeps the larger input, because the stack it guards is a native one.
+/// Under Miri the input is one level past [`MAX_RECURSION_DEPTH`]. What Miri
+/// checks here is the parse that runs once the guard has tripped, and one
+/// level past the limit trips it. The native run keeps the larger input,
+/// because the stack it guards is a native one.
 #[test]
 fn extremely_deep_nesting_does_not_overflow_the_stack() {
-    let depth = if cfg!(miri) { 1_000 } else { 10_000 };
+    let depth = if cfg!(miri) {
+        MAX_RECURSION_DEPTH as usize + 1
+    } else {
+        10_000
+    };
     for opener in ['(', '['] {
         let closer = if opener == '(' { ')' } else { ']' };
         let mut src = String::from("<?nvs $x = ");
@@ -913,16 +917,14 @@ fn extremely_deep_nesting_does_not_overflow_the_stack() {
 /// chain itself gets folded back to a bounded depth: this walks the
 /// `Index`/`base` links by hand (not `{:#?}`, to keep the test's own
 /// assertion from being exactly the kind of unbounded recursive walk
-/// this is guarding against) and checks it stops within a small
-/// multiple of the guard's limit.
+/// this is guarding against) and checks it stops within the guard's limit.
 ///
-/// Under Miri the chain is a thousand links, the shortest one the assertion
-/// below still tells apart from an unfolded chain. Every link past the limit
-/// is still parsed, one token at a time, and at ten thousand links Miri
-/// spends longer on this one test than on the rest of the crate together.
+/// The chain is one link past [`MAX_RECURSION_DEPTH`]. Each link charges the
+/// guard's counter, so this chain trips it, and an unfolded chain would be
+/// one link deeper than the assertion allows.
 #[test]
 fn a_long_postfix_chain_is_folded_back_to_a_bounded_depth() {
-    let links = if cfg!(miri) { 1_000 } else { 10_000 };
+    let links = MAX_RECURSION_DEPTH + 1;
     let mut src = String::from("<?nvs $x");
     for i in 0..links {
         src.push_str(&format!("[{i}]"));
@@ -942,7 +944,10 @@ fn a_long_postfix_chain_is_folded_back_to_a_bounded_depth() {
         e = *base;
         depth += 1;
     }
-    assert!(depth < 1000, "chain was not folded back: depth {depth}");
+    assert!(
+        depth <= MAX_RECURSION_DEPTH,
+        "chain was not folded back: depth {depth}"
+    );
 }
 
 #[test]
