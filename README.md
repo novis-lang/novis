@@ -128,9 +128,7 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-The work is in the order it is planned. The order can change.
-
-1. **Doc comments for parameters, return values and errors.** *Working on it now.* A doc comment can describe each parameter with `@param`, the return value with `@return` and each error with `@throws`. The compiler checks each tag against the method, and the editor shows the sentences.
+Nothing is planned after the current release yet.
 <!-- roadmap:end -->
 
 ## Contributing
