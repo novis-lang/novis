@@ -164,46 +164,58 @@ const COMMENT_SENTENCE_WORDS = 25;
 const COMMENT_DIRECTIVE_RE = /^\/\/\s*(?:bench|hostile|covers|proof|requires):/;
 const COMMENT_PAYLOAD_RE = /^\/\/\s*hostile:\s*comment-payload\s*$/;
 
+/** What is wrong with the shape of the comments of the proof program at `path`; see [`commentProblemsOf`]. */
+export function commentProblems(path: string): string[] {
+  return commentProblemsOf(read(path));
+}
+
 /**
  * What is wrong with the shape of a proof program's comments, as `line: what`. A `///` doc comment is
- * judged like a `//` one. A directive line is a tool's and is skipped, and so is an empty or indented
- * comment line, which is how a configuration example shows the block it is about.
- * `// hostile: comment-payload` skips the comment block directly under it: that block is an attack's
- * payload, which no reader is meant to read as prose.
+ * judged like a `//` one, but the two are separate blocks, so a step's `//` line above a doc comment is
+ * counted alone. A doc comment's tag line (`/// @param ...`) is not counted against the line bound, and
+ * its text is judged as a sentence of its own, since a tag's text ends with its line. A directive line
+ * is a tool's and is skipped, and so is an empty or indented comment line, which is how a
+ * configuration example shows the block it is about. `// hostile: comment-payload` skips the comment
+ * block directly under it: that block is an attack's payload, which no reader is meant to read as prose.
  */
-export function commentProblems(path: string): string[] {
-  const blocks: [number, string[]][] = [];
-  let current: string[] = [];
+export function commentProblemsOf(source: string): string[] {
+  const blocks: [number, string[], string[]][] = [];
+  let current: string[] | null = null;
+  let doc = false;
   let payload = false;
-  splitlines(read(path)).forEach((line, i) => {
+  splitlines(source).forEach((line, i) => {
     const text = line.trim();
     if (COMMENT_PAYLOAD_RE.test(text)) {
       payload = true;
-      current = [];
+      current = null;
       return;
     }
     if (payload && text.startsWith("//")) return;
     payload = false;
     if (text.startsWith("//") && !COMMENT_DIRECTIVE_RE.test(text)) {
+      const isDoc = text.startsWith("///");
       const body = text.replace(/^\/\/\/?/, "");
       if (body.startsWith("     ") || !body.trim()) return;
-      if (current.length === 0) {
+      if (current === null || isDoc !== doc) {
         current = [];
-        blocks.push([i + 1, current]);
+        doc = isDoc;
+        blocks.push([i + 1, current, []]);
       }
-      current.push(body.trim());
+      if (isDoc && body.trim().startsWith("@")) blocks[blocks.length - 1][2].push(body.trim());
+      else current.push(body.trim());
     } else if (!text.startsWith("//")) {
-      current = [];
+      current = null;
     }
   });
   const problems: string[] = [];
-  blocks.forEach(([number, lines], index) => {
+  blocks.forEach(([number, lines, tags], index) => {
     const top = index === 0 && number <= 3;
     const bound = top ? COMMENT_TOP_LINES : COMMENT_STEP_LINES;
     if (lines.length > bound) {
       problems.push(`${number}: ${top ? "the top comment" : "a comment above a step"} is ${lines.length} lines, and ${bound} is the bound`);
     }
     problems.push(...proseProblems(number, lines.join(" ")));
+    for (const tag of tags) problems.push(...proseProblems(number, tag));
   });
   return problems;
 }
