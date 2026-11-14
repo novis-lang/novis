@@ -408,21 +408,22 @@ Write it with three slashes, `///`, on the lines directly above a class, a const
 method or an enum case. The whole run of `///` lines is one comment. Your editor shows it to whoever
 types that name, and `nvs doc` puts it on the page it builds.
 
-Two tags may be written, each at the start of a line. `@see` names another class
+Five tags may be written, each at the start of a line. `@see` names another class
 or member, and `@example` names a file that shows the code in use. Both are checked when the program
-compiles, so a link that goes nowhere stops the build. Any other `@tag` is an error. Explain a
-parameter in a sentence instead: its type is already in the signature.
+compiles, so a link that goes nowhere stops the build. `@param $name`, `@return` and `@throws Name`
+each need a sentence that says what the value means. Any other `@tag` is an error.
 
 **Good to know:** a `///` run with a blank line under it documents nothing, and that is an error.
 Four slashes or more is an ordinary comment, so a divider line of slashes is not documentation.
-The last example shows a `@param` tag, which does not compile.
+The last example shows an `@param` tag with a type, which does not compile.
 
 The body of a doc comment is Markdown. `nvs meta --json` includes it, `nvs doc` shows it on a page,
 and the editor shows it when you hover over the name.
 
 `@see` and `@example` are tags only at the start of a line. `@see` must name a class or member that
 exists, or the program does not compile (`E0323`). `@example` must name a file under `examples/` or
-`tests/` (`E0325`). Any other tag, such as `@param` or `@return`, does not compile (`E0128`).
+`tests/` (`E0325`). `@param`, `@return` and `@throws` need a sentence after them (`E0139`), and an
+`@param` cannot contain a type (`E0138`). Any other tag, such as `@since`, does not compile (`E0128`).
 
 A `///` comment must be directly above a class, a constant, a property, a method or an enum case. If it
 is above a statement, above a blank line or at the end of the file, the program does not compile
@@ -535,11 +536,11 @@ echo $invoice->total(), "\n";
 1729
 ```
 
-## Example 04: param is not a tag
+## Example 04: a param tag has no type
 
 ```nvs error
 <?nvs
-// Shows that `@param` is not a tag in a doc comment, so this program does not
+// Shows that an `@param` tag cannot contain a type, so this program does not
 // compile. The signature already gives the type of `$cents`.
 // proof: compile-error
 
@@ -556,12 +557,12 @@ echo Price::double(250), "\n";
 ```
 
 ```output
-error[E0128]: `@param` is not a documentation tag
-  --> main.nvs:9:9
+error[E0138]: `@param` cannot contain a type
+  --> main.nvs:9:16
   |
 9 |     /// @param int $cents the price to double
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not `@see` or `@example`
-  = help: name the parameter in a sentence instead — its type is already in the signature
+  |                ^^^^ the type is already in the signature
+  = suggestion: delete this text before the `$name` (delete)
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
