@@ -262,7 +262,7 @@ codes! {
     /// exactly one parameter has no `@param`, the fix renames the tag to it,
     /// which is the repair after a parameter was renamed by hand. Otherwise the
     /// fix deletes the line.
-    pub const E_DOC_PARAM_UNKNOWN: Code = Code::new("E0330").card(
+    pub const E_DOC_PARAM_UNKNOWN: Code = Code::new("E0335").card(
         "An `@param` tag names a parameter that the function does not have. Write the name of \
          one of its parameters, or delete the line.",
     );

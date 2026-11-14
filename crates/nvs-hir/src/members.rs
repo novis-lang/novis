@@ -52,7 +52,7 @@
 //! question this module asks of the filesystem; it resolves a written path the
 //! way `require` does, relative to the file that wrote it. `@param`, `@return`
 //! and `@throws` are held to the method they sit on: a parameter it has, named
-//! once (`E0330`, `E0331`), no type repeated from the signature (`E0332`), a
+//! once (`E0335`, `E0331`), no type repeated from the signature (`E0332`), a
 //! declaration that takes the tag (`E0333`), and an error class (`E0334`).
 //! `W1030` offers a parameter its line where the comment documents the
 //! others. Each of those carries the fix the editor applies.
@@ -1157,7 +1157,7 @@ fn check_missing_params(
             .find(|tag| tag.target.and_then(|target| src.span_text(target)) == Some(name))
     };
     // An `@param` that names no parameter, beside exactly one undocumented
-    // parameter, is `E0330` with a rename to that parameter. The warning would
+    // parameter, is `E0335` with a rename to that parameter. The warning would
     // report the same mistake a second time, so it is not raised.
     let stale = params.iter().any(|tag| {
         let named = tag.target.and_then(|target| src.span_text(target));
