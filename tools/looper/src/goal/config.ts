@@ -146,10 +146,17 @@ export interface Step {
   heavy: boolean;
 }
 
+/**
+ * How a floor check that only names its tests is judged. `run` runs them. `listed` lists them, for a
+ * project whose own forced check runs every test.
+ */
+export type FloorTests = "run" | "listed";
+
 /** What every check, hook and verify step gets. `hide_windows` is `[jobs] hide_windows`, copied here. */
 export interface Checks {
   timeout: number;
   env: Record<string, string>;
+  floor_tests: FloorTests;
   hide_windows: boolean;
 }
 
@@ -353,7 +360,7 @@ export function defaultConfig(): Config {
       lanes: 2,
     },
     verify: { run: [], step: [] },
-    checks: { timeout: 600, env: {}, hide_windows: true },
+    checks: { timeout: 600, env: {}, floor_tests: "run", hide_windows: true },
     hooks: { before_run: [], before_session: [], after_session: [], before_sweep: [], after_retire: [] },
     guard: { deny: [] },
     gates: { links: [], layout: [], prose: [], guard: [], json: [] },
@@ -637,7 +644,7 @@ const step = table<Step>(
 
 const verify = table<Verify>("Verify", { run: argvs, step: list(step) }, () => defaultConfig().verify);
 
-const checks = table<Checks>("Checks", { timeout: u64, env: strMap }, () => defaultConfig().checks);
+const checks = table<Checks>("Checks", { timeout: u64, env: strMap, floor_tests: variants<FloorTests>(["run", "listed"]) }, () => defaultConfig().checks);
 
 const hookTable = table<Hook>(
   "HookTable",

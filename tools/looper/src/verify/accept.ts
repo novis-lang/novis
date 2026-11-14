@@ -15,6 +15,11 @@
 //   is empty. A group's command runs once, with the longest timeout of the checks it judges, and each
 //   check is judged apart on that one output. Groups run in the order of their first check. A check
 //   with only `file` shares nothing and is judged alone.
+// - With `[checks] floor_tests = "listed"`, `acceptance` lists the tests of a floor check rather than
+//   running them, when the check is a `cargo test` judged by its `tests` alone. Its command runs with
+//   libtest's `--list`, then again with `--list --ignored`. It is green when each named test is listed
+//   and none is ignored. The project's own forced check runs every test, so the floor guards only that
+//   no named test was deleted, renamed or ignored. A goal's checks and a run of named checks always run.
 // - Each check a command judged gets that run's whole output in its own `<log dir>/<id>.log`. The log
 //   of a shared run names the other checks it judged.
 // - A command's `output_*` matchers read its stdout followed by its stderr as one text. A check with
@@ -152,6 +157,7 @@ export async function acceptance(
   progress: Progress,
   counted: ReadonlyMap<string, boolean> = new Map(),
 ): Promise<Acceptance> {
+  if (project.checks.floor_tests === "listed") floor = floor.map((c) => (listable(c) ? listing(c) : c));
   const ids = [...floor, ...goal.front.checks].filter((c) => rests(c) !== "whole").map((c) => unitId(c.id));
   if (ids.length > 0 || existsSync(units.store)) Store.open(units.store).retain("check:", ids);
   const open = goal.front.stages.find((s) => s.status !== "done")?.id;
@@ -254,7 +260,7 @@ export function groups(root: string, checks: Check[]): number[][] {
       return;
     }
     const env = c.env && Object.keys(c.env).length > 0 ? Object.entries(c.env).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) : null;
-    const key = JSON.stringify([c.run, cwdOf(root, c), env]);
+    const key = JSON.stringify([c.run, cwdOf(root, c), env, LISTINGS.has(c)]);
     const g = seen.get(key);
     if (g === undefined) {
       seen.set(key, order.length);
@@ -330,10 +336,14 @@ async function runGroup(
       onWait: toStderr,
       onStart: onJob,
     });
+    const ignored = LISTINGS.has(c0)
+      ? await runCommand({ root, argv: [...c0.run, "--ignored"], cwd: cwdOf(root, c0), env: envOf(project, c0), secs, kind: "check", hide: project.checks.hide_windows, onWait: toStderr })
+      : null;
+    const logged = ignored === null ? ran : { ...ran, stdout: `${ran.stdout}\n--- the ignored ones, with --ignored ---\n${ignored.stdout}`, stderr: `${ran.stderr}${ignored.stderr}` };
     for (const [i, due] of judged) {
       const c = members[i] as Check;
-      const log = writeLog(logDir, c, ran, ids.filter((id) => id !== c.id));
-      const v = verdict(c, whyRan(c, ran, secs), log);
+      const log = writeLog(logDir, c, logged, ids.filter((id) => id !== c.id));
+      const v = verdict(c, ignored === null ? whyRan(c, ran, secs) : whyListed(c, ran, ignored, secs), log);
       if (due !== null && opened.store !== undefined && tree !== undefined) {
         const isVoid = unitRecord(opened.store, tree, due, v);
         if (!v.green && !due.reached && !isVoid) {
@@ -370,6 +380,50 @@ function observable(argv: string[]): boolean {
     selected ||= CARGO_TARGETS.includes(flag);
   }
   return selected;
+}
+
+/** The floor checks `listing` made, which list their tests rather than run them. Keyed by the object, so a check it never made is never one. */
+const LISTINGS = new WeakSet<Check>();
+
+/** Whether the floor check `c` can list its tests: a `cargo test` judged by its `tests` alone. */
+export function listable(c: Check): boolean {
+  if (!isCargoTest(c.run) || (c.tests ?? []).length === 0 || (c.exit ?? "zero") !== "zero" || c.file !== undefined) return false;
+  const matchers = [c.stdout_contains, c.stderr_contains, c.stdout_exact, c.stdout_ordered];
+  return matchers.every((m) => m === undefined) && !hasOutputMatcher(c);
+}
+
+/** The check `c` with libtest's `--list` added to the arguments its binaries run with. */
+export function listing(c: Check): Check {
+  const [cargo, args] = splitCargo(c.run);
+  const listed = { ...c, run: [...cargo, "--", ...args, "--list"] };
+  LISTINGS.add(listed);
+  return listed;
+}
+
+/**
+ * Why the listing check `c` is red, on `ran`, its `--list` run, and `ignored`, its `--list --ignored`
+ * run, each with a timeout of `secs`. Empty when each named test is listed and none is ignored.
+ */
+function whyListed(c: Check, ran: Ran, ignored: Ran, secs: number): string {
+  for (const r of [ran, ignored]) {
+    if (r.ended === "timed out") return `timed out after ${secs}s`;
+    if (r.code !== 0) return `listing its tests exited ${r.code === null ? "without a code" : r.code}, want 0`;
+  }
+  for (const t of c.tests ?? []) {
+    if (testListed(t, ignored.stdout)) return `test \`${t}\` is ignored`;
+    if (!testListed(t, ran.stdout)) return `test \`${t}\` is not listed`;
+  }
+  return "";
+}
+
+/** Whether libtest's `--list` output `out` lists the test `name`, as `<path>: test` with the path ending in it. */
+export function testListed(name: string, out: string): boolean {
+  return out.split("\n").some((raw) => {
+    const line = plain(raw).trimEnd();
+    if (!line.endsWith(": test")) return false;
+    const path = line.slice(0, -": test".length);
+    return path === name || path.endsWith(`::${name}`);
+  });
 }
 
 function unitId(check: string): string {
