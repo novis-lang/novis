@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/doc.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-cli/tests/meta.rs, crates/nvs-cli/tests/doc.rs, crates/nvs-lsp/tests/navigation.rs, docs/rules/tooling/meta-json-takes-a-program.md, docs/rules/core-api/reference-card.md]
   - id: 4
     title: the editor completes, renames, finds and colours the tags
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/query.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/actions.rs, editors/vscode/syntaxes/nvs.tmLanguage.json, editors/vscode/test/grammar/comments.test.ts, tests/lsp/README.md, docs/rules/ide/completion-offers-only-what-the-compiler-derived.md]
   - id: 5
     title: the feature's proofs and its pages say what the five tags do
@@ -316,18 +316,18 @@ The session runs that check once.
     `check_return`'s placement.
   - [x] `param_targets` and `throws_targets`, dispatched from `Asked::DocTag`.
   - [x] Two tests in `crates/nvs-lsp/tests/completion_edits.rs`, and the old one rewritten.
-- [ ] `crates/nvs-lsp/src/locals.rs:101` and `crates/nvs-lsp/src/rename.rs:952`: a parameter's
+- [x] `crates/nvs-lsp/src/locals.rs:101` and `crates/nvs-lsp/src/rename.rs:952`: a parameter's
   sites include its `@param` name, and the `$name` of an `@param` line resolves to its parameter.
   That one change gives references, highlight and definition. The rename follows the standing
   decision *A parameter rename stops being refused*.
-  - [ ] `locals::of` adds the `@param` target of the method's doc to a parameter's sites, and a
+  - [x] `locals::of` adds the `@param` target of the method's doc to a parameter's sites, and a
     cursor on that target finds the parameter.
-  - [ ] Rename lifts the parameter refusal and rewrites each named argument at the method's calls.
-  - [ ] `a-parameter-is-refused.lspt` rewritten as a rename that rewrites the call's `name:`.
-- [ ] Semantic tokens mark that `$name` as a parameter.
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:113`: the scopes for the tag name, the `$name` and
+  - [x] Rename lifts the parameter refusal and rewrites each named argument at the method's calls.
+  - [x] `a-parameter-is-refused.lspt` rewritten as a rename that rewrites the call's `name:`.
+- [x] Semantic tokens mark that `$name` as a parameter.
+- [x] `editors/vscode/syntaxes/nvs.tmLanguage.json:113`: the scopes for the tag name, the `$name` and
   the `@throws` class. Cases go in `editors/vscode/test/grammar/comments.test.ts:1`, run once by name.
-- [ ] The ten `.lspt` cases, and the `editor-answers` check run once.
+- [x] The ten `.lspt` cases, and the `editor-answers` check run once.
 
 ### 5. the feature's proofs and its pages say what the five tags do
 
@@ -344,7 +344,7 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
   do and what each checks, within about.md's length bound.
 - [ ] `tests/hostile/lang/programs/doc-comments/02-tags-that-point-at-code-that-is-not-there.nvs:1`:
   an `@param`, an `@throws` and an `@return` that each name something absent, and each is an error.
-- [ ] `docs/reference/lang/10-programs.md:404` re-rendered with `bun nv render --website`, and the
+- [ ] `docs/reference/lang/10-programs.md:404` re-rendered with `bun nv render`, and the
   editor features written into `docs/reference/tools/40-editor.md:1`. `35-packages.md` says a
   package's cards come from these tags.
 - [ ] `bun nv proofs --comments` over the new `.nvs` files, then the `feature-proofs` check.
@@ -359,43 +359,40 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
 
 ### State
 
-Stages 1 to 3 are done, and `tags-parse`, `tags-checked` and `tags-shown` are green. The parser
-raises `E0138` and `E0139`, and `check_doc` in `crates/nvs-hir/src/members.rs` raises `E0330` to
-`E0334` and `W1030`, each with its fix.
+Stages 1 to 4 are done, and `tags-parse`, `tags-checked`, `tags-shown` and `editor-answers` are
+green. Every reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`.
 
-Every reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`
-(`tag_of_line`, `params`, `returns`, `throws`). Hover does not inherit a comment; only `nvs doc` does.
+Stage 4 landed in five commits. `locals::of` in `crates/nvs-lsp/src/locals.rs` adds each `@param`
+target to a parameter's sites, and `locals::param_tag_at` resolves a cursor on that `$name` to the
+parameter. References, highlight and definition read those sites. `Local::parameter` carries the
+method, the parameter and its `///` run. Rename (`crates/nvs-lsp/src/rename.rs`, `local` and
+`named_arguments`) renames a method's parameter, its `@param` name and the `name:` at every call
+`SymbolIndex::occurrences` holds, read off a parse of each calling file. A call it cannot find
+refuses the rename. A constructor's, a promoted and an anonymous function's parameter stay refused,
+each with its own message (`tests/lsp/rename/a-constructor-parameter-is-refused.lspt`). Hover on a
+parameter shows its `@param` sentence (`parameter_sentence` in `crates/nvs-lsp/src/hover.rs`).
+Semantic tokens colour the `$name` as a parameter. The TextMate grammar's `#doc-tags` rule colours
+the five tag names, the `@param` name and the `@throws` class, and the website's copy is rendered.
 
-Stage 4's completion item is done (4591bb305b). `documented_at` in
-`crates/nvs-lsp/src/completion.rs` finds the declaration under a `///` run, `Documented::takes`
-filters the tags, and `param_targets` and `throws_targets` offer the two target lists. A run attached
-to nothing yet offers all five tags. Its three tests in `completion_edits.rs` pass by name.
+`docs/reference/lang/10-programs.md` was rendered again with `bun nv render`, so stage 5's
+reference item needs only its editor and packages pages. `bun nv render --website` fails on
+`Novis\Image\Color::$r`'s registry signature (`uint $r` does not parse), which is not this goal's.
 
-Rename refuses every parameter today, which the stage's item had missed. The standing decision *A
-parameter rename stops being refused* settles how the rename works, and the next session builds it.
-
-The sweep's `env-secret-proofs` is stale: `looper check --name env-secret-proofs` answers "no check
-matches", and no log exists. The nightly run 43581848915 started at 09:42Z, before 8bd6b6eda9
-(14:58Z) shrank those four Miri units, so the next nightly shows whether they pass.
-
-Expected red: a `.lspt` hover case over a run with `@param`, `@return` or `@throws` now shows the
-sections, if one exists. `tests/lsp/rename/a-parameter-is-refused.lspt` goes red once the rename
-lands, and that slice rewrites it.
+The sweep's `env-secret-proofs` is still stale: no check by that name exists. The nightly Miri
+failures predate 8bd6b6eda9, so the next nightly shows whether they pass. Expected red: none known.
 
 ### Next
 
-- `crates/nvs-lsp/src/locals.rs:101`: `of` adds the `@param` target of the method's doc to a
-  parameter's sites, and a cursor on it resolves to the parameter. A tag's `$name` span is
-  `DocTag::target`. This gives references, highlight and definition.
-- `crates/nvs-lsp/src/rename.rs:952`: lift the parameter refusal as the standing decision says, and
-  rewrite each named argument at the method's calls.
-- `crates/nvs-lsp/src/semantic.rs:270`: mark the `$name` as a parameter.
-- `editors/vscode/syntaxes/nvs.tmLanguage.json:113`: the three scopes, with cases in
-  `editors/vscode/test/grammar/comments.test.ts:1`.
-- Then the ten `.lspt` cases through a writing subagent, and the `editor-answers` check once.
+- `docs/examples/lang/programs/doc-comments/04-a-param-tag-has-no-type.nvs:1`: stage 5, through
+  the two writing subagents its `**Split:**` names, then `about.md`, `details.md`,
+  `docs/reference/tools/40-editor.md:1` and `35-packages.md` by the session.
+- `docs/goals/doc-tags.md:350`: `bun nv proofs --comments` over the new `.nvs` files, then the
+  `feature-proofs` check.
 
 ### Backlog
 
 - `tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1` and two other
   `image-*` cases failed once in the 123-case `tags-checked` run, and passed alone and on the rerun.
   Stage 6's verify shows whether they fail under load.
+- `crates/nvs-stdlib/src/registry.rs:1`: `bun nv render --website` stops at `Novis\Image\Color::$r`,
+  whose signature `uint $r` does not parse. The website render job may be red for it.
