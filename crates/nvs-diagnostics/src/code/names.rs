@@ -257,4 +257,51 @@ codes! {
          error classes extend `RuntimeError`, `LogicError` or another error class that is not \
          under `Core`.",
     );
+    /// A doc comment's `@param $name` naming no parameter of the declaration
+    /// below it (`rule:tooling/doc-comment-tags-are-closed-and-checked`). Where
+    /// exactly one parameter has no `@param`, the fix renames the tag to it,
+    /// which is the repair after a parameter was renamed by hand. Otherwise the
+    /// fix deletes the line.
+    pub const E_DOC_PARAM_UNKNOWN: Code = Code::new("E0330").card(
+        "An `@param` tag names a parameter that the function does not have. Write the name of \
+         one of its parameters, or delete the line.",
+    );
+    /// A doc comment that documents one thing twice: a parameter with two
+    /// `@param` lines, two `@return` lines, or one class in two `@throws`
+    /// lines (`rule:tooling/doc-comment-tags-are-closed-and-checked`). The fix
+    /// deletes the second line.
+    pub const E_DOC_TAG_REPEATED: Code = Code::new("E0331").card(
+        "A doc comment documents the same parameter, return value or error twice. Keep one of \
+         the two lines and delete the other.",
+    );
+    /// The first word of an `@param` or `@return` sentence is the declared
+    /// type (`rule:tooling/doc-comment-tags-are-closed-and-checked`). The
+    /// signature is the one place a type is written, and the fix deletes the
+    /// word. `null` alone is never reported, since it starts normal sentences.
+    pub const E_DOC_TAG_REPEATS_TYPE: Code = Code::new("E0332").card(
+        "A doc comment does not repeat a type. The type is already in the function's signature. \
+         Start the sentence with what the value means, for example \
+         `@param $cents the amount, in cents`.",
+    );
+    /// An `@param`, `@return` or `@throws` on a declaration that does not take
+    /// it (`rule:tooling/doc-comment-tags-are-closed-and-checked`): any of the
+    /// three on a class, a property, a constant, an enum case or a `type`
+    /// alias, and `@return` on a constructor or on a method that returns
+    /// `void` or `never`. The fix deletes the line.
+    pub const E_DOC_TAG_MISPLACED: Code = Code::new("E0333").card(
+        "`@param` and `@throws` go on a function, a method or a constructor. `@return` goes on a \
+         function or method that returns a value. It does not go on a constructor, or on a \
+         method that returns `void` or `never`. Delete the line, or move it to the right \
+         declaration.",
+    );
+    /// An `@throws Name` whose name resolves to no class, or to a class that
+    /// is not a `Throwable` (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
+    /// The name resolves like a type name in that file, `use` lines included.
+    /// The body is not checked against the tag: Novis has no checked
+    /// exceptions. The fix deletes the line.
+    pub const E_DOC_THROWS_NOT_THROWABLE: Code = Code::new("E0334").card(
+        "An `@throws` tag names a class that does not exist, or a class that is not an error. \
+         Write the name of a class that extends `Throwable`, such as `RuntimeError`, or delete \
+         the line.",
+    );
 }

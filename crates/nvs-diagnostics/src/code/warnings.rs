@@ -310,4 +310,14 @@ codes! {
          `[limits] max_regex_steps` limits the work of each match. Write the pattern without \
          lookaround and without backreferences to remove the warning.",
     );
+    /// A parameter with no `@param` line in a doc comment that already has an
+    /// `@param` for another parameter
+    /// (`rule:tooling/doc-comment-tags-are-closed-and-checked`). A comment with
+    /// no `@param` at all is never warned. The fix inserts an empty
+    /// `/// @param $name` line in signature order, and that line then shows
+    /// `E0139` until its author writes the sentence.
+    pub const W_DOC_PARAM_MISSING: Code = Code::new("W1030").card(
+        "This doc comment describes some parameters with `@param`, but not this one. Add an \
+         `@param` line for it, and write what it means.",
+    );
 }

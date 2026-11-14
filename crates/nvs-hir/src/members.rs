@@ -41,16 +41,21 @@
 //! non-`$this` property receiver is not statically resolvable and is
 //! silently skipped, since this module reports only what it can be sure of.
 //!
-//! Both of a doc comment's tags are checked here too, by [`check_doc`], and
-//! for the same reason: each is a name that must resolve against something
-//! declared. `rule:tooling/doc-comment-tags-are-closed-and-checked` keeps the tag
-//! set at two by making each buy a check — `@see` resolves against the very
-//! [`MemberTable`] a `Class::member` reference does (`E0323`), and `@example`
-//! against a file on disk, which must exist (`E0324`) and must sit in a
-//! directory the test corpus walks (`E0325`) so an example that stops
-//! compiling fails the build. That second one is the only question this module
-//! asks of the filesystem; it resolves a written path the way `require` does,
-//! relative to the file that wrote it.
+//! A doc comment's five tags are checked here too, by [`check_doc`], and for
+//! the same reason: each names something that must exist on the declaration
+//! or in the program. `rule:tooling/doc-comment-tags-are-closed-and-checked`
+//! keeps the tag set closed by making each tag buy a check — `@see` resolves
+//! against the very [`MemberTable`] a `Class::member` reference does
+//! (`E0323`), and `@example` against a file on disk, which must exist
+//! (`E0324`) and must sit in a directory the test corpus walks (`E0325`) so an
+//! example that stops compiling fails the build. That second one is the only
+//! question this module asks of the filesystem; it resolves a written path the
+//! way `require` does, relative to the file that wrote it. `@param`, `@return`
+//! and `@throws` are held to the method they sit on: a parameter it has, named
+//! once (`E0330`, `E0331`), no type repeated from the signature (`E0332`), a
+//! declaration that takes the tag (`E0333`), and an error class (`E0334`).
+//! `W1030` offers a parameter its line where the comment documents the
+//! others. Each of those carries the fix the editor applies.
 //!
 //! `rule:tooling/strict-docs`'s lint rides beside that walk rather than growing
 //! a second one: [`MemberResolver::check`] takes a `strict_docs` flag, `nvs
@@ -104,7 +109,8 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
     DestructureTarget, DocComment, DocTag, DocTagKind, Expr, ExprKind, FnBody, MemberName,
-    Modifier, NamespaceDecl, Stmt, StmtKind, StringPart, TestOperand,
+    MethodMember, Modifier, NamespaceDecl, Param, Stmt, StmtKind, StringPart, TestOperand, Type,
+    TypeKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -537,7 +543,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), src, &ctx, env);
+                check_doc(decl.doc.as_ref(), DocOwner::Other("a class"), src, &ctx, env);
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -547,7 +553,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), src, &ctx, env);
+                check_doc(decl.doc.as_ref(), DocOwner::Other("an interface"), src, &ctx, env);
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::EnumDecl(decl) => {
@@ -557,9 +563,9 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), src, &ctx, env);
+                check_doc(decl.doc.as_ref(), DocOwner::Other("an enum"), src, &ctx, env);
                 for case in &decl.cases {
-                    check_doc(case.doc.as_ref(), src, &ctx, env);
+                    check_doc(case.doc.as_ref(), DocOwner::Other("an enum case"), src, &ctx, env);
                     if let Some(v) = &case.value {
                         walk_expr(v, src, &ctx, env);
                     }
@@ -572,7 +578,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), src, &ctx, env);
+                check_doc(decl.doc.as_ref(), DocOwner::Other("a type alias"), src, &ctx, env);
             }
             _ => {
                 let ctx = Ctx {
@@ -588,7 +594,7 @@ fn check_stmts(
 
 fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for member in members {
-        check_doc(member.doc.as_ref(), src, ctx, env);
+        check_doc(member.doc.as_ref(), DocOwner::of(&member.kind), src, ctx, env);
         check_documented(member, src, ctx, env);
         match &member.kind {
             ClassMemberKind::Method(m) => {
@@ -616,7 +622,7 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
             }
             ClassMemberKind::Enum(decl) => {
                 for case in &decl.cases {
-                    check_doc(case.doc.as_ref(), src, ctx, env);
+                    check_doc(case.doc.as_ref(), DocOwner::Other("an enum case"), src, ctx, env);
                     if let Some(v) = &case.value {
                         walk_expr(v, src, ctx, env);
                     }
@@ -724,23 +730,415 @@ fn documented_on_an_ancestor(
         })
 }
 
-/// Both tags of one declaration's doc comment, if it has one. This is the only
+/// The declaration a doc comment is attached to, as far as its tags need to
+/// know. `@param`, `@return` and `@throws` go on a method alone, since a
+/// program declares no free function and an anonymous function carries no
+/// doc comment.
+#[derive(Clone, Copy)]
+enum DocOwner<'a> {
+    /// A method, a constructor and an abstract or interface method included.
+    Method(&'a MethodMember),
+    /// Any other declaration, by the words a diagnostic names it with.
+    Other(&'static str),
+}
+
+impl<'a> DocOwner<'a> {
+    fn of(kind: &'a ClassMemberKind) -> Self {
+        match kind {
+            ClassMemberKind::Method(m) => Self::Method(m),
+            ClassMemberKind::Property(_) => Self::Other("a property"),
+            ClassMemberKind::Const(_) => Self::Other("a constant"),
+            ClassMemberKind::TypeAlias(_) => Self::Other("a type alias"),
+            ClassMemberKind::Enum(_) => Self::Other("an enum"),
+            _ => Self::Other("this declaration"),
+        }
+    }
+}
+
+/// What one walk over a doc comment's tags has seen so far, so a second
+/// line about the same thing is reported as a repeat.
+#[derive(Default)]
+struct DocSeen {
+    params: FxHashSet<String>,
+    returned: bool,
+    thrown: FxHashSet<QName>,
+}
+
+/// Every tag of one declaration's doc comment, if it has one. This is the only
 /// walk over a `DocTag` in the compiler: the parser has already spanned every
-/// tag and refused every spelling but these two, so the checks that keep them
-/// honest share one visit rather than each re-deriving where a `doc` hangs.
-/// [`check_stmts`] reaches the file-scope declarations — a class, an interface,
-/// an enum and its cases, a `type` alias — and [`check_members`] the members
-/// inside a body, which between them is every declaration that carries one.
-fn check_doc(doc: Option<&DocComment>, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+/// tag and refused every spelling outside the five, so the checks that keep
+/// them honest share one visit rather than each re-deriving where a `doc`
+/// hangs. [`check_stmts`] reaches the file-scope declarations — a class, an
+/// interface, an enum and its cases, a `type` alias — and [`check_members`]
+/// the members inside a body, which between them is every declaration that
+/// carries one.
+///
+/// Every diagnostic about `@param`, `@return` and `@throws` carries its
+/// `Suggestion`, so the editor's quick fix is a translation
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
+fn check_doc(
+    doc: Option<&DocComment>,
+    owner: DocOwner<'_>,
+    src: &SourceFile,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let Some(doc) = doc else {
         return;
     };
+    let mut seen = DocSeen::default();
     for tag in &doc.tags {
         match tag.kind {
             DocTagKind::See => check_see(tag, src, ctx, env),
             DocTagKind::Example => check_example(tag, src, env),
-            DocTagKind::Param | DocTagKind::Return | DocTagKind::Throws => {}
+            DocTagKind::Param => check_param(tag, doc, owner, &mut seen, src, env),
+            DocTagKind::Return => check_return(tag, owner, &mut seen, src, env),
+            DocTagKind::Throws => check_throws(tag, owner, &mut seen, src, ctx, env),
         }
+    }
+    if let DocOwner::Method(method) = owner {
+        check_missing_params(doc, method, src, env);
+    }
+}
+
+/// The whole of a tag's lines, its continuation lines and their line breaks
+/// included: the span a fix deletes.
+fn tag_lines(tag: &DocTag, src: &SourceFile) -> Span {
+    let text = src.text();
+    let start = line_start_at(text, tag.span.start as usize);
+    let end = line_end_after(text, tag.span.end.max(tag.text.end) as usize);
+    span_of(tag.span, start, end)
+}
+
+/// The byte offset of the start of the line `pos` is on.
+fn line_start_at(text: &str, pos: usize) -> usize {
+    text.get(..pos)
+        .and_then(|before| before.rfind('\n'))
+        .map_or(0, |at| at + 1)
+}
+
+/// The byte offset just past the line break that ends the line `pos` is on,
+/// or the end of the text where that line has none.
+fn line_end_after(text: &str, pos: usize) -> usize {
+    text.get(pos..)
+        .and_then(|after| after.find('\n'))
+        .map_or(text.len(), |at| pos + at + 1)
+}
+
+/// A span in `like`'s file from `start` to `end`.
+fn span_of(like: Span, start: usize, end: usize) -> Span {
+    Span::new(
+        like.file,
+        u32::try_from(start).unwrap_or(u32::MAX),
+        u32::try_from(end).unwrap_or(u32::MAX),
+    )
+}
+
+/// The error for a tag on a declaration that does not take it, with the fix
+/// that deletes its lines.
+fn report_misplaced(tag: &DocTag, what: &str, src: &SourceFile, env: &mut Env<'_>) {
+    let name = tag.kind.name();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DOC_TAG_MISPLACED,
+            format!("`@{name}` does not go on {what}"),
+        )
+        .with_primary(tag.span, format!("{what} takes no `@{name}`"))
+        .with_fix(tag_lines(tag, src), "", format!("delete the `@{name}` line")),
+    );
+}
+
+/// The parameters of `method` that no `@param` of `doc` names, in signature
+/// order.
+fn undocumented<'m>(doc: &DocComment, method: &'m MethodMember, src: &SourceFile) -> Vec<&'m Param> {
+    let named: FxHashSet<&str> = doc
+        .tags
+        .iter()
+        .filter(|tag| tag.kind == DocTagKind::Param)
+        .filter_map(|tag| tag.target.and_then(|target| src.span_text(target)))
+        .collect();
+    method
+        .params
+        .iter()
+        .filter(|param| {
+            src.span_text(param.name)
+                .is_some_and(|name| !named.contains(name))
+        })
+        .collect()
+}
+
+/// One `@param $name`: it goes on a method, names one of its parameters, names
+/// it once, and its sentence does not start with the parameter's type.
+fn check_param(
+    tag: &DocTag,
+    doc: &DocComment,
+    owner: DocOwner<'_>,
+    seen: &mut DocSeen,
+    src: &SourceFile,
+    env: &mut Env<'_>,
+) {
+    let method = match owner {
+        DocOwner::Method(method) => method,
+        DocOwner::Other(what) => return report_misplaced(tag, what, src, env),
+    };
+    // An `@param` with no `$name` is the parser's `E0138` already.
+    let Some(target) = tag.target else {
+        return;
+    };
+    let name = src.span_text(target).unwrap_or_default();
+    let Some(param) = method
+        .params
+        .iter()
+        .find(|param| src.span_text(param.name) == Some(name))
+    else {
+        let diag = Diagnostic::error(
+            code::E_DOC_PARAM_UNKNOWN,
+            format!("`@param` names `{name}`, which is not a parameter here"),
+        )
+        .with_primary(target, "no such parameter");
+        let missing = undocumented(doc, method, src);
+        let diag = match missing.as_slice() {
+            [only] => {
+                let only = src.span_text(only.name).unwrap_or_default();
+                diag.with_fix(target, only, format!("rename to `{only}`"))
+            }
+            _ => diag.with_fix(tag_lines(tag, src), "", "delete the `@param` line"),
+        };
+        env.diags.report(diag);
+        return;
+    };
+    if !seen.params.insert(name.to_owned()) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_TAG_REPEATED,
+                format!("`{name}` is documented twice"),
+            )
+            .with_primary(tag.span, "a second `@param` for the same parameter")
+            .with_fix(tag_lines(tag, src), "", "delete this `@param` line"),
+        );
+        return;
+    }
+    if let Some(ty) = &param.ty {
+        check_repeated_type(tag, ty, src, env);
+    }
+}
+
+/// One `@return`: it goes on a method that returns a value, once, and its
+/// sentence does not start with the return type.
+fn check_return(
+    tag: &DocTag,
+    owner: DocOwner<'_>,
+    seen: &mut DocSeen,
+    src: &SourceFile,
+    env: &mut Env<'_>,
+) {
+    let method = match owner {
+        DocOwner::Method(method) => method,
+        DocOwner::Other(what) => return report_misplaced(tag, what, src, env),
+    };
+    if src.span_text(method.name) == Some("constructor") {
+        return report_misplaced(tag, "a constructor", src, env);
+    }
+    let returns = method
+        .return_type
+        .as_ref()
+        .and_then(|ty| src.span_text(ty.span))
+        .map(str::trim);
+    if let Some(nothing @ ("void" | "never")) = returns {
+        return report_misplaced(
+            tag,
+            &format!("a method that returns `{nothing}`"),
+            src,
+            env,
+        );
+    }
+    if std::mem::replace(&mut seen.returned, true) {
+        env.diags.report(
+            Diagnostic::error(code::E_DOC_TAG_REPEATED, "`@return` is written twice")
+                .with_primary(tag.span, "a second `@return`")
+                .with_fix(tag_lines(tag, src), "", "delete this `@return` line"),
+        );
+        return;
+    }
+    if let Some(ty) = &method.return_type {
+        check_repeated_type(tag, ty, src, env);
+    }
+}
+
+/// One `@throws Name`: it goes on a method, `Name` resolves like a type name
+/// in this file to a class that is a `Throwable`, and names each class once.
+/// The body is not checked against it: Novis has no checked exceptions, and
+/// the tag says what the author intends.
+///
+/// A global error class such as `RuntimeError` is found from inside a
+/// namespace too, as it is everywhere else a type is written. A `Core` class
+/// outside the error tree has no links here to walk, so it is trusted, as
+/// [`check_see`] trusts one.
+fn check_throws(
+    tag: &DocTag,
+    owner: DocOwner<'_>,
+    seen: &mut DocSeen,
+    src: &SourceFile,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if let DocOwner::Other(what) = owner {
+        return report_misplaced(tag, what, src, env);
+    }
+    // An `@throws` with no name is the parser's `E0139` already.
+    let Some(target) = tag.target else {
+        return;
+    };
+    let written = src.span_text(target).unwrap_or_default();
+    let resolved = resolve_ref(written, ctx.namespace, ctx.imports);
+    let global = QName::parse(written);
+    let class = if env.graph.get(&resolved).is_some() || env.symbols.contains(&resolved) {
+        Some(resolved)
+    } else if global.is_reserved_global_class() {
+        Some(global)
+    } else if resolved.is_core() {
+        Some(resolved)
+    } else {
+        None
+    };
+    let throwable = QName::parse(crate::errors::ROOT);
+    let is_throwable = class.as_ref().is_some_and(|class| {
+        env.graph.get(class).is_none() && class.is_core()
+            || crate::hierarchy::implements_interface(class, &throwable, env.graph)
+    });
+    let Some(class) = class.filter(|_| is_throwable) else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_THROWS_NOT_THROWABLE,
+                format!("`@throws` names `{written}`, which is not an error class"),
+            )
+            .with_primary(target, "not a class that extends `Throwable`")
+            .with_fix(tag_lines(tag, src), "", "delete the `@throws` line"),
+        );
+        return;
+    };
+    if !seen.thrown.insert(class.clone()) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_TAG_REPEATED,
+                format!("`{class}` is documented twice"),
+            )
+            .with_primary(tag.span, "a second `@throws` for the same class")
+            .with_fix(tag_lines(tag, src), "", "delete this `@throws` line"),
+        );
+    }
+}
+
+/// The written forms a sentence's first word must not be: the whole type, and
+/// each member of a union or a nullable type. `null` is never one, because
+/// "null when the card is declined" is a normal sentence.
+fn type_words<'s>(ty: &Type, src: &'s SourceFile, words: &mut Vec<&'s str>) {
+    if let Some(text) = src.span_text(ty.span) {
+        words.push(text.trim());
+    }
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_words(inner, src, words),
+        TypeKind::Union(members) => {
+            for member in members {
+                type_words(member, src, words);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The error for a sentence that starts with the declared type, with the fix
+/// that deletes the word and the space after it. A word that only looks like
+/// some other type is never reported: the check compares with `ty` alone.
+fn check_repeated_type(tag: &DocTag, ty: &Type, src: &SourceFile, env: &mut Env<'_>) {
+    let Some(text) = src.span_text(tag.text) else {
+        return;
+    };
+    let word_len = text.find(char::is_whitespace).unwrap_or(text.len());
+    let written = &text[..word_len];
+    let word = written
+        .trim_end_matches([',', ':', ';', '.'])
+        .trim_matches('`');
+    if word.is_empty() || word == "null" {
+        return;
+    }
+    let mut words = Vec::new();
+    type_words(ty, src, &mut words);
+    if !words.contains(&word) {
+        return;
+    }
+    let rest = &text[word_len..];
+    let space = rest.len() - rest.trim_start_matches([' ', '\t']).len();
+    let start = tag.text.start as usize;
+    let deleted = span_of(tag.text, start, start + word_len + space);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DOC_TAG_REPEATS_TYPE,
+            format!("`@{}` repeats the type `{word}`", tag.kind.name()),
+        )
+        .with_primary(span_of(tag.text, start, start + word_len), "the type is in the signature")
+        .with_fix(deleted, "", format!("delete `{written}`")),
+    );
+}
+
+/// The warning for each parameter with no `@param`, raised only where the same
+/// comment already has an `@param`: nothing requires per-parameter
+/// documentation (`rule:tooling/strict-docs`), but an author who documented
+/// the others is offered the line a new parameter needs. The fix inserts
+/// `/// @param $name ` after the `@param` of the nearest parameter before it
+/// in signature order, or before the first `@param` line when none is. It
+/// writes no sentence, so the new line shows `E0139` until the author does.
+fn check_missing_params(doc: &DocComment, method: &MethodMember, src: &SourceFile, env: &mut Env<'_>) {
+    let params: Vec<&DocTag> = doc
+        .tags
+        .iter()
+        .filter(|tag| tag.kind == DocTagKind::Param && tag.target.is_some())
+        .collect();
+    let Some(first) = params.first() else {
+        return;
+    };
+    let text = src.text();
+    let tag_of = |name: &str| {
+        params
+            .iter()
+            .find(|tag| tag.target.and_then(|target| src.span_text(target)) == Some(name))
+    };
+    for (index, param) in method.params.iter().enumerate() {
+        let Some(name) = src.span_text(param.name) else {
+            continue;
+        };
+        if tag_of(name).is_some() {
+            continue;
+        }
+        let before = method.params[..index]
+            .iter()
+            .rev()
+            .find_map(|earlier| src.span_text(earlier.name).and_then(tag_of));
+        let at = match before {
+            Some(tag) => tag_lines(tag, src).end as usize,
+            None => line_start_at(text, first.span.start as usize),
+        };
+        let anchor = line_start_at(text, first.span.start as usize);
+        let indent = &text[anchor..first.span.start as usize];
+        let indent = &indent[..indent.find(nvs_syntax::DOC_MARKER).unwrap_or(0)];
+        let first_end = line_end_after(text, first.span.start as usize);
+        let newline = if text[..first_end].ends_with("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        env.diags.report(
+            Diagnostic::warning(
+                code::W_DOC_PARAM_MISSING,
+                format!("`{name}` has no `@param` line"),
+            )
+            .with_primary(param.name, "the other parameters have one")
+            .with_fix(
+                span_of(param.name, at, at),
+                format!("{indent}/// @param {name} {newline}"),
+                format!("add an `@param {name}` line"),
+            ),
+        );
     }
 }
 
