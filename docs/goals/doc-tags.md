@@ -193,6 +193,20 @@ as a registry member does; `nvs doc` maps an inherited `@param` by position thro
   of a promoted parameter as well. Renaming at the `$name` of an `@param` line renames the parameter.
   Find references and document highlight include the tag's `$name`, and go to definition from it lands
   on the parameter.
+- **A parameter rename stops being refused (decided in stage 4).** Rename refuses every parameter now
+  (`crates/nvs-lsp/src/rename.rs:952`), because a call may pass it by name, so the rename above needs
+  that refusal gone first. For a parameter of a method, the rename rewrites the body's sites, the
+  `@param` name, and the `name:` of each named argument at every call the index holds for that method
+  (`SymbolIndex::occurrences`), read off the call's own `Arg::name` in its file's tree. A call the
+  rename cannot read refuses the whole rename, as an unindexed type site does. An override keeps its
+  own parameter names, because a named argument binds to the method the call resolved to. A
+  constructor's parameter is renamed only if the index holds its `new` calls; otherwise it stays
+  refused. A promoted parameter stays refused as its property is (`outside` at `rename.rs:476`), and
+  its `@param` follows when that refusal goes. `tests/lsp/rename/a-parameter-is-refused.lspt` becomes
+  a rename that rewrites the `name:` at its call. Cost: one parse of each file that calls the method,
+  per rename request, and nothing kept. Lifting the refusal without rewriting named arguments was
+  declined, because it breaks every call that passes the parameter by name
+  (`rule:ide/no-refactoring-introduces-an-alias`).
 - Signature help sets each `ParameterInformation.documentation`, for a user function from its
   `@param`s, and for a `Core` member from its card's `params`. The note at `hover.rs:302` goes.
 - Hover on a parameter inside the body shows its `@param` sentence.
@@ -295,12 +309,21 @@ decisions*' editor list. The quick fixes need no code here, because `actions.rs`
 `editor-answers` check names, copying the shape in `docs/agent/conventions.md` § *An `.lspt` case*.
 The session runs that check once.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:1758`: `doc_tag_at` reads a cursor after `@param ` and
+- [x] `crates/nvs-lsp/src/completion.rs:1758`: `doc_tag_at` reads a cursor after `@param ` and
   `@throws `. `doc_tag_names` at `:1790` offers only the tags the declaration takes, and the two target
   lists come from the declaration's parameters and from the `Throwable` walk.
-- [ ] `crates/nvs-lsp/src/rename.rs:138` and `crates/nvs-lsp/src/query.rs:326`: a parameter's
-  occurrences include its `@param` name, and the `$name` of an `@param` line resolves to its
-  parameter. That one change gives rename, references, highlight and definition.
+  - [x] `Documented` and `documented_at` find the declaration under the run, and `takes` mirrors
+    `check_return`'s placement.
+  - [x] `param_targets` and `throws_targets`, dispatched from `Asked::DocTag`.
+  - [x] Two tests in `crates/nvs-lsp/tests/completion_edits.rs`, and the old one rewritten.
+- [ ] `crates/nvs-lsp/src/locals.rs:101` and `crates/nvs-lsp/src/rename.rs:952`: a parameter's
+  sites include its `@param` name, and the `$name` of an `@param` line resolves to its parameter.
+  That one change gives references, highlight and definition. The rename follows the standing
+  decision *A parameter rename stops being refused*.
+  - [ ] `locals::of` adds the `@param` target of the method's doc to a parameter's sites, and a
+    cursor on that target finds the parameter.
+  - [ ] Rename lifts the parameter refusal and rewrites each named argument at the method's calls.
+  - [ ] `a-parameter-is-refused.lspt` rewritten as a rename that rewrites the call's `name:`.
 - [ ] Semantic tokens mark that `$name` as a parameter.
 - [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:113`: the scopes for the tag name, the `$name` and
   the `@throws` class. Cases go in `editors/vscode/test/grammar/comments.test.ts:1`, run once by name.
@@ -340,31 +363,36 @@ Stages 1 to 3 are done, and `tags-parse`, `tags-checked` and `tags-shown` are gr
 raises `E0138` and `E0139`, and `check_doc` in `crates/nvs-hir/src/members.rs` raises `E0330` to
 `E0334` and `W1030`, each with its fix.
 
-Every reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`: `tag_of_line`
-(a tag's own line or its continuation), `params(src, order)` (names without `$`, in `order`),
-`returns` and `throws`. `nvs meta --json`'s user `doc` has `doc_json`'s keys, a method carries
-`names`, and a promoted parameter is a `property` member whose card is its `@param`
-(`meta.rs:1220`, `promoted_json`). `nvs doc` renders **Parameters**, **Returns** and **Throws**,
-and `by_position` (`doc.rs:199`) maps an inherited `@param` onto the override's names. Hover's
-`markdown_in` (`hover.rs:983`) renders the same sections in signature order, and signature help
-sets each parameter's sentence (`parameter_sentences`, `hover.rs:336`). Hover does not inherit a
-comment, and never did; only `nvs doc` does.
+Every reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`
+(`tag_of_line`, `params`, `returns`, `throws`). Hover does not inherit a comment; only `nvs doc` does.
 
-The sweep's `env-secret-proofs` names no check in the tree, and `.looper/loops/main/checks/` holds
-no log for it. The nightly run 43581848915 started at 09:42Z, before 8bd6b6eda9 (14:58Z) shrank
-those four Miri units.
+Stage 4's completion item is done (4591bb305b). `documented_at` in
+`crates/nvs-lsp/src/completion.rs` finds the declaration under a `///` run, `Documented::takes`
+filters the tags, and `param_targets` and `throws_targets` offer the two target lists. A run attached
+to nothing yet offers all five tags. Its three tests in `completion_edits.rs` pass by name.
 
-Expected red until its stage lands: `crates/nvs-lsp/tests/completion_edits.rs:1024`
-(`a_comment_offers_nothing_but_the_tags_of_a_doc_line`) sees five tag names after `@`, and stage 4
-rewrites it. A `.lspt` hover case over a run with `@param`, `@return` or `@throws` now shows the
-sections, if one exists.
+Rename refuses every parameter today, which the stage's item had missed. The standing decision *A
+parameter rename stops being refused* settles how the rename works, and the next session builds it.
+
+The sweep's `env-secret-proofs` is stale: `looper check --name env-secret-proofs` answers "no check
+matches", and no log exists. The nightly run 43581848915 started at 09:42Z, before 8bd6b6eda9
+(14:58Z) shrank those four Miri units, so the next nightly shows whether they pass.
+
+Expected red: a `.lspt` hover case over a run with `@param`, `@return` or `@throws` now shows the
+sections, if one exists. `tests/lsp/rename/a-parameter-is-refused.lspt` goes red once the rename
+lands, and that slice rewrites it.
 
 ### Next
 
-Stage 4, from `crates/nvs-lsp/src/completion.rs:1758` (`doc_tag_at`) and `:1791`
-(`doc_tag_names`). Then `crates/nvs-lsp/src/rename.rs:138` and `crates/nvs-lsp/src/query.rs:326`
-for the `$name` of an `@param` line, semantic tokens, and
-`editors/vscode/syntaxes/nvs.tmLanguage.json:113`. A tag's `$name` span is `DocTag::target`.
+- `crates/nvs-lsp/src/locals.rs:101`: `of` adds the `@param` target of the method's doc to a
+  parameter's sites, and a cursor on it resolves to the parameter. A tag's `$name` span is
+  `DocTag::target`. This gives references, highlight and definition.
+- `crates/nvs-lsp/src/rename.rs:952`: lift the parameter refusal as the standing decision says, and
+  rewrite each named argument at the method's calls.
+- `crates/nvs-lsp/src/semantic.rs:270`: mark the `$name` as a parameter.
+- `editors/vscode/syntaxes/nvs.tmLanguage.json:113`: the three scopes, with cases in
+  `editors/vscode/test/grammar/comments.test.ts:1`.
+- Then the ten `.lspt` cases through a writing subagent, and the `editor-answers` check once.
 
 ### Backlog
 
