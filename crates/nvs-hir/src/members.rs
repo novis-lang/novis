@@ -543,7 +543,13 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), DocOwner::Other("a class"), src, &ctx, env);
+                check_doc(
+                    decl.doc.as_ref(),
+                    DocOwner::Other("a class"),
+                    src,
+                    &ctx,
+                    env,
+                );
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -553,7 +559,13 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), DocOwner::Other("an interface"), src, &ctx, env);
+                check_doc(
+                    decl.doc.as_ref(),
+                    DocOwner::Other("an interface"),
+                    src,
+                    &ctx,
+                    env,
+                );
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::EnumDecl(decl) => {
@@ -563,9 +575,21 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), DocOwner::Other("an enum"), src, &ctx, env);
+                check_doc(
+                    decl.doc.as_ref(),
+                    DocOwner::Other("an enum"),
+                    src,
+                    &ctx,
+                    env,
+                );
                 for case in &decl.cases {
-                    check_doc(case.doc.as_ref(), DocOwner::Other("an enum case"), src, &ctx, env);
+                    check_doc(
+                        case.doc.as_ref(),
+                        DocOwner::Other("an enum case"),
+                        src,
+                        &ctx,
+                        env,
+                    );
                     if let Some(v) = &case.value {
                         walk_expr(v, src, &ctx, env);
                     }
@@ -578,7 +602,13 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
-                check_doc(decl.doc.as_ref(), DocOwner::Other("a type alias"), src, &ctx, env);
+                check_doc(
+                    decl.doc.as_ref(),
+                    DocOwner::Other("a type alias"),
+                    src,
+                    &ctx,
+                    env,
+                );
             }
             _ => {
                 let ctx = Ctx {
@@ -594,7 +624,13 @@ fn check_stmts(
 
 fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for member in members {
-        check_doc(member.doc.as_ref(), DocOwner::of(&member.kind), src, ctx, env);
+        check_doc(
+            member.doc.as_ref(),
+            DocOwner::of(&member.kind),
+            src,
+            ctx,
+            env,
+        );
         check_documented(member, src, ctx, env);
         match &member.kind {
             ClassMemberKind::Method(m) => {
@@ -622,7 +658,13 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
             }
             ClassMemberKind::Enum(decl) => {
                 for case in &decl.cases {
-                    check_doc(case.doc.as_ref(), DocOwner::Other("an enum case"), src, ctx, env);
+                    check_doc(
+                        case.doc.as_ref(),
+                        DocOwner::Other("an enum case"),
+                        src,
+                        ctx,
+                        env,
+                    );
                     if let Some(v) = &case.value {
                         walk_expr(v, src, ctx, env);
                     }
@@ -844,13 +886,21 @@ fn report_misplaced(tag: &DocTag, what: &str, src: &SourceFile, env: &mut Env<'_
             format!("`@{name}` does not go on {what}"),
         )
         .with_primary(tag.span, format!("{what} takes no `@{name}`"))
-        .with_fix(tag_lines(tag, src), "", format!("delete the `@{name}` line")),
+        .with_fix(
+            tag_lines(tag, src),
+            "",
+            format!("delete the `@{name}` line"),
+        ),
     );
 }
 
 /// The parameters of `method` that no `@param` of `doc` names, in signature
 /// order.
-fn undocumented<'m>(doc: &DocComment, method: &'m MethodMember, src: &SourceFile) -> Vec<&'m Param> {
+fn undocumented<'m>(
+    doc: &DocComment,
+    method: &'m MethodMember,
+    src: &SourceFile,
+) -> Vec<&'m Param> {
     let named: FxHashSet<&str> = doc
         .tags
         .iter()
@@ -945,12 +995,7 @@ fn check_return(
         .and_then(|ty| src.span_text(ty.span))
         .map(str::trim);
     if let Some(nothing @ ("void" | "never")) = returns {
-        return report_misplaced(
-            tag,
-            &format!("a method that returns `{nothing}`"),
-            src,
-            env,
-        );
+        return report_misplaced(tag, &format!("a method that returns `{nothing}`"), src, env);
     }
     if std::mem::replace(&mut seen.returned, true) {
         env.diags.report(
@@ -1076,7 +1121,10 @@ fn check_repeated_type(tag: &DocTag, ty: &Type, src: &SourceFile, env: &mut Env<
             code::E_DOC_TAG_REPEATS_TYPE,
             format!("`@{}` repeats the type `{word}`", tag.kind.name()),
         )
-        .with_primary(span_of(tag.text, start, start + word_len), "the type is in the signature")
+        .with_primary(
+            span_of(tag.text, start, start + word_len),
+            "the type is in the signature",
+        )
         .with_fix(deleted, "", format!("delete `{written}`")),
     );
 }
@@ -1088,7 +1136,12 @@ fn check_repeated_type(tag: &DocTag, ty: &Type, src: &SourceFile, env: &mut Env<
 /// `/// @param $name ` after the `@param` of the nearest parameter before it
 /// in signature order, or before the first `@param` line when none is. It
 /// writes no sentence, so the new line shows `E0139` until the author does.
-fn check_missing_params(doc: &DocComment, method: &MethodMember, src: &SourceFile, env: &mut Env<'_>) {
+fn check_missing_params(
+    doc: &DocComment,
+    method: &MethodMember,
+    src: &SourceFile,
+    env: &mut Env<'_>,
+) {
     let params: Vec<&DocTag> = doc
         .tags
         .iter()
