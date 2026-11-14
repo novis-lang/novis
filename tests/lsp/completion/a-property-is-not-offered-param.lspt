@@ -1,0 +1,16 @@
+--TEST--
+the cursor after `@` above a property is offered no `@param`, `@return` or `@throws`, because those three tags go only on a function, a method or a constructor, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Order
+{
+    /// The total, in cents.
+    ///
+    /// @<|>
+    public int $total = 0;
+}
+--REQUEST--
+completion
+--EXPECT--
+@example keyword   links to an example file under `examples/` or `tests/`
+@see    keyword   links to a class, method, property, constant or enum case

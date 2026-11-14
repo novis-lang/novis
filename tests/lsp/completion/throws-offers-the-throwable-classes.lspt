@@ -1,0 +1,21 @@
+--TEST--
+the cursor after `@throws ` is offered the classes that are a `Throwable`, so the error class the file declares is offered and the plain classes are not, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class OrderNotFound extends RuntimeError {}
+
+class OrderReceipt {}
+
+class Orders
+{
+    /// Finds one order.
+    ///
+    /// @throws <|>
+    public function find(int $id): void
+    {
+    }
+}
+--REQUEST--
+completion prefix=Order
+--EXPECT--
+OrderNotFound class     OrderNotFound

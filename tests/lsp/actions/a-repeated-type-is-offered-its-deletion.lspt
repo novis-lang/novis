@@ -1,0 +1,17 @@
+--TEST--
+an `@param` text that starts with the parameter's declared type is offered a fix that deletes the type word, because the signature is the one place a type is written, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Cart
+{
+    /// Sets how many items the cart has.
+    ///
+    /// @param $count in<|>t the number of items
+    public function resize(int $count): void
+    {
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+6:23-6:27 quickfix delete `int` -> ""

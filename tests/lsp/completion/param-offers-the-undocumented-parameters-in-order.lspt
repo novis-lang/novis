@@ -1,0 +1,19 @@
+--TEST--
+the cursor after `@param ` is offered the parameters that have no `@param` line yet, in signature order, so a documented one is not offered twice, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Cart
+{
+    /// Adds an item to the cart.
+    ///
+    /// @param $quantity how many to add
+    /// @param <|>
+    public function add(string $sku, int $quantity, float $price): void
+    {
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+$price  variable  float
+$sku    variable  string

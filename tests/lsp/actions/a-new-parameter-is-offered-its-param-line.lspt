@@ -1,0 +1,19 @@
+--TEST--
+a parameter with no `@param` line in a comment that documents another one is offered a fix that inserts its `@param` line after the line of the parameter before it, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Greeter
+{
+    /// Greets two people.
+    ///
+    /// @param $first the first person
+    public function greet(string $first, string $sec<|>ond): string
+    {
+        return $first . $second;
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+7:1-7:1 quickfix add an `@param $second` line -> "    /// @param $second \n"
+7:26-7:57 refactor.rewrite Put on separate lines -> "(\n        string $first,\n        string $second,\n    )"

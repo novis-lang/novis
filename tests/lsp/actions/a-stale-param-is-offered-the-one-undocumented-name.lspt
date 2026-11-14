@@ -1,0 +1,17 @@
+--TEST--
+an `@param` that names no parameter, after a parameter was renamed by hand, is offered a fix that renames the tag to the one parameter with no `@param`, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Order
+{
+    /// Sets the order's total.
+    ///
+    /// @param $s<|>um the amount
+    public function f(int $total): void
+    {
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+6:16-6:20 quickfix rename the tag to the undocumented parameter -> "$total"
