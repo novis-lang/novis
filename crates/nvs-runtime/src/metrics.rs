@@ -1572,7 +1572,8 @@ mod tests {
     fn refusals_past_refused_names_are_counted_in_one_bucket() {
         // Four seeded members fill a bound of four, so every new name is refused.
         let mut registry = Registry::new(4);
-        let sent = REFUSED_NAMES + 40;
+        // One name past `REFUSED_NAMES` is the first one counted, not keyed.
+        let sent = REFUSED_NAMES + 1;
         for n in 0..sent {
             registry
                 .increment(&format!("app_hits_{n}"), 1, &[])
@@ -1584,7 +1585,7 @@ mod tests {
 
         assert_eq!(registry.refusals().len(), REFUSED_NAMES);
         assert_eq!(registry.refusals().get("app_hits_0"), Some(&2));
-        assert_eq!(registry.refused_unnamed(), 40);
+        assert_eq!(registry.refused_unnamed(), 1);
         assert_eq!(registry.len(), 4);
     }
 

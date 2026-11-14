@@ -1655,11 +1655,14 @@ mod tests {
     /// before it takes minutes here in a debug build, and the hostile case
     /// `tests/hostile/core/Response/setHeader/` is the same attack from a
     /// program. Under Miri the counts are smaller: Miri checks the index's
-    /// memory accesses, and the native run keeps the pin.
+    /// memory accesses, and the native run keeps the pin. Eight names reach
+    /// `X-Header-7`, the row the last set replaces, and grow the index past
+    /// its first allocation. Two repeats make the second set drop the row an
+    /// append added.
     #[test]
     fn many_distinct_names_are_declared_without_comparing_each_to_every_other() {
-        const NAMES: usize = if cfg!(miri) { 200 } else { 200_000 };
-        const REPEATS: usize = if cfg!(miri) { 20 } else { 1_000 };
+        const NAMES: usize = if cfg!(miri) { 8 } else { 200_000 };
+        const REPEATS: usize = if cfg!(miri) { 2 } else { 1_000 };
         let mut ctx = Ctx::buffered();
         for n in 0..NAMES {
             ctx.declare_header(&format!("X-Header-{n}"), "v");

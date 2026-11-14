@@ -1469,7 +1469,7 @@ mod tests {
             let exact = make("x".repeat(MESSAGE_BYTES));
             assert_eq!(text_of(&exact).len(), MESSAGE_BYTES);
 
-            let long = make("x".repeat(MESSAGE_BYTES * 4));
+            let long = make("x".repeat(MESSAGE_BYTES + 1));
             let text = text_of(&long);
             assert_eq!(text.len(), MESSAGE_BYTES + "…".len());
             assert!(text.ends_with("x…"));
@@ -1477,10 +1477,11 @@ mod tests {
     }
 
     /// A cut never splits a character: a message of 3-byte characters is cut
-    /// at the last whole one before [`MESSAGE_BYTES`].
+    /// at the last whole one before [`MESSAGE_BYTES`]. The message is one
+    /// character more than fits, so it is cut.
     #[test]
     fn a_clipped_message_ends_on_a_character_boundary() {
-        let fault = Fault::thrown("€".repeat(MESSAGE_BYTES));
+        let fault = Fault::thrown("€".repeat(MESSAGE_BYTES / 3 + 1));
         let text = text_of(&fault);
         let kept = text
             .strip_suffix('…')

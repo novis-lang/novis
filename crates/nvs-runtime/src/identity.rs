@@ -872,9 +872,12 @@ mod tests {
             value
         }
 
-        // Deep enough that a recursive comparison would have overflowed. Under
-        // Miri, a shorter tower runs the same heap walk in far less time.
-        let depth = if cfg!(miri) { 200 } else { 50_000 };
+        // Natively, deep enough that a recursive comparison would overflow.
+        // Miri has no real stack to overflow and checks the heap walks' memory
+        // accesses instead. The hash holds one frame per level, and a `Vec` of
+        // frames first has room for four, so five levels also make the walk
+        // survive its frame stack growing under it.
+        let depth = if cfg!(miri) { 5 } else { 50_000 };
         let left = tower(depth, 1);
         let same = tower(depth, 1);
         let other = tower(depth, 2);
@@ -920,9 +923,11 @@ mod tests {
             value
         }
 
-        // Under Miri, 50 records still make an insert that compares against
-        // every earlier one cost far more comparisons than the bound below.
-        let count = if cfg!(miri) { 50 } else { 2000 };
+        // The bound below is one comparison per record. A hash that stopped
+        // above the leaf costs `count * (count - 1) / 2`, which passes that
+        // bound from three records on; thirty-two records put it at 496, far
+        // past the few comparisons the set's own tag collisions cost.
+        let count = 32;
         let records: Vec<Value> = (0..count).map(record).collect();
         let again = record(7);
         let mut seen = HashSet::new();

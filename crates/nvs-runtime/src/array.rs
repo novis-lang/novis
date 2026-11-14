@@ -4240,10 +4240,13 @@ mod tests {
 
     #[test]
     fn a_deeply_nested_array_releases_without_recursing() {
-        // The depth that would overflow a recursive release. See this module's
-        // "freeing is iterative" decision. Miri checks the release loop's memory
-        // accesses, which a shallower nest exercises as fully in far less time.
-        let depth = if cfg!(miri) { 1_000 } else { 200_000 };
+        // Natively, the depth that would overflow a recursive release. See this
+        // module's "freeing is iterative" decision. Miri has no real stack to
+        // overflow and checks the release loop's memory accesses instead. Two
+        // levels above the empty innermost array reach every step of that loop:
+        // the outermost is taken apart from a local, its child's push allocates
+        // the worklist, and the innermost is pushed into the room a pop left.
+        let depth = if cfg!(miri) { 2 } else { 200_000 };
         let before = live_bytes();
         {
             let mut nest = NvsArray::new();

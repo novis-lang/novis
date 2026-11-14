@@ -1115,8 +1115,9 @@ mod tests {
     /// writes cannot grow it.
     #[test]
     fn the_windows_footprint_does_not_grow_with_the_number_of_records_written() {
-        // Under Miri, 100 records still overfill the table six times over.
-        let lines = if cfg!(miri) { 100 } else { 10_000 };
+        // Twice `LOG_WINDOW_SLOTS` distinct records: the first half fills the
+        // table, and the second half evicts each of its windows once.
+        let lines = u32::try_from(2 * LOG_WINDOW_SLOTS).expect("the slots fit a line number");
         for line in 1..=lines {
             assert_eq!(
                 write(&written("the store said no", line)),

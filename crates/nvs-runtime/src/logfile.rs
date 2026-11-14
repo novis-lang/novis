@@ -434,13 +434,19 @@ mod tests {
     fn writers_on_one_path_share_the_file_and_its_bound() {
         const MAX: u64 = 200;
         const KEEP: usize = 3;
+        const WRITERS: u64 = 4;
+        // `writer 0 record 000`, one line without its newline.
+        const LINE: u64 = 19;
+        // Twice what the files keep, `(KEEP + 1) * MAX` bytes, so the oldest
+        // rotation is deleted, spread over every writer.
+        const RECORDS: u64 = 2 * (KEEP as u64 + 1) * MAX / (WRITERS * (LINE + 1)) + 1;
         let dir = nvs_repo::scratch_private("logfile-shared");
         let path = dir.join("nvs.log");
-        let handles: Vec<_> = (0..4)
+        let handles: Vec<_> = (0..WRITERS)
             .map(|writer| {
                 let mut log = LogFile::with_bounds(&path, MAX, KEEP);
                 std::thread::spawn(move || {
-                    for n in 0..100 {
+                    for n in 0..RECORDS {
                         log.write(format!("writer {writer} record {n:03}\n").as_bytes())
                             .unwrap();
                     }
@@ -465,7 +471,10 @@ mod tests {
                 file.display()
             );
             for line in text.lines() {
-                assert!(line.starts_with("writer ") && line.len() == 19, "{line:?}");
+                assert!(
+                    line.starts_with("writer ") && line.len() as u64 == LINE,
+                    "{line:?}"
+                );
             }
             held += text.len() as u64;
         }

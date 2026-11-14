@@ -2200,26 +2200,22 @@ mod tests {
         }
     }
 
-    /// Stage 3's two growth seams under a 1 MiB ceiling. Each is asked to
-    /// grow to 64 MiB in one call, stops near its ceiling, and records the
-    /// breach the request's next poll reports.
-    ///
-    /// Under Miri, the ceiling is 16 KiB and each is asked for 64 KiB, still
-    /// four times the ceiling. Every append past the ceiling is refused one at
-    /// a time: 65,536 of them ran past nextest's 300 s timeout under Miri, and
-    /// 16,384 took about three minutes on CI.
+    /// Stage 3's two growth seams under a 16 KiB ceiling. Each is asked to
+    /// grow one step past `CEILING`, stops near it, and records the breach
+    /// the request's next poll reports. Every append past the ceiling is
+    /// refused one at a time, so each asks for no more than crosses it.
     mod a_buffer_stops_at_its_ceiling {
         use crate::budget::{ByteWriter, Stopped};
 
-        const CEILING: usize = if cfg!(miri) { 16 << 10 } else { 1 << 20 };
-        const ASKED: usize = if cfg!(miri) { 64 << 10 } else { 64 << 20 };
+        const CEILING: usize = 16 << 10;
 
         #[test]
         fn an_array_a_producer_fills_stops_growing_at_the_ceiling() {
             let mut ctx = crate::Ctx::buffered();
             ctx.set_memory_limit(CEILING);
             let mut out = crate::NvsArray::new();
-            let entries = ASKED / size_of::<crate::Value>();
+            // One entry more than `CEILING` bytes of entries.
+            let entries = CEILING / size_of::<crate::Value>() + 1;
             for at in 0..entries {
                 out.append(crate::Value::int(i64::try_from(at).expect("fits")));
             }
@@ -2246,7 +2242,8 @@ mod tests {
             ctx.set_memory_limit(CEILING);
             let mut out = ByteWriter::new();
             let chunk = [7_u8; 4096];
-            for _ in 0..ASKED / chunk.len() {
+            // One chunk more than `CEILING` bytes.
+            for _ in 0..CEILING / chunk.len() + 1 {
                 out.put(&chunk);
             }
             assert_eq!(out.stopped(), Some(Stopped::Refused));

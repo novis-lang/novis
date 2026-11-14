@@ -357,13 +357,34 @@ mod tests {
     /// callables are never called, and what is being pinned is the arithmetic
     /// in front of the queue. `nvs-host`'s `tests/deferred.rs` is where a real
     /// registration runs.
+    ///
+    /// The configuration writes a cap of two, so the case fills it with two
+    /// trees and refuses a third. The default cap is only checked to be a
+    /// number a core can hold trees at.
     #[test]
     fn the_deferred_queue_is_bounded_by_max_concurrent() {
-        let cap = Ctx::new(OutputSink::Sink).deferred_max_concurrent();
         assert!(
-            cap > 0,
+            Ctx::new(OutputSink::Sink).deferred_max_concurrent() > 0,
             "`rule:concurrency/deferred-is-bounded-by-two-directives`'s default cap is not a number to hold trees at"
         );
+        let table: toml::Table = "[deferred]\nmax_concurrent = 2\n"
+            .parse()
+            .expect("the case writes valid TOML");
+        let written = std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        });
+        let new_tree = || {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            ctx.set_config(std::sync::Arc::clone(&written));
+            ctx
+        };
+        let cap = new_tree().deferred_max_concurrent();
+        assert_eq!(cap, 2, "the written cap is not the one in force");
         assert_eq!(
             trees_in_flight(),
             0,
@@ -372,7 +393,7 @@ mod tests {
 
         let mut held: Vec<Ctx> = Vec::new();
         for tree in 0..cap {
-            let mut ctx = Ctx::new(OutputSink::Sink);
+            let mut ctx = new_tree();
             assert_eq!(
                 ctx.defer(Value::null(), 0),
                 Ok(()),
@@ -395,7 +416,7 @@ mod tests {
             "a second registration by one tree took a second slot"
         );
 
-        let mut over = Ctx::new(OutputSink::Sink);
+        let mut over = new_tree();
         assert_eq!(
             over.defer(Value::null(), 0),
             Err(DeferError::AtCapacity { cap }),

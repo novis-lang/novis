@@ -326,51 +326,53 @@ mod tests {
             i64::MAX,
             u64::MAX as i64,
         ];
-        // Miri takes past its 300 s limit over every case, so it runs a width
-        // and a precision under and past each value's own length, zero, a
+        // Miri takes past its 300 s limit over every case, so it runs zero, a
         // negative value, each end of the range, and one ASCII and one
-        // multi-byte pad.
+        // multi-byte pad. It runs two width and precision pairs. The first
+        // has no precision and no padding. The second keeps at most three
+        // characters and pads to 25, so it pads both a body it cut and a body
+        // shorter than its precision.
         let miri_values = [0, -4096, i64::MIN, u64::MAX as i64];
         let (values, pads): (&[i64], &[char]) = if cfg!(miri) {
             (&miri_values, &['0', 'é'])
         } else {
             (&values, &[' ', '0', 'é'])
         };
-        let (widths, precisions): (&[usize], &[Option<usize>]) = if cfg!(miri) {
-            (&[0, 25], &[None, Some(30)])
+        let shapes: Vec<(usize, Option<usize>)> = if cfg!(miri) {
+            vec![(0, None), (25, Some(3))]
         } else {
-            (
-                &[0, 1, 5, 25, 80],
-                &[None, Some(0), Some(1), Some(3), Some(30)],
-            )
+            let widths = [0, 1, 5, 25, 80];
+            let precisions = [None, Some(0), Some(1), Some(3), Some(30)];
+            widths
+                .iter()
+                .flat_map(|&width| precisions.iter().map(move |&precision| (width, precision)))
+                .collect()
         };
         for base in IntBase::ALL {
             for plus in [false, true] {
                 for left in [false, true] {
                     for &pad in pads {
-                        for &width in widths {
-                            for &precision in precisions {
-                                let placeholder = IntPlaceholder {
-                                    base,
-                                    plus,
-                                    left,
-                                    pad,
-                                    width,
-                                    precision,
-                                };
-                                for &value in values {
-                                    let want = formatted(&placeholder, value);
-                                    let len = placeholder.len(value);
-                                    let got = crate::NvsStr::build(len, |out| {
-                                        placeholder.write(value, out);
-                                    });
-                                    assert_eq!(len, want.len(), "{placeholder:?} of {value}");
-                                    assert_eq!(
-                                        got.as_bytes(),
-                                        want.as_bytes(),
-                                        "{placeholder:?} of {value}"
-                                    );
-                                }
+                        for &(width, precision) in &shapes {
+                            let placeholder = IntPlaceholder {
+                                base,
+                                plus,
+                                left,
+                                pad,
+                                width,
+                                precision,
+                            };
+                            for &value in values {
+                                let want = formatted(&placeholder, value);
+                                let len = placeholder.len(value);
+                                let got = crate::NvsStr::build(len, |out| {
+                                    placeholder.write(value, out);
+                                });
+                                assert_eq!(len, want.len(), "{placeholder:?} of {value}");
+                                assert_eq!(
+                                    got.as_bytes(),
+                                    want.as_bytes(),
+                                    "{placeholder:?} of {value}"
+                                );
                             }
                         }
                     }
