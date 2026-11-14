@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to describe each parameter, the return value and the errors of a method.
+// The compiler checks that each tag matches the method under it.
+
+final class CardDeclined extends RuntimeError {
+}
+
+final class Payments
+{
+    /// Charges a card and returns the id of the charge.
+    ///
+    /// @param $cents the amount to charge, in cents
+    /// @param $card the card number, written without spaces
+    /// @return the id of the charge, such as `ch-1250`
+    /// @throws CardDeclined when the amount is zero or less
+    public static function charge(int $cents, string $card): string
+    {
+        if ($cents <= 0) {
+            throw new CardDeclined('the amount must be more than zero');
+        }
+        return 'ch-' . $cents;
+    }
+}
+
+// This prints `ch-1250`.
+echo Payments::charge(1250, '4242424242424242'), "\n";
+
+// This throws `CardDeclined`, and the `catch` prints its message.
+try {
+    Payments::charge(0, '4242424242424242');
+} catch (CardDeclined $e) {
+    echo $e->message, "\n";
+}

@@ -1,6 +1,6 @@
 <?nvs
-// Shows that an `@param` tag cannot contain a type, so this program does not
-// compile. The signature already gives the type of `$cents`.
+// Shows that a tag cannot contain a type, so this program does not compile.
+// The signature already gives the type of `$cents`.
 // proof: compile-error
 
 /// A price in cents.

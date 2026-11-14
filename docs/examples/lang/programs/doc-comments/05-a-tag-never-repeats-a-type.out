@@ -1,5 +1,5 @@
 error[E0138]: `@param` cannot contain a type
-  --> 04-a-param-tag-has-no-type.nvs:9:16
+  --> 05-a-tag-never-repeats-a-type.nvs:9:16
   |
 9 |     /// @param int $cents the price to double
   |                ^^^^ the type is already in the signature

@@ -409,21 +409,41 @@ method or an enum case. The whole run of `///` lines is one comment. Your editor
 types that name, and `nvs doc` puts it on the page it builds.
 
 Five tags may be written, each at the start of a line. `@see` names another class
-or member, and `@example` names a file that shows the code in use. Both are checked when the program
-compiles, so a link that goes nowhere stops the build. `@param $name`, `@return` and `@throws Name`
-each need a sentence that says what the value means. Any other `@tag` is an error.
+or member, and `@example` names a file that shows the code in use. `@param $name` describes a
+parameter, `@return` describes the return value, and `@throws Name` describes an error the method
+throws. Each of these three needs a sentence after it. The compiler checks every tag against the
+code, so a tag that names something that is not there stops the build. Any other `@tag` is an error.
 
-**Good to know:** a `///` run with a blank line under it documents nothing, and that is an error.
-Four slashes or more is an ordinary comment, so a divider line of slashes is not documentation.
-The last example shows an `@param` tag with a type, which does not compile.
+**Good to know:** a tag never contains a type, because the signature already has it. A `///` run
+with a blank line under it documents nothing, and that is an error. Four slashes or more is an
+ordinary comment.
 
 The body of a doc comment is Markdown. `nvs meta --json` includes it, `nvs doc` shows it on a page,
 and the editor shows it when you hover over the name.
 
-`@see` and `@example` are tags only at the start of a line. `@see` must name a class or member that
-exists, or the program does not compile (`E0323`). `@example` must name a file under `examples/` or
-`tests/` (`E0325`). `@param`, `@return` and `@throws` need a sentence after them (`E0139`), and an
-`@param` cannot contain a type (`E0138`). Any other tag, such as `@since`, does not compile (`E0128`).
+A tag counts only at the start of a line. `@see` must name a class or member that exists, or the
+program does not compile (`E0323`). `@example` must name a file under `examples/` or `tests/`
+(`E0325`). Any other tag, such as `@since`, does not compile (`E0128`). `@returns` is an error too,
+and the fix rewrites it to `@return`.
+
+`@param`, `@return` and `@throws` need a sentence after them (`E0139`). The sentence runs to the end
+of the line. The next `///` line continues it, unless that line is blank or starts with a tag. The
+compiler checks each tag against the method under it:
+
+| Tag | What must be true |
+|---|---|
+| `@param $name` | `$name` is a parameter of this method (`E0335`), and only one `@param` describes it (`E0331`). Write `$name` without a type (`E0138`) |
+| `@return` | the method returns a value. A `void` or `never` method and a constructor take no `@return` (`E0333`) |
+| `@throws Name` | `Name` is a class that extends `Throwable` (`E0334`). It is found the same way a type name is, so `use` lines apply |
+
+A tag must not start its sentence with the type from the signature, such as `@param $x int the
+count` (`E0332`). `@param`, `@return` and `@throws` go only on a function, a method or a
+constructor (`E0333`). The tags may be in any order. `nvs doc` and the editor show the parameters in
+the order of the signature.
+
+You do not have to describe every parameter. If the comment has an `@param` for some parameters but
+not for all, the compiler prints the warning `W1030`. Its fix adds an empty `@param` line for the
+missing parameter.
 
 A `///` comment must be directly above a class, a constant, a property, a method or an enum case. If it
 is above a statement, above a blank line or at the end of the file, the program does not compile
@@ -536,12 +556,55 @@ echo $invoice->total(), "\n";
 1729
 ```
 
-## Example 04: a param tag has no type
+## Example 04: describe parameters return and errors
+
+```nvs
+<?nvs
+// Shows how to describe each parameter, the return value and the errors of a method.
+// The compiler checks that each tag matches the method under it.
+
+final class CardDeclined extends RuntimeError {
+}
+
+final class Payments
+{
+    /// Charges a card and returns the id of the charge.
+    ///
+    /// @param $cents the amount to charge, in cents
+    /// @param $card the card number, written without spaces
+    /// @return the id of the charge, such as `ch-1250`
+    /// @throws CardDeclined when the amount is zero or less
+    public static function charge(int $cents, string $card): string
+    {
+        if ($cents <= 0) {
+            throw new CardDeclined('the amount must be more than zero');
+        }
+        return 'ch-' . $cents;
+    }
+}
+
+// This prints `ch-1250`.
+echo Payments::charge(1250, '4242424242424242'), "\n";
+
+// This throws `CardDeclined`, and the `catch` prints its message.
+try {
+    Payments::charge(0, '4242424242424242');
+} catch (CardDeclined $e) {
+    echo $e->message, "\n";
+}
+```
+
+```output
+ch-1250
+the amount must be more than zero
+```
+
+## Example 05: a tag never repeats a type
 
 ```nvs error
 <?nvs
-// Shows that an `@param` tag cannot contain a type, so this program does not
-// compile. The signature already gives the type of `$cents`.
+// Shows that a tag cannot contain a type, so this program does not compile.
+// The signature already gives the type of `$cents`.
 // proof: compile-error
 
 /// A price in cents.

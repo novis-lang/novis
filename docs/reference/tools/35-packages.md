@@ -591,6 +591,13 @@ you publish. `--json` prints the changes as JSON. The JSON also has `from`, `to`
 
 The check is about the shape of the API only. The behaviour of a method may change in any release.
 
+A doc comment is not part of the shape, so a changed comment is not a change. It is still how the
+people who use your package learn it. The editor shows a method's comment when they hover over its
+name, and `nvs doc` writes it on the page of its class. Describe each parameter of a public method
+with `@param`, its return value with `@return` and its errors with `@throws`. The editor then shows
+the sentence of each parameter while they type the call. The registry website searches the text of
+your doc comments too.
+
 <!-- src: `rule:packaging/a-publish-token-is-scoped-and-expires`, `rule:packaging/an-owner-is-notified-without-email` -->
 
 # nvs pkg login and nvs pkg whoami

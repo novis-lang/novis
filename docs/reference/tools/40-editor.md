@@ -2,7 +2,7 @@
 id: editor
 title: "The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension"
 summary: the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client
-keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand
+keywords: nvs lsp, language server, @param, @return, @throws, doc comment tags, rename, signature help, find references, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand
 ---
 
 # nvs lsp
@@ -82,6 +82,28 @@ move. The file is formatted as `nvs fmt` formats it. The action is offered when 
 never on save. If the action changes the JSON key order of a class with `#[Core\Json\Derive]`, you see
 the change in the edit. A class with `#[Core\Json\KeepKeyOrder]` keeps its properties in the order you
 wrote them.
+
+## Doc comment tags
+
+A doc comment can describe a method's parameters with `@param`, its return value with `@return`
+and its errors with `@throws`. The editor uses these tags in the following places:
+
+- **Completion.** After `@` in a doc comment, the list has the tags that the declaration below can
+  take. A property gets no `@param`, and a `void` method gets no `@return`. After `@param `, the list
+  has the parameters that have no `@param` yet, in the order of the signature. After `@throws `, the
+  list has the classes that extend `Throwable`.
+- **Hover and signature help.** Hover over a method shows its description, then each parameter,
+  the return value and the errors. Hover over a parameter inside the method shows its `@param`
+  sentence. Signature help shows the sentence of the parameter you are typing.
+- **Rename.** Rename a method's parameter, and the editor also changes its `@param` line and the
+  `name:` of every call that passes it by name. You can start the rename on the parameter or on the
+  `$name` of its `@param` line. If the editor cannot read one of the calls, it does not rename. The
+  parameter of a constructor and of an anonymous function cannot be renamed.
+- **References.** Find references, highlight and go to definition treat the `$name` of an `@param`
+  line as a use of the parameter.
+- **Quick fixes.** A tag with a type gets a fix that deletes the type. An `@param` for a parameter
+  that no longer exists gets a fix that renames it to the one undocumented parameter. When a comment
+  has an `@param` for some parameters, a new parameter gets a fix that adds its empty `@param` line.
 
 ## Diagnostics, and the phase gate
 

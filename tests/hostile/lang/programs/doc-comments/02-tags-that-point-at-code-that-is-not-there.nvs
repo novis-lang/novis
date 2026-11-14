@@ -1,0 +1,38 @@
+<?nvs
+// Attack: doc comments describe a parameter, an error and a return value that are not
+// there. Each tag is wrong, so this program should not compile.
+// hostile: expect-refusal
+
+final class Report
+{
+    // 1. Describes a parameter `$year` that the method does not have.
+    /// Builds the title of a report.
+    ///
+    /// @param $year the year of the report
+    public static function title(string $name): string
+    {
+        return 'Report: ' . $name;
+    }
+
+    // 2. Names an error class that is not declared anywhere.
+    /// Checks that a report exists.
+    ///
+    /// @throws ReportMissing when the report does not exist
+    public static function check(string $name): bool
+    {
+        return $name != '';
+    }
+
+    // 3. Describes a return value on a method that returns nothing.
+    /// Prints the title of a report.
+    ///
+    /// @return the printed title
+    public static function show(string $name): void
+    {
+        echo Report::title($name), "\n";
+    }
+}
+
+if (Report::check('sales')) {
+    Report::show('sales');
+}
