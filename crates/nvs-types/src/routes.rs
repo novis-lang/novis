@@ -2400,9 +2400,11 @@ struct Doc {
 /// a `//` run above the member is an ordinary comment nothing reads, and
 /// documents nothing here either.
 fn doc_comment(doc: Option<&DocComment>, src: &SourceFile) -> Option<Doc> {
-    let lines: Vec<&str> = doc?
+    let doc = doc?;
+    let lines: Vec<&str> = doc
         .lines
         .iter()
+        .filter(|line| !doc.is_todo(**line))
         .map(|&line| prose(span_text(src, line)))
         .collect();
     split_doc(lines.join("\n").trim())

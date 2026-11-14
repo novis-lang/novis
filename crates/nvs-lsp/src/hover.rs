@@ -1003,14 +1003,16 @@ pub(crate) fn markdown(text: &str, doc: &DocComment) -> String {
 /// The lines are spans into `text` and carry their markers, which is
 /// `nvs_syntax::ast::DocComment`'s decision: the source is the text, and the
 /// consumer is what decides where the prose starts. A `@see` or `@example`
-/// line stays in the prose, as written.
+/// line stays in the prose, as written, and a `/// TODO:` line is left out.
 pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> String {
     let mut out = doc
         .lines
         .iter()
         .filter(|line| {
-            doc.tag_of_line(**line)
-                .is_none_or(|tag| !tag.kind.has_text())
+            !doc.is_todo(**line)
+                && doc
+                    .tag_of_line(**line)
+                    .is_none_or(|tag| !tag.kind.has_text())
         })
         .map(|line| prose(text.get(line.range()).unwrap_or_default()))
         .collect::<Vec<_>>()

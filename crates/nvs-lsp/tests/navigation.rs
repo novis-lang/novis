@@ -246,6 +246,26 @@ fn a_path_argument_hovers_as_the_path_it_names_and_whether_it_exists() {
     assert!(value.is_none_or(|value| !value.contains("exists")));
 }
 
+/// A `/// TODO:` line is a note for the author, so a hover on the method shows
+/// its prose and its `@return` without either todo
+/// (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
+#[test]
+fn a_todo_line_in_a_doc_comment_is_left_out_of_the_hover() {
+    let (_, value) = hovered(
+        "<?nvs\nclass Scale {\n    \
+         /// Doubles a number.\n    \
+         /// TODO: take the factor as a parameter.\n    \
+         /// @return twice `$n`\n    \
+         /// TODO: check for overflow.\n    \
+         public function twice(int $n): int { return $n * 2; }\n}\n\
+         var $s = new Scale();\necho $s->tw<|>ice(2);\n",
+    );
+    let value = value.expect("`twice` hovers");
+    assert!(value.contains("Doubles a number."), "{value}");
+    assert!(value.contains("**Returns** twice `$n`"), "{value}");
+    assert!(!value.contains("TODO"), "{value}");
+}
+
 /// A hover on `later` shows its row, with the options bag spelled the way a
 /// call writes it, and the reference card under it: the card's sentence and
 /// a line for each option.

@@ -1629,6 +1629,11 @@ pub struct DocComment {
     /// The tag lines, in source order. A tag outside the closed set was
     /// refused where it was written, so this holds only the five kinds.
     pub tags: Vec<DocTag>,
+    /// The `/// TODO:` lines, in source order
+    /// (`rule:tooling/a-todo-is-a-comment-the-tools-list`). Each is also in
+    /// `lines`, belongs to no tag, and is not documentation: every reader of
+    /// the prose skips it with [`DocComment::is_todo`].
+    pub todos: Vec<Span>,
 }
 
 /// One tag of a [`DocComment`]
@@ -1645,7 +1650,7 @@ pub struct DocComment {
 /// | `@throws` | all after the tag | the class name | after the name |
 ///
 /// The `text` of `@param`, `@return` and `@throws` runs on over each following
-/// `///` line that is neither a tag nor blank, so it may cover several lines,
+/// `///` line that is not a tag, a todo or blank, so it may cover several lines,
 /// markers included. A reader of the prose skips every line from `span`'s
 /// start through `text`'s end, and strips the markers inside `text` itself.
 #[derive(Clone, Debug, PartialEq)]
@@ -1699,8 +1704,15 @@ impl DocTag {
 /// meta --json`, hover and signature help, reads the three sections from here,
 /// so a user card and a `Core` card have one layout.
 impl DocComment {
+    /// Whether `line` is a `/// TODO:` line, which is a note for the author and
+    /// never part of the documentation.
+    #[must_use]
+    pub fn is_todo(&self, line: Span) -> bool {
+        self.todos.contains(&line)
+    }
+
     /// The tag whose own line `line` is, or whose text `line` continues. Every
-    /// line with no tag is prose.
+    /// line with no tag and no todo is prose.
     #[must_use]
     pub fn tag_of_line(&self, line: Span) -> Option<&DocTag> {
         self.tags.iter().find(|tag| {

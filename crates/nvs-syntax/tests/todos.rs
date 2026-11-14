@@ -16,12 +16,15 @@ fn todos_of(src: &str) -> Vec<(usize, String)> {
 }
 
 #[test]
-fn a_todo_line_comment_is_collected_with_its_text() {
+fn a_todo_line_comment_or_doc_comment_line_is_collected_with_its_text() {
     let src = "<?nvs\n\
                // TODO: page through the results once `find` takes an offset.\n\
                $x = 1; //TODO:   trim the name  \n\
                //// TODO: a divider can carry one too\n\
-               // TODO:\n";
+               // TODO:\n\
+               /// Loads a page.\n\
+               /// TODO: cache the result.\n\
+               class Page {}\n";
     assert_eq!(
         todos_of(src),
         vec![
@@ -32,14 +35,15 @@ fn a_todo_line_comment_is_collected_with_its_text() {
             (2, "trim the name".to_string()),
             (3, "a divider can carry one too".to_string()),
             (4, String::new()),
+            (6, "cache the result.".to_string()),
         ]
     );
 }
 
 #[test]
-fn a_doc_comment_a_block_comment_and_a_lowercase_todo_are_not_collected() {
+fn a_block_comment_a_hash_comment_and_a_lowercase_todo_are_not_collected() {
     let src = "<?nvs\n\
-               /// TODO: this is documentation\n\
+               /// TODO without the colon is documentation\n\
                function f(): void {}\n\
                /* TODO: a block comment */\n\
                // todo: lower case\n\

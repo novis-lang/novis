@@ -106,7 +106,7 @@ impl Docs {
         self.public += 1;
         let Some(doc) = doc else { return };
         self.documented += 1;
-        for &line in &doc.lines {
+        for &line in doc.lines.iter().filter(|line| !doc.is_todo(**line)) {
             let line = text(src, line).trim_start_matches('/').trim();
             if self.full || line.is_empty() {
                 continue;

@@ -5,9 +5,19 @@ and the rest of the line is its text.
 // TODO: page through the results once `find` takes an offset.
 ```
 
-A `///` doc comment is never one, and neither is `todo:`, `TODO` without the colon, or a `/* */`
-comment. Todos are read from the trivia the lexer already keeps, so the parser does not change. A todo is
-a comment and only a comment.
+A `///` line is one too, so a declaration's todo goes in the doc comment it already has:
+
+```nvs
+/// Returns every order of one customer.
+/// TODO: page through the results once `find` takes an offset.
+/// @param $customerId The customer whose orders are loaded.
+```
+
+The line stays in the run, so the run still attaches, but it is never documentation: hover, `nvs meta`,
+signature help, route docs and a package's API text leave it out, and it ends an `@param`, `@return` or
+`@throws` text the way a blank line does. `nvs fmt` leaves a run's tags in written order when a todo
+line follows its first tag. `todo:`, `TODO` without the colon, and a `/* */` comment are never one.
+Todos are read from the trivia the lexer already keeps. A todo is a comment and only a comment.
 
 **It is a list, not a diagnostic.** `Severity` has no todo level. The language server shows each todo
 as an `Information` entry with source `todo` and no code, never phase-gated, and `nvs check --todos`
@@ -28,7 +38,10 @@ prints `path:line: text` for every one, in path and line order; under `--json` t
 **Declined:**
 - **A todo attribute or a statement attribute.** It says what a comment already says, a second way, and
   attributes attach to declarations only.
-- **`TODO(owner):` and `FIXME:`.** One form keeps the list one list.
+- **`TODO(owner):`, `FIXME:` and an `@todo` doc tag.** One form keeps the list one list, and
+  `TODO:` already works inside a `///` run.
+- **Leaving `///` lines out of the list.** A declaration with a doc comment would need a second
+  comment block above it for its todo.
 - **`--deny warnings`, or any `--deny` kind beyond the two.** The list stays closed until a kind is
   argued for.
 - **A workspace-wide fix in the editor.** The language server does not implement

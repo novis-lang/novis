@@ -65,7 +65,8 @@ require './b.nvs';
 echo "a\n";
 // todo: a lower-case one is not a todo.
 // TODO: send the mail later.
-/// TODO: neither is a doc comment.
+/// A note.
+/// TODO: a doc comment line is one too.
 class Note {}
 "#;
 
@@ -228,17 +229,21 @@ fn check_todos_lists_every_todo_in_path_and_line_order() {
     assert!(ok, "a todo is not a diagnostic: {err}");
     assert_eq!(err, "", "nothing is reported for a todo");
     let lines: Vec<&str> = out.lines().collect();
-    assert_eq!(lines.len(), 4, "three todos, then the success line: {out}");
+    assert_eq!(lines.len(), 5, "four todos, then the success line: {out}");
     assert!(
         lines[0].ends_with("a.nvs:3: page through the results."),
         "{out}"
     );
     assert!(lines[1].ends_with("a.nvs:6: send the mail later."), "{out}");
     assert!(
-        lines[2].ends_with("b.nvs:2: read the limit from the request."),
+        lines[2].ends_with("a.nvs:8: a doc comment line is one too."),
         "{out}"
     );
-    assert_eq!(lines[3], "no errors");
+    assert!(
+        lines[3].ends_with("b.nvs:2: read the limit from the request."),
+        "{out}"
+    );
+    assert_eq!(lines[4], "no errors");
 
     let (out, _, _) = run_check(&[], &dir.join("a.nvs"));
     assert_eq!(out, "no errors\n", "without the flag no todo is printed");
@@ -265,11 +270,12 @@ fn check_json_carries_the_todos() {
         [
             (3, "page through the results."),
             (6, "send the mail later."),
+            (8, "a doc comment line is one too."),
             (2, "read the limit from the request."),
         ]
     );
     assert!(
-        todos[2]["file"]
+        todos[3]["file"]
             .as_str()
             .expect("a file")
             .ends_with("b.nvs")

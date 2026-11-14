@@ -1501,7 +1501,8 @@ fn put_doc(
     out.insert("doc".into(), Value::Object(card));
 }
 
-/// A `///` run's prose: every line that is not a tag, with its marker off.
+/// A `///` run's prose: every line that is not a tag or a `/// TODO:`, with
+/// its marker off.
 ///
 /// One space after the marker is the separator and comes off with it; anything
 /// further in is the author's own indentation, which a fenced code block in the
@@ -1512,7 +1513,7 @@ fn prose(doc: &DocComment, src: &SourceFile) -> String {
     let lines: Vec<&str> = doc
         .lines
         .iter()
-        .filter(|line| doc.tag_of_line(**line).is_none())
+        .filter(|line| !doc.is_todo(**line) && doc.tag_of_line(**line).is_none())
         .map(|line| {
             let line = text(src, *line).trim_start();
             let line = line.strip_prefix("///").unwrap_or(line);

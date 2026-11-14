@@ -391,6 +391,33 @@ fn an_invented_tag_is_refused() {
     );
 }
 
+/// A `/// TODO:` line stays in the run, so the run still attaches, but it is
+/// neither prose nor part of a tag: it ends the `@return` text above it, as a
+/// blank line would (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
+#[test]
+fn a_todo_line_in_a_doc_comment_is_kept_apart_from_the_prose_and_the_tags() {
+    let (map, doc, diags) = doc_above_a_class(concat!(
+        "/// TODO: cache the result.\n",
+        "/// A page.\n",
+        "/// @return The page,\n",
+        "///   with its title.\n",
+        "/// TODO: page through the results.",
+    ));
+    assert!(diags.is_empty(), "{diags:?}");
+    assert_eq!(doc.lines.len(), 5, "every line is in the run");
+    assert_eq!(doc.todos, vec![doc.lines[0], doc.lines[4]]);
+    assert!(doc.is_todo(doc.lines[4]) && !doc.is_todo(doc.lines[1]));
+    assert_eq!(
+        tag_parts(&map, &doc),
+        vec![(
+            DocTagKind::Return,
+            None,
+            "The page, with its title.".to_owned()
+        )]
+    );
+    assert!(doc.tag_of_line(doc.lines[4]).is_none());
+}
+
 /// An `@` anywhere but the start of a line is a character, not a tag — which is
 /// what lets a doc comment hold an address, a handle or an annotation quoted
 /// from another language.

@@ -129,7 +129,7 @@ fn push_members(edits: &mut Vec<Edit>, members: &[ClassMember], text: &str) {
 }
 
 /// Adds `doc`'s edit, which is nothing when it is already in order or when a
-/// prose line follows its first tag.
+/// prose line or a `/// TODO:` line follows its first tag.
 fn push(edits: &mut Vec<Edit>, doc: Option<&DocComment>, params: &[&str], text: &str) {
     let Some(doc) = doc else {
         return;

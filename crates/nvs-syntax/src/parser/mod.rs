@@ -67,6 +67,7 @@ use crate::ast::{
 };
 use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;
+use crate::todo::todo_text;
 use crate::token::{Keyword, Token, TokenKind, Trivia, TriviaKind};
 
 // The grammar, one module per layer — see the table above and each module's
@@ -351,11 +352,17 @@ impl<'src, 'd> Parser<'src, 'd> {
         let (&first, &last) = (lines.last()?, lines.first()?);
         lines.reverse();
         self.docs_attached.push(first.start);
-        let tags = self.doc_tags(&lines);
+        let todos: Vec<Span> = lines
+            .iter()
+            .copied()
+            .filter(|line| text.get(line.range()).and_then(todo_text).is_some())
+            .collect();
+        let tags = self.doc_tags(&lines, &todos);
         Some(DocComment {
             span: first.to(last),
             lines,
             tags,
+            todos,
         })
     }
 
@@ -413,14 +420,19 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// indentation, so an `@` anywhere in the prose is a character. That is why
     /// this reads the lines rather than the run's text: the distinction lives
     /// nowhere else, and a run is otherwise just Markdown. A line that is
-    /// neither a tag nor blank, after an `@param`, `@return` or `@throws`,
-    /// continues that tag's text. Once the run is read, each of those three
-    /// with no text at all is `E0139`.
-    fn doc_tags(&mut self, lines: &[Span]) -> Vec<DocTag> {
+    /// not a tag, one of `todos` or blank, after an `@param`, `@return` or
+    /// `@throws`, continues that tag's text; a todo ends it, as a blank line
+    /// does. Once the run is read, each of those three with no text at all is
+    /// `E0139`.
+    fn doc_tags(&mut self, lines: &[Span], todos: &[Span]) -> Vec<DocTag> {
         let text = self.file.text();
         let mut tags: Vec<DocTag> = Vec::new();
         let mut open = false;
         for line in lines {
+            if todos.contains(line) {
+                open = false;
+                continue;
+            }
             let Some(body) = text
                 .get(line.start as usize..line.end as usize)
                 .and_then(|line| line.get(DOC_MARKER.len()..))
