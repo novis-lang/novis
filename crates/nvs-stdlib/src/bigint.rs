@@ -3407,6 +3407,10 @@ mod tests {
     /// polls nothing, so it still answers.
     // covers: Core\BigInt::mul
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "builds numbers of 700,000 bits, which Miri runs for minutes"
+    )]
     fn a_wide_product_stops_at_a_passed_deadline() {
         let wide = BigInt::from((BigUint::from(1_u32) << 700_000_u32) - 1_u32);
         assert!(
