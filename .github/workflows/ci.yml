@@ -1356,11 +1356,14 @@ jobs:
     runs-on: ubuntu-26.04
     # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
     # the filesystem, so this job grows with the front end's test count rather than its code size.
+    # The front-end suites run as two legs, `syntax` and `hir`, because one runner can be twice as
+    # slow as another: as one leg they took 27 minutes on a typical runner and passed 45 on a slow
+    # one. When a leg nears half its bound on a typical runner, split it again.
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        part: [suites, samples]
+        part: [syntax, hir, samples]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
@@ -1401,16 +1404,14 @@ jobs:
       #
       # A filter that matches nothing is not an error to libtest, so a renamed test would drop out
       # of the sample in silence. `sample` fails the step when a filtered run passes no test.
-      - name: miri test (front end suites)
-        if: matrix.part == 'suites'
+      - name: miri test (front end suites, ${{ matrix.part }})
+        if: matrix.part != 'samples'
         env:
           MIRIFLAGS: -Zmiri-disable-isolation
           INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
         run: >-
           cargo +nightly miri test
-          -p nvs-diagnostics
-          -p nvs-syntax
-          -p nvs-hir
+          ${{ matrix.part == 'syntax' && '-p nvs-syntax' || '-p nvs-diagnostics -p nvs-hir' }}
       - name: miri test (front end samples)
         if: matrix.part == 'samples'
         env:

@@ -34,12 +34,17 @@ fn else_if_two_words_matches_elseif() {
     assert!(else_.is_none());
 }
 
+/// Far past the parser's nesting limit, in both spellings.
+///
+/// Under Miri the chain is 200 arms, twice the limit, not 2000. At 2000 this one
+/// test took Miri eleven minutes, two fifths of the whole front-end suite, and an
+/// arm past the limit checks nothing the 101st arm does not.
 #[test]
 fn a_long_elseif_chain_is_one_statement_and_costs_no_depth() {
-    // Far past the parser's nesting limit, in both spellings.
+    let arms_wanted = if cfg!(miri) { 200 } else { 2000 };
     for keyword in ["elseif", "else if"] {
         let mut src = "if ($a == 0) { 0; }".to_owned();
-        for i in 1..2000 {
+        for i in 1..arms_wanted {
             src.push_str(&format!(" {keyword} ($a == {i}) {{ {i}; }}"));
         }
         src.push_str(" else { -1; }");
@@ -47,7 +52,7 @@ fn a_long_elseif_chain_is_one_statement_and_costs_no_depth() {
         let StmtKind::If { arms, else_ } = s.kind else {
             panic!("expected an if");
         };
-        assert_eq!(arms.len(), 2000);
+        assert_eq!(arms.len(), arms_wanted);
         assert!(else_.is_some());
     }
 }
