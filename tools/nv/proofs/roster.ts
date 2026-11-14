@@ -247,7 +247,7 @@ function chapterFeatures(directory: string, area: "lang" | "tools"): Entry[] {
 
 type Doc = { short?: string } | null | undefined;
 export interface Meta {
-  classes?: { name: string; internal?: boolean; doc?: Doc; members?: { name: string; doc?: Doc; signature?: string }[] }[];
+  classes?: { name: string; internal?: boolean; doc?: Doc; members?: { name: string; kind?: string; doc?: Doc; signature?: string }[] }[];
   exceptions?: unknown[];
   enums?: unknown[];
   interfaces?: unknown[];
@@ -311,6 +311,9 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
         ? `\`${cname}\` has no class card: add a \`///\` comment above the class in its component's Novis source`
         : `\`${cname}\` has no class card: add its \`ClassDoc\` above the class's \`CLASS\` row and delete it from \`CLASSES_STILL_OWING_A_CARD\` in crates/nvs-stdlib/src/registry.rs`;
     for (const member of klass.members ?? []) {
+      // A promoted property owes no proofs of its own: its card is the constructor's `@param` line,
+      // and the constructor's proofs are the code that makes it.
+      if (member.kind === "property") continue;
       const mname = member.name;
       const key = `${cname}::${mname}`;
       out.push({

@@ -43,6 +43,9 @@ and every place that uses it. Here the method `add` becomes `addCents`, and both
 
 Rename also changes the name in the other `.nvs` files of your folder.
 
+When you rename a parameter, the editor also changes its `@param` line. It also changes each call
+that passes the parameter by name, such as `count: 3`.
+
 ## Quick fixes and generated code
 
 When the cursor is on an error, press **Ctrl+.** (**Cmd+.** on macOS) to see the fixes for it. Here

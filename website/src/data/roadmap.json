@@ -1,5 +1,11 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": []
+  "themes": [
+    {
+      "title": "Doc comments for parameters, return values and errors",
+      "text": "A doc comment can describe each parameter with `@param`, the return value with `@return` and each error with `@throws`. The compiler checks each tag against the method, and the editor shows the sentences.",
+      "goals": ["doc-tags"]
+    }
+  ]
 }

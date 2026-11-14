@@ -28,7 +28,7 @@
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "71264be3b82fa28b",
-    "lang:programs/doc-comments": "7e4e01e1ba1c1a06"
+    "lang:programs/doc-comments": "e9be0c8b2877f949"
   },
   "syntax/basics/constants.mdx": {
     "lang:classes/constants-and-class": "054602b3642b2d8b"
@@ -387,7 +387,7 @@
     "tools:editor/nvs-dap": "894cd41ad9f221e8"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "544c0fc48f1a6c6f",
+    "tools:editor/nvs-lsp": "57b3bc37cb4b9e03",
     "tools:editor/the-vs-code-extension": "32911fc92f4c97bc"
   },
   "tools/formatter/index.mdx": {
