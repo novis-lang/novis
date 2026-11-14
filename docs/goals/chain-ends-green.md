@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/test/ci.test.ts, tools/nv/cmd/release.ts, docs/agent/commands.md]
   - id: 2
     title: "the goal is verified once, then pushed, watched and fixed until the run is green"
-    status: open
+    status: done
     gate: true
     context: [.github/workflows/ci.yml, tools/nv/cmd/deep.ts, docs/agent/testing.md]
 checks:
@@ -194,51 +194,30 @@ Once verify is green, every session runs this cycle until the run is green or th
 4. Once the context reaches 120k, write the handoff with what is fixed, what is pushed and which run
    is going. Write the status line `CONTINUE <the fixes>, pushed in <sha>`, and stop.
 
-- [ ] `bun nv ci --green` exits 0 (`tools/nv/cmd/ci.ts:1448`).
+- [x] `bun nv ci --green` exits 0 (`tools/nv/cmd/ci.ts:1448`).
 
 ## Handoff
 
 ### State
 
-Stage 1 is done. Stage 2's `looper verify` was green on its first run, and its items are ticked.
+Both stages are done. Push 1, `6cb55f162`, carried stage 1 and the five fixes for run 43517495984's
+red jobs: `3e45f86b2`, `6b86ab3ac`, `a129d4598`, `cc21361a1` and `6cb55f162` (each commit says why).
 
-**Push 1, `6cb55f162`.** It carries stage 1 and five fixes for run 43517495984 on `80331be10`, which
-ended red in five jobs. Each fix was reproduced or read from its log first:
+**The goal is reached.** Push 1's CI run 43525618309 ended green in every job, and Website's push run
+43525618224 is green on `6cb55f162`. `bun nv ci --green` exits 0: `GREEN main at 6cb55f162`. Pushes
+of this goal: 1.
 
-- `third-party attribution`: `bun nv gen-attribution --check-c-deps` failed on a stale `ittapi-sys`
-  ledger entry. wasmtime's feature trim (`4d7129726`) took it out of `Cargo.lock`, so `3e45f86b2`
-  deletes the entry. Green locally.
-- `extension sandbox probes`: the same trim dropped `wasmtime/anyhow`, so `nvs-abi-probe`'s nine `?`
-  no longer compiled. `6b86ab3ac` turns it on in the probe's `wasm-probe` feature and commits
-  `Cargo.lock`. It also fixes a release-only unused `RefCell` import in `nvs-host/src/stack.rs`.
-  `bun nv deep --only extension-sandbox` is green.
-- `proofs / windows-x86_64`: `tests/hostile/config/schedule/02-flooding-the-failed-entry.nvs` had no
-  `nvs.toml`, so its 600 pushes went to the root config's Postgres queue (`[db.main]`). CI's Windows
-  runner has no Docker, and a refused loopback connect takes about 2 s there. `a129d4598` gives the
-  directory the in-memory `jobs` queue every `Core\Queue` attack has, and it now runs in 44 ms.
-- `miri units (nvs-stdlib 6/12)` and `(1/12)`: two 300 s timeouts. `cc21361a1` skips
-  `a_typed_decode_reads_its_deepest_document_on_a_small_stack` under Miri, and `6cb55f162` skips
-  `core_json_names_serde_json_only_in_its_tests`. Both follow the skips their neighbours in
-  `json.rs` already have.
-
-Website was green on `80331be10`. Pushes of this goal: 1 (`6cb55f162`), its run not yet watched.
+The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes chain-ends-green` (no
+gap), and `bun nv ci --check`. The acceptance sweep's `env-secret-proofs` names no check in the tree.
+The nightly run 43408942001's cancelled jobs were cancelled by the push, as
+`rule:testing/one-run-on-main` says. Neither needs a fix.
 
 ### Next
 
-**Stage 2's cycle, from step 3.** Commit this handoff first.
-
-- `tools/nv/cmd/ci.ts:1448`: run `bun nv ci --watch --next` with `run_in_background` and a timeout of
-  7200000, and end the turn. On green, run `bun nv ci --green`. A handoff commit changes notes alone,
-  so it does not need a push.
-- If a job fails, let the run finish with `--past`, fix every red job, then `bun nv ci --check` and
-  `bun nv ci --push`. A job that fails again the same way is reproduced before a second fix.
+`tools/nv/cmd/ci.ts:1448`: nothing. The goal is retired, and its retirement commit's run is read with
+`bun nv ci --status`.
 
 ### Backlog
 
-- `tools/nv/cmd/ci.ts:294`: the pre-push attribution check runs `gen-attribution --check` only, and
-  CI's job also runs `--check-c-deps`, which caught the stale ledger. Adding it to `PRE_PUSH` would
-  have caught that failure before the push.
-- `crates/nvs-cli/tests/registry_build.rs:1346`: `an_advisory_confirmed_with_a_passkey_is_in_the_feed_at_once`
-  went past its 30 s read `BOUND` during a whole-tree verify here. It passed alone in 5.4 s, and CI ran
-  it green. Find why one reply takes over 30 s under load, such as something built on first use.
-  Do not raise the bound.
+Moved to `docs/goals/release-green.md` § *Backlog*: the pre-push `--check-c-deps` gap and the slow
+`registry_build.rs` passkey reply.

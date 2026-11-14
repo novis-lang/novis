@@ -288,4 +288,10 @@ test case*). Give it `watchdog_margin = "30s"` as `efade84c36` did.
 
 ### Backlog
 
-Empty.
+- `tools/nv/cmd/ci.ts:294`: the pre-push attribution check runs `gen-attribution --check` only, and
+  CI's job also runs `--check-c-deps`, which caught a stale `ittapi-sys` ledger entry. Adding it to
+  `PRE_PUSH` would have caught that failure before the push.
+- `crates/nvs-cli/tests/registry_build.rs:1346`: `an_advisory_confirmed_with_a_passkey_is_in_the_feed_at_once`
+  went past its 30 s read `BOUND` during a whole-tree verify here. It passed alone in 5.4 s, and CI ran
+  it green. Find why one reply takes over 30 s under load, such as something built on first use.
+  Do not raise the bound.
