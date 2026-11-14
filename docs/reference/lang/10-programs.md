@@ -430,11 +430,12 @@ and the fix rewrites it to `@return`.
 of the line. The next `///` line continues it, unless that line is blank or starts with a tag. The
 compiler checks each tag against the method under it:
 
-| Tag | What must be true |
-|---|---|
-| `@param $name` | `$name` is a parameter of this method (`E0335`), and only one `@param` describes it (`E0331`). Write `$name` without a type (`E0138`) |
-| `@return` | the method returns a value. A `void` or `never` method and a constructor take no `@return` (`E0333`) |
-| `@throws Name` | `Name` is a class that extends `Throwable` (`E0334`). It is found the same way a type name is, so `use` lines apply |
+- `@param $name`: `$name` is a parameter of this method (`E0335`). Only one `@param` describes it
+  (`E0331`). Write `$name` without a type (`E0138`).
+- `@return`: the method returns a value. A `void` or `never` method and a constructor take no
+  `@return` (`E0333`).
+- `@throws Name`: `Name` is a class that extends `Throwable` (`E0334`). It is found the same way a
+  type name is, so `use` lines apply.
 
 A tag must not start its sentence with the type from the signature, such as `@param $x int the
 count` (`E0332`). `@param`, `@return` and `@throws` go only on a function, a method or a
@@ -521,6 +522,7 @@ echo $order as int, "\n";
 // or a property, and the compiler checks that the name exists.
 
 /// One customer invoice. Every amount in it is in cents.
+///
 /// @see Invoice::total
 final class Invoice
 {
@@ -534,6 +536,7 @@ final class Invoice
     }
 
     /// Adds up the lines and returns the total in cents.
+    ///
     /// @see Invoice::$lines
     public function total(): int
     {
@@ -563,7 +566,8 @@ echo $invoice->total(), "\n";
 // Shows how to describe each parameter, the return value and the errors of a method.
 // The compiler checks that each tag matches the method under it.
 
-final class CardDeclined extends RuntimeError {
+final class CardDeclined extends RuntimeError
+{
 }
 
 final class Payments
@@ -608,10 +612,13 @@ the amount must be more than zero
 // proof: compile-error
 
 /// A price in cents.
-final class Price {
+final class Price
+{
     /// Doubles a price.
+    ///
     /// @param int $cents the price to double
-    public static function double(int $cents): int {
+    public static function double(int $cents): int
+    {
         return $cents * 2;
     }
 }
@@ -621,11 +628,11 @@ echo Price::double(250), "\n";
 
 ```output
 error[E0138]: `@param` cannot contain a type
-  --> main.nvs:9:16
-  |
-9 |     /// @param int $cents the price to double
-  |                ^^^^ the type is already in the signature
-  = suggestion: delete this text before the `$name` (delete)
+   --> main.nvs:11:16
+   |
+11 |     /// @param int $cents the price to double
+   |                ^^^^ the type is already in the signature
+   = suggestion: delete this text before the `$name` (delete)
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -46,6 +46,11 @@
 //! is formatted. A rule naming a rewrite that no file carrying one ever reaches
 //! would be a rule with nothing behind it.
 //!
+//! A doc tag error the parse raises refuses nothing either
+//! ([`crate::doc_tags::lets_through`]). It leaves the tree whole, and an
+//! `@param` line a quick fix has just inserted carries one until its author
+//! writes the sentence, so format-on-save must not refuse that file.
+//!
 //! # What it spends
 //!
 //! One file's tree and one output string at a time, both dropped before the
@@ -69,6 +74,7 @@
 //!   none at the inside edge of a body or a list.
 //! - [`crate::modifiers`]: one canonical order for a declaration's modifiers.
 //! - [`crate::imports`]: the order a run of imports goes out in.
+//! - [`crate::doc_tags`]: the order a doc comment's tags go out in.
 //! - [`crate::list`]: a list on one line or one item per line.
 //! - [`crate::chain`]: a call chain or an operator chain on one line or one
 //!   link per line.
@@ -90,6 +96,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 mod blank;
 mod brace;
 mod chain;
+mod doc_tags;
 mod gap;
 mod imports;
 mod indent;
@@ -167,24 +174,38 @@ pub fn format(file: &SourceFile) -> Result<String, Refusal> {
     let parsed = nvs_syntax::parse(file, &mut diagnostics);
     if diagnostics
         .iter()
-        .any(|d| d.is_error() && !tokens::repairs(d))
+        .any(|d| d.is_error() && !tokens::repairs(d) && !doc_tags::lets_through(d))
     {
         return Err(Refusal {
             name: file.name().to_owned(),
             diagnostics,
         });
     }
-    let Some(sorted) = imports::sorted(&parsed, file.text()) else {
+    let Some(moved) = moved(file, &parsed) else {
         return Ok(print::print(file, &parsed, &diagnostics));
     };
-    // The imports moved whole, so the text parses as the file did, and every
-    // other rule places the moved lines from this second parse.
+    // The imports and the doc comment lines moved whole, so the text parses as
+    // the file did, and every other rule places the moved lines from this parse.
     let mut map = SourceMap::new();
-    let id = map.add(file.name(), sorted);
+    let id = map.add(file.name(), moved);
     let file = map.file(id);
     let mut diagnostics = Diagnostics::new();
     let parsed = nvs_syntax::parse(file, &mut diagnostics);
     Ok(print::print(file, &parsed, &diagnostics))
+}
+
+/// The text of `file` with its imports sorted and its doc comment tags in
+/// order, or [`None`] where both already are. `parsed` is `file`'s own parse.
+fn moved(file: &SourceFile, parsed: &nvs_syntax::Parsed) -> Option<String> {
+    let Some(sorted) = imports::sorted(parsed, file.text()) else {
+        return doc_tags::ordered(parsed, file.text());
+    };
+    let mut map = SourceMap::new();
+    let id = map.add(file.name(), sorted);
+    let again = map.file(id);
+    let mut diagnostics = Diagnostics::new();
+    let parsed = nvs_syntax::parse(again, &mut diagnostics);
+    Some(doc_tags::ordered(&parsed, again.text()).unwrap_or_else(|| again.text().to_owned()))
 }
 
 /// The text of `file` with every run of `use` declarations in the order
@@ -201,7 +222,7 @@ pub fn sorted_imports(file: &SourceFile) -> Result<Option<String>, Refusal> {
     let parsed = nvs_syntax::parse(file, &mut diagnostics);
     if diagnostics
         .iter()
-        .any(nvs_diagnostics::Diagnostic::is_error)
+        .any(|d| d.is_error() && !doc_tags::lets_through(d))
     {
         return Err(Refusal {
             name: file.name().to_owned(),

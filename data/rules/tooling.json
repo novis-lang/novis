@@ -38,6 +38,7 @@
     "tooling/fmt-quotes",
     "tooling/fmt-trailing-commas",
     "tooling/fmt-sorts-the-use-block",
+    "tooling/fmt-orders-the-doc-tags",
     "tooling/fmt-novis-constructs",
     "tooling/fmt-normalizes-only-reserved-spellings",
     "tooling/fmt-never-inserts-visibility",

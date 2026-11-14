@@ -3,6 +3,7 @@
 // should print one valid JSON document for this file, and the program should run.
 
 /// 1. Quotes "like this", a backslash \ and a closing tag ?> in the text.
+///
 /// @see Hard::quoted
 class Hard
 {

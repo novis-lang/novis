@@ -26,7 +26,7 @@ stages:
     context: [docs/examples/lang/programs/doc-comments/about.md, docs/examples/lang/programs/doc-comments/details.md, docs/reference/lang/10-programs.md, docs/reference/tools/40-editor.md, docs/reference/tools/35-packages.md]
   - id: 6
     title: nvs fmt puts the tags in one order
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/lib.rs, crates/nvs-fmt/src/imports.rs, crates/nvs-fmt/src/tokens.rs, crates/nvs-fmt/tests/identity.rs, docs/rules/tooling/fmt-sorts-the-use-block.md, docs/rules/tooling/fmt-is-idempotent.md, docs/rules/tooling/fmt-at-most-one-blank-line.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -395,20 +395,20 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
 **Does:** the formatter writes every doc comment's tags in the order § *Standing decisions* sets, and a
 doc tag error no longer stops it.
 
-- [ ] `docs/rules/tooling/fmt-orders-the-doc-tags.md:1` written from § *Standing decisions*, and the
+- [x] `docs/rules/tooling/fmt-orders-the-doc-tags.md:1` written from § *Standing decisions*, and the
   "only reordering" sentence in `docs/rules/tooling/fmt-sorts-the-use-block.md:11` names both.
   `bun nv rules --check` is green.
-- [ ] `crates/nvs-fmt/src/doc_tags.rs:1`: the reorder, called from `format` at
+- [x] `crates/nvs-fmt/src/doc_tags.rs:1`: the reorder, called from `format` at
   `crates/nvs-fmt/src/lib.rs:165` beside the use-block sort (`crates/nvs-fmt/src/imports.rs`). It takes
   each `DocComment` from the parsed tree, with the parameter names of the declaration it is attached
   to.
-- [ ] `crates/nvs-fmt/src/lib.rs:170`: every parser doc tag diagnostic, and `E0128`, is let through the
+- [x] `crates/nvs-fmt/src/lib.rs:170`: every parser doc tag diagnostic, and `E0128`, is let through the
   refusal check.
-- [ ] `crates/nvs-fmt/tests/doc_tag_order.rs:1`: the six tests the `fmt-orders-tags` check names, run
+- [x] `crates/nvs-fmt/tests/doc_tag_order.rs:1`: the six tests the `fmt-orders-tags` check names, run
   once by name.
-- [ ] `bun nv nvs-fmt` reruns the whole corpus, and every file it changes is committed in this slice.
+- [x] `bun nv nvs-fmt` reruns the whole corpus, and every file it changes is committed in this slice.
   The examples and pages written in the proofs stage are in that corpus.
-- [ ] A `.lspt` case, `tests/lsp/actions/format-orders-the-doc-tags.lspt:1`, if the replay supports a
+- [x] A `.lspt` case, `tests/lsp/actions/format-orders-the-doc-tags.lspt:1`, if the replay supports a
   format request. Otherwise the Rust tests are the proof, and the handoff says so.
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -421,33 +421,25 @@ doc tag error no longer stops it.
 
 ### State
 
-Stages 1 to 5 are done. `tags-parse`, `tags-checked`, `tags-shown`, `editor-answers` and
-`feature-proofs` are green. Every reader takes the card from `DocComment` in
+Stages 1 to 6 are done. `tags-parse`, `tags-checked`, `tags-shown`, `editor-answers`,
+`feature-proofs` and `fmt-orders-tags` are green. Every reader takes the card from `DocComment` in
 `crates/nvs-syntax/src/ast.rs:1705`.
 
-Stage 5 landed in three commits. `d7f0320236` moves the unknown-`@param` error from `E0330`, which
-`E_REQUIRE_PATH_NOT_STATIC` already had, to `E0335`. `no_code_is_declared_twice` in
-`crates/nvs-diagnostics/src/code/mod.rs` would have failed on it in stage 6, and it passes now. That
-commit also carries the `git mv` of example 04 to 05. `87e5bf1f00` fixes `bun nv proofs
---comments` (`commentProblemsOf` in `tools/nv/proofs/collect.ts`): a `///` tag line is one sentence
-and not a line of prose, and a `//` run and a `///` run are two blocks. `tools/nv/test/proof-comments.test.ts`
-pins it. `1933a59559` adds example 04, the attack `02-tags-that-point-at-code-that-is-not-there.nvs`
-(it gives `E0335`, `E0334` and `E0333`, one per step), `about.md`, `details.md`, the section
-*Doc comment tags* in `docs/reference/tools/40-editor.md`, a paragraph in `35-packages.md` § *nvs pkg
-api and nvs pkg diff*, and the rendered `10-programs.md`.
+Stage 6 landed in one commit. `crates/nvs-fmt/src/doc_tags.rs` writes each `///` run in the order
+`rule:tooling/fmt-orders-the-doc-tags` gives. `format` in `crates/nvs-fmt/src/lib.rs` runs it after the
+import sort, through `moved`, and lets `E0128`, `E0138` and `E0139` through. `@returns` is no tag, so its
+line stays prose. A member of an anonymous class is not reached. The `.lspt` replay has no format
+request, so `crates/nvs-fmt/tests/doc_tag_order.rs` is the proof. `bun nv nvs-fmt` rewrote seven
+corpus files, five that did not parse before (`E0138`), and example 05's `.out` was blessed.
 
-The perf proof of `lang:programs/doc-comments` is stale, because `10-programs.md` changed. It is
-owed at a release, as `docs/agent/commands.md` § *Verifying* says, and `feature-proofs` is green
-with it.
+The perf proof of `lang:programs/doc-comments` is stale, and owed at a release. The sweep's
+`env-secret-proofs` names no check. Nightly 43581848915 ran on `be62f3f5a7`, which lacks 8bd6b6eda9.
 
-The sweep's `env-secret-proofs` is stale: no check by that name exists, and its log is gone. The
-nightly run 43581848915 ran on `be62f3f5a7` before 8bd6b6eda9 landed, so its Miri failures are the
-ones that fix answers. The next nightly shows whether they pass. Expected red: none known.
+Expected red: `bun nv render --website` stops at `Novis\Image\Color::$r` (Backlog), so `bun nv ci
+--check` may be red for it.
 
 ### Next
 
-- `docs/goals/doc-tags.md:393`: stage 6, which the person added before the gate. `nvs fmt` puts the
-  tags in one order, and a doc tag error never stops it. Its items name each file.
 - `docs/goals/doc-tags.md:414`: stage 7, the gate. Start `looper verify` with `run_in_background`, fix
   every failure it names in one pass, and run it once more. Then the goal-end gates AGENTS.md § *In
   the loop* names: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and `bun nv ci --check`.
@@ -456,7 +448,7 @@ ones that fix answers. The next nightly shows whether they pass. Expected red: n
 
 - `tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1` and two other
   `image-*` cases failed once in the 123-case `tags-checked` run, and passed alone and on the rerun.
-  Stage 6's verify shows whether they fail under load.
+  Stage 7's verify shows whether they fail under load.
 - `crates/nvs-stdlib/src/registry.rs:1`: `bun nv render --website` stops at `Novis\Image\Color::$r`,
   whose signature `uint $r` does not parse. The website render job may be red for it, and `bun nv ci
-  --check` in stage 6 shows it.
+  --check` in stage 7 shows it.

@@ -12,7 +12,7 @@ class Cards
     /// @todo is not a tag
     public function charge(int $cents): string
     {
-        return "id";
+        return 'id';
     }
 }
 ?>

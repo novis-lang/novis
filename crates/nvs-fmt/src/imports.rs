@@ -1,10 +1,10 @@
 //! The `use` block: consecutive imports, written back in path order.
 //!
 //! `rule:tooling/fmt-sorts-the-use-block` sorts a run of `use` declarations
-//! lexicographically by its full path, ascending and case-sensitive, and that
-//! is the only reordering `nvs fmt` performs anywhere — an import's position is
-//! not observable, and a class member's is
-//! (`rule:tooling/fmt-never-reorders-members`). There is no grouped
+//! lexicographically by its full path, ascending and case-sensitive. That and
+//! a doc comment's tag order ([`crate::doc_tags`]) are the only reorderings
+//! `nvs fmt` performs anywhere. An import's position is not observable, and a
+//! class member's is (`rule:tooling/fmt-never-reorders-members`). There is no grouped
 //! `use A\{B, C};` form in Novis, so a declaration names one path and the sort
 //! key is that path's own text.
 //!

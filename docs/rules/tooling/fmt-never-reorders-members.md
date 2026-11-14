@@ -9,8 +9,8 @@ refuses to let the formatter insert a missing `public`.
 The member order exists (`rule:tooling/class-members-have-one-order`), and a developer gets it only by
 asking: the editor's *Order class members* source action, which no save runs, or `nvs code order`.
 Both write a diff the developer reads, and both name a derived class whose JSON key order the move
-changes. Inside `nvs fmt`, the `use` block (`rule:tooling/fmt-sorts-the-use-block`) is the only
-reordering.
+changes. Inside `nvs fmt`, the `use` block (`rule:tooling/fmt-sorts-the-use-block`) and a doc
+comment's tags (`rule:tooling/fmt-orders-the-doc-tags`) are the only reorderings.
 
 **Declined:**
 - **`nvs fmt` writing the member order**, by default or behind a flag. `fmt` reads one file and runs

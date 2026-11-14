@@ -3,25 +3,29 @@
 // `@throws` tags. Every `///` here is content the test asserts on.
 
 /// The bank declined the card.
-final class Declined extends RuntimeError {
+final class Declined extends RuntimeError
+{
 }
 
 /// A till in a shop.
-class Till {
+class Till
+{
     /// Opens a till.
     ///
     /// @param $owner who runs this till
-    public function constructor(public string $owner) {
+    public function constructor(public string $owner)
+    {
     }
 
     /// Charges an amount to a card.
     ///
-    /// @param $card the card to charge
     /// @param $cents the amount, in cents.
     ///   A negative amount is a refund.
+    /// @param $card the card to charge
     /// @return the total this till has taken
     /// @throws Declined when the bank declines the card
-    public function charge(int $cents, string $card): int {
+    public function charge(int $cents, string $card): int
+    {
         return $cents;
     }
 }

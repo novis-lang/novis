@@ -1,0 +1,12 @@
+{
+  "title": "`nvs fmt` writes a doc comment's prose, one empty line, then `@param` in signature order, `@return`, `@throws`, `@see` and `@example`",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/fmt-sorts-the-use-block",
+    "tooling/doc-comment-tags-are-closed-and-checked",
+    "tooling/fmt-is-never-a-diagnostic"
+  ],
+  "guardedBy": [
+    "crates/nvs-fmt/tests/doc_tag_order.rs"
+  ]
+}

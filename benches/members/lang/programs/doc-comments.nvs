@@ -7,14 +7,17 @@
 // bench: complexity constant
 
 /// Adds a run of numbers into one running total.
+///
 /// @see Meter::run
 final class Meter
 {
     /// Each round adds a remainder of a division by this number.
+    ///
     /// @see Meter::run
     public const int WRAP = 7;
 
     /// Runs `$rounds` rounds and returns the running total.
+    ///
     /// @see Meter::WRAP
     public static function run(int $rounds): int
     {

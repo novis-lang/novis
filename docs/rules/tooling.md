@@ -1344,11 +1344,55 @@ same line. A comment with a blank line between it and the import below belongs t
 on each side of it are sorted apart.
 
 A `use` declaration names exactly one imported path, so there is no grouped `use A\{B, C};`
-form to order or to expand. This is the only reordering the formatter performs anywhere: class members
-keep the order their author wrote ([`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members)), because an import's
-position is not observable and a member's is.
+form to order or to expand. This and the order of a doc comment's tags
+([`tooling/fmt-orders-the-doc-tags`](tooling.md#tooling-fmt-orders-the-doc-tags)) are the only reorderings the formatter performs anywhere: class
+members keep the order their author wrote ([`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members)), because an
+import's position and a tag's are not observable and a member's is.
 
 <sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
+
+<a id="tooling-fmt-orders-the-doc-tags"></a>
+
+## `nvs fmt` writes a doc comment's prose, one empty line, then `@param` in signature order, `@return`, `@throws`, `@see` and `@example`
+
+`rule:tooling/fmt-orders-the-doc-tags`
+
+`nvs fmt` writes every doc comment in one layout. The prose comes first, then one empty `///` line, then
+the tags with no empty line between them. A comment with no prose starts with its first tag. The tags go
+out in this order: `@param` in the order the signature lists the parameters, then `@return`, `@throws`,
+`@see` and `@example`. `@throws`, `@see` and `@example` keep the order their author wrote within their
+kind, because that order is read back: `nvs meta --json` lists `see` and `example` in written order. An
+`@param` whose name is no parameter goes after the known ones, in written order, and the checker already
+reports it ([`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked)).
+
+A tag moves with its continuation lines. `nvs fmt` never changes the text of a line, only the order of the
+lines and the empty lines between them. A line after the first tag that is neither a tag, a continuation
+nor empty belongs to no tag, and that comment is left as written.
+
+The signature is read from the syntax tree, from the parameter list of the method below the comment. No
+type or name is resolved, so the formatter stays syntactic. Order is never a diagnostic
+([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)): a file out of order is what `nvs fmt --check` reports, as it
+reports any other layout. A tag's position is not observable, as an import's is not, so this is one of
+the two reorderings the formatter performs ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)). Every reader of the
+tags shows signature order anyway, so an unformatted file reads the same in `nvs doc`, hover and signature
+help.
+
+**A doc tag error never stops `nvs fmt`.** The formatter refuses a file with a parse error, but every doc
+tag error the parse raises (`E0128`, `E0138`, `E0139`) leaves the tree whole, so the file is formatted.
+Otherwise format-on-save would refuse the file right after the quick fix inserts an `@param` line with no
+text yet. The tag errors the checker raises never reach the formatter, which only parses.
+
+What it costs: nothing at run time. A file with a comment out of order costs `nvs fmt` one more copy of
+its text and one more parse.
+
+**Declined:**
+- **A diagnostic for tags out of order.** Layout is `nvs fmt`'s job and never a diagnostic.
+- **Moving prose written between tags.** A line after a tag is that tag's text, so there is no prose
+  there to move.
+- **Leaving the order free.** Every reader already shows signature order, but two authors writing the
+  same tags in two orders make every review of a doc comment a diff of its order.
+
+<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic).</sub>
 
 <a id="tooling-fmt-novis-constructs"></a>
 
@@ -1452,8 +1496,8 @@ refuses to let the formatter insert a missing `public`.
 The member order exists ([`tooling/class-members-have-one-order`](tooling.md#tooling-class-members-have-one-order)), and a developer gets it only by
 asking: the editor's *Order class members* source action, which no save runs, or `nvs code order`.
 Both write a diff the developer reads, and both name a derived class whose JSON key order the move
-changes. Inside `nvs fmt`, the `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is the only
-reordering.
+changes. Inside `nvs fmt`, the `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) and a doc
+comment's tags ([`tooling/fmt-orders-the-doc-tags`](tooling.md#tooling-fmt-orders-the-doc-tags)) are the only reorderings.
 
 **Declined:**
 - **`nvs fmt` writing the member order**, by default or behind a flag. `fmt` reads one file and runs

@@ -3,6 +3,7 @@
 // or a property, and the compiler checks that the name exists.
 
 /// One customer invoice. Every amount in it is in cents.
+///
 /// @see Invoice::total
 final class Invoice
 {
@@ -16,6 +17,7 @@ final class Invoice
     }
 
     /// Adds up the lines and returns the total in cents.
+    ///
     /// @see Invoice::$lines
     public function total(): int
     {

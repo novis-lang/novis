@@ -4,10 +4,13 @@
 // proof: compile-error
 
 /// A price in cents.
-final class Price {
+final class Price
+{
     /// Doubles a price.
+    ///
     /// @param int $cents the price to double
-    public static function double(int $cents): int {
+    public static function double(int $cents): int
+    {
         return $cents * 2;
     }
 }

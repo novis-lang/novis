@@ -769,10 +769,12 @@ fn a_user_declarations_shape_carries_prose_see_and_example() {
     );
 }
 
-/// A user method's card has the `Core` card's keys: `params` in signature order
-/// whatever order the `@param` lines were written in, a wrapped sentence joined
-/// into one, `return`, and `errors` as `{error, desc}`. A promoted constructor
-/// parameter is listed as a property, and its `@param` is its card.
+/// A user method's card has the `Core` card's keys: `params` in signature order,
+/// a wrapped sentence joined into one, `return`, and `errors` as `{error,
+/// desc}`. A promoted constructor parameter is listed as a property, and its
+/// `@param` is its card. The fixture is in the formatter's corpus, so its
+/// `@param` lines are in signature order; `doc.rs`'s `TAGGED` writes them out
+/// of order, and both commands read them through `DocComment::params`.
 // covers: tools:cli/nvs-meta-json
 #[test]
 fn a_user_method_card_has_the_core_card_shape() {

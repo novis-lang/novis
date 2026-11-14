@@ -8,6 +8,7 @@ same line. A comment with a blank line between it and the import below belongs t
 on each side of it are sorted apart.
 
 A `use` declaration names exactly one imported path, so there is no grouped `use A\{B, C};`
-form to order or to expand. This is the only reordering the formatter performs anywhere: class members
-keep the order their author wrote (`rule:tooling/fmt-never-reorders-members`), because an import's
-position is not observable and a member's is.
+form to order or to expand. This and the order of a doc comment's tags
+(`rule:tooling/fmt-orders-the-doc-tags`) are the only reorderings the formatter performs anywhere: class
+members keep the order their author wrote (`rule:tooling/fmt-never-reorders-members`), because an
+import's position and a tag's are not observable and a member's is.

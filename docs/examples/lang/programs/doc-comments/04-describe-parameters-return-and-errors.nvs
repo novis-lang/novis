@@ -2,7 +2,8 @@
 // Shows how to describe each parameter, the return value and the errors of a method.
 // The compiler checks that each tag matches the method under it.
 
-final class CardDeclined extends RuntimeError {
+final class CardDeclined extends RuntimeError
+{
 }
 
 final class Payments
