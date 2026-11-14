@@ -1083,6 +1083,176 @@ fn quotient_ns(dividend: &BigInt, divisor: &BigInt) -> f64 {
 }
 
 // ============================================================================
+// Products in pieces — a wide product polls the request's deadline
+// ============================================================================
+
+/// The member every poll in [`product`] names when it stops the request.
+const MUL: &str = "Core\\BigInt::mul()";
+
+/// The widest product [`product`] hands the library in one call, as its
+/// estimated CPU time ([`mul_ns`]): 5 ms on the core [`MUL_REF_NS`] was
+/// measured on.
+///
+/// The library's product is one call that polls nothing, so a request is
+/// stopped inside it only once it returns, and
+/// `rule:http-server/time-is-bounded-inside-a-helper` holds every such call
+/// under [`nvs_runtime::POLL_GAP`] (50 ms) on the machine that runs it. The
+/// cost check ([`afford`]) does not bound that: it admits a product whose
+/// estimate fits the time left, and a slower core runs it past the limit by
+/// the difference. One product of two 634,000-byte numbers is estimated at
+/// 120 ms, and took 139 ms on an x86-64 desktop core. On CI's macOS runner
+/// the attack `tests/hostile/core/BigInt/mul/02-one-product-that-takes-seconds.nvs`
+/// was admitted to that product and stopped as it returned, 103 ms past its
+/// 250 ms limit, more than the 102.7 ms the run's sweep line explains.
+///
+/// A piece estimated at 5 ms stays under the poll gap on a core ten times
+/// slower than the estimate. It is two factors of about 72,000 bytes, 35
+/// times the width above which the library itself splits by Toom-3, so the
+/// split runs the library's own algorithm one level higher up, and not a
+/// different one.
+const PIECE_NS: f64 = 5_000_000.0;
+
+/// `left * right`, computed by [`product_in_pieces`] in pieces of at most
+/// [`PIECE_NS`], with a poll of the request's deadline before each one. A
+/// product estimated under one piece is the library's single call and polls
+/// nothing.
+///
+/// # Errors
+///
+/// [`nvs_runtime::poll_deadline`]'s `FATAL` when the request's CPU or wall
+/// time ran out before the last piece.
+fn product(ctx: &nvs_runtime::Ctx, left: &BigInt, right: &BigInt) -> Result<BigInt, Fault> {
+    let magnitude = product_in_pieces(ctx, left.magnitude(), right.magnitude(), PIECE_NS)?;
+    Ok(BigInt::from_biguint(left.sign() * right.sign(), magnitude))
+}
+
+/// `a * b`, where no single call to the library is estimated past `piece`
+/// nanoseconds ([`mul_ns`]), and each call is preceded by a deadline poll.
+///
+/// It splits as the library does, one level higher up. A short factor at most
+/// half the long one's width multiplies the long one in chunks, each as wide
+/// as fits one piece and never narrower than the short factor. Two factors of
+/// about the same width are split by Toom-3 into five products of a third of
+/// the width, the library's own evaluation at 0, 1, -1, -2 and infinity and
+/// Bodrato's interpolation. Toom-3 costs a product its width to the power
+/// `log 5 / log 3`, so the five thirds cost what the whole does, and the
+/// only extra work is linear: copying the digits and adding the pieces.
+///
+/// **What it spends:** beside the library's own temporaries, one copy of each
+/// factor's digits per split level and the answer's digits, all freed before
+/// this returns, and one relaxed load per piece.
+///
+/// # Errors
+///
+/// [`nvs_runtime::poll_deadline`]'s `FATAL`, naming [`MUL`].
+fn product_in_pieces(
+    ctx: &nvs_runtime::Ctx,
+    a: &BigUint,
+    b: &BigUint,
+    piece: f64,
+) -> Result<BigUint, Fault> {
+    let (short, long) = if a.bits() <= b.bits() { (a, b) } else { (b, a) };
+    let short_bytes = width_bytes(short);
+    if mul_ns(short_bytes, width_bytes(long)) <= piece {
+        return Ok(short * long);
+    }
+    let x = short.to_u32_digits();
+    let y = long.to_u32_digits();
+    // Under four digits a split makes no narrower piece, and such a product
+    // is a few multiplications whatever the estimate says.
+    if y.len() < 4 {
+        return Ok(short * long);
+    }
+    let mut answer = vec![0_u32; x.len() + y.len() + 1];
+    if x.len() * 2 <= y.len() {
+        // The widest chunk whose product with `short` is one piece, doubled
+        // from the short factor's own width.
+        let mut chunk = x.len();
+        while chunk * 2 < y.len() && mul_ns(short_bytes, 8 * chunk as u64) <= piece {
+            chunk *= 2;
+        }
+        for (index, part) in y.chunks(chunk).enumerate() {
+            nvs_runtime::poll_deadline(ctx, MUL)?;
+            let part = product_in_pieces(ctx, short, &BigUint::from_slice(part), piece)?;
+            add_at(&mut answer, index * chunk, &part);
+        }
+        return Ok(BigUint::new(answer));
+    }
+    let third = y.len() / 3 + 1;
+    let x0_len = x.len().min(third);
+    let x1_len = (x.len() - x0_len).min(third);
+    let y1_len = (y.len() - third).min(third);
+    let part = |digits: &[u32]| BigInt::from(BigUint::from_slice(digits));
+    let (x0, x1, x2) = (
+        part(&x[..x0_len]),
+        part(&x[x0_len..x0_len + x1_len]),
+        part(&x[x0_len + x1_len..]),
+    );
+    let (y0, y1, y2) = (
+        part(&y[..third]),
+        part(&y[third..third + y1_len]),
+        part(&y[third + y1_len..]),
+    );
+    drop((x, y));
+    let signed = |left: &BigInt, right: &BigInt| -> Result<BigInt, Fault> {
+        nvs_runtime::poll_deadline(ctx, MUL)?;
+        let magnitude = product_in_pieces(ctx, left.magnitude(), right.magnitude(), piece)?;
+        Ok(BigInt::from_biguint(left.sign() * right.sign(), magnitude))
+    };
+    let p = &x0 + &x2;
+    let q = &y0 + &y2;
+    let p2 = &p - &x1;
+    let q2 = &q - &y1;
+    // The product polynomial at 0, infinity, 1, -1 and -2.
+    let r0 = signed(&x0, &y0)?;
+    let r4 = signed(&x2, &y2)?;
+    let r1 = signed(&(p + x1), &(q + y1))?;
+    let r2 = signed(&p2, &q2)?;
+    let r3 = signed(&((p2 + x2) * 2 - x0), &((q2 + y2) * 2 - y0))?;
+    let mut comp3: BigInt = (r3 - &r1) / 3_u32;
+    let mut comp1: BigInt = (r1 - &r2) >> 1;
+    let mut comp2: BigInt = r2 - &r0;
+    comp3 = ((&comp2 - comp3) >> 1) + (&r4 << 1);
+    comp2 += &comp1 - &r4;
+    comp1 -= &comp3;
+    // Each is a coefficient of the product of two polynomials whose
+    // coefficients are not negative, so none is negative, and their sum at
+    // the split width is the answer, which `answer` is wide enough for.
+    for (index, coefficient) in [r0, comp1, comp2, comp3, r4].iter().enumerate() {
+        debug_assert!(
+            coefficient.sign() != Sign::Minus,
+            "Toom-3 gave a negative coefficient"
+        );
+        add_at(&mut answer, index * third, coefficient.magnitude());
+    }
+    Ok(BigUint::new(answer))
+}
+
+/// Adds `value` into `digits`, `offset` digits up, carrying as far as it goes.
+/// [`product_in_pieces`] sizes `digits` for the whole answer, which every
+/// partial sum is under.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the low half of a sum of two digits and a carry is the digit kept"
+)]
+fn add_at(digits: &mut [u32], offset: usize, value: &BigUint) {
+    let mut carry = 0_u64;
+    let mut at = offset;
+    for digit in value.iter_u32_digits() {
+        let sum = u64::from(digits[at]) + u64::from(digit) + carry;
+        digits[at] = sum as u32;
+        carry = sum >> 32;
+        at += 1;
+    }
+    while carry != 0 {
+        let sum = u64::from(digits[at]) + carry;
+        digits[at] = sum as u32;
+        carry = sum >> 32;
+        at += 1;
+    }
+}
+
+// ============================================================================
 // Construction
 // ============================================================================
 
@@ -1160,13 +1330,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->mul(BigInt $other): BigInt`.
+    /// `$n->mul(BigInt $other): BigInt`. The cost check refuses a product
+    /// that does not fit the CPU time left, and [`product`] stops one that
+    /// runs past it within a piece.
     fn nvs_core_bigint_mul(ctx, args: [2]) {
         let left = operand(args, 0, "mul")?;
         let right = operand(args, 1, "mul")?;
         let cost = mul_ns(width_bytes(left.magnitude()), width_bytes(right.magnitude()));
-        afford(ctx, cost, "Core\\BigInt::mul()")?;
-        built(&(left * right))
+        afford(ctx, cost, MUL)?;
+        built(&product(ctx, &left, &right)?)
     }
 }
 
@@ -2543,6 +2715,63 @@ mod tests {
                 .expect("zero multiplies too"),
         );
         assert_eq!(absorbed, BigInt::from(0));
+    }
+
+    /// [`product_in_pieces`] answers the library's product for every shape it
+    /// splits: two factors of about one width (Toom-3), a long factor and a
+    /// short one (chunks), a one-digit factor, a factor whose low digits are
+    /// all zero, a factor of all ones whose pieces carry, and zero. A piece of
+    /// 1 µs makes each of them split several levels deep.
+    #[test]
+    fn product_in_pieces_is_the_librarys_product() {
+        let three = BigUint::from(3_u32);
+        let ones = (BigUint::from(1_u32) << 64_000_u32) - 1_u32;
+        let pairs = [
+            (three.pow(20_000), BigUint::from(7_u32).pow(19_000)),
+            (three.pow(60_000), BigUint::from(5_u32).pow(700)),
+            (BigUint::from(u32::MAX), three.pow(50_000)),
+            (BigUint::from(1_u32) << 40_000_u32, three.pow(30_000)),
+            (ones.clone(), ones),
+            (BigUint::ZERO, three.pow(50_000)),
+        ];
+        let ctx = Ctx::buffered();
+        let mut same = 0_usize;
+        for (left, right) in &pairs {
+            let pieces = product_in_pieces(&ctx, left, right, 1_000.0)
+                .expect("a request with no deadline is never stopped");
+            if pieces == left * right {
+                same += 1;
+            }
+        }
+        assert_eq!(same, pairs.len());
+    }
+
+    /// A product wider than one piece stops at the first poll once the
+    /// request's deadline has passed, which the watchdog expires for a CPU
+    /// stop as for a wall-time one. A narrow product is one library call that
+    /// polls nothing, so it still answers.
+    // covers: Core\BigInt::mul
+    #[test]
+    fn a_wide_product_stops_at_a_passed_deadline() {
+        let wide = BigInt::from((BigUint::from(1_u32) << 700_000_u32) - 1_u32);
+        assert!(
+            mul_ns(width_bytes(wide.magnitude()), width_bytes(wide.magnitude())) > PIECE_NS,
+            "the product must be wider than one piece"
+        );
+        let mut ctx = Ctx::buffered();
+        ctx.expire_deadline();
+        let operands = [
+            built(&wide).expect("the factor is built"),
+            built(&wide).expect("the factor is built"),
+        ];
+        assert_eq!(
+            call(nvs_core_bigint_mul, &mut ctx, &operands).map(|_| ()),
+            Err(nvs_runtime::FATAL)
+        );
+        let narrow = read(
+            call(nvs_core_bigint_mul, &mut ctx, &[of(7), of(5)]).expect("a narrow product answers"),
+        );
+        assert_eq!(narrow, BigInt::from(35));
     }
 
     /// `neg` returns the same magnitude with the opposite sign, so a value and
