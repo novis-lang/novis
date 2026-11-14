@@ -1,0 +1,17 @@
+--TEST--
+the `$name` after `@param` is coloured as a parameter, as the same name in the parameter list is, `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+class Greeter
+{
+    /// @param $name the person to greet
+    public function greet(string $name): string
+    {
+        return "Hello, " . $name;
+    }
+}
+--REQUEST--
+semanticTokens types=parameter
+--EXPECT--
+4:16+5 parameter
+5:34+5 parameter

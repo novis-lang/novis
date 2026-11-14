@@ -23,7 +23,8 @@
 //! answer:
 //!
 //! - a declaration names what it declares — `class`, `interface`, `enum`, a
-//!   case, a `type` alias, a namespace, a property, a method, a parameter;
+//!   case, a `type` alias, a namespace, a property, a method, a parameter, and
+//!   the `$name` after an `@param` in a method's `///` run;
 //! - a *position* names what may stand in it — `extends` on a class is a class,
 //!   `implements` is an interface, `new C()` is a class, and the receiver of
 //!   `C::m()` or `C::$p` is a class, because
@@ -139,9 +140,9 @@ use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
 use nvs_stdlib::registry;
 use nvs_syntax::ast::{
     AttributeGroup, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName, Name,
-    NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand,
-    Type,
+    DestructureTarget, DocTagKind, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName,
+    Name, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart,
+    TestOperand, Type,
 };
 use nvs_types::expr::quals::{is_secret, is_tainted};
 use nvs_types::{ExprInfo, TypeId};
@@ -797,6 +798,13 @@ impl Named<'_> {
                 ClassMemberKind::Enum(decl) => self.enum_decl(decl),
                 ClassMemberKind::Method(method) => {
                     self.attributes(&method.attributes);
+                    // The `$name` after `@param` is a parameter position, as
+                    // the parameter list is.
+                    for tag in member.doc.iter().flat_map(|doc| &doc.tags) {
+                        if let (DocTagKind::Param, Some(target)) = (tag.kind, tag.target) {
+                            self.push(target, Kind::Parameter);
+                        }
+                    }
                     self.push(method.name, Kind::Method);
                     self.params(&method.params);
                     if let Some(body) = &method.body {
