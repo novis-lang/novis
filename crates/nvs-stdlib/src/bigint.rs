@@ -949,14 +949,19 @@ const LEAF_DIGITS: usize = 1024;
 /// does, plus the powers of the radix [`from_digits`] multiplies by, which
 /// together are about as wide as the result. All of it is freed before this
 /// returns.
-fn parsed(text: &str, radix: u32) -> Option<BigInt> {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL` when the request's time ran out between two
+/// pieces of long text.
+fn parsed(pieces: &Pieces<'_>, text: &str, radix: u32) -> Result<Option<BigInt>, Fault> {
     let (sign, digits) = match text.as_bytes() {
         [b'-', rest @ ..] => (Sign::Minus, rest),
         [b'+', rest @ ..] => (Sign::Plus, rest),
         all => (Sign::Plus, all),
     };
     if digits.len() <= 2 * LEAF_DIGITS || radix.is_power_of_two() {
-        return BigInt::parse_bytes(text.as_bytes(), radix);
+        return Ok(BigInt::parse_bytes(text.as_bytes(), radix));
     }
     let values = digits
         .iter()
@@ -965,39 +970,65 @@ fn parsed(text: &str, radix: u32) -> Option<BigInt> {
                 .to_digit(radix)
                 .and_then(|value| u8::try_from(value).ok())
         })
-        .collect::<Option<Vec<u8>>>()?;
+        .collect::<Option<Vec<u8>>>();
+    let Some(values) = values else {
+        return Ok(None);
+    };
     let mut powers = Vec::new();
-    let magnitude = from_digits(&values, radix, &mut powers)?;
-    Some(BigInt::from_biguint(sign, magnitude))
+    let magnitude = from_digits(pieces, &values, radix, &mut powers)?;
+    Ok(magnitude.map(|magnitude| BigInt::from_biguint(sign, magnitude)))
 }
 
 /// The number `values` spells, most significant digit first, by divide and
 /// conquer: the low part is `LEAF_DIGITS << k` digits, at least half of the
 /// whole, and the high part is multiplied by `radix` to that length and added.
+/// Each product is [`Pieces::mul`]'s, so a wide one polls the deadline
+/// between its pieces, and every split polls once.
 ///
 /// `powers[k]` is `radix` to the power `LEAF_DIGITS << k`, each the square of
 /// the one before, built on first use and shared by every split of one call.
 /// [`None`] where a value is not a digit of `radix`, which [`parsed`] has
 /// already checked.
-fn from_digits(values: &[u8], radix: u32, powers: &mut Vec<BigUint>) -> Option<BigUint> {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn from_digits(
+    pieces: &Pieces<'_>,
+    values: &[u8],
+    radix: u32,
+    powers: &mut Vec<BigUint>,
+) -> Result<Option<BigUint>, Fault> {
     if values.len() <= 2 * LEAF_DIGITS {
-        return BigUint::from_radix_be(values, radix);
+        return Ok(BigUint::from_radix_be(values, radix));
     }
+    pieces.poll()?;
     let mut k = 0;
     while LEAF_DIGITS << (k + 1) < values.len() {
         k += 1;
     }
     let (high, low) = values.split_at(values.len() - (LEAF_DIGITS << k));
-    let high = from_digits(high, radix, powers)?;
-    let low = from_digits(low, radix, powers)?;
+    let (Some(high), Some(low)) = (
+        from_digits(pieces, high, radix, powers)?,
+        from_digits(pieces, low, radix, powers)?,
+    ) else {
+        return Ok(None);
+    };
     if powers.is_empty() {
-        powers.push(BigUint::from(radix).pow(u32::try_from(LEAF_DIGITS).ok()?));
+        let leaf = u32::try_from(LEAF_DIGITS).unwrap_or(u32::MAX);
+        powers.push(BigUint::from(radix).pow(leaf));
     }
     while powers.len() <= k {
-        let square = powers.last().map(|last| last * last)?;
+        let Some(last) = powers.last() else {
+            return Ok(None);
+        };
+        let square = pieces.mul(last, last)?;
         powers.push(square);
     }
-    Some(high * powers.get(k)? + low)
+    let Some(power) = powers.get(k) else {
+        return Ok(None);
+    };
+    Ok(Some(pieces.mul(&high, power)? + low))
 }
 
 /// `rule:types/arithmetic`'s refusal, at this class's magnitudes: the sentence
@@ -1072,26 +1103,22 @@ fn afford(ctx: &mut nvs_runtime::Ctx, nanos: f64, member: &str) -> Result<(), Fa
 /// The estimated CPU time of `dividend / divisor` or `dividend % divisor`, in
 /// nanoseconds. A dividend narrower than its divisor is answered at once.
 fn quotient_ns(dividend: &BigInt, divisor: &BigInt) -> f64 {
-    let (wide, narrow) = (
+    quotient_bytes_ns(
         width_bytes(dividend.magnitude()),
         width_bytes(divisor.magnitude()),
-    );
-    if wide < narrow {
-        return 0.0;
-    }
-    1.3 * mul_ns(wide, narrow)
+    )
 }
 
 // ============================================================================
-// Products in pieces — a wide product polls the request's deadline
+// Work in pieces — a wide call polls the request's deadline
 // ============================================================================
 
 /// The member every poll in [`product`] names when it stops the request.
 const MUL: &str = "Core\\BigInt::mul()";
 
-/// The widest product [`product`] hands the library in one call, as its
-/// estimated CPU time ([`mul_ns`]): 5 ms on the core [`MUL_REF_NS`] was
-/// measured on.
+/// The widest call [`Pieces`] hands the library at once, as its estimated
+/// CPU time ([`mul_ns`] times the member's factor): 5 ms on the core
+/// [`MUL_REF_NS`] was measured on.
 ///
 /// The library's product is one call that polls nothing, so a request is
 /// stopped inside it only once it returns, and
@@ -1110,9 +1137,22 @@ const MUL: &str = "Core\\BigInt::mul()";
 /// times the width above which the library itself splits by Toom-3, so the
 /// split runs the library's own algorithm one level higher up, and not a
 /// different one.
+///
+/// Every other member that runs past one piece is split the same way: a
+/// quotient by Burnikel and Ziegler's halves, the library's own division, a
+/// conversion to digits by the library's own halving, and `gcd`, `sqrt`,
+/// `pow` and `powMod` as the loops they already are, each step a product or a
+/// quotient in pieces.
 const PIECE_NS: f64 = 5_000_000.0;
 
-/// `left * right`, computed by [`product_in_pieces`] in pieces of at most
+/// The width in bytes at or under which every call [`Pieces`] makes fits one
+/// piece, so the split is ruled out with one compare and not the estimate's
+/// `powf`, which costs more than a product of a few words. A product of two
+/// such numbers is estimated at 0.2 ms, and the largest factor a member puts
+/// on that is 2.6. `narrow_calls_fit_one_piece` pins it.
+const NARROW_BYTES: u64 = 8192;
+
+/// `left * right`, computed by [`Pieces::product`] in pieces of at most
 /// [`PIECE_NS`], with a poll of the request's deadline before each one. A
 /// product estimated under one piece is the library's single call and polls
 /// nothing.
@@ -1122,114 +1162,422 @@ const PIECE_NS: f64 = 5_000_000.0;
 /// [`nvs_runtime::poll_deadline`]'s `FATAL` when the request's CPU or wall
 /// time ran out before the last piece.
 fn product(ctx: &nvs_runtime::Ctx, left: &BigInt, right: &BigInt) -> Result<BigInt, Fault> {
-    let magnitude = product_in_pieces(ctx, left.magnitude(), right.magnitude(), PIECE_NS)?;
+    let magnitude = Pieces::new(ctx, MUL).product(left.magnitude(), right.magnitude())?;
     Ok(BigInt::from_biguint(left.sign() * right.sign(), magnitude))
 }
 
-/// `a * b`, where no single call to the library is estimated past `piece`
-/// nanoseconds ([`mul_ns`]), and each call is preceded by a deadline poll.
+/// One wide call's work, run as library calls of at most `piece` estimated
+/// nanoseconds each, with a poll of the request's deadline before each one.
 ///
-/// It splits as the library does, one level higher up. A short factor at most
-/// half the long one's width multiplies the long one in chunks, each as wide
-/// as fits one piece and never narrower than the short factor. Two factors of
-/// about the same width are split by Toom-3 into five products of a third of
-/// the width, the library's own evaluation at 0, 1, -1, -2 and infinity and
-/// Bodrato's interpolation. Toom-3 costs a product its width to the power
-/// `log 5 / log 3`, so the five thirds cost what the whole does, and the
-/// only extra work is linear: copying the digits and adding the pieces.
-///
-/// **What it spends:** beside the library's own temporaries, one copy of each
-/// factor's digits per split level and the answer's digits, all freed before
-/// this returns, and one relaxed load per piece.
-///
-/// # Errors
-///
-/// [`nvs_runtime::poll_deadline`]'s `FATAL`, naming [`MUL`].
-fn product_in_pieces(
-    ctx: &nvs_runtime::Ctx,
-    a: &BigUint,
-    b: &BigUint,
+/// **What it spends:** one relaxed load per piece, and what each method
+/// below says it holds beside the library's own temporaries.
+#[derive(Clone, Copy)]
+struct Pieces<'a> {
+    /// The request whose deadline every poll reads.
+    ctx: &'a nvs_runtime::Ctx,
+    /// The member a poll names when it stops the request, written
+    /// `Core\BigInt::name()`.
+    member: &'a str,
+    /// The widest call handed to the library at once, as its estimate in
+    /// nanoseconds: [`PIECE_NS`], or less in a test that splits small numbers.
     piece: f64,
-) -> Result<BigUint, Fault> {
-    let (short, long) = if a.bits() <= b.bits() { (a, b) } else { (b, a) };
-    let short_bytes = width_bytes(short);
-    if mul_ns(short_bytes, width_bytes(long)) <= piece {
-        return Ok(short * long);
-    }
-    let x = short.to_u32_digits();
-    let y = long.to_u32_digits();
-    // Under four digits a split makes no narrower piece, and such a product
-    // is a few multiplications whatever the estimate says.
-    if y.len() < 4 {
-        return Ok(short * long);
-    }
-    let mut answer = vec![0_u32; x.len() + y.len() + 1];
-    if x.len() * 2 <= y.len() {
-        // The widest chunk whose product with `short` is one piece, doubled
-        // from the short factor's own width.
-        let mut chunk = x.len();
-        while chunk * 2 < y.len() && mul_ns(short_bytes, 8 * chunk as u64) <= piece {
-            chunk *= 2;
+    /// The width in bytes at or under which every call fits `piece`:
+    /// [`NARROW_BYTES`], or 0 in a test.
+    narrow: u64,
+}
+
+impl<'a> Pieces<'a> {
+    /// The pieces of one call to `member` under `ctx`'s deadline.
+    fn new(ctx: &'a nvs_runtime::Ctx, member: &'a str) -> Self {
+        Pieces {
+            ctx,
+            member,
+            piece: PIECE_NS,
+            narrow: NARROW_BYTES,
         }
-        for (index, part) in y.chunks(chunk).enumerate() {
-            nvs_runtime::poll_deadline(ctx, MUL)?;
-            let part = product_in_pieces(ctx, short, &BigUint::from_slice(part), piece)?;
-            add_at(&mut answer, index * chunk, &part);
-        }
-        return Ok(BigUint::new(answer));
     }
-    let third = y.len() / 3 + 1;
-    let x0_len = x.len().min(third);
-    let x1_len = (x.len() - x0_len).min(third);
-    let y1_len = (y.len() - third).min(third);
-    let part = |digits: &[u32]| BigInt::from(BigUint::from_slice(digits));
-    let (x0, x1, x2) = (
-        part(&x[..x0_len]),
-        part(&x[x0_len..x0_len + x1_len]),
-        part(&x[x0_len + x1_len..]),
-    );
-    let (y0, y1, y2) = (
-        part(&y[..third]),
-        part(&y[third..third + y1_len]),
-        part(&y[third + y1_len..]),
-    );
-    drop((x, y));
-    let signed = |left: &BigInt, right: &BigInt| -> Result<BigInt, Fault> {
-        nvs_runtime::poll_deadline(ctx, MUL)?;
-        let magnitude = product_in_pieces(ctx, left.magnitude(), right.magnitude(), piece)?;
-        Ok(BigInt::from_biguint(left.sign() * right.sign(), magnitude))
-    };
-    let p = &x0 + &x2;
-    let q = &y0 + &y2;
-    let p2 = &p - &x1;
-    let q2 = &q - &y1;
-    // The product polynomial at 0, infinity, 1, -1 and -2.
-    let r0 = signed(&x0, &y0)?;
-    let r4 = signed(&x2, &y2)?;
-    let r1 = signed(&(p + x1), &(q + y1))?;
-    let r2 = signed(&p2, &q2)?;
-    let r3 = signed(&((p2 + x2) * 2 - x0), &((q2 + y2) * 2 - y0))?;
-    let mut comp3: BigInt = (r3 - &r1) / 3_u32;
-    let mut comp1: BigInt = (r1 - &r2) >> 1;
-    let mut comp2: BigInt = r2 - &r0;
-    comp3 = ((&comp2 - comp3) >> 1) + (&r4 << 1);
-    comp2 += &comp1 - &r4;
-    comp1 -= &comp3;
-    // Each is a coefficient of the product of two polynomials whose
-    // coefficients are not negative, so none is negative, and their sum at
-    // the split width is the answer, which `answer` is wide enough for.
-    for (index, coefficient) in [r0, comp1, comp2, comp3, r4].iter().enumerate() {
-        debug_assert!(
-            coefficient.sign() != Sign::Minus,
-            "Toom-3 gave a negative coefficient"
+
+    /// One poll of the request's deadline.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_runtime::poll_deadline`]'s `FATAL`, naming the member.
+    fn poll(&self) -> Result<(), Fault> {
+        nvs_runtime::poll_deadline(self.ctx, self.member)
+    }
+
+    /// A poll, then `a * b` by [`Self::product`]. A loop that multiplies at
+    /// every step calls this, so it polls at every step.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn mul(&self, a: &BigUint, b: &BigUint) -> Result<BigUint, Fault> {
+        self.poll()?;
+        self.product(a, b)
+    }
+
+    /// A poll, then `u / d` and `u % d` by [`Self::quotient`]. `d` is not zero.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn div_rem(&self, u: &BigUint, d: &BigUint) -> Result<(BigUint, BigUint), Fault> {
+        self.poll()?;
+        self.quotient(u, d)
+    }
+
+    /// `a * b`, where no single call to the library is estimated past
+    /// `piece` nanoseconds ([`mul_ns`]), and each call is preceded by a
+    /// deadline poll.
+    ///
+    /// It splits as the library does, one level higher up. A short factor at
+    /// most half the long one's width multiplies the long one in chunks, each
+    /// as wide as fits one piece and never narrower than the short factor. Two
+    /// factors of about the same width are split by Toom-3 into five products
+    /// of a third of the width, the library's own evaluation at 0, 1, -1, -2
+    /// and infinity and Bodrato's interpolation. Toom-3 costs a product its
+    /// width to the power `log 5 / log 3`, so the five thirds cost what the
+    /// whole does, and the only extra work is linear: copying the digits and
+    /// adding the pieces.
+    ///
+    /// **What it spends:** beside the library's own temporaries, one copy of
+    /// each factor's digits per split level and the answer's digits, all freed
+    /// before this returns.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn product(&self, a: &BigUint, b: &BigUint) -> Result<BigUint, Fault> {
+        let (short, long) = if a.bits() <= b.bits() { (a, b) } else { (b, a) };
+        let (short_bytes, long_bytes) = (width_bytes(short), width_bytes(long));
+        if long_bytes <= self.narrow || mul_ns(short_bytes, long_bytes) <= self.piece {
+            return Ok(short * long);
+        }
+        let x = short.to_u32_digits();
+        let y = long.to_u32_digits();
+        // Under four digits a split makes no narrower piece, and such a product
+        // is a few multiplications whatever the estimate says.
+        if y.len() < 4 {
+            return Ok(short * long);
+        }
+        let mut answer = vec![0_u32; x.len() + y.len() + 1];
+        if x.len() * 2 <= y.len() {
+            // The widest chunk whose product with `short` is one piece, doubled
+            // from the short factor's own width.
+            let mut chunk = x.len();
+            while chunk * 2 < y.len() && mul_ns(short_bytes, 8 * chunk as u64) <= self.piece {
+                chunk *= 2;
+            }
+            for (index, part) in y.chunks(chunk).enumerate() {
+                self.poll()?;
+                let part = self.product(short, &BigUint::from_slice(part))?;
+                add_at(&mut answer, index * chunk, &part);
+            }
+            return Ok(BigUint::new(answer));
+        }
+        let third = y.len() / 3 + 1;
+        let x0_len = x.len().min(third);
+        let x1_len = (x.len() - x0_len).min(third);
+        let y1_len = (y.len() - third).min(third);
+        let part = |digits: &[u32]| BigInt::from(BigUint::from_slice(digits));
+        let (x0, x1, x2) = (
+            part(&x[..x0_len]),
+            part(&x[x0_len..x0_len + x1_len]),
+            part(&x[x0_len + x1_len..]),
         );
-        add_at(&mut answer, index * third, coefficient.magnitude());
+        let (y0, y1, y2) = (
+            part(&y[..third]),
+            part(&y[third..third + y1_len]),
+            part(&y[third + y1_len..]),
+        );
+        drop((x, y));
+        let signed = |left: &BigInt, right: &BigInt| -> Result<BigInt, Fault> {
+            let magnitude = self.mul(left.magnitude(), right.magnitude())?;
+            Ok(BigInt::from_biguint(left.sign() * right.sign(), magnitude))
+        };
+        let p = &x0 + &x2;
+        let q = &y0 + &y2;
+        let p2 = &p - &x1;
+        let q2 = &q - &y1;
+        // The product polynomial at 0, infinity, 1, -1 and -2.
+        let r0 = signed(&x0, &y0)?;
+        let r4 = signed(&x2, &y2)?;
+        let r1 = signed(&(p + x1), &(q + y1))?;
+        let r2 = signed(&p2, &q2)?;
+        let r3 = signed(&((p2 + x2) * 2 - x0), &((q2 + y2) * 2 - y0))?;
+        let mut comp3: BigInt = (r3 - &r1) / 3_u32;
+        let mut comp1: BigInt = (r1 - &r2) >> 1;
+        let mut comp2: BigInt = r2 - &r0;
+        comp3 = ((&comp2 - comp3) >> 1) + (&r4 << 1);
+        comp2 += &comp1 - &r4;
+        comp1 -= &comp3;
+        // Each is a coefficient of the product of two polynomials whose
+        // coefficients are not negative, so none is negative, and their sum at
+        // the split width is the answer, which `answer` is wide enough for.
+        for (index, coefficient) in [r0, comp1, comp2, comp3, r4].iter().enumerate() {
+            debug_assert!(
+                coefficient.sign() != Sign::Minus,
+                "Toom-3 gave a negative coefficient"
+            );
+            add_at(&mut answer, index * third, coefficient.magnitude());
+        }
+        Ok(BigUint::new(answer))
     }
-    Ok(BigUint::new(answer))
+
+    /// `u / d` and `u % d`, where no single call to the library is estimated
+    /// past `piece` ([`quotient_bytes_ns`]), and each call is preceded by a
+    /// deadline poll. `d` is not zero.
+    ///
+    /// It splits as the library does, one level higher up. A dividend more
+    /// than twice the divisor's width is divided in chunks from the top, as
+    /// long division does: each chunk with the remainder before it is one
+    /// quotient of about twice the divisor's width. Such a quotient is split
+    /// by Burnikel and Ziegler's recursive division ([`Self::two_by_one`]),
+    /// the library's own algorithm above 64 words, until a half fits one
+    /// piece. Its cost is a product's, so the halves cost what the whole
+    /// does, and the extra work is linear: shifting and masking the halves.
+    /// Measured on a dividend of 4 and 10 million bits by half its width, it
+    /// took 1.16 and 1.05 times the library's time, and by a divisor 16 and
+    /// 128 times narrower, 0.73 and 0.86 times.
+    ///
+    /// **What it spends:** beside the library's own temporaries, one copy of
+    /// the dividend's digits and the quotient's, and at each split level the
+    /// halves of the dividend and the divisor, all freed before this returns.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn quotient(&self, u: &BigUint, d: &BigUint) -> Result<(BigUint, BigUint), Fault> {
+        let wide = width_bytes(u);
+        if wide <= self.narrow || quotient_bytes_ns(wide, width_bytes(d)) <= self.piece {
+            return Ok(u.div_rem(d));
+        }
+        if u < d {
+            return Ok((BigUint::ZERO, u.clone()));
+        }
+        let m = d.bits();
+        if u.bits() > 2 * m + 64 {
+            return self.quotient_by_chunks(u, d);
+        }
+        // `n` is the divisor's width once shifted, at least `u`'s width less
+        // the divisor's, so that `u` is below the divisor times `2^n`, and a
+        // multiple of `2^levels`, so that every split halves it exactly.
+        let mut top = m.max(u.bits() + 1 - m);
+        let mut levels = 0_u32;
+        while top > 64 && quotient_bytes_ns(2 * top.div_ceil(8), top.div_ceil(8)) > self.piece {
+            top = top.div_ceil(2);
+            levels += 1;
+        }
+        let n = top << levels;
+        let shift = n - m;
+        let (q, r) = self.two_by_one(u << shift, &(d << shift), n, levels)?;
+        Ok((q, r >> shift))
+    }
+
+    /// [`Self::quotient`] of a dividend more than twice the divisor's width,
+    /// in chunks of whole digits at least as wide as the divisor, from the
+    /// top. Each chunk with the remainder before it is below the divisor times
+    /// `2^chunk`, so its quotient fills one chunk of the answer.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn quotient_by_chunks(&self, u: &BigUint, d: &BigUint) -> Result<(BigUint, BigUint), Fault> {
+        let narrow = width_bytes(d);
+        let digits = u.to_u32_digits();
+        // The widest chunk whose quotient is one piece, doubled from the
+        // divisor's own width.
+        let mut step = usize::try_from(d.bits().div_ceil(32)).unwrap_or(usize::MAX);
+        while step * 2 < digits.len()
+            && quotient_bytes_ns(narrow + 8 * step as u64, narrow) <= self.piece
+        {
+            step *= 2;
+        }
+        let chunk = 32 * step as u64;
+        let mut answer = vec![0_u32; digits.len()];
+        let mut rest = BigUint::ZERO;
+        for index in (0..digits.len().div_ceil(step)).rev() {
+            let start = index * step;
+            let end = (start + step).min(digits.len());
+            let part = (rest << chunk) + BigUint::from_slice(&digits[start..end]);
+            let (q, r) = self.div_rem(&part, d)?;
+            for (at, digit) in q.iter_u32_digits().enumerate() {
+                answer[start + at] = digit;
+            }
+            rest = r;
+        }
+        Ok((BigUint::new(answer), rest))
+    }
+
+    /// `a / b` and `a % b` by Burnikel and Ziegler's recursive division, for
+    /// `b` exactly `n` bits wide and `a` below `b * 2^n`, split `levels` times
+    /// before the library divides. The quotient is below `2^n`.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn two_by_one(
+        &self,
+        a: BigUint,
+        b: &BigUint,
+        n: u64,
+        levels: u32,
+    ) -> Result<(BigUint, BigUint), Fault> {
+        self.poll()?;
+        if levels == 0 {
+            return Ok(a.div_rem(b));
+        }
+        let h = n / 2;
+        let (b1, b2) = (b >> h, low_bits(b, h));
+        let low = low_bits(&a, n);
+        let (q1, r) = self.three_by_two(a >> n, &low >> h, b, &b1, &b2, h, levels - 1)?;
+        let (q2, s) = self.three_by_two(r, low_bits(&low, h), b, &b1, &b2, h, levels - 1)?;
+        Ok(((q1 << h) + q2, s))
+    }
+
+    /// `(top * 2^h + low) / b` and its remainder, for `b` exactly `2h` bits
+    /// wide with `b1` its top half and `b2` its bottom half, `low` below `2^h`,
+    /// and the dividend below `b * 2^h`. The quotient is below `2^h`: the top
+    /// two halves divided by `b1`, less at most two corrections.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the halves of the divisor are made once per level and shared by both calls"
+    )]
+    fn three_by_two(
+        &self,
+        top: BigUint,
+        low: BigUint,
+        b: &BigUint,
+        b1: &BigUint,
+        b2: &BigUint,
+        h: u64,
+        levels: u32,
+    ) -> Result<(BigUint, BigUint), Fault> {
+        // The dividend is below `b * 2^h`, so the top half of `top` is at most
+        // `b1`. Where it equals `b1`, the quotient's estimate is `2^h - 1`.
+        let (mut q, r1) = if (&top >> h) < *b1 {
+            self.two_by_one(top, b1, h, levels)?
+        } else {
+            let q = (BigUint::from(1_u32) << h) - 1_u32;
+            let r1 = top + b1 - (b1 << h);
+            (q, r1)
+        };
+        let d = self.mul(&q, b2)?;
+        let mut r = (r1 << h) + low;
+        while r < d {
+            q -= 1_u32;
+            r += b;
+        }
+        Ok((q, r - d))
+    }
+
+    /// The digits of `value` in `radix`, which is not a power of two, where no
+    /// single call to the library is estimated past `piece`, and each call is
+    /// preceded by a deadline poll.
+    ///
+    /// It splits as the library does, one level higher up: `value` is divided
+    /// by `radix` to the power `LEAF_DIGITS << k`, and the quotient and the
+    /// remainder are written as the high and low digits. Each power is the
+    /// square of the one before. The cost is a quotient's times `log n`, as
+    /// the library's is. Measured on values of 2 and 5 million bits, it took
+    /// 1.14 and 1.22 times the library's time, since each leaf call builds
+    /// the library's own table of powers again.
+    ///
+    /// **What it spends:** the powers of `radix`, together about twice as wide
+    /// as `value`, and one quotient and remainder per level, all freed before
+    /// this returns.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn text(&self, value: &BigUint, radix: u32) -> Result<String, Fault> {
+        let leaf = u32::try_from(LEAF_DIGITS).unwrap_or(u32::MAX);
+        let mut powers = vec![BigUint::from(radix).pow(leaf)];
+        // The last power squared is above `value`.
+        while let Some(last) = powers.last()
+            && 2 * (last.bits() - 1) < value.bits()
+        {
+            let square = self.mul(last, last)?;
+            powers.push(square);
+        }
+        let digits = f64::from(radix).log2();
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss,
+            reason = "a capacity: a few bytes over or under only moves one allocation"
+        )]
+        let capacity = (value.bits() as f64 / digits) as usize + 1;
+        let mut out = String::with_capacity(capacity);
+        self.digits_into(value, radix, &powers, powers.len() - 1, false, &mut out)?;
+        Ok(out)
+    }
+
+    /// Writes `value`, below `powers[k]` squared, to `out` in `radix`. With
+    /// `pad` it is written with leading zeros to the full width of that
+    /// square, `LEAF_DIGITS << (k + 1)` digits, as every low half is.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::poll`]'s `FATAL`.
+    fn digits_into(
+        &self,
+        value: &BigUint,
+        radix: u32,
+        powers: &[BigUint],
+        k: usize,
+        pad: bool,
+        out: &mut String,
+    ) -> Result<(), Fault> {
+        let width = width_bytes(value);
+        if k == 0 || width <= self.narrow || 2.4 * mul_ns(width, width) <= self.piece {
+            let text = value.to_str_radix(radix);
+            if pad {
+                let zeros = (LEAF_DIGITS << (k + 1)).saturating_sub(text.len());
+                out.extend(std::iter::repeat_n('0', zeros));
+            }
+            out.push_str(&text);
+            return Ok(());
+        }
+        if !pad && *value < powers[k] {
+            return self.digits_into(value, radix, powers, k - 1, false, out);
+        }
+        let (high, low) = self.div_rem(value, &powers[k])?;
+        self.digits_into(&high, radix, powers, k - 1, pad, out)?;
+        self.digits_into(&low, radix, powers, k - 1, true, out)
+    }
+}
+
+/// The estimated CPU time of a quotient of an `wide`-byte dividend by a
+/// `narrow`-byte divisor, in nanoseconds: 1.3 products of the two, and
+/// nothing for a dividend narrower than its divisor.
+fn quotient_bytes_ns(wide: u64, narrow: u64) -> f64 {
+    if wide < narrow {
+        return 0.0;
+    }
+    1.3 * mul_ns(wide, narrow)
+}
+
+/// The low `bits` bits of `value`.
+fn low_bits(value: &BigUint, bits: u64) -> BigUint {
+    let whole = usize::try_from(bits / 32).unwrap_or(usize::MAX);
+    let mut digits: Vec<u32> = value
+        .iter_u32_digits()
+        .take(whole.saturating_add(1))
+        .collect();
+    if let Some(top) = digits.get_mut(whole) {
+        *top &= (1_u32 << (bits % 32)) - 1;
+    }
+    BigUint::new(digits)
 }
 
 /// Adds `value` into `digits`, `offset` digits up, carrying as far as it goes.
-/// [`product_in_pieces`] sizes `digits` for the whole answer, which every
+/// [`Pieces::product`] sizes `digits` for the whole answer, which every
 /// partial sum is under.
 #[expect(
     clippy::cast_possible_truncation,
@@ -1295,9 +1643,13 @@ nvs_runtime::nvs_helper! {
             let bytes = digits.saturating_mul(u64::from(radix.ilog2() + 1)) / 8;
             afford(ctx, 2.4 * mul_ns(bytes, bytes), "Core\\BigInt::parse()")?;
         }
-        Some(text)
-            .filter(|text| !text.as_bytes().contains(&b'_'))
-            .and_then(|text| parsed(text, radix))
+        let pieces = Pieces::new(ctx, "Core\\BigInt::parse()");
+        let value = if text.as_bytes().contains(&b'_') {
+            None
+        } else {
+            parsed(&pieces, text, radix)?
+        };
+        value
             .ok_or_else(|| {
                 Fault::thrown_as(
                     ThrownClass::Parse,
@@ -1352,8 +1704,14 @@ nvs_runtime::nvs_helper! {
         if divisor.sign() == Sign::NoSign {
             return Err(refused("Core\\BigInt::div(): the divisor is zero".to_owned()));
         }
-        afford(ctx, quotient_ns(&dividend, &divisor), "Core\\BigInt::div()")?;
-        built(&(dividend / divisor))
+        let cost = quotient_ns(&dividend, &divisor);
+        afford(ctx, cost, "Core\\BigInt::div()")?;
+        if cost <= PIECE_NS {
+            return built(&(dividend / divisor));
+        }
+        let pieces = Pieces::new(ctx, "Core\\BigInt::div()");
+        let (quotient, _) = pieces.quotient(dividend.magnitude(), divisor.magnitude())?;
+        built(&BigInt::from_biguint(dividend.sign() * divisor.sign(), quotient))
     }
 }
 
@@ -1368,8 +1726,14 @@ nvs_runtime::nvs_helper! {
         if divisor.sign() == Sign::NoSign {
             return Err(refused("Core\\BigInt::mod(): the divisor is zero".to_owned()));
         }
-        afford(ctx, quotient_ns(&dividend, &divisor), "Core\\BigInt::mod()")?;
-        built(&(dividend % divisor))
+        let cost = quotient_ns(&dividend, &divisor);
+        afford(ctx, cost, "Core\\BigInt::mod()")?;
+        if cost <= PIECE_NS {
+            return built(&(dividend % divisor));
+        }
+        let pieces = Pieces::new(ctx, "Core\\BigInt::mod()");
+        let (_, rest) = pieces.quotient(dividend.magnitude(), divisor.magnitude())?;
+        built(&BigInt::from_biguint(dividend.sign(), rest))
     }
 }
 
@@ -1377,7 +1741,12 @@ nvs_runtime::nvs_helper! {
     /// `$n->pow(uint $exponent): BigInt`, refused ahead of the work where the
     /// answer would be wider than [`MAX_BITS`] — see this module's
     /// § *Decision: one call may not explode*.
-    fn nvs_core_bigint_pow(_ctx, args: [2]) {
+    ///
+    /// The widest answer is [`MAX_BITS`], whose last squaring is about 4 ms,
+    /// so the whole power is a few products of that size. A power estimated
+    /// past one piece runs as [`power`]'s steps, with a deadline poll before
+    /// each.
+    fn nvs_core_bigint_pow(ctx, args: [2]) {
         let base = operand(args, 0, "pow")?;
         let exponent = width(args, 1, "pow")?;
         let bits = base.bits().saturating_mul(exponent);
@@ -1388,8 +1757,45 @@ nvs_runtime::nvs_helper! {
                  {MAX_BITS} one call may produce"
             )));
         }
-        built(&base.pow(exponent))
+        // The last squaring is of two halves of the answer, and every step
+        // before it together costs about as much again.
+        let half = bits.div_ceil(16);
+        if half <= NARROW_BYTES || 2.0 * mul_ns(half, half) <= PIECE_NS {
+            return built(&base.pow(exponent));
+        }
+        let pieces = Pieces::new(ctx, "Core\\BigInt::pow()");
+        let magnitude = power(&pieces, base.magnitude(), exponent)?;
+        let sign = if base.sign() == Sign::Minus && exponent % 2 == 1 {
+            Sign::Minus
+        } else {
+            Sign::Plus
+        };
+        built(&BigInt::from_biguint(sign, magnitude))
     }
+}
+
+/// `base` to the power `exponent`, by squaring from the top bit of the
+/// exponent down, as the library's `pow` does, with each product
+/// [`Pieces::mul`]'s, so the deadline is polled before every step.
+///
+/// **What it spends:** the running power and one product, as the library's
+/// own does.
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn power(pieces: &Pieces<'_>, base: &BigUint, exponent: u32) -> Result<BigUint, Fault> {
+    if exponent == 0 {
+        return Ok(BigUint::from(1_u32));
+    }
+    let mut value = base.clone();
+    for bit in (0..exponent.ilog2()).rev() {
+        value = pieces.mul(&value, &value)?;
+        if (exponent >> bit) & 1 == 1 {
+            value = pieces.mul(&value, base)?;
+        }
+    }
+    Ok(value)
 }
 
 nvs_runtime::nvs_helper! {
@@ -1417,11 +1823,10 @@ nvs_runtime::nvs_helper! {
                 "Core\\BigInt::powMod(): the exponent is negative".to_owned(),
             ));
         }
-        let square = mul_ns(width_bytes(modulus.magnitude()), width_bytes(modulus.magnitude()));
-        #[expect(clippy::cast_precision_loss, reason = "an estimate of a bit count")]
-        let steps = exponent.bits() as f64;
-        afford(ctx, 3.0 * square * steps, "Core\\BigInt::powMod()")?;
-        let residue = pow_mod(base.magnitude(), exponent.magnitude(), modulus.magnitude());
+        let cost = pow_mod_ns(modulus.magnitude(), exponent.magnitude());
+        afford(ctx, cost, "Core\\BigInt::powMod()")?;
+        let pieces = Pieces::new(ctx, "Core\\BigInt::powMod()");
+        let residue = pow_mod(&pieces, base.magnitude(), exponent.magnitude(), modulus.magnitude())?;
         let residue = if base.sign() == Sign::Minus
             && exponent.magnitude().bit(0)
             && residue != BigUint::ZERO
@@ -1449,64 +1854,139 @@ const MONTGOMERY_LEAF_BITS: u64 = 10_240;
 /// exponent is read in windows of four bits, as the library reads it.
 /// `pow_mod_by_products_is_the_librarys_modpow` pins the result.
 ///
+/// Every product and quotient here is [`Pieces`]'s, so the deadline is
+/// polled before each step. The library's `modpow` is one call that polls
+/// nothing, so a call to it estimated past one piece ([`pow_mod_ns`]) runs
+/// as [`pow_mod_by_steps`] instead.
+///
 /// **What it spends:** sixteen powers of the base at the modulus's width,
 /// and a product of twice that width per step, all freed before this
 /// returns. The library's table is the same size.
-fn pow_mod(base: &BigUint, exponent: &BigUint, modulus: &BigUint) -> BigUint {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn pow_mod(
+    pieces: &Pieces<'_>,
+    base: &BigUint,
+    exponent: &BigUint,
+    modulus: &BigUint,
+) -> Result<BigUint, Fault> {
     if !modulus.bit(0) || modulus.bits() <= MONTGOMERY_LEAF_BITS {
-        return base.modpow(exponent, modulus);
+        if pow_mod_ns(modulus, exponent) <= pieces.piece {
+            return Ok(base.modpow(exponent, modulus));
+        }
+        return pow_mod_by_steps(pieces, base, exponent, modulus);
     }
     // `r` is a power of two above the modulus, a whole number of words wide,
     // so reducing modulo `r` and dividing by it move whole words.
     let k = modulus.bits().div_ceil(64) * 64;
     let r = BigUint::from(1u32) << k;
     let mask = &r - 1u32;
-    let n_prime = (&r - inverse_modulo_power_of_two(modulus, k)) & &mask;
+    let n_prime = (&r - inverse_modulo_power_of_two(pieces, modulus, k)?) & &mask;
     // `t / r` modulo the modulus, for any `t` below the modulus times `r`.
-    let reduce = |t: BigUint| -> BigUint {
-        let m = ((&t & &mask) * &n_prime) & &mask;
-        let u = (t + m * modulus) >> k;
-        if &u >= modulus { u - modulus } else { u }
+    let reduce = |t: BigUint| -> Result<BigUint, Fault> {
+        let m = pieces.mul(&(&t & &mask), &n_prime)? & &mask;
+        let u = (t + pieces.mul(&m, modulus)?) >> k;
+        Ok(if &u >= modulus { u - modulus } else { u })
     };
-    let one = &r % modulus;
-    let x = ((base % modulus) << k) % modulus;
+    let one = pieces.div_rem(&r, modulus)?.1;
+    let x = pieces
+        .div_rem(&(pieces.div_rem(base, modulus)?.1 << k), modulus)?
+        .1;
     let mut powers = Vec::with_capacity(16);
     powers.push(one.clone());
     powers.push(x.clone());
     for i in 2..16 {
-        let next = reduce(&powers[i - 1] * &x);
+        let next = reduce(pieces.mul(&powers[i - 1], &x)?)?;
         powers.push(next);
     }
     let mut z = one;
     for window in (0..exponent.bits().div_ceil(4)).rev() {
         for _ in 0..4 {
-            z = reduce(&z * &z);
+            z = reduce(pieces.mul(&z, &z)?)?;
         }
         let digit = (0..4).rev().fold(0usize, |d, b| {
             (d << 1) | usize::from(exponent.bit(window * 4 + b))
         });
         if digit != 0 {
-            z = reduce(&z * &powers[digit]);
+            z = reduce(pieces.mul(&z, &powers[digit])?)?;
         }
     }
     reduce(z)
 }
 
+/// The estimated CPU time of `modpow` by `exponent` modulo `modulus`, in
+/// nanoseconds: three squares of the modulus per exponent bit.
+fn pow_mod_ns(modulus: &BigUint, exponent: &BigUint) -> f64 {
+    let width = width_bytes(modulus);
+    #[expect(clippy::cast_precision_loss, reason = "an estimate of a bit count")]
+    let steps = exponent.bits() as f64;
+    3.0 * mul_ns(width, width) * steps
+}
+
+/// `base` to the power `exponent`, modulo `modulus`, as the library's own
+/// `modpow` computes it for an even modulus: one bit of the exponent at a
+/// time from the bottom, squaring the base and multiplying it into the
+/// result where the bit is set, each product reduced by a quotient. Each
+/// product and quotient is [`Pieces`]'s, so the deadline is polled before
+/// every step.
+///
+/// An odd modulus up to [`MONTGOMERY_LEAF_BITS`] takes this path too when
+/// the call is wider than one piece. The library's Montgomery steps are word
+/// operations it does not expose, and this is the fastest of the ways to
+/// split it that were measured. With an exponent as wide as the modulus it
+/// takes 2.1 times the library's time at 1024 bits, 1.7 at 2048 and 1.5 at
+/// 4096. Montgomery with whole products took 2.6, 2.2 and 1.5 times, and
+/// splitting the exponent into calls to `modpow` does every squaring twice.
+/// Over an even modulus it is the library's own algorithm, and took 1.03
+/// to 1.3 times its time.
+///
+/// **What it spends:** the running result, the running square, and one
+/// product of twice the modulus's width, as the library's does.
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn pow_mod_by_steps(
+    pieces: &Pieces<'_>,
+    base: &BigUint,
+    exponent: &BigUint,
+    modulus: &BigUint,
+) -> Result<BigUint, Fault> {
+    let bits = exponent.bits();
+    let mut square = pieces.div_rem(base, modulus)?.1;
+    let mut result = pieces.div_rem(&BigUint::from(1_u32), modulus)?.1;
+    for bit in 0..bits {
+        if exponent.bit(bit) {
+            result = pieces.div_rem(&pieces.mul(&result, &square)?, modulus)?.1;
+        }
+        if bit + 1 < bits {
+            square = pieces.div_rem(&pieces.mul(&square, &square)?, modulus)?.1;
+        }
+    }
+    Ok(result)
+}
+
 /// The inverse of the odd `n` modulo `2^k`, by Newton's iteration, which
 /// doubles the bits that are right at each step: `x · (2 − n·x)`. The widths
 /// double, so the total is a few multiplications at `k` bits.
-fn inverse_modulo_power_of_two(n: &BigUint, k: u64) -> BigUint {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn inverse_modulo_power_of_two(pieces: &Pieces<'_>, n: &BigUint, k: u64) -> Result<BigUint, Fault> {
     let mut x = BigUint::from(1u32);
     let mut bits = 1u64;
     while bits < k {
         bits = (2 * bits).min(k);
         let power = BigUint::from(1u32) << bits;
         let mask = &power - 1u32;
-        let t = (n * &x) & &mask;
+        let t = pieces.mul(n, &x)? & &mask;
         let correction = (power + 2u32 - t) & &mask;
-        x = (&x * correction) & &mask;
+        x = pieces.mul(&x, &correction)? & &mask;
     }
-    x
+    Ok(x)
 }
 
 nvs_runtime::nvs_helper! {
@@ -1521,7 +2001,8 @@ nvs_runtime::nvs_helper! {
         }
         let width = width_bytes(value.magnitude());
         afford(ctx, 2.5 * mul_ns(width, width), "Core\\BigInt::sqrt()")?;
-        built(&BigInt::from(root(value.magnitude())))
+        let pieces = Pieces::new(ctx, "Core\\BigInt::sqrt()");
+        built(&BigInt::from(root(&pieces, value.magnitude())?))
     }
 }
 
@@ -1535,20 +2016,26 @@ const ROOT_LEAF_BITS: u64 = 4096;
 /// Newton from above only falls, and stops at the floor, and from that start
 /// it takes a few steps. The widths halve, so the total is a few full-width
 /// divisions, and `sqrt_by_halves_is_the_librarys_root` pins the result.
+/// Each quotient is [`Pieces::div_rem`]'s, so the deadline is polled before
+/// every Newton step and between the pieces of a wide one.
 ///
 /// **What it spends:** one start and one quotient at each width, freed as
 /// the next width is reached.
-fn root(value: &BigUint) -> BigUint {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn root(pieces: &Pieces<'_>, value: &BigUint) -> Result<BigUint, Fault> {
     let bits = value.bits();
     if bits <= ROOT_LEAF_BITS {
-        return value.sqrt();
+        return Ok(value.sqrt());
     }
     let k = bits / 4;
-    let mut x = (root(&(value >> (2 * k))) + 1u32) << k;
+    let mut x = (root(pieces, &(value >> (2 * k)))? + 1u32) << k;
     loop {
-        let y = (&x + value / &x) >> 1u32;
+        let y = (&x + pieces.div_rem(value, &x)?.0) >> 1u32;
         if y >= x {
-            return x;
+            return Ok(x);
         }
         x = y;
     }
@@ -1559,7 +2046,8 @@ fn root(value: &BigUint) -> BigUint {
 /// bit, so it is quadratic, but its steps are word operations with no
 /// allocation. Measured on two scrambled operands of one width, it is 3×
 /// faster at 4096 bits, the two are equal at this width, and halving is 6×
-/// faster at 524288 bits.
+/// faster at 524288 bits. One leaf call takes about 5 ms at this width, as
+/// long as one piece of a product ([`PIECE_NS`]) takes.
 const GCD_LEAF_BITS: u64 = 32_768;
 
 /// The width below which [`hgcd`] reduces by single division steps rather
@@ -1574,22 +2062,30 @@ const HGCD_LEAF_BITS: u64 = 128;
 /// library's gcd is quadratic. `gcd_by_halves_is_the_librarys_gcd` pins the
 /// result.
 ///
+/// Every product and quotient here is [`Pieces`]'s, and every call of
+/// [`hgcd`] polls the deadline, so no stretch between two polls is wider
+/// than one piece or one leaf. A pair no wider than the leaf polls nothing.
+///
 /// **What it spends:** the pair and the matrices of one round, about four
 /// times the operands' width, all freed before this returns.
-fn gcd(a: &BigUint, b: &BigUint) -> BigUint {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn gcd(pieces: &Pieces<'_>, a: &BigUint, b: &BigUint) -> Result<BigUint, Fault> {
     let (mut a, mut b) = (a.clone(), b.clone());
     loop {
         if a < b {
             std::mem::swap(&mut a, &mut b);
         }
         if b == BigUint::ZERO {
-            return a;
+            return Ok(a);
         }
         if a.bits() <= GCD_LEAF_BITS {
-            return a.gcd(&b);
+            return Ok(a.gcd(&b));
         }
-        let (_, high, low) = hgcd(a, b);
-        let rest = &high % &low;
+        let (_, high, low) = hgcd(pieces, a, b)?;
+        let rest = pieces.div_rem(&high, &low)?.1;
         a = low;
         b = rest;
     }
@@ -1616,23 +2112,41 @@ impl Steps {
     }
 
     /// These steps and then `next`'s: the product `self * next`.
-    fn then(&self, next: &Steps) -> Steps {
+    ///
+    /// # Errors
+    ///
+    /// [`Pieces::poll`]'s `FATAL`.
+    fn then(&self, pieces: &Pieces<'_>, next: &Steps) -> Result<Steps, Fault> {
         let [a, b, c, d] = &self.0;
         let [e, f, g, h] = &next.0;
-        Steps([a * e + b * g, a * f + b * h, c * e + d * g, c * f + d * h])
+        Ok(Steps([
+            pieces.mul(a, e)? + pieces.mul(b, g)?,
+            pieces.mul(a, f)? + pieces.mul(b, h)?,
+            pieces.mul(c, e)? + pieces.mul(d, g)?,
+            pieces.mul(c, f)? + pieces.mul(d, h)?,
+        ]))
     }
 
     /// The pair these steps reduce `(a, b)` to: the inverse matrix times
     /// `(a, b)`. [`None`] where either value would be negative, which
     /// [`hgcd`]'s split points rule out.
-    fn reduce(&self, a: &BigUint, b: &BigUint) -> Option<(BigUint, BigUint)> {
+    ///
+    /// # Errors
+    ///
+    /// [`Pieces::poll`]'s `FATAL`.
+    fn reduce(
+        &self,
+        pieces: &Pieces<'_>,
+        a: &BigUint,
+        b: &BigUint,
+    ) -> Result<Option<(BigUint, BigUint)>, Fault> {
         let [m00, m01, m10, m11] = &self.0;
-        let (high, high_less) = (m11 * a, m01 * b);
-        let (low, low_less) = (m00 * b, m10 * a);
+        let (high, high_less) = (pieces.mul(m11, a)?, pieces.mul(m01, b)?);
+        let (low, low_less) = (pieces.mul(m00, b)?, pieces.mul(m10, a)?);
         if high < high_less || low < low_less {
-            return None;
+            return Ok(None);
         }
-        Some((high - high_less, low - low_less))
+        Ok(Some((high - high_less, low - low_less)))
     }
 }
 
@@ -1640,26 +2154,57 @@ impl Steps {
 /// loses the largest multiple of the smaller that leaves it above `floor`.
 /// `false` where the two differ by `floor` or less, so no step is possible.
 /// Both values are above `floor` before and after.
-fn step(a: &mut BigUint, b: &mut BigUint, steps: &mut Steps, floor: &BigUint) -> bool {
+///
+/// It polls the deadline once. A pair wider than [`Pieces::narrow`] takes
+/// its quotient and products in pieces. A narrower pair takes them from the
+/// library directly, since most steps are a few words wide and the width
+/// checks would cost more than the step.
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn step(
+    pieces: &Pieces<'_>,
+    a: &mut BigUint,
+    b: &mut BigUint,
+    steps: &mut Steps,
+    floor: &BigUint,
+) -> Result<bool, Fault> {
+    pieces.poll()?;
+    let wide = width_bytes(a).max(width_bytes(b)) > pieces.narrow;
+    let quotient = |u: &BigUint, d: &BigUint| -> Result<BigUint, Fault> {
+        Ok(if wide {
+            pieces.quotient(u, d)?.0
+        } else {
+            u / d
+        })
+    };
+    let product = |x: &BigUint, y: &BigUint| -> Result<BigUint, Fault> {
+        if wide {
+            pieces.product(x, y)
+        } else {
+            Ok(x * y)
+        }
+    };
     let [m00, m01, m10, m11] = &mut steps.0;
     if *a > *b {
         if &*a - &*b <= *floor {
-            return false;
+            return Ok(false);
         }
-        let q = (&*a - floor - 1u32) / &*b;
-        *a -= &q * &*b;
-        *m01 += &q * &*m00;
-        *m11 += &q * &*m10;
+        let q = quotient(&(&*a - floor - 1u32), b)?;
+        *a -= product(&q, b)?;
+        *m01 += product(&q, m00)?;
+        *m11 += product(&q, m10)?;
     } else {
         if &*b - &*a <= *floor {
-            return false;
+            return Ok(false);
         }
-        let q = (&*b - floor - 1u32) / &*a;
-        *b -= &q * &*a;
-        *m00 += &q * &*m01;
-        *m10 += &q * &*m11;
+        let q = quotient(&(&*b - floor - 1u32), a)?;
+        *b -= product(&q, a)?;
+        *m00 += product(&q, m01)?;
+        *m10 += product(&q, m11)?;
     }
-    true
+    Ok(true)
 }
 
 /// The half-gcd of Möller's "On Schönhage's algorithm and subquadratic
@@ -1677,45 +2222,50 @@ fn step(a: &mut BigUint, b: &mut BigUint, steps: &mut Steps, floor: &BigUint) ->
 /// non-negative values that are still above `2^s`. A few single steps finish
 /// the reduction. The two calls are on half the width and the rest is a few
 /// multiplications, so the cost is a multiplication's times `log n`.
-fn hgcd(a: BigUint, b: BigUint) -> (Steps, BigUint, BigUint) {
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`, polled on every call.
+fn hgcd(pieces: &Pieces<'_>, a: BigUint, b: BigUint) -> Result<(Steps, BigUint, BigUint), Fault> {
+    pieces.poll()?;
     let n = a.bits().max(b.bits());
     let s = n / 2 + 1;
     let floor = BigUint::from(1u32) << s;
     let mut steps = Steps::identity();
     if a <= floor || b <= floor {
-        return (steps, a, b);
+        return Ok((steps, a, b));
     }
     let (mut a, mut b) = (a, b);
     if n <= HGCD_LEAF_BITS {
-        while step(&mut a, &mut b, &mut steps, &floor) {}
-        return (steps, a, b);
+        while step(pieces, &mut a, &mut b, &mut steps, &floor)? {}
+        return Ok((steps, a, b));
     }
     let p = n / 2;
-    let (top, _, _) = hgcd(&a >> p, &b >> p);
+    let (top, _, _) = hgcd(pieces, &a >> p, &b >> p)?;
     if !top.is_identity()
-        && let Some((high, low)) = top.reduce(&a, &b)
+        && let Some((high, low)) = top.reduce(pieces, &a, &b)?
     {
         (a, b, steps) = (high, low, top);
     }
     let three_quarters = 3 * n / 4 + 1;
     let mut n = a.bits().max(b.bits());
     while n > three_quarters {
-        if !step(&mut a, &mut b, &mut steps, &floor) {
-            return (steps, a, b);
+        if !step(pieces, &mut a, &mut b, &mut steps, &floor)? {
+            return Ok((steps, a, b));
         }
         n = a.bits().max(b.bits());
     }
     if n > s + 2 {
         let p = 2 * s + 1 - n;
-        let (top, _, _) = hgcd(&a >> p, &b >> p);
+        let (top, _, _) = hgcd(pieces, &a >> p, &b >> p)?;
         if !top.is_identity()
-            && let Some((high, low)) = top.reduce(&a, &b)
+            && let Some((high, low)) = top.reduce(pieces, &a, &b)?
         {
-            (a, b, steps) = (high, low, steps.then(&top));
+            (a, b, steps) = (high, low, steps.then(pieces, &top)?);
         }
     }
-    while step(&mut a, &mut b, &mut steps, &floor) {}
-    (steps, a, b)
+    while step(pieces, &mut a, &mut b, &mut steps, &floor)? {}
+    Ok((steps, a, b))
 }
 
 nvs_runtime::nvs_helper! {
@@ -1725,7 +2275,8 @@ nvs_runtime::nvs_helper! {
         let right = operand(args, 1, "gcd")?;
         let cost = mul_ns(width_bytes(left.magnitude()), width_bytes(right.magnitude()));
         afford(ctx, 1.3 * cost, "Core\\BigInt::gcd()")?;
-        built(&BigInt::from(gcd(left.magnitude(), right.magnitude())))
+        let pieces = Pieces::new(ctx, "Core\\BigInt::gcd()");
+        built(&BigInt::from(gcd(&pieces, left.magnitude(), right.magnitude())?))
     }
 }
 
@@ -1744,7 +2295,13 @@ nvs_runtime::nvs_helper! {
             return built(&BigInt::from(0));
         }
         let (left, right) = (left.magnitude(), right.magnitude());
-        built(&BigInt::from(left / gcd(left, right) * right))
+        let pieces = Pieces::new(ctx, "Core\\BigInt::lcm()");
+        let divisor = gcd(&pieces, left, right)?;
+        if 2.5 * cost <= PIECE_NS {
+            return built(&BigInt::from(left / divisor * right));
+        }
+        let (part, _) = pieces.div_rem(left, &divisor)?;
+        built(&BigInt::from(pieces.mul(&part, right)?))
     }
 }
 
@@ -1861,11 +2418,33 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_bigint_to_string(ctx, args: [1]) {
         let value = operand(args, 0, "toString")?;
         let width = width_bytes(value.magnitude());
-        afford(ctx, 2.4 * mul_ns(width, width), "Core\\BigInt::toString()")?;
-        let text = value.to_string();
+        let cost = 2.4 * mul_ns(width, width);
+        afford(ctx, cost, "Core\\BigInt::toString()")?;
+        let text = if cost <= PIECE_NS {
+            value.to_string()
+        } else {
+            signed_text(&Pieces::new(ctx, "Core\\BigInt::toString()"), &value, 10)?
+        };
         nvs_runtime::affordable(Some(text.len()), NAME)?;
         Ok(Value::text(&text))
     }
+}
+
+/// `value` in `radix`, which is not a power of two, with a `-` in front where
+/// it is negative, by [`Pieces::text`].
+///
+/// # Errors
+///
+/// [`Pieces::poll`]'s `FATAL`.
+fn signed_text(pieces: &Pieces<'_>, value: &BigInt, radix: u32) -> Result<String, Fault> {
+    let digits = pieces.text(value.magnitude(), radix)?;
+    if value.sign() != Sign::Minus {
+        return Ok(digits);
+    }
+    let mut text = String::with_capacity(digits.len() + 1);
+    text.push('-');
+    text.push_str(&digits);
+    Ok(text)
 }
 
 nvs_runtime::nvs_helper! {
@@ -1874,11 +2453,18 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_bigint_format(ctx, args: [2]) {
         let value = operand(args, 0, "format")?;
         let radix = radix(&args[1], "format")?;
-        if !radix.is_power_of_two() {
+        let text = if radix.is_power_of_two() {
+            value.to_str_radix(radix)
+        } else {
             let width = width_bytes(value.magnitude());
-            afford(ctx, 2.4 * mul_ns(width, width), "Core\\BigInt::format()")?;
-        }
-        let text = value.to_str_radix(radix);
+            let cost = 2.4 * mul_ns(width, width);
+            afford(ctx, cost, "Core\\BigInt::format()")?;
+            if cost <= PIECE_NS {
+                value.to_str_radix(radix)
+            } else {
+                signed_text(&Pieces::new(ctx, "Core\\BigInt::format()"), &value, radix)?
+            }
+        };
         nvs_runtime::affordable(Some(text.len()), NAME)?;
         Ok(Value::text(&text))
     }
@@ -1908,6 +2494,21 @@ mod tests {
     /// The magnitude a member answered with, read back out of its two slots.
     fn read(answer: Value) -> BigInt {
         operand(&[answer], 0, "toString").expect("a member answers with its own class")
+    }
+
+    /// The [`Pieces`] every member makes, under `ctx`'s deadline.
+    fn whole(ctx: &Ctx) -> Pieces<'_> {
+        Pieces::new(ctx, MUL)
+    }
+
+    /// [`Pieces`] of 1 µs, so even small numbers split several levels deep.
+    fn tiny(ctx: &Ctx) -> Pieces<'_> {
+        Pieces {
+            ctx,
+            member: MUL,
+            piece: 1_000.0,
+            narrow: 0,
+        }
     }
 
     /// `of` widens every `int` exactly, counted over a sweep rather than read
@@ -2431,13 +3032,24 @@ mod tests {
             ]
         };
         let one = BigUint::from(1u32);
+        let ctx = Ctx::buffered();
+        // Natively each root is also taken with every quotient split into
+        // pieces of 1 µs, which must not change it.
+        let sizes = if cfg!(miri) {
+            vec![whole(&ctx)]
+        } else {
+            vec![whole(&ctx), tiny(&ctx)]
+        };
         let mut checked = 0usize;
         for &width in widths {
             let ones = (&one << width) - &one;
             let half = (&one << (width / 2)) + BigUint::from(12345u32);
             let square = &half * &half;
             for value in [ones, &square - &one, square.clone(), &square + &one] {
-                assert_eq!(root(&value), value.sqrt(), "{} bits", value.bits());
+                for pieces in &sizes {
+                    let found = root(pieces, &value).expect("a request with no deadline");
+                    assert_eq!(found, value.sqrt(), "{} bits", value.bits());
+                }
                 checked += 1;
             }
         }
@@ -2491,6 +3103,7 @@ mod tests {
             ]
         };
         let mut seed = 0x9E37_79B9_7F4A_7C15;
+        let ctx = Ctx::buffered();
         let mut checked = 0usize;
         for &width in widths {
             let fib = fibonacci(usize::try_from(width).unwrap_or(0) * 3 / 2);
@@ -2506,7 +3119,8 @@ mod tests {
                 (&near + scrambled(width * 5 / 8, &mut seed), near),
             ];
             for (a, b) in pairs {
-                let (steps, high, low) = hgcd(a.clone(), b.clone());
+                let (steps, high, low) =
+                    hgcd(&whole(&ctx), a.clone(), b.clone()).expect("a request with no deadline");
                 let [m00, m01, m10, m11] = &steps.0;
                 assert_eq!(m00 * m11, m01 * m10 + 1u32, "{width} bits: determinant");
                 assert_eq!(m00 * &high + m01 * &low, a, "{width} bits: first value");
@@ -2526,7 +3140,9 @@ mod tests {
 
     /// [`gcd`] by halves is the library's gcd, over pairs with a planted
     /// common factor, the Fibonacci pair, a power of two, one value dividing
-    /// the other and one value much narrower than the other.
+    /// the other and one value much narrower than the other. Each pair is
+    /// also taken with every product and quotient split into pieces of 1 µs,
+    /// which must not change it.
     // covers: Core\BigInt::gcd
     #[test]
     fn gcd_by_halves_is_the_librarys_gcd() {
@@ -2537,6 +3153,7 @@ mod tests {
         };
         let mut seed = 0x2545_F491_4F6C_DD1D;
         let one = BigUint::from(1u32);
+        let ctx = Ctx::buffered();
         let mut checked = 0usize;
         for &width in widths {
             let factor = scrambled(width / 3, &mut seed);
@@ -2552,7 +3169,15 @@ mod tests {
                 (a.clone(), a.clone()),
             ];
             for (a, b) in pairs {
-                assert_eq!(gcd(&a, &b), a.gcd(&b), "{width} bits");
+                let expected = a.gcd(&b);
+                for pieces in [whole(&ctx), tiny(&ctx)] {
+                    let found = gcd(&pieces, &a, &b).expect("a request with no deadline");
+                    assert_eq!(
+                        found, expected,
+                        "{width} bits, pieces of {} ns",
+                        pieces.piece
+                    );
+                }
                 checked += 1;
             }
         }
@@ -2562,20 +3187,35 @@ mod tests {
     /// [`pow_mod`] by products is the library's `modpow` over an odd modulus
     /// past the leaf, a modulus just under a word boundary, a base wider than
     /// the modulus, a zero base and exponent, the modulus minus one, and the
-    /// modulus itself as the base.
+    /// modulus itself as the base. Each is also taken with every product and
+    /// quotient split into pieces of 1 µs, which must not change it, and so
+    /// are a narrow odd modulus and two even ones, which that size sends to
+    /// [`pow_mod_by_steps`].
     // covers: Core\BigInt::powMod
     #[test]
     fn pow_mod_by_products_is_the_librarys_modpow() {
-        let widths: &[u64] = if cfg!(miri) {
+        // A width, and whether the modulus is odd.
+        let moduli: &[(u64, bool)] = if cfg!(miri) {
             &[]
         } else {
-            &[MONTGOMERY_LEAF_BITS + 1, 2 * MONTGOMERY_LEAF_BITS - 64]
+            &[
+                (MONTGOMERY_LEAF_BITS + 1, true),
+                (2 * MONTGOMERY_LEAF_BITS - 64, true),
+                (1000, true),
+                (1000, false),
+                (2 * MONTGOMERY_LEAF_BITS - 64, false),
+            ]
         };
         let mut seed = 0x9E37_79B9_7F4A_7C15;
         let one = BigUint::from(1u32);
+        let ctx = Ctx::buffered();
         let mut checked = 0usize;
-        for &width in widths {
-            let modulus = scrambled(width, &mut seed) | &one;
+        for &(width, odd) in moduli {
+            let modulus = if odd {
+                scrambled(width, &mut seed) | &one
+            } else {
+                (scrambled(width, &mut seed) >> 1_u32) << 1_u32
+            };
             let exponent = scrambled(97, &mut seed);
             let cases = [
                 (scrambled(width - 5, &mut seed), exponent.clone()),
@@ -2587,15 +3227,20 @@ mod tests {
                 (scrambled(width - 5, &mut seed), &one << 64u32),
             ];
             for (base, exponent) in cases {
-                assert_eq!(
-                    pow_mod(&base, &exponent, &modulus),
-                    base.modpow(&exponent, &modulus),
-                    "{width} bits"
-                );
+                let expected = base.modpow(&exponent, &modulus);
+                for pieces in [whole(&ctx), tiny(&ctx)] {
+                    let found = pow_mod(&pieces, &base, &exponent, &modulus)
+                        .expect("a request with no deadline");
+                    assert_eq!(
+                        found, expected,
+                        "{width} bits, pieces of {} ns",
+                        pieces.piece
+                    );
+                }
                 checked += 1;
             }
         }
-        assert_eq!(checked, widths.len() * 7);
+        assert_eq!(checked, moduli.len() * 7);
     }
 
     /// `sub` is `add` of the flipped operand, and swapping its two operands
@@ -2717,7 +3362,7 @@ mod tests {
         assert_eq!(absorbed, BigInt::from(0));
     }
 
-    /// [`product_in_pieces`] answers the library's product for every shape it
+    /// [`Pieces::product`] answers the library's product for every shape it
     /// splits: two factors of about one width (Toom-3), a long factor and a
     /// short one (chunks), a one-digit factor, a factor whose low digits are
     /// all zero, a factor of all ones whose pieces carry, and zero. A piece of
@@ -2737,7 +3382,8 @@ mod tests {
         let ctx = Ctx::buffered();
         let mut same = 0_usize;
         for (left, right) in &pairs {
-            let pieces = product_in_pieces(&ctx, left, right, 1_000.0)
+            let pieces = tiny(&ctx)
+                .product(left, right)
                 .expect("a request with no deadline is never stopped");
             if pieces == left * right {
                 same += 1;
@@ -2772,6 +3418,237 @@ mod tests {
             call(nvs_core_bigint_mul, &mut ctx, &[of(7), of(5)]).expect("a narrow product answers"),
         );
         assert_eq!(narrow, BigInt::from(35));
+    }
+
+    /// A call no wider than [`NARROW_BYTES`] skips the estimate, so every
+    /// such call must fit one piece under the largest factor a member puts on
+    /// a product: 2.6, a quotient of twice the width.
+    #[test]
+    fn narrow_calls_fit_one_piece() {
+        let widest = 2.6 * mul_ns(NARROW_BYTES, NARROW_BYTES);
+        assert!(widest <= PIECE_NS, "{widest} ns is past one piece");
+    }
+
+    /// [`Pieces::quotient`] answers the library's quotient and remainder for
+    /// every shape it splits: a dividend about twice the divisor's width
+    /// (Burnikel and Ziegler's halves), one many times as wide (chunks), one
+    /// of the divisor's width, one below the divisor, a power of two, all
+    /// ones, a dividend whose top half equals the divisor's (the guess
+    /// `2^h - 1`), a one-digit divisor and zero. A piece of 1 µs makes each of
+    /// them split several levels deep.
+    // covers: Core\BigInt::div, Core\BigInt::mod
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "divides numbers of 60,000 bits, which Miri runs for minutes"
+    )]
+    fn quotient_in_pieces_is_the_librarys_quotient() {
+        let mut seed = 0x2545_F491_4F6C_DD1D;
+        let one = BigUint::from(1_u32);
+        let divisor = scrambled(10_000, &mut seed);
+        let pairs = [
+            (scrambled(20_000, &mut seed), scrambled(10_001, &mut seed)),
+            (scrambled(19_999, &mut seed), divisor.clone()),
+            (scrambled(60_000, &mut seed), scrambled(3_000, &mut seed)),
+            (scrambled(60_000, &mut seed), scrambled(200, &mut seed)),
+            (scrambled(10_000, &mut seed), scrambled(10_000, &mut seed)),
+            (scrambled(9_000, &mut seed), divisor.clone()),
+            (scrambled(30_000, &mut seed), &one << 9_999_u32),
+            ((&one << 20_000_u32) - &one, (&one << 10_000_u32) - &one),
+            ((&divisor << 10_000_u32) - &one, divisor.clone()),
+            ((&divisor << 10_000_u32) - &divisor, divisor.clone()),
+            (scrambled(5_000, &mut seed), BigUint::from(7_u32)),
+            (BigUint::ZERO, divisor),
+        ];
+        let ctx = Ctx::buffered();
+        let mut same = 0_usize;
+        for (dividend, divisor) in &pairs {
+            let expected = dividend.div_rem(divisor);
+            for pieces in [whole(&ctx), tiny(&ctx)] {
+                let found = pieces
+                    .div_rem(dividend, divisor)
+                    .expect("a request with no deadline is never stopped");
+                assert_eq!(
+                    found,
+                    expected,
+                    "{} by {} bits, pieces of {} ns",
+                    dividend.bits(),
+                    divisor.bits(),
+                    pieces.piece
+                );
+            }
+            same += 1;
+        }
+        assert_eq!(same, pairs.len());
+    }
+
+    /// [`Pieces::text`] writes the library's digits for every shape it
+    /// splits, in an odd radix, in ten and in the widest: a scrambled value, a
+    /// power of the radix and its two neighbours, whose low pieces are all
+    /// zeros or all the top digit, a value just under the top power, so the
+    /// top split has no high half, and a value narrower than one leaf. A
+    /// negative value keeps its sign. A piece of 1 µs makes each of them
+    /// split several levels deep.
+    // covers: Core\BigInt::toString, Core\BigInt::format
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "writes numbers of 20,000 bits, which Miri runs for minutes"
+    )]
+    fn text_in_pieces_is_the_librarys_text() {
+        let mut seed = 0x9E37_79B9_7F4A_7C15;
+        let ctx = Ctx::buffered();
+        let pieces = tiny(&ctx);
+        let leaf = u32::try_from(LEAF_DIGITS).unwrap_or(u32::MAX);
+        let mut checked = 0_usize;
+        for radix in [3_u32, 10, 36] {
+            let power = BigUint::from(radix).pow(5 * leaf);
+            let values = [
+                scrambled(20_000, &mut seed),
+                power.clone(),
+                &power - 1_u32,
+                &power + 1_u32,
+                BigUint::from(radix).pow(4 * leaf) - 1_u32,
+                scrambled(100, &mut seed),
+            ];
+            for value in &values {
+                let text = pieces
+                    .text(value, radix)
+                    .expect("a request with no deadline");
+                assert_eq!(
+                    text,
+                    value.to_str_radix(radix),
+                    "radix {radix}, {} bits",
+                    value.bits()
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 18);
+        let negative = -BigInt::from(scrambled(20_000, &mut seed));
+        let text = signed_text(&pieces, &negative, 10).expect("a request with no deadline");
+        assert_eq!(text, negative.to_string());
+    }
+
+    /// [`power`] is the library's `pow` for every shape of exponent: zero,
+    /// one, a power of two, all ones, and a base of zero, one and many words.
+    /// A piece of 1 µs makes its wider products split.
+    // covers: Core\BigInt::pow
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "raises numbers to 20,000 bits, which Miri runs for minutes"
+    )]
+    fn power_by_steps_is_the_librarys_pow() {
+        let mut seed = 0x2545_F491_4F6C_DD1D;
+        let ctx = Ctx::buffered();
+        let pieces = tiny(&ctx);
+        let cases = [
+            (BigUint::from(3_u32), 0_u32),
+            (BigUint::from(3_u32), 1),
+            (BigUint::from(3_u32), 4_096),
+            (BigUint::from(7_u32), 4_095),
+            (scrambled(2_000, &mut seed), 9),
+            (BigUint::ZERO, 5),
+            (BigUint::from(1_u32), 999),
+        ];
+        for (base, exponent) in &cases {
+            let found = power(&pieces, base, *exponent).expect("a request with no deadline");
+            assert_eq!(
+                found,
+                base.pow(*exponent),
+                "{} bits to {exponent}",
+                base.bits()
+            );
+        }
+    }
+
+    /// Every member that splits a wide call stops at a poll once the
+    /// request's deadline has passed, which the watchdog expires for a CPU
+    /// stop as for a wall-time one. The same member on narrow operands is one
+    /// library call that polls nothing, so it still answers.
+    // covers: Core\BigInt::div, Core\BigInt::mod, Core\BigInt::gcd, Core\BigInt::lcm
+    // covers: Core\BigInt::sqrt, Core\BigInt::toString, Core\BigInt::format
+    // covers: Core\BigInt::powMod, Core\BigInt::pow, Core\BigInt::parse
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "builds numbers of a million bits, which Miri runs for minutes"
+    )]
+    fn every_wide_call_stops_at_a_passed_deadline() {
+        let one = BigUint::from(1_u32);
+        let wide = BigInt::from((&one << 1_400_000_u32) - &one);
+        let half = BigInt::from(BigUint::from(3_u32).pow(450_000));
+        let exponent = BigInt::from((&one << 4_096_u32) - &one);
+        let modulus = BigInt::from(BigUint::from(3_u32).pow(1_290));
+        let digits = "9".repeat(300_000);
+        let value = |number: &BigInt| built(number).expect("the operand is built");
+        let wide_calls: [(&str, nvs_runtime::NvsFn, Vec<Value>); 10] = [
+            ("div", nvs_core_bigint_div, vec![value(&wide), value(&half)]),
+            ("mod", nvs_core_bigint_mod, vec![value(&wide), value(&half)]),
+            ("gcd", nvs_core_bigint_gcd, vec![value(&wide), value(&half)]),
+            ("lcm", nvs_core_bigint_lcm, vec![value(&wide), value(&half)]),
+            ("sqrt", nvs_core_bigint_sqrt, vec![value(&wide)]),
+            ("toString", nvs_core_bigint_to_string, vec![value(&half)]),
+            (
+                "format",
+                nvs_core_bigint_format,
+                vec![value(&half), Value::uint(7)],
+            ),
+            (
+                "powMod",
+                nvs_core_bigint_pow_mod,
+                vec![of(5), value(&exponent), value(&modulus)],
+            ),
+            (
+                "pow",
+                nvs_core_bigint_pow,
+                vec![of(3), Value::uint(500_000)],
+            ),
+            (
+                "parse",
+                nvs_core_bigint_parse,
+                vec![text(&digits), Value::uint(10)],
+            ),
+        ];
+        let mut stopped = Vec::new();
+        for (name, helper, args) in &wide_calls {
+            let mut ctx = Ctx::buffered();
+            ctx.expire_deadline();
+            if call(*helper, &mut ctx, args).map(|_| ()) == Err(nvs_runtime::FATAL) {
+                stopped.push(*name);
+            }
+        }
+        let names: Vec<&str> = wide_calls.iter().map(|(name, _, _)| *name).collect();
+        assert_eq!(stopped, names);
+
+        let narrow_calls: [(nvs_runtime::NvsFn, Vec<Value>, &str); 10] = [
+            (nvs_core_bigint_div, vec![of(35), of(5)], "7"),
+            (nvs_core_bigint_mod, vec![of(37), of(5)], "2"),
+            (nvs_core_bigint_gcd, vec![of(12), of(18)], "6"),
+            (nvs_core_bigint_lcm, vec![of(4), of(6)], "12"),
+            (nvs_core_bigint_sqrt, vec![of(49)], "7"),
+            (nvs_core_bigint_to_string, vec![of(-42)], "-42"),
+            (nvs_core_bigint_format, vec![of(48), Value::uint(7)], "66"),
+            (nvs_core_bigint_pow_mod, vec![of(4), of(13), of(497)], "445"),
+            (nvs_core_bigint_pow, vec![of(3), Value::uint(4)], "81"),
+            (
+                nvs_core_bigint_parse,
+                vec![text("123"), Value::uint(10)],
+                "123",
+            ),
+        ];
+        let mut answered = 0_usize;
+        for (helper, args, expected) in &narrow_calls {
+            let mut ctx = Ctx::buffered();
+            ctx.expire_deadline();
+            let found = call(*helper, &mut ctx, args).expect("a narrow call answers");
+            let written = found.as_text().map(str::to_owned);
+            let found = written.unwrap_or_else(|| read(found).to_string());
+            assert_eq!(found, *expected);
+            answered += 1;
+        }
+        assert_eq!(answered, narrow_calls.len());
     }
 
     /// `neg` returns the same magnitude with the opposite sign, so a value and
@@ -3047,6 +3924,11 @@ mod tests {
                     9001,
                 ],
             )
+        };
+        let ctx = Ctx::buffered();
+        let pieces = whole(&ctx);
+        let parsed = |text: &str, radix: u32| {
+            parsed(&pieces, text, radix).expect("a request with no deadline")
         };
         let mut checked = 0usize;
         for &radix in radices {
