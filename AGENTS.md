@@ -256,8 +256,8 @@ What a loop session owes on top of the block's § *Session workflow*:
   fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner,
   then `bun nv ci --check`, each red fixed. It runs in about two minutes the checks the goal end's push
   runs, which are half of what CI finds: rustfmt, the proofs gate and the website on a binary built from
-  the tree, the license file and the rest. Its proofs gate and website render are also floor checks, so a
-  goal is not reached while CI's `proofs` or website render job would be red.
+  the tree, the license file and the rest. It is also the floor check `ci-check`, so a goal is not
+  reached while one of them is red, and a session that skips it leaves the red to the next session.
   A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
   module doc, and turn each check that proves more than a suite does into a test.
 - **Every goal end rebuilds the local release binary, `target/release/nvs`.** looper's `after_retire`

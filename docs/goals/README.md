@@ -2,22 +2,17 @@
 looper: 1
 chain: [doc-tags]
 floor:
+  - id: ci-check
+    name: "every check the goal end's push runs is green"
+    run: [bun, nv, ci, --check]
+    timeout: 1800
+    reach: true
   - id: floor-debt
     name: every owed or red atom is paid green
     run: [bun, nv, debt]
     timeout: 14400
     reach: true
     from: lean-loop
-  - id: proofs-gate
-    name: "no feature owes a proof, and no perf figure is stale"
-    run: [bun, nv, proofs, --gate]
-    timeout: 900
-    reach: true
-  - id: website-render
-    name: every rendered website file is what its sources render
-    run: [bun, nv, render, --website, --check]
-    timeout: 600
-    reach: true
   - id: no-overshoot
     name: every attack that ends at its memory limit stopped within 1.5x of its ceiling plus 8 MiB
     run: [bun, nv, proofs, --overshoot]
@@ -45,5 +40,5 @@ The chain holds 1 goal(s). `doc-tags` is live.
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
-The floor holds 5 check(s) carried from reached goals; every goal keeps them green.
+The floor holds 4 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.

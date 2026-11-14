@@ -252,8 +252,8 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `bun nv proofs --gate --limit 0`'s list and give each its own `--group`
   (`tools/nv/cmd/proofs.ts`).
   `until: gone tools/nv/cmd/proofs.ts:--group`
-- **A stale perf figure refuses every goal's DONE, whoever made it stale.** `proofs-gate` is a
-  floor check, so a handoff that leaves another session's stale `arr.rs` figures to them gets its
+- **A stale perf figure refuses every goal's DONE, whoever made it stale.** The floor check
+  `ci-check` runs `bun nv proofs --gate`, so a handoff that leaves another session's stale `arr.rs` figures to them gets its
   DONE refused. Before `DONE`, run `bun nv proofs --gate --limit 0` and record each class it names.
   A `calibration did not measure anything` line means the machine was busy: rerun that class alone.
   See `tools/nv/proofs/collect.ts`. `until: gone tools/nv/proofs/collect.ts:changed since it was last measured`

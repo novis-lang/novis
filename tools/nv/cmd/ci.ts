@@ -36,7 +36,8 @@
 // and they cover about half of the failures CI finds, which CI reports an hour or two after the push. A red
 // check refuses the push: the command exits 1, prints each red check and its command, and writes them to
 // `REFUSED`, which `--watch` and `--status` report as red until a push goes out. **`--check`** runs
-// the same checks and pushes nothing, for a session before it claims a goal done. The push itself starts
+// the same checks and pushes nothing, for a session before it claims a goal done and for looper as the
+// floor check `ci-check` of `docs/goals/README.md`. The push itself starts
 // the push's `CI` and `Website` runs, so the command starts no run. It then
 // cancels every run of a workflow in `ONE_RUN_ON_MAIN` still going on `main` for an older commit, so each
 // workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`); `ci.yml`'s own

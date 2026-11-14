@@ -656,8 +656,8 @@ what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrot
 stage. looper runs four on its own: `looper.toml` wires `bun nv side --prepare --hook` as
 `[hooks] before_run`, `bun nv sweep` as `[hooks] after_session` and `bun nv ci --push` as `[hooks]
 after_retire`, whose comments there say why each
-timeout and `on_fail` are what they are, and `docs/goals/README.md`'s floor runs `bun nv debt` as
-`floor-debt`. A person runs the rest. Each command's `--help` and module doc own its flags.
+timeout and `on_fail` are what they are, and `docs/goals/README.md`'s floor runs the commands its checks
+name, `bun nv ci --check` as `ci-check` and `bun nv debt` as `floor-debt` among them. A person runs the rest. Each command's `--help` and module doc own its flags.
 
 **A side goal is a goal file off the chain**, run as a side loop with `looper loop add --side <slug>`.
 looper makes its lane, the worktree `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and
