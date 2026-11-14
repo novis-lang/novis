@@ -181,6 +181,7 @@ export function commentProblems(path: string): string[] {
 export function commentProblemsOf(source: string): string[] {
   const blocks: [number, string[], string[]][] = [];
   let current: string[] | null = null;
+  let tags: string[] = [];
   let doc = false;
   let payload = false;
   splitlines(source).forEach((line, i) => {
@@ -198,10 +199,11 @@ export function commentProblemsOf(source: string): string[] {
       if (body.startsWith("     ") || !body.trim()) return;
       if (current === null || isDoc !== doc) {
         current = [];
+        tags = [];
         doc = isDoc;
-        blocks.push([i + 1, current, []]);
+        blocks.push([i + 1, current, tags]);
       }
-      if (isDoc && body.trim().startsWith("@")) blocks[blocks.length - 1][2].push(body.trim());
+      if (isDoc && body.trim().startsWith("@")) tags.push(body.trim());
       else current.push(body.trim());
     } else if (!text.startsWith("//")) {
       current = null;
