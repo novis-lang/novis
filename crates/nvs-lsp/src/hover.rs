@@ -93,7 +93,13 @@
 //! declared parameter list come out in one shape and a parameter list has no
 //! second spelling. What it adds is which parameter the cursor is on, counted
 //! off the argument spans the parser produced rather than off commas looked
-//! for here.
+//! for here, and each parameter's own sentence ([`parameter_sentences`]): a
+//! `Core` card's `params`, or a declared method's `@param` lines.
+//!
+//! **A user card has the `Core` card's layout.** [`markdown_in`] renders a
+//! run's prose, then its `@param`s in signature order, its `@return` and its
+//! `@throws` exactly as [`reference_card`] renders a registry row's
+//! (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
 //!
 //! **A string argument equal to a completion file's value shows that value.**
 //! [`file_value`] reads the values completion offers at the same argument,
@@ -290,6 +296,7 @@ pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
         })?;
     let (label, params) = signature(&call.class.to_string(), call, &analysed.interner);
     let active = active_parameter(analysed, node, offset, call);
+    let sentences = parameter_sentences(analysed, call);
     Some(SignatureHelp {
         signatures: vec![SignatureInformation {
             label,
@@ -297,14 +304,21 @@ pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
             parameters: Some(
                 params
                     .into_iter()
-                    .map(|at| ParameterInformation {
+                    .enumerate()
+                    .map(|(index, at)| ParameterInformation {
                         label: ParameterLabel::LabelOffsets(at),
-                        // The card's own parameter sentences are in the
-                        // signature's documentation below, written as one
-                        // block; splitting them per entry would be a second
-                        // reading of `MethodDoc::params` that a declared
-                        // method has no equivalent of.
-                        documentation: None,
+                        documentation: call
+                            .param_names
+                            .get(index)
+                            .and_then(|name| {
+                                sentences.iter().find(|(documented, _)| documented == name)
+                            })
+                            .map(|(_, desc)| {
+                                Documentation::MarkupContent(MarkupContent {
+                                    kind: MarkupKind::Markdown,
+                                    value: desc.clone(),
+                                })
+                            }),
                     })
                     .collect(),
             ),
@@ -312,6 +326,28 @@ pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
         }],
         active_signature: Some(0),
         active_parameter: Some(active),
+    })
+}
+
+/// Each documented parameter of `call`'s declaration, without its `$`, and its
+/// sentence: a `Core` member's card's `params`, or the `@param` lines of the
+/// `///` run above a declared method. Signature help shows the active one's
+/// sentence beside the row.
+fn parameter_sentences(analysed: &Analysed, call: &ResolvedCall) -> Vec<(String, String)> {
+    if let Some(member) = registry_row(call) {
+        return member.doc.map_or_else(Vec::new, |doc| {
+            doc.params
+                .iter()
+                .filter(|param| !param.desc.is_empty())
+                .map(|param| (param.name.to_owned(), param.desc.to_owned()))
+                .collect()
+        });
+    }
+    let Some(declared) = site(analysed, &Target::Method(call)) else {
+        return Vec::new();
+    };
+    declared.doc.map_or_else(Vec::new, |doc| {
+        doc.params(analysed.map.file(declared.span.file).text(), &[])
     })
 }
 
@@ -430,9 +466,13 @@ fn enclosing_run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
 /// with the deprecation alone.
 fn run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let declared = site(analysed, target)?;
+    let order: Vec<&str> = match target {
+        Target::Method(call) => call.param_names.iter().map(String::as_str).collect(),
+        _ => Vec::new(),
+    };
     let doc = declared
         .doc
-        .map(|doc| markdown(analysed.map.file(declared.span.file).text(), doc));
+        .map(|doc| markdown_in(analysed.map.file(declared.span.file).text(), doc, &order));
     match (deprecation(analysed, target), doc) {
         (Some(notice), Some(doc)) => Some(format!("{notice}\n\n{doc}")),
         (notice, doc) => notice.or(doc),
@@ -925,17 +965,57 @@ pub(crate) fn reference_card(member: &CoreMethod, doc: &MethodDoc) -> String {
     out
 }
 
-/// One run's prose, as the Markdown a client renders.
+/// One run as the Markdown a client renders, its `@param`s in the order they
+/// were written. [`markdown_in`] is the same with the signature's order.
+pub(crate) fn markdown(text: &str, doc: &DocComment) -> String {
+    markdown_in(text, doc, &[])
+}
+
+/// One run as the Markdown a client renders: its prose, then its parameters,
+/// return value and errors in [`reference_card`]'s layout, so a user card and
+/// a `Core` card look the same. `order` is the parameters' names in signature
+/// order, and a card lists its `@param`s in that order.
 ///
 /// The lines are spans into `text` and carry their markers, which is
 /// `nvs_syntax::ast::DocComment`'s decision: the source is the text, and the
-/// consumer is what decides where the prose starts.
-pub(crate) fn markdown(text: &str, doc: &DocComment) -> String {
-    doc.lines
+/// consumer is what decides where the prose starts. A `@see` or `@example`
+/// line stays in the prose, as written.
+pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> String {
+    let mut out = doc
+        .lines
         .iter()
+        .filter(|line| {
+            doc.tag_of_line(**line)
+                .is_none_or(|tag| !tag.kind.has_text())
+        })
         .map(|line| prose(text.get(line.range()).unwrap_or_default()))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    let mut card = String::new();
+    let params = doc.params(text, order);
+    if !params.is_empty() {
+        card.push_str("\n\n**Parameters**\n");
+        for (name, desc) in &params {
+            card.push_str(&format!("\n- `${name}` — {desc}"));
+        }
+    }
+    if let Some(ret) = doc.returns(text) {
+        card.push_str(&format!("\n\n**Returns** {ret}"));
+    }
+    let errors = doc.throws(text);
+    if !errors.is_empty() {
+        card.push_str("\n\n**Throws**\n");
+        for (error, desc) in &errors {
+            card.push_str(&format!("\n- `{error}` — {desc}"));
+        }
+    }
+    // The prose loses its trailing blank lines only where a section follows, so
+    // a run with no `@param`, `@return` or `@throws` renders as it always did.
+    if !card.is_empty() {
+        out.truncate(out.trim_end().len());
+        out.push_str(&card);
+    }
+    out
 }
 
 /// One line with its marker off, and the one space after it that a writer

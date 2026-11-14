@@ -179,20 +179,42 @@ fn section(
             None
         };
         match from {
-            Some((owner, doc)) => {
+            Some((owner, member)) => {
                 let target = format!("{}::{name}", owner.name);
                 out.push_str(&format!(
                     "\nInherited from {}.\n",
                     see(&target, owner, names)
                 ));
-                card(out, doc, owner, names);
+                card(out, &by_position(member, entry), owner, names);
             }
             None => card(out, &entry["doc"], page, names),
         }
     }
 }
 
-/// The page and the `doc` of the nearest documented member of `entry`'s name
+/// The `doc` of the ancestor's `member`, with each parameter named the way
+/// `entry` names the parameter at the same position. An override may rename
+/// its parameters, and the page shows the names its own signature writes. A
+/// parameter `entry` has no position for keeps the ancestor's name.
+fn by_position(member: &Value, entry: &Value) -> Value {
+    let mut doc = member["doc"].clone();
+    let theirs = member["names"].as_array();
+    let ours = entry["names"].as_array();
+    if let (Some(params), Some(theirs), Some(ours)) = (doc["params"].as_array_mut(), theirs, ours) {
+        for param in params {
+            let renamed = theirs
+                .iter()
+                .position(|name| *name == param["name"])
+                .and_then(|at| ours.get(at));
+            if let Some(renamed) = renamed {
+                param["name"] = renamed.clone();
+            }
+        }
+    }
+    doc
+}
+
+/// The page and the member of the nearest documented member of `entry`'s name
 /// and kind on something `value` extends or implements, searched depth first
 /// in the order the document lists them: the parent class, then each
 /// interface. `key` is the roster `entry` came from, so a constant is looked
@@ -235,7 +257,7 @@ fn inherited<'a, 'p>(
             })
         });
         if let Some(member) = documented {
-            return Some((owner, &member["doc"]));
+            return Some((owner, member));
         }
         if let Some(found) = inherited(owner.value, key, entry, pages, seen) {
             return Some(found);
@@ -287,7 +309,9 @@ fn link(name: &str, names: &[&str]) -> String {
     }
 }
 
-/// A card: its prose as it was written, then each tag as its own line.
+/// A card: its prose as it was written, then its parameters, its return value
+/// and its errors in the layout a `Core` card has in a hover, then each `@see`
+/// and `@example` as its own line.
 ///
 /// `@see` renders as a link when its target has a page in this run and as code
 /// when it does not — a `Core` member's page is the reference this renderer does
@@ -297,6 +321,11 @@ fn card(out: &mut String, doc: &Value, owner: &Page<'_>, names: &[&str]) {
     if let Some(short) = doc["short"].as_str() {
         out.push_str(&format!("\n{short}\n"));
     }
+    list(out, doc, "params", "name", "Parameters", "$");
+    if let Some(ret) = doc["return"].as_str() {
+        out.push_str(&format!("\n**Returns** {ret}\n"));
+    }
+    list(out, doc, "errors", "error", "Throws", "");
     if let Some(targets) = doc["see"].as_array() {
         let rendered: Vec<String> = targets
             .iter()
@@ -312,6 +341,21 @@ fn card(out: &mut String, doc: &Value, owner: &Page<'_>, names: &[&str]) {
             .map(|file| format!("`{file}`"))
             .collect();
         out.push_str(&format!("\nExample: {}\n", rendered.join(", ")));
+    }
+}
+
+/// One section of a card's `key` list under a bold `title`, one item a line:
+/// the item's `name_key` as code behind `sigil`, then its sentence. Nothing is
+/// written when the document left the list out.
+fn list(out: &mut String, doc: &Value, key: &str, name_key: &str, title: &str, sigil: &str) {
+    let Some(items) = doc[key].as_array() else {
+        return;
+    };
+    out.push_str(&format!("\n**{title}**\n\n"));
+    for item in items {
+        let name = item[name_key].as_str().unwrap_or_default();
+        let desc = item["desc"].as_str().unwrap_or_default();
+        out.push_str(&format!("- `{sigil}{name}` — {desc}\n"));
     }
 }
 

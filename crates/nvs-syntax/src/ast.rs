@@ -1686,6 +1686,82 @@ impl DocTag {
             .collect::<Vec<_>>()
             .join(" ")
     }
+
+    /// The tag's target as written, without an `@param`'s `$`.
+    fn target_in<'s>(&self, source: &'s str) -> Option<&'s str> {
+        let target = source.get(self.target?.range())?;
+        Some(target.strip_prefix('$').unwrap_or(target))
+    }
+}
+
+/// The card a [`DocComment`]'s tags make, in the `Core` reference card's
+/// shape (`rule:core-api/reference-card`): every reader of a doc comment, `nvs
+/// meta --json`, hover and signature help, reads the three sections from here,
+/// so a user card and a `Core` card have one layout.
+impl DocComment {
+    /// The tag whose own line `line` is, or whose text `line` continues. Every
+    /// line with no tag is prose.
+    #[must_use]
+    pub fn tag_of_line(&self, line: Span) -> Option<&DocTag> {
+        self.tags.iter().find(|tag| {
+            let end = tag.span.end.max(tag.text.end);
+            line.end >= tag.span.start && line.start <= end
+        })
+    }
+
+    /// Each `@param`'s parameter, without its `$`, and its sentence, in the
+    /// order `order` lists the parameters. A parameter written twice keeps its
+    /// first line. A name `order` does not list comes last, in written order,
+    /// which is every `@param` when `order` is empty.
+    #[must_use]
+    pub fn params(&self, source: &str, order: &[&str]) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = Vec::new();
+        for tag in self.tags.iter().filter(|tag| tag.kind == DocTagKind::Param) {
+            let Some(name) = tag.target_in(source) else {
+                continue;
+            };
+            if out.iter().any(|(seen, _)| seen == name) {
+                continue;
+            }
+            out.push((name.to_owned(), tag.text_in(source)));
+        }
+        out.sort_by_key(|(name, _)| {
+            order
+                .iter()
+                .position(|listed| listed.strip_prefix('$').unwrap_or(listed) == name)
+                .unwrap_or(usize::MAX)
+        });
+        out
+    }
+
+    /// The sentence of the first `@return`, if one is written.
+    #[must_use]
+    pub fn returns(&self, source: &str) -> Option<String> {
+        self.tags
+            .iter()
+            .find(|tag| tag.kind == DocTagKind::Return)
+            .map(|tag| tag.text_in(source))
+    }
+
+    /// Each `@throws` class as written, and its sentence, in written order. A
+    /// class written twice keeps its first line.
+    #[must_use]
+    pub fn throws(&self, source: &str) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = Vec::new();
+        for tag in self
+            .tags
+            .iter()
+            .filter(|tag| tag.kind == DocTagKind::Throws)
+        {
+            let Some(name) = tag.target_in(source) else {
+                continue;
+            };
+            if !out.iter().any(|(seen, _)| seen == name) {
+                out.push((name.to_owned(), tag.text_in(source)));
+            }
+        }
+        out
+    }
 }
 
 /// The closed set of doc-comment tags.

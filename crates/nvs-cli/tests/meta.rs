@@ -769,6 +769,59 @@ fn a_user_declarations_shape_carries_prose_see_and_example() {
     );
 }
 
+/// A user method's card has the `Core` card's keys: `params` in signature order
+/// whatever order the `@param` lines were written in, a wrapped sentence joined
+/// into one, `return`, and `errors` as `{error, desc}`. A promoted constructor
+/// parameter is listed as a property, and its `@param` is its card.
+// covers: tools:cli/nvs-meta-json
+#[test]
+fn a_user_method_card_has_the_core_card_shape() {
+    let tags = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/tags.nvs")
+        .display()
+        .to_string();
+    let program = program(&["--json", &tags]);
+    let till = declared(&program, "classes", "Till");
+    let members = till["members"].as_array().expect("`members` is an array");
+    let named = |name: &str| {
+        members
+            .iter()
+            .find(|member| member["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is a member: {till}"))
+    };
+
+    assert_eq!(
+        named("charge")["names"],
+        serde_json::json!(["cents", "card"])
+    );
+    assert_eq!(
+        named("charge")["doc"],
+        serde_json::json!({
+            "short": "Charges an amount to a card.",
+            "params": [
+                { "name": "cents", "desc": "the amount, in cents. A negative amount is a refund." },
+                { "name": "card", "desc": "the card to charge" },
+            ],
+            "return": "the total this till has taken",
+            "errors": [{ "error": "Declined", "desc": "when the bank declines the card" }],
+        })
+    );
+    assert_eq!(
+        named("constructor")["doc"],
+        serde_json::json!({
+            "short": "Opens a till.",
+            "params": [{ "name": "owner", "desc": "who runs this till" }],
+        })
+    );
+    let owner = named("$owner");
+    assert_eq!(owner["kind"], "property");
+    assert_eq!(owner["signature"], "string $owner");
+    assert_eq!(
+        owner["doc"],
+        serde_json::json!({ "short": "who runs this till" })
+    );
+}
+
 /// A class names its parent under `extends` and its interfaces under
 /// `implements`, and an interface names the interfaces it extends under an
 /// `extends` list. Every name is fully qualified: the fixture writes `Item` and

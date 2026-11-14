@@ -1099,7 +1099,7 @@ fn user_class_json(
         .collect();
     put_values(&mut out, "implements", implements);
     body_json(&decl.members, src, &name, &mut out);
-    put_doc(&mut out, decl.doc.as_ref(), src);
+    put_doc(&mut out, decl.doc.as_ref(), src, &[]);
     if let Some(codec) = schemas.codecs().codec(&name) {
         out.insert("json".into(), schemas.object(codec));
     }
@@ -1126,7 +1126,7 @@ fn user_interface_json(
         .collect();
     put_values(&mut out, "extends", extends);
     body_json(&decl.members, src, &name, &mut out);
-    put_doc(&mut out, decl.doc.as_ref(), src);
+    put_doc(&mut out, decl.doc.as_ref(), src, &[]);
     Value::Object(out)
 }
 
@@ -1148,6 +1148,9 @@ fn body_json(members: &[ClassMember], src: &SourceFile, owner: &str, out: &mut M
         match &member.kind {
             ClassMemberKind::Method(method) => {
                 declared.push(user_method_json(method, member.doc.as_ref(), src));
+                if text(src, method.name) == "constructor" {
+                    declared.extend(promoted_json(method, member.doc.as_ref(), src));
+                }
             }
             ClassMemberKind::Property(property) => {
                 declared.push(user_property_json(property, member.doc.as_ref(), src));
@@ -1191,8 +1194,57 @@ fn user_method_json(method: &MethodMember, doc: Option<&DocComment>, src: &Sourc
         "signature".into(),
         Value::from(method_signature(method, src)),
     );
-    put_doc(&mut out, doc, src);
+    let names = param_names(method, src);
+    put_list(&mut out, "names", &names, |name| Value::from(*name));
+    put_doc(&mut out, doc, src, &names);
     Value::Object(out)
+}
+
+/// Each parameter's name without its `$`, in signature order: the registry's
+/// `names` key, and the order a card lists its `params` in.
+fn param_names<'s>(method: &MethodMember, src: &'s SourceFile) -> Vec<&'s str> {
+    method
+        .params
+        .iter()
+        .map(|param| {
+            let name = text(src, param.name);
+            name.strip_prefix('$').unwrap_or(name)
+        })
+        .collect()
+}
+
+/// Each property a constructor declares in its parameter list, in the shape
+/// [`user_property_json`] gives a declared one. Its card is the constructor's
+/// `@param` for it, because that line is the one place the property is
+/// documented (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
+fn promoted_json(method: &MethodMember, doc: Option<&DocComment>, src: &SourceFile) -> Vec<Value> {
+    let params = doc.map(|doc| doc.params(src.text(), &[]));
+    method
+        .params
+        .iter()
+        .filter(|param| param.is_promoted())
+        .map(|param| {
+            let name = text(src, param.name);
+            let mut out = Map::new();
+            out.insert("name".into(), Value::from(name));
+            out.insert("kind".into(), Value::from("property"));
+            out.insert(
+                "visibility".into(),
+                Value::from(visibility(&param.modifiers)),
+            );
+            let ty = param.ty.as_ref().map_or("", |ty| text(src, ty.span));
+            out.insert("signature".into(), Value::from(format!("{ty} {name}")));
+            let bare = name.strip_prefix('$').unwrap_or(name);
+            if let Some((_, desc)) = params
+                .iter()
+                .flatten()
+                .find(|(documented, _)| documented == bare)
+            {
+                out.insert("doc".into(), json!({ "short": desc }));
+            }
+            Value::Object(out)
+        })
+        .collect()
 }
 
 /// A program method's signature as its source writes it:
@@ -1290,7 +1342,7 @@ fn user_property_json(
         "signature".into(),
         Value::from(property_signature(property, src)),
     );
-    put_doc(&mut out, doc, src);
+    put_doc(&mut out, doc, src, &[]);
     Value::Object(out)
 }
 
@@ -1308,7 +1360,7 @@ fn user_constant_json(constant: &ConstMember, doc: Option<&DocComment>, src: &So
         out.insert("type".into(), Value::from(text(src, ty.span)));
     }
     out.insert("value".into(), Value::from(text(src, constant.value.span)));
-    put_doc(&mut out, doc, src);
+    put_doc(&mut out, doc, src, &[]);
     Value::Object(out)
 }
 
@@ -1345,13 +1397,13 @@ fn user_enum_json(
             if let Some(value) = &case.value {
                 out.insert("value".into(), Value::from(text(src, value.span)));
             }
-            put_doc(&mut out, case.doc.as_ref(), src);
+            put_doc(&mut out, case.doc.as_ref(), src, &[]);
             Value::Object(out)
         })
         .collect();
     out.insert("cases".into(), Value::Array(cases));
     put_values(&mut out, "types", alias_cards(&decl.members, src, &name));
-    put_doc(&mut out, doc, src);
+    put_doc(&mut out, doc, src, &[]);
     Value::Object(out)
 }
 
@@ -1371,7 +1423,7 @@ fn user_alias_json(
     let mut out = Map::new();
     out.insert("name".into(), Value::from(name));
     out.insert("type".into(), Value::from(text(src, decl.ty.span)));
-    put_doc(&mut out, doc, src);
+    put_doc(&mut out, doc, src, &[]);
     Value::Object(out)
 }
 
@@ -1403,7 +1455,17 @@ fn alias_cards(members: &[ClassMember], src: &SourceFile, owner: &str) -> Vec<Va
 /// registry card does: the absent key means "not documented", and an empty one
 /// means "documented, and the author wrote nothing" — a distinction
 /// `nvs check --strict-docs` is about to depend on.
-fn put_doc(out: &mut Map<String, Value>, doc: Option<&DocComment>, src: &SourceFile) {
+///
+/// The card has the `Core` card's keys, from [`doc_json`]: `short`, `params`
+/// as `{name, desc}` in the order `names` lists the parameters, `return`, and
+/// `errors` as `{error, desc}`, then `see` and `example`. Each is left out when
+/// it is empty.
+fn put_doc(
+    out: &mut Map<String, Value>,
+    doc: Option<&DocComment>,
+    src: &SourceFile,
+    names: &[&str],
+) {
     let Some(doc) = doc else {
         return;
     };
@@ -1412,6 +1474,21 @@ fn put_doc(out: &mut Map<String, Value>, doc: Option<&DocComment>, src: &SourceF
     if !prose.is_empty() {
         card.insert("short".into(), Value::from(prose));
     }
+    let params: Vec<Value> = doc
+        .params(src.text(), names)
+        .into_iter()
+        .map(|(name, desc)| json!({ "name": name, "desc": desc }))
+        .collect();
+    put_values(&mut card, "params", params);
+    if let Some(ret) = doc.returns(src.text()) {
+        card.insert("return".into(), Value::from(ret));
+    }
+    let errors: Vec<Value> = doc
+        .throws(src.text())
+        .into_iter()
+        .map(|(error, desc)| json!({ "error": error, "desc": desc }))
+        .collect();
+    put_values(&mut card, "errors", errors);
     for (key, kind) in [("see", DocTagKind::See), ("example", DocTagKind::Example)] {
         let named: Vec<Value> = doc
             .tags
@@ -1428,20 +1505,19 @@ fn put_doc(out: &mut Map<String, Value>, doc: Option<&DocComment>, src: &SourceF
 ///
 /// One space after the marker is the separator and comes off with it; anything
 /// further in is the author's own indentation, which a fenced code block in the
-/// Markdown depends on. A tag line is one whose text begins with `@`, and that
-/// is exact rather than approximate — the parser refused every spelling but the
-/// five, so nothing else can start that way. A line continuing the text of an
-/// `@param`, `@return` or `@throws` is still read as prose here.
+/// Markdown depends on. Which lines are a tag's is
+/// [`DocComment::tag_of_line`]'s answer, so a line continuing the text of an
+/// `@param`, `@return` or `@throws` belongs to its tag and not to the prose.
 fn prose(doc: &DocComment, src: &SourceFile) -> String {
     let lines: Vec<&str> = doc
         .lines
         .iter()
+        .filter(|line| doc.tag_of_line(**line).is_none())
         .map(|line| {
             let line = text(src, *line).trim_start();
             let line = line.strip_prefix("///").unwrap_or(line);
             line.strip_prefix(' ').unwrap_or(line)
         })
-        .filter(|line| !line.trim_start().starts_with('@'))
         .collect();
     lines.join("\n").trim().to_owned()
 }

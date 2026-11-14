@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-diagnostics/src/code/names.rs, crates/nvs-diagnostics/src/diagnostic.rs, docs/rules/ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows.md, docs/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.md]
   - id: 3
     title: meta, doc, hover and signature help show the tags in the Core card's shape
-    status: open
+    status: done
     context: [crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/doc.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-cli/tests/meta.rs, crates/nvs-cli/tests/doc.rs, crates/nvs-lsp/tests/navigation.rs, docs/rules/tooling/meta-json-takes-a-program.md, docs/rules/core-api/reference-card.md]
   - id: 4
     title: the editor completes, renames, finds and colours the tags
@@ -176,8 +176,12 @@ property, as `rule:tooling/strict-docs` says.
 
 **One shape for every card.** A user member's `doc` object in `nvs meta --json` uses the `Core` card's
 keys: `short`, `params` as a list of `{name, desc}` in signature order, `return`, `errors` as a list of
-`{name, desc}`, then `see` and `example` as now. A key is left out when it is empty, as `doc_json`
-does. `nvs doc` renders a user card exactly as it renders a `Core` card.
+`{error, desc}`, then `see` and `example` as now. A key is left out when it is empty, as `doc_json`
+does. `nvs doc` renders a user card exactly as it renders a `Core` card. A parameter's `name` has no
+`$`, as a `Core` card's has none. `errors` takes `doc_json`'s `error` key, not `name`, because one shape
+means the `Core` card's keys exactly. A user method also carries `names`, its parameters without `$`,
+as a registry member does; `nvs doc` maps an inherited `@param` by position through the two members'
+`names`. A promoted constructor parameter is listed in `members` as a `property` after the constructor.
 
 **The editor.**
 - Completion after `@` offers only the tags this declaration accepts: no `@param` above a property, and
@@ -270,15 +274,15 @@ check names, and the session runs that check once.
 **Does:** every reader of a doc comment shows the three tags in signature order, a promoted parameter's
 sentence is its property's, and an inherited `@param` is mapped by position.
 
-- [ ] `crates/nvs-cli/src/meta.rs:1406`: `put_doc` takes the member's parameters and writes `params`,
+- [x] `crates/nvs-cli/src/meta.rs:1406`: `put_doc` takes the member's parameters and writes `params`,
   `return` and `errors` with `doc_json`'s keys (`:611`), and a promoted property's `doc` takes its
   constructor `@param`. The inherited mapping by position goes where the ancestor's comment is read.
-- [ ] `crates/nvs-cli/src/doc.rs:296`: `card` renders a user card's parameters, return and errors the
+- [x] `crates/nvs-cli/src/doc.rs:296`: `card` renders a user card's parameters, return and errors the
   way it renders a `Core` card.
-- [ ] `crates/nvs-lsp/src/hover.rs:367`: `documentation` shows a user function's card in the `Core`
+- [x] `crates/nvs-lsp/src/hover.rs:367`: `documentation` shows a user function's card in the `Core`
   layout. `:300` sets each `ParameterInformation.documentation`, for a user function and for a `Core`
   member (`MethodDoc::params`, `crates/nvs-stdlib/src/registry.rs:1257`).
-- [ ] The four tests the `tags-shown` check names, in `crates/nvs-cli/tests/meta.rs:103`,
+- [x] The four tests the `tags-shown` check names, in `crates/nvs-cli/tests/meta.rs:103`,
   `crates/nvs-cli/tests/doc.rs:307` and `crates/nvs-lsp/tests/navigation.rs:269`, run once by name.
 
 ### 4. the editor completes, renames, finds and colours the tags
@@ -332,27 +336,35 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
 
 ### State
 
-Stages 1 and 2 are done, and `tags-parse` and `tags-checked` are green. `DocTag` has `target`
-(an `@param`'s `$name`, an `@throws` class) and `text`, joined by `DocTag::text_in`. The parser
-raises `E0138` and `E0139`. `check_doc` in `crates/nvs-hir/src/members.rs` takes a `DocOwner` and
-raises `E0330` to `E0334` (`code/names.rs`) and `W1030` (`code/warnings.rs`, the home of every `W`
-code), each with its fix. A stale `@param` beside one undocumented parameter gets only the rename.
-`check_throws` falls back to a global error class, and trusts a `Core` class outside the error tree.
+Stages 1 to 3 are done, and `tags-parse`, `tags-checked` and `tags-shown` are green. The parser
+raises `E0138` and `E0139`, and `check_doc` in `crates/nvs-hir/src/members.rs` raises `E0330` to
+`E0334` and `W1030`, each with its fix.
 
-The sweep's `env-secret-proofs` names no check in the tree. The nightly run 43581848915's four Miri
-failures predate 8bd6b6eda9, which shrinks each of those units under Miri.
+Every reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`: `tag_of_line`
+(a tag's own line or its continuation), `params(src, order)` (names without `$`, in `order`),
+`returns` and `throws`. `nvs meta --json`'s user `doc` has `doc_json`'s keys, a method carries
+`names`, and a promoted parameter is a `property` member whose card is its `@param`
+(`meta.rs:1220`, `promoted_json`). `nvs doc` renders **Parameters**, **Returns** and **Throws**,
+and `by_position` (`doc.rs:199`) maps an inherited `@param` onto the override's names. Hover's
+`markdown_in` (`hover.rs:983`) renders the same sections in signature order, and signature help
+sets each parameter's sentence (`parameter_sentences`, `hover.rs:336`). Hover does not inherit a
+comment, and never did; only `nvs doc` does.
+
+The sweep's `env-secret-proofs` names no check in the tree, and `.looper/loops/main/checks/` holds
+no log for it. The nightly run 43581848915 started at 09:42Z, before 8bd6b6eda9 (14:58Z) shrank
+those four Miri units.
 
 Expected red until its stage lands: `crates/nvs-lsp/tests/completion_edits.rs:1024`
 (`a_comment_offers_nothing_but_the_tags_of_a_doc_line`) sees five tag names after `@`, and stage 4
-rewrites it. `meta.rs`'s `prose` and hover's `markdown` still show a tag's continuation line as
-prose. `docs/rules/tooling/meta-json-takes-a-program.md:13` still names only `see` and `example`.
+rewrites it. A `.lspt` hover case over a run with `@param`, `@return` or `@throws` now shows the
+sections, if one exists.
 
 ### Next
 
-Stage 3, top to bottom, from `crates/nvs-cli/src/meta.rs:1406` (`put_doc`), whose `prose` at
-`:1435` skips each tag's lines from `span.start` through `text.end`. Then `crates/nvs-cli/src/doc.rs:296`
-(`card`), `crates/nvs-lsp/src/hover.rs:367` (`documentation`) and `hover.rs:933` (`markdown`). A
-tag's sentence is `tag.text_in(src)`, and its parameter is `tag.target`, the `$` included.
+Stage 4, from `crates/nvs-lsp/src/completion.rs:1758` (`doc_tag_at`) and `:1791`
+(`doc_tag_names`). Then `crates/nvs-lsp/src/rename.rs:138` and `crates/nvs-lsp/src/query.rs:326`
+for the `$name` of an `@param` line, semantic tokens, and
+`editors/vscode/syntaxes/nvs.tmLanguage.json:113`. A tag's `$name` span is `DocTag::target`.
 
 ### Backlog
 

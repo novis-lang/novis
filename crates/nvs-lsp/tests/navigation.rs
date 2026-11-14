@@ -265,6 +265,42 @@ fn hover_on_later_shows_its_card() {
     }
 }
 
+/// The sentence signature help shows beside the parameter at `index`.
+fn sentence(help: &SignatureHelp, index: usize) -> Option<String> {
+    let param = help.signatures[0].parameters.as_ref()?.get(index)?;
+    match param.documentation.as_ref()? {
+        lsp_types::Documentation::MarkupContent(content) => Some(content.value.clone()),
+        lsp_types::Documentation::String(text) => Some(text.clone()),
+    }
+}
+
+#[test]
+fn signature_help_shows_the_active_parameters_sentence() {
+    // Each parameter carries its own sentence: a declared method's from its
+    // `@param` line, and a `Core` member's from its card. A parameter with no
+    // `@param` carries none.
+    let source = "<?nvs\nclass Scale {\n    \
+                  /// Multiplies two numbers.\n    \
+                  ///\n    \
+                  /// @param $by how many times to take it\n    \
+                  public function times(int $n, int $by): int { return $n * $by; }\n}\n\
+                  var $s = new Scale();\necho $s->times(2, <|>3);\n";
+    let declared = help(source);
+    assert_eq!(declared.active_parameter, Some(1));
+    assert_eq!(
+        sentence(&declared, 1).as_deref(),
+        Some("how many times to take it"),
+        "the active parameter does not show its `@param` sentence"
+    );
+    assert_eq!(sentence(&declared, 0), None, "`$n` has no `@param`");
+
+    let core = help(&document(r#"echo Core\Str::length(<|>"hello");"#));
+    assert!(
+        sentence(&core, 0).is_some_and(|text| !text.is_empty()),
+        "a `Core` parameter does not show its card's sentence"
+    );
+}
+
 #[test]
 fn signature_help_renders_a_core_row_and_a_declared_list_the_same_way() {
     // `Core\Str::length`'s row is frozen by

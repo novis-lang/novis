@@ -138,6 +138,35 @@ class Page extends Item implements Listed {
 }
 "#;
 
+/// An interface method documented with `@param`, `@return` and `@throws`, its
+/// `@param` lines written out of signature order, and a class that implements
+/// it with no `///` and with its parameters renamed.
+const TAGGED: &str = r#"<?nvs
+/// The bank declined the card.
+final class Declined extends RuntimeError {
+}
+
+/// Something that takes money.
+interface Till {
+    /// Charges an amount to a card.
+    ///
+    /// @param $card the card to charge
+    /// @param $cents the amount, in cents
+    /// @return the total this till has taken
+    /// @throws Declined when the bank declines the card
+    public function charge(int $cents, string $card): int;
+}
+
+/// A till in a shop.
+class Counter implements Till {
+    public function charge(int $amount, string $owner): int {
+        return $amount;
+    }
+}
+
+echo (new Counter())->charge(150, "visa"), "\n";
+"#;
+
 /// A fresh directory holding `case.nvs`, and the `pages` directory `nvs doc`
 /// will be pointed at.
 fn fixture(name: &str) -> nvs_repo::Scratch {
@@ -300,6 +329,54 @@ fn nvs_doc_names_the_parent_class_and_the_interfaces() {
     assert!(
         page.contains("[parent::price](Shop.Item.md#price)"),
         "`parent::` in a `@see` did not link to the parent's page: {page}"
+    );
+}
+
+#[test]
+fn nvs_doc_renders_params_return_and_errors() {
+    // A user card's parameters, return value and errors are rendered the way a
+    // hover renders a `Core` card, and the parameters come in signature order.
+    let dir = fixture_of("tags", TAGGED);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Till.md");
+    assert!(
+        page.contains(
+            "Charges an amount to a card.\n\n\
+             **Parameters**\n\n\
+             - `$cents` — the amount, in cents\n\
+             - `$card` — the card to charge\n\n\
+             **Returns** the total this till has taken\n\n\
+             **Throws**\n\n\
+             - `Declined` — when the bank declines the card\n"
+        ),
+        "the card's tags are not rendered in the `Core` layout: {page}"
+    );
+}
+
+#[test]
+fn an_inherited_param_is_shown_under_the_overriding_name() {
+    // `Counter::charge` names its parameters `$amount` and `$owner`. The card it
+    // inherits documents `$cents` and `$card`, at the same two positions, so the
+    // page shows each sentence under the name `Counter` writes.
+    let dir = fixture_of("inherited-param", TAGGED);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Counter.md");
+    assert!(
+        page.contains(
+            "- `$amount` — the amount, in cents\n\
+             - `$owner` — the card to charge\n"
+        ),
+        "the inherited `@param`s are not shown under the overriding names: {page}"
     );
 }
 
