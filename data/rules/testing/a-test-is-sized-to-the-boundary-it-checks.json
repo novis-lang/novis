@@ -1,0 +1,11 @@
+{
+  "title": "A test is sized to the boundary it checks: one step past it, named by its constant, the same under Miri and natively",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/a-test-holds-at-any-speed",
+    "testing/runner-is-strict"
+  ],
+  "guardedBy": [
+    ".config/nextest.toml"
+  ]
+}

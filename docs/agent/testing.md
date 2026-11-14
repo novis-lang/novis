@@ -42,6 +42,10 @@ rule below is a failure CI found that the dev machine could not.
 - **A test Miri runs is sized for Miri.** Miri runs a test thousands of times slower and models no
   `getrusage`, `mmap(PROT_NONE)` or real process: shrink the loop under `cfg!(miri)`, or mark the test
   `#[cfg_attr(miri, ignore = "<why>")]` on one line, as rustfmt writes it.
+- **A test's size is the smallest one that crosses what it checks, written as that boundary**, never a
+  fraction of the old count: `LIMIT + 1`, one chunk plus a byte, a small configured limit. One size
+  serves Miri and native runs unless the native run needs more. `rule:testing/a-test-is-sized-to-the-boundary-it-checks`
+  says how each kind of boundary is crossed, and why a size short of it is worse than one past it.
 - **Before a goal is claimed done, `bun nv ci --check` is green.** It is the checks the goal end's push
   runs: rustfmt, the lint tables, the rules, the rendered files and the website, the license file,
   the advisories, the rustdoc links, and the feature proofs on a binary built from the tree. They take

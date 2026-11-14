@@ -76,6 +76,7 @@
     "testing/bench-counters",
     "testing/perf-two-mechanisms",
     "testing/a-test-holds-at-any-speed",
+    "testing/a-test-is-sized-to-the-boundary-it-checks",
     "testing/member-perf-ledger",
     "testing/valgrind-on-wsl",
     "testing/every-run-runs-every-job",
