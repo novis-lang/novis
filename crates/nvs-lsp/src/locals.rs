@@ -60,10 +60,11 @@ pub(crate) struct Local<'a> {
     /// Every place the body writes the local, the declaration included, in
     /// source order. A parameter's `@param` name is one of them.
     pub sites: Vec<Span>,
-    /// The method that declares the local as a parameter, and that parameter.
-    /// `None` for every other local, an anonymous function's parameter
+    /// The method that declares the local as a parameter, that parameter, and
+    /// the method's `///` run. `None` for every other local, an anonymous
+    /// function's parameter
     /// included.
-    pub parameter: Option<(&'a MethodMember, &'a Param)>,
+    pub parameter: Option<(&'a MethodMember, &'a Param, Option<&'a DocComment>)>,
 }
 
 impl Local<'_> {
@@ -206,7 +207,7 @@ pub(crate) fn of<'a>(
             .iter()
             .find(|param| param.name == binding.declared)?;
         sites.extend(param_tags(doc, file, &spelled));
-        Some((method, param))
+        Some((method, param, doc))
     });
     sites.sort_by_key(|span| (span.start, span.end));
     sites.dedup();

@@ -997,7 +997,7 @@ fn local(
         ));
     };
     let calls = if found.is_parameter() {
-        let Some((method, param)) = found.parameter else {
+        let Some((method, param, _)) = found.parameter else {
             return Err(format!(
                 "`${name}` is a parameter of an anonymous function, and a call can pass it by \
                  name. It cannot be renamed."

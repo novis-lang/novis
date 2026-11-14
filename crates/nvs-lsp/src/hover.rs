@@ -66,7 +66,10 @@
 //! (`rule:ide/the-index-answers-the-cursor`). An ordinary `$total` carries no
 //! entry at all — a local's type lives in a scope the checker drops rather than
 //! on the read — so it answers nothing instead of being guessed at, and closing
-//! that is a change to what the type phase keeps rather than an arm here.
+//! that is a change to what the type phase keeps rather than an arm here. A
+//! method's parameter answers the sentence of its `@param` line instead, read
+//! off the `///` run wherever the parameter is written
+//! ([`parameter_sentence`]).
 //!
 //! **A `tainted` or `secret` value answers the path its qualifier took**
 //! ([`crate::taint`]). That path is on the innermost value under the cursor,
@@ -183,7 +186,8 @@ pub fn answer(
         .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| name(analysed, clause_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, attribute_at(analysed, offset)?, offset))
-        .or_else(|| name(analysed, import_at(analysed, offset)?, offset));
+        .or_else(|| name(analysed, import_at(analysed, offset)?, offset))
+        .or_else(|| parameter_sentence(analysed, offset));
     // A tainted or secret value's path (`crate::taint`): alone where it is on
     // a node inside the one answered, under that answer where it is on the
     // same node, and not at all where the answer is the narrower one.
@@ -349,6 +353,26 @@ fn parameter_sentences(analysed: &Analysed, call: &ResolvedCall) -> Vec<(String,
     declared.doc.map_or_else(Vec::new, |doc| {
         doc.params(analysed.map.file(declared.span.file).text(), &[])
     })
+}
+
+/// The sentence of the `@param` line that documents the method parameter the
+/// cursor at `offset` is on, in the body, in the signature or on that line,
+/// and the site the cursor is on.
+fn parameter_sentence(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let local = crate::locals::at(analysed, offset)?;
+    let (_, param, doc) = local.parameter?;
+    let file = analysed.map.file(analysed.entry);
+    let written = file.text().get(param.name.range())?;
+    let name = written.strip_prefix('$').unwrap_or(written);
+    let (_, sentence) = doc?
+        .params(file.text(), &[])
+        .into_iter()
+        .find(|(documented, _)| documented == name)?;
+    let site = local
+        .sites
+        .iter()
+        .find(|site| site.start <= offset && offset <= site.end)?;
+    Some((sentence, *site))
 }
 
 /// Which parameter of `call` the cursor at `offset` is on.
