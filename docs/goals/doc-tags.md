@@ -413,42 +413,51 @@ doc tag error no longer stops it.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [ ] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and
+  `bun nv ci --check`.
+  - [x] `bun nv verify --doc` and `bun nv owners --closes doc-tags` are green.
+  - [x] `bun nv ci --check`'s proofs gate, website render and stale pages are green.
+  - [ ] `bun nv ci --check`'s `site questions` is green: 144 pages reread and restamped.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. `tags-parse`, `tags-checked`, `tags-shown`, `editor-answers`,
-`feature-proofs` and `fmt-orders-tags` are green. Every reader takes the card from `DocComment` in
-`crates/nvs-syntax/src/ast.rs:1705`.
+Stages 1 to 6 are done, and stage 7's verify is green (`looper verify`, 823 s). Every reader takes
+the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`.
 
-Stage 6 landed in one commit. `crates/nvs-fmt/src/doc_tags.rs` writes each `///` run in the order
-`rule:tooling/fmt-orders-the-doc-tags` gives. `format` in `crates/nvs-fmt/src/lib.rs` runs it after the
-import sort, through `moved`, and lets `E0128`, `E0138` and `E0139` through. `@returns` is no tag, so its
-line stays prose. A member of an anonymous class is not reached. The `.lspt` replay has no format
-request, so `crates/nvs-fmt/tests/doc_tag_order.rs` is the proof. `bun nv nvs-fmt` rewrote seven
-corpus files, five that did not parse before (`E0138`), and example 05's `.out` was blessed.
+Stage 7's verify found that stage 3's promoted `property` rows reached the built-in components too
+(`Novis\Image\Color::$r` and 44 more). Three commits fixed what that broke:
+- `668d9ec6c7`: `tools/nv/proofs/collect.ts` passes tsc.
+- `94f422ddd1`: each component constructor has an `@param` per public promoted parameter.
+  `nvs agent index` writes a property as `Owner::$name  type` (`member_line` in
+  `crates/nvs-cli/src/agent.rs`). The website lists a class's `properties` under their own heading
+  (`registryClasses` in `tools/nv/renderers/website-core.ts`, `ClassOverview.astro`). The completion
+  source table and the `nvs code rename` test follow stage 4.
+- `bb03ced395`: the proof roster skips a `property` member (`tools/nv/proofs/roster.ts:313`). The
+  `lang:programs` perf is re-recorded, the comments and editor pages are updated and stamped, and the
+  roadmap has a doc-tags theme.
 
-The perf proof of `lang:programs/doc-comments` is stale, and owed at a release. The sweep's
-`env-secret-proofs` names no check. Nightly 43581848915 ran on `be62f3f5a7`, which lacks 8bd6b6eda9.
+`bun nv verify --doc` and `bun nv owners --closes doc-tags` are green. `bun nv ci --check` is green
+but for `site questions`. The sweep's `env-secret-proofs` is no check: `looper check --name` finds
+none, so the sweep's list is stale. Nightly 43581848915's Miri failures are the four tests
+`8bd6b6eda9` shrank or ignored, and it ran on `be62f3f5a7`, before that commit.
 
-Expected red: `bun nv render --website` stops at `Novis\Image\Color::$r` (Backlog), so `bun nv ci
---check` may be red for it.
+Another session works in this tree (it committed `029c7f6c2d`, todo lines). Stage only your own files.
 
 ### Next
 
-- `docs/goals/doc-tags.md:414`: stage 7, the gate. Start `looper verify` with `run_in_background`, fix
-  every failure it names in one pass, and run it once more. Then the goal-end gates AGENTS.md § *In
-  the loop* names: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and `bun nv ci --check`.
+- `tools/nv/cmd/site.ts:696`: `bun nv site --check questions --nvs target/debug/nvs.exe` names 144
+  stale pages: the component member and class pages whose `core.json` cards changed, plus
+  `/reference/cli/nvs-lsp/`, `/syntax/basics/comments/` and `/tools/editor/`. Each page is reread, its
+  questions rewritten where the page changed, then `bun nv site --questions --stamp <url>`. Split the
+  list by component across writing subagents, as AGENTS.md § *The context budget* says.
+- Then `bun nv ci --check` once more, and `DONE` when it is green.
 
 ### Backlog
 
 - `tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1` and two other
-  `image-*` cases failed once in the 123-case `tags-checked` run, and passed alone and on the rerun.
-  Stage 7's verify shows whether they fail under load.
-- `crates/nvs-stdlib/src/registry.rs:1`: `bun nv render --website` stops at `Novis\Image\Color::$r`,
-  whose signature `uint $r` does not parse. The website render job may be red for it, and `bun nv ci
-  --check` in stage 7 shows it.
+  `image-*` cases failed once under load in stage 2. Stage 7's verify passed them.
