@@ -25,6 +25,10 @@ stages:
     status: done
     context: [docs/examples/lang/programs/doc-comments/about.md, docs/examples/lang/programs/doc-comments/details.md, docs/reference/lang/10-programs.md, docs/reference/tools/40-editor.md, docs/reference/tools/35-packages.md]
   - id: 6
+    title: nvs fmt puts the tags in one order
+    status: open
+    context: [crates/nvs-fmt/src/lib.rs, crates/nvs-fmt/src/imports.rs, crates/nvs-fmt/src/tokens.rs, crates/nvs-fmt/tests/identity.rs, docs/rules/tooling/fmt-sorts-the-use-block.md, docs/rules/tooling/fmt-is-idempotent.md, docs/rules/tooling/fmt-at-most-one-blank-line.md]
+  - id: 7
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -83,6 +87,18 @@ checks:
     name: "the doc comments feature owes no proof"
     run: [bun, nv, proofs, --id, "lang:programs/doc-comments"]
     timeout: 900
+  - id: fmt-orders-tags
+    stage: 6
+    name: "nvs fmt writes the prose, one blank line, then @param in signature order, @return, @throws, @see and @example, each with its continuation lines, idempotently, and formats a file whose only errors are doc tag errors"
+    run: [cargo, test, --test, doc_tag_order, --, the_tags_follow_the_prose_in_one_order, params_follow_the_signature, an_unknown_param_goes_after_the_known_ones, a_tag_keeps_its_continuation_lines, ordering_the_tags_is_idempotent, a_doc_tag_error_does_not_stop_formatting]
+    timeout: 1800
+    tests:
+      - the_tags_follow_the_prose_in_one_order
+      - params_follow_the_signature
+      - an_unknown_param_goes_after_the_known_ones
+      - a_tag_keeps_its_continuation_lines
+      - ordering_the_tags_is_idempotent
+      - a_doc_tag_error_does_not_stop_formatting
 ---
 
 # a doc comment describes each parameter, the return value and the errors
@@ -162,9 +178,33 @@ fix is a translation (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-alre
   takes the next free `W` code in `code/warnings.rs`, since `names.rs` holds only `E03xx` and fails
   its tests on any other code. Each code gets its card.
 
-**The order is free, and every reader shows signature order.** `nvs fmt` does not reorder tag lines,
-because a format pass is never a diagnostic and never reads the signature. `nvs doc`, `nvs meta
---json`, hover and signature help read the tags by parameter. A quick fix inserts in signature order.
+**`nvs fmt` puts the tags in one order (the person's call, 2026-11-14).** A new rule fragment,
+`tooling/fmt-orders-the-doc-tags`, says it:
+- The prose comes first. Then one empty `///` line, then the tags with no empty line between them. A
+  comment with no prose starts with its first tag.
+- The tag order is: `@param` in signature order, then `@return`, `@throws`, `@see` and `@example`.
+  `@throws`, `@see` and `@example` keep the order their author wrote within their kind, because that
+  order is read back (`nvs meta --json` lists `see` and `example` in written order).
+- An `@param` whose name is no parameter goes after the known ones, in written order. The checker
+  already reports it.
+- A tag moves with its continuation lines. `nvs fmt` never changes the text of a line, only the order
+  of the lines and the empty lines between them.
+- The signature is read from the syntax tree, from the parameter list of the declaration below the
+  comment. No type or name is resolved, so the formatter stays syntactic.
+- Order is never a diagnostic (`rule:tooling/fmt-is-never-a-diagnostic`). A file out of order is what
+  `nvs fmt --check` reports, as it reports any other layout.
+- `rule:tooling/fmt-sorts-the-use-block` says the use block is "the only reordering the formatter
+  performs anywhere". That sentence changes to name both. A tag's position is not observable, as an
+  import's is not.
+- **A doc tag error never stops `nvs fmt`.** The formatter refuses a file with a parse error
+  (`crates/nvs-fmt/src/lib.rs:168`). Every doc tag diagnostic leaves the tree whole, so it is let
+  through like the errors `tokens::repairs` lets through. Otherwise format-on-save refuses the file
+  right after the quick fix inserts an `@param` line with no text yet. `E0128` is let through the same
+  way. If a doc tag diagnostic is raised by the checker rather than the parser, it never reaches this
+  check, and only the parser's need letting through.
+
+Every reader still shows signature order, so an unformatted file reads the same. A quick fix inserts in
+signature order.
 
 **Inheritance.** A member with no `///` of its own inherits the whole comment, as now. An inherited
 `@param` is shown under the overriding member's parameter at the same position, because an override
@@ -228,8 +268,9 @@ syntax most programmers already know.
   ordinary one.
 - **Dart's checked references in prose only.** They buy a check, but signature help still has no
   sentence per parameter.
-- **`nvs fmt` sorting the tag lines.** A format pass would need the signature, and the readers already
-  show signature order.
+- **A diagnostic for tags out of order.** Layout is `nvs fmt`'s job and never a diagnostic.
+- **Moving prose written between tags.** A line after a tag is that tag's text, so there is no prose
+  there to move.
 
 **Lanes:** none. Every stage builds on the one before it, and stages 2 to 4 share `members.rs`, the
 AST and `hover.rs`. The stages run in order.
@@ -349,7 +390,28 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
   package's cards come from these tags.
 - [x] `bun nv proofs --comments` over the new `.nvs` files, then the `feature-proofs` check.
 
-### 6. the goal is verified once, and every failure is fixed
+### 6. nvs fmt puts the tags in one order
+
+**Does:** the formatter writes every doc comment's tags in the order § *Standing decisions* sets, and a
+doc tag error no longer stops it.
+
+- [ ] `docs/rules/tooling/fmt-orders-the-doc-tags.md:1` written from § *Standing decisions*, and the
+  "only reordering" sentence in `docs/rules/tooling/fmt-sorts-the-use-block.md:11` names both.
+  `bun nv rules --check` is green.
+- [ ] `crates/nvs-fmt/src/doc_tags.rs:1`: the reorder, called from `format` at
+  `crates/nvs-fmt/src/lib.rs:165` beside the use-block sort (`crates/nvs-fmt/src/imports.rs`). It takes
+  each `DocComment` from the parsed tree, with the parameter names of the declaration it is attached
+  to.
+- [ ] `crates/nvs-fmt/src/lib.rs:170`: every parser doc tag diagnostic, and `E0128`, is let through the
+  refusal check.
+- [ ] `crates/nvs-fmt/tests/doc_tag_order.rs:1`: the six tests the `fmt-orders-tags` check names, run
+  once by name.
+- [ ] `bun nv nvs-fmt` reruns the whole corpus, and every file it changes is committed in this slice.
+  The examples and pages written in the proofs stage are in that corpus.
+- [ ] A `.lspt` case, `tests/lsp/actions/format-orders-the-doc-tags.lspt:1`, if the replay supports a
+  format request. Otherwise the Rust tests are the proof, and the handoff says so.
+
+### 7. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
@@ -384,9 +446,11 @@ ones that fix answers. The next nightly shows whether they pass. Expected red: n
 
 ### Next
 
-- `docs/goals/doc-tags.md:354`: stage 6. Start `looper verify` with `run_in_background`, fix every
-  failure it names in one pass, and run it once more. Then the goal-end gates AGENTS.md § *In the
-  loop* names: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and `bun nv ci --check`.
+- `docs/goals/doc-tags.md:393`: stage 6, which the person added before the gate. `nvs fmt` puts the
+  tags in one order, and a doc tag error never stops it. Its items name each file.
+- `docs/goals/doc-tags.md:414`: stage 7, the gate. Start `looper verify` with `run_in_background`, fix
+  every failure it names in one pass, and run it once more. Then the goal-end gates AGENTS.md § *In
+  the loop* names: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and `bun nv ci --check`.
 
 ### Backlog
 
