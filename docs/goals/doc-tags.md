@@ -438,6 +438,10 @@ is stale. Nightly 43581848915 ran on `be62f3f5a7`. Its five Miri failures (three
 `8bd6b6eda9` shrank, ignored or gave a Miri deadline, and that commit is newer. The next nightly is
 the check.
 
+The refused DONE's `floor-debt` was red with `0 red`: `fcf4dd9833` (a `looper sync`) landed during
+its run and left six `nvtest:` atoms owed. The five the log named pass under `bun test` (115 tests),
+and the selection store now holds no debt at all, read through `debtOf` in `tools/nv/cmd/debt.ts`.
+
 Another session works in this tree (it committed `029c7f6c2d`, todo lines). Stage only your own files.
 
 ### Next
