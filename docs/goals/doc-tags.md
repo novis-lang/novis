@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-syntax/src/parser/mod.rs, crates/nvs-diagnostics/src/code/parser.rs, crates/nvs-syntax/tests/doc_comments.rs, docs/rules/tooling/strict-docs.md, tests/conformance/syntax/doc-comment/a-tag-outside-the-five-is-a-diagnostic.nvst]
   - id: 2
     title: the checker holds every tag to the signature, and each mistake carries its fix
-    status: open
+    status: done
     context: [crates/nvs-diagnostics/src/code/names.rs, crates/nvs-diagnostics/src/diagnostic.rs, docs/rules/ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows.md, docs/rules/ide/a-quick-fix-is-a-diagnostics-own-suggestion.md]
   - id: 3
     title: meta, doc, hover and signature help show the tags in the Core card's shape
@@ -159,7 +159,8 @@ fix is a translation (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-alre
   per-parameter documentation, for `rule:tooling/strict-docs`'s reason. A fix never writes a sentence.
 - Diagnostic codes: each new parser diagnostic takes the next free `E01xx` in `code/parser.rs`. Each new
   checker diagnostic takes the next free code in `code/names.rs` beside `@see`'s `E0323`. The warning
-  takes the next free `W` code in that file. Each code gets its card.
+  takes the next free `W` code in `code/warnings.rs`, since `names.rs` holds only `E03xx` and fails
+  its tests on any other code. Each code gets its card.
 
 **The order is free, and every reader shows signature order.** `nvs fmt` does not reorder tag lines,
 because a format pass is never a diagnostic and never reads the signature. `nvs doc`, `nvs meta
@@ -251,17 +252,17 @@ diagnostic of § *Standing decisions*' checker list carries its `Suggestion`.
 **Split:** once the checker lands, a writing subagent writes the seven `.nvst` cases the `tags-checked`
 check names, and the session runs that check once.
 
-- [ ] `crates/nvs-hir/src/members.rs:734`: `check_doc` takes the declaration's parameters, its declared
+- [x] `crates/nvs-hir/src/members.rs:734`: `check_doc` takes the declaration's parameters, its declared
   return type and its kind, from `check_members` and `check_stmts`. Its `match` at `:739` calls
   `check_param`, `check_return` and `check_throws`, and then the missing-`@param` warning.
-- [ ] `check_param`: the unknown name with the rename-or-delete suggestion, a repeated parameter, a
+- [x] `check_param`: the unknown name with the rename-or-delete suggestion, a repeated parameter, a
   repeated type, and the declaration kind.
-- [ ] `check_return`: `void`, `never`, a constructor, a repeat, a repeated type and the declaration
+- [x] `check_return`: `void`, `never`, a constructor, a repeat, a repeated type and the declaration
   kind. `check_throws`: resolves like `check_see` at `:758` does, then `Throwable` through
   `nvs_hir::hierarchy::implements_interface`, then a repeat.
-- [ ] The missing-`@param` warning with its insertion suggestion, placed in signature order.
-- [ ] Codes and cards in `crates/nvs-diagnostics/src/code/names.rs`, beside `E0323`.
-- [ ] The seven `.nvst` cases under `tests/conformance/syntax/doc-comment/`, and the `tags-checked`
+- [x] The missing-`@param` warning with its insertion suggestion, placed in signature order.
+- [x] Codes and cards in `crates/nvs-diagnostics/src/code/names.rs`, beside `E0323`.
+- [x] The seven `.nvst` cases under `tests/conformance/syntax/doc-comment/`, and the `tags-checked`
   check run once.
 
 ### 3. meta, doc, hover and signature help show the tags in the Core card's shape
@@ -331,26 +332,30 @@ case. Their files are disjoint. The session writes `about.md`, `details.md` and 
 
 ### State
 
-Stage 1 is done, and its `tags-parse` check is green. The rule is
-`docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md`, with every citation renamed.
-`DocTag` keeps `argument` (all after the tag on its own line) and gains `target` and `text`. The
-table on `DocTag` says which kind fills which. `text` spans continuation lines, markers included, and
-`DocTag::text_in` joins them. The parser raises `E0138` (a type or `...` before `$name`, fix deletes
-it, or no `$name` at all, no fix) and `E0139` (no text, no fix). `@returns` is `E0128` with a fix to
-`@return`. The example `04-param-is-not-a-tag` is now `04-a-param-tag-has-no-type` and shows `E0138`.
-The checker, `meta.rs`, `doc.rs`, hover and completion read the new kinds as no-ops.
+Stages 1 and 2 are done, and `tags-parse` and `tags-checked` are green. `DocTag` has `target`
+(an `@param`'s `$name`, an `@throws` class) and `text`, joined by `DocTag::text_in`. The parser
+raises `E0138` and `E0139`. `check_doc` in `crates/nvs-hir/src/members.rs` takes a `DocOwner` and
+raises `E0330` to `E0334` (`code/names.rs`) and `W1030` (`code/warnings.rs`, the home of every `W`
+code), each with its fix. A stale `@param` beside one undocumented parameter gets only the rename.
+`check_throws` falls back to a global error class, and trusts a `Core` class outside the error tree.
+
+The sweep's `env-secret-proofs` names no check in the tree. The nightly run 43581848915's four Miri
+failures predate 8bd6b6eda9, which shrinks each of those units under Miri.
 
 Expected red until its stage lands: `crates/nvs-lsp/tests/completion_edits.rs:1024`
-(`a_comment_offers_nothing_but_the_tags_of_a_doc_line`) now sees five tag names after `@`. Stage 4
-narrows the list per declaration and rewrites that assertion. `meta.rs`'s `prose` and hover's
-`markdown` still show a continuation line of a tag as prose, and stage 3 skips every line from a
-tag's `span.start` through its `text.end`. `docs/rules/tooling/meta-json-takes-a-program.md:13`
-still names only `see` and `example`, and stage 3 rewrites it with the card's shape.
+(`a_comment_offers_nothing_but_the_tags_of_a_doc_line`) sees five tag names after `@`, and stage 4
+rewrites it. `meta.rs`'s `prose` and hover's `markdown` still show a tag's continuation line as
+prose. `docs/rules/tooling/meta-json-takes-a-program.md:13` still names only `see` and `example`.
 
 ### Next
 
-Stage 2, top to bottom, from `crates/nvs-hir/src/members.rs:734` (`check_doc`). The new codes go
-in `crates/nvs-diagnostics/src/code/names.rs:188` beside `E0323`. A parameter's `$name` is
-`tag.target`, its `$` included, and the text to check for a repeated type is `tag.text_in(src)`.
+Stage 3, top to bottom, from `crates/nvs-cli/src/meta.rs:1406` (`put_doc`), whose `prose` at
+`:1435` skips each tag's lines from `span.start` through `text.end`. Then `crates/nvs-cli/src/doc.rs:296`
+(`card`), `crates/nvs-lsp/src/hover.rs:367` (`documentation`) and `hover.rs:933` (`markdown`). A
+tag's sentence is `tag.text_in(src)`, and its parameter is `tag.target`, the `$` included.
 
 ### Backlog
+
+- `tests/conformance/novis/image-compare-counts-the-pixels-that-differ.nvst:1` and two other
+  `image-*` cases failed once in the 123-case `tags-checked` run, and passed alone and on the rerun.
+  Stage 6's verify shows whether they fail under load.
