@@ -2511,6 +2511,21 @@ mod tests {
         }
     }
 
+    /// The narrowest width in bytes whose estimate `cost` is past `piece`
+    /// nanoseconds. `cost` grows with the width, so a bisection finds it.
+    fn first_width_past(piece: f64, cost: impl Fn(u64) -> f64) -> u64 {
+        let (mut fits, mut past) = (0_u64, 1_u64 << 40);
+        while past - fits > 1 {
+            let middle = fits + (past - fits) / 2;
+            if cost(middle) > piece {
+                past = middle;
+            } else {
+                fits = middle;
+            }
+        }
+        past
+    }
+
     /// `of` widens every `int` exactly, counted over a sweep rather than read
     /// off a line, so a member that lost the top word of a value still prints
     /// plausibly on the small rows everybody checks first. The two ends of the
@@ -3365,30 +3380,39 @@ mod tests {
     /// [`Pieces::product`] answers the library's product for every shape it
     /// splits: two factors of about one width (Toom-3), a long factor and a
     /// short one (chunks), a one-digit factor, a factor whose low digits are
-    /// all zero, a factor of all ones whose pieces carry, and zero. A piece of
-    /// 1 µs makes each of them split several levels deep.
+    /// all zero, a factor of all ones whose pieces carry, and zero.
+    ///
+    /// Every width is set from `square`, the narrowest width in bits whose
+    /// square is past a piece of 1 µs ([`tiny`]). Factors four times that wide
+    /// split two levels deep by Toom-3, because each third is still past one
+    /// piece. A long factor spans several chunks, and each chunk is one library
+    /// call.
     #[test]
     fn product_in_pieces_is_the_librarys_product() {
-        // Under Miri every factor is a tenth as wide. The full widths take Miri
-        // past its 300s budget, and run natively.
-        let scale = if cfg!(miri) { 10_u32 } else { 1 };
-        let three = BigUint::from(3_u32);
-        let ones = (BigUint::from(1_u32) << (64_000 / scale)) - 1_u32;
+        let ctx = Ctx::buffered();
+        let piece = tiny(&ctx).piece;
+        let square = 8 * first_width_past(piece, |width| mul_ns(width, width));
+        // The narrowest long factor past one piece beside a one-digit factor.
+        let by_digit = 8 * first_width_past(piece, |width| mul_ns(4, width));
+        let mut seed = 0x2545_F491_4F6C_DD1D;
+        let one = BigUint::from(1_u32);
+        let ones = (&one << (4 * square)) - 1_u32;
         let pairs = [
             (
-                three.pow(20_000 / scale),
-                BigUint::from(7_u32).pow(19_000 / scale),
+                scrambled(3 * square, &mut seed),
+                scrambled(4 * square, &mut seed),
             ),
-            (three.pow(60_000 / scale), BigUint::from(5_u32).pow(700)),
-            (BigUint::from(u32::MAX), three.pow(50_000 / scale)),
+            // The widest short factor whose square fits one piece.
             (
-                BigUint::from(1_u32) << (40_000 / scale),
-                three.pow(30_000 / scale),
+                scrambled(square - 8, &mut seed),
+                scrambled(4 * square, &mut seed),
             ),
+            (BigUint::from(u32::MAX), scrambled(2 * by_digit, &mut seed)),
+            // The zero digits fill two thirds, and the top third splits again.
+            (&one << (4 * square), scrambled(4 * square, &mut seed)),
             (ones.clone(), ones),
-            (BigUint::ZERO, three.pow(50_000 / scale)),
+            (BigUint::ZERO, scrambled(4 * square, &mut seed)),
         ];
-        let ctx = Ctx::buffered();
         let mut same = 0_usize;
         for (left, right) in &pairs {
             let pieces = tiny(&ctx)
@@ -3405,28 +3429,39 @@ mod tests {
     /// request's deadline has passed, which the watchdog expires for a CPU
     /// stop as for a wall-time one. A narrow product is one library call that
     /// polls nothing, so it still answers.
+    ///
+    /// The split and the poll are checked on [`tiny`] pieces of 1 µs, with
+    /// factors just past one such piece. Natively the member is also called on
+    /// factors just past [`PIECE_NS`], its own piece. Those factors are about
+    /// 72,000 bytes wide, which Miri runs for minutes.
     // covers: Core\BigInt::mul
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "builds numbers of 700,000 bits, which Miri runs for minutes"
-    )]
     fn a_wide_product_stops_at_a_passed_deadline() {
-        let wide = BigInt::from((BigUint::from(1_u32) << 700_000_u32) - 1_u32);
-        assert!(
-            mul_ns(width_bytes(wide.magnitude()), width_bytes(wide.magnitude())) > PIECE_NS,
-            "the product must be wider than one piece"
-        );
         let mut ctx = Ctx::buffered();
         ctx.expire_deadline();
-        let operands = [
-            built(&wide).expect("the factor is built"),
-            built(&wide).expect("the factor is built"),
-        ];
-        assert_eq!(
-            call(nvs_core_bigint_mul, &mut ctx, &operands).map(|_| ()),
-            Err(nvs_runtime::FATAL)
+        let one = BigUint::from(1_u32);
+        let past_tiny = 8 * first_width_past(tiny(&ctx).piece, |width| mul_ns(width, width));
+        let small = (&one << past_tiny) - 1_u32;
+        assert!(
+            matches!(tiny(&ctx).product(&small, &small), Err(Fault::Fatal(_))),
+            "a product past one tiny piece stops at its first poll"
         );
+        if !cfg!(miri) {
+            let bits = 8 * first_width_past(PIECE_NS, |width| mul_ns(width, width));
+            let wide = BigInt::from((&one << bits) - 1_u32);
+            assert!(
+                mul_ns(width_bytes(wide.magnitude()), width_bytes(wide.magnitude())) > PIECE_NS,
+                "the product must be wider than one piece"
+            );
+            let operands = [
+                built(&wide).expect("the factor is built"),
+                built(&wide).expect("the factor is built"),
+            ];
+            assert_eq!(
+                call(nvs_core_bigint_mul, &mut ctx, &operands).map(|_| ()),
+                Err(nvs_runtime::FATAL)
+            );
+        }
         let narrow = read(
             call(nvs_core_bigint_mul, &mut ctx, &[of(7), of(5)]).expect("a narrow product answers"),
         );

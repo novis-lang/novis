@@ -4871,12 +4871,14 @@ mod tests {
     // covers: Core\Str::lines
     #[test]
     fn lines_refuses_a_list_past_the_memory_limit_before_building_it() {
-        const LIMIT: usize = 1 << 20;
+        const LIMIT: usize = 64 << 10;
+        // One line more than `LIMIT` holds in entries.
+        const LINES: usize = LIMIT / std::mem::size_of::<Value>() + 1;
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_memory_limit(LIMIT);
-        let subject = s(&"\n".repeat(200_000));
+        let subject = s(&"\n".repeat(LINES));
         let result = call(super::nvs_core_str_lines, &mut ctx, &[subject]);
-        assert!(result.is_err(), "200000 lines fit under 1 MiB");
+        assert!(result.is_err(), "{LINES} lines fit under {LIMIT} bytes");
         assert!(
             ctx.memory_peak() < LIMIT,
             "the list was built past the limit before the refusal: {} bytes",
@@ -4901,12 +4903,12 @@ mod tests {
     #[test]
     fn normalize_grows_its_buffer_to_the_whole_result_and_refuses_one_past_the_limit() {
         use unicode_normalization::UnicodeNormalization as _;
-        // Under Miri the texts and the limit are a tenth of the size or less.
-        let (small, large, limit) = if cfg!(miri) {
-            (100, 10_000, 64 << 10)
-        } else {
-            (1000, 100_000, 1 << 20)
-        };
+        // The buffer starts at the subject's length and the result is eleven
+        // times that, so every subject length takes the same doublings.
+        let small = 100;
+        let limit: usize = 64 << 10;
+        // Just enough copies that the result is larger than `limit`.
+        let large = limit / "\u{fdfa}".nfkd().map(char::len_utf8).sum::<usize>() + 1;
         let subject = "\u{fdfa}".repeat(small);
         assert_eq!(
             taken(
@@ -4926,7 +4928,7 @@ mod tests {
         );
         assert!(
             result.is_err(),
-            "a result 33 times the subject fit under the limit"
+            "a result larger than the limit fit under it"
         );
         drop(ctx);
         #[expect(
@@ -5108,16 +5110,21 @@ mod tests {
     // covers: Core\Str::replaceAll
     #[test]
     fn replace_all_refuses_a_result_past_the_memory_limit_while_building_it() {
-        const LIMIT: usize = 1 << 20;
+        const LIMIT: usize = 64 << 10;
+        const PIECE: usize = 1024;
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_memory_limit(LIMIT);
+        // One replacement more than `LIMIT` holds.
         let args = [
-            s(&"a".repeat(4096)),
-            pairs(&[("a", &"x".repeat(1024))]),
+            s(&"a".repeat(LIMIT / PIECE + 1)),
+            pairs(&[("a", &"x".repeat(PIECE))]),
             Value::bool(false),
         ];
         let result = call(super::nvs_core_str_replace_all, &mut ctx, &args);
-        assert!(ctx.over_memory_limit(), "4 MiB of result fit under 1 MiB");
+        assert!(
+            ctx.over_memory_limit(),
+            "a result larger than the limit fit under it"
+        );
         assert!(
             ctx.memory_peak() < LIMIT,
             "the result was built past the limit before the refusal: {} bytes",
@@ -5279,17 +5286,17 @@ mod tests {
     // covers: Core\Str::split
     #[test]
     fn split_refuses_a_list_past_the_memory_limit_before_building_it() {
-        // Under Miri the subject and the limit are a 256th of the size.
-        let (separators, limit) = if cfg!(miri) {
-            (1 << 12, 16 << 10)
-        } else {
-            (1 << 20, 4 << 20)
-        };
+        let limit: usize = 16 << 10;
+        // One separator more than `limit` holds in entries.
+        let separators = limit / std::mem::size_of::<Value>() + 1;
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_memory_limit(limit);
         let args = [s(&",".repeat(separators)), s(","), Value::int(i64::MAX)];
         let result = call(super::nvs_core_str_split, &mut ctx, &args);
-        assert!(result.is_err(), "entries four times the limit fit under it");
+        assert!(
+            result.is_err(),
+            "entries larger than the limit fit under it"
+        );
         assert!(
             ctx.memory_peak() < limit,
             "the list was built past the limit before the refusal: {} bytes",
@@ -5894,17 +5901,22 @@ mod tests {
     // covers: Core\Str::wrap
     #[test]
     fn wrap_refuses_a_result_past_the_memory_limit_while_building_it() {
-        const LIMIT: usize = 1 << 20;
+        const LIMIT: usize = 64 << 10;
+        const PIECE: usize = 1024;
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_memory_limit(LIMIT);
+        // One line break more than `LIMIT` holds.
         let args = [
-            s(&"a ".repeat(4096)),
+            s(&"a ".repeat(LIMIT / PIECE + 1)),
             Value::uint(1),
-            s(&"-".repeat(1024)),
+            s(&"-".repeat(PIECE)),
             Value::bool(false),
         ];
         let result = call(super::nvs_core_str_wrap, &mut ctx, &args);
-        assert!(ctx.over_memory_limit(), "4 MiB of result fit under 1 MiB");
+        assert!(
+            ctx.over_memory_limit(),
+            "a result larger than the limit fit under it"
+        );
         assert!(
             ctx.memory_peak() < LIMIT,
             "the result was built past the limit before the refusal: {} bytes",
@@ -6053,8 +6065,10 @@ mod tests {
     // covers: Core\Str::lastIndexOf
     #[test]
     fn last_index_of_answers_the_last_occurrence_in_the_window() {
-        let long = "a".repeat(200_000);
+        // The scan reads the needle's length from the end and stops at the
+        // first match, so twice the needle reaches every step it takes.
         let long_needle = "A".repeat(1_000);
+        let long = "a".repeat(2 * long_needle.len());
         for (haystack, needle, before, ci, want) in [
             ("aaa", "aa", i64::MAX, false, Some(1u64)),
             ("abcabc", "abc", i64::MAX, false, Some(3)),
@@ -6082,7 +6096,7 @@ mod tests {
                 long_needle.as_str(),
                 i64::MAX,
                 true,
-                Some(199_000),
+                Some(1_000),
             ),
         ] {
             let found = run(

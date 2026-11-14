@@ -6760,14 +6760,15 @@ mod tests {
     // covers: Core\Arr::flattenDeep
     #[test]
     fn flatten_deep_stops_at_the_memory_limit_over_many_rows() {
-        // Under Miri, an eighth of the limit and of each row, so the rows
-        // still outgrow the limit in the same ratio.
+        // Under Miri, an eighth of the limit. The 16 rows hold four times
+        // `LIMIT` in values, so the walk passes the limit after a few rows, and
+        // a walk that copied every row would pass twice the limit.
         const LIMIT: usize = if cfg!(miri) { 8 << 10 } else { 64 << 10 };
-        const ROW: i64 = if cfg!(miri) { 1_250 } else { 10_000 };
+        let width = LIMIT / 4 / std::mem::size_of::<Value>();
         let mut rows = NvsArray::new();
         for _ in 0..16 {
             let mut row = NvsArray::new();
-            for n in 0..ROW {
+            for n in (0_i64..).take(width) {
                 row.append(Value::int(n));
             }
             rows.append(Value::array(row));
@@ -6778,7 +6779,7 @@ mod tests {
 
         let answered = call(super::nvs_core_arr_flatten_deep, &mut ctx, &[subject]);
 
-        assert!(answered.is_err(), "16 rows of {ROW} values do not fit");
+        assert!(answered.is_err(), "16 rows of {width} values do not fit");
         assert!(nvs_runtime::budget::refused(), "the breach is recorded");
         assert!(
             ctx.memory_peak() < 2 * LIMIT,
@@ -7830,12 +7831,12 @@ mod tests {
     /// an odd tail, a power of two, and one either side — against the same
     /// answer computed by Rust's own sort. This is the check a hand-written
     /// merge actually owes: the `copy_from_slice` that pairs two runs of
-    /// unequal length is where it went wrong the first time. Under Miri the
-    /// lengths stop at 17, which still has a power of two and one either side.
+    /// unequal length is where it went wrong the first time. The lengths stop
+    /// at 17, which has the power of two 16 and one length either side.
     // covers: Core\Arr::sort
     #[test]
     fn every_run_length_merges_to_the_same_answer_a_reference_sort_gives() {
-        let longest = if cfg!(miri) { 18 } else { 40i64 };
+        let longest = 18i64;
         for len in 0..longest {
             // A shape with duplicates, a descending prefix and an ascending
             // tail, so no length is accidentally already sorted.

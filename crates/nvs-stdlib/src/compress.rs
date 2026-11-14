@@ -1714,8 +1714,8 @@ mod tests {
 
         // The ceiling is on the window a frame declares and not on what it
         // decompresses to, so the frames this class writes still round trip.
-        // Under Miri the payload is 4 KiB, because that is enough for a frame.
-        let payload = vec![b'Z'; if cfg!(miri) { 4 << 10 } else { 64 << 10 }];
+        // Any payload makes such a frame, and 4 KiB is one.
+        let payload = vec![b'Z'; 4 << 10];
         let frame = compress_to(Codec::Zstd, &payload).expect("compresses");
         assert_eq!(
             decompress_within(Codec::Zstd, &frame, ROOMY, MEMBER)
@@ -1797,14 +1797,12 @@ mod tests {
     /// The ratio half refuses, and what it refuses with is the whole output
     /// rather than the prefix it had reached.
     ///
-    /// The payload is 64 KiB of one byte, which every codec here takes to well
+    /// The payload is 4 KiB of one byte, which every codec here takes to well
     /// under a hundred octets, so a ratio of 2 is passed by all five and the
-    /// sweep is the assertion. Under Miri it is 4 KiB, which every codec still
-    /// takes under a hundred octets, because compressing 64 KiB five times
-    /// there takes minutes.
+    /// sweep is the assertion.
     #[test]
     fn a_decompression_exceeding_the_ratio_throws_rather_than_truncating() {
-        let bomb = vec![b'A'; if cfg!(miri) { 4 << 10 } else { 64 << 10 }];
+        let bomb = vec![b'A'; 4 << 10];
         let mut refused = 0;
         for codec in EVERY {
             let frame = compress_to(codec, &bomb).expect("compresses");
@@ -1814,7 +1812,7 @@ mod tests {
             };
             let why = refusal(
                 &decompress_within(codec, &frame, bound, MEMBER)
-                    .expect_err("a 64 KiB expansion passes a 2:1 ratio"),
+                    .expect_err("a 4 KiB expansion passes a 2:1 ratio"),
             );
             assert!(
                 why.contains("decompresses to more than"),
@@ -1830,19 +1828,21 @@ mod tests {
     }
 
     /// The absolute half refuses on its own, with the ratio wide open — so a
-    /// large input cannot buy a proportionally large output. Under Miri the
-    /// payload is 4 KiB rather than 32, still four times the ceiling.
+    /// large input cannot buy a proportionally large output. The payload is one
+    /// byte past `CEILING`.
     #[test]
     fn a_decompression_exceeding_the_absolute_ceiling_throws_rather_than_truncating() {
-        let payload = vec![b'B'; if cfg!(miri) { 4 << 10 } else { 32 << 10 }];
+        const CEILING: usize = 1024;
+        let payload = vec![b'B'; CEILING + 1];
         for codec in EVERY {
             let frame = compress_to(codec, &payload).expect("compresses");
             let bound = Bound {
-                bytes: 1024,
+                bytes: CEILING as u64,
                 ratio: u64::MAX,
             };
             let why = refusal(
-                &decompress_within(codec, &frame, bound, MEMBER).expect_err("32 KiB passes 1 KiB"),
+                &decompress_within(codec, &frame, bound, MEMBER)
+                    .expect_err("one byte past the ceiling"),
             );
             assert!(
                 why.contains("the limit of 1024 bytes"),

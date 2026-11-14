@@ -292,8 +292,9 @@ fn nesting_past_512_flattens_as_the_html_parser_does() {
     // Each shape is six HTML parses and renders, which Miri takes about
     // twenty seconds each for, so under Miri only the first shape runs.
     let shapes = if cfg!(miri) { 1 } else { 3 };
+    // Each `> ` opens one blockquote, so `OPEN_ELEMENTS_CAP + 1` of them nest past the cap.
     for markdown in [
-        format!("{}a\n", "> ".repeat(OPEN_ELEMENTS_CAP * 2)),
+        format!("{}a\n", "> ".repeat(OPEN_ELEMENTS_CAP + 1)),
         format!("{}a\n", "* ".repeat(OPEN_ELEMENTS_CAP)),
         format!(
             "{}a{}",

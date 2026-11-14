@@ -8134,9 +8134,11 @@ mod tests {
     // covers: Core\Test::assertTrue, Core\Test::expectFailure, Core\Test::scriptAnswers
     #[test]
     fn assert_true_expect_failure_and_script_answers_write_the_ledger_and_the_queue() {
-        /// How many failures [`fails_and_catches`] records. Two hundred under
-        /// Miri, because each failure is a call and Miri pays for every one.
-        const CAUGHT: usize = if cfg!(miri) { 200 } else { 20_000 };
+        /// How many failures [`fails_and_catches`] records. Twenty thousand
+        /// shows that discharging them takes linear time. Under Miri, which
+        /// checks no running time, two failures and the check that holds after
+        /// them reach every branch of the discharge.
+        const CAUGHT: usize = if cfg!(miri) { 2 } else { 20_000 };
 
         fn asserted(ctx: &mut Ctx, actual: bool, message: Option<&str>) -> Result<(), String> {
             let message = message.map_or(Value::null(), Value::text);

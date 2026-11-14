@@ -4886,15 +4886,14 @@ pub(crate) mod tests {
             served.join().expect("the origin thread");
         }
 
-        // A megabyte of one octet under a four-kilobyte ceiling: the ratio is
-        // wide open, so what refuses it is the absolute half. Under Miri the
-        // bomb is 64 KiB, which is still sixteen times the ceiling.
-        let bomb_size = if cfg!(miri) { 64 << 10 } else { 1 << 20 };
-        let bomb = compress_to(Codec::Gzip, &vec![b'A'; bomb_size]).expect("a frame");
+        // One octet past `CEILING`. The ratio is wide open, so what refuses it
+        // is the absolute half.
+        const CEILING: usize = 4096;
+        let bomb = compress_to(Codec::Gzip, &vec![b'A'; CEILING + 1]).expect("a frame");
         let (at, served) = origin_raw(vec![encoded("gzip", &bomb)]);
         let mut bounded = call(at, "test");
         bounded.compress = Bound {
-            bytes: 4096,
+            bytes: CEILING as u64,
             ratio: 1000,
         };
         let refused = send(&bounded, &mut never).expect_err("a bomb past the bound");

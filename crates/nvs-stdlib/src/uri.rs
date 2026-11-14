@@ -3776,21 +3776,18 @@ mod tests {
         }
     }
 
-    /// Every pair repeats its whole bracket path, so an array of a few hundred
-    /// kilobytes can ask for a text a hundred times its size. The text is
-    /// refused before it is built: the request's peak stays near its ceiling
-    /// instead of reaching the tens of megabytes the whole text would take.
-    ///
-    /// Under Miri every number is a tenth or half of its size, which keeps the
-    /// text more than twice the limit.
+    /// Every pair repeats its whole bracket path, so a small array can ask for
+    /// a text many times its size. The text is refused before it is built:
+    /// the request's peak stays near its ceiling instead of reaching the size
+    /// the whole text would take.
     // covers: Core\Uri::buildQuery
     #[test]
     fn build_query_asks_the_budget_before_a_text_larger_than_its_input_grows() {
-        let (leaf_count, depth, limit) = if cfg!(miri) {
-            (2_000, 100, 256 << 10)
-        } else {
-            (20_000, 200, 4 << 20)
-        };
+        let limit: usize = 64 << 10;
+        let depth = 100;
+        // Each pair's name is `depth` escaped `[k]`s, seven bytes each, so the
+        // text is four times `limit`.
+        let leaf_count = 4 * limit / (7 * depth) + 1;
         let mut ctx = Ctx::buffered();
         ctx.set_memory_limit(limit);
         let mut leaves = nvs_runtime::NvsArray::new();
@@ -3869,18 +3866,14 @@ mod tests {
     }
 
     /// A name that opens one array per `[]` stops at the memory limit inside
-    /// the parse, in front of the array that would cross it. Under Miri the
-    /// name and the limit are each smaller, so the arrays still outgrow the
-    /// limit many times over.
+    /// the parse, in front of the array that would cross it.
     #[test]
     fn a_name_nested_past_the_memory_limit_stops_inside_one_parse() {
-        // Deep enough that a list of the name's steps, 24 bytes each, would
-        // itself cross the limit.
-        let (depth, limit) = if cfg!(miri) {
-            (4_000, 1 << 15)
-        } else {
-            (400_000, 4 << 20)
-        };
+        let limit: usize = 32 << 10;
+        // One step more than a list of the name's steps, 24 bytes each, holds
+        // under `limit`. Each array costs more than a step, so the arrays
+        // cross `limit` too.
+        let depth = limit / 24 + 1;
         // Made before the context, so the query is not on its balance.
         let query = format!("a{}=1", "[]".repeat(depth));
         let mut ctx = Ctx::buffered();

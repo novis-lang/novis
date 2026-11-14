@@ -1357,15 +1357,11 @@ mod tests {
     /// Buffered form fields are bytes parsed into memory, so they are charged
     /// against the same number `Core\Request::body` is — and the check is made
     /// before the copy, which is what makes it a bound rather than a report.
-    /// Under Miri the bound is 16 KiB, because the parse is given its bound
-    /// and a megabyte takes minutes there.
     #[test]
     fn a_field_part_is_buffered_against_the_in_memory_bound() {
-        let (bound, piece) = if cfg!(miri) {
-            (16 * 1024, 4 * 1024)
-        } else {
-            (REQUEST_BODY, 64 * 1024)
-        };
+        // The parse is given its bound, so a small one tests the same check.
+        // The field spans four pieces, so the bound is checked across reads.
+        let (bound, piece) = (16 * 1024, 4 * 1024);
         // The name `note` counts against the bound beside the value.
         let held = "x".repeat(bound - 4);
         let wire = body(&[("note", None, &held)]);

@@ -3016,21 +3016,15 @@ mod tests {
     }
 
     /// A pattern's capture table is priced before the engine allocates it:
-    /// a few groups cost kilobytes, five thousand cost more than a gigabyte,
-    /// and a request under a 64 MiB ceiling is refused the second pattern
-    /// with nothing cached and without the gigabyte ever being held.
-    ///
-    /// Under Miri, compiling five thousand groups takes longer than a test
-    /// may run. There the wide pattern has fifty groups, the ceiling is
-    /// 8 KiB, and the table is still more than sixteen times the ceiling.
+    /// a few groups cost kilobytes, fifty cost more than sixteen times an
+    /// 8 KiB ceiling, and a request under that ceiling is refused the second
+    /// pattern with nothing cached and without the table ever being held.
     // covers: Core\Regex::match
     #[test]
     fn a_search_whose_capture_table_the_request_cannot_afford_is_refused_first() {
-        let (groups, ceiling) = if cfg!(miri) {
-            (50, 8 << 10)
-        } else {
-            (5000, 64 << 20)
-        };
+        // The ceiling is configurable, so a small one and a pattern whose
+        // table is past it test the same refusal a large pair would.
+        let (groups, ceiling) = (50, 8 << 10);
         let few = tiered(r"([0-9]+)-([0-9]+)", NO_FLAGS, None).expect("compiles");
         assert!(search_cost(&few, r"([0-9]+)-([0-9]+)") < 64 * 1024);
         let many = "(a)".repeat(groups);
@@ -3192,18 +3186,11 @@ mod tests {
 
     /// A hit asks the request's memory ceiling for the capture table exactly
     /// as the miss that built the entry did, so a request the table does not
-    /// fit is refused on a warm core too.
-    ///
-    /// Under Miri, the pattern has fifty groups and the ceiling is 16 KiB,
-    /// still under half its table, because two hundred groups take longer to
-    /// compile than a test may run.
+    /// fit is refused on a warm core too. The pattern has fifty groups and
+    /// the ceiling is 16 KiB, under half its table.
     #[test]
     fn a_cache_hit_asks_the_memory_ceiling_as_a_miss_does() {
-        let (groups, ceiling) = if cfg!(miri) {
-            (50, 16 << 10)
-        } else {
-            (200, 1 << 20)
-        };
+        let (groups, ceiling) = (50, 16 << 10);
         let wide = "(a)".repeat(groups);
         let warm = built(&wide, NO_FLAGS, "match").expect("compiles");
         assert!(search_cost(&warm, &wide) > 2 * ceiling);
@@ -3458,13 +3445,9 @@ mod tests {
                 Text("$"),
             ]
         );
-        // Under Miri the limit is a sixteenth, the match a quarter and the
-        // copies a quarter, so the result still outgrows the limit four times.
-        let (memory_limit, matched, copies) = if cfg!(miri) {
-            (1 << 16, 1024, 250)
-        } else {
-            (1 << 20, 4096, 1000)
-        };
+        // `copies` copies of a `matched`-byte match outgrow `memory_limit`
+        // about four times.
+        let (memory_limit, matched, copies) = (1 << 16, 1024, 250);
         let mut ctx = context();
         ctx.set_memory_limit(memory_limit);
         let mut replace = |subject: &str, pattern: &str, replacement: &str, limit: u64| {
@@ -3500,8 +3483,7 @@ mod tests {
         }
         let slow = format!("{}b", "a".repeat(40));
         assert_eq!(replace(&slow, r"^(a|a?)+\1$", "x", u64::MAX), None);
-        // `copies` copies of the match are about four times the limit. The
-        // pattern is `a+` because Miri spends 13 s building `.+`'s Unicode
+        // The pattern is `a+` because Miri spends 13 s building `.+`'s Unicode
         // class, and the bound under test is the same for either.
         let long = "a".repeat(matched);
         assert_eq!(replace(&long, "a+", &"$0".repeat(copies), u64::MAX), None);
@@ -3605,8 +3587,9 @@ mod tests {
     // covers: Core\Regex::replaceWith
     #[test]
     fn replace_with_inserts_the_callback_answer_literally_on_both_engines() {
+        let limit = 1 << 20;
         let mut ctx = Ctx::buffered();
-        ctx.set_memory_limit(1 << 20);
+        ctx.set_memory_limit(limit);
         let mut replace_with =
             |subject: &str, pattern: &str, invoke: nvs_runtime::NvsFn, limit: u64| {
                 let args = [
@@ -3651,26 +3634,20 @@ mod tests {
         let got = replace_with("x$1y", r"\$[0-9]", bracketed, u64::MAX);
         assert_eq!(got.as_deref(), Some("x[$1]y"));
         assert_eq!(replace_with("a1", "[0-9]", answers_an_int, u64::MAX), None);
-        // 100 answers of 64 KiB are about 6 MiB, six times the limit.
-        let many = "a".repeat(100);
+        // One answer of 64 KiB more than `limit` holds puts the result past it.
+        let many = "a".repeat(limit / (64 * 1024) + 1);
         assert_eq!(replace_with(&many, "a", answers_64_kib, u64::MAX), None);
     }
 
-    /// Two hundred thousand separators make two hundred thousand and one
-    /// pieces, an array of megabytes. Under a 1 MiB limit `split` stops with
+    /// Twenty thousand separators make twenty thousand and one pieces, an
+    /// array larger than a 128 KiB limit. Under that limit `split` stops with
     /// a fault that names the limit, and the peak it leaves stays near
     /// the limit, which is what tells a check before each append from one
     /// made after the whole array was built.
     // covers: Core\Regex::split
     #[test]
     fn split_stops_at_the_memory_limit_rather_than_after_the_array() {
-        // Under Miri the subject and the limit are each about a tenth, so the
-        // array still outgrows the limit by the same factor.
-        let (separators, limit) = if cfg!(miri) {
-            (20_000, 1 << 17)
-        } else {
-            (200_000, 1 << 20)
-        };
+        let (separators, limit) = (20_000, 1 << 17);
         // Made before the context, so the subject is not on its balance.
         let args = [
             Value::text(&",".repeat(separators)),

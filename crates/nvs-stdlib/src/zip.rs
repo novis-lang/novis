@@ -1163,6 +1163,9 @@ fn inflate(
 /// and summing a MiB takes about a millisecond. Cost: one decrement per 4 KiB.
 const PIECE: usize = 4096;
 
+/// How many octets of an entry's output [`pump`] reads in one call.
+const BLOCK: usize = 64 * 1024;
+
 /// Counts `octets` of output on `deadline`, one step per [`PIECE`], and
 /// returns whether the deadline has passed.
 fn spent(deadline: &mut nvs_runtime::DeadlineBatch, octets: usize) -> bool {
@@ -1200,7 +1203,7 @@ fn pump(
             ));
         }
     };
-    let mut block = vec![0_u8; 64 * 1024];
+    let mut block = vec![0_u8; BLOCK];
     let mut size = 0_u64;
     let mut sum = crc32fast::Hasher::new();
     loop {
@@ -2375,10 +2378,14 @@ mod tests {
         );
     }
 
-    /// A deflated entry of 100,000 octets, its archive, its entry and its
+    /// The octets of [`sheet`]'s entry: one more than [`BLOCK`], so its
+    /// output takes more than one block.
+    const SHEET: usize = BLOCK + 1;
+
+    /// A deflated entry of [`SHEET`] octets, its archive, its entry and its
     /// compressed length, for the tests of the two halves of the bound.
     fn sheet() -> (Vec<u8>, Entry, u64) {
-        let raw = archive(&[Written::deflated("sheet.xml", &"A".repeat(100_000))]);
+        let raw = archive(&[Written::deflated("sheet.xml", &"A".repeat(SHEET))]);
         let entry = directory(&raw).expect("the archive reads").remove(0);
         let input = frame(&raw, &entry).expect("the entry has a frame").len() as u64;
         (raw, entry, input)
@@ -2399,7 +2406,7 @@ mod tests {
     #[test]
     fn a_streamed_part_is_bounded_by_the_ratio_alone() {
         let (raw, entry, input) = sheet();
-        let enough = 100_000_u64.div_ceil(input);
+        let enough = (SHEET as u64).div_ceil(input);
         let tight = Bound {
             bytes: 1000,
             ratio: enough,
@@ -2408,7 +2415,7 @@ mod tests {
         assert_eq!(
             streamed(&Budget::new(tight), &raw, &entry)
                 .expect("the ceiling does not bound a stream"),
-            100_000
+            SHEET
         );
         let message = refusal(
             Budget::new(tight)
@@ -2440,16 +2447,17 @@ mod tests {
     #[test]
     fn a_held_part_stays_under_both_bounds() {
         let (raw, entry, input) = sheet();
-        let enough = 100_000_u64.div_ceil(input);
+        let size = SHEET as u64;
+        let enough = size.div_ceil(input);
         let read = |bytes, ratio| Budget::new(Bound { bytes, ratio }).read(&raw, &entry);
 
-        assert_eq!(
-            read(100_000, enough).expect("both halves fit").len(),
-            100_000
+        assert_eq!(read(size, enough).expect("both halves fit").len(), SHEET);
+        let message = refusal(read(size - 1, enough).expect_err("one octet under the ceiling"));
+        assert!(
+            message.contains(&format!("the limit of {} bytes", size - 1)),
+            "{message}"
         );
-        let message = refusal(read(99_999, enough).expect_err("one octet under the ceiling"));
-        assert!(message.contains("the limit of 99999 bytes"), "{message}");
-        let message = refusal(read(100_000, enough - 1).expect_err("one step under the ratio"));
+        let message = refusal(read(size, enough - 1).expect_err("one step under the ratio"));
         assert!(
             message.contains(&format!("{} times its", enough - 1)),
             "{message}"
@@ -2461,7 +2469,7 @@ mod tests {
     #[test]
     fn the_archive_total_counts_held_parts_only() {
         let raw = archive(&[
-            Written::deflated("sheet.xml", &"A".repeat(100_000)),
+            Written::deflated("sheet.xml", &"A".repeat(SHEET)),
             Written::plain("strings.xml", &"B".repeat(4096)),
         ]);
         let entries = directory(&raw).expect("the archive reads");
@@ -2472,7 +2480,7 @@ mod tests {
 
         assert_eq!(
             streamed(&budget, &raw, &entries[0]).expect("a stream"),
-            100_000
+            SHEET
         );
         assert_eq!(budget.left, 6000);
         assert_eq!(
@@ -2494,7 +2502,7 @@ mod tests {
         );
         assert_eq!(
             streamed(&budget, &raw, &entries[0]).expect("a stream spends nothing"),
-            100_000
+            SHEET
         );
     }
 

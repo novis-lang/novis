@@ -3392,9 +3392,9 @@ pub(crate) mod tests {
     #[test]
     fn a_key_forgotten_and_written_again_forever_keeps_the_queue_bounded() {
         let mut tier = Entries::default();
-        // Under Miri, a tenth of the writes, still many times `SWEEP_FLOOR`.
-        let writes: u32 = if cfg!(miri) { 1_000 } else { 10_000 };
-        for step in 0..writes {
+        // Three times `SWEEP_FLOOR`, so the queue reaches the floor and is
+        // swept more than once. A queue with no sweep would end past the floor.
+        for step in 0..3 * super::SWEEP_FLOOR {
             tier.put(b"hot!", &step.to_be_bytes(), Lifetime::Forever, None);
             tier.forget(b"hot!");
         }
@@ -3437,13 +3437,9 @@ pub(crate) mod tests {
     /// And a stale slot never evicts the newer entry under its key.
     #[test]
     fn an_expired_entry_nobody_reads_again_is_swept_by_a_later_write() {
-        // Under Miri, a tenth of the expiring entries, so fewer writes reach
-        // the sweep after them.
-        let (expiring, kept): (u32, u32) = if cfg!(miri) {
-            (100, 256)
-        } else {
-            (1_000, 2048)
-        };
+        // `SWEEP_FLOOR` expiring entries, so the queue reaches the first sweep.
+        let expiring = super::SWEEP_FLOOR;
+        let kept = 2 * expiring;
         let mut tier = Entries::default();
         for step in 0..expiring {
             let key = format!("session:{step}");
@@ -3464,7 +3460,7 @@ pub(crate) mod tests {
         }
         assert_eq!(
             tier.entries.len(),
-            kept as usize,
+            kept,
             "expired entries stayed in the tier"
         );
         let live: usize = tier
@@ -3775,9 +3771,9 @@ pub(crate) mod tests {
         /// The whole tier's cap: three `CHUNK`s to a shard, which is room for two
         /// entries once each one's key and [`ENTRY_OVERHEAD`] are charged too.
         const CAP: usize = SHARDS * 3 * CHUNK;
-        /// How many entries, so that the sweep writes many times the cap. Under
-        /// Miri it is a quarter as many, which still writes more than twice the cap.
-        const WRITES: usize = if cfg!(miri) { 512 } else { 2048 };
+        /// How many entries: eight to a shard, where each shard keeps two. The
+        /// sweep writes more than twice the cap, the most `held` may grow by.
+        const WRITES: usize = 8 * SHARDS;
 
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 

@@ -4766,6 +4766,16 @@ pub(crate) mod tests {
         usize::try_from(nvs_config::defaults::LIMITS_REQUEST_BODY).expect("8 MiB fits a usize")
     }
 
+    /// A `[limits] request_body` far under the shipped one, for the cases
+    /// that build a body at the cap: the boundary is the same at any size.
+    const SMALL_REQUEST_BODY: usize = 64 * 1024;
+
+    /// `ctx` with `[limits] request_body` set to [`SMALL_REQUEST_BODY`].
+    fn with_small_request_body(mut ctx: Ctx) -> Ctx {
+        ctx.set_config(crate::tests::granting("[limits]\nrequest_body = \"64K\"\n"));
+        ctx
+    }
+
     /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
     /// or, where `fails_at` names a pull, fails at that one instead, which is
     /// the connection dying under a body that had already started arriving.
@@ -5824,16 +5834,20 @@ pub(crate) mod tests {
     /// class table installed on the context first, which the playbook's
     /// `Ctx::pending_slot` bullet owns; what this asserts is the boundary, and
     /// the boundary is where the member can be wrong.
+    ///
+    /// The cap is configured to [`SMALL_REQUEST_BODY`], so the body at it is
+    /// small. The shipped cap is read by
+    /// `a_declared_length_past_the_cap_is_refused_before_a_byte_is_read`.
     // covers: Core\Request::body
     #[test]
     fn the_request_body_cap_is_the_last_body_read_and_the_first_one_refused() {
-        let full = vec![b'x'; request_body()];
-        let mut at_the_bound = answering(Some(Chunks::of(&[&full[..]])));
+        let full = vec![b'x'; SMALL_REQUEST_BODY];
+        let mut at_the_bound = with_small_request_body(answering(Some(Chunks::of(&[&full[..]]))));
         let answer = nvs_runtime::call(nvs_core_request_body, &mut at_the_bound, &[])
             .expect("a body of exactly the cap has not crossed it");
         assert_eq!(
             answer.as_text().map(str::len),
-            Some(request_body()),
+            Some(SMALL_REQUEST_BODY),
             "the last body inside the bound is read whole"
         );
         #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
@@ -5841,7 +5855,8 @@ pub(crate) mod tests {
             answer.release();
         }
 
-        let mut over_it = answering(Some(Chunks::of(&[&full[..], &b"x"[..]])));
+        let mut over_it =
+            with_small_request_body(answering(Some(Chunks::of(&[&full[..], &b"x"[..]]))));
         assert!(
             nvs_runtime::call(nvs_core_request_body, &mut over_it, &[]).is_err(),
             "one byte past `[limits] request_body` is still past it"
@@ -5959,8 +5974,13 @@ pub(crate) mod tests {
     // covers: Core\Request::body
     #[test]
     fn a_body_read_that_failed_fails_again_and_never_returns_the_rest() {
-        let full = vec![b'x'; request_body()];
-        let mut over_it = answering(Some(Chunks::of(&[&full[..], &b"x"[..], &b"rest"[..]])));
+        // One byte past `SMALL_REQUEST_BODY` is a read that fails.
+        let full = vec![b'x'; SMALL_REQUEST_BODY];
+        let mut over_it = with_small_request_body(answering(Some(Chunks::of(&[
+            &full[..],
+            &b"x"[..],
+            &b"rest"[..],
+        ]))));
         let first = nvs_runtime::call(nvs_core_request_body, &mut over_it, &[])
             .expect_err("one byte past `[limits] request_body` is past it");
         let again = nvs_runtime::call(nvs_core_request_body, &mut over_it, &[])
@@ -7780,34 +7800,16 @@ pub(crate) mod tests {
     /// parse in front of it, and the one where the member could have grown a
     /// cap of its own.
     ///
-    /// Under Miri the context sets `request_body = "64K"`, because a form of
-    /// the shipped 8 MiB takes minutes there.
+    /// The context sets the directive to [`SMALL_REQUEST_BODY`], so the form
+    /// at the cap is small.
     #[test]
     fn a_urlencoded_form_is_bounded_by_the_directive_a_body_is() {
-        let cap = if cfg!(miri) {
-            64 * 1024
-        } else {
-            request_body()
-        };
+        let cap = SMALL_REQUEST_BODY;
         let posting = |form: &str| {
-            let mut ctx = uploading(
+            with_small_request_body(uploading(
                 "application/x-www-form-urlencoded",
                 Some(Chunks::of(&[form.as_bytes()])),
-            );
-            if cfg!(miri) {
-                let table: toml::Table = "[limits]\nrequest_body = \"64K\""
-                    .parse()
-                    .expect("the fixture is valid TOML");
-                let config = toml::Value::Table(table.clone())
-                    .try_into()
-                    .expect("the fixture deserializes into the tree it is written for");
-                ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
-                    config,
-                    table,
-                    ..nvs_config::Snapshot::default()
-                }));
-            }
-            ctx
+            ))
         };
         let written = "title=".len();
         let last = format!("title={}", "x".repeat(cap - written));

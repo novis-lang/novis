@@ -905,9 +905,10 @@ mod tests {
             other[0]
         );
 
-        // `rule:http-server/the-floor-cannot-fill-the-disk`'s first bullet. Two records fit in a 256-byte file and
-        // 64 of them do not, so the rotation is reached many times over and the
-        // retention bound is what stops the target growing with the loop.
+        // `rule:http-server/the-floor-cannot-fill-the-disk`'s first bullet. Two records fit in a 256-byte file.
+        // The loop writes until three times the retention bound is produced, so
+        // the rotation is reached many times over and the retention bound is
+        // what stops the target growing with the loop.
         const MAX_BYTES: u64 = 256;
         const KEEP: usize = 2;
         let (_dir, path) = scratch("floor.log");
@@ -915,10 +916,12 @@ mod tests {
             &path, MAX_BYTES, KEEP,
         )));
         let mut produced = 0;
-        for n in 0..64 {
+        let mut n = 0;
+        while produced <= 3 * (KEEP as u64 + 1) * MAX_BYTES {
             let record = floor::note(Level::Error, &format!("failure {n}"));
             produced += nvs_render::json::line(&record).len() as u64;
             floor::report(&mut ctx, &record);
+            n += 1;
         }
         // Drop the sink, so the handle is closed before the assertions read
         // what it wrote.

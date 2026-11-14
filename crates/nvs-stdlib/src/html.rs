@@ -3851,12 +3851,11 @@ mod tests {
         ];
         for (member, name) in members {
             // Made before the context, so the source is not on its balance.
-            // Under Miri the limit and the document are a quarter of the size.
-            let (paragraphs, limit) = if cfg!(miri) {
-                (25_000, 256 << 10)
-            } else {
-                (100_000, 1 << 20)
-            };
+            // Under Miri the limit is a quarter of the size. Each paragraph is
+            // two nodes of over a hundred bytes in the arena, so the whole tree
+            // is several times `limit`, past the peak held under twice `limit`.
+            let limit: usize = if cfg!(miri) { 256 << 10 } else { 1 << 20 };
+            let paragraphs = limit / 32;
             let document = Value::text(&"<p>x".repeat(paragraphs));
             let mut ctx = Ctx::new(OutputSink::Sink);
             ctx.set_memory_limit(limit);
@@ -4039,7 +4038,15 @@ mod tests {
     /// so the steps per tag stay under a small multiple of the cap.
     #[test]
     fn every_walk_over_the_stack_of_open_elements_is_bounded_by_the_cap() {
-        const COUNT: usize = if cfg!(miri) { 48 } else { 20_000 };
+        // Natively, forty times the cap. A walk the cap did not bound would
+        // cost about a quarter of `COUNT` per tag in the slowest-growing case,
+        // twice the bound below. Under Miri, three times the cap, so every walk
+        // still meets the cap.
+        const COUNT: usize = if cfg!(miri) {
+            3 * OPEN_ELEMENTS_CAP
+        } else {
+            40 * OPEN_ELEMENTS_CAP
+        };
         let cases = [
             ("<div>".repeat(COUNT), COUNT),
             ("<span>".repeat(COUNT) + &"</x>".repeat(COUNT), 2 * COUNT),
@@ -4065,7 +4072,9 @@ mod tests {
     /// already has a rule for, so no input reaches a panic.
     #[test]
     fn the_cap_closes_tables_templates_selects_and_foreign_content_without_failing() {
-        let deep = OPEN_ELEMENTS_CAP + if cfg!(miri) { 8 } else { 50 };
+        // One repeat past the cap, so a document whose stack grows with each
+        // repeat passes the cap.
+        let deep = OPEN_ELEMENTS_CAP + 1;
         let documents = [
             "<table>".repeat(deep),
             "<table><tr><td>".repeat(deep),
@@ -4110,11 +4119,12 @@ mod tests {
     ///
     /// The duplicate check runs once for each attribute, against the ones
     /// before it on the same tag. A set makes that check constant, so this tag
-    /// parses in time in proportion to its length. Under Miri the tag has
-    /// three hundred attributes, and each of them still checks the set.
+    /// parses in time in proportion to its length. Under Miri the tag has 40
+    /// attributes. The tokenizer uses the set past 10 attributes
+    /// (`ATTRIBUTES_TO_HASH`), so 30 of them check the set.
     #[test]
     fn a_tag_with_a_hundred_thousand_attributes_keeps_them_all() {
-        let count: usize = if cfg!(miri) { 300 } else { 100_000 };
+        let count: usize = if cfg!(miri) { 40 } else { 100_000 };
         let attributes: String = (0..count).map(|i| format!(" a{i}={i}")).collect();
         let tree = parse(&format!("<p{attributes}>x"));
         let paragraph = &tree.children[0].children[1].children[0];

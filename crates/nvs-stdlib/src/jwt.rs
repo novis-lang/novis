@@ -2693,15 +2693,18 @@ mod tests {
     /// A `,` inside a string, escaped quote or not, is not a value.
     #[test]
     fn a_parse_is_bounded_by_its_text_and_its_values() {
-        let long = format!(r#"{{"sub":"{}"}}"#, "a,b\\\",".repeat(1000));
+        // Two of each are enough to tell a count per value from a constant.
+        let repeats = 2;
+        let long = format!(r#"{{"sub":"{}"}}"#, "a,b\\\",".repeat(repeats));
         assert_eq!(
             parse_bound(long.as_bytes()),
             long.len() + 3 * PARSE_PER_VALUE
         );
-        let list = format!("[{}0]", "0,".repeat(1000));
+        // `repeats + 1` numbers and the array around them.
+        let list = format!("[{}0]", "0,".repeat(repeats));
         assert_eq!(
             parse_bound(list.as_bytes()),
-            list.len() + 1002 * PARSE_PER_VALUE
+            list.len() + (repeats + 2) * PARSE_PER_VALUE
         );
     }
 

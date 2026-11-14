@@ -1004,17 +1004,18 @@ mod tests {
         released(schema);
         released(written);
 
-        // Two thousand arrays, one inside the next. The reader stops at
-        // `DEPTH_LIMIT` and says so, rather than following the nesting down.
-        // Under Miri there are a hundred, still far past the limit.
+        // Two thousand arrays, one inside the next, which spent the whole stack
+        // when the reader followed them. The reader stops at `DEPTH_LIMIT` and
+        // says so. Under Miri, which runs no real stack, one array past
+        // `DEPTH_LIMIT`.
         let mut deep = Value::array(NvsArray::new());
-        for _ in 0..if cfg!(miri) { 100 } else { 2000 } {
+        for _ in 0..if cfg!(miri) { DEPTH_LIMIT + 1 } else { 2000 } {
             let mut wrap = NvsArray::new();
             wrap.set(NvsStr::new(b"tables"), deep);
             deep = Value::array(wrap);
         }
         let refused = node_of(deep, "the array", 0)
-            .expect_err("an array nested two thousand deep is not a schema");
+            .expect_err("an array nested past the limit is not a schema");
         let message = said(&refused);
         assert!(
             message.contains("nests more than"),

@@ -3883,13 +3883,15 @@ mod tests {
         assert_eq!(from_base("zz", 36), Ok(36 * 36 - 1));
         assert_eq!(from_base("7fffffffffffffff", 16), Ok(i64::MAX));
         assert_eq!(from_base("-8000000000000000", 16), Ok(i64::MIN));
-        assert_eq!(from_base(&"0".repeat(10_000), 2), Ok(0));
+        // More leading zeros than `i128` has bits are still zero.
+        assert_eq!(from_base(&"0".repeat(i128::BITS as usize + 1), 2), Ok(0));
 
         for too_large in ["8000000000000000", "-8000000000000001", "ffffffffffffffff0"] {
             let message = from_base(too_large, 16).expect_err("past `int`");
             assert!(message.contains("does not fit"), "{too_large}: {message}");
         }
-        let message = from_base(&"z".repeat(10_000), 36).expect_err("far past `int`");
+        // One base-36 digit per bit of `i128` is past any wider integer too.
+        let message = from_base(&"z".repeat(i128::BITS as usize), 36).expect_err("far past `int`");
         assert!(message.contains("does not fit"), "{message}");
 
         for unread in ["beefy", "0xff", " 1", "1 ", "+1", "--1", "1-", "é"] {

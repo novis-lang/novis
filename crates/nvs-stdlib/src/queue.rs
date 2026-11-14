@@ -8364,9 +8364,10 @@ mod tests {
     fn id_parse_throws_on_a_string_longer_than_the_longest_id() {
         let over = "1".repeat(super::ID_TEXT_MAX + 1);
         assert_eq!(super::read_id(&over), Err("it is longer than any job id"));
-        let million = "!".repeat(1_000_000);
+        // Every character here is one no Id has, so the length is what throws.
+        let unreadable = "!".repeat(super::ID_TEXT_MAX + 1);
         assert_eq!(
-            super::read_id(&million),
+            super::read_id(&unreadable),
             Err("it is longer than any job id")
         );
     }

@@ -1449,6 +1449,10 @@ impl Open<'_> {
 /// `rule:errors/on-limit` makes every breach.
 const UNAFFORDABLE: &str = "the document does not fit in the request's memory limit";
 
+/// How many attributes a tag may carry before [`Reader::start_tag`] checks for
+/// a repeated name with a set instead of a scan.
+const SCANNED: usize = 16;
+
 impl<'a> Reader<'a> {
     /// Refuses once the request holds more than its memory limit allows.
     ///
@@ -1759,9 +1763,6 @@ impl<'a> Reader<'a> {
     /// [`Self::attribute_value`] refuses, a name written twice, or a tag the
     /// document ends inside.
     fn start_tag(&mut self) -> Result<(Parsed, bool), String> {
-        /// How many attributes a tag may carry before [`Self::start_tag`]
-        /// checks for a repeated name with a set instead of a scan.
-        const SCANNED: usize = 16;
         self.pos += '<'.len_utf8();
         let mut node = Parsed::new(Kind::Element);
         node.name = self.name("an opening tag")?;
@@ -4617,13 +4618,18 @@ mod tests {
     /// Fifty thousand names is where a scan over every earlier name stops
     /// finishing inside a test run, so this is the regression for the set as
     /// much as for the answer. The short tag keeps the scan's half asserted.
-    /// Under Miri the tag has five hundred names, still far past the scan.
+    /// Under Miri the tag has one name more than [`super::SCANNED`], which
+    /// builds the set and inserts into it. Miri checks no running time.
     // covers: Core\Xml::parse
     #[test]
     fn a_wide_tag_is_read_in_linear_time_and_a_repeated_name_is_still_refused() {
         use std::fmt::Write as _;
 
-        let names = if cfg!(miri) { 500 } else { 50_000 };
+        let names = if cfg!(miri) {
+            super::SCANNED + 1
+        } else {
+            50_000
+        };
         let mut wide = String::from("<item");
         for i in 0..names {
             write!(wide, " a{i}=\"{i}\"").expect("writing to a String cannot fail");
@@ -5504,18 +5510,18 @@ mod tests {
         dropped(source);
     }
 
-    /// An attribute of two million `"` characters is two megabytes in the tree
-    /// and twelve once `source` escapes it. `source` asks the budget before it
-    /// writes, so the request stops near its ceiling instead of past it. Under
-    /// Miri the attribute is 32,000 characters and the limit 128 KiB.
+    /// An attribute of `"` characters a quarter of the limit long fits in the
+    /// tree, and is six times longer once `source` escapes it. `source` asks
+    /// the budget before it writes, so the request stops near its ceiling
+    /// instead of past it.
     // covers: Core\Xml\Node::source
     #[test]
     fn source_stops_at_the_memory_limit_before_it_escapes() {
-        let (quotes, limit) = if cfg!(miri) {
-            (32_000, 128 << 10)
-        } else {
-            (2_000_000, 8 << 20)
-        };
+        // Under Miri the peak at a 64 KiB limit is past twice that limit before
+        // the escape counts, so the smallest limit this check holds at is 128 KiB.
+        let limit: usize = 128 << 10;
+        // Escaped, the attribute is one and a half times `limit`.
+        let quotes = limit / 4;
         let mut ctx = Ctx::buffered();
         ctx.set_memory_limit(limit);
         let source = word(&format!("<t v='{}'/>", "\"".repeat(quotes)));
@@ -5531,19 +5537,16 @@ mod tests {
         dropped(tree);
     }
 
-    /// A document of a million empty elements builds a Rust tree some thirty
-    /// times its own size. The parse asks the budget as it builds, so the
-    /// request stops near its ceiling instead of holding that whole tree first.
-    /// Under Miri the document is a fortieth of that and the ceiling 512 KiB, so
-    /// the tree it would build is still six times the ceiling.
+    /// A document of empty elements builds a Rust tree some thirty times its
+    /// own size. The parse asks the budget as it builds, so the request stops
+    /// near its ceiling instead of holding that whole tree first.
     // covers: Core\Xml::parse
     #[test]
     fn a_parse_stops_at_the_memory_limit_while_it_builds_the_tree() {
-        let (elements, limit) = if cfg!(miri) {
-            (25_000, 1 << 19)
-        } else {
-            (1_000_000, 16 << 20)
-        };
+        let limit: usize = 64 << 10;
+        // Each `<i/>` is four bytes, so the document is a quarter of `limit`
+        // and the tree it would build is about seven times `limit`.
+        let elements = limit / 16;
         let mut ctx = Ctx::buffered();
         ctx.set_memory_limit(limit);
         let source = word(&format!("<list>{}</list>", "<i/>".repeat(elements)));
@@ -5559,16 +5562,13 @@ mod tests {
     /// One element with a great many attributes, and one with a great many
     /// children. Each vector doubles as it fills, and the parse asks for the
     /// doubling before it is made, so the peak stays under twice the limit.
-    /// Under Miri there are 4,000 of each and the limit is 64 KiB: more of them
-    /// for each byte of the limit than outside Miri, so the limit is still reached.
     // covers: Core\Xml::parse
     #[test]
     fn a_wide_element_stops_at_the_memory_limit_before_its_room_doubles() {
-        let (count, limit) = if cfg!(miri) {
-            (4_000, 1 << 16)
-        } else {
-            (400_000, 8 << 20)
-        };
+        let limit: usize = 64 << 10;
+        // One attribute or child for each 16 bytes of `limit`: each costs more
+        // than 16 bytes in the tree, so both vectors pass `limit`.
+        let count = limit / 16;
         let attributes: String = (0..count).map(|n| format!(" a{n}=\"\"")).collect();
         for (document, shape) in [
             (format!("<e{attributes}/>"), "many attributes"),

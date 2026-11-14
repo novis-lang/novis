@@ -1680,8 +1680,8 @@ mod tests {
 
     /// A small sample draws slots directly, so over an array with holes it
     /// must still answer only live entries, never one twice, and reach every
-    /// live entry across enough draws. Fifty draws under Miri, where each
-    /// draw is slow: an entry missed by all fifty has odds below one in 10^10.
+    /// live entry across enough draws. A live entry missed by all fifty draws
+    /// has odds below one in 10^10.
     // covers: Core\Random::sample
     #[test]
     fn a_small_sample_over_holes_draws_only_live_entries() {
@@ -1694,7 +1694,7 @@ mod tests {
         }
         let subject = Value::array(array);
         let mut seen = std::collections::HashSet::new();
-        let draws = if cfg!(miri) { 50 } else { 400 };
+        let draws = 50;
         for _ in 0..draws {
             let sample = taken_ints(
                 run(super::nvs_core_random_sample, &[subject, Value::uint(5)])

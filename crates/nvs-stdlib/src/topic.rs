@@ -1086,10 +1086,11 @@ mod tests {
 
     /// A row whose only subscriber ended, under a name nobody walks again, is
     /// removed by a later insert's sweep — so the table stays O(live
-    /// connections) and not O(connections served).
+    /// connections) and not O(connections served). One row more than the
+    /// bound below is inserted, so a table that never swept would fail it.
     #[test]
     fn a_row_nobody_walks_again_is_swept() {
-        for i in 0..(super::SWEEP_FLOOR * 4) {
+        for i in 0..=(super::SWEEP_FLOOR * 2) {
             let mut gone = connected();
             call(nvs_core_topic_subscribe, &mut gone, &format!("swept:{i}")).expect("it joins");
         }

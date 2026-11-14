@@ -1374,12 +1374,11 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn a_long_subject_is_folded_and_unfolds_to_itself() {
-        // Under Miri the two subjects with spaces are a quarter as long, which
-        // is still many folds. The unbroken one keeps its 1,200 bytes, past the
-        // 998 a server takes on one line.
-        let times = if cfg!(miri) { 1 } else { 4 };
-        let plain = "word ".repeat(100 * times);
-        let encoded = "é\r\nBcc: x@example.com ".repeat(75 * times);
+        // The two subjects with spaces are each many times `LINE`, so each
+        // folds many times. The unbroken one is 1,200 bytes, past the 998 a
+        // server takes on one line.
+        let plain = "word ".repeat(100);
+        let encoded = "é\r\nBcc: x@example.com ".repeat(75);
         let unbroken = "x".repeat(1200);
         for subject in [plain.as_str(), encoded.as_str(), unbroken.as_str()] {
             let line = subject_line(subject);
@@ -1424,12 +1423,21 @@ mod tests {
     // covers: Core\Mail::send
     #[test]
     fn recipients_are_in_angle_brackets_and_a_long_list_is_folded() {
-        let many: Vec<String> = (0..500).map(|n| format!("user{n}@example.com")).collect();
+        // Unfolded, this many addresses make one line past `LONGEST_LINE`.
+        let count = LONGEST_LINE / "<user0@example.com>, ".len() + 1;
+        let many: Vec<String> = (0..count).map(|n| format!("user{n}@example.com")).collect();
+        let unfolded = many
+            .iter()
+            .map(|address| format!("<{address}>"))
+            .collect::<Vec<_>>()
+            .join(", ")
+            .len();
+        assert!(unfolded > LONGEST_LINE, "the list is {unfolded} bytes");
         let line = address_line("To", &many);
         assert!(line.starts_with("To: <user0@example.com>, <user1@example.com>,"));
         assert!(only_folded(&line), "a line break was not a fold: {line:?}");
         assert!(line.split("\r\n").all(|each| each.len() <= LINE));
-        assert_eq!(line.matches('<').count(), 500);
+        assert_eq!(line.matches('<').count(), count);
     }
 
     /// `rule:errors/ambiguous-input-refused` on the reader every directive comes through: a blank value is a
