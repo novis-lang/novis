@@ -13,7 +13,15 @@ final class Chart
     type SeriesOptions = ?{ categories?: string, name?: string, color?: string };
 
     /// `new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
-    /// `combined` has the types and series that `combine` added.
+    ///
+    /// @param $kind the type of the chart, such as a column chart
+    /// @param $series the data of the chart, one entry for each `series` call
+    /// @param $combined the types and series that `combine` added
+    /// @param $title the title of the chart, or `null`
+    /// @param $xTitle the title of the horizontal axis, or `null`
+    /// @param $yTitle the title of the vertical axis, or `null`
+    /// @param $legend the place of the legend, such as `Legend::Right`, or `Legend::Hidden` for no legend
+    /// @param $labels `true` when the chart shows each value on it
     public function constructor(
         public readonly Kind $kind,
         public readonly array<Series> $series,

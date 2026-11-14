@@ -282,7 +282,7 @@ Conventions the whole file uses:
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
 - C.6 [Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract`, `nvs pkg unlist` and `nvs pkg advise`, which publish a package, change its versions and send an advisory on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock` *(nvs pkg audit, nvs pkg advise, version range, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish)*
-- C.7 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
+- C.7 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, @param, @return, @throws, doc comment tags, rename, signature help, find references, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
 - C.8 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent changes, --since, CHANGELOG.md, changelog, what changed, upgrade, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 # Part A — The language
@@ -693,21 +693,43 @@ Write it with three slashes, `///`, on the lines directly above a class, a const
 method or an enum case. The whole run of `///` lines is one comment. Your editor shows it to whoever
 types that name, and `nvs doc` puts it on the page it builds.
 
-Two tags may be written, each at the start of a line. `@see` names another class
-or member, and `@example` names a file that shows the code in use. Both are checked when the program
-compiles, so a link that goes nowhere stops the build. Any other `@tag` is an error. Explain a
-parameter in a sentence instead: its type is already in the signature.
+Five tags may be written, each at the start of a line. `@see` names another class
+or member, and `@example` names a file that shows the code in use. `@param $name` describes a
+parameter, `@return` describes the return value, and `@throws Name` describes an error the method
+throws. Each of these three needs a sentence after it. The compiler checks every tag against the
+code, so a tag that names something that is not there stops the build. Any other `@tag` is an error.
 
-**Good to know:** a `///` run with a blank line under it documents nothing, and that is an error.
-Four slashes or more is an ordinary comment, so a divider line of slashes is not documentation.
-The last example shows a `@param` tag, which does not compile.
+**Good to know:** a tag never contains a type, because the signature already has it. A `///` run
+with a blank line under it documents nothing, and that is an error. Four slashes or more is an
+ordinary comment.
 
 The body of a doc comment is Markdown. `nvs meta --json` includes it, `nvs doc` shows it on a page,
 and the editor shows it when you hover over the name.
 
-`@see` and `@example` are tags only at the start of a line. `@see` must name a class or member that
-exists, or the program does not compile (`E0323`). `@example` must name a file under `examples/` or
-`tests/` (`E0325`). Any other tag, such as `@param` or `@return`, does not compile (`E0128`).
+A tag counts only at the start of a line. `@see` must name a class or member that exists, or the
+program does not compile (`E0323`). `@example` must name a file under `examples/` or `tests/`
+(`E0325`). Any other tag, such as `@since`, does not compile (`E0128`). `@returns` is an error too,
+and the fix rewrites it to `@return`.
+
+`@param`, `@return` and `@throws` need a sentence after them (`E0139`). The sentence runs to the end
+of the line. The next `///` line continues it, unless that line is blank or starts with a tag. The
+compiler checks each tag against the method under it:
+
+- `@param $name`: `$name` is a parameter of this method (`E0335`). Only one `@param` describes it
+  (`E0331`). Write `$name` without a type (`E0138`).
+- `@return`: the method returns a value. A `void` or `never` method and a constructor take no
+  `@return` (`E0333`).
+- `@throws Name`: `Name` is a class that extends `Throwable` (`E0334`). It is found the same way a
+  type name is, so `use` lines apply.
+
+A tag must not start its sentence with the type from the signature, such as `@param $x int the
+count` (`E0332`). `@param`, `@return` and `@throws` go only on a function, a method or a
+constructor (`E0333`). The tags may be in any order. `nvs doc` and the editor show the parameters in
+the order of the signature.
+
+You do not have to describe every parameter. If the comment has an `@param` for some parameters but
+not for all, the compiler prints the warning `W1030`. Its fix adds an empty `@param` line for the
+missing parameter.
 
 A `///` comment must be directly above a class, a constant, a property, a method or an enum case. If it
 is above a statement, above a blank line or at the end of the file, the program does not compile
@@ -785,6 +807,7 @@ echo $order as int, "\n";
 // or a property, and the compiler checks that the name exists.
 
 /// One customer invoice. Every amount in it is in cents.
+///
 /// @see Invoice::total
 final class Invoice
 {
@@ -798,6 +821,7 @@ final class Invoice
     }
 
     /// Adds up the lines and returns the total in cents.
+    ///
     /// @see Invoice::$lines
     public function total(): int
     {
@@ -820,19 +844,66 @@ echo $invoice->total(), "\n";
 1729
 ```
 
-#### Example 04: param is not a tag
+#### Example 04: describe parameters return and errors
+
+```nvs
+<?nvs
+// Shows how to describe each parameter, the return value and the errors of a method.
+// The compiler checks that each tag matches the method under it.
+
+final class CardDeclined extends RuntimeError
+{
+}
+
+final class Payments
+{
+    /// Charges a card and returns the id of the charge.
+    ///
+    /// @param $cents the amount to charge, in cents
+    /// @param $card the card number, written without spaces
+    /// @return the id of the charge, such as `ch-1250`
+    /// @throws CardDeclined when the amount is zero or less
+    public static function charge(int $cents, string $card): string
+    {
+        if ($cents <= 0) {
+            throw new CardDeclined('the amount must be more than zero');
+        }
+        return 'ch-' . $cents;
+    }
+}
+
+// This prints `ch-1250`.
+echo Payments::charge(1250, '4242424242424242'), "\n";
+
+// This throws `CardDeclined`, and the `catch` prints its message.
+try {
+    Payments::charge(0, '4242424242424242');
+} catch (CardDeclined $e) {
+    echo $e->message, "\n";
+}
+```
+
+```output
+ch-1250
+the amount must be more than zero
+```
+
+#### Example 05: a tag never repeats a type
 
 ```nvs error
 <?nvs
-// Shows that `@param` is not a tag in a doc comment, so this program does not
-// compile. The signature already gives the type of `$cents`.
+// Shows that a tag cannot contain a type, so this program does not compile.
+// The signature already gives the type of `$cents`.
 // proof: compile-error
 
 /// A price in cents.
-final class Price {
+final class Price
+{
     /// Doubles a price.
+    ///
     /// @param int $cents the price to double
-    public static function double(int $cents): int {
+    public static function double(int $cents): int
+    {
         return $cents * 2;
     }
 }
@@ -841,12 +912,12 @@ echo Price::double(250), "\n";
 ```
 
 ```output
-error[E0128]: `@param` is not a documentation tag
-  --> main.nvs:9:9
-  |
-9 |     /// @param int $cents the price to double
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not `@see` or `@example`
-  = help: name the parameter in a sentence instead — its type is already in the signature
+error[E0138]: `@param` cannot contain a type
+   --> main.nvs:11:16
+   |
+11 |     /// @param int $cents the price to double
+   |                ^^^^ the type is already in the signature
+   = suggestion: delete this text before the `$name` (delete)
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -54018,12 +54089,60 @@ The options are the same as for `Barcode::render`. A wrong check digit throws a 
 <a id="core-novis-image-color"></a>
 ### `Novis\Image\Color`
 
-Keywords: rgba, hex
+Keywords: $r, $g, $b, $alpha, rgba, hex
 
 | Member | Signature |
 |---|---|
+| [`Novis\Image\Color::$r`](#core-novis-image-color-r) | `uint $r` |
+| [`Novis\Image\Color::$g`](#core-novis-image-color-g) | `uint $g` |
+| [`Novis\Image\Color::$b`](#core-novis-image-color-b) | `uint $b` |
+| [`Novis\Image\Color::$alpha`](#core-novis-image-color-alpha) | `float $alpha` |
 | [`Novis\Image\Color::rgba`](#core-novis-image-color-rgba) | `rgba(uint $r, uint $g, uint $b, float $alpha = 1.0): Color` |
 | [`Novis\Image\Color::hex`](#core-novis-image-color-hex) | `hex(string $hex): Color` |
+
+<a id="core-novis-image-color-r"></a>
+#### `Novis\Image\Color::$r`
+
+```nvs skip
+Novis\Image\Color::uint $r
+```
+
+the red channel, from 0 to 255
+
+**Returns** `void`
+
+<a id="core-novis-image-color-g"></a>
+#### `Novis\Image\Color::$g`
+
+```nvs skip
+Novis\Image\Color::uint $g
+```
+
+the green channel, from 0 to 255
+
+**Returns** `void`
+
+<a id="core-novis-image-color-b"></a>
+#### `Novis\Image\Color::$b`
+
+```nvs skip
+Novis\Image\Color::uint $b
+```
+
+the blue channel, from 0 to 255
+
+**Returns** `void`
+
+<a id="core-novis-image-color-alpha"></a>
+#### `Novis\Image\Color::$alpha`
+
+```nvs skip
+Novis\Image\Color::float $alpha
+```
+
+the alpha, from 0.0 (transparent) to 1.0 (opaque)
+
+**Returns** `void`
 
 <a id="core-novis-image-color-rgba"></a>
 #### `Novis\Image\Color::rgba`
@@ -54052,11 +54171,16 @@ The `#` is optional. Any other text throws a `LogicError`.
 <a id="core-novis-image-diff"></a>
 ### `Novis\Image\Diff`
 
-Keywords: constructor
+Keywords: constructor, $identical, $differingPixels, $maxDelta, $ssim, $diff
 
 | Member | Signature |
 |---|---|
 | [`Novis\Image\Diff::constructor`](#core-novis-image-diff-constructor) | `constructor(bool $identical, uint $differingPixels, uint $maxDelta, float $ssim, ?bytes $diff)` |
+| [`Novis\Image\Diff::$identical`](#core-novis-image-diff-identical) | `bool $identical` |
+| [`Novis\Image\Diff::$differingPixels`](#core-novis-image-diff-differingpixels) | `uint $differingPixels` |
+| [`Novis\Image\Diff::$maxDelta`](#core-novis-image-diff-maxdelta) | `uint $maxDelta` |
+| [`Novis\Image\Diff::$ssim`](#core-novis-image-diff-ssim) | `float $ssim` |
+| [`Novis\Image\Diff::$diff`](#core-novis-image-diff-diff) | `?bytes $diff` |
 
 <a id="core-novis-image-diff-constructor"></a>
 #### `Novis\Image\Diff::constructor`
@@ -54067,14 +54191,81 @@ new Novis\Image\Diff(bool $identical, uint $differingPixels, uint $maxDelta, flo
 
 `new Diff` makes a result from its five values. `Image::compare` makes one for you.
 
+<a id="core-novis-image-diff-identical"></a>
+#### `Novis\Image\Diff::$identical`
+
+```nvs skip
+Novis\Image\Diff::bool $identical
+```
+
+`true` when every pixel of the two images is the same
+
+**Returns** `void`
+
+<a id="core-novis-image-diff-differingpixels"></a>
+#### `Novis\Image\Diff::$differingPixels`
+
+```nvs skip
+Novis\Image\Diff::uint $differingPixels
+```
+
+the number of pixels with a delta above `tolerance`
+
+**Returns** `void`
+
+<a id="core-novis-image-diff-maxdelta"></a>
+#### `Novis\Image\Diff::$maxDelta`
+
+```nvs skip
+Novis\Image\Diff::uint $maxDelta
+```
+
+the largest difference in one channel, from 0 to 255
+
+**Returns** `void`
+
+<a id="core-novis-image-diff-ssim"></a>
+#### `Novis\Image\Diff::$ssim`
+
+```nvs skip
+Novis\Image\Diff::float $ssim
+```
+
+the structural similarity of the two images, `1.0` for identical images
+
+**Returns** `void`
+
+<a id="core-novis-image-diff-diff"></a>
+#### `Novis\Image\Diff::$diff`
+
+```nvs skip
+Novis\Image\Diff::?bytes $diff
+```
+
+a PNG image with the differing pixels in red. It is `null` unless `render` is `true`.
+
+**Returns** `void`
+
 <a id="core-novis-image-font"></a>
 ### `Novis\Image\Font`
 
-Keywords: fromBytes
+Keywords: $data, fromBytes
 
 | Member | Signature |
 |---|---|
+| [`Novis\Image\Font::$data`](#core-novis-image-font-data) | `bytes $data` |
 | [`Novis\Image\Font::fromBytes`](#core-novis-image-font-frombytes) | `fromBytes(bytes $data): Font` |
+
+<a id="core-novis-image-font-data"></a>
+#### `Novis\Image\Font::$data`
+
+```nvs skip
+Novis\Image\Font::bytes $data
+```
+
+the bytes of the `.ttf` or `.otf` file
+
+**Returns** `void`
 
 <a id="core-novis-image-font-frombytes"></a>
 #### `Novis\Image\Font::fromBytes`
@@ -55436,11 +55627,14 @@ Two renders of the same document give the same bytes.
 <a id="core-novis-pdf-page"></a>
 ### `Novis\Pdf\Page`
 
-Keywords: constructor, isFirst, isLast, string, marks, marksUpTo
+Keywords: constructor, $number, $count, $name, isFirst, isLast, string, marks, marksUpTo
 
 | Member | Signature |
 |---|---|
 | [`Novis\Pdf\Page::constructor`](#core-novis-pdf-page-constructor) | `constructor(uint $number, uint $count, ?string $name, array<Named> $strings, array<array<Named>> $marks)` |
+| [`Novis\Pdf\Page::$number`](#core-novis-pdf-page-number) | `uint $number` |
+| [`Novis\Pdf\Page::$count`](#core-novis-pdf-page-count) | `uint $count` |
+| [`Novis\Pdf\Page::$name`](#core-novis-pdf-page-name) | `?string $name` |
 | [`Novis\Pdf\Page->isFirst`](#core-novis-pdf-page-isfirst) | `isFirst(): bool` |
 | [`Novis\Pdf\Page->isLast`](#core-novis-pdf-page-islast) | `isLast(): bool` |
 | [`Novis\Pdf\Page->string`](#core-novis-pdf-page-string) | `string(string $name): ?string` |
@@ -55455,7 +55649,39 @@ new Novis\Pdf\Page(uint $number, uint $count, ?string $name, array<Named> $strin
 ```
 
 `new Page` makes a page from its values. `Document::render` makes one for you.
-`marks` has the `data-mark` values of every page of the document, one list for each page.
+
+<a id="core-novis-pdf-page-number"></a>
+#### `Novis\Pdf\Page::$number`
+
+```nvs skip
+Novis\Pdf\Page::uint $number
+```
+
+the number of this page, starting at 1
+
+**Returns** `void`
+
+<a id="core-novis-pdf-page-count"></a>
+#### `Novis\Pdf\Page::$count`
+
+```nvs skip
+Novis\Pdf\Page::uint $count
+```
+
+the number of pages in the document
+
+**Returns** `void`
+
+<a id="core-novis-pdf-page-name"></a>
+#### `Novis\Pdf\Page::$name`
+
+```nvs skip
+Novis\Pdf\Page::?string $name
+```
+
+the page name from the CSS `page` property of the first block on this page. It is `null` when the page has no name.
+
+**Returns** `void`
 
 <a id="core-novis-pdf-page-isfirst"></a>
 #### `Novis\Pdf\Page->isFirst`
@@ -55553,14 +55779,38 @@ A page number past the end of its file throws a `LogicError`. A file that is enc
 <a id="core-novis-pdf-reader"></a>
 ### `Novis\Pdf\Reader`
 
-Keywords: open, attachments, invoiceXml, text
+Keywords: $pageCount, $metadata, open, attachments, invoiceXml, text
 
 | Member | Signature |
 |---|---|
+| [`Novis\Pdf\Reader::$pageCount`](#core-novis-pdf-reader-pagecount) | `uint $pageCount` |
+| [`Novis\Pdf\Reader::$metadata`](#core-novis-pdf-reader-metadata) | `Metadata $metadata` |
 | [`Novis\Pdf\Reader::open`](#core-novis-pdf-reader-open) | `open(Core\Bytes::Source $pdf): Reader` |
 | [`Novis\Pdf\Reader->attachments`](#core-novis-pdf-reader-attachments) | `attachments(): array<Attachment>` |
 | [`Novis\Pdf\Reader->invoiceXml`](#core-novis-pdf-reader-invoicexml) | `invoiceXml(): ?tainted string` |
 | [`Novis\Pdf\Reader->text`](#core-novis-pdf-reader-text) | `text(uint $page): tainted string` |
+
+<a id="core-novis-pdf-reader-pagecount"></a>
+#### `Novis\Pdf\Reader::$pageCount`
+
+```nvs skip
+Novis\Pdf\Reader::uint $pageCount
+```
+
+the number of pages in the PDF file
+
+**Returns** `void`
+
+<a id="core-novis-pdf-reader-metadata"></a>
+#### `Novis\Pdf\Reader::$metadata`
+
+```nvs skip
+Novis\Pdf\Reader::Metadata $metadata
+```
+
+the title, author, subject, keywords, creator and producer of the file. Each one is `null` when the file does not have it.
+
+**Returns** `void`
 
 <a id="core-novis-pdf-reader-open"></a>
 #### `Novis\Pdf\Reader::open`
@@ -55614,11 +55864,16 @@ The file is read from the reader, so a call does not copy it again.
 <a id="core-novis-pdf-rendered"></a>
 ### `Novis\Pdf\Rendered`
 
-Keywords: constructor
+Keywords: constructor, $bytes, $pageCount, $dropped, $missingGlyphs, $overflows
 
 | Member | Signature |
 |---|---|
 | [`Novis\Pdf\Rendered::constructor`](#core-novis-pdf-rendered-constructor) | `constructor(bytes $bytes, uint $pageCount, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)` |
+| [`Novis\Pdf\Rendered::$bytes`](#core-novis-pdf-rendered-bytes) | `bytes $bytes` |
+| [`Novis\Pdf\Rendered::$pageCount`](#core-novis-pdf-rendered-pagecount) | `uint $pageCount` |
+| [`Novis\Pdf\Rendered::$dropped`](#core-novis-pdf-rendered-dropped) | `array<Dropped> $dropped` |
+| [`Novis\Pdf\Rendered::$missingGlyphs`](#core-novis-pdf-rendered-missingglyphs) | `array<MissingGlyph> $missingGlyphs` |
+| [`Novis\Pdf\Rendered::$overflows`](#core-novis-pdf-rendered-overflows) | `array<Overflow> $overflows` |
 
 <a id="core-novis-pdf-rendered-constructor"></a>
 #### `Novis\Pdf\Rendered::constructor`
@@ -55628,7 +55883,61 @@ new Novis\Pdf\Rendered(bytes $bytes, uint $pageCount, array<Dropped> $dropped, a
 ```
 
 `new Rendered` makes a result from its values. `Document::render` makes one for you.
-`dropped` lists the CSS the render does not support. `missingGlyphs` lists text that no font has.
+
+<a id="core-novis-pdf-rendered-bytes"></a>
+#### `Novis\Pdf\Rendered::$bytes`
+
+```nvs skip
+Novis\Pdf\Rendered::bytes $bytes
+```
+
+the PDF file
+
+**Returns** `void`
+
+<a id="core-novis-pdf-rendered-pagecount"></a>
+#### `Novis\Pdf\Rendered::$pageCount`
+
+```nvs skip
+Novis\Pdf\Rendered::uint $pageCount
+```
+
+the number of pages in the PDF file
+
+**Returns** `void`
+
+<a id="core-novis-pdf-rendered-dropped"></a>
+#### `Novis\Pdf\Rendered::$dropped`
+
+```nvs skip
+Novis\Pdf\Rendered::array<Dropped> $dropped
+```
+
+the CSS the render does not support, with the line and column of each declaration
+
+**Returns** `void`
+
+<a id="core-novis-pdf-rendered-missingglyphs"></a>
+#### `Novis\Pdf\Rendered::$missingGlyphs`
+
+```nvs skip
+Novis\Pdf\Rendered::array<MissingGlyph> $missingGlyphs
+```
+
+the text that no font has, with the fonts tried and the page
+
+**Returns** `void`
+
+<a id="core-novis-pdf-rendered-overflows"></a>
+#### `Novis\Pdf\Rendered::$overflows`
+
+```nvs skip
+Novis\Pdf\Rendered::array<Overflow> $overflows
+```
+
+the HTML that is too tall for its cell, with its page and area
+
+**Returns** `void`
 
 <a id="core-novis-pdf-engine"></a>
 ### `Novis\Pdf\Engine`
@@ -55742,11 +56051,14 @@ Returns the text of each page in `pages` of a file from `read`. Pages count from
 <a id="core-novis-spreadsheet-cell"></a>
 ### `Novis\Spreadsheet\Cell`
 
-Keywords: constructor, of, rich
+Keywords: constructor, $value, $style, $runs, of, rich
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Cell::constructor`](#core-novis-spreadsheet-cell-constructor) | `constructor(mixed $value, Style $style, ?array<Run> $runs = null)` |
+| [`Novis\Spreadsheet\Cell::$value`](#core-novis-spreadsheet-cell-value) | `mixed $value` |
+| [`Novis\Spreadsheet\Cell::$style`](#core-novis-spreadsheet-cell-style) | `Style $style` |
+| [`Novis\Spreadsheet\Cell::$runs`](#core-novis-spreadsheet-cell-runs) | `?array<Run> $runs` |
 | [`Novis\Spreadsheet\Cell::of`](#core-novis-spreadsheet-cell-of) | `of(mixed $value, Style $style): Cell` |
 | [`Novis\Spreadsheet\Cell::rich`](#core-novis-spreadsheet-cell-rich) | `rich(array<{ text: string, style?: Style }> $runs): Cell` |
 
@@ -55758,7 +56070,39 @@ new Novis\Spreadsheet\Cell(mixed $value, Style $style, ?array<Run> $runs = null)
 ```
 
 `new Cell` makes a cell from its values. `Cell::of` and `Cell::rich` make one for you.
-`runs` has the parts of a rich text cell. It is `null` for every other cell.
+
+<a id="core-novis-spreadsheet-cell-value"></a>
+#### `Novis\Spreadsheet\Cell::$value`
+
+```nvs skip
+Novis\Spreadsheet\Cell::mixed $value
+```
+
+the value of the cell. It is `null` for a rich text cell.
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-cell-style"></a>
+#### `Novis\Spreadsheet\Cell::$style`
+
+```nvs skip
+Novis\Spreadsheet\Cell::Style $style
+```
+
+the style of the cell
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-cell-runs"></a>
+#### `Novis\Spreadsheet\Cell::$runs`
+
+```nvs skip
+Novis\Spreadsheet\Cell::?array<Run> $runs
+```
+
+the parts of a rich text cell, each with its text and its style. It is `null` for every other cell.
+
+**Returns** `void`
 
 <a id="core-novis-spreadsheet-cell-of"></a>
 #### `Novis\Spreadsheet\Cell::of`
@@ -55787,11 +56131,19 @@ The cell's `value` is `null`. A CSV file and a reader give the text of all parts
 <a id="core-novis-spreadsheet-chart"></a>
 ### `Novis\Spreadsheet\Chart`
 
-Keywords: constructor, column, bar, line, area, pie, doughnut, scatter, series, combine
+Keywords: constructor, $kind, $series, $combined, $title, $xTitle, $yTitle, $legend, $labels, column, bar, line, area, pie, doughnut, scatter, series, combine
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Chart::constructor`](#core-novis-spreadsheet-chart-constructor) | `constructor(Kind $kind, array<Series> $series, array<Layer> $combined, ?string $title, ?string $xTitle, ?string $yTitle, Legend $legend, bool $labels)` |
+| [`Novis\Spreadsheet\Chart::$kind`](#core-novis-spreadsheet-chart-kind) | `Kind $kind` |
+| [`Novis\Spreadsheet\Chart::$series`](#core-novis-spreadsheet-chart-series) | `array<Series> $series` |
+| [`Novis\Spreadsheet\Chart::$combined`](#core-novis-spreadsheet-chart-combined) | `array<Layer> $combined` |
+| [`Novis\Spreadsheet\Chart::$title`](#core-novis-spreadsheet-chart-title) | `?string $title` |
+| [`Novis\Spreadsheet\Chart::$xTitle`](#core-novis-spreadsheet-chart-xtitle) | `?string $xTitle` |
+| [`Novis\Spreadsheet\Chart::$yTitle`](#core-novis-spreadsheet-chart-ytitle) | `?string $yTitle` |
+| [`Novis\Spreadsheet\Chart::$legend`](#core-novis-spreadsheet-chart-legend) | `Legend $legend` |
+| [`Novis\Spreadsheet\Chart::$labels`](#core-novis-spreadsheet-chart-labels) | `bool $labels` |
 | [`Novis\Spreadsheet\Chart::column`](#core-novis-spreadsheet-chart-column) | `column(Options $options = null): Chart` |
 | [`Novis\Spreadsheet\Chart::bar`](#core-novis-spreadsheet-chart-bar) | `bar(Options $options = null): Chart` |
 | [`Novis\Spreadsheet\Chart::line`](#core-novis-spreadsheet-chart-line) | `line(Options $options = null): Chart` |
@@ -55810,7 +56162,94 @@ new Novis\Spreadsheet\Chart(Kind $kind, array<Series> $series, array<Layer> $com
 ```
 
 `new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
-`combined` has the types and series that `combine` added.
+
+<a id="core-novis-spreadsheet-chart-kind"></a>
+#### `Novis\Spreadsheet\Chart::$kind`
+
+```nvs skip
+Novis\Spreadsheet\Chart::Kind $kind
+```
+
+the type of the chart, such as a column chart
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-series"></a>
+#### `Novis\Spreadsheet\Chart::$series`
+
+```nvs skip
+Novis\Spreadsheet\Chart::array<Series> $series
+```
+
+the data of the chart, one entry for each `series` call
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-combined"></a>
+#### `Novis\Spreadsheet\Chart::$combined`
+
+```nvs skip
+Novis\Spreadsheet\Chart::array<Layer> $combined
+```
+
+the types and series that `combine` added
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-title"></a>
+#### `Novis\Spreadsheet\Chart::$title`
+
+```nvs skip
+Novis\Spreadsheet\Chart::?string $title
+```
+
+the title of the chart, or `null`
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-xtitle"></a>
+#### `Novis\Spreadsheet\Chart::$xTitle`
+
+```nvs skip
+Novis\Spreadsheet\Chart::?string $xTitle
+```
+
+the title of the horizontal axis, or `null`
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-ytitle"></a>
+#### `Novis\Spreadsheet\Chart::$yTitle`
+
+```nvs skip
+Novis\Spreadsheet\Chart::?string $yTitle
+```
+
+the title of the vertical axis, or `null`
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-legend"></a>
+#### `Novis\Spreadsheet\Chart::$legend`
+
+```nvs skip
+Novis\Spreadsheet\Chart::Legend $legend
+```
+
+the place of the legend, such as `Legend::Right`, or `Legend::Hidden` for no legend
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-chart-labels"></a>
+#### `Novis\Spreadsheet\Chart::$labels`
+
+```nvs skip
+Novis\Spreadsheet\Chart::bool $labels
+```
+
+`true` when the chart shows each value on it
+
+**Returns** `void`
 
 <a id="core-novis-spreadsheet-chart-column"></a>
 #### `Novis\Spreadsheet\Chart::column`
@@ -55986,11 +56425,13 @@ $export->bytes(): bytes
 <a id="core-novis-spreadsheet-formula"></a>
 ### `Novis\Spreadsheet\Formula`
 
-Keywords: constructor, of
+Keywords: constructor, $text, $cached, of
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Formula::constructor`](#core-novis-spreadsheet-formula-constructor) | `constructor(tainted string $text, string\|int\|float\|null $cached)` |
+| [`Novis\Spreadsheet\Formula::$text`](#core-novis-spreadsheet-formula-text) | `tainted string $text` |
+| [`Novis\Spreadsheet\Formula::$cached`](#core-novis-spreadsheet-formula-cached) | `string\|int\|float\|null $cached` |
 | [`Novis\Spreadsheet\Formula::of`](#core-novis-spreadsheet-formula-of) | `of(string $text, ?{ cached?: string\|int\|float } $options = null): Formula` |
 
 <a id="core-novis-spreadsheet-formula-constructor"></a>
@@ -56001,7 +56442,28 @@ new Novis\Spreadsheet\Formula(tainted string $text, string|int|float|null $cache
 ```
 
 `new Formula` makes a formula from its values. `Formula::of` makes one for you.
-`text` has no `=` at the start. It is `tainted`, because `Reader` can read a formula from a file. `cached` is the result the file has for a program that does not calculate.
+
+<a id="core-novis-spreadsheet-formula-text"></a>
+#### `Novis\Spreadsheet\Formula::$text`
+
+```nvs skip
+Novis\Spreadsheet\Formula::tainted string $text
+```
+
+the Excel text of the formula, with no `=` at the start. It is `tainted`, because `Reader` can read a formula from a file.
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-formula-cached"></a>
+#### `Novis\Spreadsheet\Formula::$cached`
+
+```nvs skip
+Novis\Spreadsheet\Formula::string|int|float|null $cached
+```
+
+the result the file has for a program that does not calculate, or `null`
+
+**Returns** `void`
 
 <a id="core-novis-spreadsheet-formula-of"></a>
 #### `Novis\Spreadsheet\Formula::of`
@@ -56181,11 +56643,13 @@ $reader->rows(tainted string|int $sheet, RowOptions $options = null): Iterator<R
 <a id="core-novis-spreadsheet-row"></a>
 ### `Novis\Spreadsheet\Row`
 
-Keywords: constructor
+Keywords: constructor, $number, $values
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Row::constructor`](#core-novis-spreadsheet-row-constructor) | `constructor(uint $number, array<mixed> $values)` |
+| [`Novis\Spreadsheet\Row::$number`](#core-novis-spreadsheet-row-number) | `uint $number` |
+| [`Novis\Spreadsheet\Row::$values`](#core-novis-spreadsheet-row-values) | `array<mixed> $values` |
 
 <a id="core-novis-spreadsheet-row-constructor"></a>
 #### `Novis\Spreadsheet\Row::constructor`
@@ -56195,6 +56659,28 @@ new Novis\Spreadsheet\Row(uint $number, array<mixed> $values)
 ```
 
 `new Row` makes a row from its values. `Reader::rows` makes one for you.
+
+<a id="core-novis-spreadsheet-row-number"></a>
+#### `Novis\Spreadsheet\Row::$number`
+
+```nvs skip
+Novis\Spreadsheet\Row::uint $number
+```
+
+the row number in the file, starting at 1
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-row-values"></a>
+#### `Novis\Spreadsheet\Row::$values`
+
+```nvs skip
+Novis\Spreadsheet\Row::array<mixed> $values
+```
+
+the values of the row, by header text or by column letter
+
+**Returns** `void`
 
 <a id="core-novis-spreadsheet-sheet"></a>
 ### `Novis\Spreadsheet\Sheet`
@@ -56411,11 +56897,13 @@ $sheet->protect(?{ password?: string, allow?: array<string> } $options = null): 
 <a id="core-novis-spreadsheet-style"></a>
 ### `Novis\Spreadsheet\Style`
 
-Keywords: constructor, of
+Keywords: constructor, $fields, $key, of
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Style::constructor`](#core-novis-spreadsheet-style-constructor) | `constructor(Record $fields, string $key)` |
+| [`Novis\Spreadsheet\Style::$fields`](#core-novis-spreadsheet-style-fields) | `Record $fields` |
+| [`Novis\Spreadsheet\Style::$key`](#core-novis-spreadsheet-style-key) | `string $key` |
 | [`Novis\Spreadsheet\Style::of`](#core-novis-spreadsheet-style-of) | `of(Fields $fields): Style` |
 
 <a id="core-novis-spreadsheet-style-constructor"></a>
@@ -56426,7 +56914,28 @@ new Novis\Spreadsheet\Style(Record $fields, string $key)
 ```
 
 `new Style` makes a style from its values. `Style::of` makes one for you.
-`fields` has the fields as `Engine::writerStyle` takes them. Two styles with equal fields have the same `key`.
+
+<a id="core-novis-spreadsheet-style-fields"></a>
+#### `Novis\Spreadsheet\Style::$fields`
+
+```nvs skip
+Novis\Spreadsheet\Style::Record $fields
+```
+
+the style fields, with `null` for each field the style does not set
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-style-key"></a>
+#### `Novis\Spreadsheet\Style::$key`
+
+```nvs skip
+Novis\Spreadsheet\Style::string $key
+```
+
+a text made from the fields. Two styles with equal fields have the same `key`.
+
+**Returns** `void`
 
 <a id="core-novis-spreadsheet-style-of"></a>
 #### `Novis\Spreadsheet\Style::of`
@@ -56605,11 +57114,14 @@ A workbook that is never finished is not a valid file. A download that is never 
 <a id="core-novis-spreadsheet-written"></a>
 ### `Novis\Spreadsheet\Written`
 
-Keywords: constructor
+Keywords: constructor, $rows, $size, $bytes
 
 | Member | Signature |
 |---|---|
 | [`Novis\Spreadsheet\Written::constructor`](#core-novis-spreadsheet-written-constructor) | `constructor(array<int> $rows, int $size, ?bytes $bytes)` |
+| [`Novis\Spreadsheet\Written::$rows`](#core-novis-spreadsheet-written-rows) | `array<int> $rows` |
+| [`Novis\Spreadsheet\Written::$size`](#core-novis-spreadsheet-written-size) | `int $size` |
+| [`Novis\Spreadsheet\Written::$bytes`](#core-novis-spreadsheet-written-bytes) | `?bytes $bytes` |
 
 <a id="core-novis-spreadsheet-written-constructor"></a>
 #### `Novis\Spreadsheet\Written::constructor`
@@ -56619,6 +57131,39 @@ new Novis\Spreadsheet\Written(array<int> $rows, int $size, ?bytes $bytes)
 ```
 
 `new Written` makes a result from its values. `Workbook::finish` makes one for you.
+
+<a id="core-novis-spreadsheet-written-rows"></a>
+#### `Novis\Spreadsheet\Written::$rows`
+
+```nvs skip
+Novis\Spreadsheet\Written::array<int> $rows
+```
+
+the number of rows of each sheet, by sheet name
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-written-size"></a>
+#### `Novis\Spreadsheet\Written::$size`
+
+```nvs skip
+Novis\Spreadsheet\Written::int $size
+```
+
+the size of the file, in bytes
+
+**Returns** `void`
+
+<a id="core-novis-spreadsheet-written-bytes"></a>
+#### `Novis\Spreadsheet\Written::$bytes`
+
+```nvs skip
+Novis\Spreadsheet\Written::?bytes $bytes
+```
+
+the whole file from `createInMemory`, or `null`
+
+**Returns** `void`
 
 <a id="core-novis-spreadsheet-engine"></a>
 ### `Novis\Spreadsheet\Engine`
@@ -61734,6 +62279,13 @@ you publish. `--json` prints the changes as JSON. The JSON also has `from`, `to`
 
 The check is about the shape of the API only. The behaviour of a method may change in any release.
 
+A doc comment is not part of the shape, so a changed comment is not a change. It is still how the
+people who use your package learn it. The editor shows a method's comment when they hover over its
+name, and `nvs doc` writes it on the page of its class. Describe each parameter of a public method
+with `@param`, its return value with `@return` and its errors with `@throws`. The editor then shows
+the sentence of each parameter while they type the call. The registry website searches the text of
+your doc comments too.
+
 ### nvs pkg login and nvs pkg whoami
 
     nvs pkg login [--registry <url>]
@@ -62055,7 +62607,7 @@ The page `/policy` says what the people who run the registry can do with a packa
 <a id="tools-editor"></a>
 ## C.7 The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension
 
-Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand
+Keywords: nvs lsp, language server, @param, @return, @throws, doc comment tags, rename, signature help, find references, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand
 
 ### nvs lsp
 
@@ -62134,6 +62686,28 @@ move. The file is formatted as `nvs fmt` formats it. The action is offered when 
 never on save. If the action changes the JSON key order of a class with `#[Core\Json\Derive]`, you see
 the change in the edit. A class with `#[Core\Json\KeepKeyOrder]` keeps its properties in the order you
 wrote them.
+
+#### Doc comment tags
+
+A doc comment can describe a method's parameters with `@param`, its return value with `@return`
+and its errors with `@throws`. The editor uses these tags in the following places:
+
+- **Completion.** After `@` in a doc comment, the list has the tags that the declaration below can
+  take. A property gets no `@param`, and a `void` method gets no `@return`. After `@param `, the list
+  has the parameters that have no `@param` yet, in the order of the signature. After `@throws `, the
+  list has the classes that extend `Throwable`.
+- **Hover and signature help.** Hover over a method shows its description, then each parameter,
+  the return value and the errors. Hover over a parameter inside the method shows its `@param`
+  sentence. Signature help shows the sentence of the parameter you are typing.
+- **Rename.** Rename a method's parameter, and the editor also changes its `@param` line and the
+  `name:` of every call that passes it by name. You can start the rename on the parameter or on the
+  `$name` of its `@param` line. If the editor cannot read one of the calls, it does not rename. The
+  parameter of a constructor and of an anonymous function cannot be renamed.
+- **References.** Find references, highlight and go to definition treat the `$name` of an `@param`
+  line as a use of the parameter.
+- **Quick fixes.** A tag with a type gets a fix that deletes the type. An `@param` for a parameter
+  that no longer exists gets a fix that renames it to the one undocumented parameter. When a comment
+  has an `@param` for some parameters, a new parameter gets a fix that adds its empty `@param` line.
 
 #### Diagnostics, and the phase gate
 

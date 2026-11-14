@@ -559,7 +559,11 @@ fn sources() -> Vec<Source> {
 ///
 /// An extension class's members are read from its manifest, the one the
 /// checker seeded the class's signatures from (`Analysed::extensions`).
-const SOURCED: [(&str, &str); 46] = [
+///
+/// An `@param` target reads the parameters of the method the parser attached
+/// the comment to, and an `@throws` target the hierarchy walk the checker holds
+/// that tag to.
+const SOURCED: [(&str, &str); 48] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -573,6 +577,8 @@ const SOURCED: [(&str, &str); 46] = [
     ("open_tags", "OPEN_TAGS"),
     ("doc_tag_names", "DocTagKind::ALL"),
     ("see_targets", "members_of("),
+    ("param_targets", "documented_at("),
+    ("throws_targets", "hierarchy::implements_interface("),
     ("paths", "autoload::entries_of("),
     ("prefixes", "declarations_in("),
     ("class_names", "hierarchy::implements_interface("),

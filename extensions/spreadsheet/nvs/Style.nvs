@@ -12,7 +12,9 @@ final class Style
     type Record = { font: ?string, size: ?float, bold: ?bool, italic: ?bool, strike: ?bool, underline: ?Underline, color: ?string, fill: ?string, border: ?{ top: ?Line, right: ?Line, bottom: ?Line, left: ?Line }, borderColor: ?string, align: ?Align, valign: ?Valign, wrap: ?bool, rotate: ?int, indent: ?uint, format: ?string, locked: ?bool, hideFormula: ?bool };
 
     /// `new Style` makes a style from its values. `Style::of` makes one for you.
-    /// `fields` has the fields as `Engine::writerStyle` takes them. Two styles with equal fields have the same `key`.
+    ///
+    /// @param $fields the style fields, with `null` for each field the style does not set
+    /// @param $key a text made from the fields. Two styles with equal fields have the same `key`.
     public function constructor(
         public readonly Record $fields,
         public readonly string $key,

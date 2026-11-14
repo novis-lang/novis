@@ -267,7 +267,12 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "Image::{private} is private and not listed"
         );
     }
-    assert_eq!(names(r"Novis\Image\Color"), ["rgba", "hex"]);
+    // The private constructor's public promoted properties are read by a
+    // program, so they are listed, after the constructor's place.
+    assert_eq!(
+        names(r"Novis\Image\Color"),
+        ["$r", "$g", "$b", "$alpha", "rgba", "hex"]
+    );
     assert_eq!(
         names(r"Novis\Image\Codec"),
         [
@@ -409,6 +414,14 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         names(r"Novis\Spreadsheet\Chart"),
         [
             "constructor",
+            "$kind",
+            "$series",
+            "$combined",
+            "$title",
+            "$xTitle",
+            "$yTitle",
+            "$legend",
+            "$labels",
             "column",
             "bar",
             "line",
@@ -420,16 +433,22 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "combine"
         ]
     );
-    assert_eq!(names(r"Novis\Spreadsheet\Formula"), ["constructor", "of"]);
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Formula"),
+        ["constructor", "$text", "$cached", "of"]
+    );
     assert_eq!(
         names(r"Novis\Spreadsheet\Cell"),
-        ["constructor", "of", "rich"]
+        ["constructor", "$value", "$style", "$runs", "of", "rich"]
     );
     assert_eq!(
         names(r"Novis\Spreadsheet\Export"),
         ["constructor", "download", "save", "to", "bytes"]
     );
-    assert_eq!(names(r"Novis\Spreadsheet\Style"), ["constructor", "of"]);
+    assert_eq!(
+        names(r"Novis\Spreadsheet\Style"),
+        ["constructor", "$fields", "$key", "of"]
+    );
     assert_eq!(
         names(r"Novis\Spreadsheet\Template"),
         ["open", "set", "fill"]

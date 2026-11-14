@@ -580,15 +580,21 @@ fn code_rename_refuses_a_clash_and_writes_nothing() {
 
 // covers: tools:cli/nvs-code
 #[test]
-fn code_rename_refuses_a_parameter_and_writes_nothing() {
+fn code_rename_rewrites_a_parameter_and_its_uses() {
     let dir = project("rename-parameter", &[]);
-    let before = files(&dir);
     // Line 10 is `    public function addItem(int $n): int {`, and column 33
-    // is the `$` of `$n`.
+    // is the `$` of `$n`. No call passes `n:` by name, so the declaration and
+    // its one use in the body are the two edits.
     let (out, err, ok) = code(&dir, &["rename", "src/Cart.nvs:10:33", "count"]);
-    assert!(!ok, "{out}");
-    assert!(err.starts_with("error: "), "{err}");
-    assert_eq!(files(&dir), before);
+    assert!(ok, "{err}");
+    assert!(out.contains("src/Cart.nvs  2 edits"), "{out}");
+    let cart = fs::read_to_string(dir.join("src/Cart.nvs")).expect("the cart reads");
+    assert!(
+        cart.contains("public function addItem(int $count): int {"),
+        "{cart}"
+    );
+    assert!(cart.contains("$this->total + $count;"), "{cart}");
+    let before = files(&dir);
 
     // A position on nothing renames nothing, with the message the editor shows.
     let (_, err, ok) = code(&dir, &["rename", "src/Cart.nvs:1:2", "x"]);

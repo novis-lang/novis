@@ -6,6 +6,10 @@ namespace Novis\Spreadsheet;
 final class Written
 {
     /// `new Written` makes a result from its values. `Workbook::finish` makes one for you.
+    ///
+    /// @param $rows the number of rows of each sheet, by sheet name
+    /// @param $size the size of the file, in bytes
+    /// @param $bytes the whole file from `createInMemory`, or `null`
     public function constructor(
         public readonly array<int> $rows,
         public readonly int $size,

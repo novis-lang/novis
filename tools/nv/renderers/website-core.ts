@@ -376,6 +376,8 @@ interface Class {
   /** The shape types the class declares, by the name its signatures use. */
   types: ShapeType[];
   constants: { name: string; descHtml: string }[];
+  /** The public properties a program reads, `$r` with its access `$color->r`, its type and its card. */
+  properties: { name: string; access: string; type: string; descHtml: string }[];
   members: Member[];
   slug?: string;
   url?: string;
@@ -438,11 +440,17 @@ export function registryClasses(reg: Pick<Registry, "classes" | "enums">): Class
   const byName = new Map<string, Class>();
   for (const rc of reg.classes) {
     if (rc.name === "Core\\Unknown") continue;
-    const cls: Class = { id: classIdOf(rc.name), name: rc.name, summary: rc.short, enums: [], types: rc.types, constants: rc.constants.map((name) => ({ name, descHtml: "" })), members: [] };
+    const cls: Class = { id: classIdOf(rc.name), name: rc.name, summary: rc.short, enums: [], types: rc.types, constants: rc.constants.map((name) => ({ name, descHtml: "" })), properties: [], members: [] };
     byName.set(rc.name, cls);
     const last = rc.name.slice(rc.name.lastIndexOf("\\") + 1);
     const receiver = last.charAt(0).toLowerCase() + last.slice(1);
     for (const rm of rc.members) {
+      if (rm.kind === "property") {
+        // `uint $r`: the type, then the name. A property has no page of its own.
+        const type = rm.signature.endsWith(rm.name) ? rm.signature.slice(0, -rm.name.length).trim() : rm.signature;
+        cls.properties.push({ name: rm.name, access: `$${receiver}->${rm.name.replace(/^\$/, "")}`, type, descHtml: "" });
+        continue;
+      }
       const sig = parseSignature(rm.signature);
       if (!sig) throw new Error(`the registry's signature for ${rc.name}::${rm.name} does not parse: ${rm.signature}`);
       const isStatic = rm.kind === "static";
@@ -491,6 +499,10 @@ function attachCards(classes: Class[], reg: Registry): void {
     for (const c of cls.constants) {
       const desc = reg.constDocs.get(`${cls.name}::${c.name}`);
       c.descHtml = desc ? inlineHtml(desc) : "";
+    }
+    for (const p of cls.properties) {
+      const short = reg.docs.get(`${cls.name}::${p.name}`)?.short;
+      p.descHtml = short ? inlineHtml(short) : "";
     }
 
     for (const m of cls.members) {

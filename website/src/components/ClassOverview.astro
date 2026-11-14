@@ -2,7 +2,7 @@
 /**
  * The tool-owned body of a Core class page: the class's summary and
  * introduction, the methods of other classes that return it, the member
- * table, enums, shape types and constants. A code
+ * table, enums, shape types, properties and constants. A code
  * fence in the introduction is drawn with `<Code>`, as every example on the
  * site is, and an `output` fence as its titled output. Renders from
  * src/data/core.json, which holds implemented members only. An enum with a
@@ -154,6 +154,25 @@ const enumPage = (name: string) => {
             </div>
           </>
         ))}
+      </>
+    )
+  }
+
+  {
+    cls.properties.length > 0 && (
+      <>
+        <h2 id="properties">Properties</h2>
+        <ul class="nv-param-docs">
+          {cls.properties.map((p) => (
+            <li>
+              <span class="nv-param-head">
+                <code class="nv-param-name">{p.access}</code>
+                <code class="nv-param-type">{p.type}</code>
+              </span>
+              {p.descHtml && <span class="nv-param-desc" set:html={p.descHtml} />}
+            </li>
+          ))}
+        </ul>
       </>
     )
   }

@@ -8,6 +8,12 @@ final class Reader
     type Metadata = { title: ?tainted string, author: ?tainted string, subject: ?tainted string, keywords: ?tainted string, creator: ?tainted string, producer: ?tainted string };
     type Attachment = { name: tainted string, data: tainted bytes };
 
+    /// @param $file the opened file that `text` reads
+    /// @param $pageCount the number of pages in the PDF file
+    /// @param $metadata the title, author, subject, keywords, creator and producer of the file.
+    /// Each one is `null` when the file does not have it.
+    /// @param $files the files attached to the PDF file
+    /// @param $invoice the XML of an electronic invoice attached to the file, or `null`
     private function constructor(
         private readonly Reading $file,
         public readonly uint $pageCount,

@@ -9,7 +9,11 @@ final class Cell
     type Run = { text: string, style: ?Style };
 
     /// `new Cell` makes a cell from its values. `Cell::of` and `Cell::rich` make one for you.
-    /// `runs` has the parts of a rich text cell. It is `null` for every other cell.
+    ///
+    /// @param $value the value of the cell. It is `null` for a rich text cell.
+    /// @param $style the style of the cell
+    /// @param $runs the parts of a rich text cell, each with its text and its style.
+    /// It is `null` for every other cell.
     public function constructor(
         public readonly mixed $value,
         public readonly Style $style,

@@ -6,6 +6,9 @@ namespace Novis\Spreadsheet;
 final class Row
 {
     /// `new Row` makes a row from its values. `Reader::rows` makes one for you.
+    ///
+    /// @param $number the row number in the file, starting at 1
+    /// @param $values the values of the row, by header text or by column letter
     public function constructor(
         public readonly uint $number,
         public readonly array<mixed> $values,

@@ -6,6 +6,13 @@ namespace Novis\Image;
 final class Diff
 {
     /// `new Diff` makes a result from its five values. `Image::compare` makes one for you.
+    ///
+    /// @param $identical `true` when every pixel of the two images is the same
+    /// @param $differingPixels the number of pixels with a delta above `tolerance`
+    /// @param $maxDelta the largest difference in one channel, from 0 to 255
+    /// @param $ssim the structural similarity of the two images, `1.0` for identical images
+    /// @param $diff a PNG image with the differing pixels in red.
+    /// It is `null` unless `render` is `true`.
     public function constructor(
         public readonly bool $identical,
         public readonly uint $differingPixels,

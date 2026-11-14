@@ -9,7 +9,12 @@ final class Rendered
     type Overflow = { page: uint, area: string, text: string };
 
     /// `new Rendered` makes a result from its values. `Document::render` makes one for you.
-    /// `dropped` lists the CSS the render does not support. `missingGlyphs` lists text that no font has.
+    ///
+    /// @param $bytes the PDF file
+    /// @param $pageCount the number of pages in the PDF file
+    /// @param $dropped the CSS the render does not support, with the line and column of each declaration
+    /// @param $missingGlyphs the text that no font has, with the fonts tried and the page
+    /// @param $overflows the HTML that is too tall for its cell, with its page and area
     public function constructor(
         public readonly bytes $bytes,
         public readonly uint $pageCount,

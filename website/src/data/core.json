@@ -26,6 +26,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Arr.count",
@@ -2649,6 +2650,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ast.parse",
@@ -2706,6 +2708,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ast.Node.kind",
@@ -2837,6 +2840,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Attributes.get",
@@ -2953,6 +2957,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "BigInt.of",
@@ -3730,6 +3735,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Budget.memoryHeld",
@@ -3813,6 +3819,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Bytes.length",
@@ -4472,6 +4479,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cache.memory",
@@ -4544,6 +4552,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cache.SecretEntry.of",
@@ -4607,6 +4616,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cache.Store.put",
@@ -4935,6 +4945,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cap.has",
@@ -4996,6 +5007,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cldr.pluralCategory",
@@ -5143,6 +5155,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cli.arguments",
@@ -5810,6 +5823,7 @@
           "descHtml": "ANSI palette entry 15 — bright white."
         }
       ],
+      "properties": [],
       "members": [
         {
           "id": "Cli.Color.index",
@@ -5930,6 +5944,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cli.Live.set",
@@ -5987,6 +6002,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cli.Progress.advance",
@@ -6048,6 +6064,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cli.Style.of",
@@ -6143,6 +6160,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Cli.Text.plain",
@@ -6288,6 +6306,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Command.help",
@@ -6418,6 +6437,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Compress.compress",
@@ -6646,6 +6666,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Compress.Compressor.add",
@@ -6732,6 +6753,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Compress.Decompressor.add",
@@ -6822,6 +6844,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Config.get",
@@ -7063,6 +7086,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Crypto.generateKey",
@@ -7595,6 +7619,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Crypto.KeyPair.read",
@@ -7715,6 +7740,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Crypto.PublicKey.read",
@@ -7862,6 +7888,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Csrf.token",
@@ -8026,6 +8053,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Csv.parse",
@@ -8284,6 +8312,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "csv-rows",
       "url": "/reference/core/csv-rows/",
@@ -8328,6 +8357,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.connect",
@@ -8603,6 +8633,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Column.name",
@@ -8675,6 +8706,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Connection.query",
@@ -9270,6 +9302,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "db-inlist",
       "url": "/reference/core/db-inlist/",
@@ -9300,6 +9333,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Plan.steps",
@@ -9351,6 +9385,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Plan.Step.grade",
@@ -9441,6 +9476,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Row.has",
@@ -9978,6 +10014,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Rows.all",
@@ -10142,6 +10179,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Schema.fromArray",
@@ -10342,6 +10380,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "db-stream",
       "url": "/reference/core/db-stream/",
@@ -10384,6 +10423,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Transaction.query",
@@ -10929,6 +10969,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Db.Write.affected",
@@ -11010,6 +11051,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Debug.dump",
@@ -11313,6 +11355,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Decimal.divExact",
@@ -11809,6 +11852,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Encoding.encodeText",
@@ -12311,6 +12355,7 @@
           "descHtml": "This runtime's version: three numbers separated by dots, the same string <code>nvs info</code> prints. To compare versions, split it with <code>Core\\Str::split</code> and compare the numbers."
         }
       ],
+      "properties": [],
       "members": [
         {
           "id": "Env.get",
@@ -12461,6 +12506,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Fatal.onLimit",
@@ -12563,6 +12609,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Hash.of",
@@ -12769,6 +12816,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Hash.Stream.update",
@@ -12863,6 +12911,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Heap.push",
@@ -13012,6 +13061,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Html.escape",
@@ -13297,6 +13347,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "html-markup",
       "url": "/reference/core/html-markup/",
@@ -13359,6 +13410,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.allowUrl",
@@ -13449,6 +13501,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "http-chunks",
       "url": "/reference/core/http-chunks/",
@@ -13479,6 +13532,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Client.get",
@@ -15369,6 +15423,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Event.data",
@@ -15441,6 +15496,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "http-events",
       "url": "/reference/core/http-events/",
@@ -15471,6 +15527,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Identity.read",
@@ -15540,6 +15597,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "http-lines",
       "url": "/reference/core/http-lines/",
@@ -15570,6 +15628,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Part.file",
@@ -15702,6 +15761,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Response.status",
@@ -15938,6 +15998,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Socket.receive",
@@ -16154,6 +16215,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.Stream.status",
@@ -16434,6 +16496,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "http-target",
       "url": "/reference/core/http-target/",
@@ -16464,6 +16527,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Http.TlsInfo.version",
@@ -16649,6 +16713,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "IO.read",
@@ -17940,6 +18005,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "IO.File.read",
@@ -18322,6 +18388,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "io-lines",
       "url": "/reference/core/io-lines/",
@@ -18356,6 +18423,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "IO.Metadata.size",
@@ -18451,6 +18519,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "io-stdinstream",
       "url": "/reference/core/io-stdinstream/",
@@ -18477,6 +18546,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "io-walk",
       "url": "/reference/core/io-walk/",
@@ -18519,6 +18589,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Json.encode",
@@ -18866,6 +18937,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "json-elements",
       "url": "/reference/core/json-elements/",
@@ -18904,6 +18976,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "json-pieces",
       "url": "/reference/core/json-pieces/",
@@ -18934,6 +19007,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Jwe.encrypt",
@@ -19066,6 +19140,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Jwe.Key.shared",
@@ -19234,6 +19309,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Jwt.sign",
@@ -19603,6 +19679,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Jwt.KeySet.read",
@@ -19683,6 +19760,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.connect",
@@ -19823,6 +19901,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Ad.memberOf",
@@ -20021,6 +20100,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Ad.AccountFlags.script",
@@ -20631,6 +20711,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Ad.GroupType.system",
@@ -20875,6 +20956,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Change.add",
@@ -21085,6 +21167,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Changes.cookie",
@@ -21142,6 +21225,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Connection.whoami",
@@ -21893,6 +21977,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Dn.parse",
@@ -22162,6 +22247,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Entries.references",
@@ -22231,6 +22317,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Entry.dn",
@@ -22809,6 +22896,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Filter.equals",
@@ -23418,6 +23506,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Ldap.Sid.parse",
@@ -23562,6 +23651,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Log.write",
@@ -23637,6 +23727,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Mail.send",
@@ -23767,6 +23858,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Markdown.toHtml",
@@ -24110,6 +24202,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "markdown-groups",
       "url": "/reference/core/markdown-groups/",
@@ -24140,6 +24233,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Markdown.Live.push",
@@ -24226,6 +24320,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Markdown.Update.done",
@@ -24330,6 +24425,7 @@
           "descHtml": "Positive infinity as a <code>float</code>, larger than every finite value. Negative infinity is <code>-INFINITY</code>, and <code>isFinite</code> is <code>false</code> for both."
         }
       ],
+      "properties": [],
       "members": [
         {
           "id": "Math.abs",
@@ -25940,6 +26036,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Metrics.increment",
@@ -26144,6 +26241,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Mime.detect",
@@ -26238,6 +26336,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Net.connect",
@@ -26539,6 +26638,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Net.Datagram.send",
@@ -26756,6 +26856,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Net.Datagram.Message.payload",
@@ -26833,6 +26934,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Net.Listener.accept",
@@ -26959,6 +27061,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Net.Stream.read",
@@ -27150,6 +27253,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Image.Barcode.render",
@@ -27252,6 +27356,32 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [
+        {
+          "name": "$r",
+          "access": "$color->r",
+          "type": "uint",
+          "descHtml": "the red channel, from 0 to 255"
+        },
+        {
+          "name": "$g",
+          "access": "$color->g",
+          "type": "uint",
+          "descHtml": "the green channel, from 0 to 255"
+        },
+        {
+          "name": "$b",
+          "access": "$color->b",
+          "type": "uint",
+          "descHtml": "the blue channel, from 0 to 255"
+        },
+        {
+          "name": "$alpha",
+          "access": "$color->alpha",
+          "type": "float",
+          "descHtml": "the alpha, from 0.0 (transparent) to 1.0 (opaque)"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Image.Color.rgba",
@@ -27346,6 +27476,38 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [
+        {
+          "name": "$identical",
+          "access": "$diff->identical",
+          "type": "bool",
+          "descHtml": "<code>true</code> when every pixel of the two images is the same"
+        },
+        {
+          "name": "$differingPixels",
+          "access": "$diff->differingPixels",
+          "type": "uint",
+          "descHtml": "the number of pixels with a delta above <code>tolerance</code>"
+        },
+        {
+          "name": "$maxDelta",
+          "access": "$diff->maxDelta",
+          "type": "uint",
+          "descHtml": "the largest difference in one channel, from 0 to 255"
+        },
+        {
+          "name": "$ssim",
+          "access": "$diff->ssim",
+          "type": "float",
+          "descHtml": "the structural similarity of the two images, <code>1.0</code> for identical images"
+        },
+        {
+          "name": "$diff",
+          "access": "$diff->diff",
+          "type": "?bytes",
+          "descHtml": "a PNG image with the differing pixels in red. It is <code>null</code> unless <code>render</code> is <code>true</code>."
+        }
+      ],
       "members": [
         {
           "id": "Novis.Image.Diff.constructor",
@@ -27399,7 +27561,29 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Diff</code> makes a result from its five values. <code>Image::compare</code> makes one for you."
+            "shortHtml": "<code>new Diff</code> makes a result from its five values. <code>Image::compare</code> makes one for you.",
+            "params": [
+              {
+                "name": "identical",
+                "descHtml": "<code>true</code> when every pixel of the two images is the same"
+              },
+              {
+                "name": "differingPixels",
+                "descHtml": "the number of pixels with a delta above <code>tolerance</code>"
+              },
+              {
+                "name": "maxDelta",
+                "descHtml": "the largest difference in one channel, from 0 to 255"
+              },
+              {
+                "name": "ssim",
+                "descHtml": "the structural similarity of the two images, <code>1.0</code> for identical images"
+              },
+              {
+                "name": "diff",
+                "descHtml": "a PNG image with the differing pixels in red. It is <code>null</code> unless <code>render</code> is <code>true</code>."
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-image-diff/constructor/",
@@ -27427,6 +27611,14 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [
+        {
+          "name": "$data",
+          "access": "$font->data",
+          "type": "bytes",
+          "descHtml": "the bytes of the <code>.ttf</code> or <code>.otf</code> file"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Image.Font.fromBytes",
@@ -27605,6 +27797,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Image.Image.open",
@@ -28578,6 +28771,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Image.QrCode.render",
@@ -28723,6 +28917,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.Collator.sort",
@@ -28851,6 +29046,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.DateFormat.dateTimes",
@@ -29008,6 +29204,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.ListFormat.join",
@@ -29085,6 +29282,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.Locale.negotiate",
@@ -29209,6 +29407,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.NumberFormat.decimal",
@@ -29403,6 +29602,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.PluralRules.cardinal",
@@ -29518,6 +29718,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.RelativeTime.format",
@@ -29578,6 +29779,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Intl.Segmenter.words",
@@ -29677,6 +29879,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Pdf.Document.fromHtml",
@@ -29984,6 +30187,26 @@
         }
       ],
       "constants": [],
+      "properties": [
+        {
+          "name": "$number",
+          "access": "$page->number",
+          "type": "uint",
+          "descHtml": "the number of this page, starting at 1"
+        },
+        {
+          "name": "$count",
+          "access": "$page->count",
+          "type": "uint",
+          "descHtml": "the number of pages in the document"
+        },
+        {
+          "name": "$name",
+          "access": "$page->name",
+          "type": "?string",
+          "descHtml": "the page name from the CSS <code>page</code> property of the first block on this page. It is <code>null</code> when the page has no name."
+        }
+      ],
       "members": [
         {
           "id": "Novis.Pdf.Page.constructor",
@@ -30037,7 +30260,29 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Page</code> makes a page from its values. <code>Document::render</code> makes one for you.\n<code>marks</code> has the <code>data-mark</code> values of every page of the document, one list for each page."
+            "shortHtml": "<code>new Page</code> makes a page from its values. <code>Document::render</code> makes one for you.",
+            "params": [
+              {
+                "name": "number",
+                "descHtml": "the number of this page, starting at 1"
+              },
+              {
+                "name": "count",
+                "descHtml": "the number of pages in the document"
+              },
+              {
+                "name": "name",
+                "descHtml": "the page name from the CSS <code>page</code> property of the first block on this page. It is <code>null</code> when the page has no name."
+              },
+              {
+                "name": "strings",
+                "descHtml": "the value of each CSS <code>string-set</code> name on this page"
+              },
+              {
+                "name": "marks",
+                "descHtml": "the <code>data-mark</code> values of every page of the document, one list for each page"
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-pdf-page/constructor/",
@@ -30172,6 +30417,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Pdf.Pages.of",
@@ -30261,6 +30507,20 @@
         }
       ],
       "constants": [],
+      "properties": [
+        {
+          "name": "$pageCount",
+          "access": "$reader->pageCount",
+          "type": "uint",
+          "descHtml": "the number of pages in the PDF file"
+        },
+        {
+          "name": "$metadata",
+          "access": "$reader->metadata",
+          "type": "Metadata",
+          "descHtml": "the title, author, subject, keywords, creator and producer of the file. Each one is <code>null</code> when the file does not have it."
+        }
+      ],
       "members": [
         {
           "id": "Novis.Pdf.Reader.open",
@@ -30381,6 +30641,38 @@
         }
       ],
       "constants": [],
+      "properties": [
+        {
+          "name": "$bytes",
+          "access": "$rendered->bytes",
+          "type": "bytes",
+          "descHtml": "the PDF file"
+        },
+        {
+          "name": "$pageCount",
+          "access": "$rendered->pageCount",
+          "type": "uint",
+          "descHtml": "the number of pages in the PDF file"
+        },
+        {
+          "name": "$dropped",
+          "access": "$rendered->dropped",
+          "type": "array<Dropped>",
+          "descHtml": "the CSS the render does not support, with the line and column of each declaration"
+        },
+        {
+          "name": "$missingGlyphs",
+          "access": "$rendered->missingGlyphs",
+          "type": "array<MissingGlyph>",
+          "descHtml": "the text that no font has, with the fonts tried and the page"
+        },
+        {
+          "name": "$overflows",
+          "access": "$rendered->overflows",
+          "type": "array<Overflow>",
+          "descHtml": "the HTML that is too tall for its cell, with its page and area"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Pdf.Rendered.constructor",
@@ -30434,7 +30726,29 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Rendered</code> makes a result from its values. <code>Document::render</code> makes one for you.\n<code>dropped</code> lists the CSS the render does not support. <code>missingGlyphs</code> lists text that no font has."
+            "shortHtml": "<code>new Rendered</code> makes a result from its values. <code>Document::render</code> makes one for you.",
+            "params": [
+              {
+                "name": "bytes",
+                "descHtml": "the PDF file"
+              },
+              {
+                "name": "pageCount",
+                "descHtml": "the number of pages in the PDF file"
+              },
+              {
+                "name": "dropped",
+                "descHtml": "the CSS the render does not support, with the line and column of each declaration"
+              },
+              {
+                "name": "missingGlyphs",
+                "descHtml": "the text that no font has, with the fonts tried and the page"
+              },
+              {
+                "name": "overflows",
+                "descHtml": "the HTML that is too tall for its cell, with its page and area"
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-pdf-rendered/constructor/",
@@ -30468,6 +30782,26 @@
         }
       ],
       "constants": [],
+      "properties": [
+        {
+          "name": "$value",
+          "access": "$cell->value",
+          "type": "mixed",
+          "descHtml": "the value of the cell. It is <code>null</code> for a rich text cell."
+        },
+        {
+          "name": "$style",
+          "access": "$cell->style",
+          "type": "Style",
+          "descHtml": "the style of the cell"
+        },
+        {
+          "name": "$runs",
+          "access": "$cell->runs",
+          "type": "?array<Run>",
+          "descHtml": "the parts of a rich text cell, each with its text and its style. It is <code>null</code> for every other cell."
+        }
+      ],
       "members": [
         {
           "id": "Novis.Spreadsheet.Cell.constructor",
@@ -30505,7 +30839,21 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Cell</code> makes a cell from its values. <code>Cell::of</code> and <code>Cell::rich</code> make one for you.\n<code>runs</code> has the parts of a rich text cell. It is <code>null</code> for every other cell."
+            "shortHtml": "<code>new Cell</code> makes a cell from its values. <code>Cell::of</code> and <code>Cell::rich</code> make one for you.",
+            "params": [
+              {
+                "name": "value",
+                "descHtml": "the value of the cell. It is <code>null</code> for a rich text cell."
+              },
+              {
+                "name": "style",
+                "descHtml": "the style of the cell"
+              },
+              {
+                "name": "runs",
+                "descHtml": "the parts of a rich text cell, each with its text and its style. It is <code>null</code> for every other cell."
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-cell/constructor/",
@@ -30640,6 +30988,56 @@
         }
       ],
       "constants": [],
+      "properties": [
+        {
+          "name": "$kind",
+          "access": "$chart->kind",
+          "type": "Kind",
+          "descHtml": "the type of the chart, such as a column chart"
+        },
+        {
+          "name": "$series",
+          "access": "$chart->series",
+          "type": "array<Series>",
+          "descHtml": "the data of the chart, one entry for each <code>series</code> call"
+        },
+        {
+          "name": "$combined",
+          "access": "$chart->combined",
+          "type": "array<Layer>",
+          "descHtml": "the types and series that <code>combine</code> added"
+        },
+        {
+          "name": "$title",
+          "access": "$chart->title",
+          "type": "?string",
+          "descHtml": "the title of the chart, or <code>null</code>"
+        },
+        {
+          "name": "$xTitle",
+          "access": "$chart->xTitle",
+          "type": "?string",
+          "descHtml": "the title of the horizontal axis, or <code>null</code>"
+        },
+        {
+          "name": "$yTitle",
+          "access": "$chart->yTitle",
+          "type": "?string",
+          "descHtml": "the title of the vertical axis, or <code>null</code>"
+        },
+        {
+          "name": "$legend",
+          "access": "$chart->legend",
+          "type": "Legend",
+          "descHtml": "the place of the legend, such as <code>Legend::Right</code>, or <code>Legend::Hidden</code> for no legend"
+        },
+        {
+          "name": "$labels",
+          "access": "$chart->labels",
+          "type": "bool",
+          "descHtml": "<code>true</code> when the chart shows each value on it"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Spreadsheet.Chart.constructor",
@@ -30717,7 +31115,41 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Chart</code> makes a chart from its values. <code>Chart::column</code> and the other types make one for you.\n<code>combined</code> has the types and series that <code>combine</code> added."
+            "shortHtml": "<code>new Chart</code> makes a chart from its values. <code>Chart::column</code> and the other types make one for you.",
+            "params": [
+              {
+                "name": "kind",
+                "descHtml": "the type of the chart, such as a column chart"
+              },
+              {
+                "name": "series",
+                "descHtml": "the data of the chart, one entry for each <code>series</code> call"
+              },
+              {
+                "name": "combined",
+                "descHtml": "the types and series that <code>combine</code> added"
+              },
+              {
+                "name": "title",
+                "descHtml": "the title of the chart, or <code>null</code>"
+              },
+              {
+                "name": "xTitle",
+                "descHtml": "the title of the horizontal axis, or <code>null</code>"
+              },
+              {
+                "name": "yTitle",
+                "descHtml": "the title of the vertical axis, or <code>null</code>"
+              },
+              {
+                "name": "legend",
+                "descHtml": "the place of the legend, such as <code>Legend::Right</code>, or <code>Legend::Hidden</code> for no legend"
+              },
+              {
+                "name": "labels",
+                "descHtml": "<code>true</code> when the chart shows each value on it"
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-chart/constructor/",
@@ -30988,6 +31420,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Spreadsheet.Export.constructor",
@@ -31160,6 +31593,20 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [
+        {
+          "name": "$text",
+          "access": "$formula->text",
+          "type": "tainted string",
+          "descHtml": "the Excel text of the formula, with no <code>=</code> at the start. It is <code>tainted</code>, because <code>Reader</code> can read a formula from a file."
+        },
+        {
+          "name": "$cached",
+          "access": "$formula->cached",
+          "type": "string|int|float|null",
+          "descHtml": "the result the file has for a program that does not calculate, or <code>null</code>"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Spreadsheet.Formula.constructor",
@@ -31189,7 +31636,17 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Formula</code> makes a formula from its values. <code>Formula::of</code> makes one for you.\n<code>text</code> has no <code>=</code> at the start. It is <code>tainted</code>, because <code>Reader</code> can read a formula from a file. <code>cached</code> is the result the file has for a program that does not calculate."
+            "shortHtml": "<code>new Formula</code> makes a formula from its values. <code>Formula::of</code> makes one for you.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "the Excel text of the formula, with no <code>=</code> at the start. It is <code>tainted</code>, because <code>Reader</code> can read a formula from a file."
+              },
+              {
+                "name": "cached",
+                "descHtml": "the result the file has for a program that does not calculate, or <code>null</code>"
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-formula/constructor/",
@@ -31321,6 +31778,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Spreadsheet.Reader.open",
@@ -31622,6 +32080,20 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [
+        {
+          "name": "$number",
+          "access": "$row->number",
+          "type": "uint",
+          "descHtml": "the row number in the file, starting at 1"
+        },
+        {
+          "name": "$values",
+          "access": "$row->values",
+          "type": "array<mixed>",
+          "descHtml": "the values of the row, by header text or by column letter"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Spreadsheet.Row.constructor",
@@ -31651,7 +32123,17 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Row</code> makes a row from its values. <code>Reader::rows</code> makes one for you."
+            "shortHtml": "<code>new Row</code> makes a row from its values. <code>Reader::rows</code> makes one for you.",
+            "params": [
+              {
+                "name": "number",
+                "descHtml": "the row number in the file, starting at 1"
+              },
+              {
+                "name": "values",
+                "descHtml": "the values of the row, by header text or by column letter"
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-row/constructor/",
@@ -31705,6 +32187,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Spreadsheet.Sheet.constructor",
@@ -32373,6 +32856,20 @@
         }
       ],
       "constants": [],
+      "properties": [
+        {
+          "name": "$fields",
+          "access": "$style->fields",
+          "type": "Record",
+          "descHtml": "the style fields, with <code>null</code> for each field the style does not set"
+        },
+        {
+          "name": "$key",
+          "access": "$style->key",
+          "type": "string",
+          "descHtml": "a text made from the fields. Two styles with equal fields have the same <code>key</code>."
+        }
+      ],
       "members": [
         {
           "id": "Novis.Spreadsheet.Style.constructor",
@@ -32402,7 +32899,17 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Style</code> makes a style from its values. <code>Style::of</code> makes one for you.\n<code>fields</code> has the fields as <code>Engine::writerStyle</code> takes them. Two styles with equal fields have the same <code>key</code>."
+            "shortHtml": "<code>new Style</code> makes a style from its values. <code>Style::of</code> makes one for you.",
+            "params": [
+              {
+                "name": "fields",
+                "descHtml": "the style fields, with <code>null</code> for each field the style does not set"
+              },
+              {
+                "name": "key",
+                "descHtml": "a text made from the fields. Two styles with equal fields have the same <code>key</code>."
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-style/constructor/",
@@ -32462,6 +32969,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Spreadsheet.Template.open",
@@ -32615,6 +33123,7 @@
         }
       ],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Novis.Spreadsheet.Workbook.createForDownload",
@@ -32880,6 +33389,26 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [
+        {
+          "name": "$rows",
+          "access": "$written->rows",
+          "type": "array<int>",
+          "descHtml": "the number of rows of each sheet, by sheet name"
+        },
+        {
+          "name": "$size",
+          "access": "$written->size",
+          "type": "int",
+          "descHtml": "the size of the file, in bytes"
+        },
+        {
+          "name": "$bytes",
+          "access": "$written->bytes",
+          "type": "?bytes",
+          "descHtml": "the whole file from <code>createInMemory</code>, or <code>null</code>"
+        }
+      ],
       "members": [
         {
           "id": "Novis.Spreadsheet.Written.constructor",
@@ -32917,7 +33446,21 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Written</code> makes a result from its values. <code>Workbook::finish</code> makes one for you."
+            "shortHtml": "<code>new Written</code> makes a result from its values. <code>Workbook::finish</code> makes one for you.",
+            "params": [
+              {
+                "name": "rows",
+                "descHtml": "the number of rows of each sheet, by sheet name"
+              },
+              {
+                "name": "size",
+                "descHtml": "the size of the file, in bytes"
+              },
+              {
+                "name": "bytes",
+                "descHtml": "the whole file from <code>createInMemory</code>, or <code>null</code>"
+              }
+            ]
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-written/constructor/",
@@ -32953,6 +33496,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "ObjectMap.set",
@@ -33213,6 +33757,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "ObjectSet.add",
@@ -33491,6 +34036,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Os.pid",
@@ -33623,6 +34169,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Out.capture",
@@ -33697,6 +34244,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Passkey.registerOptions",
@@ -34048,6 +34596,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Passkey.Credential.of",
@@ -34222,6 +34771,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Password.hash",
@@ -34386,6 +34936,7 @@
           "descHtml": "The path separator of this platform. It is <code>\\</code> on Windows and <code>/</code> on every other platform. Every method writes it, and every method accepts both <code>/</code> and <code>\\</code>."
         }
       ],
+      "properties": [],
       "members": [
         {
           "id": "Path.basename",
@@ -34871,6 +35422,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Process.run",
@@ -35053,6 +35605,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Process.Handle.readStdout",
@@ -35231,6 +35784,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Process.Result.exitCode",
@@ -35312,6 +35866,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Program.implementing",
@@ -35453,6 +36008,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Queue.push",
@@ -35867,6 +36423,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Queue.Id.parse",
@@ -35992,6 +36549,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Queue.Stats.pending",
@@ -36123,6 +36681,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Random.int",
@@ -36413,6 +36972,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Random.Seeded.int",
@@ -36695,6 +37255,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "RateLimit.consume",
@@ -36877,6 +37438,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "RateLimit.Decision.allowed",
@@ -36986,6 +37548,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.forClass",
@@ -37148,6 +37711,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.AttributeInfo.name",
@@ -37277,6 +37841,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.ClassInfo.name",
@@ -37753,6 +38318,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.ConstantInfo.name",
@@ -37825,6 +38391,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.EnumInfo.of",
@@ -37969,6 +38536,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.MethodInfo.name",
@@ -38059,6 +38627,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.ParameterInfo.name",
@@ -38113,6 +38682,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Reflect.PropertyInfo.name",
@@ -38185,6 +38755,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Regex.compile",
@@ -38690,6 +39261,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Regex.Match.group",
@@ -38814,6 +39386,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "regex-pattern",
       "url": "/reference/core/regex-pattern/",
@@ -38844,6 +39417,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Request.method",
@@ -39687,6 +40261,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Request.BodyStream.peek",
@@ -39775,6 +40350,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "request-files",
       "url": "/reference/core/request-files/",
@@ -39812,6 +40388,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Request.Mount.prefix",
@@ -39886,6 +40463,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Request.Part.name",
@@ -40170,6 +40748,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "request-partcontent",
       "url": "/reference/core/request-partcontent/",
@@ -40226,6 +40805,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Response.html",
@@ -40787,6 +41367,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Response.Stream.write",
@@ -40919,6 +41500,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Router.url",
@@ -41296,6 +41878,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Router.Match.is",
@@ -41497,6 +42080,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Script.args",
@@ -41594,6 +42178,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Script.ExitReport.reason",
@@ -41684,6 +42269,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [],
       "slug": "script-handle",
       "url": "/reference/core/script-handle/",
@@ -41717,6 +42303,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Secret.reveal",
@@ -41833,6 +42420,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Serialize.encode",
@@ -41937,6 +42525,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Server.isDraining",
@@ -41997,6 +42586,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Session.start",
@@ -42421,6 +43011,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Signal.onShutdown",
@@ -42472,6 +43063,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Signature.sign",
@@ -42608,6 +43200,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "SignedCookie.seal",
@@ -42760,6 +43353,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Socket.upgrade",
@@ -43011,6 +43605,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Socket.Message.topic",
@@ -43110,6 +43705,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Sse.upgrade",
@@ -43397,6 +43993,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Sse.Message.topic",
@@ -43456,6 +44053,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Storage.put",
@@ -43722,6 +44320,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Str.length",
@@ -45634,6 +46233,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Taint.assertTrusted",
@@ -45742,6 +46342,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Task.all",
@@ -45948,6 +46549,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Task.Channel.send",
@@ -46025,6 +46627,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Test.assertSame",
@@ -47402,6 +48005,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Test.Outcome.class",
@@ -47510,6 +48114,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Test.Response.status",
@@ -47765,6 +48370,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Test.SentRequest.method",
@@ -47870,6 +48476,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Test.Summary.class",
@@ -47996,6 +48603,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Time.now",
@@ -48353,6 +48961,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Time.Date.at",
@@ -48694,6 +49303,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Time.DateTime.format",
@@ -49329,6 +49939,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Time.Duration.nanoseconds",
@@ -49985,6 +50596,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Time.Instant.in",
@@ -50303,6 +50915,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Time.TimeOfDay.at",
@@ -50652,6 +51265,7 @@
           "descHtml": "The UTC zone — the only zone that is ever a default, and only where a call site writes it explicitly."
         }
       ],
+      "properties": [],
       "members": [
         {
           "id": "Time.Zone.of",
@@ -50812,6 +51426,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Topic.subscribe",
@@ -50959,6 +51574,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Totp.code",
@@ -51079,6 +51695,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Uri.parse",
@@ -51862,6 +52479,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Uuid.v4",
@@ -52084,6 +52702,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Validate.isEmail",
@@ -52317,6 +52936,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "WebPush.subscription",
@@ -52508,6 +53128,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "WebPush.Sent.status",
@@ -52567,6 +53188,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "WebPush.Subscription.endpoint",
@@ -52608,6 +53230,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Xml.parse",
@@ -52749,6 +53372,7 @@
       ],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Xml.Node.kind",
@@ -52912,6 +53536,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Xml.Reader.read",
@@ -52977,6 +53602,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Xml.Writer.startDocument",
@@ -53369,6 +53995,7 @@
       "enums": [],
       "types": [],
       "constants": [],
+      "properties": [],
       "members": [
         {
           "id": "Zip.entries",

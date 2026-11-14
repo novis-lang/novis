@@ -74,8 +74,12 @@
 //! Core\IO::read(string $path): string  [fs.read]
 //! Core\Json::decodeAs<T>(string $json): T
 //! Core\Arr::Order  enum {Asc, Desc}
+//! Novis\Image\Color::$r  uint
 //! RuntimeError  exception extends Error
 //! ```
+//!
+//! A property's signature opens with its type, so its line gives the type
+//! after the symbol and two spaces, as an enum's line does.
 //!
 //! So the symbol is the line up to its first `(`, `<` or space, and a consumer
 //! needs no parser to get from a line back to `show`. `<` is in that set because
@@ -624,7 +628,7 @@ fn push_members(out: &mut Vec<Entry>, gates: &[(String, &str)], owner: &Value) {
     for member in array(owner, "members") {
         let symbol = format!("{owner_name}::{}", text(member, "name"));
         let signature = text(member, "signature");
-        let mut line = format!("{owner_name}::{signature}");
+        let mut line = member_line(owner_name, text(member, "name"), signature);
         // A member whose door asks by its argument has a row for each
         // capability, such as `Core\IO::open`'s `fs.read` and `fs.write`.
         let capability = gates
@@ -643,6 +647,18 @@ fn push_members(out: &mut Vec<Entry>, gates: &[(String, &str)], owner: &Value) {
         entry.signature = Some(signature.to_owned());
         entry.capability = capability;
         out.push(entry);
+    }
+}
+
+/// A member's line without its capability: `Owner::signature`, and for a
+/// property, whose signature opens with its type (`uint $r`), the symbol and
+/// then the type after two spaces, the way an enum's line gives `enum {...}`.
+fn member_line(owner: &str, name: &str, signature: &str) -> String {
+    if name.starts_with('$') {
+        let ty = signature.strip_suffix(name).unwrap_or(signature).trim_end();
+        format!("{owner}::{name}  {ty}")
+    } else {
+        format!("{owner}::{signature}")
     }
 }
 
@@ -1503,7 +1519,10 @@ fn render_card(card: &Value) -> String {
                 out.push_str("\nmembers:\n");
                 let class = text(card, "symbol");
                 for member in members {
-                    out.push_str(&format!("  {class}::{}\n", text(member, "signature")));
+                    let symbol = text(member, "symbol");
+                    let name = symbol.rsplit("::").next().unwrap_or(symbol);
+                    let line = member_line(class, name, text(member, "signature"));
+                    out.push_str(&format!("  {line}\n"));
                 }
             }
         }

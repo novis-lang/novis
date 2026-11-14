@@ -84,6 +84,8 @@ export interface CoreClass {
    * with each one's card as HTML, empty where it has none. */
   types: { name: string; type: string; descHtml?: string }[]
   constants: { name: string; descHtml: string }[]
+  /** The public properties a program reads: `$r`, its access `$color->r`, its type and its card as HTML. */
+  properties: { name: string; access: string; type: string; descHtml: string }[]
   members: CoreMember[]
   slug: string
   url: string

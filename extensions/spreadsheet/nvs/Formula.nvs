@@ -8,7 +8,10 @@ use LogicError;
 final class Formula
 {
     /// `new Formula` makes a formula from its values. `Formula::of` makes one for you.
-    /// `text` has no `=` at the start. It is `tainted`, because `Reader` can read a formula from a file. `cached` is the result the file has for a program that does not calculate.
+    ///
+    /// @param $text the Excel text of the formula, with no `=` at the start.
+    /// It is `tainted`, because `Reader` can read a formula from a file.
+    /// @param $cached the result the file has for a program that does not calculate, or `null`
     public function constructor(
         public readonly tainted string $text,
         public readonly string|int|float|null $cached,

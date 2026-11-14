@@ -7,7 +7,13 @@ final class Page
     type Named = { name: string, value: string };
 
     /// `new Page` makes a page from its values. `Document::render` makes one for you.
-    /// `marks` has the `data-mark` values of every page of the document, one list for each page.
+    ///
+    /// @param $number the number of this page, starting at 1
+    /// @param $count the number of pages in the document
+    /// @param $name the page name from the CSS `page` property of the first block on this page.
+    /// It is `null` when the page has no name.
+    /// @param $strings the value of each CSS `string-set` name on this page
+    /// @param $marks the `data-mark` values of every page of the document, one list for each page
     public function constructor(
         public readonly uint $number,
         public readonly uint $count,

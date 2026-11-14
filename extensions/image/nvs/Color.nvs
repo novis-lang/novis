@@ -7,6 +7,10 @@ use Throwable;
 /// A colour: red, green and blue from 0 to 255, and alpha from 0.0 (transparent) to 1.0 (opaque).
 final class Color
 {
+    /// @param $r the red channel, from 0 to 255
+    /// @param $g the green channel, from 0 to 255
+    /// @param $b the blue channel, from 0 to 255
+    /// @param $alpha the alpha, from 0.0 (transparent) to 1.0 (opaque)
     private function constructor(
         public readonly uint $r,
         public readonly uint $g,
