@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [chain-ends-green]
+chain: []
 floor:
   - id: floor-debt
     name: every owed or red atom is paid green
@@ -37,11 +37,7 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `chain-ends-green` is live.
-
-| # | Goal | Reached when | Stages |
-|---|---|---|---|
-| 1 | [`chain-ends-green`](chain-ends-green.md) **live** | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | 1 ✓ one command says whether main's tip is green · 2 ✓ the goal is verified once, then pushed, watched and fixed until the run is green |
+The chain is empty.
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
