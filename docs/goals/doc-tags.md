@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-fmt/src/lib.rs, crates/nvs-fmt/src/imports.rs, crates/nvs-fmt/src/tokens.rs, crates/nvs-fmt/tests/identity.rs, docs/rules/tooling/fmt-sorts-the-use-block.md, docs/rules/tooling/fmt-is-idempotent.md, docs/rules/tooling/fmt-at-most-one-blank-line.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: tags-parse
@@ -416,46 +416,34 @@ doc tag error no longer stops it.
 - [x] Run `looper verify` over the whole goal.
 - [x] Fix every failure it names in one pass, never deleting or loosening a test.
 - [x] Run `looper verify` once more, and it is green.
-- [ ] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and
+- [x] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes doc-tags` and
   `bun nv ci --check`.
   - [x] `bun nv verify --doc` and `bun nv owners --closes doc-tags` are green.
   - [x] `bun nv ci --check`'s proofs gate, website render and stale pages are green.
-  - [ ] `bun nv ci --check`'s `site questions` is green: 144 pages reread and restamped.
+  - [x] `bun nv ci --check`'s `site questions` is green: 144 pages reread and restamped.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, and stage 7's verify is green (`looper verify`, 823 s). Every reader takes
-the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`.
+Every stage is done. Stage 7's `looper verify` is green, and so are `bun nv verify --doc`,
+`bun nv owners --closes doc-tags`, `bun nv site --check questions` and `bun nv ci --check`. Every
+reader takes the card from `DocComment` in `crates/nvs-syntax/src/ast.rs:1705`. `fee702793d`
+rereads and stamps the 144 question pages the component cards made stale.
 
-Stage 7's verify found that stage 3's promoted `property` rows reached the built-in components too
-(`Novis\Image\Color::$r` and 44 more). Three commits fixed what that broke:
-- `668d9ec6c7`: `tools/nv/proofs/collect.ts` passes tsc.
-- `94f422ddd1`: each component constructor has an `@param` per public promoted parameter.
-  `nvs agent index` writes a property as `Owner::$name  type` (`member_line` in
-  `crates/nvs-cli/src/agent.rs`). The website lists a class's `properties` under their own heading
-  (`registryClasses` in `tools/nv/renderers/website-core.ts`, `ClassOverview.astro`). The completion
-  source table and the `nvs code rename` test follow stage 4.
-- `bb03ced395`: the proof roster skips a `property` member (`tools/nv/proofs/roster.ts:313`). The
-  `lang:programs` perf is re-recorded, the comments and editor pages are updated and stamped, and the
-  roadmap has a doc-tags theme.
-
-`bun nv verify --doc` and `bun nv owners --closes doc-tags` are green. `bun nv ci --check` is green
-but for `site questions`. The sweep's `env-secret-proofs` is no check: `looper check --name` finds
-none, so the sweep's list is stale. Nightly 43581848915's Miri failures are the four tests
-`8bd6b6eda9` shrank or ignored, and it ran on `be62f3f5a7`, before that commit.
+The sweep's `env-secret-proofs` is no check: `looper check --name` finds none, so the sweep's list
+is stale. Nightly 43581848915 ran on `be62f3f5a7`. Its five Miri failures (three timeouts in
+`html`, `net` and `lib.rs`, `env::tests::all_is_the_whole_text_environment_in_name_order`, and
+`cross_origin_redirect_drops_authorization_cookie_and_every_secret_header`) are all tests that
+`8bd6b6eda9` shrank, ignored or gave a Miri deadline, and that commit is newer. The next nightly is
+the check.
 
 Another session works in this tree (it committed `029c7f6c2d`, todo lines). Stage only your own files.
 
 ### Next
 
-- `tools/nv/cmd/site.ts:696`: `bun nv site --check questions --nvs target/debug/nvs.exe` names 144
-  stale pages: the component member and class pages whose `core.json` cards changed, plus
-  `/reference/cli/nvs-lsp/`, `/syntax/basics/comments/` and `/tools/editor/`. Each page is reread, its
-  questions rewritten where the page changed, then `bun nv site --questions --stamp <url>`. Split the
-  list by component across writing subagents, as AGENTS.md § *The context budget* says.
-- Then `bun nv ci --check` once more, and `DONE` when it is green.
+- `docs/goals/doc-tags.md:1`: nothing is left. The driver retires the goal, and no test is expected to
+  go red.
 
 ### Backlog
 
