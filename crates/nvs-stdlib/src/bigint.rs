@@ -3369,15 +3369,24 @@ mod tests {
     /// 1 µs makes each of them split several levels deep.
     #[test]
     fn product_in_pieces_is_the_librarys_product() {
+        // Under Miri every factor is a tenth as wide. The full widths take Miri
+        // past its 300s budget, and run natively.
+        let scale = if cfg!(miri) { 10_u32 } else { 1 };
         let three = BigUint::from(3_u32);
-        let ones = (BigUint::from(1_u32) << 64_000_u32) - 1_u32;
+        let ones = (BigUint::from(1_u32) << (64_000 / scale)) - 1_u32;
         let pairs = [
-            (three.pow(20_000), BigUint::from(7_u32).pow(19_000)),
-            (three.pow(60_000), BigUint::from(5_u32).pow(700)),
-            (BigUint::from(u32::MAX), three.pow(50_000)),
-            (BigUint::from(1_u32) << 40_000_u32, three.pow(30_000)),
+            (
+                three.pow(20_000 / scale),
+                BigUint::from(7_u32).pow(19_000 / scale),
+            ),
+            (three.pow(60_000 / scale), BigUint::from(5_u32).pow(700)),
+            (BigUint::from(u32::MAX), three.pow(50_000 / scale)),
+            (
+                BigUint::from(1_u32) << (40_000 / scale),
+                three.pow(30_000 / scale),
+            ),
             (ones.clone(), ones),
-            (BigUint::ZERO, three.pow(50_000)),
+            (BigUint::ZERO, three.pow(50_000 / scale)),
         ];
         let ctx = Ctx::buffered();
         let mut same = 0_usize;
