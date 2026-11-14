@@ -1,0 +1,41 @@
+--TEST--
+An `@param` that names no parameter of its function is `E0330`, and the fix renames it when exactly one parameter is undocumented — `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+// `@param` names a parameter of the function it documents.
+final class Ledger {
+    /// Adds one entry.
+    ///
+    /// @param $amount the amount to add
+    /// @param $note a note nothing declares
+    public static function add(int $amount): int {
+        return $amount;
+    }
+
+    /// Takes one entry away.
+    ///
+    /// @param $amount the amount to take away
+    /// @param $why the reason it is taken away
+    public static function remove(int $amount, string $reason): int {
+        return -$amount;
+    }
+}
+echo Ledger::add(3), "\n";
+echo Ledger::remove(2, "refund"), "\n";
+--EXPECTF-ERROR--
+error[E0330]: `@param` names `$note`, which is not a parameter here
+  --> %s:7:16
+  |
+7 |     /// @param $note a note nothing declares
+  |                ^^^^^ no such parameter
+  = suggestion: delete the `@param` line (delete)
+
+error[E0330]: `@param` names `$why`, which is not a parameter here
+   --> %s:15:16
+   |
+15 |     /// @param $why the reason it is taken away
+   |                ^^^^ no such parameter
+   = suggestion: rename the tag to the undocumented parameter: `$reason`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

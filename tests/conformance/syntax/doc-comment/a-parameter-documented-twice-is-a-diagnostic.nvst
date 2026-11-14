@@ -1,0 +1,25 @@
+--TEST--
+A parameter with two `@param` lines is `E0331` on the second — `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+// A parameter has one `@param` line.
+final class Ledger {
+    /// Adds one entry.
+    ///
+    /// @param $amount the amount to add
+    /// @param $amount the amount again
+    public static function add(int $amount): int {
+        return $amount;
+    }
+}
+echo Ledger::add(3), "\n";
+--EXPECTF-ERROR--
+error[E0331]: `$amount` is documented twice
+  --> %s:7:9
+  |
+7 |     /// @param $amount the amount again
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ a second `@param` for the same parameter
+  = suggestion: delete this `@param` line (delete)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,47 @@
+--TEST--
+A parameter with no `@param` line, where the comment documents another parameter, is warning `W1030`, and the line its fix inserts is `E0139` until it has a sentence — `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+// Once a comment has one `@param` line, each parameter has one.
+// `add` is warned about `$note`. `sum` has no `@param` line, so it is not warned.
+// `take` shows the line the fix inserts, before its sentence is written.
+final class Ledger {
+    /// Adds one entry.
+    ///
+    /// @param $amount the amount to add
+    public static function add(int $amount, string $note): int {
+        return $amount;
+    }
+
+    /// Adds two amounts.
+    public static function sum(int $a, int $b): int {
+        return $a + $b;
+    }
+
+    /// Takes one entry away.
+    ///
+    /// @param $amount the amount to take away
+    /// @param $note
+    public static function take(int $amount, string $note): int {
+        return -$amount;
+    }
+}
+echo Ledger::add(3, "x"), "\n";
+echo Ledger::sum(1, 2), "\n";
+echo Ledger::take(1, "y"), "\n";
+--EXPECTF-ERROR--
+warning[W1030]: `$note` has no `@param` line
+  --> %s:9:52
+  |
+9 |     public static function add(int $amount, string $note): int {
+  |                                                    ^^^^^ the other parameters have one
+  = suggestion: add an `@param $note` line
+
+error[E0139]: `@param $note` has no text
+   --> %s:21:9
+   |
+21 |     /// @param $note
+   |         ^^^^^^^^^^^^ write what `$note` means
+
+error: aborting due to 1 error; 1 warning emitted
+To read what a code means and how to fix it, run `nvs agent show <code>`.

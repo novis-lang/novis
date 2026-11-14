@@ -1,0 +1,31 @@
+--TEST--
+An `@throws` that names a class which is not an error is `E0334`, and a user class that extends `RuntimeError` is accepted — `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+// `@throws` names an error class.
+final class Entry {
+}
+
+final class LedgerClosed extends RuntimeError {
+}
+
+final class Ledger {
+    /// Adds one entry.
+    ///
+    /// @throws Entry when the entry is wrong
+    /// @throws LedgerClosed when the ledger is closed
+    public static function add(int $amount): int {
+        return $amount;
+    }
+}
+echo Ledger::add(3), "\n";
+--EXPECTF-ERROR--
+error[E0334]: `@throws` names `Entry`, which is not an error class
+   --> %s:12:17
+   |
+12 |     /// @throws Entry when the entry is wrong
+   |                 ^^^^^ not a class that extends `Throwable`
+   = suggestion: delete the `@throws` line (delete)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,38 @@
+--TEST--
+An `@return` on a constructor or on a method that returns `void` is `E0333` — `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+// `@return` goes only on a function that returns a value.
+final class Ledger {
+    /// Makes an empty ledger.
+    ///
+    /// @return the new ledger
+    public function constructor() {
+    }
+
+    /// Clears every entry.
+    ///
+    /// @return nothing useful
+    public function clear(): void {
+    }
+}
+var $ledger = new Ledger();
+$ledger->clear();
+echo "ok\n";
+--EXPECTF-ERROR--
+error[E0333]: `@return` does not go on a constructor
+  --> %s:6:9
+  |
+6 |     /// @return the new ledger
+  |         ^^^^^^^^^^^^^^^^^^^^^^ a constructor takes no `@return`
+  = suggestion: delete the `@return` line (delete)
+
+error[E0333]: `@return` does not go on a method that returns `void`
+   --> %s:12:9
+   |
+12 |     /// @return nothing useful
+   |         ^^^^^^^^^^^^^^^^^^^^^^ a method that returns `void` takes no `@return`
+   = suggestion: delete the `@return` line (delete)
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

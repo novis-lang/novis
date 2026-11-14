@@ -900,7 +900,7 @@ fn check_param(
         let diag = match missing.as_slice() {
             [only] => {
                 let only = src.span_text(only.name).unwrap_or_default();
-                diag.with_fix(target, only, format!("rename to `{only}`"))
+                diag.with_fix(target, only, "rename the tag to the undocumented parameter")
             }
             _ => diag.with_fix(tag_lines(tag, src), "", "delete the `@param` line"),
         };
@@ -1103,6 +1103,19 @@ fn check_missing_params(doc: &DocComment, method: &MethodMember, src: &SourceFil
             .iter()
             .find(|tag| tag.target.and_then(|target| src.span_text(target)) == Some(name))
     };
+    // An `@param` that names no parameter, beside exactly one undocumented
+    // parameter, is `E0330` with a rename to that parameter. The warning would
+    // report the same mistake a second time, so it is not raised.
+    let stale = params.iter().any(|tag| {
+        let named = tag.target.and_then(|target| src.span_text(target));
+        !method
+            .params
+            .iter()
+            .any(|param| src.span_text(param.name) == named)
+    });
+    if stale && undocumented(doc, method, src).len() == 1 {
+        return;
+    }
     for (index, param) in method.params.iter().enumerate() {
         let Some(name) = src.span_text(param.name) else {
             continue;

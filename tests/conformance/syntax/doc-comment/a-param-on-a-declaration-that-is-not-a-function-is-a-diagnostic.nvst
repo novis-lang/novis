@@ -1,0 +1,32 @@
+--TEST--
+An `@param` on a class or on a property is `E0333`, since only a function has parameters — `rule:tooling/doc-comment-tags-are-closed-and-checked`
+--FILE--
+<?nvs
+// `@param` goes only on a function.
+/// A list of entries.
+///
+/// @param $amount not a parameter of anything
+final class Ledger {
+    /// The total so far.
+    ///
+    /// @param $total not a parameter either
+    public int $total = 0;
+}
+echo new Ledger()->total, "\n";
+--EXPECTF-ERROR--
+error[E0333]: `@param` does not go on a class
+  --> %s:5:5
+  |
+5 | /// @param $amount not a parameter of anything
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ a class takes no `@param`
+  = suggestion: delete the `@param` line (delete)
+
+error[E0333]: `@param` does not go on a property
+  --> %s:9:9
+  |
+9 |     /// @param $total not a parameter either
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ a property takes no `@param`
+  = suggestion: delete the `@param` line (delete)
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
