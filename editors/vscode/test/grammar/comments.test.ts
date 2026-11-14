@@ -54,6 +54,37 @@ describe("what is a comment, and how long a run of slashes has to be", () => {
   });
 });
 
+describe("the tags of a doc comment", () => {
+  const TAG = "keyword.other.documentation.nvs";
+  const DOC = "comment.line.documentation.nvs";
+  let spans: Span[];
+
+  before(async () => {
+    spans = await tokenize(readFileSync(join(FIXTURES, "doc-tags.nvs"), "utf8"));
+  });
+
+  it("colours each of the five tags first on its line, inside the doc comment", () => {
+    for (const text of ["@param", "@return", "@throws", "@see", "@example"]) {
+      const found = span(spans, text);
+      assert.ok(found.scopes.includes(TAG), `${text} is not a tag`);
+      assert.ok(found.scopes.includes(DOC), `${text} left the doc comment`);
+    }
+  });
+
+  it("colours the name after @param as a parameter, and the class after @throws as a class", () => {
+    const name = spans.find((s) => s.text === "$cents");
+    assert.ok(name?.scopes.includes("variable.parameter.nvs"), "$cents is not a parameter");
+    assert.ok(span(spans, "CardDeclined").scopes.includes("entity.name.type.class.nvs"));
+  });
+
+  it("leaves an @ inside the prose and a tag outside the five as plain documentation", () => {
+    for (const s of spans.filter((s) => s.text.includes("@example.com") || s.text.includes("@todo"))) {
+      assert.deepEqual(s.scopes.filter((scope) => scope !== "source.nvs" && !scope.startsWith("meta.")),
+                       [DOC], `${s.text} is coloured`);
+    }
+  });
+});
+
 describe("the attribute that is not a # comment", () => {
   let spans: Span[];
 

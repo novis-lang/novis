@@ -184,6 +184,16 @@
       "patterns": [
         {
           "name": "comment.line.documentation.nvs",
+          "begin": "///(?!/)(?=\\s*@)",
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#doc-tags"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.documentation.nvs",
           "match": "///(?!/).*$"
         },
         {
@@ -198,6 +208,40 @@
           "name": "comment.block.nvs",
           "begin": "/\\*",
           "end": "\\*/"
+        }
+      ]
+    },
+    "doc-tags": {
+      "patterns": [
+        {
+          "match": "(?<=///)\\s*(@param)(?:\\s+(\\$[A-Za-z_][A-Za-z0-9_]*))?(?=\\s|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.documentation.nvs"
+            },
+            "2": {
+              "name": "variable.parameter.nvs"
+            }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@throws)(?:\\s+([A-Za-z_\\\\][A-Za-z0-9_\\\\]*))?(?=\\s|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.documentation.nvs"
+            },
+            "2": {
+              "name": "entity.name.type.class.nvs"
+            }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@(?:return|see|example))(?=\\s|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.documentation.nvs"
+            }
+          }
         }
       ]
     },

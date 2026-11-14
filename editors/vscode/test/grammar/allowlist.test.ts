@@ -43,6 +43,8 @@ const ALLOWED = [
   "comment.line.number-sign.shebang.nvs",
   "comment.line.double-slash.nvs",
   "comment.line.documentation.nvs",
+  "keyword.other.documentation.nvs",
+  "variable.parameter.nvs",
   "comment.line.number-sign.nvs",
   "comment.block.nvs",
   "meta.attribute.nvs",

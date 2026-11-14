@@ -1,0 +1,18 @@
+<?nvs
+class Cards
+{
+    /// Charges a card.
+    ///
+    /// @param $cents the amount, in cents
+    /// @return the ledger id of the charge
+    /// @throws CardDeclined when the bank declines the card
+    /// @see Cards::refund
+    /// @example examples/charge.nvs
+    /// mail me at someone@example.com
+    /// @todo is not a tag
+    public function charge(int $cents): string
+    {
+        return "id";
+    }
+}
+?>

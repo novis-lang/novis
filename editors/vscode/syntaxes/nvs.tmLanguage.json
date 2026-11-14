@@ -110,10 +110,36 @@
     "comments": {
       "comment": "crates/nvs-syntax/src/lexer.rs:437 is the shape. A line comment's kind is read off its opening run of slashes and exactly three of them documents (rule:tooling/doc-comment-is-three-slashes), so `////` is a divider rather than documentation and `/**` is an ordinary block nothing reads. `#` comments to end of line at any length except `#[`, which the pattern refuses itself rather than by being listed after the attribute, so reordering these cannot silently turn every attribute into a comment.",
       "patterns": [
+        { "name": "comment.line.documentation.nvs", "begin": "///(?!/)(?=\\s*@)", "end": "$", "patterns": [{ "include": "#doc-tags" }] },
         { "name": "comment.line.documentation.nvs", "match": "///(?!/).*$" },
         { "name": "comment.line.double-slash.nvs", "match": "//.*$" },
         { "name": "comment.line.number-sign.nvs", "match": "#(?!\\[).*$" },
         { "name": "comment.block.nvs", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "doc-tags": {
+      "comment": "The five tags of rule:tooling/doc-comment-tags-are-closed-and-checked, read where the parser reads one (crates/nvs-syntax/src/parser/mod.rs's doc comment run): first on the line after the `///` and its indentation. The `$name` after `@param` is a parameter and the class after `@throws` a class, so both carry the colour they have in code. An `@` anywhere else in the prose is just a character, and a tag outside the five is E0128, so neither is coloured (rule:ide/rejected-syntax-gets-no-colour).",
+      "patterns": [
+        {
+          "match": "(?<=///)\\s*(@param)(?:\\s+(\\$[A-Za-z_][A-Za-z0-9_]*))?(?=\\s|$)",
+          "captures": {
+            "1": { "name": "keyword.other.documentation.nvs" },
+            "2": { "name": "variable.parameter.nvs" }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@throws)(?:\\s+([A-Za-z_\\\\][A-Za-z0-9_\\\\]*))?(?=\\s|$)",
+          "captures": {
+            "1": { "name": "keyword.other.documentation.nvs" },
+            "2": { "name": "entity.name.type.class.nvs" }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@(?:return|see|example))(?=\\s|$)",
+          "captures": {
+            "1": { "name": "keyword.other.documentation.nvs" }
+          }
+        }
       ]
     },
     "legacy-cast": {
