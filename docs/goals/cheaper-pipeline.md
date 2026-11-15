@@ -10,7 +10,7 @@ stages:
     context: [.github/workflows/ci.yml, .github/workflows/build.yml, docs/rules/testing.md]
   - id: 2
     title: the jobs that only need the binary share one build
-    status: open
+    status: done
     context: [.github/workflows/ci.yml]
   - id: 3
     title: the pre-push checks run side by side and once per tree
@@ -163,10 +163,10 @@ repeating a tested commit.
 **Split:** an `Explore` subagent lists every `cargo` call the six jobs' `bun nv` commands make
 themselves, as `file.ts:NN`, before the first edit.
 
-- [ ] `.github/workflows/ci.yml:835`: a `nvs-debug` job per OS uploads the binary, and the jobs at
+- [x] `.github/workflows/ci.yml:835`: a `nvs-debug` job per OS uploads the binary, and the jobs at
   `:703`, `:907`, `:969`, `:1248` and `:1563` download it
   (`rule:testing/every-run-runs-every-job`).
-- [ ] `.github/workflows/ci.yml:13`: a scheduled run whose commit has a green push run from the last
+- [x] `.github/workflows/ci.yml:13`: a scheduled run whose commit has a green push run from the last
   day runs the outside-world jobs only (`rule:testing/every-run-runs-every-job`).
 
 ### 3. the pre-push checks run side by side and once per tree
@@ -241,39 +241,37 @@ the x86_64 gap.
 
 ### State
 
-Stage 1 is done. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0,
-stage 6: 0.
+Stages 1 and 2 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0, stage 5:
+0, stage 6: 0.
 
-- `unsafe-audit` and `flood` carry `if: github.event_name == 'schedule' || github.event_name ==
-  'workflow_dispatch'` and are off `dev-image`'s `needs`. A release still runs them, since its call
-  of `ci.yml` is a dispatch.
-- `build.yml`'s matrix is one JSON list in `fromJSON(format(...))`, and the musl row is appended
-  when `inputs.version` is set or the event is `schedule` or `workflow_dispatch`. A matrix row
-  cannot carry an `if`, and an `exclude` cannot drop an `include` row. Both outcomes were parsed
-  locally. GitHub's evaluation is first seen in the goal end's push.
-- `wit-bindgen` comes from its GitHub release with the SHA-256 GitHub lists for each asset. The
-  Windows asset is a zip, unpacked with Git Bash's `unzip`.
-- The bench and doc tests left the Linux x86_64 `tests` leg, the wall time, for its
-  `conformance 2/2` leg. The other platforms' first `tests` leg keeps them.
-- Minutes the goal end's push should show saved: about 34 for the unsafe audit, 15 for flood, 12
-  for musl, about 9 for `wit-bindgen`, and the bench and doc tests' share of the 53.1-minute wall.
-  The `conformance 2/2` leg grows by their build, from a cache entry that holds fewer of their
-  dependencies. If that leg becomes the new wall, the goal end records it here.
+- `nvs-debug` (`.github/workflows/ci.yml:703`) builds `-p nvs-cli` per OS from the `<os>-conformance`
+  cache and uploads it for a day. The six jobs download it and `chmod +x` it off Windows.
+- The browser job ran `--bin nvs` before. If a browser suite goes red on the push for a feature only
+  the workspace build unified, that is the cause.
+- `tested` (`:97`) runs in the nightly alone. Sixteen jobs skip when it finds a green push run of
+  the commit from the last day; `tools/nv/test/ci-push-builds.test.ts` pins the kept list.
+  `build.yml` takes `musl-only`; `release.yml`'s `test` job grants `actions: read`.
+- Minutes the goal end's push should show saved: stage 1's 34 (unsafe audit), 15 (flood), 12
+  (musl) and 9 (`wit-bindgen`), the bench and doc tests' share of the 53.1-minute wall, and stage
+  2's 38.7 of `nvs` rebuilds less the transfers. If the Linux transfer costs more, keep the artifact
+  on Windows and macOS only. If `conformance 2/2` becomes the wall, the goal end records it.
+- `build.yml`'s matrix expressions were parsed locally; GitHub first evaluates them on the push.
 - The sweep's `env-secret-proofs` has no check in the tree or any goal: a stale looper check.
 
 ### Next
 
-Stage 2, in one session. The file is `.github/workflows/ci.yml`.
+Stage 3, in one session. The file is `tools/nv/cmd/ci.ts`; its anchors are unchanged.
 
-- [ ] `tools/nv/main.ts:1`: before the first edit, an `Explore` subagent lists every `cargo` call
-  the six jobs' `bun nv` commands make themselves, as `file.ts:NN`.
-- [ ] `.github/workflows/ci.yml:835`: a `nvs-debug` job per OS builds `cargo build --bin nvs` and
-  uploads it. The browser (`:703`), extension (`:907`), extension-host (`:969`), reference
-  (`:1248`) and valgrind (`:1563`) jobs, and ext-templates (`:835`), download it.
-- [ ] `.github/workflows/ci.yml:14`: a scheduled run whose commit has a green push run from the last
-  day runs the outside-world jobs only.
+- [ ] `tools/nv/cmd/ci.ts:825`: the checks ahead of `cargo doc` start together, bounded, and print
+  in list order.
+- [ ] `tools/nv/cmd/ci.ts:851`: a green `--check` writes a stamp of `HEAD` and the tree signature of
+  `tools/nv/select/change.ts:132` under `.agent-tmp/ci/`, and `--push` skips a check stamped green.
+- [ ] `tools/nv/cmd/ci.ts:289`: a check whose step atom is green and unselected is skipped, as
+  `tools/nv/cmd/verify.ts:349` decides it. `chapter examples` is not skipped.
+- [ ] `tools/nv/test/ci.test.ts:1`: the two tests of the check `pre-push-once`.
 
-No test is expected to go red.
+No test is expected to go red. `tools/nv/test/ci-push-builds.test.ts` and `deep.test.ts` were run
+by name after stage 2 and are green.
 
 ### Backlog
 
