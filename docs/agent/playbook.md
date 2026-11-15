@@ -158,6 +158,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A test verify calls "failed alone as well" can pass under `cargo test`.** Verify reruns it
+  with its own recording environment, `NVS_FOOTPRINT_LOG` and `LLVM_PROFILE_FILE` among them, and
+  `cargo test` sets neither. Reproduce with the `covws` test executable and those variables set
+  before reading the code for a cause. See `tools/nv/select/record.ts`'s `env`.
 - **`nvs check --count` run from the repository root counts the repository's own `nvs.toml`.**
   Its configuration phase showed about 34,000 allocations, where a start with no `nvs.toml` of its
   own makes about 400. Run a start count from `.agent-tmp/`, with `target/debug/nvs.exe` on

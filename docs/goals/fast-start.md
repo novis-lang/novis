@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/script.rs, crates/nvs-host/src/slice.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: start-counted
@@ -257,56 +257,39 @@ process.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
-- [ ] `crates/nvs-cli/src/main.rs:730`: run `bun nv start-cost` once and write its table into the
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [x] `crates/nvs-cli/src/main.rs:134`: run `bun nv start-cost` once and write its table into the
   module doc's `# What it costs`.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 landed in two commits, and `nvs run` on a program that never
-spawns now starts neither helper thread:
+Every stage is done, and the goal is reached. `looper verify` is green at `c515e7f3ad`, and
+`bun nv verify --doc`, `bun nv owners --closes fast-start` and `bun nv ci --check` are green after
+it. `start-counted` and `case-writes-no-cache` pass under `looper check`.
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 1, stage 6: 1.
 
-- `nvs-revalidate` starts with the compiler's first path pointer (`Compiler::first_pointer`,
-  called from `advance`), which is narrower than the item's "first `compiled` call": a
-  `Resolver::resolve` makes a pointer too. Only a watch with no `also` waits; `nvs serve` and
-  `nvs test --watch` have `also` work and start at once. The handle lives in `Wake`, under the
-  signal's lock.
-- `nvs-slice` starts when a spawn leaves a seated scheduler with two tasks, parked ones counted
-  (`Scheduler::start` calls `slice::second_task`). `SliceClock::start` makes no thread;
-  the `cfg(test)` `ticking_every` starts it at once for tests with no scheduler.
+Stage 6's fixes, one commit each: formatting, a stale render, a rule link and a rustdoc link;
+`start-cost` reads the `covws` debug build; a footprint log's own allocations are in no count
+(`nvs_runtime::budget::keep_footprint_outside`, installed first in `main`), so `start_cost` holds
+under recording; the fleet-lease test's store has a 60 s timeout; `linear_by` times eight small
+reads against one large read; the roadmap has a theme for the chain's goals.
 
-Each has a new test, run once and green: `a_watch_with_nothing_to_check_starts_no_thread_until_a_path_compiles`
-(`nvs-cli`) and `slice::tests::a_started_clock_has_no_thread_until_a_second_task` (`nvs-host`).
-Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 1, stage 6: 0.
+The measured table is `crates/nvs-cli/src/main.rs`'s `## What it costs`, with every decision only
+this file held: the two backlog findings, the watchdog thread and the two declined candidates.
 
 The sweep's findings before this session needed no change. `env-secret-proofs` has no check and no
 log in the tree. Nightly 43581848915 ran at `be62f3f5a7`, which does not contain `8bd6b6eda9`'s
 Miri fix.
 
-Measure from a directory with no `nvs.toml` of its own, such as `.agent-tmp/`: the repository's
-own `nvs.toml` adds about 33,000 configuration allocations that a user's start does not pay. The
-front end of a one-line `nvs check` is now about 26,000 allocations, so the 5% floor is about 1,300.
-
 ### Next
 
-Stage 6, the gate: `looper verify` in the background, every failure fixed in one pass, then once
-more. Then `bun nv start-cost` once, with its table written into `crates/nvs-cli/src/main.rs`'s
-module doc `# What it costs` (stage 6's last item), and the goal-end gates AGENTS.md names.
-
-Tests that may go red at stage 6: a test that has one task spin and waits for a `YIELD` from the
-slice clock started by `SliceClock::start` with no second task (none is known; the one in
-`watchdog.rs` now uses `ticking_every`), a test that counts the threads a run spawns, `nvs-types`'s tests that read `SignatureTable::iter` and expect
-a `Core` class in it (none is known; only `check.rs` and `mark_overridden_methods` read it), a
-test that pins a `TypeId` number of a native type (the base interns `Core` before the error
-classes now, as before, but in another order), the conformance cases that relied on a case writing
-a compile artifact (none is known), `nvs-cli`'s
-`a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`, whose cold arm is shorter,
-and a `nvs-config` test that expected an empty unknown header in the merge table before
-`Merge::finish` (none is known; `finish` dropped it already).
+Nothing. The goal is reached, and the next goal on the chain is `cheaper-pipeline`. No test is
+expected to go red. A count test elsewhere that ran under `NVS_FOOTPRINT_LOG` and was tuned to
+the log's extra allocations would now read lower, and passes, since every count bound is a ceiling.
 
 ### Backlog
 
