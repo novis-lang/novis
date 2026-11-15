@@ -2192,25 +2192,10 @@ where
             .then(|| websocket_opening(request.headers()))
             .flatten()
             .map(|accept| (nvs_runtime::UpgradeSlot::new(), accept));
-        // `rule:concurrency/two-doors-one-isolate`'s cell, and the line above is the whole of what makes it
-        // a second one: it is made for **every** request rather than for a
-        // request `hyper` framed an upgrade for, because an event stream takes
-        // nothing of this connection but the response the request already has.
-        // A request that asks for no stream leaves it empty, which costs the one
-        // allocation `nvs_runtime::SseSlot` documents.
-        let streaming = nvs_runtime::SseSlot::new();
-        // The other stream, and the cell is made on the same terms for a
-        // sharper version of the same reason: a body written over time takes
-        // nothing of this connection at all, being the response this request
-        // already has, written in pieces. It carries the send bound above and
-        // the message bound beside it, which are the two numbers of this
-        // connection's a streamed body meets — a peer that stops reading, and a
-        // chunk larger than the connection may hold — and nothing else in
-        // `crate::bounds` is a request's to be held inside.
-        // `crate::slotted`'s scripts ride the same cell, which is how a
-        // slotted page reaches the wire.
-        let opening = stream::BodySlot::new(send_timeout, bounds.message)
-            .with_scripts(crate::slotted::SCRIPTS);
+        // `rule:concurrency/two-doors-one-isolate`'s event-stream cell. The arm
+        // that runs a program fills it, so an answer the door wrote alone (a
+        // `404`, a static file) makes no stream cell at all.
+        let mut streaming: Option<nvs_runtime::SseSlot> = None;
         let mut answered = match handler(request, origin, &record).started() {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -2243,6 +2228,25 @@ where
                 // The entry's snapshot moves here, and the access line below
                 // reads it. Every run of the loop borrows it.
                 ran_under = chosen;
+                // The event-stream cell is made for **every** request that runs,
+                // and not only for a request `hyper` framed an upgrade for: an
+                // event stream takes nothing of this connection but the response
+                // the request already has. A request that asks for no stream
+                // leaves it empty, which costs the one allocation
+                // `nvs_runtime::SseSlot` documents.
+                let streaming = &*streaming.insert(nvs_runtime::SseSlot::new());
+                // The other stream, made on the same terms for a sharper version
+                // of the same reason: a body written over time takes nothing of
+                // this connection at all, being the response this request already
+                // has, written in pieces. It carries the send bound above and the
+                // message bound beside it, which are the two numbers of this
+                // connection's a streamed body meets — a peer that stops reading,
+                // and a chunk larger than the connection may hold — and nothing
+                // else in `crate::bounds` is a request's to be held inside.
+                // `crate::slotted`'s scripts ride the same cell, which is how a
+                // slotted page reaches the wire.
+                let opening = stream::BodySlot::new(send_timeout, bounds.message)
+                    .with_scripts(crate::slotted::SCRIPTS);
                 let mut next = Some((first, first_supply));
                 let mut first_run = true;
                 loop {
@@ -2637,7 +2641,7 @@ where
         // end of this function. An event stream's isolate takes no socket, so
         // there is nothing for it to wait for and it starts here.
         let socket = offered.as_ref().and_then(|(slot, _accept)| slot.take());
-        let opened = match (socket, streaming.take()) {
+        let opened = match (socket, streaming.as_ref().and_then(nvs_runtime::SseSlot::take)) {
             (Some(socket), Some(stream)) => {
                 socket.discard();
                 stream.discard();
