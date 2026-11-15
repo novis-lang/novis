@@ -1358,7 +1358,29 @@ impl Compiler {
                 stamp: observed.stamp,
             },
         );
+        drop(paths);
+        if known.is_none() {
+            self.first_pointer();
+        }
         true
+    }
+
+    /// Starts the [`watch`] thread that waits for this cache's first pointer,
+    /// which is the first path it has something to check for. Only a path's
+    /// first pointer calls this, so a request with a pointer never reaches it.
+    fn first_pointer(&self) {
+        let watcher = self
+            .watcher
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .upgrade();
+        if let Some(signal) = watcher {
+            let mut wake = signal.0.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(weak) = wake.waiting.take() {
+                let next = self.revalidation().freq.max(FLOOR);
+                start(&signal, &mut wake, weak, None, next);
+            }
+        }
     }
 
     /// `state` under `key`, and the entries this path is then allowed to keep:
@@ -1629,7 +1651,8 @@ fn looks(looked: crate::Looked, skip: Option<&Path>, started: SystemTime) -> Loo
 /// `revalidate_freq` of zero checks this often, and does not spin a core.
 const FLOOR: Duration = Duration::from_millis(10);
 
-/// What wakes [`watch`]'s thread before its interval is over.
+/// What wakes [`watch`]'s thread before its interval is over, and the thread
+/// itself.
 #[derive(Debug, Default)]
 struct Wake {
     /// The [`Watch`] was dropped, and the thread ends.
@@ -1637,6 +1660,12 @@ struct Wake {
     /// [`Compiler::reconfigure`] moved the policy, and the thread runs a pass
     /// now and then waits the new interval.
     retimed: bool,
+    /// The compiler of a [`watch`] with no `also`, whose thread has not
+    /// started: [`Compiler::first_pointer`] starts it, and takes this.
+    waiting: Option<Weak<Compiler>>,
+    /// The running thread. Written under this lock by whoever starts it, and
+    /// taken under it by [`Watch`]'s drop, so a start and a stop never race.
+    thread: Option<std::thread::JoinHandle<()>>,
 }
 
 /// [`Wake`] and the condition variable its thread waits on.
@@ -1647,15 +1676,19 @@ type Signal = (Mutex<Wake>, Condvar);
 #[derive(Debug)]
 pub(crate) struct Watch {
     stop: Arc<Signal>,
-    thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Drop for Watch {
     fn drop(&mut self) {
         let (state, wakes) = &*self.stop;
-        state.lock().unwrap_or_else(PoisonError::into_inner).stopped = true;
+        let thread = {
+            let mut wake = state.lock().unwrap_or_else(PoisonError::into_inner);
+            wake.stopped = true;
+            wake.waiting = None;
+            wake.thread.take()
+        };
         wakes.notify_all();
-        if let Some(thread) = self.thread.take() {
+        if let Some(thread) = thread {
             let _ = thread.join();
         }
     }
@@ -1678,16 +1711,44 @@ pub(crate) type Also = Box<dyn FnMut(&Compiler) -> Option<Duration> + Send>;
 /// caught, and the next pass runs as usual. A thread that cannot be started
 /// is reported once, and then no edit reaches this process.
 ///
-/// **What it spends:** one thread per process, asleep between passes.
-pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
+/// **Without `also`, the thread starts with the cache's first pointer.** A
+/// pass then has nothing to check until a path has compiled, so `nvs run` on a
+/// program that never runs `spawn script` starts no thread for it. `also` is
+/// work of its own, so a watch with one starts its thread here.
+///
+/// **What it spends:** one thread per process, asleep between passes, from
+/// the first compiled path on where there is no `also`.
+pub(crate) fn watch(compiler: &Arc<Compiler>, also: Option<Also>) -> Watch {
     let stop: Arc<Signal> = Arc::new((Mutex::new(Wake::default()), Condvar::new()));
     *compiler
         .watcher
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = Arc::downgrade(&stop);
     let weak = Arc::downgrade(compiler);
-    let stopping = Arc::clone(&stop);
-    let mut next = compiler.revalidation().freq.max(FLOOR);
+    let mut wake = stop.0.lock().unwrap_or_else(PoisonError::into_inner);
+    if also.is_some() || !shared(&compiler.paths).is_empty() {
+        let next = compiler.revalidation().freq.max(FLOOR);
+        start(&stop, &mut wake, weak, also, next);
+    } else {
+        wake.waiting = Some(weak);
+    }
+    drop(wake);
+    Watch { stop }
+}
+
+/// Spawns [`watch`]'s thread over `signal`, waiting `next` before its first
+/// pass, and puts its handle in `wake`, which is `signal`'s state held locked.
+fn start(
+    signal: &Arc<Signal>,
+    wake: &mut Wake,
+    weak: Weak<Compiler>,
+    mut also: Option<Also>,
+    mut next: Duration,
+) {
+    if wake.stopped {
+        return;
+    }
+    let stopping = Arc::clone(signal);
     let spawned = std::thread::Builder::new()
         .name("nvs-revalidate".to_owned())
         .spawn(move || {
@@ -1726,14 +1787,12 @@ pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
                     .max(FLOOR);
             }
         });
-    let thread = match spawned {
-        Ok(thread) => Some(thread),
+    match spawned {
+        Ok(thread) => wake.thread = Some(thread),
         Err(error) => {
             eprintln!("warning: source files will not be checked for changes: {error}");
-            None
         }
-    };
-    Watch { stop, thread }
+    }
 }
 
 /// What one pass of `nvs test --watch` compiled, as the trace [`Rerun`]
@@ -3887,6 +3946,32 @@ mod tests {
             "the swap did not publish"
         );
         assert_eq!(said(holding), "one\n");
+    }
+
+    /// A watch with no `also` starts its thread with the first compiled path,
+    /// and a dropped one stops it.
+    #[test]
+    fn a_watch_with_nothing_to_check_starts_no_thread_until_a_path_compiles() {
+        let path = a_file_saying("first-pointer", "one");
+        let compiler = Arc::new(revalidating());
+        let watching = super::watch(&compiler, None);
+        let started = |watching: &super::Watch| {
+            watching
+                .stop
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .thread
+                .is_some()
+        };
+        let before = started(&watching);
+        let _unit = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the entry compiles");
+        let after = started(&watching);
+        drop(watching);
+        assert!(!before, "a watch with nothing to check started its thread");
+        assert!(after, "the first compiled path started no thread");
     }
 
     #[test]
