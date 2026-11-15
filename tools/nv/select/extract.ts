@@ -4,9 +4,9 @@
 // one `<name>.log` they all appended to (`nvs test --record`, `NV_PROOF_RECORD`, and the test binaries
 // the seed runs). Extraction turns them into keys and then deletes them:
 //
-// 1. `llvm-profdata merge -sparse` over the atom's raw profiles, then `llvm-profdata show
-//    --all-functions`: a sparse profile keeps only the functions with a counter above zero, so the
-//    names it lists are the ones that ran. Two launches per atom.
+// 1. `llvm-profdata merge -sparse -text` over the atom's raw profiles: a sparse profile keeps only the
+//    functions with a counter above zero, so the records it holds name the functions that ran. One
+//    launch per atom.
 // 2. Each name is looked up in the coverage map of the objects the atom ran: `llvm-cov export -format=text
 //    -skip-expansions` once per object and build, cached under `.cache/select/covmap/`, gives each
 //    function's file and first line. A function in a file `nv-scan` read maps to the innermost item whose
@@ -120,21 +120,39 @@ export function namesFromShow(text: string): string[] {
   return out;
 }
 
-/** Merges `profraws` into `out` and returns the names of the functions that ran. The list of inputs goes
- * through a file, since a test binary can leave more of them than a command line holds. */
-export async function executedNames(profraws: string[], out: string): Promise<string[]> {
-  if (profraws.length === 0) return [];
+/** The names of the records of a text profile (`llvm-profdata merge -text`): each line that the line
+ * `# Func Hash:` follows. */
+export function namesFromText(text: string): string[] {
+  const out: string[] = [];
+  const lines = text.split("\n");
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (lines[i + 1]!.replace(/\r$/, "") !== "# Func Hash:") continue;
+    out.push(lines[i]!.replace(/\r$/, ""));
+  }
+  return out;
+}
+
+/** Runs `llvm-profdata merge -sparse` over `profraws` into `out`, with `extra` flags. The list of inputs
+ * goes through a file, since a test binary can leave more of them than a command line holds. */
+export async function mergeProfiles(profraws: string[], out: string, extra: string[] = []): Promise<void> {
   const list = `${out}.inputs`;
   writeFileSync(list, profraws.join("\n") + "\n");
   try {
-    const merged = await run([llvmTool("llvm-profdata"), "merge", "-sparse", `--input-files=${list}`, "-o", out], { timeoutMs: 600_000 });
+    const merged = await run([llvmTool("llvm-profdata"), "merge", "-sparse", ...extra, `--input-files=${list}`, "-o", out], { timeoutMs: 600_000 });
     if (merged.code !== 0) throw new Error(`llvm-profdata merge failed:\n${merged.stderr}`);
-    const shown = await run([llvmTool("llvm-profdata"), "show", "--all-functions", out], { timeoutMs: 600_000 });
-    if (shown.code !== 0) throw new Error(`llvm-profdata show failed:\n${shown.stderr}`);
-    return namesFromShow(shown.stdout);
   } finally {
     rmSync(list, { force: true });
   }
+}
+
+/** Merges `profraws` into the text profile `out` and returns the names of the functions that ran: one
+ * process, since a sparse profile keeps only the functions with a counter above zero. `merge` and then
+ * `show --all-functions` name the same functions (`tools/nv/test/extract.test.ts`), with a second
+ * process. */
+export async function executedNames(profraws: string[], out: string): Promise<string[]> {
+  if (profraws.length === 0) return [];
+  await mergeProfiles(profraws, out, ["-text"]);
+  return namesFromText(readFileSync(out, "utf8"));
 }
 
 /** `path` as a coverage location spells it: repo-relative, `gen:<package>/<name>` for a file under a
@@ -207,12 +225,12 @@ export class CovMap {
     return `${st.size} ${st.mtimeMs} ${st.ino}`;
   }
 
-  private async load(object: string, profdata: string): Promise<Map<string, CovLoc>> {
+  private async load(object: string, profdata: () => Promise<string>): Promise<Map<string, CovLoc>> {
     const cache = this.cacheFile(object);
     let map: Record<string, CovLoc>;
     if (existsSync(cache)) map = JSON.parse(readFileSync(cache, "utf8"));
     else {
-      const r = await run([llvmTool("llvm-cov"), "export", "-format=text", "-skip-expansions", "-instr-profile", profdata, object], { timeoutMs: 1_800_000 });
+      const r = await run([llvmTool("llvm-cov"), "export", "-format=text", "-skip-expansions", "-instr-profile", await profdata(), object], { timeoutMs: 1_800_000 });
       // An object built from no instrumented crate holds no coverage map; a name only it could place is
       // then unmapped, which widens.
       if (r.code !== 0 && r.stderr.includes("no coverage data found")) map = {};
@@ -251,11 +269,11 @@ export class CovMap {
     }
   }
 
-  /** Makes `objects` the ones names are looked up in, in that order, exporting any not cached with
-   * `profdata` as the profile `llvm-cov` asks for (any profile will do: every instrumented function of
-   * the object is listed, counted or not). An object whose file changed since its map was read has its
-   * map read again. */
-  async ensure(objects: string[], profdata: string): Promise<void> {
+  /** Makes `objects` the ones names are looked up in, in that order, exporting any not cached with the
+   * indexed profile `profdata` makes, which is called only then (any profile will do: every
+   * instrumented function of the object is listed, counted or not). An object whose file changed since
+   * its map was read has its map read again. */
+  async ensure(objects: string[], profdata: () => Promise<string>): Promise<void> {
     for (const object of objects) {
       const id = this.identity(object);
       const held = this.maps.get(object);
@@ -364,15 +382,19 @@ export async function extract(rec: Recorded, objects: string[], covmap: CovMap, 
   let executed = 0;
   let unmapped = 0;
   if (rec.profraws.length > 0) {
+    const proftext = join(scratch, `${rec.name}.proftext`);
     const profdata = join(scratch, `${rec.name}.profdata`);
+    let indexed: Promise<string> | null = null;
     try {
-      const names = await executedNames(rec.profraws, profdata);
+      const names = await executedNames(rec.profraws, proftext);
       executed = names.length;
-      await covmap.ensure(objects, profdata);
+      // `llvm-cov` reads only an indexed profile, so one is merged when a map is not cached.
+      await covmap.ensure(objects, () => (indexed ??= mergeProfiles(rec.profraws, profdata).then(() => profdata)));
       const got = namesToKeys(names, { get: (n) => covmap.get(n, objects) }, index, generated);
       unmapped = got.unmapped;
       for (const [k, d] of got.keys) keys.set(k, d);
     } finally {
+      rmSync(proftext, { force: true });
       rmSync(profdata, { force: true });
     }
   }

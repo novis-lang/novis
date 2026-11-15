@@ -311,7 +311,7 @@ describe("the readers a recorded run needs", () => {
       const build = async (content: string, name: string) => {
         s.put("obj.bin", content);
         s.put(`covmap/${cacheFile(obj).split(/[\\/]/).pop()}`, JSON.stringify({ [name]: ["src/a.rs", 1, 2] }));
-        await cm.ensure([obj], join(s.root, "unused.profdata"));
+        await cm.ensure([obj], async () => join(s.root, "unused.profdata"));
       };
       await build("first build", "_RNvCsOLD_3pkg3run");
       expect(cm.get("_RNvCsOLD_3pkg3run")).toEqual(["src/a.rs", 1, 2]);
