@@ -14,7 +14,7 @@ stages:
     context: [.github/workflows/ci.yml]
   - id: 3
     title: the pre-push checks run side by side and once per tree
-    status: open
+    status: done
     context: [tools/nv/cmd/ci.ts, tools/nv/cmd/verify.ts, tools/nv/select/change.ts]
   - id: 4
     title: a selection reads the tree once
@@ -174,15 +174,15 @@ themselves, as `file.ts:NN`, before the first edit.
 **Does:** run the checks that need no build together, remember a green tree, and skip what verify
 has just proved.
 
-- [ ] `tools/nv/cmd/ci.ts:825`: the checks ahead of `cargo doc` start together, bounded, and print
+- [x] `tools/nv/cmd/ci.ts:825`: the checks ahead of `cargo doc` start together, bounded, and print
   in list order (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/cmd/ci.ts:851`: a green `--check` writes a stamp of `HEAD` and the tree signature of
+- [x] `tools/nv/cmd/ci.ts:851`: a green `--check` writes a stamp of `HEAD` and the tree signature of
   `tools/nv/select/change.ts:132` under `.agent-tmp/ci/`, and `--push` skips a check stamped green
   for that exact tree (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/cmd/ci.ts:289`: a check whose step atom is green and unselected in the store is
+- [x] `tools/nv/cmd/ci.ts:289`: a check whose step atom is green and unselected in the store is
   skipped, as `tools/nv/cmd/verify.ts:349` decides it. `chapter examples` is not skipped, because it
   runs another binary (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/test/ci.test.ts:1`: the two tests of the check `pre-push-once`.
+- [x] `tools/nv/test/ci.test.ts:1`: the two tests of the check `pre-push-once`.
 
 ### 4. a selection reads the tree once
 
@@ -241,37 +241,39 @@ the x86_64 gap.
 
 ### State
 
-Stages 1 and 2 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0, stage 5:
+Stages 1 to 3 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0, stage 5:
 0, stage 6: 0.
 
-- `nvs-debug` (`.github/workflows/ci.yml:703`) builds `-p nvs-cli` per OS from the `<os>-conformance`
-  cache and uploads it for a day. The six jobs download it and `chmod +x` it off Windows.
-- The browser job ran `--bin nvs` before. If a browser suite goes red on the push for a feature only
-  the workspace build unified, that is the cause.
-- `tested` (`:97`) runs in the nightly alone. Sixteen jobs skip when it finds a green push run of
-  the commit from the last day; `tools/nv/test/ci-push-builds.test.ts` pins the kept list.
-  `build.yml` takes `musl-only`; `release.yml`'s `test` job grants `actions: read`.
-- Minutes the goal end's push should show saved: stage 1's 34 (unsafe audit), 15 (flood), 12
-  (musl) and 9 (`wit-bindgen`), the bench and doc tests' share of the 53.1-minute wall, and stage
-  2's 38.7 of `nvs` rebuilds less the transfers. If the Linux transfer costs more, keep the artifact
-  on Windows and macOS only. If `conformance 2/2` becomes the wall, the goal end records it.
-- `build.yml`'s matrix expressions were parsed locally; GitHub first evaluates them on the push.
-- The sweep's `env-secret-proofs` has no check in the tree or any goal: a stale looper check.
+- Stage 3: `--push` runs no check when `STAMP` names the pushed commit and tree; `--check` always
+  runs, so `ci-check` still meets a new advisory. `build` is never skipped: verify builds
+  `target/covws`. `pool` now lives in `tools/nv/lib/proc.ts`.
+- Stage 2 broke `parseLegs` (the `fromJSON` matrix of `build.yml`); stage 3's commit fixed it.
+- `nvs-debug` (`.github/workflows/ci.yml:703`) feeds six jobs per OS. If a browser suite goes red on
+  the push for a feature only the workspace build unified, that is the cause.
+- `tested` (`:97`) runs in the nightly alone; `tools/nv/test/ci-push-builds.test.ts` pins the kept
+  list. `build.yml`'s matrix expressions first run on GitHub at the push.
+- Minutes the goal end's push should show saved: stage 1's 34, 15, 12 and 9, the bench and doc
+  tests' share of the 53.1-minute wall, and stage 2's 38.7 less the transfers. If the Linux transfer
+  costs more, keep the artifact on Windows and macOS only.
+- The sweep's `env-secret-proofs` is stale looper state: `looper check` says "no check matches".
 
 ### Next
 
-Stage 3, in one session. The file is `tools/nv/cmd/ci.ts`; its anchors are unchanged.
+Stage 4, in one session. The files are `tools/nv/accept/runner.ts`, `tools/nv/cmd/affected.ts`,
+`tools/nv/select/select.ts` and `tools/nv/select/record.ts`. The stage's anchors are unchanged.
+`record.ts:50` is `privateDir`, and its callers are `record.ts:128` and `:184`.
 
-- [ ] `tools/nv/cmd/ci.ts:825`: the checks ahead of `cargo doc` start together, bounded, and print
-  in list order.
-- [ ] `tools/nv/cmd/ci.ts:851`: a green `--check` writes a stamp of `HEAD` and the tree signature of
-  `tools/nv/select/change.ts:132` under `.agent-tmp/ci/`, and `--push` skips a check stamped green.
-- [ ] `tools/nv/cmd/ci.ts:289`: a check whose step atom is green and unselected is skipped, as
-  `tools/nv/cmd/verify.ts:349` decides it. `chapter examples` is not skipped.
-- [ ] `tools/nv/test/ci.test.ts:1`: the two tests of the check `pre-push-once`.
+- [ ] `tools/nv/accept/runner.ts:221`: `PlanSweep.open` takes the graph and the change that
+  `tools/nv/cmd/affected.ts:187` read.
+- [ ] `tools/nv/select/select.ts:356`: one `rev-parse` for the three revisions, and one
+  `ls-files --others` shared with `tools/nv/select/change.ts:124`.
+- [ ] `tools/nv/select/select.ts:771`: `discover` marks cases, proofs, benches and Novis tests
+  complete.
+- [ ] `tools/nv/cmd/verify.ts:600`: the cache parent is made private once, through
+  `tools/nv/select/record.ts:50`.
 
-No test is expected to go red. `tools/nv/test/ci-push-builds.test.ts` and `deep.test.ts` were run
-by name after stage 2 and are green.
+No test is expected to go red. `tools/nv/test/ci.test.ts` ran by name after stage 3: 72 pass, and
+`looper check --name pre-push-once` is green.
 
 ### Backlog
 
