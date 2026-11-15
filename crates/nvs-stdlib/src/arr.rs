@@ -3337,13 +3337,8 @@ nvs_runtime::nvs_helper! {
         let (start, end) = window(base.count(), &args[1], &args[2], "slice")?;
 
         let mut out = NvsArray::with_capacity(end.saturating_sub(start));
-        // With no holes, the entry at position `start` is at slot `start`, so
-        // the walk starts there and never steps over the entries before it.
-        let (mut from, mut position) = if base.slot_end() == base.count() {
-            (start, start)
-        } else {
-            (0usize, 0usize)
-        };
+        let mut from = 0usize;
+        let mut position = 0usize;
         while position < end {
             let Some(slot) = base.next_slot(from) else {
                 break;
@@ -3393,13 +3388,8 @@ nvs_runtime::nvs_helper! {
 
         // Three walks, one per part, exactly as `crate::str`'s member is three
         // pushes: the head, the replacement, then the tail. The window itself
-        // is walked only to step over it. The result is a list of known
-        // length, so its room is taken once.
-        let mut out = NvsArray::with_capacity(
-            base.count()
-                .saturating_sub(end.saturating_sub(start))
-                .saturating_add(replacement.count()),
-        );
+        // is walked only to step over it.
+        let mut out = NvsArray::new();
         let mut from = 0usize;
         let mut position = 0usize;
         while position < start {
@@ -3523,14 +3513,7 @@ nvs_runtime::nvs_helper! {
     /// untouched either way, since this member builds a result.
     fn nvs_core_arr_append(_ctx, args: [2]) {
         let base = subject(args, "append")?;
-        // A list subject gives a list result of known length, so its room is
-        // taken once. Other subjects store their keys, and a list's room
-        // would be dropped unused.
-        let mut out = if is_packed(&base) {
-            NvsArray::with_capacity(base.count().saturating_add(count_of(&args[1])))
-        } else {
-            NvsArray::new()
-        };
+        let mut out = NvsArray::new();
         copy_all(&base, &mut out);
         for_each_trailing(&args[1], "append", |value| {
             append_borrowed_or_refuse(&mut out, value)
@@ -3564,7 +3547,7 @@ nvs_runtime::nvs_helper! {
     /// subject.
     fn nvs_core_arr_prepend(_ctx, args: [2]) {
         let base = subject(args, "prepend")?;
-        let mut out = NvsArray::with_capacity(count_of(&args[1]).saturating_add(base.count()));
+        let mut out = NvsArray::new();
         for_each_trailing(&args[1], "prepend", |value| {
             append_borrowed(&mut out, value);
             Ok(())
@@ -5065,10 +5048,6 @@ fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::Ordering, F
 /// and over an index permutation rather than the values so nothing is moved
 /// twice. [`nvs_core_arr_sort`] owns why this exists at all instead of
 /// `slice::sort_by`.
-///
-/// Each pass reads one buffer and writes the other, and the two swap roles
-/// for the next pass. The result is copied back once, at the end, where it is
-/// in the scratch buffer.
 pub(crate) fn merge_sort<F>(permutation: &mut [usize], compare: &mut F) -> Result<(), Fault>
 where
     F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
@@ -5077,56 +5056,23 @@ where
     if len < 2 {
         return Ok(());
     }
-    let mut scratch = vec![0usize; len];
-    let mut in_scratch = false;
+    let mut buffer = vec![0usize; len];
     let mut width = 1;
     while width < len {
-        if in_scratch {
-            merge_pass(&scratch, permutation, width, compare)?;
-        } else {
-            merge_pass(permutation, &mut scratch, width, compare)?;
-        }
-        in_scratch = !in_scratch;
-        width *= 2;
-    }
-    if in_scratch {
-        permutation.copy_from_slice(&scratch);
-    }
-    Ok(())
-}
-
-/// One pass of [`merge_sort`]: every pair of runs of `width` in `from`,
-/// merged into the same positions of `to`.
-///
-/// A pair whose left run ends at or below where its right run starts is
-/// already in order, and is copied with one comparison. Sorted input is then
-/// one comparison per pair.
-fn merge_pass<F>(
-    from: &[usize],
-    to: &mut [usize],
-    width: usize,
-    compare: &mut F,
-) -> Result<(), Fault>
-where
-    F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
-{
-    let len = from.len();
-    let mut start = 0;
-    while start < len {
-        let middle = (start + width).min(len);
-        let end = (start + 2 * width).min(len);
-        if middle == end || compare(from[middle - 1], from[middle])? != std::cmp::Ordering::Greater
-        {
-            to[start..end].copy_from_slice(&from[start..end]);
-        } else {
+        let mut start = 0;
+        while start < len {
+            let middle = (start + width).min(len);
+            let end = (start + 2 * width).min(len);
             merge(
-                &from[start..middle],
-                &from[middle..end],
-                &mut to[start..end],
+                &permutation[start..middle],
+                &permutation[middle..end],
+                &mut buffer[start..end],
                 compare,
             )?;
+            start = end;
         }
-        start = end;
+        permutation.copy_from_slice(&buffer);
+        width *= 2;
     }
     Ok(())
 }
@@ -5655,20 +5601,6 @@ fn for_each_trailing(
         each(value)?;
     }
     Ok(())
-}
-
-/// How many entries an array argument has, or `0` where it is not one. The
-/// walk that reads the argument reports the wrong tag.
-fn count_of(value: &Value) -> usize {
-    value.array_ptr().map_or(0, |array| borrowed(array).count())
-}
-
-/// Whether `array` stores its entries as a list, so that a copy of it, key
-/// and all, is a list too. Only a list gives a [`SlotKey::Index`].
-fn is_packed(array: &NvsArray) -> bool {
-    array
-        .next_slot(0)
-        .is_none_or(|slot| matches!(array.slot_key(slot), Some(SlotKey::Index(_))))
 }
 
 /// Copies every entry of `subject` into `out`, key and all — [`copy_entry`]
