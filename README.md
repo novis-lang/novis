@@ -128,7 +128,9 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-Nothing is planned after the current release yet.
+The work is in the order it is planned. The order can change.
+
+1. **Faster starts and faster requests.** *Working on it now.* A small program starts without loading what it does not use. Compiled code calls fewer helper functions, and a request waits less. The editor and the type checker do less work for each change.
 <!-- roadmap:end -->
 
 ## Contributing

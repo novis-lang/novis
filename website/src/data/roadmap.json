@@ -1,5 +1,11 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
-  "internal": [],
-  "themes": []
+  "internal": ["cheaper-pipeline", "one-copy-each"],
+  "themes": [
+    {
+      "title": "Faster starts and faster requests",
+      "text": "A small program starts without loading what it does not use. Compiled code calls fewer helper functions, and a request waits less. The editor and the type checker do less work for each change.",
+      "goals": ["fast-start", "lean-generated-code", "fewer-round-trips", "lean-members-and-checker"]
+    }
+  ]
 }
