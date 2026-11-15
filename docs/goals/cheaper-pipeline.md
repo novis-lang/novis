@@ -6,7 +6,7 @@ context: [.github/workflows/ci.yml, tools/nv/cmd/ci.ts, tools/nv/cmd/verify.ts, 
 stages:
   - id: 1
     title: a job that gates nothing runs nightly
-    status: open
+    status: done
     context: [.github/workflows/ci.yml, .github/workflows/build.yml, docs/rules/testing.md]
   - id: 2
     title: the jobs that only need the binary share one build
@@ -142,17 +142,17 @@ in order. Stage 6 touches only `crates/` and can run as a side goal.
 **Does:** move three jobs off the push path, install `wit-bindgen` prebuilt, and take the bench and
 doc tests off the slowest leg.
 
-- [ ] `.github/workflows/ci.yml:1294`: `unsafe-audit` runs on `schedule` and `workflow_dispatch`,
+- [x] `.github/workflows/ci.yml:1294`: `unsafe-audit` runs on `schedule` and `workflow_dispatch`,
   and leaves the `needs` list at `:1740` (`rule:testing/every-run-runs-every-job`).
-- [ ] `.github/workflows/ci.yml:1327`: the flood job, the same way
+- [x] `.github/workflows/ci.yml:1327`: the flood job, the same way
   (`rule:testing/every-run-runs-every-job`).
-- [ ] `.github/workflows/build.yml:83`: the musl leg builds in the nightly and in `release.yml` only
+- [x] `.github/workflows/build.yml:83`: the musl leg builds in the nightly and in `release.yml` only
   (`rule:testing/every-run-runs-every-job`).
-- [ ] `docs/rules/testing.md:1`: the rule's fragment gains the sentence, and `bun nv rules --render`
+- [x] `docs/rules/testing.md:1`: the rule's fragment gains the sentence, and `bun nv rules --render`
   writes the chapter (`rule:testing/every-run-runs-every-job`).
-- [ ] `.github/workflows/ci.yml:803`: `wit-bindgen` 0.63.0 is downloaded and checked by SHA-256, as
+- [x] `.github/workflows/ci.yml:803`: `wit-bindgen` 0.63.0 is downloaded and checked by SHA-256, as
   the nextest step is (`rule:testing/every-run-runs-every-job`).
-- [ ] `.github/workflows/ci.yml:303`: the bench and doc tests run in the Linux `conformance 2/2` leg
+- [x] `.github/workflows/ci.yml:303`: the bench and doc tests run in the Linux `conformance 2/2` leg
   (`rule:testing/every-run-runs-every-job`).
 
 ### 2. the jobs that only need the binary share one build
@@ -163,8 +163,8 @@ repeating a tested commit.
 **Split:** an `Explore` subagent lists every `cargo` call the six jobs' `bun nv` commands make
 themselves, as `file.ts:NN`, before the first edit.
 
-- [ ] `.github/workflows/ci.yml:806`: a `nvs-debug` job per OS uploads the binary, and the jobs at
-  `:690`, `:877`, `:939`, `:1219` and `:1528` download it
+- [ ] `.github/workflows/ci.yml:835`: a `nvs-debug` job per OS uploads the binary, and the jobs at
+  `:703`, `:907`, `:969`, `:1248` and `:1563` download it
   (`rule:testing/every-run-runs-every-job`).
 - [ ] `.github/workflows/ci.yml:13`: a scheduled run whose commit has a green push run from the last
   day runs the outside-world jobs only (`rule:testing/every-run-runs-every-job`).
@@ -241,18 +241,39 @@ the x86_64 gap.
 
 ### State
 
-Nothing is built. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0,
+Stage 1 is done. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0,
 stage 6: 0.
+
+- `unsafe-audit` and `flood` carry `if: github.event_name == 'schedule' || github.event_name ==
+  'workflow_dispatch'` and are off `dev-image`'s `needs`. A release still runs them, since its call
+  of `ci.yml` is a dispatch.
+- `build.yml`'s matrix is one JSON list in `fromJSON(format(...))`, and the musl row is appended
+  when `inputs.version` is set or the event is `schedule` or `workflow_dispatch`. A matrix row
+  cannot carry an `if`, and an `exclude` cannot drop an `include` row. Both outcomes were parsed
+  locally. GitHub's evaluation is first seen in the goal end's push.
+- `wit-bindgen` comes from its GitHub release with the SHA-256 GitHub lists for each asset. The
+  Windows asset is a zip, unpacked with Git Bash's `unzip`.
+- The bench and doc tests left the Linux x86_64 `tests` leg, the wall time, for its
+  `conformance 2/2` leg. The other platforms' first `tests` leg keeps them.
+- Minutes the goal end's push should show saved: about 34 for the unsafe audit, 15 for flood, 12
+  for musl, about 9 for `wit-bindgen`, and the bench and doc tests' share of the 53.1-minute wall.
+  The `conformance 2/2` leg grows by their build, from a cache entry that holds fewer of their
+  dependencies. If that leg becomes the new wall, the goal end records it here.
+- The sweep's `env-secret-proofs` has no check in the tree or any goal: a stale looper check.
 
 ### Next
 
-Stage 1, in one session. The files are `.github/workflows/ci.yml`, `.github/workflows/build.yml`
-and `docs/rules/testing.md`.
+Stage 2, in one session. The file is `.github/workflows/ci.yml`.
 
-- [ ] `.github/workflows/ci.yml:1294`: the unsafe audit moves to the nightly.
-- [ ] `.github/workflows/ci.yml:1327`: the flood job moves to the nightly.
-- [ ] `.github/workflows/build.yml:83`: the musl leg moves to the nightly and the release.
-- [ ] `.github/workflows/ci.yml:803`: `wit-bindgen` prebuilt.
+- [ ] `tools/nv/main.ts:1`: before the first edit, an `Explore` subagent lists every `cargo` call
+  the six jobs' `bun nv` commands make themselves, as `file.ts:NN`.
+- [ ] `.github/workflows/ci.yml:835`: a `nvs-debug` job per OS builds `cargo build --bin nvs` and
+  uploads it. The browser (`:703`), extension (`:907`), extension-host (`:969`), reference
+  (`:1248`) and valgrind (`:1563`) jobs, and ext-templates (`:835`), download it.
+- [ ] `.github/workflows/ci.yml:14`: a scheduled run whose commit has a green push run from the last
+  day runs the outside-world jobs only.
+
+No test is expected to go red.
 
 ### Backlog
 
