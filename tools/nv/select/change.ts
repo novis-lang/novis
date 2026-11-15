@@ -44,9 +44,30 @@ export async function hasCommit(rev: string, root: string = ROOT): Promise<boole
   throw new Error(`git rev-parse --verify --quiet ${rev}^{commit}: exit ${r.code}\n${r.stderr.trim()}`);
 }
 
+/** The commit each of `revs` names, in full, or null for one the repository does not have, from one
+ * `git cat-file --batch-check`: one process however many revisions a change reads. Any other failure of
+ * git throws. */
+export async function commitsOf(revs: readonly string[], root: string = ROOT): Promise<(string | null)[]> {
+  if (revs.length === 0) return [];
+  const r = await run(["git", "cat-file", "--batch-check=%(objectname)"], { cwd: root, timeoutMs: 120_000, input: revs.map((v) => `${v}^{commit}\n`).join("") });
+  if (r.code !== 0) throw new Error(`git cat-file --batch-check: exit ${r.code}\n${r.stderr.trim()}`);
+  const lines = r.stdout.split("\n");
+  // A revision git cannot name prints `<rev>^{commit} missing` (or `ambiguous`) in place of a name.
+  return revs.map((_, i) => {
+    const line = (lines[i] ?? "").trim();
+    return /^[0-9a-f]{40,64}$/.test(line) ? line : null;
+  });
+}
+
+/** Every untracked path that is not ignored, from one `git ls-files --others`. A caller that reads the
+ * tree and a change from it lists them once and hands the list to both (`snapshot`, `changedPaths`). */
+export async function untrackedPaths(root: string = ROOT): Promise<string[]> {
+  return (await git(["ls-files", "--others", "--exclude-standard", "-z"], root)).split("\0").filter((p) => p !== "");
+}
+
 /** Every path that differs between the commit `since` and the working tree, untracked files included,
- * sorted by path. */
-export async function changedPaths(since: string, root: string = ROOT): Promise<Change[]> {
+ * sorted by path. `untracked` is the list `untrackedPaths` read, when the caller has one. */
+export async function changedPaths(since: string, root: string = ROOT, untracked?: readonly string[]): Promise<Change[]> {
   const out = new Map<string, Status>();
   const diff = await git(["diff", "--name-status", "--no-renames", "-z", since, "--"], root);
   const parts = diff.split("\0");
@@ -56,8 +77,7 @@ export async function changedPaths(since: string, root: string = ROOT): Promise<
     if (!path) continue;
     out.set(path, code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : "modified");
   }
-  const untracked = await git(["ls-files", "--others", "--exclude-standard", "-z"], root);
-  for (const path of untracked.split("\0")) if (path) out.set(path, "added");
+  for (const path of untracked ?? (await untrackedPaths(root))) out.set(path, "added");
   return [...out].map(([path, status]) => ({ path, status })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
@@ -120,11 +140,12 @@ export function sinceOverlay(changes: Change[], overlay: Overlay, root: string =
 }
 
 /** The tree as it is now, as a store records it: `HEAD`, and each path that differs from it with the
- * digest of its bytes, or null for a path `HEAD` has and the disk does not. */
-export async function snapshot(root: string = ROOT): Promise<{ commit: string; overlay: Overlay }> {
-  const commit = await commitOf("HEAD", root);
+ * digest of its bytes, or null for a path `HEAD` has and the disk does not. `known` is `HEAD`'s commit
+ * and the untracked paths, when the caller has read them already. */
+export async function snapshot(root: string = ROOT, known?: { head: string; untracked: readonly string[] }): Promise<{ commit: string; overlay: Overlay }> {
+  const commit = known?.head ?? (await commitOf("HEAD", root));
   const overlay: Overlay = {};
-  for (const c of await changedPaths(commit, root)) overlay[c.path] = c.status === "deleted" ? null : diskDigest(c.path, root);
+  for (const c of await changedPaths(commit, root, known?.untracked)) overlay[c.path] = c.status === "deleted" ? null : diskDigest(c.path, root);
   return { commit, overlay };
 }
 

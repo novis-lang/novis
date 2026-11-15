@@ -39,7 +39,7 @@ import { buildScripts, envReaders, generatedDigest, generatedIncludes, generated
 import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY } from "../proofs/ledger.ts";
 import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
-import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, hasCommit, namedChanges, sinceOverlay, snapshot, treeSig } from "./change.ts";
+import { blobAt, type Change, changedBetween, changedPaths, commitsOf, diskDigest, namedChanges, sinceOverlay, snapshot, treeSig, untrackedPaths } from "./change.ts";
 import { diffFile, referenceWalk, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
 import { ALL_CARDS, ALL_CLASSES, ALL_COMPONENTS, BUILTINS_READ, builtinComponents, componentKeys, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
@@ -332,7 +332,7 @@ export interface ChangeOptions {
   root?: string;
   /** A tree an atom's last run was taken at, to read the change since in place of the base's, with
    * every Rust file's items now (the change since the base's `view`) and the tree as it is now. */
-  from?: { tree: RunTree; view: Map<string, FileItems>; now: { commit: string; overlay: Overlay } };
+  from?: { tree: RunTree; view: Map<string, FileItems>; now: { commit: string; overlay: Overlay }; untracked?: readonly string[] };
 }
 
 /** A change that moves nothing, read at the tree `view` is of. */
@@ -353,14 +353,31 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const base = from ? from.tree.commit : store.base();
   const sinceRev = opts.since ?? base;
   if (!sinceRev) throw new Error("the store has no recorded tree: run `bun nv select --seed` first, or name one with --since");
-  if (!from && opts.since === undefined && !opts.until && !opts.paths && !(await hasCommit(sinceRev, root))) return lostBase(store, sinceRev, opts.graph === undefined ? await metadata() : opts.graph, root);
-  const since = await commitOf(sinceRev, root);
-  const until = opts.until ? await commitOf(opts.until, root) : null;
+  const fromBase = opts.since === undefined && !opts.until && !opts.paths;
+  // One `cat-file` resolves every revision this read names: the commit compared with, the one replayed,
+  // `HEAD` for the tree as it is now, and the base when it is not the commit compared with.
+  const readsTree = !opts.until && !from;
+  const checksBase = !from && base !== null && !fromBase && base !== sinceRev;
+  const revs = [sinceRev, ...(opts.until ? [opts.until] : []), ...(readsTree ? ["HEAD"] : []), ...(checksBase ? [base!] : [])];
+  // One `ls-files --others` serves the tree and the change since `since` alike.
+  const untracked = from?.untracked ?? (readsTree || (!opts.until && !opts.paths) ? await untrackedPaths(root) : undefined);
+  const commits = await commitsOf(revs, root);
+  const named = (i: number): string => {
+    const c = commits[i];
+    if (c === null || c === undefined) throw new Error(`git cannot name the commit ${revs[i]}`);
+    return c;
+  };
+  if (commits[0] === null && !from && fromBase) {
+    const head = named(1);
+    return lostBase(store, sinceRev, opts.graph === undefined ? await metadata() : opts.graph, root, { head, untracked: untracked ?? [] });
+  }
+  const since = named(0);
+  const until = opts.until ? named(1) : null;
   // The tree is taken first, so a file written while the change is read is a change again next time.
-  const tree = until ? undefined : from ? from.now : await snapshot(root);
-  const fromBase = opts.since === undefined && !until && !opts.paths;
+  const tree = until ? undefined : from ? from.now : await snapshot(root, { head: named(1), untracked: untracked ?? [] });
+  const baseCommit = checksBase ? commits[revs.length - 1] : since;
   const overlay = from ? from.tree.overlay : store.overlay();
-  let changes = until ? await changedBetween(since, until, root) : opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root);
+  let changes = until ? await changedBetween(since, until, root) : opts.paths ? await namedChanges(opts.paths, since, root) : await changedPaths(since, root, untracked);
   if (fromBase) changes = sinceOverlay(changes, overlay, root);
   const moved: Moved = new Map();
   const emit = (key: string, origin: Origin) => {
@@ -392,7 +409,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   // Since a stamped tree: each file of its overlay as that tree keeps it, and every other file as its
   // commit holds it. A Rust file of the overlay the tree keeps no items for is taken whole.
   const unknown: string[] = [];
-  const scanIsSince = !from && base !== null && (fromBase || (since === (await commitOf(base, root)) && Object.keys(store.overlay()).length === 0));
+  const scanIsSince = !from && base !== null && (fromBase || (since === baseCommit && Object.keys(store.overlay()).length === 0));
   if (from) {
     before = new Map();
     const kept = new Map(from.tree.items.map((f) => [f.file, f]));
@@ -484,7 +501,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     const pkg = c.how === "added" && isTest(c.item) ? scope.pkgOf(c.file) : null;
     if (pkg && graph) for (const name of landsIn(graph, pkg, c.file)) emit(testsKey(name), { path: c.file, item: c.id, how: c.how });
   }
-  const stamped = fromBase && !from && tree ? await sinceStamps(store, tree, view, graph, root) : undefined;
+  const stamped = fromBase && !from && tree ? await sinceStamps(store, tree, view, graph, root, untracked) : undefined;
   return {
     since,
     ...(until ? { until } : {}),
@@ -509,20 +526,21 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
  * An atom stamped with a tree git still has is read against the change since that tree, so a run killed
  * halfway keeps what it ran here too.
  */
-async function lostBase(store: SelectStore, base: string, graph: Graph | null, root: string): Promise<ChangeSet> {
-  const tree = await snapshot(root);
+async function lostBase(store: SelectStore, base: string, graph: Graph | null, root: string, known: { head: string; untracked: readonly string[] }): Promise<ChangeSet> {
+  const tree = await snapshot(root, known);
   const view = new Map(scanItems(await rustFiles(root), root).map((f) => [f.file, f]));
   const why = `the recorded tree ${base.slice(0, 12)} is no longer in the repository`;
-  const stamped = await sinceStamps(store, tree, view, graph, root);
+  const stamped = await sinceStamps(store, tree, view, graph, root, known.untracked);
   return { ...everything(view, why), rustFiles: view.size, tree, full: true, root, ...(stamped.size > 0 ? { stamped } : {}) };
 }
 
 /**
  * The change since each tree an atom is stamped with, to `now`, whose items `view` holds. The tree
  * `now` is moves nothing and the base's tree is left out. A tree whose row is gone, or whose change
- * cannot be read (its commit is no longer in the repository), moves everything.
+ * cannot be read (its commit is no longer in the repository), moves everything. `untracked` is the list
+ * the base's read took, which each stamped tree's change shares.
  */
-async function sinceStamps(store: SelectStore, now: { commit: string; overlay: Overlay }, view: Map<string, FileItems>, graph: Graph | null, root: string): Promise<Map<number, ChangeSet>> {
+async function sinceStamps(store: SelectStore, now: { commit: string; overlay: Overlay }, view: Map<string, FileItems>, graph: Graph | null, root: string, untracked?: readonly string[]): Promise<Map<number, ChangeSet>> {
   const out = new Map<number, ChangeSet>();
   const trees = store.stampTrees();
   if (trees.size === 0) return out;
@@ -534,7 +552,7 @@ async function sinceStamps(store: SelectStore, now: { commit: string; overlay: O
     else if (t.sig === nowSig) out.set(n, nothing(view));
     else if (t.sig !== baseSig) {
       try {
-        out.set(n, await computeChange(store, { graph, root, from: { tree: t.tree, view, now } }));
+        out.set(n, await computeChange(store, { graph, root, from: { tree: t.tree, view, now, ...(untracked ? { untracked } : {}) } }));
       } catch (e) {
         out.set(n, everything(view, `the tree its last run was taken at could not be compared: ${(e as Error).message.split("\n")[0]}`));
       }
@@ -768,7 +786,8 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
   const touched = (c: ChangeSet, id: string) => (touchers.get(c) ?? touchers.set(c, touchesDef(c)).get(c)!)(id);
   const complete = new Set(opts.complete ?? []);
   const listed = new Set(complete.size > 0 ? (opts.discovered ?? []) : []);
-  const present = (id: string, kind: AtomKind) => stillThere(id) && (!complete.has(kind) || listed.has(id));
+  // A kind the listing names in full is present exactly when it is listed: a set lookup, and no stat.
+  const present = (id: string, kind: AtomKind) => (complete.has(kind) ? listed.has(id) : stillThere(id));
   for (const a of atoms) {
     knownIds.add(a.id);
     if (!present(a.id, a.kind)) {
@@ -916,14 +935,15 @@ export interface Discovery {
 /**
  * The atoms that exist now, read from directory listings and the cargo graph the caller already has:
  * every case file, every proof program (`proofFiles`), every bench (`benchFiles`), every tools test file
- * and the tools' `tsc`, and every test binary cargo would build. No file is read. A plan check's own atom is the plan's, which the
- * sweep adds. The test binaries are listed in full when there is a graph, so a known one cargo no longer
- * builds is gone.
+ * and the tools' `tsc`, and every test binary cargo would build. No file is read. A plan check's own
+ * atom is the plan's, which the sweep adds. The cases, proof programs, benches and tools test files are
+ * listed in full, so `query` takes a known one as present by a set lookup and stats no file. The test
+ * binaries are listed in full when there is a graph, so a known one cargo no longer builds is gone.
  */
 export function discover(graph: Graph | null, root: string = ROOT): Discovery {
   const atoms = [...caseFiles(root).map(caseId), ...proofFiles(root).map(proofId), ...benchFiles(root).map(benchId), ...nvTestFiles(root).map(nvTestId), NV_TSC];
   for (const pkg of graph?.keys() ?? []) for (const b of testBinaries(graph!, pkg)) atoms.push(`test:${b.name}`);
-  return { atoms, complete: graph ? ["test"] : [] };
+  return { atoms, complete: ["case", "proof", "bench", "nvtest", ...(graph ? (["test"] as const) : [])] };
 }
 
 /** Counts of a selection: atoms per kind and reason, and the changed keys per kind. */

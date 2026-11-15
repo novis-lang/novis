@@ -213,7 +213,8 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
   const checks = found.goal.checks as Check[];
   const labels = new Map(found.goal.stages.map((s) => [s.number, `${s.number} ${s.title}`]));
   const label = (n: number) => labels.get(n) ?? String(n);
-  const sweep = await PlanSweep.open(checks, label, { full: false });
+  // The sweep reads the same store as `verifyPlan`, so the change and the graph it read are the sweep's.
+  const sweep = await PlanSweep.open(checks, label, { full: false, read: { graph, change: v.change } });
   try {
     const touched = touchesDef(sweep.sel.change);
     for (const c of checks) {

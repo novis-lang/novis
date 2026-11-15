@@ -177,6 +177,9 @@ export interface OpenOptions {
   /** The `nvs` every run uses in place of the covws build, which is then not built: `bun nv suite`'s
    * `NVS_BIN`. */
   nvs?: string;
+  /** The workspace graph and the change since the store's tree, when the caller has read them already
+   * over the same store: `bun nv affected` reads both for its verify half. Absent, `open` reads them. */
+  read?: { graph: Graph | null; change: ChangeSet };
 }
 
 /** One sweep over a plan: the change it reads, what that reaches, and the runs it makes. */
@@ -214,16 +217,20 @@ export class PlanSweep {
     private readonly o: OpenOptions,
   ) {}
 
-  /** Reads the change since the store's tree and what it reaches of `plan`, the whole plan's checks. A
-   * store with no tree, or one git can no longer name, reaches everything. */
+  /** Reads the change since the store's tree and what it reaches of `plan`, the whole plan's checks, or
+   * takes the ones `o.read` names. A store with no tree, or one git can no longer name, reaches
+   * everything. */
   static async open(plan: Check[], label: (n: number) => string, o: OpenOptions): Promise<PlanSweep> {
     const store = o.store ?? new SelectStore();
-    const graph = await metadata();
+    const graph = o.read ? o.read.graph : await metadata();
     let change: ChangeSet;
-    try {
-      change = store.base() === null ? await fullChange() : await computeChange(store, { graph });
-    } catch (e) {
-      change = await fullChange(ROOT, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
+    if (o.read) change = o.read.change;
+    else {
+      try {
+        change = store.base() === null ? await fullChange() : await computeChange(store, { graph });
+      } catch (e) {
+        change = await fullChange(ROOT, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
+      }
     }
     const ctx = planContext(store, graph);
     const groups = new Map(plan.map((c) => [c.id, grouped(c, ctx)]));

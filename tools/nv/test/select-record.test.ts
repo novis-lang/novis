@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { sinceOverlay } from "../select/change.ts";
+import { commitsOf, sinceOverlay } from "../select/change.ts";
+import { ROOT } from "../lib/paths.ts";
 import { CovMap, recordedIn, recordsIn, staleMaps } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
 import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, recordingOf, Recorder, redReason, unexplainedReds } from "../select/record.ts";
@@ -9,6 +10,17 @@ import { type ChangeSet, query } from "../select/select.ts";
 import { SelectStore, type Verdict } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
 import { scratch } from "./scratch.ts";
+
+describe("resolving the revisions a change reads", () => {
+  test("one call names every revision it can, and gives null for one the repository does not have", async () => {
+    const [head, missing, again, nonsense] = await commitsOf(["HEAD", "0".repeat(40), "HEAD", "no-such-ref-here"], ROOT);
+    expect(head).toMatch(/^[0-9a-f]{40,64}$/);
+    expect(again).toBe(head);
+    expect(missing).toBeNull();
+    expect(nonsense).toBeNull();
+    expect(await commitsOf([], ROOT)).toEqual([]);
+  });
+});
 
 describe("a recorded tree with an overlay", () => {
   test("a path the overlay names is changed when its bytes moved, and put back as the commit holds it too", () => {
