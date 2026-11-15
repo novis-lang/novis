@@ -3373,7 +3373,9 @@ mod tests {
         for round in 0..3 {
             for sql in [
                 format!("create temp table left_{round} (v integer)"),
-                format!("create temp trigger watching_{round} after insert on t begin select 1; end"),
+                format!(
+                    "create temp trigger watching_{round} after insert on t begin select 1; end"
+                ),
             ] {
                 conn.query(&sql, Vec::new())
                     .expect("the request's own statement runs");

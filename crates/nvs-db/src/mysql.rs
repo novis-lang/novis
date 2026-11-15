@@ -5904,11 +5904,7 @@ mod tests {
             [Some(0x1F), Some(0x02), Some(0x03), Some(0x03), Some(0x01)],
             "a destroyed connection wrote something other than its goodbye"
         );
-        assert_eq!(
-            wire.peer().flushes,
-            2,
-            "the reset and the goodbye"
-        );
+        assert_eq!(wire.peer().flushes, 2, "the reset and the goodbye");
     }
 
     /// `rule:security/db-pool-reset-is-a-boundary`'s default database and
@@ -5962,8 +5958,15 @@ mod tests {
         }));
         let mut cache = sized_cache(2);
 
-        super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", NO_ROLE, 0, &mut cache)
-            .expect("a reset the server acknowledged");
+        super::reset_session(
+            &mut wire,
+            CLIENT_CAPABILITIES,
+            "shop",
+            NO_ROLE,
+            0,
+            &mut cache,
+        )
+        .expect("a reset the server acknowledged");
         assert_eq!(wire.peer().flushes, 1, "the reset took more than one write");
         assert_eq!(
             wire.peer().read,
@@ -5979,9 +5982,15 @@ mod tests {
             Some(0x1F | 0x02 | 0x03) => packet(1, &ok_packet(0, 0)),
             other => panic!("the driver sent command {other:?}"),
         }));
-        let failed =
-            super::reset_session(&mut refused, CLIENT_CAPABILITIES, "shop", NO_ROLE, 0, &mut cache)
-                .expect_err("a reset passed with its last command refused");
+        let failed = super::reset_session(
+            &mut refused,
+            CLIENT_CAPABILITIES,
+            "shop",
+            NO_ROLE,
+            0,
+            &mut cache,
+        )
+        .expect_err("a reset passed with its last command refused");
         assert!(failed.to_string().contains("(code 1227)"), "{failed}");
     }
 
