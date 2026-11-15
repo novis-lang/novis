@@ -331,6 +331,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **Examples in one folder share its `disk` and run at the same time.** An example that printed
+  `Storage::list` of the whole disk also saw a file its sibling had just written, and `floor-debt`
+  went red on a refused DONE. An example that writes to a shared disk reads back only its own keys.
+  See `docs/examples/core/Storage/delete/03-remove-old-exports.nvs`.
 - **`Unit::call_static` gives the callee the caller's reference to each argument.** A test that
   passes a string, object or array and then reads `Value::refcount` sees one fewer holder than it
   expected, and once the callee's copies are released it reads freed memory. Keep a second holder

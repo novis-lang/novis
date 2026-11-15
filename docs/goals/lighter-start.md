@@ -236,6 +236,11 @@ The sweep's `env-secret-proofs` is stale state in looper's service, three sessio
 `looper check --name env-secret-proofs` finds no check, no log exists, and the only mention in the
 tree is this handoff. Nothing in the tree is red for it.
 
+The refused DONE's `floor-debt` was one red proof,
+`docs/examples/core/Storage/delete/03-remove-old-exports.nvs`. It listed the whole `files` disk,
+which `01-delete-a-file.nvs` writes to when the two run at the same time. It now checks only its
+own keys, and its output is unchanged in a run alone. `looper check --name floor-debt` is green.
+
 `cheaper-pipeline`'s goal-end push has not run: `main` is not pushed. Its runner-minutes are not
 recorded anywhere yet.
 

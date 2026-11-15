@@ -11,7 +11,12 @@ foreach (Core\Storage::list('files', { prefix: 'export-' }) as string $key) {
     echo 'deleted ', $key, "\n";
 }
 
-// Only the invoice is left. This prints `left: invoice-7.pdf`.
-echo 'left: ', Core\Str::join(Core\Storage::list('files'), ', '), "\n";
+// No export file is left. This prints `exports left: 0`.
+echo 'exports left: ', Core\Arr::count(Core\Storage::list('files', { prefix: 'export-' })), "\n";
+
+// The invoice is still on the disk. This prints `invoice kept`.
+if (Core\Storage::get('files', 'invoice-7.pdf') != null) {
+    echo "invoice kept\n";
+}
 
 Core\Storage::delete('files', 'invoice-7.pdf');
