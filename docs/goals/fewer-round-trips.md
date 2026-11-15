@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-host/src/net.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-stdlib/src/sse.rs]
   - id: 2
     title: "a result's rows share their keys, in one row loop"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/db/execute.rs, crates/nvs-stdlib/src/db/stream.rs, crates/nvs-stdlib/src/db/span.rs]
   - id: 3
     title: a pool reset and a batch wait for fewer answers
@@ -172,15 +172,21 @@ remove two wake-up costs of the bus.
 
 **Does:** build a result's keys once, and write the row loop once for all four drivers.
 
-- [ ] `crates/nvs-stdlib/src/db/execute.rs:605`: one generic row function, with keys built before
+- [x] `crates/nvs-stdlib/src/db/execute.rs:605`: one generic row function, with keys built before
   the loop and `NvsArray::with_capacity` per row. The loops at `:853`, `:968` and `:1194` call it
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/db/stream.rs:266`: the stream readers at `:336`, `:387` and `:448` use
+  - [x] `RowKeys` and `collected_rows` exist.
+  - [x] The four `*_rows` call `collected_rows` with one cell closure each.
+- [x] `crates/nvs-stdlib/src/db/stream.rs:266`: the stream readers at `:336`, `:387` and `:448` use
   the same keys (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/db/span.rs:169`: `slow_query` is parsed once per snapshot
+  - [x] A sixth slot, `keys`, keeps the walk's keys.
+  - [x] The four steps build their row with `RowKeys::row`.
+- [x] `crates/nvs-stdlib/src/db/span.rs:169`: `slow_query` is parsed once per snapshot
   (`rule:config/the-config-is-an-immutable-snapshot`).
-- [ ] `crates/nvs-stdlib/src/db/execute.rs:605`: the test `a_results_rows_share_one_set_of_keys`,
+  - [x] The resolved limits hold each block's threshold, read by `Snapshot::slow_query`.
+- [x] `crates/nvs-stdlib/src/db/execute.rs:605`: the test `a_results_rows_share_one_set_of_keys`,
   on SQLite (`rule:testing/perf-two-mechanisms`).
+  - [x] The test is written and green, run once by name.
 
 ### 3. a pool reset and a batch wait for fewer answers
 
@@ -258,33 +264,42 @@ sleep.
 
 ### State
 
-Stage 1 is done and committed, checked by `cargo build`, `cargo clippy --all-targets -- -D
-warnings`, and `an_accepted_and_a_connected_stream_send_without_delay` run once by name (green).
-Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0, stage 6: 0.
+Stages 1 and 2 are done and committed. Stage 2 was checked by `cargo build`, `cargo clippy
+--all-targets -- -D warnings`, and `a_results_rows_share_one_set_of_keys` run by name (green).
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0, stage 5: 0, stage 6: 0.
 
 - `send_at_once` and `dialled` in `crates/nvs-host/src/net.rs` are the one place `TCP_NODELAY` is
-  set. Every connect, the TCP `Accepting::accept` and `NvsTcp::from_std` go through them.
-- `joined` in `crates/nvs-stdlib/src/http/transport.rs` builds the one write; `exchange` writes the
-  rest with `write_body` only when it returns `None`.
-- `Core\Sse::receive` registers with `crate::bus::park_on_hand_off` and parks under `CLOSE_TICK`
-  (one second). The sweep's `env-secret-proofs` is stale state in looper's service: its log does
-  not exist and no goal in the tree defines it. Nothing in the tree can fix it.
+  set. `joined` in `crates/nvs-stdlib/src/http/transport.rs` builds a client request's one write.
+  `Core\Sse::receive` parks under `CLOSE_TICK` (one second).
+- `RowKeys` (`crates/nvs-stdlib/src/db/execute.rs:578`) makes a result's keys once, and
+  `collected_rows` (`:645`) is the one buffered row loop. A stream keeps its keys in the sixth slot,
+  `STREAM_KEYS_AT` (`crates/nvs-stdlib/src/db/mod.rs:585`), written by the first step with a row.
+  `Value::str_handle` in `crates/nvs-runtime/src/value.rs` reads a key back out of that slot.
+- A hashed array holds its key twice, in the entry and in the index, so a shared key has two
+  references per row. The test asserts the count grows with the rows, not an exact number.
+- `Snapshot::slow_query` (`crates/nvs-config/src/snapshot.rs:199`) reads each block's threshold
+  from the resolved limits cell.
+- The sweep's `env-secret-proofs` is stale state in looper's service: its log does not exist and no
+  goal in the tree defines it. Nothing in the tree can fix it.
 
 Tests that may go red at stage 7: an SSE case that waits less than one second for a stream whose
-client left to end (the close is now seen within `CLOSE_TICK`), and an HTTP client test that
-counts writes on the origin side for a small body.
+client left to end, an HTTP client test that counts writes on the origin side for a small body,
+and any test that builds `Core\Db\Stream` with five slots (`instance::build` asserts the count).
 
 ### Next
 
-Stage 2, in one session. The files are `crates/nvs-stdlib/src/db/execute.rs`,
-`crates/nvs-stdlib/src/db/stream.rs` and `crates/nvs-stdlib/src/db/span.rs`.
+Stage 3, in one session. The files are `crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/sqlite.rs`
+and `crates/nvs-cli/src/worker.rs`. The MySQL items run `bun nv db-matrix` once; with no server
+reachable, they are built, checked by build alone, and named here for CI.
 
-- [ ] `crates/nvs-stdlib/src/db/execute.rs:605`: one generic row function, keys built once; the
-  loops at `:853`, `:968` and `:1194` call it.
-- [ ] `crates/nvs-stdlib/src/db/stream.rs:266`: the readers at `:336`, `:387` and `:448` share the
-  keys.
-- [ ] `crates/nvs-stdlib/src/db/span.rs:169`: `slow_query` parsed once per snapshot.
-- [ ] `crates/nvs-stdlib/src/db/execute.rs:605`: the test `a_results_rows_share_one_set_of_keys`.
+- [ ] `crates/nvs-db/src/mysql.rs:2243`: `reset_session` sends the four reset packets in one flush
+  and reads the four answers in order.
+- [ ] `crates/nvs-db/src/sqlite.rs:1709`: `clean` uses `prepare_cached`, with the pragma text built
+  once.
+- [ ] `crates/nvs-cli/src/worker.rs:698`: `turn` claims again on the same queues after a round
+  that claimed a job, and asks the roster when a claim is empty.
+- [ ] `crates/nvs-db/src/mysql.rs:2795`: `execute_many` writes in windows of 64 KiB. One session;
+  not green means declined.
 
 ### Backlog
 
