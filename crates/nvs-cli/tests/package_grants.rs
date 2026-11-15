@@ -458,7 +458,7 @@ fn meter(manifest: &str, files: &[(&str, &str)]) -> Vec<u8> {
         .iter()
         .map(|(path, text)| nvs_ext::source::SourceFile {
             path: (*path).to_owned(),
-            text: (*text).to_owned(),
+            text: (*text).into(),
         })
         .collect();
     nvs_ext::pack::pack(&nvs_ext::pack::Inputs {

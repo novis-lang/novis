@@ -95,7 +95,7 @@ fn source_files(root: &Path, dir: &Path, out: &mut Vec<SourceFile>) {
             });
             out.push(SourceFile {
                 path: packed.to_owned(),
-                text: read(&path),
+                text: read(&path).into(),
             });
         }
     }

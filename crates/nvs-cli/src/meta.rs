@@ -696,7 +696,7 @@ fn builtin_json() -> (Vec<Value>, Vec<Value>) {
         let mut promoted = Vec::new();
         for file in &manifest.source {
             let mut map = SourceMap::new();
-            let id = map.add(file.path.as_str(), file.text.as_str());
+            let id = map.add(file.path.as_str(), &*file.text);
             let stmts = nvs_syntax::parse_file(map.file(id), &mut Diagnostics::new());
             // A source half is parsed, never checked, so no codec is known
             // and no class gets a `json` key.

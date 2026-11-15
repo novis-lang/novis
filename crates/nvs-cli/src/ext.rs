@@ -587,7 +587,7 @@ fn source_files(folder: &Path) -> Result<Vec<SourceFile>, String> {
             } else if path.extension().is_some_and(|ext| ext == "nvs") {
                 files.push(SourceFile {
                     path: relative,
-                    text: read_text(&path)?,
+                    text: read_text(&path)?.into(),
                 });
             }
         }

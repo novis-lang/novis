@@ -44,7 +44,8 @@ nvs-config = { workspace = true, optional = true }
 # Records which built-in component a run used, for observed selection.
 nvs-footprint.workspace = true
 rand ={ workspace = true, optional = true }
-serde.workspace = true
+# `rc` deserializes a source file's text into the `Arc<str>` every compile shares.
+serde = { workspace = true, features = ["rc"] }
 serde_json.workspace = true
 sha2.workspace = true
 wasmparser.workspace = true
@@ -58,7 +59,7 @@ wit-parser = { workspace = true, optional = true }
 # dependencies, `sha2` for the built-in components' pins and `brotli` for
 # their stored form.
 brotli.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["rc"] }
 serde_json.workspace = true
 sha2.workspace = true
 wasmparser.workspace = true

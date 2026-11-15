@@ -629,7 +629,7 @@ fn walk(
             // A loaded extension's source answers ahead of every root: it is
             // pinned with the component, so no line a program writes moves it.
             if let Some((display, text)) = carried.remove(&name) {
-                let new_id = map.add(display, text);
+                let new_id = map.add(display, &*text);
                 let new_stmts = parse_fresh(&mut parses, map.file(new_id), diags);
                 autoload::check_file_shape(&new_stmts, map.file(new_id), &name, span, diags);
                 work.push((new_id, new_stmts, 0, None));
@@ -703,8 +703,11 @@ fn walk(
 /// The source files `extensions` carry, keyed by the name each declares: the
 /// extension's namespace, then the path's directories, then its file name
 /// without `.nvs`. The value is the name a diagnostic prints, the class and
-/// the path, and the text.
-fn carried_source(extensions: &[ExtensionClass]) -> FxHashMap<QName, (String, String)> {
+/// the path, and the text, shared with the class and copied only into the
+/// source map of a file that is loaded.
+fn carried_source(
+    extensions: &[ExtensionClass],
+) -> FxHashMap<QName, (String, std::sync::Arc<str>)> {
     let mut carried = FxHashMap::default();
     for class in extensions {
         let segments = class.name.segments();
@@ -2659,7 +2662,7 @@ class Unreached {}
             consts: Vec::new(),
             source: vec![crate::symbol::ExtensionFile {
                 path: "Ledger/Receipt.nvs".to_owned(),
-                text: text.to_owned(),
+                text: text.into(),
             }],
             component: None,
         };

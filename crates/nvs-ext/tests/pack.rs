@@ -59,11 +59,11 @@ fn files() -> Vec<SourceFile> {
     vec![
         SourceFile {
             path: "Geo/Units.nvs".to_owned(),
-            text: "namespace Shop\\Geo;\n\nconst KM_PER_MILE = 1.609344;\n".to_owned(),
+            text: "namespace Shop\\Geo;\n\nconst KM_PER_MILE = 1.609344;\n".into(),
         },
         SourceFile {
             path: "Geo/Format.nvs".to_owned(),
-            text: "namespace Shop\\Geo;\n// \"quoted\" \u{e9}\t\n".to_owned(),
+            text: "namespace Shop\\Geo;\n// \"quoted\" \u{e9}\t\n".into(),
         },
     ]
 }
@@ -142,7 +142,7 @@ fn a_source_path_that_leaves_the_project_is_refused_by_the_packer() {
     ] {
         let files = [SourceFile {
             path: path.to_owned(),
-            text: "namespace Shop\\Geo;\n".to_owned(),
+            text: "namespace Shop\\Geo;\n".into(),
         }];
         let err = pack(&Inputs {
             wasm: &component(),

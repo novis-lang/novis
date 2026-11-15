@@ -71,8 +71,8 @@ pub struct ExtensionClass {
 pub struct ExtensionFile {
     /// The path under the extension's namespace, `/`-separated, ending in `.nvs`.
     pub path: String,
-    /// The file's contents.
-    pub text: String,
+    /// The file's contents, shared with the manifest it came from.
+    pub text: std::sync::Arc<str>,
 }
 
 /// One declared class, interface, trait, enum or `type` alias.

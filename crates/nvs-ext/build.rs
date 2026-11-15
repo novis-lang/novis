@@ -282,7 +282,7 @@ fn novis_source(folder: &Path) -> Result<Vec<source::SourceFile>, Malformed> {
         let name = path.file_name().unwrap_or_default().to_string_lossy();
         files.push(source::SourceFile {
             path: name.into_owned(),
-            text,
+            text: text.into(),
         });
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));

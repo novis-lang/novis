@@ -255,7 +255,7 @@ fn with_enums(enums: &str) -> String {
 fn file(path: &str) -> SourceFile {
     SourceFile {
         path: path.to_owned(),
-        text: String::new(),
+        text: "".into(),
     }
 }
 

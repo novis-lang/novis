@@ -38,8 +38,9 @@ pub struct Source {
 pub struct SourceFile {
     /// The file's path, relative to the extension's source root.
     pub path: String,
-    /// The file's contents.
-    pub text: String,
+    /// The file's contents, shared by every compile that reads the manifest: one copy per
+    /// process, and a pointer per reader.
+    pub text: std::sync::Arc<str>,
 }
 
 #[derive(Deserialize)]

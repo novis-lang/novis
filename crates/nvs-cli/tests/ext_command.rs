@@ -325,7 +325,7 @@ fn nvs_ext_build_packs_a_component_its_manifest_and_its_source_into_one_file() {
         .source
         .files
         .iter()
-        .map(|file| (file.path.as_str(), file.text.as_str()))
+        .map(|file| (file.path.as_str(), &*file.text))
         .collect();
     assert_eq!(files, [SOURCE[1], SOURCE[0]], "every `.nvs` file, sorted");
 }
