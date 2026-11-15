@@ -18,8 +18,9 @@
 //! these keys ([`is_program_value`]). A secret would otherwise come back from `get` as a plain
 //! string, and from `all` in a page that prints every setting.
 //!
-//! Cost: one extra parse of a file that writes one of the four blocks, at boot and at each reload.
-//! A file that writes none of them pays one look at four fields. Nothing here runs per request.
+//! Cost: one walk of the spanned document the file was typed from, for a file that writes one of
+//! the four blocks, at boot and at each reload. A file that writes none of them pays one look at
+//! four fields. Nothing here runs per request.
 
 use std::ops::Range;
 
@@ -55,13 +56,14 @@ pub fn is_plain_name(name: &str) -> bool {
         && chars.all(|next| next.is_ascii_alphanumeric() || next == '_')
 }
 
-/// Checks the four blocks of one file, which `text` holds and `file` is already typed from.
+/// Checks the four blocks of one file, whose spanned document is `root` and which `file` is typed
+/// from ([`crate::file::parse_document`]).
 ///
 /// # Errors
 ///
 /// `E0601` for a key that is not a plain name, a date or time in either block, or a secret that is
 /// not a string, each pointing at the line it was written on.
-pub fn check_file(id: SourceId, text: &str, file: &Config) -> Result<(), Diagnostic> {
+pub fn check_file(id: SourceId, root: &DeTable<'_>, file: &Config) -> Result<(), Diagnostic> {
     let written = file.settings.is_some()
         || file.secrets.is_some()
         || file
@@ -71,13 +73,8 @@ pub fn check_file(id: SourceId, text: &str, file: &Config) -> Result<(), Diagnos
     if !written {
         return Ok(());
     }
-    // The typed parse above accepted the same bytes, so this succeeds. On the impossible path there
-    // is no span to point at, and the typed tree has already said everything it can.
-    let Ok(root) = DeTable::parse(text) else {
-        return Ok(());
-    };
-    check_blocks(id, root.get_ref(), "")?;
-    for (key, value) in root.get_ref() {
+    check_blocks(id, root, "")?;
+    for (key, value) in root {
         if key.get_ref() != "app" {
             continue;
         }

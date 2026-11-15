@@ -25,8 +25,8 @@
 //! **Both of `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s refusals stay per file.** Each file is deserialized into
 //! [`Config`] on its own before anything is merged, so an unknown key is refused with *that* file's
 //! line under it; the merge itself runs over `toml::Table`, where a key set in two files is an
-//! override rather than a duplicate. That is why a file is deserialized twice — once to refuse it,
-//! once to merge it — and the second pass is free next to the read.
+//! override rather than a duplicate. So a file is typed twice, once to refuse it and once to merge
+//! it, and both read one spanned document parsed once ([`crate::file::parse_document`]).
 //!
 //! **`rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret files are read last, over the flattened tree.** Which `password_file` is in force
 //! is a question only the merge has answered, so [`mod@crate::secret`] runs once at the end rather
@@ -770,21 +770,25 @@ fn read_into(
     let text = files
         .read_config(path)
         .map_err(|err| unreadable(path, &err, "the configuration reads it"))?;
-    let (source, parsed) =
-        crate::file::parse_with_warnings::<Config>(sources, &path.display().to_string(), &text);
+    // One parse: the typed tree, the per-file checks and the merge table all read this document.
+    let source = sources.add(path.display().to_string(), text.as_str());
+    let parsed = crate::file::parse_document::<Config>(source, &text);
     // `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s two refusals are per file, so this is where they run: the diagnostic carries
     // this file's own line, before anything of it has been merged into the stream. Its one
     // exception, an empty unknown header, is a warning carried to `Resolved::warnings`; the raw
     // table below still holds that header, and `Merge::finish` drops it with every other empty
     // table.
-    let (file, warnings) = parsed?;
+    let (file, document, warnings) = parsed?;
     merge.warnings.extend(warnings);
     // The four open blocks have no `deny_unknown_fields` to check their keys, so the same per-file
     // check runs here by hand, with this file's line under a refusal.
-    crate::settings::check_file(source, &text, &file)?;
-    let table: toml::Table = toml::from_str(&text).map_err(|err| {
-        // Unreachable in practice — the typed parse above accepted the same bytes — but a
-        // configuration reader is not the place to unwrap on that reasoning.
+    crate::settings::check_file(source, document.get_ref(), &file)?;
+    let table = <toml::Table as serde::Deserialize>::deserialize(toml::de::Deserializer::from(
+        document,
+    ))
+    .map_err(|err| {
+        // Unreachable in practice — the same document was typed above — but a configuration
+        // reader is not the place to unwrap on that reasoning.
         Diagnostic::error(code::E_BAD_DIRECTIVE, err.message().to_string())
     })?;
 

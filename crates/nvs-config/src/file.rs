@@ -96,6 +96,38 @@ pub fn parse_at<T: DeserializeOwned>(
     }
 }
 
+/// [`parse_at`], keeping the spanned document `T` was typed from, so a caller that also needs the
+/// untyped table or the spans takes them from this one parse and never parses `text` again.
+/// An empty unknown header [`parse_with_warnings`] warns about is gone from the returned document
+/// too, which reads the same: the table set nothing.
+///
+/// What it spends: one copy of the document's tree for the typing, which borrows its strings from
+/// `text`. A second parse would allocate that tree and every escaped string again.
+///
+/// # Errors
+///
+/// As [`parse_with_warnings`].
+pub fn parse_document<'t, T: DeserializeOwned>(
+    id: SourceId,
+    text: &'t str,
+) -> Result<(T, toml::Spanned<DeTable<'t>>, Vec<Diagnostic>), Diagnostic> {
+    let mut document = DeTable::parse(text).map_err(|err| refusal(id, text, &err))?;
+    let mut warnings = Vec::new();
+    loop {
+        let err = match T::deserialize(toml::de::Deserializer::from(document.clone())) {
+            Ok(value) => return Ok((value, document, warnings)),
+            Err(err) => err,
+        };
+        let Some(range) = empty_header_candidate(text, &err) else {
+            return Err(refusal(id, text, &err));
+        };
+        if !remove_empty_table(document.get_mut(), &range) {
+            return Err(refusal(id, text, &err));
+        }
+        warnings.push(ignored(id, text, &range, err.message()));
+    }
+}
+
 /// The failure path of [`parse_with_warnings`]: while the refusal is an unknown key naming an
 /// empty table opened by a header line, remove that table from the parsed document, warn, and type
 /// the rest again. Anything else is refused as the first attempt was.
