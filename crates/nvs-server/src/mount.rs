@@ -82,8 +82,8 @@
 //! **What it spends**, per `rule:programs/memory-priority`:
 //! nothing per request that outlives it. A selection borrows its mount from the
 //! table and owns one `PathBuf` — the file steps 3-5 chose — and steps 3 and 4
-//! cost one `stat` and one `canonicalize` each, only where their switch is on.
-//! Both run in one blocking-pool job per path asked ([`OnDisk`]).
+//! share one `stat` and one `canonicalize` of the remainder, made only where a
+//! switch is on. Both run in one blocking-pool job per path asked ([`OnDisk`]).
 //! The table itself is one allocation per configuration generation, shared by
 //! every request and never rebuilt on the request path.
 //!
@@ -442,9 +442,14 @@ impl Table {
         // extension test read from either end:
         // `rule:http-server/static-serving-is-one-policy` says a
         // `.nvs` is never served as source, so step 3 wants the file that is not
-        // one and step 4 wants the file that is.
-        let under_root = |wanted_nvs: bool| {
-            under(&mount.root, remainder, disk).filter(|file| is_nvs(file) == wanted_nvs)
+        // one and step 4 wants the file that is. The remainder is looked up
+        // once for both steps: the step that matches takes the file, and the
+        // other step finds it gone.
+        let mut found: Option<Option<PathBuf>> = None;
+        let mut under_root = |wanted_nvs: bool| {
+            found
+                .get_or_insert_with(|| under(&mount.root, remainder, disk))
+                .take_if(|file| is_nvs(file) == wanted_nvs)
         };
         let what = if self.serve_static
             && let Some(file) = under_root(false)
