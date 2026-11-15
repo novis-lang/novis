@@ -3074,13 +3074,22 @@ fn query_values(
         return Ok(Vec::new());
     }
     let fields = crate::request::query_fields_of(ctx, "query")?;
-    let raw = ctx
-        .inbound()
-        .map(|inbound| inbound.query().to_owned())
-        .unwrap_or_default();
+    // How many times the raw query string writes each parameter's key, counted
+    // in one pass over its pairs for every parameter of the row.
+    let mut written = vec![0_usize; queries.len()];
+    if let Some(inbound) = ctx.inbound() {
+        for base in crate::uri::query_bases(inbound.query()) {
+            if let Some(at) = queries
+                .iter()
+                .position(|query| query.name.as_bytes() == base.as_slice())
+            {
+                written[at] += 1;
+            }
+        }
+    }
     let mut bound = Vec::with_capacity(queries.len());
-    for query in queries {
-        match query_value(ctx, query, &fields, &raw) {
+    for (query, written) in queries.iter().zip(written) {
+        match query_value(ctx, query, &fields, written) {
             Ok(value) => bound.push(value),
             Err(fault) => {
                 bound.into_iter().for_each(release);
@@ -3091,18 +3100,15 @@ fn query_values(
     Ok(bound)
 }
 
-/// One `#[Query]` parameter's value, out of the parsed `fields` and the `raw`
-/// query string they were parsed from.
+/// One `#[Query]` parameter's value, out of the parsed `fields` and the number
+/// of times the raw query string wrote its key.
 fn query_value(
     ctx: &mut nvs_runtime::Ctx,
     query: &nvs_runtime::routes::QueryParam,
     fields: &NvsArray,
-    raw: &str,
+    written: usize,
 ) -> Result<Value, Fault> {
     let key = query.name.as_str();
-    let written = crate::uri::query_bases(raw)
-        .filter(|base| base.as_slice() == key.as_bytes())
-        .count();
     // no case can reach this: `dispatch` catches the throw and answers `400`,
     // so no program reads its message. `a_query_value_that_does_not_bind_is_a_400_before_allows`
     // asserts each of the four throws in this function instead.
