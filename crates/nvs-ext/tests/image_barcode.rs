@@ -8,6 +8,9 @@
 //! symbology cannot encode returns `invalid` naming it. The GiroCode payload is Novis source, and
 //! `crates/nvs-cli/tests/image_barcode.rs` runs it.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -44,6 +47,7 @@ fn shape(fields: Vec<(&str, Value)>) -> Value {
 fn setup() -> (Host, Extension, Request) {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load")
         .into_iter()

@@ -12,6 +12,9 @@
 //! without moving it. Two first passes keep two bodies, so a render inside a header function
 //! leaves the outer one's as it was.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -213,6 +216,7 @@ fn render(
 fn run<T>(test: impl FnOnce(&Request, &Extension) -> T) -> T {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let extension = pdf(&builtins)
@@ -243,6 +247,7 @@ fn invalid(failure: Result<(Vec<u8>, u64), Failure>) -> String {
 fn the_pdf_component_is_built_in_and_answers_with_no_configuration() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let builtin = pdf(&builtins);
@@ -708,6 +713,7 @@ fn render_report_spent_after(
 ) -> (Result<(Vec<u8>, u64), Failure>, u64) {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let extension = pdf(&builtins)

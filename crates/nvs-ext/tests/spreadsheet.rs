@@ -16,6 +16,9 @@
 //! sixteenth, writing and reading. A workbook of shared strings, laid out as another tool writes
 //! one, costs the reader its strings and no more than one batch beside them.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::fs::{self, File};
 use std::future::Future;
 use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
@@ -203,6 +206,7 @@ fn sheet(name: &str) -> Value {
 /// The spreadsheet component, compiled and checked.
 fn spreadsheet(host: &Host) -> Extension {
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     builtins

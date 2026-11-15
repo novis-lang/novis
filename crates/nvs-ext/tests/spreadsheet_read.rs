@@ -4,6 +4,9 @@
 
 #![allow(clippy::unwrap_used, reason = "a test")]
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::io::Write as _;
 use std::pin::pin;
@@ -85,6 +88,7 @@ fn entries(value: &Value) -> Vec<&Value> {
 /// The spreadsheet component, compiled and checked.
 fn spreadsheet(host: &Host) -> Extension {
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     builtins

@@ -2,6 +2,9 @@
 //! contained trap (`rule:core-classes/decompression-bound`,
 //! `rule:core-classes/spreadsheet-reads-as-a-stream`).
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::io::{Read as _, Write as _};
 use std::pin::pin;
@@ -30,6 +33,7 @@ fn block_on<T>(future: impl Future<Output = T>) -> T {
 /// The spreadsheet component, compiled and checked.
 fn spreadsheet(host: &Host) -> Extension {
     Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load")
         .iter()

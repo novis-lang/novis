@@ -10,6 +10,9 @@
 //! The tagged inputs are built here from `extensions/image/fixtures/gradient.jpg`, by inserting
 //! an APP1 segment whose EXIF block this file writes, so no fixture carries real metadata.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -35,6 +38,7 @@ fn block_on<T>(future: impl Future<Output = T>) -> T {
 /// The image component, compiled on `host`'s engine.
 fn component(host: &Host) -> Extension {
     Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load")
         .into_iter()

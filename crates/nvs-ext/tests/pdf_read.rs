@@ -6,6 +6,9 @@
 //! throws a parse error in each of them. Every PDF here is one the component rendered, and each
 //! result is checked by reading it back through the component.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -74,6 +77,7 @@ fn in_request<T>(
 ) -> Result<T, Failure> {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let extension = builtins

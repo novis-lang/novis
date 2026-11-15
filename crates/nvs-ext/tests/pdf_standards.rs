@@ -7,6 +7,9 @@
 //! opening it with `hayro-syntax` and with `lopdf`, whose user-password check and file key check
 //! `/U` and `/Perms`, and a password under PDF/A throws.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -77,6 +80,7 @@ fn render_locked(
 ) -> Result<Vec<u8>, Failure> {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let extension = builtins

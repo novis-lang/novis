@@ -20,6 +20,9 @@
 //! Devanagari's ka, virama and ssa draw as one conjunct, and a Latin pair stays kerned. The inputs
 //! are built here or read from `extensions/image/fixtures/`.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -45,6 +48,7 @@ fn block_on<T>(future: impl Future<Output = T>) -> T {
 /// The image component, compiled on `host`'s engine.
 fn component(host: &Host) -> Extension {
     Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load")
         .into_iter()

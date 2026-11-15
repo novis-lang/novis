@@ -8,6 +8,9 @@
 //! sentences in one crossing, and an `Accept-Language` value picks an offered locale by weight and
 //! CLDR fallback, or the default, and never throws for the header.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -123,6 +126,7 @@ fn names(count: usize) -> Vec<String> {
 fn run<T>(test: impl FnOnce(&Request, &Extension) -> T) -> T {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let extension = intl(&builtins)
@@ -138,6 +142,7 @@ fn run<T>(test: impl FnOnce(&Request, &Extension) -> T) -> T {
 fn the_intl_component_is_built_in_and_answers_with_no_configuration() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     let builtin = intl(&builtins);

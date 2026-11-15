@@ -7,6 +7,9 @@
 //! An SVG draws with nothing outside it read, and a PDF page rasterises at its `dpi` under the cap
 //! with `rule:core-classes/pdf-decode-refusals`' bomb corpus contained.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;
@@ -32,6 +35,7 @@ fn block_on<T>(future: impl Future<Output = T>) -> T {
 /// The image component, compiled on `host`'s engine.
 fn component(host: &Host) -> Extension {
     Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load")
         .into_iter()

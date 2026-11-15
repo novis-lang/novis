@@ -2,6 +2,9 @@
 //! compiles every built-in component, and refuses a guest that uses a wasm proposal outside
 //! `nvs_ext::call::PROPOSALS`, which a validator with every feature on accepts.
 
+#[path = "support/module_cache.rs"]
+mod module_cache;
+
 use nvs_ext::call::Host;
 use nvs_ext::load::Loader;
 use wasmparser::{Validator, WasmFeatures};
@@ -32,6 +35,7 @@ const OUTSIDE: [(&str, &str); 9] = [
 fn every_built_in_component_compiles_under_the_hosts_proposals() {
     let host = Host::new(1, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
+        .with_cache(module_cache::shared())
         .builtins()
         .expect("the built-in components load");
     assert_eq!(builtins.len(), 4);
