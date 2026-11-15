@@ -25,19 +25,23 @@
 //!
 //! **The door's settings are here too.** The cell holds the decoded `[http] csrf_key`,
 //! `[limits] upload_total`, the `cancel_on_disconnect` and `disconnect_grace` pair, and `[log]`'s
-//! target with its bounds, level and format. The door and the log writer read them per request,
+//! target with its bounds, level and format, and each `[db.<name>]` block's `slow_query`. The
+//! door, the log writer and every statement read them per request,
 //! so each is decoded or parsed once per snapshot. The key's type prints nothing of itself,
 //! because [`Resolved`] derives `Debug`. `log.level` and `log.format` are `Runtime` keys, so a
 //! request whose overlay holds one, or flips the mode, reads it through `get`. The other values
 //! are `System` keys, so no overlay holds them.
 //!
 //! What it spends: per snapshot, two rows of [`LIMITS`] readings, four flags, two sizes, a
-//! 32-byte key, the disconnect list and the log target's path, under a kilobyte, built once and
+//! 32-byte key, the disconnect list, the log target's path and one duration per database block
+//! that writes `slow_query`, a few hundred bytes for a usual tree, built once and
 //! shared by every request that clones the snapshot. Nothing in it is keyed by what a request
 //! supplies, so nothing crosses requests (`rule:security/no-cross-request-state`).
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use nvs_render::Level;
 
@@ -124,6 +128,9 @@ pub(crate) struct Resolved {
     pub(crate) log_level: Option<Level>,
     /// `[log] format`, or `None` where it names none.
     pub(crate) log_format: Option<Format>,
+    /// Each `[db.<name>]` block's `slow_query`, by block name, for the blocks that wrote one
+    /// that parses ([`crate::db::slow_query_for`]).
+    pub(crate) slow_queries: BTreeMap<String, Duration>,
 }
 
 /// The decoded `[http] csrf_key`. Its `Debug` prints no byte of the key, because [`Resolved`]
@@ -205,6 +212,15 @@ impl Resolved {
             log_format: cli
                 .get("log.format")
                 .and_then(|written| Format::of(&written)),
+            slow_queries: base
+                .config
+                .db
+                .iter()
+                .filter_map(|(name, written)| {
+                    let bound = crate::db::slow_query_for(name, written, &BTreeMap::new());
+                    Some((name.clone(), bound.ok().flatten()?))
+                })
+                .collect(),
         }
     }
 

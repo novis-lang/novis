@@ -192,6 +192,17 @@ impl Snapshot {
         crate::limits::resolved(self).disconnect.as_ref()
     }
 
+    /// The `slow_query` threshold of the `[db.<name>]` block `name`, or `None` where that block
+    /// wrote none, there is no such block, or the value does not parse (the boot refuses that
+    /// one). Read off the resolved limits, so each block's value is parsed once per snapshot.
+    #[must_use]
+    pub fn slow_query(self: &Arc<Self>, name: &str) -> Option<std::time::Duration> {
+        crate::limits::resolved(self)
+            .slow_queries
+            .get(name)
+            .copied()
+    }
+
     /// `[log] target` with its bounds, or `None` where it names no target. `System` keys, so no
     /// overlay holds them, and this is read off the resolved limits.
     #[must_use]

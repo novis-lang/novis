@@ -166,12 +166,11 @@ impl QueryWatch {
 /// Off is the right answer to all three: a threshold nobody can read is not a
 /// reason to fail a statement, and the slow-query line is inert until asked
 /// for.
+///
+/// The snapshot parses each block's threshold once, on its first read, so a
+/// statement reads a map entry and parses nothing.
 pub(super) fn slow_query_of(ctx: &nvs_runtime::Ctx, name: &str) -> Option<std::time::Duration> {
-    let snapshot = ctx.config()?.snapshot();
-    let written = snapshot.config.db.get(name)?;
-    nvs_config::db::slow_query_for(name, written, &std::collections::BTreeMap::new())
-        .ok()
-        .flatten()
+    ctx.config()?.snapshot().slow_query(name)
 }
 
 /// The warning that `trace` is on and traces no query, because `debug.trace` is not granted
