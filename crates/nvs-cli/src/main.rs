@@ -130,6 +130,36 @@
 //! rather than retiring anything
 //! (`rule:http-server/containment-does-not-end-at-the-helper`
 //! ).
+//!
+//! ## What it costs
+//!
+//! One start, measured by `bun nv start-cost` on Windows over a one-line program, from a
+//! directory with no `nvs.toml` of its own. The release medians of 25 interleaved runs, on a
+//! shared data folder and then on a fresh one:
+//!
+//! | command | shared | fresh |
+//! |---|---:|---:|
+//! | `--version` | 11.4 ms | 12.8 ms |
+//! | `ast` | 11.4 ms | 13.1 ms |
+//! | `check` | 16.4 ms | 22.1 ms |
+//! | `run` | 19.7 ms | 30.0 ms |
+//!
+//! The debug `nvs check --count`, by start phase ([`phases`]); `run --count` differs only by six
+//! configuration allocations. No phase reads a source file after the entry.
+//!
+//! | phase | allocations | bytes | settings | resolved | share |
+//! |---|---:|---:|---:|---:|---:|
+//! | configuration | 418 | 925,997 | 1 | 2 | 1.6% |
+//! | built_in | 6,699 | 1,075,168 | 0 | 0 | 25.7% |
+//! | grants | 25 | 1,229 | 0 | 0 | 0.1% |
+//! | core | 8,109 | 634,490 | 0 | 0 | 31.1% |
+//! | collection | 1,166 | 134,480 | 0 | 1 | 4.5% |
+//! | check | 9,652 | 696,515 | 0 | 0 | 37.0% |
+//!
+//! That is 26,069 allocations in all. The configuration is parsed once, the built-in manifests
+//! once, and only the `Core` classes a program names are lowered. A run that never spawns starts
+//! neither the revalidation thread nor the slice thread. The milliseconds are a note: two runs of
+//! one shape differ by about 4 ms here, and the counts are what a change is judged by.
 
 #![allow(
     clippy::print_stdout,
