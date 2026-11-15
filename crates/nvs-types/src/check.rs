@@ -657,6 +657,9 @@ fn record_secret_returns(
     interner: &crate::ty::TypeInterner,
     exprs: &mut ExprTypeTable,
 ) {
+    for (label, names) in signatures.core_secret_returns() {
+        exprs.record_secret_returns(label.clone(), names.clone());
+    }
     for (qname, sig) in signatures.iter() {
         let mut names: Vec<String> = sig
             .methods

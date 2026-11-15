@@ -38,9 +38,64 @@ use crate::ty::{TypeId, TypeInterner};
 /// The native declarations every check starts from, built once per process.
 pub(crate) struct Base {
     /// `Core`, the error classes and the iteration interfaces, by name.
-    pub(crate) classes: FxHashMap<QName, ClassSignature>,
-    /// The types `classes` names, and nothing else.
+    pub(crate) classes: Natives,
+    /// Every type a native signature names, and nothing else. It has every
+    /// `Core` class's types before the first class is built, so a class built
+    /// later adds no type and changes no id.
     pub(crate) interner: TypeInterner,
+}
+
+/// The native classes by name: the error classes, the iteration interfaces and
+/// `Core`'s interfaces and contracts built at once, and each `Core` class built
+/// on its first [`Natives::get`].
+///
+/// # What it costs
+///
+/// A one-line program names no `Core` class. Building all 187 cost 14,477 of the
+/// start's 16,572 `core` allocations, and interning their types cost the rest.
+/// Each class now costs its share on its first use, once per process. It spends
+/// one `OnceLock` per `Core` class, and the classes built stay for the process.
+pub(crate) struct Natives {
+    eager: FxHashMap<QName, ClassSignature>,
+    /// Each `Core` class's index in `CLASSES`, and its signatures once built.
+    core: FxHashMap<QName, (usize, OnceLock<ClassSignature>)>,
+    /// Each `Core` class's methods whose return type is `secret`, by the class's
+    /// label, sorted by name. Only classes with one are here.
+    secret_returns: Vec<(String, Vec<String>)>,
+}
+
+impl std::fmt::Debug for Natives {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Natives")
+            .field("eager", &self.eager.len())
+            .field("core", &self.core.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl Natives {
+    /// The native class `qname`'s signatures, building a `Core` class's on its
+    /// first lookup in the process.
+    pub(crate) fn get(&'static self, qname: &QName) -> Option<&'static ClassSignature> {
+        if let Some(found) = self.eager.get(qname) {
+            return Some(found);
+        }
+        let (index, built) = self.core.get(qname)?;
+        Some(built.get_or_init(|| build_class(&CLASSES[*index])))
+    }
+
+    /// Every native class built at once. A `Core` class is not here: it has no
+    /// properties and no supertype a program declares, and its `secret` returns
+    /// are [`Self::secret_returns`].
+    pub(crate) fn eager(&self) -> impl Iterator<Item = (&QName, &ClassSignature)> {
+        self.eager.iter()
+    }
+
+    /// Each `Core` class's methods whose return type is `secret`, by the
+    /// class's label.
+    pub(crate) fn secret_returns(&self) -> &[(String, Vec<String>)] {
+        &self.secret_returns
+    }
 }
 
 /// The process's one [`Base`], built by the first check that needs it.
@@ -53,14 +108,94 @@ pub(crate) struct Base {
 pub(crate) fn base() -> &'static Base {
     static BASE: OnceLock<Base> = OnceLock::new();
     BASE.get_or_init(|| {
-        let mut table = SignatureTable::default();
         let mut interner = TypeInterner::new();
-        seed_natives(&mut table, &mut interner);
+        let secret_returns = intern_core_types(&mut interner);
+        let mut table = SignatureTable::default();
+        seed_interfaces(&mut table, &mut interner);
+        crate::error_lib::seed(&mut table, &mut interner);
+        crate::iter_lib::seed(&mut table, &mut interner);
+        let core = CLASSES
+            .iter()
+            .enumerate()
+            .map(|(index, class)| (QName::parse(class.name), (index, OnceLock::new())))
+            .collect();
         Base {
-            classes: table.into_classes(),
+            classes: Natives {
+                eager: table.into_classes(),
+                core,
+                secret_returns,
+            },
             interner,
         }
     })
+}
+
+/// Interns every type a `Core` class's signatures name, in the order
+/// [`seed_class`] lowers them, and returns each class's methods whose return
+/// type is `secret`.
+fn intern_core_types(interner: &mut TypeInterner) -> Vec<(String, Vec<String>)> {
+    let _quiet = nvs_footprint::Quiet::new();
+    let mut secret_returns = Vec::new();
+    for class in CLASSES {
+        let mut secret = Vec::new();
+        for method in class
+            .members()
+            .chain(nvs_stdlib::registry::constructor_of(class.name))
+        {
+            for param in method.params {
+                lower(param, interner);
+            }
+            for (_, bound) in method.bounded() {
+                lower(bound, interner);
+            }
+            let returns = lower(&method.return_ty, interner);
+            if crate::expr::type_contains_secret(returns, interner) {
+                secret.push(method.name.to_owned());
+            }
+        }
+        if let Some(elem) = nvs_stdlib::registry::iterable_element(class.name) {
+            lower(elem, interner);
+        }
+        if !secret.is_empty() {
+            secret.sort();
+            secret.dedup();
+            secret_returns.push((QName::parse(class.name).to_string(), secret));
+        }
+    }
+    secret_returns
+}
+
+/// One `Core` class's signatures, the same entry [`seed`] gives it, lowered
+/// over the frozen base's types.
+///
+/// # Panics
+///
+/// Panics if a type the class names was not interned by [`intern_core_types`].
+/// Its id would name no type in the base, so a wrong signature is the
+/// alternative. `every_core_class_builds_over_the_frozen_types` builds each one.
+fn build_class(class: &'static nvs_stdlib::registry::CoreClass) -> ClassSignature {
+    let _quiet = nvs_footprint::Quiet::new();
+    let mut interner = TypeInterner::new();
+    interner.layer_over(&base().interner);
+    let mut table = SignatureTable::default();
+    seed_class(&mut table, class, &mut interner);
+    let qname = QName::parse(class.name);
+    for interface in nvs_stdlib::registry::INTERFACES {
+        if interface
+            .implementors
+            .iter()
+            .any(|implementor| QName::parse(implementor) == qname)
+        {
+            table.seed_implements(qname.clone(), QName::parse(interface.name), Vec::new());
+        }
+    }
+    assert_eq!(
+        interner.own_len(),
+        0,
+        "`{}` names a type the base did not intern",
+        class.name
+    );
+    table.into_classes().remove(&qname).unwrap_or_default()
 }
 
 /// Builds the process's [`base`] now, if no check has built it yet.
@@ -89,6 +224,30 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // use of a class; `SignatureTable::get` records the ones a program makes.
     let _quiet = nvs_footprint::Quiet::new();
     for class in CLASSES {
+        seed_class(table, class, interner);
+    }
+    seed_interfaces(table, interner);
+    // Each `Core` interface's implementors get the edge `crate::expr::assign`'s
+    // class rule reads. No arguments: none of them is generic.
+    for interface in nvs_stdlib::registry::INTERFACES {
+        for implementor in interface.implementors {
+            table.seed_implements(
+                QName::parse(implementor),
+                QName::parse(interface.name),
+                Vec::new(),
+            );
+        }
+    }
+}
+
+/// Adds one `nvs_stdlib::registry::CLASSES` entry to `table`, with every edge
+/// but the ones a `Core` interface's roster gives it.
+fn seed_class(
+    table: &mut SignatureTable,
+    class: &'static nvs_stdlib::registry::CoreClass,
+    interner: &mut TypeInterner,
+) {
+    {
         let qname = QName::parse(class.name);
         let mut methods = FxHashMap::default();
         for (method, is_static) in class
@@ -147,20 +306,20 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             table.seed_implements(qname, QName::parse(ITERABLE), vec![elem]);
         }
     }
+}
+
+/// Adds `Core`'s interfaces and contracts to `table`, with no edge to a `Core`
+/// class.
+fn seed_interfaces(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // `nvs_stdlib::registry::CoreInterface`'s roster: the interface is an entry
-    // with its members' signatures, and each implementor gets the edge
-    // `crate::expr::assign`'s class rule reads. No arguments: none of them is
-    // generic.
+    // with its members' signatures. [`seed`] adds each implementor's edge.
     for interface in nvs_stdlib::registry::INTERFACES {
         let qname = QName::parse(interface.name);
         let methods = interface
             .members()
             .map(|method| (method.name.to_owned(), method_sig(method, false, interner)))
             .collect();
-        table.seed_class(qname.clone(), FxHashMap::default(), methods);
-        for implementor in interface.implementors {
-            table.seed_implements(QName::parse(implementor), qname.clone(), Vec::new());
-        }
+        table.seed_class(qname, FxHashMap::default(), methods);
     }
     // `nvs_stdlib::registry::CoreContract`'s roster: the interfaces a program's
     // own class implements. Each member is bodiless, as a reserved global
@@ -1057,6 +1216,75 @@ mod tests {
     use crate::ty::Ty;
     use nvs_hir::ClassGraph;
     use nvs_stdlib::registry::CoreField;
+
+    /// The written shape of one class's signatures, in a form two interners
+    /// compare equal on: each method's parameter and return types described,
+    /// and each edge's interface and arguments.
+    fn written(sig: &ClassSignature, interner: &TypeInterner) -> Vec<String> {
+        let mut lines: Vec<String> = sig
+            .methods
+            .iter()
+            .map(|(name, method)| {
+                let params: Vec<String> = method
+                    .params
+                    .iter()
+                    .map(|param| interner.describe(*param))
+                    .collect();
+                format!(
+                    "{name}({}) -> {} static={} contagious={}",
+                    params.join(", "),
+                    interner.describe(method.return_ty),
+                    method.is_static,
+                    method.contagious_return.is_some(),
+                )
+            })
+            .collect();
+        lines.sort();
+        lines.extend(sig.implements.iter().map(|(interface, args)| {
+            let args: Vec<String> = args.iter().map(|arg| interner.describe(*arg)).collect();
+            format!("implements {interface}<{}>", args.join(", "))
+        }));
+        lines
+    }
+
+    /// Every `Core` class built on first use has the signatures the whole-table
+    /// seed gives it, and names no type the base did not intern first, which
+    /// `build_class` asserts.
+    #[test]
+    fn every_core_class_builds_over_the_frozen_types() {
+        let mut eager = SignatureTable::default();
+        let mut interner = TypeInterner::new();
+        seed(&mut eager, &mut interner);
+        let base = base();
+        let mut secret = Vec::new();
+        for class in CLASSES {
+            let qname = QName::parse(class.name);
+            let built = base
+                .classes
+                .get(&qname)
+                .expect("every `Core` class is in the base");
+            let seeded = eager.get(&qname).expect("every `Core` class is seeded");
+            assert_eq!(
+                written(built, &base.interner),
+                written(seeded, &interner),
+                "`{}` built on first use differs from its seeded entry",
+                class.name
+            );
+            let mut names: Vec<String> = seeded
+                .methods
+                .iter()
+                .filter(|(_, method)| {
+                    crate::expr::type_contains_secret(method.return_ty, &interner)
+                })
+                .map(|(name, _)| name.clone())
+                .collect();
+            if !names.is_empty() {
+                names.sort();
+                secret.push((qname.to_string(), names));
+            }
+        }
+        assert_eq!(base.classes.secret_returns(), secret.as_slice());
+    }
 
     /// `rule:core-api/shape-flattens-at-the-abi`'s ABI, held over a two-arm shape because no registry row
     /// declares one yet: the arms in declaration order, a name a previous arm

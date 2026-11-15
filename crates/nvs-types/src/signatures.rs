@@ -722,13 +722,14 @@ pub struct ConstSig {
 ///
 /// The native declarations — `Core`, the error classes and the iteration
 /// interfaces — are a frozen `base` that [`crate::core_lib::base`] builds once
-/// per process and every check reads. A program's own declarations go in
+/// per process and every check reads. A `Core` class in it is built on its
+/// first lookup ([`crate::core_lib::Natives`]). A program's own declarations go in
 /// `by_class`. A base entry that a check has to change, such as an overridden
 /// method mark, is copied into `by_class` first, and from then on that copy
 /// is the one the check reads.
 #[derive(Debug, Default)]
 pub struct SignatureTable {
-    base: Option<&'static FxHashMap<QName, ClassSignature>>,
+    base: Option<&'static crate::core_lib::Natives>,
     by_class: FxHashMap<QName, ClassSignature>,
     property_default_types: Vec<(Span, TypeId)>,
     /// The name of every instance property some class declares `covariant`.
@@ -769,18 +770,30 @@ impl SignatureTable {
     /// order — the whole-table view [`mark_overridden_methods`] needs, since
     /// "does anything extend me" is not a question the extended class's own
     /// entry can answer.
+    ///
+    /// A `Core` class is here only once this table has copied it. It has no
+    /// properties and no supertype a program declares, and its `secret`
+    /// returns are [`Self::core_secret_returns`].
     pub fn iter(&self) -> impl Iterator<Item = (&QName, &ClassSignature)> {
         let base = self
             .base
             .into_iter()
-            .flatten()
+            .flat_map(crate::core_lib::Natives::eager)
             .filter(|(qname, _)| !self.by_class.contains_key(*qname));
         self.by_class.iter().chain(base)
     }
 
+    /// Each `Core` class's methods whose return type is `secret`, by the
+    /// class's label. Empty for a table with no frozen base, whose `Core`
+    /// classes [`Self::iter`] gives.
+    pub(crate) fn core_secret_returns(&self) -> &[(String, Vec<String>)] {
+        self.base
+            .map_or(&[], crate::core_lib::Natives::secret_returns)
+    }
+
     /// A table whose native declarations are `base`, with nothing of a
     /// program's own in it yet.
-    pub(crate) fn over(base: &'static FxHashMap<QName, ClassSignature>) -> Self {
+    pub(crate) fn over(base: &'static crate::core_lib::Natives) -> Self {
         Self {
             base: Some(base),
             ..Self::default()
