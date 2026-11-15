@@ -2599,6 +2599,7 @@ nvs_runtime::nvs_helper! {
     /// released as soon as its bytes are read.
     fn nvs_core_arr_map_keys(ctx, args: [2]) {
         let base = held_subject(args, "mapKeys")?;
+        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
         // Room for every entry, the most the new keys can name.
         let mut out = NvsArray::with_capacity(base.count());
         let mut from = 0usize;
@@ -2607,25 +2608,12 @@ nvs_runtime::nvs_helper! {
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            let key = base
-                .key_at(slot)
-                .expect("next_slot only names live entries");
 
-            // One reference for the duration of the call, released right
-            // after — `call_callable` takes its own, and the old key is not
-            // owed to anything else here.
-            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-            let key_arg = Value::str(key);
-            let named = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
-            #[expect(
-                unsafe_code,
-                reason = "this frame owns exactly the reference `key_at` just \
-                          handed back"
-            )]
-            unsafe {
-                key_arg.release();
-            }
-            let named = named?;
+            // The old key is built only for a callback that takes it.
+            let named = call_with_key(ctx, args[1], wants_key, value, || {
+                base.key_at(slot)
+                    .expect("next_slot only names live entries")
+            })?;
             // Copied into the new key before the release below ends the
             // bytes' owner — [`key_bytes`] borrows.
             let fresh = key_bytes(&named, "mapKeys").map(|key| NvsStr::new(&key));
@@ -2687,9 +2675,16 @@ nvs_runtime::nvs_helper! {
     /// one key copy per distinct bucket, for the length of the call, and its
     /// `Drop` is what frees a partial answer when a callback throws part-way
     /// through — the reason [`Extracted`] exists one member down.
+    ///
+    /// **It allocates per bucket, not per entry.** The bucket is looked up by
+    /// the bytes the callback returned, borrowed, and its name and lookup key
+    /// are copied only when the bucket is new. The entry's key is built only
+    /// for a callback that declares a second parameter, and the bucket stores
+    /// it in the form the subject has it, so a list renders no keys.
     fn nvs_core_arr_group_by(ctx, args: [2]) {
         let base = held_subject(args, "groupBy")?;
-        let mut buckets: Vec<(Vec<u8>, NvsArray)> = Vec::new();
+        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
+        let mut buckets: Vec<(NvsStr, NvsArray)> = Vec::new();
         let mut index_of: std::collections::HashMap<Vec<u8>, usize> =
             std::collections::HashMap::new();
         let mut from = 0usize;
@@ -2698,27 +2693,21 @@ nvs_runtime::nvs_helper! {
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            let key = base
-                .key_at(slot)
-                .expect("next_slot only names live entries");
 
-            // One reference for the duration of the call, released right
-            // after: `call_callable` takes its own, and `key` itself is still
-            // owed to the bucket below.
-            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-            let key_arg = Value::str(key.clone());
-            let named = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
-            #[expect(
-                unsafe_code,
-                reason = "this frame owns exactly the reference `key.clone()` \
-                          just produced"
-            )]
-            unsafe {
-                key_arg.release();
-            }
-            let named = named?;
-            // Copied out before the release below — [`key_bytes`] borrows.
-            let bucket = key_bytes(&named, "groupBy").map(|key| key.to_vec());
+            let named = call_with_key(ctx, args[1], wants_key, value, || {
+                base.key_at(slot)
+                    .expect("next_slot only names live entries")
+            })?;
+            // Read before the release below — [`key_bytes`] borrows.
+            let position = key_bytes(&named, "groupBy").map(|bucket| {
+                if let Some(&position) = index_of.get(&*bucket) {
+                    return position;
+                }
+                let position = buckets.len();
+                index_of.insert(bucket.to_vec(), position);
+                buckets.push((NvsStr::new(&bucket), NvsArray::new()));
+                position
+            });
             #[expect(
                 unsafe_code,
                 reason = "the bucket name is a fresh value this frame owns; a \
@@ -2728,13 +2717,8 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 named.release();
             }
-            let bucket = bucket?;
+            let position = position?;
 
-            let next = buckets.len();
-            let position = *index_of.entry(bucket.clone()).or_insert(next);
-            if position == next {
-                buckets.push((bucket, NvsArray::new()));
-            }
             #[expect(
                 unsafe_code,
                 reason = "the value is owned by the subject array, which \
@@ -2744,12 +2728,15 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 value.retain();
             }
-            buckets[position].1.set(key, value);
+            let key = base
+                .slot_key(slot)
+                .expect("next_slot only names live entries");
+            store_at(&mut buckets[position].1, key, value);
         }
 
         let mut out = NvsArray::with_capacity(buckets.len());
         for (name, bucket) in buckets {
-            out.set(NvsStr::new(&name), Value::array(bucket));
+            out.set(name, Value::array(bucket));
         }
         Ok(Value::array(out))
     }
@@ -3350,8 +3337,13 @@ nvs_runtime::nvs_helper! {
         let (start, end) = window(base.count(), &args[1], &args[2], "slice")?;
 
         let mut out = NvsArray::with_capacity(end.saturating_sub(start));
-        let mut from = 0usize;
-        let mut position = 0usize;
+        // With no holes, the entry at position `start` is at slot `start`, so
+        // the walk starts there and never steps over the entries before it.
+        let (mut from, mut position) = if base.slot_end() == base.count() {
+            (start, start)
+        } else {
+            (0usize, 0usize)
+        };
         while position < end {
             let Some(slot) = base.next_slot(from) else {
                 break;
@@ -3401,8 +3393,13 @@ nvs_runtime::nvs_helper! {
 
         // Three walks, one per part, exactly as `crate::str`'s member is three
         // pushes: the head, the replacement, then the tail. The window itself
-        // is walked only to step over it.
-        let mut out = NvsArray::new();
+        // is walked only to step over it. The result is a list of known
+        // length, so its room is taken once.
+        let mut out = NvsArray::with_capacity(
+            base.count()
+                .saturating_sub(end.saturating_sub(start))
+                .saturating_add(replacement.count()),
+        );
         let mut from = 0usize;
         let mut position = 0usize;
         while position < start {
@@ -3526,7 +3523,14 @@ nvs_runtime::nvs_helper! {
     /// untouched either way, since this member builds a result.
     fn nvs_core_arr_append(_ctx, args: [2]) {
         let base = subject(args, "append")?;
-        let mut out = NvsArray::new();
+        // A list subject gives a list result of known length, so its room is
+        // taken once. Other subjects store their keys, and a list's room
+        // would be dropped unused.
+        let mut out = if is_packed(&base) {
+            NvsArray::with_capacity(base.count().saturating_add(count_of(&args[1])))
+        } else {
+            NvsArray::new()
+        };
         copy_all(&base, &mut out);
         for_each_trailing(&args[1], "append", |value| {
             append_borrowed_or_refuse(&mut out, value)
@@ -3560,7 +3564,7 @@ nvs_runtime::nvs_helper! {
     /// subject.
     fn nvs_core_arr_prepend(_ctx, args: [2]) {
         let base = subject(args, "prepend")?;
-        let mut out = NvsArray::new();
+        let mut out = NvsArray::with_capacity(count_of(&args[1]).saturating_add(base.count()));
         for_each_trailing(&args[1], "prepend", |value| {
             append_borrowed(&mut out, value);
             Ok(())
@@ -4387,22 +4391,18 @@ nvs_runtime::nvs_helper! {
                 .expect("next_slot only names live entries");
             from = slot + 1;
 
-            let plain: KeyBytes<'_>;
-            let named_bucket: Vec<u8>;
-            let bucket: &[u8] = match by {
-                None => {
-                    plain = key_bytes(&value, "countBy")?;
-                    &plain
-                }
+            match by {
+                None => count_into(&mut out, &key_bytes(&value, "countBy")?),
                 Some(callback) => {
                     let named = call_with_key(ctx, callback, by_wants_key, value, || {
                         subject
                             .key_at(slot)
                             .expect("next_slot only names live entries")
                     })?;
-                    // Copied out before the release below — [`key_bytes`]
+                    // Counted before the release below — [`key_bytes`]
                     // borrows.
-                    let bucket = key_bytes(&named, "countBy").map(|key| key.to_vec());
+                    let counted =
+                        key_bytes(&named, "countBy").map(|bucket| count_into(&mut out, &bucket));
                     #[expect(
                         unsafe_code,
                         reason = "the bucket name is a fresh value this frame \
@@ -4412,15 +4412,25 @@ nvs_runtime::nvs_helper! {
                     unsafe {
                         named.release();
                     }
-                    named_bucket = bucket?;
-                    &named_bucket
+                    counted?;
                 }
-            };
-
-            let seen = out.get(bucket).and_then(|count| count.as_uint()).unwrap_or(0);
-            out.set(NvsStr::new(bucket), Value::uint(seen + 1));
+            }
         }
         Ok(Value::array(out))
+    }
+}
+
+/// Adds one to `bucket`'s count in `out`, the step of
+/// [`nvs_core_arr_count_by`]. A bucket already counted is overwritten in place
+/// through its borrowed bytes, so only a new bucket allocates its key.
+fn count_into(out: &mut NvsArray, bucket: &[u8]) {
+    match out.get(bucket).and_then(|count| count.as_uint()) {
+        Some(seen) => {
+            if let Err(count) = out.overwrite(bucket, Value::uint(seen + 1)) {
+                out.set(NvsStr::new(bucket), count);
+            }
+        }
+        None => out.set(NvsStr::new(bucket), Value::uint(1)),
     }
 }
 
@@ -5055,6 +5065,10 @@ fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::Ordering, F
 /// and over an index permutation rather than the values so nothing is moved
 /// twice. [`nvs_core_arr_sort`] owns why this exists at all instead of
 /// `slice::sort_by`.
+///
+/// Each pass reads one buffer and writes the other, and the two swap roles
+/// for the next pass. The result is copied back once, at the end, where it is
+/// in the scratch buffer.
 pub(crate) fn merge_sort<F>(permutation: &mut [usize], compare: &mut F) -> Result<(), Fault>
 where
     F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
@@ -5063,23 +5077,56 @@ where
     if len < 2 {
         return Ok(());
     }
-    let mut buffer = vec![0usize; len];
+    let mut scratch = vec![0usize; len];
+    let mut in_scratch = false;
     let mut width = 1;
     while width < len {
-        let mut start = 0;
-        while start < len {
-            let middle = (start + width).min(len);
-            let end = (start + 2 * width).min(len);
+        if in_scratch {
+            merge_pass(&scratch, permutation, width, compare)?;
+        } else {
+            merge_pass(permutation, &mut scratch, width, compare)?;
+        }
+        in_scratch = !in_scratch;
+        width *= 2;
+    }
+    if in_scratch {
+        permutation.copy_from_slice(&scratch);
+    }
+    Ok(())
+}
+
+/// One pass of [`merge_sort`]: every pair of runs of `width` in `from`,
+/// merged into the same positions of `to`.
+///
+/// A pair whose left run ends at or below where its right run starts is
+/// already in order, and is copied with one comparison. Sorted input is then
+/// one comparison per pair.
+fn merge_pass<F>(
+    from: &[usize],
+    to: &mut [usize],
+    width: usize,
+    compare: &mut F,
+) -> Result<(), Fault>
+where
+    F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
+{
+    let len = from.len();
+    let mut start = 0;
+    while start < len {
+        let middle = (start + width).min(len);
+        let end = (start + 2 * width).min(len);
+        if middle == end || compare(from[middle - 1], from[middle])? != std::cmp::Ordering::Greater
+        {
+            to[start..end].copy_from_slice(&from[start..end]);
+        } else {
             merge(
-                &permutation[start..middle],
-                &permutation[middle..end],
-                &mut buffer[start..end],
+                &from[start..middle],
+                &from[middle..end],
+                &mut to[start..end],
                 compare,
             )?;
-            start = end;
         }
-        permutation.copy_from_slice(&buffer);
-        width *= 2;
+        start = end;
     }
     Ok(())
 }
@@ -5496,6 +5543,10 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_unique(ctx, args: [2]) {
         let subject = held_subject(args, "unique")?;
         let by = optional_callback(&args[1], "unique", "by")?;
+        let by_wants_key = match by {
+            Some(by) => nvs_runtime::callable_arity(by)? >= 2,
+            None => false,
+        };
 
         // Freed on every exit path, including a throw out of the extractor —
         // see [`Extracted`]. Declared before the set so the values it owns
@@ -5510,28 +5561,16 @@ nvs_runtime::nvs_helper! {
             let value = subject
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            let key = subject
-                .key_at(slot)
-                .expect("next_slot only names live entries");
             from = slot + 1;
 
             let compared = match by {
                 None => value,
                 Some(by) => {
-                    // One reference for the duration of the call, released
-                    // right after: `call_callable` takes its own.
-                    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                    let key_arg = Value::str(key.clone());
-                    let named = nvs_runtime::call_callable(ctx, by, &[value, key_arg]);
-                    #[expect(
-                        unsafe_code,
-                        reason = "this frame owns exactly the reference \
-                                  `key.clone()` just produced"
-                    )]
-                    unsafe {
-                        key_arg.release();
-                    }
-                    let named = named?;
+                    let named = call_with_key(ctx, by, by_wants_key, value, || {
+                        subject
+                            .key_at(slot)
+                            .expect("next_slot only names live entries")
+                    })?;
                     extracted.0.push(named);
                     named
                 }
@@ -5549,7 +5588,10 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 value.retain();
             }
-            out.set(key, value);
+            let key = subject
+                .slot_key(slot)
+                .expect("next_slot only names live entries");
+            store_at(&mut out, key, value);
         }
         Ok(Value::array(out))
     }
@@ -5613,6 +5655,20 @@ fn for_each_trailing(
         each(value)?;
     }
     Ok(())
+}
+
+/// How many entries an array argument has, or `0` where it is not one. The
+/// walk that reads the argument reports the wrong tag.
+fn count_of(value: &Value) -> usize {
+    value.array_ptr().map_or(0, |array| borrowed(array).count())
+}
+
+/// Whether `array` stores its entries as a list, so that a copy of it, key
+/// and all, is a list too. Only a list gives a [`SlotKey::Index`].
+fn is_packed(array: &NvsArray) -> bool {
+    array
+        .next_slot(0)
+        .is_none_or(|slot| matches!(array.slot_key(slot), Some(SlotKey::Index(_))))
 }
 
 /// Copies every entry of `subject` into `out`, key and all — [`copy_entry`]
@@ -5863,7 +5919,14 @@ nvs_runtime::nvs_helper! {
     /// one deciding by key type at run time.
     fn nvs_core_arr_append_all(_ctx, args: [2]) {
         let base = subject(args, "appendAll")?;
-        let mut out = NvsArray::new();
+        // The result is a list of every argument's entries, so its room is
+        // counted first and taken once.
+        let mut total = base.count();
+        for_each_layer(&args[1], "appendAll", |layer| {
+            total = total.saturating_add(layer.count());
+            Ok(())
+        })?;
+        let mut out = NvsArray::with_capacity(total);
         append_values(&base, &mut out)?;
         for_each_layer(&args[1], "appendAll", |layer| append_values(layer, &mut out))?;
         Ok(Value::array(out))
@@ -5910,11 +5973,15 @@ fn on_of(value: &Value, member: &str) -> Result<On, Fault> {
 /// Every reference produced here is handed to `extracted`, which releases it
 /// on the way out: a callback's answer belongs to this frame, and so does the
 /// `Value` a key is wrapped in.
+///
+/// `key` builds the entry's key, and runs only where the key is compared or
+/// `by` declares a parameter for it — `by_wants_key`, read once per walk.
 fn comparison_subject(
     ctx: &mut nvs_runtime::Ctx,
     on: On,
     by: Option<Value>,
-    key: &NvsStr,
+    by_wants_key: bool,
+    key: impl FnOnce() -> NvsStr,
     value: Value,
     extracted: &mut Extracted,
 ) -> Result<Value, Fault> {
@@ -5923,26 +5990,30 @@ fn comparison_subject(
             return Ok(value);
         }
         #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-        let held = Value::str(key.clone());
+        let held = Value::str(key());
         extracted.0.push(held);
         return Ok(held);
     };
 
-    // One reference for the duration of the call, released right after:
-    // `call_callable` takes its own.
-    #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-    let key_arg = Value::str(key.clone());
-    let answer = nvs_runtime::call_callable(ctx, by, &[value, key_arg]);
-    #[expect(
-        unsafe_code,
-        reason = "this frame owns exactly the reference `key.clone()` just produced"
-    )]
-    unsafe {
-        key_arg.release();
-    }
-    let answer = answer?;
+    let answer = call_with_key(ctx, by, by_wants_key, value, key)?;
     extracted.0.push(answer);
     Ok(answer)
+}
+
+/// `key` as a string, rendered where the array holds it as a position.
+fn owned_key(key: &SlotKey) -> NvsStr {
+    match key {
+        SlotKey::Index(index) => NvsStr::new(&KeyBytes::rendered(*index)),
+        SlotKey::Str(key) => key.clone(),
+    }
+}
+
+/// `key`'s bytes: a string key's own, or a position's decimal on the stack.
+fn slot_key_bytes(key: &SlotKey) -> KeyBytes<'_> {
+    match key {
+        SlotKey::Index(index) => KeyBytes::rendered(*index),
+        SlotKey::Str(key) => KeyBytes::Borrowed(key.as_bytes()),
+    }
 }
 
 /// The shared body of [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]:
@@ -5979,6 +6050,10 @@ fn set_member(
     let on = on_of(&args[2], member)?;
     let by = optional_callback(&args[3], member, "by")?;
     let comparator = optional_callback(&args[4], member, "comparator")?;
+    let by_wants_key = match by {
+        Some(by) => nvs_runtime::callable_arity(by)? >= 2,
+        None => false,
+    };
 
     // Freed on every exit path, including a throw out of a callback — see
     // [`Extracted`]. Declared before anything that borrows from it.
@@ -5997,7 +6072,15 @@ fn set_member(
             .value_at(slot)
             .expect("next_slot only names live entries");
         from = slot + 1;
-        let compared = comparison_subject(ctx, on, by, &key, value, &mut extracted)?;
+        let compared = comparison_subject(
+            ctx,
+            on,
+            by,
+            by_wants_key,
+            || key.clone(),
+            value,
+            &mut extracted,
+        )?;
         theirs.push((key, compared));
     }
 
@@ -6017,24 +6100,34 @@ fn set_member(
     let mut out = NvsArray::with_capacity(subject.count());
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
+        // In the form the subject holds it, so a list renders a key only
+        // where the comparison reads one.
         let key = subject
-            .key_at(slot)
+            .slot_key(slot)
             .expect("next_slot only names live entries");
         let value = subject
             .value_at(slot)
             .expect("next_slot only names live entries");
         from = slot + 1;
-        let mine = comparison_subject(ctx, on, by, &key, value, &mut extracted)?;
+        let mine = comparison_subject(
+            ctx,
+            on,
+            by,
+            by_wants_key,
+            || owned_key(&key),
+            value,
+            &mut extracted,
+        )?;
 
         let present = match comparator {
             None if on == On::Both => pairs
-                .get(key.as_bytes())
+                .get(&*slot_key_bytes(&key))
                 .is_some_and(|theirs| *theirs == Identity(mine)),
             None => values.contains(&Identity(mine)),
             Some(comparator) => {
                 let mut found = false;
                 for (their_key, compared) in &theirs {
-                    if on == On::Both && their_key.as_bytes() != key.as_bytes() {
+                    if on == On::Both && their_key.as_bytes() != &*slot_key_bytes(&key) {
                         continue;
                     }
                     let verdict = nvs_runtime::call_callable(ctx, comparator, &[mine, *compared])?;
@@ -6068,7 +6161,7 @@ fn set_member(
             unsafe {
                 value.retain();
             }
-            out.set(key, value);
+            store_at(&mut out, key, value);
         }
     }
     Ok(Value::array(out))
@@ -10501,6 +10594,79 @@ mod tests {
                 (b"b".to_vec(), vec![b"10".to_vec()])
             ]
         );
+
+        dropped(subject);
+        dropped(namer);
+    }
+
+    /// A one-parameter callback naming a bucket by its integer entry's
+    /// remainder by three, which allocates nothing of its own.
+    #[expect(
+        unsafe_code,
+        reason = "`call_callable` passes the receiver and one argument, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn buckets_by_remainder(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let entry = unsafe { *args.add(1) };
+        let remainder = entry.as_int().expect("this test's entries are ints") % 3;
+        for index in 0..2 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::int(remainder);
+        }
+        nvs_runtime::OK
+    }
+
+    /// `groupBy` and `countBy` allocate per bucket, not per entry. The subject
+    /// is a map, so its string keys are shared with the buckets and not
+    /// rendered, and every allocation left is a bucket's or the result's.
+    // covers: Core\Arr::groupBy, Core\Arr::countBy
+    #[test]
+    fn a_bucket_member_allocates_per_bucket() {
+        const ENTRIES: i64 = 3000;
+        let mut ctx = Ctx::buffered();
+        let mut array = NvsArray::new();
+        for entry in 0..ENTRIES {
+            array.set(
+                NvsStr::new(format!("k{entry}").as_bytes()),
+                Value::int(entry),
+            );
+        }
+        let subject = Value::array(array);
+        let namer = callable_of(1, buckets_by_remainder);
+
+        for (member, helper) in [
+            (
+                "groupBy",
+                super::nvs_core_arr_group_by as nvs_runtime::NvsFn,
+            ),
+            ("countBy", super::nvs_core_arr_count_by),
+        ] {
+            let before = nvs_runtime::budget::allocations();
+            let result =
+                call(helper, &mut ctx, &[subject, namer]).expect("this callback never fails");
+            let spent = nvs_runtime::budget::allocations() - before;
+            // Three buckets, each a name, a lookup key and an array that grows
+            // by doubling, and the result. One allocation per entry would be
+            // three thousand.
+            assert!(
+                spent < 100,
+                "{member} made {spent} allocations over {ENTRIES} entries"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the handle takes over the one reference the member \
+                          answered with, and releases it on drop"
+            )]
+            let buckets = unsafe { NvsArray::from_raw(result.array_ptr().expect("an array")) };
+            assert_eq!(buckets.count(), 3, "{member} named three buckets");
+        }
 
         dropped(subject);
         dropped(namer);
