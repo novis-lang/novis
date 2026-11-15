@@ -8,7 +8,6 @@
       "title": "Faster starts and faster requests",
       "text": "A small program starts without loading what it does not use. Compiled code calls fewer helper functions, and a request waits less. The editor and the type checker do less work for each change.",
       "goals": [
-        "fewer-round-trips",
         "lean-members-and-checker"
       ]
     }
