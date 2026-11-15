@@ -193,11 +193,11 @@ remove two wake-up costs of the bus.
 **Does:** send the MySQL reset in one write, prepare SQLite's reset once, and stop a busy queue
 worker from asking the roster between jobs.
 
-- [ ] `crates/nvs-db/src/mysql.rs:2243`: the four reset packets go out in one flush and their four
+- [x] `crates/nvs-db/src/mysql.rs:2243`: the four reset packets go out in one flush and their four
   answers are read in order (`rule:security/db-pool-reset-is-a-boundary`).
-- [ ] `crates/nvs-db/src/sqlite.rs:1709`: `clean` uses `prepare_cached`, and the pragma text is
+- [x] `crates/nvs-db/src/sqlite.rs:1709`: `clean` uses `prepare_cached`, and the pragma text is
   built once (`rule:security/db-pool-reset-is-a-boundary`).
-- [ ] `crates/nvs-cli/src/worker.rs:698`: after a round that claimed a job, the worker claims again
+- [x] `crates/nvs-cli/src/worker.rs:698`: after a round that claimed a job, the worker claims again
   on the same queues and asks the roster when a claim is empty
   (`rule:programs/memory-priority`).
 - [ ] `crates/nvs-db/src/mysql.rs:2795`: `execute_many` writes its executes in windows of 64 KiB
@@ -264,42 +264,45 @@ sleep.
 
 ### State
 
-Stages 1 and 2 are done and committed. Stage 2 was checked by `cargo build`, `cargo clippy
---all-targets -- -D warnings`, and `a_results_rows_share_one_set_of_keys` run by name (green).
-Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0, stage 5: 0, stage 6: 0.
+Stages 1 and 2 are done. Stage 3 has three of four items committed, each checked by clippy and
+its new test run once by name (green). `bun nv db-matrix` passed the MySQL and MariaDB TCP legs;
+its socket legs fail on Windows (`/mnt/wsl` paths are not supported), which the reset never uses.
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0, stage 5: 0, stage 6: 0.
 
-- `send_at_once` and `dialled` in `crates/nvs-host/src/net.rs` are the one place `TCP_NODELAY` is
-  set. `joined` in `crates/nvs-stdlib/src/http/transport.rs` builds a client request's one write.
-  `Core\Sse::receive` parks under `CLOSE_TICK` (one second).
-- `RowKeys` (`crates/nvs-stdlib/src/db/execute.rs:578`) makes a result's keys once, and
-  `collected_rows` (`:645`) is the one buffered row loop. A stream keeps its keys in the sixth slot,
-  `STREAM_KEYS_AT` (`crates/nvs-stdlib/src/db/mod.rs:585`), written by the first step with a row.
-  `Value::str_handle` in `crates/nvs-runtime/src/value.rs` reads a key back out of that slot.
-- A hashed array holds its key twice, in the entry and in the index, so a shared key has two
-  references per row. The test asserts the count grows with the rows, not an exact number.
-- `Snapshot::slow_query` (`crates/nvs-config/src/snapshot.rs:199`) reads each block's threshold
-  from the resolved limits cell.
-- The sweep's `env-secret-proofs` is stale state in looper's service: its log does not exist and no
-  goal in the tree defines it. Nothing in the tree can fix it.
+- `Wire::send_all` (`crates/nvs-db/src/mysql.rs`) frames several commands into one flush, and
+  `Wire::next_answer` sets the codec's sequence id to `1` before each later answer, by framing an
+  empty packet into a discarded buffer. `reset_session` uses both.
+- The test `Peer` in `mysql.rs` answers each packet of a flush and counts `flushes`.
+- `Hot` and `ROSTER_EVERY` (16) in `crates/nvs-cli/src/worker.rs` keep a busy worker on its
+  queues; `round` is the shared claim loop, and `tests::ROSTERS_ASKED` counts roster statements.
+- `RowKeys` (`crates/nvs-stdlib/src/db/execute.rs:578`) makes a result's keys once; a stream keeps
+  them in `STREAM_KEYS_AT`. A hashed array holds each key twice, so the test asserts growth only.
+- The sweep's `env-secret-proofs` is stale state in looper's service: no log and no definition in
+  the tree. Nothing in the tree can fix it.
 
 Tests that may go red at stage 7: an SSE case that waits less than one second for a stream whose
 client left to end, an HTTP client test that counts writes on the origin side for a small body,
 and any test that builds `Core\Db\Stream` with five slots (`instance::build` asserts the count).
+From stage 3: a MySQL test whose scripted server answers a flush rather than each packet in it, and
+a worker test that counts turns or roster statements for a queue with several jobs.
 
 ### Next
 
-Stage 3, in one session. The files are `crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/sqlite.rs`
-and `crates/nvs-cli/src/worker.rs`. The MySQL items run `bun nv db-matrix` once; with no server
-reachable, they are built, checked by build alone, and named here for CI.
+Stage 3's last item, in the stage's second and last session. It has not had its one attempt yet.
+Run `bun nv db-matrix --no-up --driver mysql --driver mariadb` once at the end; the TCP legs are the
+ones that count here.
 
-- [ ] `crates/nvs-db/src/mysql.rs:2243`: `reset_session` sends the four reset packets in one flush
-  and reads the four answers in order.
-- [ ] `crates/nvs-db/src/sqlite.rs:1709`: `clean` uses `prepare_cached`, with the pragma text built
-  once.
-- [ ] `crates/nvs-cli/src/worker.rs:698`: `turn` claims again on the same queues after a round
-  that claimed a job, and asks the roster when a claim is empty.
-- [ ] `crates/nvs-db/src/mysql.rs:2795`: `execute_many` writes in windows of 64 KiB. One session;
-  not green means declined.
+- [ ] `crates/nvs-db/src/mysql.rs:2894`: `execute_many` writes its executes in windows of 64 KiB
+  and reads each window's answers. The parts: `execute` (`:2621`) builds one payload, so split its
+  payload building from its send; `cached_statement` (`:2687`) prepares once before the first
+  window; `Wire::send_all` and `Wire::next_answer` are the framing. Each answer is `read_answer`:
+  `Done { affected }` adds to the sum, an `ERR` is kept as the first refusal and the batch goes on,
+  and `Columns(n)` is a `CALL`'s result set, which must be drained with `read_columns` and
+  `next_row_of` (`:4306`), including `SERVER_MORE_RESULTS_EXISTS`. If that drain cannot share the
+  existing reader cleanly, send a window of one for a statement whose prepare reported columns.
+  Rewrite the doc above it (`:2834`), which says two commands cannot be in flight. A wire failure
+  still ends the batch and poisons the connection. Not green in this session means declined.
+- Then stage 3 is done: set its status in the front matter, and stage 4 is next.
 
 ### Backlog
 
