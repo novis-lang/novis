@@ -146,8 +146,8 @@ use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::Program;
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::{
-    Admission, Arrived, Ceiling, Cors, Incoming, OnDisk, Origin, Reply, Request, Resolved, Secure,
-    Serving, Trusted, What,
+    Admission, Arrived, Ceiling, Cors, Incoming, Origin, Reply, Request, Resolved, Secure, Serving,
+    Trusted, What,
 };
 
 use crate::script::Compiler;
@@ -1175,7 +1175,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // The client address decides the development rebinding guard: a
             // request from this machine names this machine in its `Host`
             // (`nvs_server::Table::local_hosts_only`).
-            let selected = match table.select(&request, origin.client(), &OnDisk) {
+            // The disk this request's lookup and its static file share, so a
+            // plain `GET` for a file looks it up, opens it and reads its first
+            // chunk in one blocking job (`nvs_server::statics::Prefetch`).
+            let disk = nvs_server::statics::Prefetch::new(request.method(), request.headers());
+            let selected = match table.select(&request, origin.client(), &disk) {
                 // Step 0, ahead of every mount: the probe of
                 // `rule:http-server/health-path-is-off-and-checks-nothing` says the process is
                 // alive, which is a fact this loop holds and no program is asked
@@ -1210,7 +1214,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                         &file,
                         request.method(),
                         request.headers(),
-                        &OnDisk,
+                        &disk,
                     );
                 }
             };

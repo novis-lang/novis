@@ -502,6 +502,8 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
+    #[cfg(debug_assertions)]
+    crate::counts::blocking_job();
     let Some(me) = current_task() else {
         return Some(inline(f));
     };

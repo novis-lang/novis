@@ -167,15 +167,19 @@ pub enum Answer {
     /// moved into the job and back, so the core serves other connections while
     /// the disk answers (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
     /// The first job seeks to the window's start. A `HEAD` reads nothing,
-    /// because `hyper` never polls its body.
+    /// because `hyper` never polls its body. A chunk the lookup already read
+    /// ([`crate::statics::Prefetch`]) goes out first, with no job.
     File {
         /// The open file, positioned at the next byte to send once `seek` is
         /// done. `None` only while a job holds it, or after it was lost to a
         /// job that panicked.
         file: Option<std::fs::File>,
-        /// Where the first read starts, which the first job seeks to. `0` once
-        /// it has.
-        seek: u64,
+        /// The window's first bytes, already read, and `None` once sent or
+        /// where nothing was read ahead.
+        head: Option<Bytes>,
+        /// Where the first read starts, which the first job seeks to, and
+        /// `None` where the file is already positioned there.
+        seek: Option<u64>,
         /// How many bytes are still to be sent, which `Content-Length` stated.
         left: u64,
     },
@@ -351,7 +355,24 @@ impl Answer {
     pub fn file(file: std::fs::File, at: u64, len: u64) -> Self {
         Self::File {
             file: Some(file),
-            seek: at,
+            head: None,
+            seek: (at != 0).then_some(at),
+            left: len,
+        }
+    }
+
+    /// The `len` bytes of `file` starting at `at`, where `head` is the file's
+    /// first bytes, already read, and the file is positioned after them.
+    ///
+    /// `head` is sent first when the window starts at `0` and covers it. Any
+    /// other window drops it, and the first chunk's job seeks to `at`.
+    #[must_use]
+    pub fn begun(file: std::fs::File, head: Bytes, at: u64, len: u64) -> Self {
+        let fits = at == 0 && u64::try_from(head.len()).is_ok_and(|read| read <= len);
+        Self::File {
+            file: Some(file),
+            head: fits.then_some(head),
+            seek: (!fits).then_some(at),
             left: len,
         }
     }
@@ -502,23 +523,33 @@ impl Body for Answer {
                 *head = rest.pop_front();
                 Poll::Ready(next.map(|bytes| Ok(Frame::data(bytes))))
             }
-            Self::File { file, seek, left } => {
+            Self::File {
+                file,
+                head,
+                seek,
+                left,
+            } => {
                 if *left == 0 {
                     return Poll::Ready(None);
+                }
+                if let Some(head) = head.take() {
+                    // `begun` keeps a head only where it fits in `left`.
+                    *left -= u64::try_from(head.len()).unwrap_or(*left);
+                    return Poll::Ready(Some(Ok(Frame::data(head))));
                 }
                 let take = usize::try_from(*left).map_or(FILE_CHUNK, |left| left.min(FILE_CHUNK));
                 let Some(open) = file.take() else {
                     *left = 0;
                     return Poll::Ready(Some(Err(BodyCut::FileEndedEarly)));
                 };
-                let at = std::mem::take(seek);
+                let at = seek.take();
                 // One job per chunk: the seek, if any, and the read. The file
                 // comes back with the bytes, so the next chunk reads on from it.
                 let (open, chunk) = nvs_host::blocking::run(move || {
                     let mut open = open;
                     let mut chunk = vec![0_u8; take];
                     crate::mount::file_call();
-                    let read = (at == 0 || open.seek(io::SeekFrom::Start(at)).is_ok())
+                    let read = at.is_none_or(|at| open.seek(io::SeekFrom::Start(at)).is_ok())
                         && open.read_exact(&mut chunk).is_ok();
                     (open, read.then_some(chunk))
                 });
@@ -2641,7 +2672,10 @@ where
         // end of this function. An event stream's isolate takes no socket, so
         // there is nothing for it to wait for and it starts here.
         let socket = offered.as_ref().and_then(|(slot, _accept)| slot.take());
-        let opened = match (socket, streaming.as_ref().and_then(nvs_runtime::SseSlot::take)) {
+        let opened = match (
+            socket,
+            streaming.as_ref().and_then(nvs_runtime::SseSlot::take),
+        ) {
             (Some(socket), Some(stream)) => {
                 socket.discard();
                 stream.discard();

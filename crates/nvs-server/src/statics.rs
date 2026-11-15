@@ -62,12 +62,19 @@
 //!
 //! Every lookup, open and chunk read runs on [`nvs_host::blocking`]'s pool,
 //! so a slow disk stalls its own request and no other request on the core
-//! (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). That is one
-//! hand-off per path asked and one per chunk sent.
+//! (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). A plain `GET`,
+//! with no `Range`, `If-Range` or `If-None-Match`, is **one hand-off** for the
+//! lookup, the open and the first chunk ([`Prefetch`]), and one more per later
+//! chunk. So a file of one chunk or less is one hand-off in all. Any other
+//! request keeps the lookup's `stat`, so a `304` opens no file. That spends no
+//! more memory: the first chunk is read one step earlier, and a response still
+//! holds one chunk.
 //!
 //! [`What::Static`]: crate::mount::What::Static
 
-use std::path::Path;
+use std::cell::RefCell;
+use std::io::Read as _;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use hyper::body::Bytes;
@@ -79,8 +86,8 @@ use hyper::{Method, Response, StatusCode};
 
 use nvs_runtime::conditional::{Asked, Decision, Window, decide, unsatisfied_range};
 
-use crate::mount::OnDisk;
-use crate::serve::{Answer, Reply};
+use crate::mount::{Existing, OnDisk};
+use crate::serve::{Answer, FILE_CHUNK, Reply};
 
 /// What a file has to answer before any of it is sent: `rule:http-server/a-request-resolves-in-five-steps`'s
 /// `ETag` is over these two numbers and nothing else.
@@ -119,6 +126,14 @@ pub enum Contents {
     /// Bytes already in memory, which is what the cases' sources hold and what
     /// a byte cache behind [`Source`] would hold.
     Bytes(Bytes),
+    /// A file on disk whose first bytes [`Prefetch`] already read, positioned
+    /// after them ([`Answer::begun`]).
+    Begun {
+        /// The open file.
+        file: std::fs::File,
+        /// The file's first [`FILE_CHUNK`] bytes.
+        head: Bytes,
+    },
 }
 
 /// Why [`Source::open`] has no file to give.
@@ -147,6 +162,13 @@ pub trait Source {
     /// [`Unopened::Missing`] for anything that is not a regular file, and
     /// [`Unopened::Unreadable`] for one that cannot be opened.
     fn open(&self, path: &Path) -> Result<Opened, Unopened>;
+
+    /// The size and modification time of `path` where they are already known
+    /// without a call to the disk, and `None` otherwise. [`send`] answers a
+    /// `304` from them and opens no file.
+    fn stat(&self, _path: &Path) -> Option<Stat> {
+        None
+    }
 }
 
 // The lookup and the open are recorded when `NVS_FOOTPRINT_LOG` names a log, so a check that
@@ -186,12 +208,143 @@ fn open_regular(path: &Path) -> Result<Opened, Unopened> {
         return Err(Unopened::Missing);
     }
     Ok(Opened {
-        stat: Stat {
-            len: meta.len(),
-            mtime_nanos: meta.modified().ok().map_or(0, nanos),
-        },
+        stat: stat_of(&meta),
         contents: Contents::File(file),
     })
+}
+
+/// The [`Stat`] of what `meta` describes.
+fn stat_of(meta: &std::fs::Metadata) -> Stat {
+    Stat {
+        len: meta.len(),
+        mtime_nanos: meta.modified().ok().map_or(0, nanos),
+    }
+}
+
+/// [`open_regular`], and the file's first [`FILE_CHUNK`] bytes read. A file of
+/// that size or less is read whole and closed. `None` where any call fails,
+/// so [`send`] opens the file again and answers that failure itself.
+fn begun(path: &Path) -> Option<Opened> {
+    let Ok(Opened {
+        stat,
+        contents: Contents::File(mut file),
+    }) = open_regular(path)
+    else {
+        return None;
+    };
+    let take = usize::try_from(stat.len).map_or(FILE_CHUNK, |len| len.min(FILE_CHUNK));
+    let mut head = vec![0_u8; take];
+    crate::mount::file_call();
+    file.read_exact(&mut head).ok()?;
+    let whole = u64::try_from(take).is_ok_and(|read| read == stat.len);
+    let head = Bytes::from(head);
+    let contents = if whole {
+        Contents::Bytes(head)
+    } else {
+        Contents::Begun { file, head }
+    };
+    Some(Opened { stat, contents })
+}
+
+/// One request's disk, for the five steps and for this policy: [`OnDisk`],
+/// except that the lookup of a file step 3 may send keeps what it read.
+///
+/// The lookup keeps the file's [`Stat`], so a conditional request that is
+/// answered `304` opens no file. A plain `GET`, with no `Range`, `If-Range` or
+/// `If-None-Match`, also opens the file and reads its first chunk in the same
+/// blocking job ([`Existing::sendable`]). A file of one chunk or less is then
+/// one hand-off in all.
+///
+/// It opens a file only where no link was crossed, so the file opened is the
+/// path the table checked before the lookup. It lives as long as the request,
+/// and holds at most one [`FILE_CHUNK`] and one open file.
+#[derive(Debug)]
+pub struct Prefetch {
+    /// Whether the request is a plain `GET`, which is when the lookup reads.
+    plain: bool,
+    /// What the last [`Existing::sendable`] lookup read.
+    kept: RefCell<Option<Kept>>,
+}
+
+/// What [`Prefetch`] read while it looked a file up.
+#[derive(Debug)]
+struct Kept {
+    /// The canonical path the lookup found, which [`send`] is handed.
+    path: PathBuf,
+    /// Its size and modification time.
+    stat: Stat,
+    /// The file opened with its first chunk read, until [`send`] takes it.
+    opened: Option<Opened>,
+}
+
+impl Prefetch {
+    /// The disk for a request with `method` and `headers`.
+    #[must_use]
+    pub fn new(method: &Method, headers: &HeaderMap) -> Self {
+        let conditional = [IF_NONE_MATCH, IF_RANGE, RANGE]
+            .iter()
+            .any(|name| headers.contains_key(name));
+        Self {
+            plain: *method == Method::GET && !conditional,
+            kept: RefCell::new(None),
+        }
+    }
+}
+
+impl Existing for Prefetch {
+    fn file(&self, path: &Path) -> Option<PathBuf> {
+        OnDisk.file(path)
+    }
+
+    /// [`OnDisk::file`]'s lookup, and for a plain `GET` the open and the first
+    /// chunk, in one [`nvs_host::blocking::run`] job.
+    fn sendable(&self, path: &Path) -> Option<PathBuf> {
+        nvs_footprint::exists(path);
+        let owned = path.to_path_buf();
+        let plain = self.plain;
+        let (held, stat, opened) = nvs_host::blocking::run(move || {
+            let (held, meta) = crate::mount::looked_up(&owned)?;
+            let opened = if plain && held == owned {
+                begun(&held)
+            } else {
+                None
+            };
+            Some((held, stat_of(&meta), opened))
+        })?;
+        if opened.is_some() {
+            nvs_footprint::file(path);
+        }
+        let stat = opened.as_ref().map_or(stat, |opened| opened.stat);
+        *self.kept.borrow_mut() = Some(Kept {
+            path: held.clone(),
+            stat,
+            opened,
+        });
+        Some(held)
+    }
+}
+
+impl Source for Prefetch {
+    fn open(&self, path: &Path) -> Result<Opened, Unopened> {
+        let taken = self
+            .kept
+            .borrow_mut()
+            .as_mut()
+            .filter(|kept| kept.path == path)
+            .and_then(|kept| kept.opened.take());
+        match taken {
+            Some(opened) => Ok(opened),
+            None => OnDisk.open(path),
+        }
+    }
+
+    fn stat(&self, path: &Path) -> Option<Stat> {
+        self.kept
+            .borrow()
+            .as_ref()
+            .filter(|kept| kept.path == path)
+            .map(|kept| kept.stat)
+    }
 }
 
 /// The request headers [`send`] reads, copied out of a request that still has
@@ -264,6 +417,24 @@ pub fn serve(file: &Path, method: &Method, headers: &HeaderMap, source: &dyn Sou
 /// time, and is never held whole ([`Answer::File`]).
 #[must_use]
 pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
+    let asked = Asked {
+        if_none_match: headers.get(IF_NONE_MATCH).map(HeaderValue::as_bytes),
+        if_range: headers.get(IF_RANGE).map(HeaderValue::as_bytes),
+        range: headers.get(RANGE).map(HeaderValue::as_bytes),
+        range_repeated: headers.get_all(RANGE).iter().nth(1).is_some(),
+    };
+    // A `304` needs the size and the time alone. Where the lookup already read
+    // them, the answer is made from them and no file is opened.
+    if asked.if_none_match.is_some()
+        && let Some(stat) = source.stat(file)
+    {
+        let tag = etag(stat);
+        if decide(asked, Some(&tag), stat.len) == Decision::NotModified {
+            let mut response = validated(&tag);
+            *response.status_mut() = StatusCode::NOT_MODIFIED;
+            return Reply::Done(response);
+        }
+    }
     let opened = match source.open(file) {
         Ok(opened) => opened,
         Err(Unopened::Missing) => return Reply::status(StatusCode::NOT_FOUND),
@@ -271,24 +442,7 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
     };
     let stat = opened.stat;
     let tag = etag(stat);
-    let mut response = Response::new(Answer::empty());
-    // On every answer this function gives, including the two that carry no
-    // body: a `304` states the validator it matched, and a `416` is still an
-    // answer about this representation.
-    response
-        .headers_mut()
-        .insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
-    response
-        .headers_mut()
-        .insert(ACCEPT_RANGES, HeaderValue::from_static("bytes"));
-    response.headers_mut().insert(ETAG, ascii(&tag));
-
-    let asked = Asked {
-        if_none_match: headers.get(IF_NONE_MATCH).map(HeaderValue::as_bytes),
-        if_range: headers.get(IF_RANGE).map(HeaderValue::as_bytes),
-        range: headers.get(RANGE).map(HeaderValue::as_bytes),
-        range_repeated: headers.get_all(RANGE).iter().nth(1).is_some(),
-    };
+    let mut response = validated(&tag);
     let wanted = match decide(asked, Some(&tag), stat.len) {
         Decision::NotModified => {
             *response.status_mut() = StatusCode::NOT_MODIFIED;
@@ -303,10 +457,11 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
         }
         Decision::Send(wanted) => wanted,
     };
+    let media = mime(file);
     response
         .headers_mut()
-        .insert(CONTENT_TYPE, HeaderValue::from_static(mime(file)));
-    if runs_script(file) {
+        .insert(CONTENT_TYPE, HeaderValue::from_static(media));
+    if runs_script(media) {
         response
             .headers_mut()
             .insert(CONTENT_SECURITY_POLICY, HeaderValue::from_static(SANDBOXED));
@@ -324,6 +479,18 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
     Reply::Done(response)
 }
 
+/// An empty `200` with the headers every answer of [`send`] carries, including
+/// the two with no body: a `304` states the validator it matched, and a `416`
+/// is still an answer about this representation.
+fn validated(tag: &str) -> Response<Answer> {
+    let mut response = Response::new(Answer::empty());
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    headers.insert(ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    headers.insert(ETAG, ascii(tag));
+    response
+}
+
 /// The body that carries the `wanted` bytes of `contents`, or `None` where they
 /// cannot be reached: bytes in memory that are fewer than the stat said. A
 /// file's body seeks when its first chunk is read, and cuts the connection
@@ -331,6 +498,7 @@ pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
 fn body(contents: Contents, wanted: Window) -> Option<Answer> {
     match contents {
         Contents::File(file) => Some(Answer::file(file, wanted.at, wanted.len)),
+        Contents::Begun { file, head } => Some(Answer::begun(file, head, wanted.at, wanted.len)),
         Contents::Bytes(bytes) => {
             let at = usize::try_from(wanted.at).ok()?;
             let end = at.checked_add(usize::try_from(wanted.len).ok()?)?;
@@ -359,11 +527,11 @@ fn mime(path: &Path) -> &'static str {
 /// ([`crate::secure`] fills only what a response has not set).
 const SANDBOXED: &str = "sandbox; frame-ancestors 'none'";
 
-/// Whether `path` is a type a browser runs script from when it is opened as a
-/// page: HTML, SVG and XML (which may hold XHTML), by [`mime`]'s table.
-fn runs_script(path: &Path) -> bool {
+/// Whether `media`, a type from [`mime`]'s table, is one a browser runs script
+/// from when it is opened as a page: HTML, SVG and XML (which may hold XHTML).
+fn runs_script(media: &str) -> bool {
     matches!(
-        mime(path),
+        media,
         "text/html; charset=utf-8" | "image/svg+xml" | "application/xml"
     )
 }
@@ -427,6 +595,110 @@ mod tests {
         (0..len)
             .map(|at| u8::try_from(at % 251).expect("under 251"))
             .collect()
+    }
+
+    /// The file the five steps select for `path` under a static `root` on disk,
+    /// looked up through a request's own disk.
+    fn selected_on_disk(root: &Path, path: &str, disk: &Prefetch) -> PathBuf {
+        let table = Table::new(
+            vec![mount("/", &root.join("index.nvs").to_string_lossy())],
+            Dispatch::Entry,
+            true,
+        );
+        match table
+            .resolve(None, path, disk)
+            .and_then(crate::mount::Resolved::selection)
+            .expect("the root mount matches everything")
+            .what
+        {
+            What::Static(file) => file,
+            other => panic!("{path} selected {other:?} rather than a static file"),
+        }
+    }
+
+    /// The status and every byte of what `serve` answers for a `GET` of `path`
+    /// under `root` with `headers`, through one request's disk.
+    fn got_from_disk(root: &Path, path: &str, headers: &HeaderMap) -> (StatusCode, Vec<u8>) {
+        let disk = Prefetch::new(&Method::GET, headers);
+        let file = selected_on_disk(root, path, &disk);
+        let Reply::Done(response) = serve(&file, &Method::GET, headers, &disk) else {
+            panic!("a static file is never a program");
+        };
+        let status = response.status();
+        let mut body = response.into_body();
+        let mut sent = Vec::new();
+        while let Some(frame) = next(&mut body) {
+            sent.extend(frame.expect("the file ended early"));
+        }
+        (status, sent)
+    }
+
+    /// A plain `GET` looks the file up, opens it and reads its first chunk in
+    /// one blocking job. A file of one chunk is then sent with no other job,
+    /// and a larger one takes one job for each chunk after the first.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_small_static_file_is_one_blocking_job() {
+        let dir = nvs_repo::scratch("statics-one-job");
+        let root = nvs_config::trust::canonical(dir.path()).expect("the scratch folder");
+        let big = numbered(2 * FILE_CHUNK + 5);
+        std::fs::write(root.join("style.css"), b"body{}")
+            .expect("the scratch file was not written");
+        std::fs::write(root.join("big.bin"), &big).expect("the scratch file was not written");
+        let jobs = |path: &str| {
+            let before = nvs_host::counts::Counts::now();
+            let got = got_from_disk(&root, path, &HeaderMap::new());
+            (
+                got,
+                nvs_host::counts::Counts::now().since(before).blocking_jobs,
+            )
+        };
+
+        let (small, small_jobs) = jobs("/style.css");
+        assert_eq!(small, (StatusCode::OK, b"body{}".to_vec()));
+        assert_eq!(small_jobs, 1, "a file of one chunk is one hand-off");
+
+        let ((status, sent), big_jobs) = jobs("/big.bin");
+        assert_eq!(status, StatusCode::OK);
+        assert!(sent == big, "the bytes sent are not the file's");
+        assert_eq!(big_jobs, 3, "the first chunk shares the lookup's job");
+    }
+
+    /// A request whose `If-None-Match` names the current tag is answered `304`
+    /// from the lookup's `stat`, in that one job, and no file is opened.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_not_modified_answer_opens_no_file() {
+        let dir = nvs_repo::scratch("statics-not-modified");
+        let root = nvs_config::trust::canonical(dir.path()).expect("the scratch folder");
+        std::fs::write(root.join("style.css"), b"body{}")
+            .expect("the scratch file was not written");
+        let tag = {
+            let disk = Prefetch::new(&Method::GET, &HeaderMap::new());
+            let file = selected_on_disk(&root, "/style.css", &disk);
+            header(
+                &answered(serve(&file, &Method::GET, &HeaderMap::new(), &disk)),
+                "etag",
+            )
+        };
+
+        let headers = asking(&[("if-none-match", &tag)]);
+        let jobs_before = nvs_host::counts::Counts::now();
+        let calls_before = crate::mount::file_calls::on_this_thread();
+        let disk = Prefetch::new(&Method::GET, &headers);
+        let file = selected_on_disk(&root, "/style.css", &disk);
+        let answer = answered(serve(&file, &Method::GET, &headers, &disk));
+        let jobs = nvs_host::counts::Counts::now()
+            .since(jobs_before)
+            .blocking_jobs;
+        let calls = crate::mount::file_calls::on_this_thread() - calls_before;
+
+        assert_eq!(answer.0, StatusCode::NOT_MODIFIED);
+        assert_eq!(header(&answer, "etag"), tag);
+        assert!(answer.2.is_empty(), "a 304 carries no body");
+        // The lookup's `stat` and its canonical path are two file calls. An
+        // open and its `fstat` would be two more.
+        assert_eq!((jobs, calls), (1, 2));
     }
 
     /// The body of what `send` answered for the file at `path` under `headers`,

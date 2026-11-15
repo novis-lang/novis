@@ -114,6 +114,15 @@ pub trait Existing {
     /// The canonical path of the regular file at `path`, or `None` for anything
     /// that is not one — absent, a directory, or unreadable.
     fn file(&self, path: &Path) -> Option<PathBuf>;
+
+    /// [`file`](Existing::file) for a path step 3 may send: not a `.nvs`, and
+    /// not a file the table withholds. A disk may read the file in the same
+    /// lookup ([`crate::statics::Prefetch`]). It does so only where the
+    /// canonical path is `path` itself, so the file it opens is the path the
+    /// table already checked.
+    fn sendable(&self, path: &Path) -> Option<PathBuf> {
+        self.file(path)
+    }
 }
 
 /// The real filesystem.
@@ -147,16 +156,20 @@ impl Existing for OnDisk {
         // It stays on this thread, where the footprint's capture is.
         nvs_footprint::exists(path);
         let path = path.to_path_buf();
-        nvs_host::blocking::run(move || {
-            file_call();
-            if !std::fs::metadata(&path).is_ok_and(|meta| meta.is_file()) {
-                return None;
-            }
-            file_call();
-            let held = nvs_config::trust::canonical(&path).ok()?;
-            (held == path || spelled_through_links(&path, &held)).then_some(held)
-        })
+        nvs_host::blocking::run(move || looked_up(&path).map(|(held, _)| held))
     }
+}
+
+/// [`OnDisk::file`]'s lookup, run inside the caller's blocking job: the
+/// canonical path of the regular file at `path`, with the `stat` that found it.
+pub(crate) fn looked_up(path: &Path) -> Option<(PathBuf, std::fs::Metadata)> {
+    file_call();
+    let meta = std::fs::metadata(path)
+        .ok()
+        .filter(std::fs::Metadata::is_file)?;
+    file_call();
+    let held = nvs_config::trust::canonical(path).ok()?;
+    (held == path || spelled_through_links(path, &held)).then_some((held, meta))
 }
 
 /// Counts one raw file call on this thread, in a test build. A release or
@@ -445,15 +458,20 @@ impl Table {
         // one and step 4 wants the file that is. The remainder is looked up
         // once for both steps: the step that matches takes the file, and the
         // other step finds it gone.
+        // A path step 3 may send is looked up with `sendable`, which lets a
+        // request's disk read the file in the same job. It is judged here, on
+        // the path as built, before the disk is asked.
+        let sends =
+            |path: &Path| self.serve_static && !is_nvs(path) && !self.withholds(mount, path);
         let mut found: Option<Option<PathBuf>> = None;
         let mut under_root = |wanted_nvs: bool| {
             found
-                .get_or_insert_with(|| under(&mount.root, remainder, disk))
+                .get_or_insert_with(|| under(&mount.root, remainder, disk, &sends))
                 .take_if(|file| is_nvs(file) == wanted_nvs)
         };
         let what = if self.serve_static
             && let Some(file) = under_root(false)
-                .or_else(|| default_document(mount, remainder, disk))
+                .or_else(|| default_document(mount, remainder, disk, &sends))
                 .filter(|file| !self.withholds(mount, file))
         {
             What::Static(file)
@@ -813,7 +831,15 @@ fn strip<'a>(prefix: &str, path: &'a str) -> &'a str {
 /// what a case-sensitive disk already says. `rule:programs/path-case` is the
 /// same comparison for a `require`, and it costs the same nothing: both paths
 /// are already in hand.
-fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
+///
+/// `sends` says whether the joined path is one step 3 may send, which
+/// [`Existing::sendable`] looks up in place of [`Existing::file`].
+fn under(
+    root: &Path,
+    remainder: &str,
+    disk: &dyn Existing,
+    sends: &dyn Fn(&Path) -> bool,
+) -> Option<PathBuf> {
     let mut path = root.to_path_buf();
     // A remainder of `/` alone is the mount's own root, which names a directory
     // and never a file: its one segment is empty, so steps 3 and 4 both decline
@@ -831,7 +857,11 @@ fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
         }
         path.push(name);
     }
-    let file = disk.file(&path)?;
+    let file = if sends(&path) {
+        disk.sendable(&path)
+    } else {
+        disk.file(&path)
+    }?;
     (file.starts_with(root) && !differs_only_in_case(&file, &path)).then_some(file)
 }
 
@@ -863,11 +893,16 @@ fn differs_only_in_case(resolved: &Path, asked: &Path) -> bool {
 /// steps have no spelling for one — that request reaches step 5 and the application answers
 /// it. The join goes through [`under`] like every other, so a default document
 /// is subject to the same two containment checks.
-fn default_document(mount: &Mounted, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
+fn default_document(
+    mount: &Mounted,
+    remainder: &str,
+    disk: &dyn Existing,
+    sends: &dyn Fn(&Path) -> bool,
+) -> Option<PathBuf> {
     if !remainder.ends_with('/') || remainder.split('/').all(str::is_empty) {
         return None;
     }
-    under(&mount.root, &format!("{remainder}index.html"), disk)
+    under(&mount.root, &format!("{remainder}index.html"), disk, sends)
 }
 
 /// One path segment with its percent escapes resolved, or `None` when it is not
