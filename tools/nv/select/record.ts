@@ -177,11 +177,19 @@ export class Recorder {
     return { ...this.tmpEnv, LLVM_PROFILE_FILE: join(d, `${name}-%4m.profraw`), NVS_FOOTPRINT_LOG: join(d, `${name}.log`) };
   }
 
-  /** A compile cache of its own for the atom recorded as `name`, empty and private. */
+  /** The `cache` folder made private, once per recorder. */
+  private cacheParent: Promise<void> | undefined;
+
+  /** A compile cache of its own for the atom recorded as `name`, empty and private. The parent is made
+   * private once (`privateDir`), and each atom's folder inherits its access list, so a run of many test
+   * binaries starts one `icacls`, not one per binary. */
   async cacheDir(name: string): Promise<Record<string, string>> {
-    const cache = join(this.dir, "cache", name);
+    const parent = join(this.dir, "cache");
+    this.cacheParent ??= privateDir(parent);
+    await this.cacheParent;
+    const cache = join(parent, name);
     rmSync(cache, { recursive: true, force: true });
-    await privateDir(cache);
+    mkdirSync(cache, { recursive: true });
     return { LOCALAPPDATA: cache, XDG_CACHE_HOME: cache };
   }
 
