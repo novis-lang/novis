@@ -180,10 +180,17 @@
 //! start. Declined: a non-PIE build, which removes the relocations and gives up ASLR, and
 //! **security** outranks **latency**.
 //!
-//! Not built yet: making the largest pointer tables in `.data.rel.ro` pointer-free, such as the
-//! `Core` registry's rows as offsets into one string, so their pages are never written at a start
-//! (up to 787 faults). And `-z pack-relative-relocs`, which shrinks the 3.8 MB `.rela.dyn` to a few
-//! KiB but leaves the writes; it needs glibc 2.36 on every Linux target a release supports.
+//! Of the 146,596 relocations in `.data.rel.ro`, about 26,000 are panic locations' file names,
+//! 16,000 are function pointers, mostly libraries' vtables, and the rest are `&str` and slice
+//! pointers. The `Core` registry's rows and reference cards are 16,000 to 25,000 of them.
+//!
+//! Declined: making the `Core` registry pointer-free, its rows as offsets into one string. It
+//! would save about 90 to 130 faults, about 0.06 ms of a CLI start, and nothing on a request,
+//! since a server relocates once. It needs a generator that gathers rows written in about 100
+//! files, and an accessor for every field read; **simplicity** outranks that saving.
+//!
+//! Not built yet: `-z pack-relative-relocs`, which shrinks the 3.8 MB `.rela.dyn` to a few KiB
+//! but leaves the writes; it needs glibc 2.36 on every Linux target a release supports.
 //!
 //! A change to a start is built only where this table gives its phase at least 5% of the
 //! allocations, one file read of 16 KiB or more, or one thread. What stays, and why:

@@ -254,8 +254,9 @@ that figure.
 ### Backlog
 
 - **The 3.2 MB `.data.rel.ro` costs about 787 of `nvs --version`'s 1,234 minor faults (64%) and
-  0.4 ms per start.** Make the largest pointer tables pointer-free, for example the `Core`
-  registry's rows as offsets into one string. Recorded in `main.rs`'s `## What it costs`.
+  0.4 ms per start.** Declined: making the `Core` registry pointer-free. It is 16,000 to 25,000
+  of the relocations, about 0.06 ms of a CLI start, and needs a generator over rows in about 100
+  files. Recorded in `main.rs`'s `## What it costs`.
 - **`-z pack-relative-relocs`** shrinks the 3.8 MB `.rela.dyn` to a few KiB, and needs glibc 2.36
   on every Linux target a release supports. Recorded in the same place.
 - Declined: a non-PIE build. It gives up ASLR, and **security** outranks **latency**.
