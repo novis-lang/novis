@@ -890,6 +890,9 @@ impl Emitter<'_, '_> {
                 return Ok(next);
             }
             InstKind::HelperCall { helper, args } => {
+                if let Some(next) = self.emit_inline_helper(inst, *helper, args)? {
+                    return Ok(next);
+                }
                 let symbol = helper_symbol(*helper)?;
                 // Two rows of the table are variadic — the callable call and
                 // the proven one beside it, whose arity is the call site's and
@@ -1090,6 +1093,8 @@ impl Emitter<'_, '_> {
             InstKind::ClassTest { value, class } => {
                 let result = self.emit_class_test(*value, class)?;
                 self.define(inst, result)?;
+                // The inline class-word test ends in a block of its own.
+                return self.current_block();
             }
             InstKind::Concat { pieces } => {
                 let value = self.emit_concat(pieces)?;
@@ -2031,14 +2036,13 @@ impl Emitter<'_, '_> {
         // a two-pointer call rather than the tagged helper convention because
         // the row is already known here — see `nvs_runtime::nvs_array_eq`.
         if matches!(ty, Ty::Str | Ty::Bytes | Ty::Array) && matches!(op, BinOp::Eq | BinOp::NotEq) {
-            let symbol = if matches!(ty, Ty::Array) {
-                "nvs_array_eq"
+            let (equal, next) = if matches!(ty, Ty::Array) {
+                let callee = self.runtime_ref("nvs_array_eq", RuntimeSig::PtrEq)?;
+                let call = self.b.ins().call(callee, &[l, r]);
+                (self.b.inst_results(call)[0], cur)
             } else {
-                "nvs_str_eq"
+                self.emit_str_eq(l, r)?
             };
-            let callee = self.runtime_ref(symbol, RuntimeSig::PtrEq)?;
-            let call = self.b.ins().call(callee, &[l, r]);
-            let equal = self.b.inst_results(call)[0];
             return Ok((
                 match op {
                     BinOp::Eq => equal,
@@ -2046,7 +2050,7 @@ impl Emitter<'_, '_> {
                     // Rust `bool`, so the byte is already exactly 0 or 1.
                     _ => self.b.ins().bxor_imm_u(equal, 1),
                 },
-                cur,
+                next,
             ));
         }
 
@@ -2910,6 +2914,149 @@ impl Emitter<'_, '_> {
     /// wrote, so it passes `None`. A call through a `callable` is probed inside
     /// `nvs_runtime::call_callable`, because a `Core` member calls a callback
     /// on that same path.
+    /// A helper whose operand is a known scalar, emitted as native
+    /// instructions where that is exact, or `None` for every other helper.
+    ///
+    /// **Truthiness** of an `int`, a `uint` or a `float` is one compare and
+    /// calls nothing. `fcmp ne` is true for a NaN and false for `-0.0`, which
+    /// is `nvs_runtime`'s `nvs_float_truthy` row.
+    ///
+    /// **A widening** — `int` to `uint`, `uint` to `int`, either to `float` —
+    /// tests the range inline and converts. Outside the range it calls the
+    /// helper, so the error a program sees has one source
+    /// (`rule:errors/helper-abi`). An operand that is a constant in range
+    /// emits no call at all.
+    fn emit_inline_helper(
+        &mut self,
+        inst: &Inst,
+        helper: Helper,
+        args: &[ValueId],
+    ) -> Result<Option<Block>, CodegenError> {
+        /// `f64` represents every integer up to this magnitude exactly, and
+        /// `nvs_runtime`'s conversion rows refuse anything past it.
+        const F64_EXACT_INT_LIMIT: i64 = 1 << 53;
+
+        let [operand] = args else {
+            return Ok(None);
+        };
+        match helper {
+            Helper::IntTruthy | Helper::UintTruthy => {
+                let (x, _) = self.value(*operand)?;
+                let truthy = self.b.ins().icmp_imm_s(IntCC::NotEqual, x, 0);
+                self.define(inst, truthy)?;
+                Ok(Some(self.current_block()?))
+            }
+            Helper::FloatTruthy => {
+                let (x, _) = self.value(*operand)?;
+                let zero = self.b.ins().f64const(0.0);
+                let truthy = self.b.ins().fcmp(FloatCC::NotEqual, x, zero);
+                self.define(inst, truthy)?;
+                Ok(Some(self.current_block()?))
+            }
+            Helper::IntToUint | Helper::UintToInt | Helper::IntToFloat | Helper::UintToFloat => {
+                let (x, _) = self.value(*operand)?;
+                // Whether `x` is in range, as a constant when it is one.
+                let known = self.iconst_of(x).map(|c| match helper {
+                    Helper::IntToUint | Helper::UintToInt => c >= 0,
+                    Helper::IntToFloat => c.unsigned_abs() <= F64_EXACT_INT_LIMIT.cast_unsigned(),
+                    _ => c.cast_unsigned() <= F64_EXACT_INT_LIMIT.cast_unsigned(),
+                });
+                if known == Some(false) {
+                    // The helper throws, and the inline path would be dead.
+                    return Ok(None);
+                }
+                let result_ty = if matches!(helper, Helper::IntToFloat | Helper::UintToFloat) {
+                    types::F64
+                } else {
+                    types::I64
+                };
+                let convert = |b: &mut FunctionBuilder<'_>| match helper {
+                    Helper::IntToFloat => b.ins().fcvt_from_sint(types::F64, x),
+                    Helper::UintToFloat => b.ins().fcvt_from_uint(types::F64, x),
+                    // The same 64 bits, read with the other sign.
+                    _ => x,
+                };
+                if known == Some(true) {
+                    let value = convert(&mut self.b);
+                    self.define(inst, value)?;
+                    return Ok(Some(self.current_block()?));
+                }
+                let in_range = match helper {
+                    // A signed `x >= 0` is `x <= i64::MAX` read unsigned, so
+                    // both integer rows test the sign bit.
+                    Helper::IntToUint | Helper::UintToInt => {
+                        self.b
+                            .ins()
+                            .icmp_imm_s(IntCC::SignedGreaterThanOrEqual, x, 0)
+                    }
+                    // `-L <= x <= L` is `x + L <= 2L` read unsigned, and the
+                    // add wraps every `x` outside it past `2L`.
+                    Helper::IntToFloat => {
+                        let shifted = self.b.ins().iadd_imm_s(x, F64_EXACT_INT_LIMIT);
+                        self.b.ins().icmp_imm_s(
+                            IntCC::UnsignedLessThanOrEqual,
+                            shifted,
+                            2 * F64_EXACT_INT_LIMIT,
+                        )
+                    }
+                    _ => self.b.ins().icmp_imm_s(
+                        IntCC::UnsignedLessThanOrEqual,
+                        x,
+                        F64_EXACT_INT_LIMIT,
+                    ),
+                };
+                let fast = self.b.create_block();
+                let slow = self.b.create_block();
+                let merge = self.b.create_block();
+                let result = self.b.append_block_param(merge, result_ty);
+                self.b.ins().brif(in_range, fast, &[], slow, &[]);
+
+                self.b.switch_to_block(fast);
+                let value = convert(&mut self.b);
+                self.b
+                    .ins()
+                    .jump(merge, &[codegen::ir::BlockArg::Value(value)]);
+
+                self.b.switch_to_block(slow);
+                let symbol = helper_symbol(helper)?;
+                self.emit_helper(slow, inst, symbol, args, RuntimeSig::Helper, None)?;
+                let defined = inst
+                    .result
+                    .ok_or_else(|| internal("a widening with no result"))?;
+                let (value, _) = self.value(defined)?;
+                self.b
+                    .ins()
+                    .jump(merge, &[codegen::ir::BlockArg::Value(value)]);
+
+                self.b.switch_to_block(merge);
+                self.define(inst, result)?;
+                Ok(Some(merge))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// The block instructions are being appended to.
+    fn current_block(&self) -> Result<Block, CodegenError> {
+        self.b
+            .current_block()
+            .ok_or_else(|| internal("an instruction emitted outside a block"))
+    }
+
+    /// `value`'s immediate, when an `iconst` defines it.
+    fn iconst_of(&self, value: Value) -> Option<i64> {
+        let codegen::ir::ValueDef::Result(def, _) = self.b.func.dfg.value_def(value) else {
+            return None;
+        };
+        match self.b.func.dfg.insts[def] {
+            codegen::ir::InstructionData::UnaryImm {
+                opcode: codegen::ir::Opcode::Iconst,
+                imm,
+            } => Some(imm.bits()),
+            _ => None,
+        }
+    }
+
     fn emit_helper(
         &mut self,
         cur: Block,
@@ -3550,14 +3697,84 @@ impl Emitter<'_, '_> {
             TestedClass::Descriptor(desc) => self.value(*desc)?.0,
         };
         let (bare, subject_ty) = self.value(value)?;
-        let (symbol, subject) = if matches!(subject_ty, Ty::Tagged) {
-            ("nvs_value_is_class", self.materialize_receiver(value)?)
-        } else {
-            ("nvs_object_is_class", bare)
-        };
-        let callee = self.runtime_ref(symbol, RuntimeSig::ClassTest)?;
-        let call = self.b.ins().call(callee, &[subject, desc]);
-        Ok(self.b.inst_results(call)[0])
+        if matches!(subject_ty, Ty::Tagged) {
+            let subject = self.materialize_receiver(value)?;
+            let callee = self.runtime_ref("nvs_value_is_class", RuntimeSig::ClassTest)?;
+            let call = self.b.ins().call(callee, &[subject, desc]);
+            return Ok(self.b.inst_results(call)[0]);
+        }
+        // An object of exactly the tested class is the common case, and its
+        // class word answers it. A subclass calls the helper, which walks the
+        // parents.
+        let offset = i32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
+            .map_err(|_| internal("a class-pointer offset past i32"))?;
+        let own = self.b.ins().load(types::I64, trusted(), bare, offset);
+        let same = self.b.ins().icmp(IntCC::Equal, own, desc);
+        let walk = self.b.create_block();
+        let merge = self.b.create_block();
+        let result = self.b.append_block_param(merge, types::I8);
+        let yes = self.b.ins().iconst(types::I8, 1);
+        self.b
+            .ins()
+            .brif(same, merge, &[codegen::ir::BlockArg::Value(yes)], walk, &[]);
+        self.b.switch_to_block(walk);
+        let callee = self.runtime_ref("nvs_object_is_class", RuntimeSig::ClassTest)?;
+        let call = self.b.ins().call(callee, &[bare, desc]);
+        let found = self.b.inst_results(call)[0];
+        self.b
+            .ins()
+            .jump(merge, &[codegen::ir::BlockArg::Value(found)]);
+        self.b.switch_to_block(merge);
+        Ok(result)
+    }
+
+    /// `==` over two `string`s or two `bytes`, as a `bool`.
+    ///
+    /// The same pointer is equal and two lengths that differ are not, so
+    /// both answer without a call. Only two strings of one length call
+    /// `nvs_runtime::nvs_str_eq`, which compares the bytes. Returns the result
+    /// and the block that continues.
+    fn emit_str_eq(&mut self, l: Value, r: Value) -> Result<(Value, Block), CodegenError> {
+        let len_offset = i32::try_from(nvs_runtime::LEN_OFFSET)
+            .map_err(|_| internal("a string-length offset past i32"))?;
+        let lengths = self.b.create_block();
+        let compare = self.b.create_block();
+        let merge = self.b.create_block();
+        let result = self.b.append_block_param(merge, types::I8);
+
+        let same = self.b.ins().icmp(IntCC::Equal, l, r);
+        let yes = self.b.ins().iconst(types::I8, 1);
+        self.b.ins().brif(
+            same,
+            merge,
+            &[codegen::ir::BlockArg::Value(yes)],
+            lengths,
+            &[],
+        );
+
+        self.b.switch_to_block(lengths);
+        let l_len = self.b.ins().load(types::I64, trusted(), l, len_offset);
+        let r_len = self.b.ins().load(types::I64, trusted(), r, len_offset);
+        let differ = self.b.ins().icmp(IntCC::NotEqual, l_len, r_len);
+        let no = self.b.ins().iconst(types::I8, 0);
+        self.b.ins().brif(
+            differ,
+            merge,
+            &[codegen::ir::BlockArg::Value(no)],
+            compare,
+            &[],
+        );
+
+        self.b.switch_to_block(compare);
+        let callee = self.runtime_ref("nvs_str_eq", RuntimeSig::PtrEq)?;
+        let call = self.b.ins().call(callee, &[l, r]);
+        let equal = self.b.inst_results(call)[0];
+        self.b
+            .ins()
+            .jump(merge, &[codegen::ir::BlockArg::Value(equal)]);
+
+        self.b.switch_to_block(merge);
+        Ok((result, merge))
     }
 
     /// `$obj->prop`: one load out of the receiver's field slot.

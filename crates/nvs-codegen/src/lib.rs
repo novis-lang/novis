@@ -137,6 +137,16 @@
 //! tier would sit behind the same [`nvs_ir`] boundary, and the safepoint poll
 //! is where it would deoptimise.
 //!
+//! **A helper with an exact inline answer is inline, and the helper is its
+//! slow path.** The truthiness of an `int`, a `uint` or a `float` is one
+//! compare and calls nothing. A widening between `int`, `uint` and `float`
+//! tests the range and converts, and calls its helper only outside the range,
+//! so the error still has one source. A `string` or `bytes` `==` answers from
+//! equal pointers or unequal lengths before `nvs_runtime::nvs_str_eq`. A class
+//! test of a proven object answers from an equal class word before
+//! `nvs_runtime::nvs_object_is_class` walks the parents. The test
+//! `a_known_scalar_test_and_widening_call_no_helper` counts the calls left.
+//!
 //! **This tier is not where a program loses time.** A static call and a
 //! `foreach` step cost a few nanoseconds, the uniform calling convention's
 //! 16-byte argument slots included, and the `catch_unwind` around each helper
@@ -3762,5 +3772,81 @@ echo Tag::of(3);
         // through a `RefCell`, and the argument is that nothing can reach it.
         const fn sends<T: Send>() {}
         sends::<JITModule>();
+    }
+
+    /// How many `call` instructions in `text`, which [`clif`] printed, call
+    /// `symbol`, summed over every function.
+    fn calls_to(text: &str, symbol: &str) -> usize {
+        text.split("\n; ")
+            .map(|section| {
+                let suffix = format!(" = {symbol}");
+                section
+                    .lines()
+                    .filter_map(|line| line.strip_prefix(";; ")?.strip_suffix(suffix.as_str()))
+                    .map(|fref| {
+                        let call = format!("call {fref}(");
+                        section.lines().filter(|line| line.contains(&call)).count()
+                    })
+                    .sum::<usize>()
+            })
+            .sum()
+    }
+
+    /// A truthiness test of an `int`, a `uint` or a `float` calls nothing. A
+    /// widening converts inline and calls its helper only outside the range,
+    /// once per site, and a constant in range calls nothing at all
+    /// (`rule:testing/perf-two-mechanisms`: the count is the check).
+    #[test]
+    fn a_known_scalar_test_and_widening_call_no_helper() {
+        let text = clif(&lower(
+            "<?nvs
+class Scalars {
+    public static function truthy(int $i, uint $u, float $f): bool {
+        if ($i) { return true; }
+        if ($u) { return true; }
+        if ($f) { return true; }
+        return false;
+    }
+    public static function widen(int $i, uint $u): float {
+        uint $a = $i as uint;
+        int $b = $u as int;
+        float $c = $i as float;
+        float $d = $u as float;
+        return $c + $d;
+    }
+    public static function constant(): float {
+        return 7 as float;
+    }
+}
+echo Scalars::truthy(1, 2, 3.0) ? \"y\" : \"n\";
+echo Scalars::widen(1, 2);
+echo Scalars::constant();
+",
+        ))
+        .expect("the fixture compiles");
+
+        for truthy in ["nvs_int_truthy", "nvs_uint_truthy", "nvs_float_truthy"] {
+            assert_eq!(
+                calls_to(&text, truthy),
+                0,
+                "a scalar test called `{truthy}`"
+            );
+        }
+        for widening in [
+            "nvs_int_to_uint",
+            "nvs_uint_to_int",
+            "nvs_int_to_float",
+            "nvs_uint_to_float",
+        ] {
+            assert_eq!(
+                calls_to(&text, widening),
+                1,
+                "`{widening}` is not the slow path of exactly one site"
+            );
+        }
+        assert!(
+            text.contains("fcvt_from_sint") && text.contains("fcvt_from_uint"),
+            "a widening to `float` did not convert inline:\n{text}"
+        );
     }
 }
