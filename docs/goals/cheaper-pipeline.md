@@ -22,7 +22,7 @@ stages:
     context: [tools/nv/cmd/affected.ts, tools/nv/accept/runner.ts, tools/nv/select/select.ts, tools/nv/select/record.ts]
   - id: 5
     title: a recorded atom starts one process
-    status: open
+    status: done
     context: [tools/nv/select/extract.ts, tools/nv/select/record.ts, tools/nv/select/store.ts]
   - id: 6
     title: the slow Rust tests share their set-up
@@ -204,12 +204,12 @@ calls and stats.
 **Does:** read an atom's functions from one `llvm-profdata` call, overlap a batch's extraction with
 the next batch's run, and write a batch in one transaction.
 
-- [ ] `tools/nv/select/extract.ts:125`: `merge -sparse -text` names the functions, after the test
+- [x] `tools/nv/select/extract.ts:125`: `merge -sparse -text` names the functions, after the test
   `one merge names the same functions the two calls named` passes on ten recorded atoms
   (`rule:testing/perf-two-mechanisms`). Safe default if the names differ on any atom: decline.
-- [ ] `tools/nv/select/record.ts:452`: batch n+1 starts while batch n is extracted, each batch in
+- [x] `tools/nv/select/record.ts:452`: batch n+1 starts while batch n is extracted, each batch in
   its own folder (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/select/record.ts:509`: a batch's verdicts and skip slots are one transaction of
+- [x] `tools/nv/select/record.ts:509`: a batch's verdicts and skip slots are one transaction of
   `tools/nv/select/store.ts:480` (`rule:testing/perf-two-mechanisms`).
 
 ### 6. the slow Rust tests share their set-up
@@ -241,20 +241,15 @@ the x86_64 gap.
 
 ### State
 
-Stages 1 to 4 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5:
-0, stage 6: 0.
+Stages 1 to 5 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5:
+1, stage 6: 0.
 
-- Stage 4: `OpenOptions.read` gives `PlanSweep.open` the graph and change `verifyPlan` read.
-  `change.ts` has `commitsOf` (one `cat-file --batch-check`, null for a missing commit) and
-  `untrackedPaths`; `snapshot` and `changedPaths` take what the caller read. Stamped trees share the
-  base read's untracked list. `discover` lists `case`, `proof`, `bench` and `nvtest` in full, so
-  `query`'s `present` stats no file. `Recorder.cacheDir` runs `privateDir` once on `cache/`.
-- A known base `git` cannot name while `--since` or `--paths` is given no longer throws: the scan is
-  then read at `since`, which was already the path for a base other than `since`.
-
-- Stage 3: `--push` runs no check when `STAMP` names the pushed commit and tree; `--check` always
-  runs, so `ci-check` still meets a new advisory. `build` is never skipped: verify builds
-  `target/covws`. `pool` now lives in `tools/nv/lib/proc.ts`.
+- Stage 5: one `merge -sparse -text` names an atom's functions (`namesFromText`); the `one-profdata`
+  test matched merge then `show` over ten atoms. `llvm-cov` reads only an indexed profile, so
+  `CovMap.ensure` takes a function that merges one on a cache miss. `recordCases` extracts batch n-1
+  while batch n runs, in `cases-<n>`, and records a batch in one `store.transaction`.
+- Stage 4: `commitsOf` and `untrackedPaths` in `change.ts`; `discover` lists atoms in full.
+- Stage 3: `--push` skips checks when `STAMP` names the pushed tree. `pool` is in `lib/proc.ts`.
 - `nvs-debug` (`.github/workflows/ci.yml:703`) feeds six jobs per OS. If a browser suite goes red on
   the push for a feature only the workspace build unified, that is the cause.
 - `tested` (`:97`) runs in the nightly alone; `tools/nv/test/ci-push-builds.test.ts` pins the kept
@@ -262,23 +257,24 @@ Stages 1 to 4 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage
 - Minutes the goal end's push should show saved: stage 1's 34, 15, 12 and 9, the bench and doc
   tests' share of the 53.1-minute wall, and stage 2's 38.7 less the transfers. If the Linux transfer
   costs more, keep the artifact on Windows and macOS only.
-- The sweep's `env-secret-proofs` is stale looper state: no check has that name, and no log exists.
+- The sweep's `env-secret-proofs` is stale looper state: nothing names it, and no log exists.
 
 ### Next
 
-Stage 5, in one session. The files are `tools/nv/select/extract.ts`, `tools/nv/select/record.ts` and
-`tools/nv/select/store.ts`. The stage's anchors are updated: stage 4 moved `record.ts` down 8 lines.
+Stage 6, in one session. It touches only `crates/`.
 
-- [ ] `tools/nv/select/extract.ts:125` (`executedNames`): write the test `one merge names the same
-  functions the two calls named` in `tools/nv/test/extract.test.ts` first, over ten recorded atoms.
-  Only if it passes does `merge -sparse -text` replace the two calls. Otherwise decline.
-- [ ] `tools/nv/select/record.ts:452`: batch n+1 starts while batch n is extracted, each in its own
-  folder.
-- [ ] `tools/nv/select/record.ts:509`: one transaction of `tools/nv/select/store.ts:480`
-  (`recordRun`) for a batch's verdicts and skip slots.
+- [ ] `crates/nvs-ext/src/load.rs:266` (`ModuleCache`): a file-backed cache for tests under
+  `target/test-scratch/`, used by `crates/nvs-ext/tests/spreadsheet_read.rs` and the six other files
+  that call `Loader::new`.
+- [ ] `crates/nvs-syntax/tests/prefixes.rs:118`, `:152` and `:225`: the three sweeps use the worker
+  pool of `crates/nvs-syntax/tests/lossless.rs`.
+- [ ] `crates/nvs-diagnostics/tests/every_code_is_tested.rs:80` (`asserted`): one scan of the text
+  into a set, then one lookup per code.
+- [ ] `.github/workflows/ci.yml:142`: read run 43649226665's per-test times of the x86_64 leg with
+  `gh`, one paragraph in `## Standing decisions`.
 
-No test is expected to go red. The new `commitsOf` test in `tools/nv/test/select-record.test.ts` ran
-by name: 21 pass. `tsc` over the tools is clean.
+No test is expected to go red. `select-record.test.ts`'s `CovMap` test now passes `ensure` a
+function. `tsc` over the tools is clean.
 
 ### Backlog
 
