@@ -47,6 +47,7 @@
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
 //! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit`, `test --show-output --jobs 1`, `test --list --format=json` or `config dump --origin`: the command line `--FILE--` goes through |
 //! | `--EXTENSION--` | fixture extensions to load, one name per line: each `<name>.nvsx` under the nearest `ext/fixtures/` above the case is copied beside `--FILE--`, and its pinned `[[extension]]` entry is added to `nvs.toml`, which is created when the case wrote none; a name with no fixture is a parse error |
+//! | `--COMPILE_CACHE--` | `on`: the case's `nvs` reads and writes the compile cache under its data folder; without it every case runs with `NOVIS_NO_FILE_CACHE` set |
 //! | `--COPY--` | repository files to copy beside `--FILE--` before `--SKIPIF--` runs, one path per line relative to the case's directory, `..` allowed: each lands under its last segment, and a source that is not there skips the case naming it |
 //!
 //! ## Which subcommand a case is run through

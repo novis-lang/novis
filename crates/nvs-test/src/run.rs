@@ -190,9 +190,28 @@ pub fn recording(case: &Case, opts: &Options) -> Vec<(String, String)> {
             "NVS_FOOTPRINT_LOG".to_owned(),
             dir.join(format!("{name}.log")).display().to_string(),
         ),
-        ("NOVIS_NO_FILE_CACHE".to_owned(), "1".to_owned()),
+        (NO_FILE_CACHE.to_owned(), "1".to_owned()),
     ]
 }
+
+/// The variables the runner gives every `nvs` process of `case`: [`recording`]'s, and
+/// `NOVIS_NO_FILE_CACHE` unless the case wrote `--COMPILE_CACHE--`.
+///
+/// The cache is off because the runner deletes a case's data folder, and the cache with it, when
+/// the case ends. A cold run that writes an artifact compiles the program a second time for the
+/// file, and syncs it to the disk, and no later run reads it. Recording turns the cache off
+/// whatever the case wrote, because a hit skips the code generator the record is about.
+#[must_use]
+pub fn case_env(case: &Case, opts: &Options) -> Vec<(String, String)> {
+    let mut env = recording(case, opts);
+    if !case.compile_cache && env.iter().all(|(name, _)| name != NO_FILE_CACHE) {
+        env.push((NO_FILE_CACHE.to_owned(), "1".to_owned()));
+    }
+    env
+}
+
+/// The variable that turns `nvs`'s compile cache off, on presence.
+const NO_FILE_CACHE: &str = "NOVIS_NO_FILE_CACHE";
 
 /// What running one case came to.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,7 +245,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
         Err(error) => return Outcome::Fail(vec![format!("--COPY--: {error}")]),
     }
 
-    let record = recording(case, opts);
+    let record = case_env(case, opts);
     if let Some(source) = &case.skipif {
         match run_nvs(
             opts,
@@ -555,7 +574,7 @@ struct Invocation<'a> {
     args: &'a [String],
     /// `--ENV--`, added to the environment the runner already has.
     env: &'a [(String, String)],
-    /// [`recording`]'s variables, which only the `nvs` half gets.
+    /// [`case_env`]'s variables, which only the `nvs` half gets.
     record: &'a [(String, String)],
 }
 
@@ -930,6 +949,44 @@ mod tests {
             dir.join(format!("{stem}.log")).display().to_string()
         );
         assert_eq!(value("NOVIS_NO_FILE_CACHE"), "1");
+    }
+
+    /// Every `nvs` process of a case runs with the compile cache off, so a case writes no artifact
+    /// into the data folder the runner deletes. That the variable turns the cache off is
+    /// `nvs-cli`'s `placed_unless` test; this is the half that every case's process gets it.
+    #[test]
+    fn a_case_run_writes_no_compile_artifact() {
+        let scratch = nvs_repo::scratch("test-no-cache");
+        let mut opts =
+            Options::from_current_exe(scratch.join("cases")).expect("this binary has a path");
+        let plain = parsed("--TEST--\nplain\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n");
+        let cached = parsed(
+            "--TEST--\ncached\n--COMPILE_CACHE--\non\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n",
+        );
+        let off = |vars: &[(String, String)]| {
+            vars.iter()
+                .filter(|(name, value)| name == NO_FILE_CACHE && value == "1")
+                .count()
+        };
+        assert_eq!(off(&case_env(&plain, &opts)), 1, "a plain case runs cold");
+        assert_eq!(
+            off(&case_env(&cached, &opts)),
+            0,
+            "`--COMPILE_CACHE--` turns the cache back on"
+        );
+        opts.record = Some(scratch.join("records"));
+        assert_eq!(off(&case_env(&plain, &opts)), 1, "set once, not twice");
+        assert_eq!(
+            off(&case_env(&cached, &opts)),
+            1,
+            "a recorded run compiles whole whatever the case wrote"
+        );
+        let refused = crate::case::parse(
+            Path::new("t.nvst"),
+            "--TEST--\nt\n--COMPILE_CACHE--\nyes\n--FILE--\n<?nvs\n--EXPECT--\n\n",
+        )
+        .expect_err("a word other than `on` is refused");
+        assert!(refused.message.contains("COMPILE_CACHE"), "{refused}");
     }
 
     /// A finished process's output, with `code` as its exit status.

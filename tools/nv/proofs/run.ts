@@ -601,9 +601,11 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * get beside the recording's. With `unlogged` and no record directory, the run writes no footprint log,
  * not even the one this process inherited. A proof marked `requires: <service>` runs once that service
  * of `tests/db/compose.yaml` is up (`servicesFor`), and throws the reason when it cannot be brought up.
- * A `.cmd` proof runs the binary `argv[0]` names with its command line's arguments and variables
- * (`commandLine`), without `COMMAND_UNSET`, in an empty directory of its own, and none of the files above
- * but the `.in` is read for it. */
+ * Every run but a `.cmd` proof's has `NOVIS_NO_FILE_CACHE`, so a proof compiles once and writes no
+ * artifact it would compile a second time for. A `.cmd` proof runs the binary `argv[0]` names with its
+ * command line's arguments and variables (`commandLine`), without `COMMAND_UNSET` and with the compile
+ * cache as its line leaves it, since `nvs cache` is a command a `.cmd` shows, in an empty directory of
+ * its own, and none of the files above but the `.in` is read for it. */
 export async function spawnProof(argv: string[], proof: string, timeoutMs: number, record?: { dir?: string; env?: Record<string, string>; unlogged?: boolean }): Promise<Ran> {
   const source = existsSync(abs(proof)) ? readFileSync(abs(proof), "utf8") : "";
   const missing = await servicesFor(source);
@@ -637,9 +639,10 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const vars = abs(sibling(proof, ".env"));
   const own = !scratch && existsSync(vars) ? envLines(readFileSync(vars, "utf8")) : {};
-  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, ...own, ...record?.env, ...recording, [SWEEP_ENV]: "1" };
+  const env: Record<string, string | undefined> = { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env, NOVIS_NO_FILE_CACHE: "1", ...own, ...record?.env, ...recording, [SWEEP_ENV]: "1" };
   if (record?.unlogged && !recording.NVS_FOOTPRINT_LOG) delete env.NVS_FOOTPRINT_LOG;
   if (commandEnv) {
+    if (!recording.NOVIS_NO_FILE_CACHE && process.env.NOVIS_NO_FILE_CACHE === undefined) delete env.NOVIS_NO_FILE_CACHE;
     for (const name of COMMAND_UNSET) delete env[name];
     Object.assign(env, commandEnv);
   }

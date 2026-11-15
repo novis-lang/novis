@@ -313,6 +313,10 @@ pub struct Case {
     pub expect_error: Option<Expectation>,
     /// `--CLEAN--`, an Novis program run afterwards whose output is ignored.
     pub clean: Option<String>,
+    /// `--COMPILE_CACHE--` `on`: the case's `nvs` reads and writes the compile cache under its
+    /// data folder. Off by default, so a case does not compile a second time for an artifact
+    /// the runner deletes with the case, and only a case about that cache turns it on.
+    pub compile_cache: bool,
 }
 
 impl Case {
@@ -371,6 +375,7 @@ const KNOWN: &[&str] = &[
     "RUN",
     "EXTENSION",
     "COPY",
+    "COMPILE_CACHE",
 ];
 
 /// Where the fixture extensions sit, below some directory above the case.
@@ -718,6 +723,16 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         }
     }
 
+    // One word, and anything else is refused: a case that misspelled it would
+    // otherwise run with the cache off and pass without testing the cache.
+    let compile_cache = match take("COMPILE_CACHE") {
+        None => false,
+        Some((_, body)) if body.trim() == "on" => true,
+        Some((header, _)) => {
+            return Err(err("`--COMPILE_CACHE--` is the one word `on`", Some(header)));
+        }
+    };
+
     // Two spellings of one body, merged, is the silent wrong answer this
     // format refuses everywhere else, so writing both is where it stops.
     let body = match (take("POST"), take("POST_RAW")) {
@@ -806,6 +821,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         clean: take("CLEAN")
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
+        compile_cache,
     })
 }
 
