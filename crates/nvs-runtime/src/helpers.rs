@@ -3009,19 +3009,21 @@ fn write_rendered(
     rendered: Value,
     raw: Raw,
 ) -> Result<(), Fault> {
-    // A `string`'s tag is its UTF-8 guarantee, so the text is read without a
-    // second validation pass.
-    let text = rendered
-        .as_text()
+    // The payload is read as bytes and checked, so an ill-formed byte is a
+    // substitution at the sink and never undefined behaviour. The check is one
+    // scan, and ordinary text allocates nothing for it.
+    let bytes = rendered
+        .as_str_bytes()
         .ok_or_else(|| wrong_tag(who, Tag::Str, rendered))?;
     let carrier = ctx.carrier();
     match raw {
-        Raw::Yes => ctx.write_output(text.as_bytes()),
+        Raw::Yes => ctx.write_output(bytes),
         Raw::No => {
+            let text = String::from_utf8_lossy(bytes);
             let written = if carrier == crate::CARRIER_HTML_MARKUP {
-                nvs_render::html::escape(text)
+                nvs_render::html::escape(&text)
             } else {
-                nvs_render::text::substitute(text)
+                nvs_render::text::substitute(&text)
             };
             ctx.write_output(written.as_bytes())
         }
