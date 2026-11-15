@@ -1057,6 +1057,11 @@ impl Scheduler {
         } else {
             self.ready.push_back(task);
         }
+        // Two tasks on one scheduler is when a slice can give the core to
+        // another one, so the slice thread starts here (`crate::slice`).
+        if self.ready.len() + self.parked.len() >= 2 {
+            crate::slice::second_task();
+        }
     }
 
     /// Ends a task the worker could not give a stack, as a limit

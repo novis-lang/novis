@@ -43,6 +43,16 @@
 //! at the slots: with relaxed ordering, each side could miss the other and the
 //! thread would sleep through a turn that never ends.
 //!
+//! # The thread starts with a scheduler's second task
+//!
+//! A task that is asked to yield gives its core to another task on the same
+//! scheduler, so while every scheduler has one task, asking is for nothing.
+//! [`SliceClock::start`] makes the clock with no thread, and [`second_task`]
+//! starts it the first time a seated scheduler holds two tasks. A parked task
+//! counts: the task it waits for runs only when the reactor is polled, which
+//! is what a yield does. So `nvs run` on a program that never spawns starts no
+//! thread for this.
+//!
 //! # On time on macOS
 //!
 //! macOS ends an ordinary thread's timed wait up to about three times late,
@@ -53,7 +63,9 @@
 //!
 //! # What it costs
 //!
-//! One OS thread per process, parked while no core is in a turn. One slot per
+//! One OS thread per process from the first scheduler with two tasks on, parked
+//! while no core is in a turn. A spawn onto a scheduler that then holds two
+//! tasks pays one thread-local read and one relaxed load. One slot per
 //! registered thread, which is O(cores). A resume pays one thread-local read,
 //! one relaxed load of the epoch, one sequentially consistent store and one
 //! sequentially consistent load. The end of a turn pays one store. Nothing is
@@ -101,9 +113,37 @@ struct Clock {
     slots: Mutex<Vec<Arc<Slot>>>,
     /// The thread, for an unpark. Set once, before the thread can park.
     thread: OnceLock<Thread>,
+    /// Set by the first [`Clock::spin_up`], so a later one returns after one
+    /// relaxed load.
+    started: AtomicBool,
+    /// The thread's handle, which [`SliceClock`]'s drop joins. Written and
+    /// taken under this lock, so a start and a stop never race.
+    handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Clock {
+    /// Starts the slice thread over `clock`, once. A thread the OS refuses
+    /// leaves a clock that asks nobody to yield, which is the same trade
+    /// [`crate::watchdog`] makes for its own thread.
+    fn spin_up(clock: &Arc<Self>) {
+        if clock.started.load(Ordering::Relaxed) {
+            return;
+        }
+        let mut handle = clock.handle.lock().unwrap_or_else(PoisonError::into_inner);
+        if clock.started.swap(true, Ordering::Relaxed) || !clock.running.load(Ordering::SeqCst) {
+            return;
+        }
+        let ticking = Arc::clone(clock);
+        *handle = std::thread::Builder::new()
+            .name("nvs-slice".to_owned())
+            .spawn(move || {
+                let _ = ticking.thread.set(std::thread::current());
+                crate::watchdog::wake_on_time();
+                tick_until_stopped(&ticking);
+            })
+            .ok();
+    }
+
     /// Unparks the thread if it is parked.
     fn wake(&self) {
         if self.parked.swap(false, Ordering::SeqCst)
@@ -143,7 +183,6 @@ impl Clock {
 /// The process's slice clock. Dropping it stops and joins its thread.
 pub struct SliceClock {
     clock: Arc<Clock>,
-    handle: Option<JoinHandle<()>>,
 }
 
 impl std::fmt::Debug for SliceClock {
@@ -156,17 +195,23 @@ impl std::fmt::Debug for SliceClock {
 }
 
 impl SliceClock {
-    /// Starts the slice thread, ticking every [`TICK`].
-    ///
-    /// A thread the OS refuses leaves a clock that asks nobody to yield, which
-    /// is the same trade [`crate::watchdog`] makes for its own thread.
+    /// Makes the clock, ticking every [`TICK`]. Its thread starts with the
+    /// first scheduler that holds two tasks ([`second_task`]).
     #[must_use]
     pub fn start() -> Self {
-        Self::ticking_every(TICK)
+        Self::with_tick(TICK)
     }
 
-    /// Starts the slice thread with its own tick.
-    fn ticking_every(tick: Duration) -> Self {
+    /// Makes the clock with its own tick, and starts its thread now.
+    #[cfg(test)]
+    pub(crate) fn ticking_every(tick: Duration) -> Self {
+        let clock = Self::with_tick(tick);
+        Clock::spin_up(&clock.clock);
+        clock
+    }
+
+    /// Makes the clock with its own tick, and no thread yet.
+    fn with_tick(tick: Duration) -> Self {
         let clock = Arc::new(Clock {
             tick,
             epoch: AtomicU64::new(1),
@@ -174,22 +219,15 @@ impl SliceClock {
             running: AtomicBool::new(true),
             slots: Mutex::new(Vec::new()),
             thread: OnceLock::new(),
+            started: AtomicBool::new(false),
+            handle: Mutex::new(None),
         });
         // Locked once here, before the slice thread can see it. Where std's mutex
         // is a pthread one (macOS), its first lock allocates it. A seat taken on
         // this thread and the thread's first sweep race for that lock, so a
         // counted run's allocations would depend on which got there first.
         drop(clock.slots.lock().unwrap_or_else(PoisonError::into_inner));
-        let ticking = Arc::clone(&clock);
-        let handle = std::thread::Builder::new()
-            .name("nvs-slice".to_owned())
-            .spawn(move || {
-                let _ = ticking.thread.set(std::thread::current());
-                crate::watchdog::wake_on_time();
-                tick_until_stopped(&ticking);
-            })
-            .ok();
-        Self { clock, handle }
+        Self { clock }
     }
 
     /// A handle a seat is made from, on whichever thread takes the seat.
@@ -207,7 +245,13 @@ impl Drop for SliceClock {
     fn drop(&mut self) {
         self.clock.running.store(false, Ordering::SeqCst);
         self.clock.parked.store(false, Ordering::SeqCst);
-        if let Some(handle) = self.handle.take() {
+        let handle = self
+            .clock
+            .handle
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(handle) = handle {
             handle.thread().unpark();
             let _ = handle.join();
         }
@@ -312,6 +356,20 @@ pub(crate) fn begin_turn() {
             if seat.clock.parked.load(Ordering::SeqCst) {
                 seat.clock.wake();
             }
+        }
+    });
+}
+
+/// A scheduler on this thread now holds two tasks or more: the slice thread
+/// starts, if this thread has a seat and the thread has not started yet.
+///
+/// [`crate::scheduler::Scheduler`] calls it when a spawn leaves it with two
+/// tasks. The module doc's *The thread starts with a scheduler's second task*
+/// owns why.
+pub(crate) fn second_task() {
+    SEAT.with_borrow(|seat| {
+        if let Some(seat) = seat {
+            Clock::spin_up(&seat.clock);
         }
     });
 }
@@ -473,6 +531,17 @@ mod tests {
         assert!(!idle.safepoint_flags().contains(SafepointFlags::YIELD));
         registered.withdraw(&busy.safepoint_view());
         registered.withdraw(&idle.safepoint_view());
+    }
+
+    #[test]
+    fn a_started_clock_has_no_thread_until_a_second_task() {
+        let clock = SliceClock::start();
+        let (_count, raise) = counting();
+        let _seat = clock.handle().seat(raise);
+        let spawned = || clock.clock.handle.lock().unwrap().is_some();
+        assert!(!spawned(), "the thread started before a second task");
+        second_task();
+        assert!(spawned(), "a second task started no thread");
     }
 
     #[test]

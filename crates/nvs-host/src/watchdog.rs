@@ -2802,7 +2802,8 @@ mod tests {
         use nvs_runtime::SafepointFlags;
         let (tx, _rx) = mpsc::channel();
         let dog = watchdog_of(Duration::from_secs(3600), tx);
-        let clock = crate::slice::SliceClock::start();
+        // Started now: this test runs no scheduler, so no second task starts it.
+        let clock = crate::slice::SliceClock::ticking_every(crate::slice::TICK);
         dog.slice_with(&clock);
         let registered = dog.register_requests();
         if ThreadClock::current().is_none() {
