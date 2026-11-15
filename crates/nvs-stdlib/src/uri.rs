@@ -371,6 +371,7 @@
 //! inherited its encoder's mark would launder every string that survived a
 //! round trip, which is every string.
 
+use std::borrow::Cow;
 use std::mem::ManuallyDrop;
 
 use fluent_uri::component::{Authority, Scheme};
@@ -1301,10 +1302,21 @@ fn escaped(bytes: &[u8], at: usize) -> Option<u8> {
 /// Answers bytes rather than a `String` because that is what percent-decoding
 /// produces — the UTF-8 question is the caller's, and the module docs'
 /// *A decoder answers `bytes`* owns who is left asking it.
-fn decode(text: &str, form: Form) -> Vec<u8> {
+///
+/// A field with no `%`, and with no `+` under [`Form::FormValue`], decodes to
+/// itself, so it is borrowed and nothing is allocated. Most query names and
+/// values are such a field.
+fn decode(text: &str, form: Form) -> Cow<'_, [u8]> {
     let bytes = text.as_bytes();
+    let Some(first) = bytes
+        .iter()
+        .position(|&byte| byte == b'%' || (byte == b'+' && form == Form::FormValue))
+    else {
+        return Cow::Borrowed(bytes);
+    };
     let mut out = Vec::with_capacity(bytes.len());
-    let mut at = 0;
+    out.extend_from_slice(&bytes[..first]);
+    let mut at = first;
     while at < bytes.len() {
         match bytes[at] {
             b'+' if form == Form::FormValue => {
@@ -1328,7 +1340,7 @@ fn decode(text: &str, form: Form) -> Vec<u8> {
             }
         }
     }
-    out
+    Cow::Owned(out)
 }
 
 // ============================================================================
@@ -1372,13 +1384,18 @@ fn produced(text: &str) -> HelperResult {
 /// The offset is a position in text the caller supplied, so it is safe to name
 /// and it is the one fact that makes the throw actionable — the octets
 /// themselves are not quoted, since they are by definition not text.
-fn text_from(octets: Vec<u8>, owner: &str, member: &str, subject: &str) -> Result<String, Fault> {
-    String::from_utf8(octets).map_err(|error| {
+fn text_from<'a>(
+    octets: &'a [u8],
+    owner: &str,
+    member: &str,
+    subject: &str,
+) -> Result<&'a str, Fault> {
+    std::str::from_utf8(octets).map_err(|error| {
         Fault::thrown(format!(
             "{owner}::{member}(): {subject} holds a byte a `string` cannot — byte {} begins a \
              sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying \
              an escape for a non-UTF-8 byte has no `string` to decode to",
-            error.utf8_error().valid_up_to()
+            error.valid_up_to()
         ))
     })
 }
@@ -1388,8 +1405,8 @@ fn text_from(octets: Vec<u8>, owner: &str, member: &str, subject: &str) -> Resul
 /// Total, and that is the point: percent-decoding is defined over octets and a
 /// `bytes` holds every one of them, so a decoder has nothing left to refuse.
 /// The module docs' *A decoder answers `bytes`* owns the rule.
-fn decoded(octets: Vec<u8>) -> HelperResult {
-    Ok(Value::bytes(NvsStr::new(&octets)))
+fn decoded(octets: &[u8]) -> HelperResult {
+    Ok(Value::bytes(NvsStr::new(octets)))
 }
 
 /// The route capture `name`'s segment text, percent-decoded, or a throw where
@@ -1410,12 +1427,13 @@ fn decoded(octets: Vec<u8>) -> HelperResult {
 /// so the refusal is the answer, and the offset is a position in a path the
 /// peer supplied, which is the one fact that makes it actionable.
 pub(crate) fn decode_capture(text: &str, name: &str) -> Result<String, Fault> {
-    String::from_utf8(decode(text, Form::Component)).map_err(|error| {
+    let octets = decode(text, Form::Component);
+    std::str::from_utf8(&octets).map(str::to_owned).map_err(|error| {
         Fault::thrown(format!(
             "the route capture `{name}` percent-decodes to a byte a `string` cannot hold — byte \
              {} begins a sequence that is not valid UTF-8. A capture binds as a `tainted string`, \
              so a path segment escaping an octet outside UTF-8 has no capture to become",
-            error.utf8_error().valid_up_to()
+            error.valid_up_to()
         ))
     })
 }
@@ -2077,7 +2095,7 @@ pub(crate) const SIG_NAME: &str = "_sig";
 /// anything rooted at `_sig` is a pair `sign` would overwrite.
 fn is_signature_name(written: &str) -> bool {
     let decoded = decode(written, Form::FormValue);
-    let base = path_of(&decoded).map_or(decoded.as_slice(), |(base, _)| base);
+    let base = path_of(&decoded).map_or(&*decoded, |(base, _)| base);
     base == SIG_NAME.as_bytes()
 }
 
@@ -3203,7 +3221,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_uri_decode_component(_ctx, args: [1]) {
         let text = text_of(args, "decodeComponent")?;
 
-        decoded(decode(text, Form::Component))
+        decoded(&decode(text, Form::Component))
     }
 }
 
@@ -3247,7 +3265,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_uri_decode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "decodeFormValue")?;
 
-        decoded(decode(text, Form::FormValue))
+        decoded(&decode(text, Form::FormValue))
     }
 }
 
@@ -3309,20 +3327,18 @@ pub(crate) fn parse_query(
     let mut out = NvsArray::new();
     for pair in query.split('&') {
         let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
-        let name = text_from(
-            decode(written_name, Form::FormValue),
-            owner,
-            member,
-            "the decoded name of a parameter",
-        )?;
+        let name = decode(written_name, Form::FormValue);
+        let name = text_from(&name, owner, member, "the decoded name of a parameter")?;
         if name.is_empty() {
             continue;
         }
+        // Each value is built once, straight from its decoded octets, and a
+        // value with nothing to decode is read where it stands.
         let octets = decode(written_value, Form::FormValue);
         let value = match values {
             Values::Octets => Value::bytes(NvsStr::new(&octets)),
-            Values::Text => Value::text(&text_from(
-                octets,
+            Values::Text => Value::text(text_from(
+                &octets,
                 owner,
                 member,
                 "the decoded value of a parameter",
@@ -3349,7 +3365,7 @@ pub(crate) fn form_pairs(
         let value = at + written_name.len() + 1;
         Some((
             value..value + written_value.len(),
-            decode(written_name, Form::FormValue),
+            decode(written_name, Form::FormValue).into_owned(),
         ))
     })
 }
