@@ -29,6 +29,14 @@
 //! that does not see. `dump` takes no `--as`: it lists keys, and `check` is the
 //! verdict.
 //!
+//! # What it costs
+//!
+//! [`install_tls_client`] runs at every start of `nvs run`, with or without an
+//! `[http.client.tls]` table. Counted on a one-line program in a debug build, it
+//! is 18 allocations and 33 KB, under 0.1% of the start's allocations, with no
+//! file read and no thread. Building the client at its first handshake would
+//! save no more than that, so the client is built at the start.
+//!
 
 use std::ffi::OsStr;
 use std::io::Write as _;

@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-test/src/run.rs, crates/nvs-cli/src/cache.rs, tools/nv/accept/runner.ts, docs/rules/packaging.md]
   - id: 3
     title: the configuration and the built-in sources are read once and parsed once
-    status: open
+    status: done
     context: [crates/nvs-config/src/data.rs, crates/nvs-config/src/resolve.rs, crates/nvs-cli/src/extensions.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-hir/src/requires.rs, crates/nvs-cli/src/config.rs]
   - id: 4
     title: "a program pays for the `Core` signatures and symbols it names"
@@ -212,15 +212,24 @@ on the disk.
 
 **Gate:** each item is built only when stage 1's table puts its phase at or over its floor.
 
-- [ ] `crates/nvs-config/src/data.rs:569`: the default file's hash is a compile-time constant, and the
+- [x] `crates/nvs-config/src/data.rs:569`: the default file's hash is a compile-time constant, and the
   file is read once per start (`rule:config/the-config-is-an-immutable-snapshot`).
-- [ ] `crates/nvs-config/src/resolve.rs:770`: one parse into a table, and the typed `Config` is
+  - [x] `build.rs` writes the hash, and `is_template` compares without building the template
+  - [x] `config_file` keeps the text, and `Unowned::read_config` takes it once
+  - [x] measured: shared-folder `run` configuration bytes 1,000,414 to 842,036
+- [x] `crates/nvs-config/src/resolve.rs:770`: one parse into a table, and the typed `Config` is
   derived from it (`rule:config/the-config-is-an-immutable-snapshot`).
-- [ ] `crates/nvs-cli/src/extensions.rs:151`: `Manifest.source` and `ExtensionFile.text` are shared,
+  - [x] `file::parse_document` keeps the spanned document
+  - [x] `settings::check_file` and the merge table read that document
+  - [x] measured: `run` configuration bytes 1,531,405 to 924,973
+- [x] `crates/nvs-cli/src/extensions.rs:151`: `Manifest.source` and `ExtensionFile.text` are shared,
   not cloned, through `crates/nvs-types/src/ext_lib.rs:91` and `crates/nvs-hir/src/requires.rs:707`
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-cli/src/config.rs:790`: with no `[http.client.tls]` table, the TLS client is built
-  by its first handshake (`rule:programs/memory-priority`).
+  - [x] both texts are `Arc<str>`, and `carried_source` copies only into the source map
+  - [x] measured: `built_in` bytes 1,259,714 to 1,075,168, `collection` 318,581 to 133,472
+- [x] `crates/nvs-cli/src/config.rs:790`: with no `[http.client.tls]` table, the TLS client is built
+  by its first handshake (`rule:programs/memory-priority`). Declined under its floor: 18 allocations
+  and 33 KB, no file read and no thread. The number is in `config.rs`'s `# What it costs`.
 
 ### 4. a program pays for the `Core` signatures and symbols it names
 
@@ -257,38 +266,36 @@ process.
 
 ### State
 
-Stages 1 and 2 are done. Stage 1's `bun nv start-cost` and `crates/nvs-cli/src/phases.rs` measure
-one start, and **The measured start** in `## Standing decisions` puts every candidate of stages 3 to
-5 at its floor. Stage 2 landed in three commits: a `.nvst` case and a proof run with the compile
-cache off (`nvs_test::run::case_env`, `--COMPILE_CACHE--` `on` to opt back in, `spawnProof`), the
-artifact written without `sync_all`, and the object walk on a scoped thread (`compile_beside_object`
-in `crates/nvs-cli/src/cache.rs`). `case-writes-no-cache` passes. Sessions used: stage 1: 1, stage
-2: 1, stage 3: 0, stage 4: 0, stage 5: 0.
+Stages 1, 2 and 3 are done. Stage 3 landed in three commits: a configuration file is parsed once
+(`nvs_config::file::parse_document`), the data folder's `nvs.toml` is read once per start and its
+template hash is a constant (`crates/nvs-config/build.rs`, `data::take_read`), and a component's
+Novis source is an `Arc<str>` shared by every reader. The TLS item was priced at 18 allocations and
+33 KB and declined. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0, stage 5: 0.
 
-The sweep's findings before this session needed no change. `env-secret-proofs` is no check in the
-tree (a stale name from a retired goal). Nightly 43581848915's four `miri units (nvs-stdlib …)`
-failures are Miri timeouts in tests that `8bd6b6eda9` shrank or gave a Miri deadline, and that commit
-is newer than the nightly's. The next nightly is the check.
+The sweep's findings before this session needed no change. `env-secret-proofs` has no check and no
+log in the tree. Nightly 43581848915 is the same run the last handoff named, older than
+`8bd6b6eda9`'s Miri fix.
+
+Measure from a directory with no `nvs.toml` of its own, such as `.agent-tmp/`: the repository's
+own `nvs.toml` adds about 33,000 configuration allocations that a user's start does not pay.
 
 ### Next
 
-Stage 3, in one session. The files are `crates/nvs-config/src/data.rs`,
-`crates/nvs-config/src/resolve.rs`, `crates/nvs-cli/src/extensions.rs` and
-`crates/nvs-cli/src/config.rs`.
+Stage 4, in one session. The files are `crates/nvs-types/src/core_lib.rs`,
+`crates/nvs-types/src/signatures.rs`, `crates/nvs-cli/src/cache.rs` and
+`crates/nvs-codegen/src/lib.rs`.
 
-- [ ] `crates/nvs-config/src/data.rs:569`: the default file's hash is a compile-time constant, and
-  the file is read once per start. At the floor by the 78,788-byte file.
-- [ ] `crates/nvs-config/src/resolve.rs:770`: one parse into a table, and the typed `Config` is
-  derived from it. At the floor by the same file.
-- [ ] `crates/nvs-cli/src/extensions.rs:151`: `Manifest.source` and `ExtensionFile.text` shared, not
-  cloned. At the floor: `built_in` is 19.4%.
-- [ ] `crates/nvs-cli/src/config.rs:790`: the TLS client built by its first handshake. Not priced:
-  wrap `install_tls_client` in `phases::start()`/`end` first, and build it only at its floor.
+- [ ] `crates/nvs-types/src/core_lib.rs:53`: `base()` seeds a class on its first `get`. At the
+  floor: `core` is 16,624 allocations, 47.9% of the start.
+- [ ] `crates/nvs-cli/src/cache.rs:1717`: `this_process` reads one process-wide table. Not priced:
+  wrap it in a `phases::start()`/`end` with a temporary `eprintln!` of `phases::line()` after it,
+  because `--count` prints its line before the run's compile. Remove the mark before the commit.
 
 Tests that may go red at stage 6: the conformance cases that relied on a case writing a compile
-artifact (none is known; no `.nvst` names the cache), and `nvs-cli`'s
-`a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`, whose cold arm is now
-shorter by the sync and by the overlapped object walk, so its ratio narrows.
+artifact (none is known), `nvs-cli`'s
+`a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`, whose cold arm is shorter,
+and a `nvs-config` test that expected an empty unknown header in the merge table before
+`Merge::finish` (none is known; `finish` dropped it already).
 
 ### Backlog
 
@@ -296,3 +303,5 @@ shorter by the sync and by the overlapped object walk, so its ratio narrows.
   parsers drift, and the saving is not measured.
 - Declined before the run: creating the reactor on first park
   (`rule:concurrency/the-parking-contract`).
+- Found in stage 3: `built_in` still makes 6,699 allocations, nearly all of them the one parse of
+  the built-in manifests' JSON and the copy of each `Manifest` in `with_built_in`. Not in a stage.

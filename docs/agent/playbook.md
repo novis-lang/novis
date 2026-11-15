@@ -158,6 +158,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **`nvs check --count` run from the repository root counts the repository's own `nvs.toml`.**
+  Its configuration phase showed about 34,000 allocations, where a start with no `nvs.toml` of its
+  own makes about 400. Run a start count from `.agent-tmp/`, with `target/debug/nvs.exe` on
+  Windows (`target/debug/nvs` there is a Linux build). `run --count` prints its `phases:` line
+  before the TLS client and the run, so a mark placed after the compile shows only through its own
+  `eprintln!` of `phases::line()`. See `crates/nvs-cli/src/phases.rs`.
 - **`cargo test --lib` runs none of `nvs-cli`'s tests, and says `0 passed` for every crate.**
   `nvs-cli` is a binary crate with no library target, so a test in `crates/nvs-cli/src/` runs under
   `cargo test --bin nvs -- <name>`. A goal check whose test lives there runs
