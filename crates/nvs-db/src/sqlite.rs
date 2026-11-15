@@ -768,7 +768,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
         for statement in setup {
             connection.execute_batch(statement)?;
         }
-        connection.execute_batch(&session_pragmas())?;
+        connection.execute_batch(session_pragmas())?;
         connection.authorizer(Some(authorize))?;
         connection.update_hook(Some(
             move |action, _database: &str, _table: &str, rowid: i64| {
@@ -936,14 +936,21 @@ fn pragma_allowed(name: &str, argument: bool) -> bool {
 
 /// The statements that write every [`Pragma::Session`] row's value, which
 /// [`open`] runs and [`SqliteConn::reset`] runs again.
-fn session_pragmas() -> String {
-    let mut text = String::new();
-    for (name, kind) in PRAGMAS {
-        if let Pragma::Session(value) = kind {
-            text.push_str(&format!("PRAGMA {name} = {value}; "));
+///
+/// Built once per process, on first use, and kept. [`PRAGMAS`] is a constant,
+/// so the text never changes. **What it spends:** one string of a few hundred
+/// bytes per process.
+fn session_pragmas() -> &'static str {
+    static TEXT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+        let mut text = String::new();
+        for (name, kind) in PRAGMAS {
+            if let Pragma::Session(value) = kind {
+                text.push_str(&format!("PRAGMA {name} = {value}; "));
+            }
         }
-    }
-    text
+        text
+    });
+    &TEXT
 }
 
 std::thread_local! {
@@ -1702,6 +1709,11 @@ impl SqliteConn {
 
 /// [`SqliteConn::reset`]'s work on the connection itself, on a pool thread.
 ///
+/// Its two reading statements go through the connection's statement cache,
+/// so a pooled connection prepares each once. **What it spends:** two entries
+/// of that cache, which a program's statements share. A cache of size `0`
+/// prepares them on each reset.
+///
 /// # Errors
 ///
 /// A refused statement, or `SQLITE_MISUSE` for a connection that still has a
@@ -1716,7 +1728,7 @@ fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
     // in a `FROM` would read the table.
     let mut attached = false;
     {
-        let mut list = connection.prepare("PRAGMA database_list")?;
+        let mut list = connection.prepare_cached("PRAGMA database_list")?;
         let mut rows = list.query([])?;
         while let Some(row) = rows.next()? {
             let name: String = row.get(1)?;
@@ -1735,9 +1747,9 @@ fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
     // The pragmas first, because `query_only` would refuse the drops. Then
     // triggers: a `temp` trigger can watch a `main` table, so dropping the
     // `temp` tables does not remove it. An index goes with its table.
-    let mut drops = session_pragmas();
+    let mut drops = String::from(session_pragmas());
     {
-        let mut objects = connection.prepare(
+        let mut objects = connection.prepare_cached(
             "SELECT type, name FROM temp.sqlite_master \
              WHERE type IN ('trigger', 'view', 'table') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' \
              ORDER BY CASE type WHEN 'trigger' THEN 0 WHEN 'view' THEN 1 ELSE 2 END",
@@ -3348,6 +3360,31 @@ mod tests {
         );
         conn.query("insert into t (v) values (1)", Vec::new())
             .expect("the connection writes again");
+    }
+
+    /// The reset's reading statements are cached on the connection. A cached
+    /// statement is prepared again when the schema changes, so the second
+    /// reset still finds the `temp` objects a later request made.
+    #[test]
+    fn a_second_reset_finds_what_the_next_request_left() {
+        let mut conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the table is made");
+        for round in 0..3 {
+            for sql in [
+                format!("create temp table left_{round} (v integer)"),
+                format!("create temp trigger watching_{round} after insert on t begin select 1; end"),
+            ] {
+                conn.query(&sql, Vec::new())
+                    .expect("the request's own statement runs");
+            }
+            conn = conn.reset().expect("the reset works");
+            assert_eq!(
+                number(&conn, "select count(*) from temp.sqlite_master"),
+                0,
+                "a temp object survived reset {round}"
+            );
+        }
     }
 
     /// An attached database is a file no `fs` grant was asked about, so every
