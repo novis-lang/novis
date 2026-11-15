@@ -6,7 +6,7 @@ context: [crates/nvs-host/src/net.rs, crates/nvs-stdlib/src/db/execute.rs, crate
 stages:
   - id: 1
     title: a socket sends at once, and a client request is one write
-    status: open
+    status: done
     context: [crates/nvs-host/src/net.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-stdlib/src/bus.rs, crates/nvs-stdlib/src/sse.rs]
   - id: 2
     title: "a result's rows share their keys, in one row loop"
@@ -112,6 +112,15 @@ many small pieces sends more segments. The HTTP paths write whole messages, so t
 **A client body of 16 KiB or less joins the head's buffer.** Larger bodies keep two writes.
 **What it spends:** one copy of a small body.
 
+**An idle event stream parks for one second, not 50 ms.** A publish from any core wakes it through
+the bus, so the bound only decides how soon a parked stream sees that its client left: nothing
+wakes a writer on that close. **What it spends:** up to one second of a closed stream's isolate.
+`CLOSE_TICK` in `crates/nvs-stdlib/src/sse.rs` holds it.
+
+**A failed `set_nodelay` is ignored.** A socket that refuses the option is one its peer already
+reset, and its next read or write reports that. Failing the accept for it would read as a listener
+failure.
+
 **No name-lookup cache.** The shared store and the HTTP client resolve the host on each call. A
 cached answer changes when a DNS change is seen. Declined until a deployment measures it.
 
@@ -146,17 +155,17 @@ moves, so an old entry is a miss.
 **Does:** set `TCP_NODELAY` where a TCP stream is made, join a small client body to its head, and
 remove two wake-up costs of the bus.
 
-- [ ] `crates/nvs-host/src/net.rs:399`: `set_nodelay(true)` in `from_std`, the connect paths at
+- [x] `crates/nvs-host/src/net.rs:399`: `set_nodelay(true)` in `from_std`, the connect paths at
   `:425`, `:449` and `:496`, and on a stream the acceptor at `:617` returns
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/http/transport.rs:2405`: a held body of 16 KiB or less is appended to
+- [x] `crates/nvs-stdlib/src/http/transport.rs:2405`: a held body of 16 KiB or less is appended to
   the head and written once (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/bus.rs:263`: `note_subscribers` takes the read lock first and the write
+- [x] `crates/nvs-stdlib/src/bus.rs:263`: `note_subscribers` takes the read lock first and the write
   lock only when the count changed (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/sse.rs:803`: an idle `receive` parks on the bus's hand-off wake at
+- [x] `crates/nvs-stdlib/src/sse.rs:803`: an idle `receive` parks on the bus's hand-off wake at
   `crates/nvs-stdlib/src/bus.rs:388`, as `crates/nvs-stdlib/src/socket.rs:1260` does
   (`rule:concurrency/the-parking-contract`).
-- [ ] `crates/nvs-host/src/net.rs:399`: the test
+- [x] `crates/nvs-host/src/net.rs:399`: the test
   `an_accepted_and_a_connected_stream_send_without_delay` (`rule:testing/perf-two-mechanisms`).
 
 ### 2. a result's rows share their keys, in one row loop
@@ -249,18 +258,33 @@ sleep.
 
 ### State
 
-Nothing is built. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0,
-stage 6: 0.
+Stage 1 is done and committed, checked by `cargo build`, `cargo clippy --all-targets -- -D
+warnings`, and `an_accepted_and_a_connected_stream_send_without_delay` run once by name (green).
+Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0, stage 6: 0.
+
+- `send_at_once` and `dialled` in `crates/nvs-host/src/net.rs` are the one place `TCP_NODELAY` is
+  set. Every connect, the TCP `Accepting::accept` and `NvsTcp::from_std` go through them.
+- `joined` in `crates/nvs-stdlib/src/http/transport.rs` builds the one write; `exchange` writes the
+  rest with `write_body` only when it returns `None`.
+- `Core\Sse::receive` registers with `crate::bus::park_on_hand_off` and parks under `CLOSE_TICK`
+  (one second). The sweep's `env-secret-proofs` is stale state in looper's service: its log does
+  not exist and no goal in the tree defines it. Nothing in the tree can fix it.
+
+Tests that may go red at stage 7: an SSE case that waits less than one second for a stream whose
+client left to end (the close is now seen within `CLOSE_TICK`), and an HTTP client test that
+counts writes on the origin side for a small body.
 
 ### Next
 
-Stage 1, in one session. The files are `crates/nvs-host/src/net.rs`,
-`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-stdlib/src/bus.rs` and
-`crates/nvs-stdlib/src/sse.rs`.
+Stage 2, in one session. The files are `crates/nvs-stdlib/src/db/execute.rs`,
+`crates/nvs-stdlib/src/db/stream.rs` and `crates/nvs-stdlib/src/db/span.rs`.
 
-- [ ] `crates/nvs-host/src/net.rs:399`: `TCP_NODELAY` on every stream.
-- [ ] `crates/nvs-stdlib/src/http/transport.rs:2405`: a small body joins its head.
-- [ ] `crates/nvs-stdlib/src/bus.rs:263`: the read lock first.
+- [ ] `crates/nvs-stdlib/src/db/execute.rs:605`: one generic row function, keys built once; the
+  loops at `:853`, `:968` and `:1194` call it.
+- [ ] `crates/nvs-stdlib/src/db/stream.rs:266`: the readers at `:336`, `:387` and `:448` share the
+  keys.
+- [ ] `crates/nvs-stdlib/src/db/span.rs:169`: `slow_query` parsed once per snapshot.
+- [ ] `crates/nvs-stdlib/src/db/execute.rs:605`: the test `a_results_rows_share_one_set_of_keys`.
 
 ### Backlog
 
