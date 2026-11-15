@@ -18,7 +18,7 @@ stages:
     context: [tools/nv/cmd/ci.ts, tools/nv/cmd/verify.ts, tools/nv/select/change.ts]
   - id: 4
     title: a selection reads the tree once
-    status: open
+    status: done
     context: [tools/nv/cmd/affected.ts, tools/nv/accept/runner.ts, tools/nv/select/select.ts, tools/nv/select/record.ts]
   - id: 5
     title: a recorded atom starts one process
@@ -189,14 +189,14 @@ has just proved.
 **Does:** pass the graph and the change from one planning step to the next, and cut the repeated git
 calls and stats.
 
-- [ ] `tools/nv/accept/runner.ts:221`: `PlanSweep.open` takes the graph and the change that
+- [x] `tools/nv/accept/runner.ts:221`: `PlanSweep.open` takes the graph and the change that
   `tools/nv/cmd/affected.ts:187` read (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/select/select.ts:356`: one `rev-parse` for the three revisions, and one
+- [x] `tools/nv/select/select.ts:356`: one `rev-parse` for the three revisions, and one
   `ls-files --others` shared with `tools/nv/select/change.ts:124`
   (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/select/select.ts:771`: `discover` marks cases, proofs, benches and Novis tests
+- [x] `tools/nv/select/select.ts:771`: `discover` marks cases, proofs, benches and Novis tests
   complete, so presence is a set lookup (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/cmd/verify.ts:600`: the cache parent is made private once and each binary's folder
+- [x] `tools/nv/cmd/verify.ts:600`: the cache parent is made private once and each binary's folder
   inherits it, through `tools/nv/select/record.ts:50` (`rule:testing/perf-two-mechanisms`).
 
 ### 5. a recorded atom starts one process
@@ -207,9 +207,9 @@ the next batch's run, and write a batch in one transaction.
 - [ ] `tools/nv/select/extract.ts:125`: `merge -sparse -text` names the functions, after the test
   `one merge names the same functions the two calls named` passes on ten recorded atoms
   (`rule:testing/perf-two-mechanisms`). Safe default if the names differ on any atom: decline.
-- [ ] `tools/nv/select/record.ts:444`: batch n+1 starts while batch n is extracted, each batch in
+- [ ] `tools/nv/select/record.ts:452`: batch n+1 starts while batch n is extracted, each batch in
   its own folder (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/select/record.ts:501`: a batch's verdicts and skip slots are one transaction of
+- [ ] `tools/nv/select/record.ts:509`: a batch's verdicts and skip slots are one transaction of
   `tools/nv/select/store.ts:480` (`rule:testing/perf-two-mechanisms`).
 
 ### 6. the slow Rust tests share their set-up
@@ -241,13 +241,20 @@ the x86_64 gap.
 
 ### State
 
-Stages 1 to 3 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0, stage 5:
+Stages 1 to 4 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5:
 0, stage 6: 0.
+
+- Stage 4: `OpenOptions.read` gives `PlanSweep.open` the graph and change `verifyPlan` read.
+  `change.ts` has `commitsOf` (one `cat-file --batch-check`, null for a missing commit) and
+  `untrackedPaths`; `snapshot` and `changedPaths` take what the caller read. Stamped trees share the
+  base read's untracked list. `discover` lists `case`, `proof`, `bench` and `nvtest` in full, so
+  `query`'s `present` stats no file. `Recorder.cacheDir` runs `privateDir` once on `cache/`.
+- A known base `git` cannot name while `--since` or `--paths` is given no longer throws: the scan is
+  then read at `since`, which was already the path for a base other than `since`.
 
 - Stage 3: `--push` runs no check when `STAMP` names the pushed commit and tree; `--check` always
   runs, so `ci-check` still meets a new advisory. `build` is never skipped: verify builds
   `target/covws`. `pool` now lives in `tools/nv/lib/proc.ts`.
-- Stage 2 broke `parseLegs` (the `fromJSON` matrix of `build.yml`); stage 3's commit fixed it.
 - `nvs-debug` (`.github/workflows/ci.yml:703`) feeds six jobs per OS. If a browser suite goes red on
   the push for a feature only the workspace build unified, that is the cause.
 - `tested` (`:97`) runs in the nightly alone; `tools/nv/test/ci-push-builds.test.ts` pins the kept
@@ -255,25 +262,23 @@ Stages 1 to 3 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage
 - Minutes the goal end's push should show saved: stage 1's 34, 15, 12 and 9, the bench and doc
   tests' share of the 53.1-minute wall, and stage 2's 38.7 less the transfers. If the Linux transfer
   costs more, keep the artifact on Windows and macOS only.
-- The sweep's `env-secret-proofs` is stale looper state: `looper check` says "no check matches".
+- The sweep's `env-secret-proofs` is stale looper state: no check has that name, and no log exists.
 
 ### Next
 
-Stage 4, in one session. The files are `tools/nv/accept/runner.ts`, `tools/nv/cmd/affected.ts`,
-`tools/nv/select/select.ts` and `tools/nv/select/record.ts`. The stage's anchors are unchanged.
-`record.ts:50` is `privateDir`, and its callers are `record.ts:128` and `:184`.
+Stage 5, in one session. The files are `tools/nv/select/extract.ts`, `tools/nv/select/record.ts` and
+`tools/nv/select/store.ts`. The stage's anchors are updated: stage 4 moved `record.ts` down 8 lines.
 
-- [ ] `tools/nv/accept/runner.ts:221`: `PlanSweep.open` takes the graph and the change that
-  `tools/nv/cmd/affected.ts:187` read.
-- [ ] `tools/nv/select/select.ts:356`: one `rev-parse` for the three revisions, and one
-  `ls-files --others` shared with `tools/nv/select/change.ts:124`.
-- [ ] `tools/nv/select/select.ts:771`: `discover` marks cases, proofs, benches and Novis tests
-  complete.
-- [ ] `tools/nv/cmd/verify.ts:600`: the cache parent is made private once, through
-  `tools/nv/select/record.ts:50`.
+- [ ] `tools/nv/select/extract.ts:125` (`executedNames`): write the test `one merge names the same
+  functions the two calls named` in `tools/nv/test/extract.test.ts` first, over ten recorded atoms.
+  Only if it passes does `merge -sparse -text` replace the two calls. Otherwise decline.
+- [ ] `tools/nv/select/record.ts:452`: batch n+1 starts while batch n is extracted, each in its own
+  folder.
+- [ ] `tools/nv/select/record.ts:509`: one transaction of `tools/nv/select/store.ts:480`
+  (`recordRun`) for a batch's verdicts and skip slots.
 
-No test is expected to go red. `tools/nv/test/ci.test.ts` ran by name after stage 3: 72 pass, and
-`looper check --name pre-push-once` is green.
+No test is expected to go red. The new `commitsOf` test in `tools/nv/test/select-record.test.ts` ran
+by name: 21 pass. `tsc` over the tools is clean.
 
 ### Backlog
 
