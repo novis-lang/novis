@@ -502,6 +502,8 @@ export function steps(root: string = ROOT): Step[] {
 export const CI_ONLY: Record<string, string> = {
   "dev-image": "it publishes the `dev` image, which only a push to `main` does",
   "unsafe-audit": "it writes cargo-geiger's counts to the run summary and is never red",
+  tested: "it reads GitHub's runs of the commit, which only the nightly does",
+  "nvs-debug": "it builds the debug `nvs`, which the steps that run the binary build here themselves",
   "build (linux-aarch64, macos-aarch64)": "no such machine here",
   "build (linux-x86_64-musl)": "an optional leg, which may fail without failing the run",
   "test (macos-aarch64, linux-aarch64)": "no such machine here",

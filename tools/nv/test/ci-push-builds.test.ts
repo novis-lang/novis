@@ -1,9 +1,10 @@
 // The release binaries and the container images are built by `build.yml` and `image.yml`, which the
 // release calls with its version and `ci.yml` calls with none. Every CI run builds the binaries, and
 // a push to `main` publishes the `dev` image once every other job of its run is green. The jobs whose
-// result gates nothing, and `build.yml`'s musl leg, run in the nightly and a dispatch alone. The release's
-// call of `ci.yml` grants every permission a job there asks for, which GitHub checks when the run
-// starts.
+// result gates nothing, and `build.yml`'s musl leg, run in the nightly and a dispatch alone. A nightly
+// whose commit a push run already tested runs only the jobs that read the outside world, and the
+// nightly-only ones. The release's call of `ci.yml` grants every permission a job there asks for, which
+// GitHub checks when the run starts.
 
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
@@ -28,6 +29,9 @@ interface Workflow {
 const NIGHTLY_ONLY = "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'";
 const nightlyOnly = (job: Job): boolean => job.if === NIGHTLY_ONLY;
 
+/** The `if` of a job that a nightly on a commit a push run already tested skips. */
+const SKIPS_TESTED = "${{ !cancelled() && needs.tested.outputs.tested != 'true' }}";
+
 function workflow(file: string): Workflow {
   return Bun.YAML.parse(readFileSync(join(ROOT, ".github/workflows", file), "utf8")) as Workflow;
 }
@@ -43,8 +47,8 @@ test("the release builds through build.yml and image.yml, with its version", () 
 test("every CI run builds the binaries with no version, and has no dev build workflow beside it", () => {
   const ci = workflow("ci.yml").jobs;
   expect(ci.build!.uses).toBe("./.github/workflows/build.yml");
-  expect(ci.build!.with).toBeUndefined();
-  expect(ci.build!.if).toBeUndefined();
+  expect(ci.build!.with).toEqual({ "musl-only": "${{ needs.tested.outputs.tested == 'true' }}" });
+  expect(ci.build!.if).toBe("${{ !cancelled() }}");
   expect(existsSync(join(ROOT, ".github/workflows/dev-build.yml"))).toBe(false);
 });
 
@@ -62,7 +66,8 @@ test("only a push to main publishes the dev image, after every other job of its 
   expect(image.uses).toBe("./.github/workflows/image.yml");
   expect(image.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
   const needs = [image.needs ?? []].flat().sort();
-  const others = Object.keys(ci).filter((name) => name !== "dev-image" && !nightlyOnly(ci[name]!)).sort();
+  // `tested` runs in the nightly alone, and a push run's skipped `tested` would skip the image.
+  const others = Object.keys(ci).filter((name) => !["dev-image", "tested"].includes(name) && !nightlyOnly(ci[name]!)).sort();
   expect(needs).toEqual(others);
   // The only job of ci.yml that writes anything.
   const writes = Object.entries(ci).filter(([, job]) => Object.values(job.permissions ?? {}).includes("write"));
@@ -76,6 +81,21 @@ test("only the jobs whose result gates nothing run in the nightly and a dispatch
   const include = String((workflow("build.yml").jobs.build as { strategy?: { matrix?: { include?: unknown } } }).strategy?.matrix?.include);
   expect(include).toContain("github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'");
   expect(include).toContain('"name":"linux-x86_64-musl"');
+});
+
+test("a nightly on a commit a push run already tested runs only what reads the outside world", () => {
+  const ci = workflow("ci.yml").jobs;
+  expect(ci.tested!.if).toBe("github.event_name == 'schedule'");
+  const kept = Object.keys(ci).filter((name) => ci[name]!.if !== SKIPS_TESTED).sort();
+  expect(kept).toEqual(
+    ["asan", "build", "database", "dev-image", "docker", "flood", "miri", "miri-units", "supply-chain", "tested", "tsan", "unsafe-audit"],
+  );
+  // Each job that skips it needs `tested`, or its `if` cannot read the output.
+  const blind = Object.keys(ci).filter((name) => ci[name]!.if === SKIPS_TESTED && ![ci[name]!.needs ?? []].flat().includes("tested"));
+  expect(blind).toEqual([]);
+  const include = String((workflow("build.yml").jobs.build as { strategy?: { matrix?: { include?: unknown } } }).strategy?.matrix?.include);
+  expect(include).toContain("!inputs.musl-only");
+  expect(workflow("build.yml").jobs.vsix!.if).toBe("${{ !inputs.musl-only }}");
 });
 
 test("each run proves the release's version step on the next patch version", () => {

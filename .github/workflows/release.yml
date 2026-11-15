@@ -227,8 +227,10 @@ jobs:
     uses: ./.github/workflows/ci.yml
     # A called workflow's job may ask for no more than this grant, and GitHub checks that when the
     # run starts, also for a job its `if` skips. `packages: write` is for ci.yml's `dev-image` job,
-    # which only a push to `main` runs, so a release's call skips it.
+    # which only a push to `main` runs, so a release's call skips it. `actions: read` is for ci.yml's
+    # `tested` job, which only the nightly runs.
     permissions:
+      actions: read
       contents: read
       packages: write
 

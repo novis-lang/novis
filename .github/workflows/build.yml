@@ -36,6 +36,11 @@ on:
         type: string
         required: false
         default: ''
+      musl-only:
+        description: 'Build the musl leg alone. A nightly whose commit a push run already tested sets it.'
+        type: boolean
+        required: false
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -75,15 +80,18 @@ jobs:
       # nightly and a dispatch alone (`rule:testing/every-run-runs-every-job`). A push's run saves
       # its 12 minutes. A matrix row cannot carry an `if`, so the rows are one JSON list, and the
       # musl row is appended for those runs. A `ci.yml` call keeps its caller's `github.event_name`.
+      # `musl-only` lists the musl row alone, for a nightly whose commit a push run already tested.
       matrix:
         include: >-
-          ${{ fromJSON(format('[{0}{1}]',
-          '{"name":"linux-x86_64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","archive":"tar.gz"},
+          ${{ fromJSON(format('[{0}{1}{2}]',
+          !inputs.musl-only && '{"name":"linux-x86_64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","archive":"tar.gz"},
           {"name":"linux-aarch64","os":"ubuntu-22.04-arm","target":"aarch64-unknown-linux-gnu","archive":"tar.gz"},
           {"name":"windows-x86_64","os":"windows-latest","target":"x86_64-pc-windows-msvc","archive":"zip"},
-          {"name":"macos-aarch64","os":"macos-latest","target":"aarch64-apple-darwin","archive":"tar.gz"}',
-          (inputs.version != '' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && ',{"name":"linux-x86_64-musl","os":"ubuntu-22.04","target":"x86_64-unknown-linux-musl","archive":"tar.gz","musl":true,"optional":true}'
+          {"name":"macos-aarch64","os":"macos-latest","target":"aarch64-apple-darwin","archive":"tar.gz"}' || '',
+          (!inputs.musl-only && (inputs.version != '' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'))
+          && ',' || '',
+          (inputs.musl-only || inputs.version != '' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && '{"name":"linux-x86_64-musl","os":"ubuntu-22.04","target":"x86_64-unknown-linux-musl","archive":"tar.gz","musl":true,"optional":true}'
           || '')) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -241,6 +249,7 @@ jobs:
   # ---------------------------------------------------------------------------
   vsix:
     name: build the VS Code extension
+    if: ${{ !inputs.musl-only }}
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:

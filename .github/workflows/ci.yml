@@ -10,7 +10,9 @@ on:
   # needs. The nightly runs the same jobs, to catch what changes outside the tree on a day with no
   # push: a new advisory, a new nightly toolchain, a download that moved. A job whose result gates
   # nothing runs only in the nightly and a dispatch: `unsafe-audit`, `flood` and `build.yml`'s musl
-  # leg. GitHub reads `schedule` only from the default branch, which is `main`.
+  # leg. A nightly whose commit already has a green push run from the last day runs only the jobs
+  # that read the outside world, and those nightly-only jobs (`tested` below decides it). GitHub
+  # reads `schedule` only from the default branch, which is `main`.
   schedule:
     - cron: '0 3 * * *'
   # `release.yml` calls this workflow rather than restating any of it, when its commit has no green
@@ -64,22 +66,56 @@ concurrency:
 # the same `shared-key` and saves nothing (`save-if: false`). The readers restore the entry the
 # last run on `main` saved, so no job waits for another inside a run.
 #
-# - `<os>-test`, saved by each `test` leg's `tests` part: debug builds. `ext-templates` and
-#   `extension` read it on every OS, and `database`, `extension-host`, `reference`, `lint` and
-#   `valgrind` read the Linux one. `cargo build -p nvs-cli` finds 475 of its 485 dependency builds there.
-#   `lint` finds a third of its own, because clippy builds dependencies as metadata only.
+# - `<os>-test`, saved by each `test` leg's `tests` part: debug builds. `database` and `lint` read
+#   the Linux one. `lint` finds a third of its own, because clippy builds dependencies as metadata only.
 # - `<os>-conformance`, saved by each `test` platform's first `conformance` leg: the dependencies of
-#   `-p nvs-cli`'s debug build, which resolves other features than the workspace's.
+#   `-p nvs-cli`'s debug build, which resolves other features than the workspace's. `nvs-debug`
+#   reads it on every OS, so its build compiles the workspace's own crates alone.
 # - `docker` saves an entry of its own and reads no other. It runs on Ubuntu 22.04, and an entry
 #   built on a newer image has build scripts that need a newer glibc than 22.04 has.
 #
 # The organization's Team plan gives 60 concurrent jobs, and a run has about 70 with the `build`
 # legs and the `dev` image, so the last jobs to start wait for a free one. macOS has 5 concurrent
-# jobs on any plan below Enterprise, and the run has 7 macOS jobs. The `test`, `cost-guards` and `proofs` legs set the run's length, so
+# jobs on any plan below Enterprise, and the run has 8 macOS jobs. The `test`, `cost-guards` and `proofs` legs set the run's length, so
 # `ext-templates` and `extension` start once `lint` has finished, about ten minutes in, and the
-# four long macOS legs take the 5 slots first. Their `if` starts with `!cancelled()`, so a red
+# four long macOS legs and `nvs-debug` take the 5 slots first. Their `if` starts with `!cancelled()`, so a red
 # `lint` does not skip them.
+#
+# Every job that skips a tested nightly needs `tested`, and its `if` is `!cancelled()` and
+# `needs.tested.outputs.tested != 'true'`. Without `!cancelled()`, a push run's skipped `tested`
+# would skip it too.
 jobs:
+  # ---------------------------------------------------------------------------
+  # Whether this nightly's commit already has a green push run of this workflow from the last day.
+  # Then the nightly runs only what reads the outside world: `supply-chain`, the nightly-toolchain
+  # jobs (`miri`, `miri-units`, `asan`, `tsan`), the image pulls (`docker`, `database`), and the
+  # nightly-only `unsafe-audit`, `flood` and musl leg. Every other job proved this commit in the
+  # push run. What it spends: on a quiet day a changed runner image is found by the next push.
+  # Only the nightly runs this job, so a push, a pull request, a dispatch and a release's call run
+  # every job. A `gh` failure answers `false`, and the nightly runs every job.
+  # ---------------------------------------------------------------------------
+  tested:
+    name: whether a push run already tested this commit
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      tested: ${{ steps.look.outputs.tested }}
+    steps:
+      - id: look
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          since="$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)"
+          count="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f event=push -f head_sha="$GITHUB_SHA" -f status=success -f created=">=$since" \
+            --jq '.total_count' || echo 0)"
+          if [ "${count:-0}" -gt 0 ]; then tested=true; else tested=false; fi
+          echo "A green push run of $GITHUB_SHA since $since: $tested"
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
   # ---------------------------------------------------------------------------
   # The matrix that matters: Novis generates native code, so "it compiles" is not
   # the same claim on each platform. Windows uses SEH and a different calling
@@ -91,6 +127,8 @@ jobs:
   # an assumption about who is developing on what.
   # ---------------------------------------------------------------------------
   test:
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     name: test / ${{ matrix.name }}${{ matrix.part && format(' ({0}{1})', matrix.part, matrix.half && format(' {0}/2', matrix.half) || matrix.shard && format(' {0}/3', matrix.shard) || '') || '' }}
     runs-on: ${{ matrix.os }}
     # Debug only: one build of the workspace, its tests, the doc tests and the conformance suite.
@@ -355,6 +393,8 @@ jobs:
   # ---------------------------------------------------------------------------
   cost-guards:
     name: cost guards / ${{ matrix.name }}
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     # Windows is the slow leg. On a partial cache hit the probe's step took 10 minutes, and the
     # `nvs-cli` release build after it was still compiling 12 minutes in. That is at least 25 minutes
@@ -474,6 +514,8 @@ jobs:
   # ---------------------------------------------------------------------------
   proofs:
     name: proofs / ${{ matrix.name }}
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     # A cold proof build on Windows takes about half an hour, and the whole roster's run comes after
     # it. A job that hits this limit saves no cache, so the next run starts cold again.
@@ -651,6 +693,46 @@ jobs:
         run: bun nv db-matrix --down
 
   # ---------------------------------------------------------------------------
+  # One debug `nvs` per OS, built once and downloaded by the jobs that only run the binary:
+  # `browser`, `ext-templates`, `extension`, `extension-host`, `reference` and `valgrind`. It is
+  # `cargo build -p nvs-cli`, the build the `conformance` legs run, from their cache entry. The
+  # `test` and `conformance` legs keep their own build, because they set the run's length.
+  # An artifact keeps no file mode, so each Linux and macOS job that downloads it runs `chmod +x`.
+  # What it spends: three artifacts of a few hundred MB each, deleted after one day.
+  # ---------------------------------------------------------------------------
+  nvs-debug:
+    name: debug nvs / ${{ matrix.name }}
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-26.04
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: ${{ matrix.name }}-conformance
+          save-if: false
+      - run: cargo build -p nvs-cli
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nvs-debug-${{ matrix.name }}
+          path: target/debug/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
   # The slotted response's polyfill in a real Chromium, launched once with
   # native `<template for>` and once without (`rule:core-classes/html-later`),
   # and a website replay's player
@@ -665,6 +747,8 @@ jobs:
   # ---------------------------------------------------------------------------
   browser:
     name: browser
+    needs: [tested, nvs-debug]
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
@@ -692,15 +776,12 @@ jobs:
         env:
           NV_BROWSER: "1"
         run: bun test ./viewer/test/*.browser.test.ts
-      # The registry's pages need a built `nvs` to serve them, so this job builds one, last, after
-      # the suites that need no Rust. It reads the Linux `test` leg's debug cache and saves none.
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      # The registry's pages need a built `nvs` to serve them: the one `nvs-debug` built.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          shared-key: linux-x86_64-test
-          save-if: false
-      - run: cargo build --bin nvs
+          name: nvs-debug-linux-x86_64
+          path: target/debug
+      - run: chmod +x target/debug/nvs
       - name: The registry's pages in Chromium
         env:
           NV_BROWSER: "1"
@@ -718,6 +799,8 @@ jobs:
   # ---------------------------------------------------------------------------
   extension-sandbox:
     name: extension sandbox probes
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -745,8 +828,8 @@ jobs:
   # ---------------------------------------------------------------------------
   ext-templates:
     name: ext templates / ${{ matrix.name }}
-    needs: lint  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() }}
+    needs: [tested, lint, nvs-debug]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -778,13 +861,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # The toolchain builds the Rust template for wasm32-wasip2. `nvs` itself is `nvs-debug`'s.
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
-
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          shared-key: ${{ matrix.name }}-test
-          save-if: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -832,7 +911,12 @@ jobs:
           dir="${asset%.tar.gz}"
           echo "$RUNNER_TEMP/${dir%.zip}" >> "$GITHUB_PATH"
 
-      - run: cargo build --bin nvs
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: nvs-debug-${{ matrix.name }}
+          path: target/debug
+      - if: runner.os != 'Windows'
+        run: chmod +x target/debug/nvs
 
       - name: The Rust template
         run: bun nv ext-templates --lang rust
@@ -847,6 +931,8 @@ jobs:
   # Linux is the reference build, so one leg is the whole check.
   webp-lib:
     name: libwebp rebuild
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -878,8 +964,8 @@ jobs:
   # ---------------------------------------------------------------------------
   extension:
     name: extension / ${{ matrix.name }}
-    needs: lint  # starts after `lint`, as the note above `jobs:` says
-    if: ${{ !cancelled() }}
+    needs: [tested, lint, nvs-debug]  # starts after `lint`, as the note above `jobs:` says
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -894,17 +980,16 @@ jobs:
             os: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          shared-key: ${{ matrix.name }}-test
-          save-if: false
 
       # The binary the suites drive is the one this run built, never one already
       # on the runner: the protocol suite asserts against this tree's `nvs lsp`.
-      - name: Build nvs
-        run: cargo build -p nvs-cli
+      - name: The nvs this run built
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: nvs-debug-${{ matrix.name }}
+          path: target/debug
+      - if: runner.os != 'Windows'
+        run: chmod +x target/debug/nvs
 
       # `editors/vscode/.nvmrc` is the one home for the Node version, read the
       # way `website/.nvmrc` is. `npm ci` installs exactly `package-lock.json`,
@@ -955,18 +1040,18 @@ jobs:
   # ---------------------------------------------------------------------------
   extension-host:
     name: extension host
+    needs: [tested, nvs-debug]
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: The nvs this run built
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          shared-key: linux-x86_64-test
-          save-if: false
-      - name: Build nvs
-        run: cargo build -p nvs-cli
+          name: nvs-debug-linux-x86_64
+          path: target/debug
+      - run: chmod +x target/debug/nvs
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -1040,6 +1125,8 @@ jobs:
 
   lint:
     name: lint
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -1187,6 +1274,8 @@ jobs:
   # ---------------------------------------------------------------------------
   attribution:
     name: third-party attribution
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -1230,24 +1319,24 @@ jobs:
   # ---------------------------------------------------------------------------
   reference:
     name: the chapter examples run and the website matches the binary
+    needs: [tested, nvs-debug]
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          shared-key: linux-x86_64-test
-          save-if: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
       - name: Install tool dependencies
         run: bun install --frozen-lockfile
-      - run: cargo build -p nvs-cli
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: nvs-debug-linux-x86_64
+          path: target/debug
+      - run: chmod +x target/debug/nvs
       # `nv reference` runs the pipeline's covws build unless `NVS_BIN` names another, and this
-      # job builds the plain debug `nvs` instead.
+      # job runs the plain debug `nvs` that `nvs-debug` built.
       - name: Every example in the chapters holds
         run: bun nv reference
         env:
@@ -1277,6 +1366,8 @@ jobs:
   # ---------------------------------------------------------------------------
   docs:
     name: docs
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
@@ -1541,17 +1632,13 @@ jobs:
   # (`tools/nv/cmd/valgrind.ts`) is the home of what it runs and how it judges a run.
   valgrind:
     name: valgrind over the examples
+    needs: [tested, nvs-debug]
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
-    # A debug build from the Linux test cache, then 82 programs two at a time under memcheck.
+    # `nvs-debug`'s Linux build, then 82 programs two at a time under memcheck.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install toolchain
-        run: rustup toolchain install --no-self-update
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          shared-key: linux-x86_64-test
-          save-if: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
@@ -1559,8 +1646,12 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Install valgrind
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends valgrind
-      - name: Build the CLI
-        run: cargo build -p nvs-cli
+      - name: The CLI this run built
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: nvs-debug-linux-x86_64
+          path: target/debug
+      - run: chmod +x target/debug/nvs
       - name: Every example under memcheck
         run: bun nv valgrind --nvs target/debug/nvs
 
@@ -1696,7 +1787,11 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: build
+    needs: tested
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/build.yml
+    with:
+      musl-only: ${{ needs.tested.outputs.tested == 'true' }}
     permissions:
       contents: read
 
@@ -1708,6 +1803,8 @@ jobs:
   # ---------------------------------------------------------------------------
   release-version:
     name: the release's version step
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -1778,6 +1875,8 @@ jobs:
       - tsan
       - build
       - release-version
+      - nvs-debug
+    # Not `tested`: a push run skips it, and a skipped need skips this job too.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/image.yml
     permissions:

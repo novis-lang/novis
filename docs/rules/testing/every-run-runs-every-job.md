@@ -2,13 +2,14 @@ Every run of `ci.yml` runs every job that gates anything, whatever its event and
 touched.
 
 A push to `main`, a pull request, the nightly, a manual dispatch and a release's call of the workflow
-run the same gating jobs, and no job carries an `if:` that reads the diff. One workflow file holds every job,
+run the same gating jobs, and no job carries an `if:` that reads the diff. The one exception is a
+nightly on a commit a push run already tested, below. One workflow file holds every job,
 and a job is never defined twice: a second copy of a suite drifts, and nothing compares the copies.
 
 **The nightly runs the same jobs**, to catch what changes outside the tree on a day with no push: a new
 advisory, a new nightly toolchain, a download that moved. No run searches with a fuzzer, and the
 inputs the searches found are replayed by `cargo test` (`rule:testing/a-fuzz-search-gates-nothing`).
-Miri and the `valgrind` leak check over every `examples/` program run in every run. The `valgrind` job
+Miri and the `valgrind` leak check over every `examples/` program run in every push run. The `valgrind` job
 is the one run that looks for leaks from end to end, since the `asan` job runs with leak detection off.
 
 **A job whose result gates nothing runs nightly.** The unsafe audit's counts, the comparison's `flood`
@@ -16,6 +17,13 @@ row in its smoke form and `build.yml`'s optional musl leg cannot turn a run red,
 nightly, a dispatch and a release alone, and the `dev` image does not wait for them. A push's run
 saves about 60 runner minutes. What it spends: an unsafe count, a flood row or a musl break is seen up
 to a day later.
+
+**A nightly does not repeat a tested commit.** When the nightly's commit has a green push run from the
+last day, the nightly runs only the jobs that read the outside world: the supply-chain audit, the
+nightly-toolchain jobs, the image pulls, and the jobs that run nightly alone. The push run already
+passed every other job on the same tree. Such a nightly is still a green `ci.yml` run of its commit,
+and the push run it trusted is one too. What it spends: on a quiet day a changed runner image is found
+by the next push, not by the nightly.
 
 **A green run of a commit on `main` is the release's proof.** `bun nv release --tested` accepts a green
 `ci.yml` run of that commit from a push, the nightly or a dispatch, and `release.yml`'s `test` job then
