@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/cache.rs, crates/nvs-ty
 stages:
   - id: 1
     title: one start is measured by command and counted by phase
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, tools/nv/main.ts, docs/rules/testing/perf-two-mechanisms.md]
   - id: 2
     title: a test case and a first run write no cache they wait for
@@ -133,6 +133,36 @@ one compile.
 
 **Lanes:** one lane, in order. Stages 3 to 5 all edit `crates/nvs-cli/src/main.rs`.
 
+**The measured start.** `bun nv start-cost` on Windows, a one-line program, the debug `nvs check
+--count` (the `run --count` table is the same but for 440 configuration allocations):
+
+| phase | allocations | bytes | settings | resolved | share |
+|---|---:|---:|---:|---:|---:|
+| configuration | 446 | 1,532,658 | 1 | 2 | 1.3% |
+| built_in | 6,729 | 1,259,714 | 0 | 0 | 19.4% |
+| grants | 25 | 1,229 | 0 | 0 | 0.1% |
+| core | 16,624 | 1,739,758 | 0 | 0 | 47.9% |
+| collection | 1,196 | 319,589 | 0 | 1 | 3.4% |
+| check | 9,659 | 697,032 | 0 | 0 | 27.9% |
+
+No phase reads a source file after the entry. Release medians of 25 runs, shared then fresh data
+folder: `--version` 10.0 / 11.6 ms, `ast` 10.2 / 11.8, `check` 16.4 / 21.1, `run` 18.6 / 31.5. The
+13 ms a fresh `run` adds is stage 2's cache write.
+
+What the table decides, by the floors under **Limits**:
+
+- Stage 3's configuration items are at the floor by the file, not the allocations: the shipped
+  `crates/nvs-config/src/default.toml` is 78,788 bytes, parsed at every start.
+- Stage 3's extension item is at the floor: `built_in` is 19.4%.
+- Stage 4's `Core` item is at the floor: `core` is 47.9%, the largest phase.
+- Stage 5's two items are each one thread, so each is at the floor by definition.
+- Three candidates run outside the six front-end phases, so this table does not price them: the TLS
+  client (stage 3, `install_tls_client` runs after the front end), the helper symbol table (stage
+  4, `this_process` runs in the compile) and the threads (stage 5). Each one's session first wraps
+  its site in a `phases::start()` and `end` with the nearest phase, reads the count, and builds it
+  only at its floor. That mark is a measurement and is removed before the commit.
+- `check` (27.9%) has no candidate in this goal. A finding about it goes to `### Backlog`.
+
 ## Stages
 
 ### 1. one start is measured by command and counted by phase
@@ -143,14 +173,14 @@ by the table.
 **Split:** an `Explore` subagent lists what `nvs check --count` prints and where each counter is
 bumped, as `file.rs:NN`, before the first edit.
 
-- [ ] `tools/nv/cmd/start-cost.ts:1`: the command, registered in `tools/nv/main.ts:24`, with a Bun
+- [x] `tools/nv/cmd/start-cost.ts:1`: the command, registered in `tools/nv/main.ts:24`, with a Bun
   test of its argument handling (`rule:testing/perf-two-mechanisms`).
-- [ ] `crates/nvs-cli/src/main.rs:1174`: the start phases are named to the counters: configuration,
+- [x] `crates/nvs-cli/src/main.rs:1174`: the start phases are named to the counters: configuration,
   built-in sources, grants, `Core` signatures, collection, check
   (`rule:testing/perf-two-mechanisms`).
-- [ ] `crates/nvs-cli/tests/start_cost.rs:1`: `a_small_program_starts_within_its_counted_work` pins
+- [x] `crates/nvs-cli/tests/start_cost.rs:1`: `a_small_program_starts_within_its_counted_work` pins
   each phase's counts with the bound stage 1 measured (`rule:testing/perf-two-mechanisms`).
-- [ ] `docs/goals/fast-start.md:1`: write the table into `## Standing decisions` as **The measured
+- [x] `docs/goals/fast-start.md:1`: write the table into `## Standing decisions` as **The measured
   start**, and tick every candidate of stages 3 to 5 that is under its floor
   (`rule:programs/memory-priority`).
 
@@ -223,16 +253,28 @@ process.
 
 ### State
 
-Nothing is built. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+Stage 1 is done. `bun nv start-cost` measures one start, `crates/nvs-cli/src/phases.rs` counts the
+six front-end phases in a debug build (`nvs check --count` and `run --count` print a `phases:` line),
+and `crates/nvs-cli/tests/start_cost.rs` bounds each phase. **The measured start** in
+`## Standing decisions` holds the table and puts every candidate of stages 3 to 5 at its floor, or
+names the count its session takes first. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4:
+0, stage 5: 0.
 
 ### Next
 
-Stage 1, in one session. The files are `tools/nv/cmd/start-cost.ts`, `tools/nv/main.ts` and
-`crates/nvs-cli/src/main.rs`.
+Stage 2, in one session. The files are `crates/nvs-test/src/run.rs`, `tools/nv/accept/runner.ts` and
+`crates/nvs-cli/src/cache.rs`.
 
-- [ ] `tools/nv/cmd/start-cost.ts:1`: the command.
-- [ ] `crates/nvs-cli/src/main.rs:1174`: the phases named to the counters.
-- [ ] `crates/nvs-cli/tests/start_cost.rs:1`: the count guard.
+- [ ] `crates/nvs-test/src/run.rs:588`: a case's `nvs` runs with `NOVIS_NO_FILE_CACHE=1`.
+- [ ] `tools/nv/accept/runner.ts:138`: the proof harness sets the same variable.
+- [ ] `crates/nvs-test/src/run.rs:520`: `a_case_run_writes_no_compile_artifact`.
+- [ ] `crates/nvs-cli/src/cache.rs:1568`: `write_temp` without `sync_all`.
+- [ ] `crates/nvs-cli/src/cache.rs:1687`: the object compile on a scoped thread.
+
+The goal's check `case-writes-no-cache` runs `cargo test --lib`, and the test lives in `nvs-test`,
+which is a library, so `--lib` finds it there. No test is expected to go red from stage 1: the
+`phases:` line is a second line, and every existing `--count` parser finds the `compile:` line by
+its prefix.
 
 ### Backlog
 
