@@ -161,6 +161,24 @@
 //! neither the revalidation thread nor the slice thread. The milliseconds are a note: two runs of
 //! one shape differ by about 4 ms here, and the counts are what a change is judged by.
 //!
+//! **The floor**, what a start costs before and around `main`, is measured on Linux by
+//! `bun nv start-cost --floor`: a release build in WSL, 25 interleaved runs, the kernel's page
+//! fault counts and the median clock. The comparison is `nvs-serve-probe --help`, the workspace's
+//! smallest release binary, which links `std` and `clap` and does the same parse, print and exit.
+//!
+//! | binary | size | minor faults | major faults | clock |
+//! |---|---:|---:|---:|---:|
+//! | `nvs --version` | 348.0 MB | 1,234 | 0 | 9.97 ms |
+//! | `nvs-serve-probe --help` | 5.3 MB | 109 | 0 | 5.38 ms |
+//!
+//! Of `nvs`'s 1,125 more faults, about 787 are the binary's size: it is a PIE with 158,070
+//! relative relocations, and the dynamic loader writes each into the 3.2 MB `.data.rel.ro`, one
+//! copy-on-write fault per 4 KiB page, at every start. The loader takes 1.63 M cycles for `nvs`
+//! and 0.12 M for the probe (`LD_DEBUG=statistics`), about 0.4 ms. The other 338 faults and the
+//! rest of the 4.6 ms are `main`'s own work and the code it touches; the figures do not split them. Line tables, most of the 348 MB, are never mapped at a
+//! start. Declined: a non-PIE build, which removes the relocations and gives up ASLR, and
+//! **security** outranks **latency**.
+//!
 //! A change to a start is built only where this table gives its phase at least 5% of the
 //! allocations, one file read of 16 KiB or more, or one thread. What stays, and why:
 //!

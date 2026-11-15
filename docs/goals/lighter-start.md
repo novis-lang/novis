@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/core_lib.rs, crates/nvs-hir/src/qname.rs]
   - id: 4
     title: "the share of a start that the binary's size costs is recorded"
-    status: open
+    status: done
     context: [tools/nv/cmd/start-cost.ts, crates/nvs-cli/src/main.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -196,13 +196,14 @@ chosen by a figure.
 **Split:** an `Explore` subagent lists the release binaries the workspace builds, with their sizes,
 before the first edit. The smallest one that links `std` is the comparison.
 
-- [ ] `tools/nv/cmd/start-cost.ts:1`: `--floor` runs `--version` of `target/release/nvs` and of the
+- [x] `tools/nv/cmd/start-cost.ts:1`: `--floor` runs `--version` of `target/release/nvs` and of the
   comparison binary in WSL, 25 interleaved runs each, and prints the median clock and the minor and
-  major page faults of each (`rule:testing/perf-two-mechanisms`).
-- [ ] `tools/nv/test/start-cost.test.ts:1`: the Bun test of its argument handling covers `--floor`.
-- [ ] `crates/nvs-cli/src/main.rs:134`: `# What it costs` gets the floor figures and one sentence on
+  major page faults of each (`rule:testing/perf-two-mechanisms`). The comparison is
+  `nvs-serve-probe`, which has no `--version`, so it runs `--help`.
+- [x] `tools/nv/test/start-cost.test.ts:1`: the Bun test of its argument handling covers `--floor`.
+- [x] `crates/nvs-cli/src/main.rs:134`: `# What it costs` gets the floor figures and one sentence on
   what they leave for the binary's size.
-- [ ] `docs/goals/lighter-start.md:1`: `### Backlog` gets one line for each change the figures
+- [x] `docs/goals/lighter-start.md:1`: `### Backlog` gets one line for each change the figures
   suggest, with its figure, or one line saying the size costs under 5% of `--version`'s faults.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -217,8 +218,14 @@ before the first edit. The smallest one that links `std` is the comparison.
 
 ### State
 
-Stages 1, 2 and 3 are done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1,
-stage 3: 1, stage 4: 0, stage 5: 0.
+Stages 1 to 4 are done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1,
+stage 3: 1, stage 4: 1, stage 5: 0.
+
+Stage 4's floor, from `bun nv start-cost --floor` on Linux in WSL: `nvs --version` takes 1,234
+minor faults and 9.97 ms, and `nvs-serve-probe --help` takes 109 and 5.38 ms. No major faults. About
+787 of the 1,125 more faults are the 158,070 relative relocations the loader writes into the 3.2 MB
+`.data.rel.ro`, which is 64% of `--version`'s faults. `crates/nvs-cli/src/main.rs`'s
+`## What it costs` has the table, and `### Backlog` has the two changes it suggests.
 
 Stage 3's `core` is **6,099** allocations, from 8,109 (26.6% of a one-line `nvs check`'s start).
 `check` fell with it, to 9,508 from 9,652: a checked call's `Core` types hit the same table. The
@@ -234,22 +241,34 @@ reason are in `crates/nvs-cli/src/extensions.rs`'s `# What it costs`. `built_in`
 still the base, 43649226665. Its runner-minutes are not recorded anywhere yet.
 
 The sweep's `env-secret-proofs` is no check: `looper check --name env-secret-proofs` finds none,
-so the sweep's list is stale. Nothing in the tree is red for it.
+and no log for it exists under `.looper/loops/main/checks/`. The sweep's list is stale, two
+sessions running. Nothing in the tree is red for it.
 
 ### Next
 
-Stage 4: the share of a start that the binary's size costs is recorded. It measures and builds
-nothing in the product. Read the **Standing decisions** paragraph on stage 4 first, and run the
-stage's `Explore` split before the first edit.
+Stage 5: the goal is verified once, and every failure is fixed. Start `looper verify` with
+`run_in_background`, fix every failure in one pass, then run it once more.
 
-- `tools/nv/cmd/start-cost.ts:1`: add `--floor`, run in WSL's `novis-test` distro through
-  `bun nv linux-test`'s path, with `/usr/bin/time -f "%R %F"` or the `/proc/<pid>/stat` fallback.
-- `tools/nv/test/start-cost.test.ts:1`: cover `--floor`'s argument handling.
-- `crates/nvs-cli/src/main.rs:134`: `## What it costs` gets the floor figures.
-- `docs/goals/lighter-start.md:1`: one `### Backlog` line per change the figures suggest.
+- `crates/nvs-cli/src/main.rs:147`: after verify is green, run `bun nv start-cost` once and write
+  its phase table into `## What it costs`. Rewrite the `built_in` and `core` bullets of what stays:
+  the manifests are shared (stage 1), lazy parsing is declined (stage 2), and the `Core` names are
+  parsed once (stage 3). The floor paragraph below the table is stage 4's and stays.
+- Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes lighter-start`,
+  `bun nv ci --check`.
 
-No test is expected to go red from stages 1 to 3. A non-Windows runner's `start_cost` may count
-a few more allocations than the 10% margin allows. If one does, measure on that OS and set the
-bound from that figure.
+No test is expected to go red. `tools/nv/test/start-cost.test.ts` is green (5 pass). A non-Windows
+runner's `start_cost` may count a few more allocations than the 10% margin allows. If one does,
+measure on that OS and set the bound from that figure.
 
 ### Backlog
+
+- **The 3.2 MB `.data.rel.ro` costs about 787 of `nvs --version`'s 1,234 minor faults (64%) and
+  0.4 ms per start.** Find what fills it (`&'static str` and pointer tables, among them the `Core`
+  registry's rows and its cards) and make the largest tables pointer-free, for example as offsets
+  into one string. A table that loses its pointers needs no relocations, so its pages are never
+  written at a start. Figure: up to 787 faults per start.
+- **`-z pack-relative-relocs` shrinks the 3.8 MB `.rela.dyn` into a RELR table of a few KiB.** That
+  cuts what the loader reads, but its writes to `.data.rel.ro` and their faults stay. It needs
+  glibc 2.36 or later on every Linux target a release supports, so check that first.
+- Declined: a non-PIE build. It removes every relative relocation and gives up ASLR, and
+  **security** outranks **latency**.
