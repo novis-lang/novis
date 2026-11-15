@@ -171,6 +171,15 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(2);
 /// backoff whose current rung a job's delay would depend on and no `[queue]` key for it.
 const IDLE_WAIT: Duration = Duration::from_secs(1);
 
+/// How many turns in a row a busy worker claims on the queues that gave it a job, before it asks
+/// the roster again.
+///
+/// A worker that claimed a job claims again on the same queues without the roster statement, and
+/// asks the roster once those claims come back empty ([`Hot`]). A queue that never runs dry would
+/// then keep the worker from ever seeing a second queue, so the roster is also asked after this
+/// many turns. A queue that gains work while another is busy waits up to this many jobs.
+const ROSTER_EVERY: u32 = 16;
+
 /// How often [`Crew::keep`] looks for its last workers to have returned, once the drain has begun.
 ///
 /// Short, because it is the tail of a shutdown and runs only during one.
@@ -644,8 +653,9 @@ fn claim_until_stopped(
     // stays at zero with nothing anywhere to say why. Warning rather than fatal for
     // `rule:errors/escalation-ladder`'s reason — the run's own script is not this task's to end.
     let events = workers.events.as_deref();
+    let mut hot = Hot::default();
     if let Err(refused) = take_turns(workers, || {
-        turn(ctx, &mut conn, current, visibility, events)
+        turn(ctx, &mut conn, current, visibility, events, &mut hot)
     }) {
         eprintln!("warning: the queue worker on `[db.{name}]` stopped: {refused}");
     }
@@ -670,9 +680,8 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> 
             return Ok(());
         }
         match turn() {
-            // Something was claimed, so the roster may still hold more: turn again without
-            // waiting, and the queue that answered drops out of the next roster by itself, because
-            // a row this turn claimed is inside its visibility window.
+            // Something was claimed, so the queue may hold more: turn again without waiting. A
+            // row this turn claimed is inside its visibility window, so no claim takes it twice.
             Ok(true) => {}
             Ok(false) => {
                 if workers.wait_for_work(heard) == Woken::Cancelled {
@@ -684,9 +693,28 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> 
     }
 }
 
-/// One turn: which queues have due work, then one claim against each.
+/// The queues a worker's last turn claimed a job on, which its next turn claims on again without
+/// asking the roster.
 ///
-/// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — the schema
+/// A queue that gave a job probably has another, so a busy worker pays one claim per job and not
+/// a roster statement and a claim. The claim is what decides whether a job is due, and the roster
+/// is only a list of where to look, so skipping it changes which statement runs and never which
+/// job is taken. **What it spends:** one list of queue names per worker, O(queues).
+#[derive(Default)]
+struct Hot {
+    /// The queues whose claim gave a job in the last turn.
+    queues: Vec<String>,
+    /// Turns taken from this list since the roster was last asked, up to [`ROSTER_EVERY`].
+    turns: u32,
+}
+
+/// One turn: one claim against each queue that has due work.
+///
+/// After a turn that claimed a job, the queues are the ones that gave a job, kept in `hot`. When
+/// none of those claims gives a job, or after [`ROSTER_EVERY`] such turns, the roster is asked in
+/// the same turn.
+///
+/// The roster is asked for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — the schema
 /// (`rule:core-classes/queue-storage-is-a-table`) names no queues, so the table is the only place they are written down — at O(queues) a turn, which
 /// that text's doc costs out. The two instants are
 /// computed once here so that every claim in this turn judges due-ness against the same moment.
@@ -701,12 +729,40 @@ fn turn(
     current: &nvs_config::Current,
     boot: Duration,
     events: Option<&nvs_server::Events>,
+    hot: &mut Hot,
 ) -> io::Result<bool> {
     let now = nvs_stdlib::queue::now_millis();
     let cutoff = now.saturating_sub(window(&current.load(), boot));
-    let mut claimed = false;
+    if !hot.queues.is_empty() && hot.turns < ROSTER_EVERY {
+        hot.turns += 1;
+        let queues = std::mem::take(&mut hot.queues);
+        hot.queues = round(ctx, conn, current, events, queues, now, cutoff)?;
+        if !hot.queues.is_empty() {
+            return Ok(true);
+        }
+    }
+    hot.turns = 0;
+    #[cfg(test)]
+    tests::ROSTERS_ASKED.with(|asked| asked.set(asked.get() + 1));
     conn.bound_next_exchange();
-    for queue in roster(conn, now, cutoff)? {
+    let queues = roster(conn, now, cutoff)?;
+    hot.queues = round(ctx, conn, current, events, queues, now, cutoff)?;
+    Ok(!hot.queues.is_empty())
+}
+
+/// One claim against each of `queues`, each claimed job run and written back before the next
+/// queue is claimed against. Returns the queues whose claim gave a job.
+fn round(
+    ctx: &mut nvs_runtime::Ctx,
+    conn: &mut Wire,
+    current: &nvs_config::Current,
+    events: Option<&nvs_server::Events>,
+    queues: Vec<String>,
+    now: i64,
+    cutoff: i64,
+) -> io::Result<Vec<String>> {
+    let mut gave = Vec::new();
+    for queue in queues {
         conn.bound_next_exchange();
         if let Some(job) = claim(conn, &queue, now, cutoff)? {
             // Run before the next queue is claimed against, rather than after the roster has been
@@ -730,10 +786,10 @@ fn turn(
             {
                 events.dead_lettered();
             }
-            claimed = true;
+            gave.push(queue);
         }
     }
-    Ok(claimed)
+    Ok(gave)
 }
 
 /// Sets `ctx`'s configuration to the snapshot `job` runs under: the one the `[[app]]` blocks
@@ -3195,6 +3251,62 @@ mod tests {
         );
     }
 
+    std::thread_local! {
+        /// How many roster statements [`super::turn`] sent on this thread.
+        pub(super) static ROSTERS_ASKED: Cell<u32> = const { Cell::new(0) };
+    }
+
+    /// A busy worker claims again on the queue that gave it a job, and asks the roster only when
+    /// a claim comes back empty.
+    ///
+    /// Three jobs wait before the worker starts. The first turn asks the roster and claims one.
+    /// The next two claim on the same queue with no roster. The fourth finds the queue empty and
+    /// asks the roster again, so three jobs cost two roster statements.
+    #[test]
+    fn a_busy_worker_claims_again_without_asking_the_roster() {
+        let (rosters, states) = run_to_its_end(|| {
+            let (block, dir) = a_queue_file("a-busy-worker-skips-the-roster");
+            let seeded = converged(&block);
+            let script = from_root("examples/isolate/hello.nvs");
+            let ids: Vec<i64> = (0..3).map(|_| pushed(&seeded, &script)).collect();
+            let drain = nvs_server::Draining::detached();
+            let (workers, _bell) = switch(Some(drain.clone()), NEVER);
+            let asked = Rc::new(Asked::default());
+            let mut sched = nvs_host::Scheduler::new();
+            ROSTERS_ASKED.with(|asked| asked.set(0));
+            counted_worker(&mut sched, &workers, &block, &asked);
+            {
+                let (asked, ids) = (Rc::clone(&asked), ids.clone());
+                let watching = opened(&block);
+                sched.spawn(
+                    nvs_runtime::Ctx::stdout(),
+                    nvs_runtime::TaskRoot::Request,
+                    move |_| {
+                        until(|| {
+                            asked.empty.get() > 0
+                                && ids.iter().all(|&id| {
+                                    !matches!(state(&watching, id), Some(PENDING | CLAIMED))
+                                })
+                        });
+                        drain.begin();
+                    },
+                );
+            }
+            let compiler = crate::script::Compiler::default();
+            nvs_runtime::script::scoped(&compiler, || served(&mut sched));
+            let states: Vec<Option<i64>> = ids.iter().map(|&id| state(&seeded, id)).collect();
+            drop(seeded);
+            drop(dir);
+            (ROSTERS_ASKED.with(Cell::get), states)
+        });
+        assert_eq!(states, [Some(SUCCEEDED); 3], "a job did not run");
+        assert_eq!(
+            rosters, 2,
+            "three jobs on one queue cost a roster statement other than on the first turn and \
+             the turn that found the queue empty"
+        );
+    }
+
     /// How often a case's own task looks at the state it is waiting on.
     const LOOKING_EVERY: Duration = Duration::from_millis(2);
 
@@ -3205,7 +3317,8 @@ mod tests {
     /// What the worker under one of the cases below has asked of its queue.
     #[derive(Default)]
     struct Asked {
-        /// Turns begun. Each one is a roster statement, and a claim per queue the roster named.
+        /// Turns begun. Each one is a claim per queue, and a roster statement unless the last
+        /// turn claimed a job.
         turns: Cell<u32>,
         /// Turns that found nothing, after each of which the worker waits for work.
         empty: Cell<u32>,
@@ -3255,10 +3368,18 @@ mod tests {
         ctx.set_config(current.load());
         sched.spawn(ctx, super::ROOT, move |ctx| {
             let mut conn = super::open(QUEUE, &block).expect("the queue's file opens for a worker");
+            let mut hot = super::Hot::default();
             super::take_turns(&workers, || {
                 let turn = asked.turns.get() + 1;
                 asked.turns.set(turn);
-                let claimed = super::turn(ctx, &mut conn, &current, bounds(1).visibility, None)?;
+                let claimed = super::turn(
+                    ctx,
+                    &mut conn,
+                    &current,
+                    bounds(1).visibility,
+                    None,
+                    &mut hot,
+                )?;
                 if !claimed {
                     asked.empty.set(asked.empty.get() + 1);
                 } else if asked.claimed_on.get().is_none() {
