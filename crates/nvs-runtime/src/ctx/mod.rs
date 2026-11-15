@@ -984,10 +984,12 @@ pub struct Ctx {
     /// unit that resolves neither, and the link helper throws rather than
     /// answering with an empty authority in it.
     ///
-    /// **What it spends:** two words per request, plus the origin's own bytes
-    /// once — tens of them, not thousands — and nothing at all for a program
-    /// that configures none.
-    origin: Option<Box<str>>,
+    /// **What it spends:** two words per context, plus the origin's own bytes
+    /// and two counts once per request — tens of bytes, not thousands — and
+    /// nothing at all for a program that configures none. A task or an isolate
+    /// shares the request's string through the `Arc`, at one atomic increment
+    /// each, and copies no bytes.
+    origin: Option<std::sync::Arc<str>>,
     /// Where each link to another module goes from the mount this request
     /// came through (`rule:routing/a-link-reaches-another-module`), or `None`
     /// where the door wrote none. Written before the request runs, like

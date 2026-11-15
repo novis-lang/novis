@@ -373,7 +373,7 @@ impl Ctx {
     /// [`nvs_config::Request`] is shared but the snapshot underneath it.
     ///
     /// **What it spends:** one `Ctx` per in-flight child, freed when that child
-    /// ends, plus the origin's own bytes copied once and one `Arc` clone of the
+    /// ends, plus one `Arc` clone of the origin and one of the
     /// snapshot with one `String` pair per key the parent had set. O(in-flight)
     /// and not O(children ever spawned), per
     /// `rule:programs/memory-priority`.
@@ -399,11 +399,20 @@ impl Ctx {
         // still answering whatever this one is answering and `rule:tooling/echo-always-has-a-sink`'s
         // first row still applies to it. An isolate reaches the same conclusion
         // by the third row, and `nvs_host::Isolate` is where that is read.
-        let mut child = Self::new(if matches!(self.output, OutputSink::Body(_)) {
+        let output = if matches!(self.output, OutputSink::Body(_)) {
             OutputSink::Body(Vec::new())
         } else {
             OutputSink::Buffer(Vec::new())
-        });
+        };
+        // The tree's state and the deadline word are this request's, so the
+        // task is made over them and allocates neither. The deadline is the
+        // word, not its value: a task of this request is bounded by this
+        // request's wall time and by no clock of its own. See the field doc.
+        let mut child = Self::sharing(
+            output,
+            std::sync::Arc::clone(&self.tree),
+            std::sync::Arc::clone(&self.deadline),
+        );
         // Request-wide, and therefore shared or copied. The kind of run is
         // copied as the parent reads it, so a task of a request or of a
         // connection is that run too, though it has no inbound and no peer.
@@ -428,13 +437,10 @@ impl Ctx {
         // One word, and the table behind it is the process's, so a task
         // resolves by name everything the request it belongs to could.
         child.core_classes = self.core_classes;
-        // The word, not its value: a task of this request is bounded by this
-        // request's wall time and by no clock of its own. See the field doc.
-        child.deadline = std::sync::Arc::clone(&self.deadline);
-        // The safepoint word the same way, and the same decision made twice: a
+        // The safepoint word is the tree's, which the task was made over: a
         // task is part of this request, so a stop that reaches the request
         // reaches the task whether it was spawned before the flag was raised or
-        // after it.
+        // after it. This call also marks the task as off the tree's root.
         child.share_safepoint_with(self);
         // The memory reading and its ceiling the same way: a task allocates on
         // the core's balance its request is measured on, so it reads that
@@ -1062,15 +1068,15 @@ impl Ctx {
 ///
 /// **What it spends** (`rule:programs/memory-priority`): one of these per
 /// placement in flight, holding one atomic increment on each of those handles
-/// and a copy of the parent's origin string, released when the child's context
-/// is built.
+/// and on the parent's origin string, released when the child's context is
+/// built.
 #[derive(Debug)]
 pub struct PlacedIsolate {
     debug: DebugFlags,
     stmt_hits: Option<std::sync::Arc<StmtHits>>,
     run_hits: Option<std::sync::Arc<StmtHits>>,
     run_profile: Option<std::sync::Arc<crate::Profiler>>,
-    origin: Option<Box<str>>,
+    origin: Option<std::sync::Arc<str>>,
     module_links: Option<std::sync::Arc<nvs_config::mount::Links>>,
     config: Option<nvs_config::Request>,
     grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,

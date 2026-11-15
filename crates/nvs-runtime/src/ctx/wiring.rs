@@ -118,17 +118,49 @@ impl Ctx {
     /// release build arms no ceiling here.
     #[must_use]
     pub fn new(output: OutputSink) -> Self {
+        // Both are allocated before `memory_base` is read, as they always
+        // were, so neither is on the new context's own balance.
+        let tree = std::sync::Arc::new(TreeState::default());
+        let deadline = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let mut ctx = Self::sharing(output, tree, deadline);
+        let turn = crate::budget::running_turn();
+        if !turn.is_null() {
+            ctx.made = Some(super::limits::Made {
+                turn,
+                tree: std::sync::Arc::as_ptr(&ctx.tree),
+                deadline: std::sync::Arc::as_ptr(&ctx.deadline),
+                live: std::rc::Rc::as_ptr(&ctx.live),
+            });
+        }
+        ctx
+    }
+
+    /// [`Self::new`] over a tree and a deadline the caller already has.
+    ///
+    /// [`Ctx::child`] passes its parent's, so a task allocates neither and
+    /// frees neither. Everything else is fresh, the trace ids included, so a
+    /// task's exported spans are its own as before. The context records no
+    /// [`super::limits::Made`]: it made nothing that
+    /// [`Self::hand_over_its_making`] could credit.
+    ///
+    /// **What it spends:** nothing. It saves two allocations and two frees
+    /// per spawned task.
+    pub(super) fn sharing(
+        output: OutputSink,
+        tree: std::sync::Arc<TreeState>,
+        deadline: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    ) -> Self {
         // The stack pointer in *this* frame, which is the closest thing to
         // "where the request starts" that needs no platform call. It
         // under-reports the true base by however deep the caller already is,
         // which shrinks the ceiling rather than stretching it — the safe
         // direction.
         let base = stack_pointer();
-        // The tree's shared state before the struct that names its word: what
-        // the hot slot holds is an address inside this allocation, and moving
-        // the handle into the field below leaves the allocation exactly where it
-        // is.
-        let tree = std::sync::Arc::new(TreeState::default());
+        // The tree's shared state is made before the struct that names its
+        // word: what the hot slot holds is an address inside that allocation,
+        // and moving the handle into the field below leaves the allocation
+        // exactly where it is.
+        //
         // The trace ids are drawn before `memory_base` is read. The draw makes
         // the thread's random generator on its first use, and that generator is
         // the thread's for as long as it runs. Charged to the first context
@@ -141,7 +173,7 @@ impl Ctx {
         let mut ctx = Self {
             safepoint: std::ptr::from_ref(&tree.word),
             debug: super::trace::starting_debug_flags(),
-            deadline: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            deadline,
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
@@ -293,15 +325,6 @@ impl Ctx {
         ctx.set_memory_limit(
             usize::try_from(nvs_config::defaults::LIMITS_MEMORY).unwrap_or(usize::MAX),
         );
-        let turn = crate::budget::running_turn();
-        if !turn.is_null() {
-            ctx.made = Some(super::limits::Made {
-                turn,
-                tree: std::sync::Arc::as_ptr(&ctx.tree),
-                deadline: std::sync::Arc::as_ptr(&ctx.deadline),
-                live: std::rc::Rc::as_ptr(&ctx.live),
-            });
-        }
         ctx
     }
 
