@@ -17,10 +17,9 @@
     reason = "the corpus sizes are this test's report"
 )]
 
-use std::panic::resume_unwind;
+mod pool;
+
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
 
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 use nvs_syntax::{Lexer, TokenKind};
@@ -124,42 +123,13 @@ fn hole_in(path: &Path, to_source: &impl Fn(&str) -> Option<String>) -> Option<S
 /// Reports every file in `paths` whose pieces do not tile it, one line each, in
 /// `paths`' order.
 ///
-/// The files are shared out over every core, because libtest runs this test on
-/// one thread. Each file is lexed into its own `SourceMap`, so the workers share
-/// nothing but the index of the next file, and sorting by that index gives back
-/// the order a single thread would report in.
+/// The files are shared out over every core by [`pool::map_ordered`]. Each file
+/// is lexed into its own `SourceMap`, so the workers share nothing.
 fn holes_in(paths: &[PathBuf], to_source: impl Fn(&str) -> Option<String> + Sync) -> Vec<String> {
-    let workers = thread::available_parallelism()
-        .map_or(1, |n| n.get())
-        .min(paths.len());
-    let next = AtomicUsize::new(0);
-    let mut found: Vec<(usize, String)> = thread::scope(|scope| {
-        // Collected before any is joined, or each worker would be spawned and
-        // joined in turn -- the serial loop again.
-        let handles: Vec<_> = (0..workers)
-            .map(|_| {
-                scope.spawn(|| {
-                    let mut mine = Vec::new();
-                    loop {
-                        let index = next.fetch_add(1, Ordering::Relaxed);
-                        let Some(path) = paths.get(index) else {
-                            break;
-                        };
-                        if let Some(hole) = hole_in(path, &to_source) {
-                            mine.push((index, hole));
-                        }
-                    }
-                    mine
-                })
-            })
-            .collect();
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().unwrap_or_else(|panic| resume_unwind(panic)))
-            .collect()
-    });
-    found.sort_unstable_by_key(|(index, _)| *index);
-    found.into_iter().map(|(_, hole)| hole).collect()
+    pool::map_ordered(paths, |path| hole_in(path, &to_source))
+        .into_iter()
+        .flatten()
+        .collect()
 }
 
 #[test]

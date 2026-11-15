@@ -19,6 +19,8 @@
     reason = "the sweep's sizes are this test's report, as in `lossless.rs`"
 )]
 
+mod pool;
+
 use std::path::PathBuf;
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
@@ -119,8 +121,12 @@ fn every_prefix_of_every_example_parses_without_panicking() {
     let mut prefixes = 0_usize;
     let mut escaped = Vec::new();
 
-    for (path, text) in examples() {
-        for (end, _) in boundaries(&text) {
+    // Each file is swept by one of `pool`'s workers, and its results are
+    // gathered in the files' order, as a serial loop would report them.
+    let swept = pool::map_ordered(&examples(), |(path, text)| {
+        let mut prefixes = 0_usize;
+        let mut escaped = Vec::new();
+        for (end, _) in boundaries(text) {
             let (parsed, _) = parse_prefix(&path.display().to_string(), &text[..end as usize]);
             prefixes += 1;
             // Not returning is most of the claim — a panic here fails the test
@@ -132,6 +138,11 @@ fn every_prefix_of_every_example_parses_without_panicking() {
                 escaped.push(format!("{}: {found}", path.display()));
             }
         }
+        (prefixes, escaped)
+    });
+    for (count, found) in swept {
+        prefixes += count;
+        escaped.extend(found);
     }
 
     assert!(
@@ -152,18 +163,20 @@ fn every_prefix_of_every_example_parses_without_panicking() {
 fn every_prefix_answers_a_syntax_index_lookup_at_its_end() {
     let mut answered = 0_usize;
     let mut broken = Vec::new();
+    let mut unanswered = Vec::new();
 
-    for (path, text) in examples() {
+    let swept = pool::map_ordered(&examples(), |(path, text)| {
+        let mut broken = Vec::new();
         // A file whose whole parse has no nodes at all has nothing for a lookup
         // to find in any prefix of it either, and the per-file assertion below
         // would be false for the wrong reason.
-        let (whole, _) = parse_prefix(&path.display().to_string(), &text);
+        let (whole, _) = parse_prefix(&path.display().to_string(), text);
         if whole.index.is_empty() {
-            continue;
+            return (0, broken, None);
         }
 
         let mut found_here = 0_usize;
-        for (end, _) in boundaries(&text) {
+        for (end, _) in boundaries(text) {
             let (parsed, _) = parse_prefix(&path.display().to_string(), &text[..end as usize]);
             // The last byte the prefix contains. `at` is half-open, so `end`
             // itself is past every span by construction and would make this
@@ -198,15 +211,22 @@ fn every_prefix_answers_a_syntax_index_lookup_at_its_end() {
             }
         }
 
-        assert!(
-            found_here > 0,
-            "{}: no prefix of a file with {} node(s) answered a lookup at its end",
-            path.display(),
-            whole.index.len()
-        );
-        answered += found_here;
+        let none = (found_here == 0).then(|| {
+            format!(
+                "{}: no prefix of a file with {} node(s) answered a lookup at its end",
+                path.display(),
+                whole.index.len()
+            )
+        });
+        (found_here, broken, none)
+    });
+    for (count, found, none) in swept {
+        answered += count;
+        broken.extend(found);
+        unanswered.extend(none);
     }
 
+    assert!(unanswered.is_empty(), "{}", unanswered.join("\n"));
     assert!(
         broken.is_empty(),
         "{} lookup(s) answered a path that is not a containment chain:\n{}",
@@ -226,8 +246,10 @@ fn an_incomplete_prefix_still_reports_a_diagnostic() {
     let mut incomplete = 0_usize;
     let mut silent = Vec::new();
 
-    for (path, text) in examples() {
-        for (end, depth) in boundaries(&text) {
+    let swept = pool::map_ordered(&examples(), |(path, text)| {
+        let mut incomplete = 0_usize;
+        let mut silent = Vec::new();
+        for (end, depth) in boundaries(text) {
             if depth == 0 {
                 // Cutting at a closed bracket can leave a file that is simply
                 // shorter and entirely valid, so there is nothing to demand.
@@ -242,6 +264,11 @@ fn an_incomplete_prefix_still_reports_a_diagnostic() {
                 ));
             }
         }
+        (incomplete, silent)
+    });
+    for (count, found) in swept {
+        incomplete += count;
+        silent.extend(found);
     }
 
     assert!(
