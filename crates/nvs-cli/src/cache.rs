@@ -31,10 +31,11 @@
 //! `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock` owns it.
 //!
 //! Write header and payload to `.tmp-<random>` **in the shard directory the final name lives in**,
-//! `fsync` it, then one `rename` onto the final path. Same directory so the rename cannot cross a
-//! filesystem and degrade into a copy. **No lock file, ever, and no directory `fsync`**: losing an
-//! un-synced entry to a crash costs one recompile, which is a cache miss and not a defect, so the
-//! sync buys nothing this design needs. If the final path already exists when the rename would
+//! close it, then one `rename` onto the final path. Same directory so the rename cannot cross a
+//! filesystem and degrade into a copy. **No lock file, ever, and no `fsync` of the file or the
+//! directory**: a crash can leave the final name over a short or empty file, which fails its length
+//! or checksum check, is deleted and recompiled, which is a cache miss and not a defect. A sync would
+//! make a first run wait on the disk for a durability nothing reads. If the final path already exists when the rename would
 //! happen, another writer has already published byte-identical content — the key *is* the content
 //! hash — so this writer discards its own temp file instead. There is nothing to reconcile because
 //! there is nothing that could differ.
@@ -46,7 +47,7 @@
 //! caller which wants to log a persistently unwritable cache directory can.
 //!
 //! Cost: one BLAKE3 pass over the payload, one `create_dir_all` on a shard's first write, one
-//! `fsync` and one `rename`, all on a path where a real compile has just happened. A warm hit pays
+//! write and one `rename`, all on a path where a real compile has just happened. A warm hit pays
 //! none of it.
 //!
 //! # The read path
@@ -76,7 +77,10 @@
 //! and can never become a second valid version. A `payload_len` that
 //! disagrees with the file's length is treated the same way, one step earlier — that field exists to catch
 //! a truncation before the checksum does, the entry is corrupt on the same argument, and leaving it
-//! costs a re-open on every future run. A wrong magic, `format_version` or `env_hash` is *not*
+//! costs a re-open on every future run. A file shorter than a header, or whose header is all zero
+//! bytes, is deleted too: that is what a crash leaves, since the writer does not sync, and no build
+//! writes it. Left in place it would keep the key cold forever, because a writer never replaces a
+//! final path that exists. A wrong magic, `format_version` or `env_hash` is *not*
 //! deleted: each of them means "not this process's file" rather than "broken", and deleting on them
 //! would let one build of the compiler evict another's entries out of a shared cache directory.
 //!
@@ -1388,6 +1392,13 @@ impl Cache {
 
     /// The read path's checks over an artifact's bytes, cheapest first, hash last.
     fn verify(env: EnvHash, bytes: &[u8]) -> Result<Header, Miss> {
+        // What a crash leaves under a final name, since the writer does not sync: a file shorter
+        // than a header, or one whose blocks were never written and read as zeros. No build of
+        // the compiler writes either, so neither is another build's file.
+        let head = bytes.get(..HEADER_LEN).ok_or(Miss::Corrupt)?;
+        if head.iter().all(|&byte| byte == 0) {
+            return Err(Miss::Corrupt);
+        }
         let header = Header::decode(bytes).ok_or(Miss::Foreign)?;
         if header.format_version != FORMAT_VERSION || header.env_hash != *env.digest().as_bytes() {
             return Err(Miss::Foreign);
@@ -1408,7 +1419,7 @@ impl Cache {
     /// # Errors
     ///
     /// The underlying [`io::Error`] when the shard directory cannot be created, the temp file
-    /// cannot be written or synced, or the rename fails for a reason other than the final path
+    /// cannot be written, or the rename fails for a reason other than the final path
     /// having appeared underneath it. Every one of them means "there is no cache entry", which the
     /// next process handles as an ordinary miss; the module doc says why nothing escalates.
     pub(crate) fn store(&self, key: Digest, payload: &[u8]) -> io::Result<Stored> {
@@ -1560,12 +1571,12 @@ impl Cache {
         Ok((total, artifacts))
     }
 
-    /// The temp file, header then payload, synced and closed.
+    /// The temp file, header then payload, written and closed and never synced: the module doc's
+    /// write path says what a crash costs.
     fn write_temp(&self, temp: &Path, payload: &[u8]) -> io::Result<()> {
         let mut file = File::create(temp)?;
         file.write_all(&Header::for_payload(self.env, payload).encode())?;
-        file.write_all(payload)?;
-        file.sync_all()
+        file.write_all(payload)
     }
 }
 
@@ -2385,9 +2396,20 @@ mod tests {
         assert!(cache.load(key).is_none(), "a truncated artifact is a miss");
         assert!(!path.exists(), "and it is deleted too");
 
-        // A header alone, with no payload behind it, is not a handle either.
-        fs::write(&path, &good[..HEADER_LEN / 2]).expect("writable");
-        assert!(cache.load(key).is_none(), "a partial header is a miss");
+        // What a crash can leave, since the writer does not sync: a partial header, an empty
+        // file and a header of zeros. Each is a miss, and each is deleted, so the next run's
+        // write can publish under the name.
+        let zeros = vec![0_u8; good.len()];
+        for (label, torn) in [
+            ("a partial header", &good[..HEADER_LEN / 2]),
+            ("an empty file", &good[..0]),
+            ("a header of zeros", &zeros[..]),
+        ] {
+            fs::create_dir_all(path.parent().expect("a shard")).expect("writable");
+            fs::write(&path, torn).expect("writable");
+            assert!(cache.load(key).is_none(), "{label} is a miss");
+            assert!(!path.exists(), "{label} is deleted");
+        }
 
         drop(fs::remove_dir_all(&dir));
     }
@@ -3277,7 +3299,7 @@ mod tests {
     /// check sit on top of both numbers alike.
     ///
     /// The cold arm is a *whole* cold run and carries the writer's publish with it: the second Cranelift
-    /// walk [`unit_for`]'s doc names, the temp file, the `fsync` and the rename. That is what a
+    /// walk [`unit_for`]'s doc names, the temp file and the rename. That is what a
     /// first run of a program actually costs, and pricing the cold arm at less than it would
     /// flatter the cache.
     ///
@@ -3295,7 +3317,7 @@ mod tests {
     /// can be measured faster than the work it did, so the best pair is still a lower bound on the
     /// ratio; what it buys is that one stalled sample decides nothing, which is what a guard that
     /// shares its machine with a release build needs. A slow *disk* moves the ratio the safe way:
-    /// the `fsync` is in the cold arm.
+    /// the write is in the cold arm.
     ///
     /// **The ratio has the two bounds of `rule:testing/perf-two-mechanisms`.** What is asserted is
     /// "codegen dominates place and relocate", not a benchmark's own number. The soft bound, `4`,
