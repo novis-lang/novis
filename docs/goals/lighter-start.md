@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext/src/load.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-hir/src/symbol.rs]
   - id: 3
     title: "the `Core` pre-pass parses each name once"
-    status: open
+    status: done
     context: [crates/nvs-types/src/core_lib.rs, crates/nvs-hir/src/qname.rs]
   - id: 4
     title: "the share of a start that the binary's size costs is recorded"
@@ -109,14 +109,17 @@ item 2's test parses all four. In `nvs serve` the first compile runs before the 
 a recompile runs on the revalidation thread, so no request makes the parse. An editor completion
 that lists every class parses all four, as today.
 
-**The `Core` name table lives in the `Base` and is read-only after the pre-pass.** It maps a row's
-`&'static str` name to its interned `TypeId` (for `EnumCase`, the name and the case), filled on a
-miss in the pre-pass, and read by `build_class` on each class's first lookup. A hit returns the id
-the interner already holds, and a miss runs the code it runs now, so the order of interning and every
-type id stay the same. **What it spends:** one map of one entry per distinct named `Core` type, held
-for the process beside the `Base`. Safe default if `build_class` cannot read it without a lock: the
-map is local to the pre-pass and freed at its end. Declined: changing `QName` to shared segments,
-which touches every crate for the same saving.
+**The `Core` name table lives in the `Base`'s interner and is read-only after the pre-pass.** It
+maps a row's `&'static str` name to its interned `TypeId` (`CoreName` in `crates/nvs-types/src/ty.rs`:
+for `EnumCase`, the name and the case; for `InstanceAt`, the name and its argument slice's address
+and length), filled on a miss in the pre-pass, and read through the layered interner by
+`build_class` on each class's first lookup. A hit returns the id the interner already holds, and a
+miss runs the code it runs now, so the order of interning and every type id stay the same. It sits
+in the interner, beside its `aliases`, and not in a field of `Base` beside it, so a cached id always
+names a type of the interner that gave it out: a fresh interner, as `seed` uses, starts with an
+empty table, and `lower` keeps its signature. **What it spends:** one map of one entry per distinct
+named `Core` type, held for the process in the `Base`. Declined: changing `QName` to shared
+segments, which touches every crate for the same saving.
 
 **Stage 4 measures and builds nothing.** It records what a start costs before `main` runs and what
 the binary's size adds, on Linux in WSL (`bun nv linux-test`'s `novis-test` distro), where
@@ -175,14 +178,14 @@ every item below is ticked as declined with the figure.
 **Does:** a `Core` type that is already interned costs a map lookup, not a `QName` and an argument
 vector.
 
-- [ ] `crates/nvs-types/src/core_lib.rs:61`: the `Base` holds the name table **Standing decisions**
+- [x] `crates/nvs-types/src/core_lib.rs:61`: the `Base` holds the name table **Standing decisions**
   describes (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-types/src/core_lib.rs:794`: `lower` reads the table before it parses an
+- [x] `crates/nvs-types/src/core_lib.rs:794`: `lower` reads the table before it parses an
   `Instance`, `InstanceAt`, `Enum` or `EnumCase` name, and `build_class` at `:176` reads it too
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-types/src/core_lib.rs:1254`: `every_core_class_builds_over_the_frozen_types` runs
+- [x] `crates/nvs-types/src/core_lib.rs:1254`: `every_core_class_builds_over_the_frozen_types` runs
   once, by name, and is green: the ids did not move.
-- [ ] `crates/nvs-cli/tests/start_cost.rs:14`: `core`'s bound is the new measured figure plus 10%
+- [x] `crates/nvs-cli/tests/start_cost.rs:14`: `core`'s bound is the new measured figure plus 10%
   (`rule:testing/perf-two-mechanisms`).
 
 ### 4. the share of a start that the binary's size costs is recorded
@@ -214,23 +217,18 @@ before the first edit. The smallest one that links `std` is the comparison.
 
 ### State
 
-Stages 1 and 2 are done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0,
-stage 4: 0, stage 5: 0.
+Stages 1, 2 and 3 are done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1,
+stage 3: 1, stage 4: 0, stage 5: 0.
 
-Stage 2's gate was open, and the stage is declined as **Standing decisions** says. A lazy parse
-needs four walks of the whole list changed, not one lookup: `crates/nvs-hir/src/resolve.rs:87`
-declares every class before resolving, `resolve.rs:420` and `crates/nvs-hir/src/requires.rs:374`
-declare every class's members, and `crates/nvs-types/src/signatures.rs:1020` and
-`crates/nvs-types/src/enums.rs:175` seed from every manifest. The checker would also need to learn
-which components the resolver reached. The figure and the reason are in
-`crates/nvs-cli/src/extensions.rs`'s `# What it costs`. No code changed.
+Stage 3's `core` is **6,099** allocations, from 8,109 (26.6% of a one-line `nvs check`'s start).
+`check` fell with it, to 9,508 from 9,652: a checked call's `Core` types hit the same table. The
+other phases did not move. `start_cost.rs`'s bounds are now `core` 6,800 and `check` 10,500.
+The table is `CoreName` in `crates/nvs-types/src/ty.rs`, inside the base's `TypeInterner`, and
+**Standing decisions** says why it sits there and not beside the interner.
+`every_core_class_builds_over_the_frozen_types` and `start_cost` each ran once and are green.
 
-Stage 1's measured `built_in` is **5,726** allocations, 22.8% of a one-line `nvs check`'s start
-(it was 6,699). The other phases are
-unchanged: `configuration` 418, `grants` 25, `core` 8,109, `collection` 1,166, `check` 9,652.
-`start_cost.rs`'s bounds are each plus 10%, rounded up to the next hundred, except `grants`, which
-stays at 60: its count follows the directory's path, 25 from `.agent-tmp/` and 33 from the test's
-scratch directory.
+Stage 2 is declined: a lazy parse needs four walks changed, not one lookup. The figure and the
+reason are in `crates/nvs-cli/src/extensions.rs`'s `# What it costs`. `built_in` is 5,726.
 
 `cheaper-pipeline`'s goal-end push has not run: `main` is not pushed, and the newest push run is
 still the base, 43649226665. Its runner-minutes are not recorded anywhere yet.
@@ -240,21 +238,18 @@ so the sweep's list is stale. Nothing in the tree is red for it.
 
 ### Next
 
-Stage 3: the `Core` pre-pass parses each name once. The `core` phase is 8,109 allocations, so its
-gate under the 5% floor is open. Read the **Standing decisions** paragraph on the name table first.
+Stage 4: the share of a start that the binary's size costs is recorded. It measures and builds
+nothing in the product. Read the **Standing decisions** paragraph on stage 4 first, and run the
+stage's `Explore` split before the first edit.
 
-- `crates/nvs-types/src/core_lib.rs:39`: `struct Base`, where the name table goes.
-- `crates/nvs-types/src/core_lib.rs:794`: `lower`, which parses an `Instance`, `InstanceAt`,
-  `Enum` or `EnumCase` name today. It reads the table first.
-- `crates/nvs-types/src/core_lib.rs:176`: `build_class` reads the table on each class's first
-  lookup.
-- `crates/nvs-types/src/core_lib.rs:1254`: `every_core_class_builds_over_the_frozen_types` runs
-  once by name. It is the `core-names-once` check.
-- Measure with `bun nv start-cost` from `.agent-tmp/`, then set `core`'s bound in
-  `crates/nvs-cli/tests/start_cost.rs` to the figure plus 10%, in the same commit.
+- `tools/nv/cmd/start-cost.ts:1`: add `--floor`, run in WSL's `novis-test` distro through
+  `bun nv linux-test`'s path, with `/usr/bin/time -f "%R %F"` or the `/proc/<pid>/stat` fallback.
+- `tools/nv/test/start-cost.test.ts:1`: cover `--floor`'s argument handling.
+- `crates/nvs-cli/src/main.rs:134`: `## What it costs` gets the floor figures.
+- `docs/goals/lighter-start.md:1`: one `### Backlog` line per change the figures suggest.
 
-No test is expected to go red from stages 1 and 2. A non-Windows runner's
-`start_cost` may count a few more allocations than the 10% margin allows. If one does, measure
-on that OS and set the bound from that figure.
+No test is expected to go red from stages 1 to 3. A non-Windows runner's `start_cost` may count
+a few more allocations than the 10% margin allows. If one does, measure on that OS and set the
+bound from that figure.
 
 ### Backlog

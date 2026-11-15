@@ -521,6 +521,30 @@ pub struct TypeInterner {
     /// names the alias the program or the member wrote, and the alias stays
     /// transparent. A few entries per process.
     aliases: Vec<(TypeId, &'static str)>,
+    /// Each `Core` row's named type interned so far, by the row's own name
+    /// ([`CoreName`]). `crate::core_lib`'s `lower` reads it before it parses a
+    /// name, so a name the base has interned costs one lookup and no `QName`.
+    /// It lives beside the ids it records, so an id here always names a type
+    /// of this interner or its base. One entry per distinct named `Core` type,
+    /// a few hundred, held for the process in the base.
+    core_names: FxHashMap<CoreName, TypeId>,
+}
+
+/// The key of a `Core` row's named type in [`TypeInterner`]'s name table: the
+/// row's `&'static str` name, and what else picks its type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum CoreName {
+    /// `CoreTy::Instance`.
+    Instance(&'static str),
+    /// `CoreTy::InstanceAt`: the name and the address and length of the row's
+    /// own argument slice. A slice is static, so one address and length is
+    /// always the same arguments. Two equal slices at two addresses are two
+    /// entries for the same id.
+    InstanceAt(&'static str, usize, usize),
+    /// `CoreTy::Enum`.
+    Enum(&'static str),
+    /// `CoreTy::EnumCase`: the enum's name and the case.
+    EnumCase(&'static str, &'static str),
 }
 
 impl TypeInterner {
@@ -558,6 +582,19 @@ impl TypeInterner {
     /// [`crate::core_lib::base`] gives.
     pub(crate) const fn is_layered(&self) -> bool {
         self.base.is_some()
+    }
+
+    /// The id a `Core` row's named type was interned at, here or in the base.
+    pub(crate) fn core_name(&self, name: CoreName) -> Option<TypeId> {
+        self.base
+            .and_then(|base| base.core_names.get(&name))
+            .or_else(|| self.core_names.get(&name))
+            .copied()
+    }
+
+    /// Records `id` as the type `name` interns to, for [`Self::core_name`].
+    pub(crate) fn record_core_name(&mut self, name: CoreName, id: TypeId) {
+        self.core_names.insert(name, id);
     }
 
     /// How many types this interner has interned, not counting its base's.

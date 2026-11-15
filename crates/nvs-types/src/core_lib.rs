@@ -33,7 +33,7 @@ use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
 use crate::signatures::{ClassSignature, MethodSig, SignatureTable};
-use crate::ty::{TypeId, TypeInterner};
+use crate::ty::{CoreName, TypeId, TypeInterner};
 
 /// The native declarations every check starts from, built once per process.
 pub(crate) struct Base {
@@ -788,6 +788,25 @@ fn qual_of(ty: &CoreTy) -> Option<Qual> {
     }
 }
 
+/// The id `key`'s type was interned at, or `intern`'s id, recorded under `key`.
+///
+/// The first lowering of a `Core` name parses it and interns its type, as
+/// [`lower`] always did, so the order of interning and every id stay the same.
+/// Every later one, in the pre-pass and in each class [`build_class`] builds,
+/// is one lookup in the interner's name table.
+fn named(
+    interner: &mut TypeInterner,
+    key: CoreName,
+    intern: impl FnOnce(&mut TypeInterner) -> TypeId,
+) -> TypeId {
+    if let Some(id) = interner.core_name(key) {
+        return id;
+    }
+    let id = intern(interner);
+    interner.record_core_name(key, id);
+    id
+}
+
 /// One registry type into an interned one. The registry's enum is
 /// deliberately smaller than [`crate::ty::Ty`] — see its own docs — so this
 /// is a total match with no failure case.
@@ -919,18 +938,19 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `crate::enums` has already seeded the same name into its own table,
         // so the backing type asked for here is the one every other consumer
         // reads back.
-        CoreTy::Enum(name) => {
-            let qname = QName::parse(name);
-            interner.enum_(qname, crate::enums::EnumBacking::Int)
-        }
+        CoreTy::Enum(name) => named(interner, CoreName::Enum(name), |interner| {
+            interner.enum_(QName::parse(name), crate::enums::EnumBacking::Int)
+        }),
         // `rule:types/enum-case-type`'s narrowed case type, interned exactly as a source-
         // written `Core\Hash::Digest::Sha256` in type position is — `crate::lower`
         // reaches the same `enum_case` for that spelling, so the union a
         // registry row builds out of these and one a program could write are
         // the same interned id.
         CoreTy::EnumCase(name, case) => {
-            let qname = QName::parse(name);
-            interner.enum_case(qname, crate::enums::EnumBacking::Int, *case)
+            named(interner, CoreName::EnumCase(name, case), |interner| {
+                let qname = QName::parse(name);
+                interner.enum_case(qname, crate::enums::EnumBacking::Int, *case)
+            })
         }
         CoreTy::ShapeOfCallables(name) => interner.shape_of_callables(*name),
         // Lowered field-wise, so a variable a registry row wrote inside a
@@ -960,7 +980,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // any other: an instance member through
         // `crate::expr::args::substitute_receiver_args`, a written
         // `new Core\ObjectSet<Tag>()` through the type arguments themselves.
-        CoreTy::Instance(name) => {
+        CoreTy::Instance(name) => named(interner, CoreName::Instance(name), |interner| {
             let qname = QName::parse(name);
             match nvs_stdlib::registry::class_type_params(name) {
                 Some(params) => {
@@ -972,7 +992,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
                 }
                 None => interner.class(qname),
             }
-        }
+        }),
         // The same class type, at the arguments the row wrote rather than at
         // the class's own variables — `nvs_stdlib::registry::CoreTy::InstanceAt`
         // owns why a member that *produces* a generic instance needs its own
@@ -980,9 +1000,12 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `every_instance_type_names_a_registered_class`'s, in the crate that
         // owns the roster, and by the time a row reaches this it holds.
         CoreTy::InstanceAt(name, args) => {
-            let qname = QName::parse(name);
-            let args: Vec<TypeId> = args.iter().map(|arg| lower(arg, interner)).collect();
-            interner.generic_class(qname, args)
+            let key = CoreName::InstanceAt(name, args.as_ptr() as usize, args.len());
+            named(interner, key, |interner| {
+                let qname = QName::parse(name);
+                let args: Vec<TypeId> = args.iter().map(|arg| lower(arg, interner)).collect();
+                interner.generic_class(qname, args)
+            })
         }
         // `rule:iteration/foreach-subjects`'s three iterable shapes, interned as the union of all
         // three — [`CoreTy::Iterated`] owns why an `array<T>` is one of them
