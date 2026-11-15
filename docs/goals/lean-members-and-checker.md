@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/str.rs, crates/nvs
 stages:
   - id: 1
     title: the array members allocate per result, not per element
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/heap.rs, docs/rules/testing/member-perf-ledger.md]
   - id: 2
     title: the text and byte members scan once and copy once
@@ -133,19 +133,25 @@ as a side goal.
 **Does:** remove the per-element allocations of the bucket and set members, size the appending
 members, and skip ordered runs in the merge.
 
-- [ ] `crates/nvs-stdlib/src/arr.rs:2721`: `groupBy` looks its bucket up by borrowed bytes and
+- [x] `crates/nvs-stdlib/src/arr.rs:2721`: `groupBy` looks its bucket up by borrowed bytes and
   builds the key argument only for a callback that takes it (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/arr.rs:4420`: `countBy` overwrites an existing bucket
-  (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/arr.rs:5514`: `unique`, `set_member` at `:5994`, `reverse` at `:3820`
+  Allocations 37 → 27 per op.
+- [x] `crates/nvs-stdlib/src/arr.rs:4420`: `countBy` overwrites an existing bucket
+  (`rule:testing/member-perf-ledger`). Allocations 11 → 8.
+- [x] `crates/nvs-stdlib/src/arr.rs:5514`: `unique`, `set_member` at `:5994`, `reverse` at `:3820`
   and `mapKeys` at `:2611` use `slot_key` and `store_at` (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/arr.rs:3527`: `append`, `prepend` at `:3561`, `replaceRange` at `:3397`
+  `unique` 28 → 14, `diff` 25.5 → 12.3, `intersect` 25.5 → 12.8, `mapKeys` 18 → 12. Declined:
+  `reverse`, whose reversed list keys land in the hash form and are rendered either way.
+- [x] `crates/nvs-stdlib/src/arr.rs:3527`: `append`, `prepend` at `:3561`, `replaceRange` at `:3397`
   and `appendAll` at `:5864` reserve their result (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/arr.rs:5058`: `merge_sort` copies a pair of runs that is already in
-  order, and swaps two buffers (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/arr.rs:3347`: `slice` starts at its slot when the array has no holes
-  (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/arr.rs:2690`: the test `a_bucket_member_allocates_per_bucket`
+  `appendAll` 7 → 6 is kept. Declined and restored: `append` 4 → 4, `prepend` 4 → 4,
+  `replaceRange` 2 → 2, calls unchanged.
+- [x] `crates/nvs-stdlib/src/arr.rs:5058`: `merge_sort` copies a pair of runs that is already in
+  order, and swaps two buffers (`rule:testing/member-perf-ledger`). Declined and restored:
+  `sort` allocations 5 → 5 and calls 1 → 1.
+- [x] `crates/nvs-stdlib/src/arr.rs:3347`: `slice` starts at its slot when the array has no holes
+  (`rule:testing/member-perf-ledger`). Declined and restored: allocations 2 → 2, calls 2 → 2.
+- [x] `crates/nvs-stdlib/src/arr.rs:2690`: the test `a_bucket_member_allocates_per_bucket`
   (`rule:testing/perf-two-mechanisms`).
 
 ### 2. the text and byte members scan once and copy once
@@ -242,15 +248,22 @@ through the session's cache.
 
 ### State
 
-Nothing is built. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+Stage 1 is done and committed: `groupBy`, `countBy`, `unique`, `mapKeys`, `diff`, `intersect`
+and `appendAll` allocate less, and their ledger records are taken against the final `arr.rs`.
+`append`, `prepend`, `replaceRange`, `slice` and `merge_sort` were changed, measured with no drop,
+and restored, as the standing decision says. `a_bucket_member_allocates_per_bucket` passes. No
+test is expected to go red. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0,
+stage 5: 0.
+
+The sweep's `env-secret-proofs` is still stale state in looper's service: `looper check --name`
+finds no such check, and it has no log and no definition in the tree.
 
 ### Next
 
-Stage 1, in one session. The one file is `crates/nvs-stdlib/src/arr.rs`.
-
-- [ ] `crates/nvs-stdlib/src/arr.rs:2721`: `groupBy` allocates per bucket.
-- [ ] `crates/nvs-stdlib/src/arr.rs:4420`: `countBy` overwrites an existing bucket.
-- [ ] `crates/nvs-stdlib/src/arr.rs:5514`: the set members use `slot_key` and `store_at`.
+Stage 2, in one session, by its own item list. Its files are `crates/nvs-stdlib/src/str.rs`,
+`bytes.rs`, `regex.rs`, `csv.rs`, `encoding.rs` and `bigint.rs`, and `memchr` becomes a direct
+dependency of `nvs-stdlib` first. Run one `bun nv proofs --record-perf --only <members>` at the
+end of the stage, after any restore, so every record carries the final file hash.
 
 ### Backlog
 
