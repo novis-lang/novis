@@ -20,7 +20,7 @@
 //! `tests/start_cost.rs` bounds each figure.
 //!
 //! **Debug only** (`rule:testing/perf-two-mechanisms`): a release build compiles [`Mark`] to an
-//! empty value and [`line`] to `None`, so the start path has no extra work there.
+//! empty value and [`line()`] to `None`, so the start path has no extra work there.
 //!
 //! # What it costs
 //!
