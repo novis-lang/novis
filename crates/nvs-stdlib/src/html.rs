@@ -617,10 +617,10 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
 /// sink over.
 fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
     let text = text(&value, subject)?;
-    // The borrow the escape answers *is* the "nothing to escape" answer, so
-    // the unchanged case is recognised here rather than scanned for a second
-    // time.
-    let std::borrow::Cow::Owned(escaped) = nvs_render::html::escape(text) else {
+    // The measure finds the "nothing to escape" case, so the unchanged text is
+    // not scanned a second time. Escaped text is written straight into the
+    // string the answer is made of.
+    let Some(planned) = nvs_render::html::escape_planned(text) else {
         #[expect(
             unsafe_code,
             reason = "the argument slot holds a live reference for the length of \
@@ -631,7 +631,9 @@ fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
         }
         return Ok(value);
     };
-    Ok(Value::text(&escaped))
+    crate::str::built(planned.escaped_len(), |out| {
+        planned.write(&mut |piece| out.push_str(piece));
+    })
 }
 
 /// The bytes of an optional `Markup` option, or nothing for one the call did
@@ -871,10 +873,11 @@ fn markup_concat(left: Value, right: Value) -> Result<Value, Fault> {
     let left = text(&left, "the left operand of `Markup + Markup`")?;
     let right = text(&right, "the right operand of `Markup + Markup`")?;
 
-    let mut out = String::with_capacity(left.len() + right.len());
-    out.push_str(left);
-    out.push_str(right);
-    Ok(crate::instance::build(&MARKUP, [Value::text(&out)]))
+    let joined = crate::str::built(left.len() + right.len(), |out| {
+        out.push_str(left);
+        out.push_str(right);
+    })?;
+    Ok(crate::instance::build(&MARKUP, [joined]))
 }
 
 nvs_runtime::nvs_helper! {
@@ -952,8 +955,8 @@ nvs_runtime::nvs_helper! {
 
         // One counting pass sizes the page, so a list that repeats one long
         // fragment many times is refused before any byte is copied. The ask
-        // is twice the page, because the buffer and the carrier's copy of it
-        // are held at once. The breach is already recorded on a refusal.
+        // is one page, because the page is written straight into the string
+        // the carrier holds. The breach is already recorded on a refusal.
         // Both passes poll the request's deadline once every 256 parts.
         // Cost: one decrement per part.
         let mut size = 0_usize;
@@ -966,7 +969,7 @@ nvs_runtime::nvs_helper! {
             size = size.saturating_add(text(&held, r"`Core\Html::join`'s `$parts` element")?.len());
             Ok(())
         })?;
-        if !nvs_runtime::budget::affords(size.saturating_mul(2)) {
+        if !nvs_runtime::budget::affords(size) {
             return Err(ctx.memory_breach().unwrap_or_else(|| {
                 // no case can reach this: the request ends at its memory
                 // `FATAL`, so no program reads this text.
@@ -978,20 +981,18 @@ nvs_runtime::nvs_helper! {
                 )
             }));
         }
-        let mut out = String::with_capacity(size);
         let parted = crate::str::Elements::of(parts).enumerate();
-        nvs_runtime::bounded_loop(ctx, JOIN_MEMBER, parted, |_, (at, part)| {
-            if at > 0 {
-                out.push_str(separator);
-            }
-            let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
-            out.push_str(text(&held, r"`Core\Html::join`'s `$parts` element")?);
-            Ok(())
+        let page = crate::str::built_walked(size, |out| {
+            nvs_runtime::bounded_loop(ctx, JOIN_MEMBER, parted, |_, (at, part)| {
+                if at > 0 {
+                    out.push_str(separator);
+                }
+                let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
+                out.push_str(text(&held, r"`Core\Html::join`'s `$parts` element")?);
+                Ok(())
+            })
         })?;
-        Ok(crate::instance::build(
-            &MARKUP,
-            [Value::text(&out)],
-        ))
+        Ok(crate::instance::build(&MARKUP, [page]))
     }
 }
 

@@ -1819,7 +1819,7 @@ fn produced(text: &str) -> HelperResult {
     clippy::disallowed_methods,
     reason = "every writer in this module pushes `&str`s or `char::encode_utf8` output"
 )]
-fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResult {
+pub(crate) fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResult {
     Ok(Value::str(NvsStr::build(capacity, write)))
 }
 
@@ -1830,7 +1830,7 @@ fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResul
     clippy::disallowed_methods,
     reason = "every writer in this module pushes `&str`s or `char::encode_utf8` output"
 )]
-fn built_walked(
+pub(crate) fn built_walked(
     capacity: usize,
     write: impl FnOnce(&mut StrWriter<'_>) -> Result<(), Fault>,
 ) -> HelperResult {

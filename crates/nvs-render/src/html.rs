@@ -135,6 +135,7 @@ const CLASS: [u8; 256] = {
 };
 
 /// What [`escape`] writes for a text, measured without writing it.
+#[derive(Debug)]
 struct Measure {
     /// How many bytes [`escape`] writes.
     len: usize,
@@ -214,6 +215,39 @@ pub fn escape(text: &str) -> Cow<'_, str> {
     let mut out = String::with_capacity(measure.len);
     write(text, Some(&measure.cuts), &mut |piece| out.push_str(piece));
     Cow::Owned(out)
+}
+
+/// [`escape`]'s two halves for a caller that writes into a buffer of its own:
+/// `None` where `text` has nothing to escape, and otherwise the escaped length
+/// and the writer for it. One measuring pass, as [`escape`] makes.
+#[must_use]
+pub fn escape_planned(text: &str) -> Option<Planned<'_>> {
+    let measure = measure(text);
+    measure.changed.then_some(Planned { text, measure })
+}
+
+/// What [`escape_planned`] measured: the escaped length, and the controls the
+/// writer replaces, so [`Planned::write`] does not look for them again.
+#[derive(Debug)]
+pub struct Planned<'a> {
+    /// The text the plan escapes.
+    text: &'a str,
+    /// Its measure.
+    measure: Measure,
+}
+
+impl Planned<'_> {
+    /// How many bytes [`Planned::write`] writes.
+    #[must_use]
+    pub fn escaped_len(&self) -> usize {
+        self.measure.len
+    }
+
+    /// Writes what [`escape`] answers for the text through `push`, one run at
+    /// a time.
+    pub fn write(&self, push: &mut impl FnMut(&str)) {
+        write(self.text, Some(&self.measure.cuts), push);
+    }
 }
 
 /// How many bytes [`escape`] writes for `text`, without writing them.
