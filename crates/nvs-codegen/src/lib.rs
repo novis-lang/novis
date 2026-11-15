@@ -71,17 +71,23 @@
 //! A retain of a string, a `bytes`, an object or an array is emitted inline: a
 //! null test, a load of the count word, a compare against
 //! [`nvs_runtime::IMMORTAL_REFCOUNT`] (not for an array) and a store of the
-//! count plus one. It makes no call. A release stays a call to the typed
-//! runtime entry, and so does every retain and release of a tagged value.
+//! count plus one. It makes no call. A release outside an error landing block
+//! is inline as well: it stores the count minus one when that leaves it above
+//! zero, and otherwise calls the typed runtime entry from a cold block. So the
+//! entry runs only for a count of one, which frees, and for an immortal count,
+//! which it leaves alone. A release in a landing block stays a call, and so
+//! does every retain and release of a tagged value.
 //!
 //! **What it spends,** counted in the instructions `nvs run --dump-asm`
-//! prints: `benches/compare/cases/html-page` went from 2,247 to 2,342 (4.2%),
-//! and `json-api` from 3,875 to 4,051 (4.5%). The inline release, which
-//! decrements in place above a count of one and calls the entry at one, took
-//! them to 3,946 and 6,043 (76% and 56%). Kept as a call in every error
-//! landing block alone, it was still 2,755 and 4,825 (23% and 25%). Most of
-//! that growth is Cranelift's register moves on the edges of the extra blocks.
-//! The growth bound for this change is a tenth, so the release stays a call.
+//! prints: `benches/compare/cases/html-page` went from 2,247 to 2,342 (4.2%)
+//! for the inline retain, and `json-api` from 3,875 to 4,051 (4.5%). The
+//! inline release took them from 2,355 to 2,769 (17.6%) and from 4,096 to
+//! 4,851 (18.4%). That is compiled code, held once per unit and per process,
+//! never per request: memory footprint spent on one call fewer per release
+//! that frees nothing. Inline in the landing blocks too, it was 3,937 and
+//! 6,074 (67% and 48%) for code that runs only on an error, so those stay a
+//! call. Most of the growth is Cranelift's register moves on the edges of the
+//! extra blocks.
 //!
 //! **What it relies on**, asserted by a `const` block in `emit`: each header's
 //! count is its first word, one `usize` of 64 bits, and only the request's own
@@ -3847,6 +3853,79 @@ echo Scalars::constant();
         assert!(
             text.contains("fcvt_from_sint") && text.contains("fcvt_from_uint"),
             "a widening to `float` did not convert inline:\n{text}"
+        );
+    }
+
+    /// A loop that copies a string, an array and an object, each made before
+    /// it, into a second variable `rows` times. Each copy is a retain, and the
+    /// copy it replaces is a release that leaves the count at one.
+    #[cfg(debug_assertions)]
+    fn shared_rows(rows: u32) -> String {
+        format!(
+            r#"<?nvs
+class Box {{
+    public int $n = 1;
+}}
+int $k = 7;
+string $s = "row {{$k}}";
+array<int> $a = [$k, $k];
+Box $o = new Box();
+var $i = 0;
+int $total = 0;
+string $t = "";
+array<int> $b = [];
+Box $p = new Box();
+while ($i < {rows}) {{
+    $t = $s;
+    $b = $a;
+    $p = $o;
+    $total = $total + $b[0] + $p->n;
+    $i = $i + 1;
+}}
+echo $t;
+echo $total;
+"#
+        )
+    }
+
+    /// How many typed refcount helpers the run of `source` enters, and what
+    /// it printed. Compilation happens outside the window.
+    #[cfg(debug_assertions)]
+    fn refcount_calls_of_run(source: &str) -> (usize, String) {
+        let unit = compile(&lower(source)).expect("the fixture compiles");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        unit.install_in(&mut ctx);
+        let entry = unit.script().expect("the script frame was compiled");
+        let before = nvs_runtime::budget::refcount_calls();
+        entry.call(&mut ctx).expect("the script ran to completion");
+        let calls = nvs_runtime::budget::refcount_calls() - before;
+        let out = ctx.take_buffered_output().expect("a buffered context");
+        (calls, String::from_utf8_lossy(&out).into_owned())
+    }
+
+    /// A release that leaves a string's, an array's or an object's count
+    /// above zero is inline, so a loop of them enters no refcount helper. The
+    /// helper stays the slow path of each release site, and the run prints
+    /// what the values held (`rule:testing/perf-two-mechanisms`: the count is
+    /// the check).
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_release_that_frees_nothing_calls_no_helper() {
+        let text = clif(&lower(&shared_rows(1))).expect("the fixture compiles");
+        for release in ["nvs_str_release", "nvs_array_release", "nvs_object_release"] {
+            assert!(
+                calls_to(&text, release) > 0,
+                "no release site keeps `{release}` as its slow path"
+            );
+        }
+
+        let (small, small_out) = refcount_calls_of_run(&shared_rows(2_000));
+        let (large, large_out) = refcount_calls_of_run(&shared_rows(4_000));
+        assert_eq!(small_out, "row 716000");
+        assert_eq!(large_out, "row 732000");
+        assert_eq!(
+            small, large,
+            "2,000 rows entered a refcount helper {small} times and 4,000 rows {large} times"
         );
     }
 }

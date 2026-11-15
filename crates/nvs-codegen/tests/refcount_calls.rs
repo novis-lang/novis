@@ -4,7 +4,8 @@
 //! A literal lives in the unit's data section with an immortal count, so a
 //! retain or release of it changes nothing and is not emitted. Any other
 //! retain of a string, an object or an array is inline and makes no call, and
-//! a release is a call (`nvs_codegen`'s § *The inline retain*). The guards read
+//! a release calls its entry only to free (`nvs_codegen`'s § *The inline
+//! retain*). The guards read
 //! the Cranelift text, or count helper entries with
 //! `nvs_runtime::budget::refcount_calls()` or `retain_calls()` around a run. None reads a clock
 //! (`rule:testing/bench-counters`). See `tests/common/mod.rs` for the shared

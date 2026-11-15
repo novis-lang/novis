@@ -1389,6 +1389,11 @@ impl Emitter<'_, '_> {
                 let (value, ty) = self.value(*operand)?;
                 if !self.immortal_literals.contains(&operand.index()) {
                     self.emit_refcount(false, value, ty)?;
+                    // The inline release ends in a block of its own.
+                    return self
+                        .b
+                        .current_block()
+                        .ok_or_else(|| internal("a release emitted outside any block"));
                 }
             }
             InstKind::TakeThrown => {
@@ -4681,10 +4686,13 @@ impl Emitter<'_, '_> {
     /// repeats the runtime entry's own work: a null test, a load of the count,
     /// a compare against `IMMORTAL_REFCOUNT` (not for an array, which has no
     /// such count) and a store of the count plus one. It never calls. A release
-    /// stays a call, because the inline form grew the compiled code by more
-    /// than a tenth; the crate docs' § *The inline retain* give the figures.
-    /// The `const` block beside [`IMMORTAL_REFCOUNT_I64`] asserts the layout
-    /// the inline retain relies on.
+    /// outside a landing block is inline too: a null test, a load and one
+    /// unsigned compare, and a store of the count minus one when that leaves it
+    /// above zero. A count of one or an immortal count calls the entry, in a
+    /// cold block, and the entry is the only place a value is freed. A release
+    /// in a landing block stays a call; the crate docs' § *The inline retain*
+    /// give the figures. The `const` block beside [`IMMORTAL_REFCOUNT_I64`]
+    /// asserts the layout both rely on.
     ///
     /// An object's or an array's release is where a whole graph can be freed
     /// at once. `nvs_runtime::release`'s own docs explain why that sweep is
@@ -4734,7 +4742,9 @@ impl Emitter<'_, '_> {
                 )));
             }
         };
-        if !retain {
+        // A landing block runs only on an error, so its release stays one call:
+        // inline there, it would double the compiled code it adds.
+        if !retain && self.landing_status.is_some() {
             let callee = self.runtime_ref(release, RuntimeSig::Refcount)?;
             self.b.ins().call(callee, &[value]);
             return Ok(());
@@ -4747,6 +4757,39 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(value, present, &[], done, &[]);
         self.b.switch_to_block(present);
         let count = self.b.ins().load(types::I64, trusted(), value, offset);
+        if !retain {
+            // One unsigned compare picks the counts a decrement leaves above
+            // zero: 2 up to one below `IMMORTAL_REFCOUNT` for a string or an
+            // object, and anything from 2 for an array. A count of one, and an
+            // immortal one, go to the entry, which sees the count unchanged and
+            // is the only place a value is freed.
+            let above_one = if immortal {
+                let shifted = self.b.ins().iadd_imm_s(count, -2);
+                self.b.ins().icmp_imm_s(
+                    IntCC::UnsignedLessThan,
+                    shifted,
+                    IMMORTAL_REFCOUNT_I64.wrapping_sub(2),
+                )
+            } else {
+                self.b
+                    .ins()
+                    .icmp_imm_s(IntCC::UnsignedGreaterThan, count, 1)
+            };
+            let decrement = self.b.create_block();
+            let call = self.b.create_block();
+            self.b.set_cold_block(call);
+            self.b.ins().brif(above_one, decrement, &[], call, &[]);
+            self.b.switch_to_block(decrement);
+            let dropped = self.b.ins().iadd_imm_s(count, -1);
+            self.b.ins().store(trusted(), dropped, value, offset);
+            self.b.ins().jump(done, &[]);
+            self.b.switch_to_block(call);
+            let callee = self.runtime_ref(release, RuntimeSig::Refcount)?;
+            self.b.ins().call(callee, &[value]);
+            self.b.ins().jump(done, &[]);
+            self.b.switch_to_block(done);
+            return Ok(());
+        }
         // A string's or an object's immortal header is never written: it may
         // sit in a unit's read-only data.
         if immortal {

@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-runtime/src/helpers.rs]
   - id: 2
     title: a release that frees nothing is inline
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/budget.rs]
   - id: 3
     title: an array key allocates only what the array keeps
@@ -101,9 +101,17 @@ The other branch calls the existing helper, so the error text and code are the s
 the existing helper, which sees the original count. Safe default if objects or arrays do more at a
 decrement than strings do: inline strings and bytes only.
 
-**The debug refcount counter counts an inline release too.** `count_refcount_call`
-(`crates/nvs-runtime/src/budget.rs:1268`) feeds a guard, so the emitted code bumps it in debug
-builds. **What it spends:** nothing in a release binary.
+**The debug refcount counter counts helper entries alone, so an inline release is not counted.**
+This replaces the decision that the emitted code bumps it. That needed a call in emitted code under
+`debug_assertions`, so a debug build would emit different code from a release one, and the call
+it would add is the one this stage removes. The inline retain is not counted either. The counter is
+what proves a release went inline: `a_release_that_frees_nothing_calls_no_helper` reads it.
+
+**A release in an error landing block stays a call.** The inline release grew the compiled code
+by 17.6% and 18.4% on `html-page` and `json-api`. Inline in landing blocks too, it was 67% and 48%,
+for code that runs only on an error. **What it spends:** about a sixth more compiled code, once per
+unit and per process, never per request. The figures live in `nvs_codegen`'s § *The inline retain*.
+This goal sets no growth bound. The tenth that once kept the release a call was an earlier goal's.
 
 **The Cranelift verifier stays on in every build.** It turns an emitter bug into a compile error,
 and a warm start never pays it. Declined: turning it off in release.
@@ -144,13 +152,13 @@ to free.
 **Split:** an `Explore` subagent lists everything the three release helpers do before they free, as
 `file.rs:NN`, before the first edit.
 
-- [ ] `crates/nvs-codegen/src/emit.rs:4500`: the release branch of `emit_refcount`, for strings and
+- [x] `crates/nvs-codegen/src/emit.rs:4500`: the release branch of `emit_refcount`, for strings and
   bytes (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-codegen/src/emit.rs:1383`: the same for objects and arrays, when the list shows a
+- [x] `crates/nvs-codegen/src/emit.rs:1383`: the same for objects and arrays, when the list shows a
   decrement does no more for them than for a string (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-runtime/src/budget.rs:1268`: the debug counter counts an inline release
-  (`rule:testing/perf-two-mechanisms`).
-- [ ] `crates/nvs-codegen/src/emit.rs:4500`: the test `a_release_that_frees_nothing_calls_no_helper`.
+- [x] `crates/nvs-runtime/src/budget.rs:1268`: the debug counter counts an inline release
+  (`rule:testing/perf-two-mechanisms`). Settled the other way: see the standing decision.
+- [x] `crates/nvs-codegen/src/emit.rs:4500`: the test `a_release_that_frees_nothing_calls_no_helper`.
   Run it and the refcount balance tests by name once (`rule:testing/perf-two-mechanisms`).
 
 ### 3. an array key allocates only what the array keeps
@@ -196,34 +204,40 @@ heap worklist.
 
 ### State
 
-Stage 1 is done in `32223460f4`. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0.
+Stages 1 and 2 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0.
 
-- `Emitter::emit_inline_helper` (`crates/nvs-codegen/src/emit.rs:2929`) runs first in the
-  `HelperCall` arm. Truthiness is one compare. A widening branches to a fast block and a slow block
-  that calls `emit_helper`, then joins at a block parameter. A constant operand in range emits no
-  call, and one out of range takes the plain helper call.
-- `Emitter::emit_str_eq` and the class-word test in `emit_class_test` end in a merge block, so the
-  `ClassTest` arm returns `self.current_block()`.
-- `a_known_scalar_test_and_widening_call_no_helper` passed by name. A scratch script checked the
-  results at run time: the 2^53 bounds, `-0.0`, equal and unequal strings, a subclass, and both
-  error messages. Nothing else ran.
-- Tests that may go red at the gate: none expected. A test that greps the CLIF for a call to
-  `nvs_str_eq`, `nvs_object_is_class` or a truthiness helper next to a fixed block layout is
-  the likely one, such as in `crates/nvs-codegen/tests/refcount_calls.rs` or `probes.rs`.
-- The sweep's `env-secret-proofs` is stale state in looper's service. `looper check --name` finds
-  no such check, and nothing in the tree names it.
+- `Emitter::emit_refcount` (`crates/nvs-codegen/src/emit.rs:4693`) emits a release of a string,
+  `bytes`, object or array inline outside a landing block. It does a null test, a load and one
+  unsigned compare. It stores the count minus one above one, and calls the entry from a cold block
+  at one or at `IMMORTAL_REFCOUNT`. The `Release` arm returns `self.current_block()`.
+- The `Explore` list showed no release entry does more at a plain decrement than a string's. An
+  object's and an array's own work is all in the sweep at zero.
+- Measured with `nvs run --dump-asm`: `html-page` 2,355 to 2,769 instructions, `json-api` 4,096 to
+  4,851. The standing decisions and `nvs_codegen`'s § *The inline retain* carry the figures.
+- `a_release_that_frees_nothing_calls_no_helper` (`crates/nvs-codegen/src/lib.rs`) passed by name.
+  `cargo test --test refcount_calls --test strings --test objects --test arrays` passed: every count
+  balances. Nothing else ran.
+- Tests that may go red at the gate: a test that greps the CLIF or the assembly for a fixed count of
+  `nvs_*_release` calls or a fixed block layout, such as in `crates/nvs-codegen/tests/probes.rs`.
+  A test that counts `refcount_calls()` and expects a release entry per row is the other one.
+- The sweep's `env-secret-proofs` is stale state in looper's service. Its log does not exist, and
+  nothing in the tree names it but `.loop/last-sweep.md`.
 
 ### Next
 
-Stage 2, in one session. It follows its `**Split:**` line first.
+Stage 3, in one session. It touches `crates/nvs-runtime/` alone.
 
-- [ ] `crates/nvs-codegen/src/emit.rs:4693`: `emit_refcount`'s release branch, for strings and
-  bytes first (`:4710`).
-- [ ] `crates/nvs-codegen/src/emit.rs:4711`: the same for objects and arrays, only if the `Explore`
-  list shows that a decrement does no more for them.
-- [ ] `crates/nvs-runtime/src/budget.rs:1280`: `count_refcount_call` counts an inline release.
-- [ ] `crates/nvs-codegen/src/lib.rs:3820`: the test `a_release_that_frees_nothing_calls_no_helper`,
-  run once by name with the balance tests.
+- [ ] `crates/nvs-runtime/src/array.rs:586`: one `int_key_bytes` helper over a stack buffer, used by
+  `get_index`, `set_index` and the other integer-key sites the stage names.
+- [ ] `crates/nvs-runtime/src/helpers.rs:797`: `nvs_value_to_array_key`, with `decimal_digits` at
+  `:100`.
+- [ ] `crates/nvs-runtime/src/array.rs:869`: `take_values` reserves the live count.
+- [ ] `crates/nvs-runtime/src/helpers.rs:3018`: `write_rendered`.
+- [ ] `crates/nvs-runtime/src/helpers.rs:2513`: `every_element_has_tag`.
+- [ ] `crates/nvs-runtime/src/array.rs:2781`: `nvs_array_spread`.
+- [ ] `crates/nvs-runtime/src/array.rs:586`: the test
+  `an_integer_key_on_a_hashed_array_allocates_no_text`, counted with
+  `counting_alloc::allocated_bytes()`, not `live_bytes()` (the playbook says why).
 
 ### Backlog
 
