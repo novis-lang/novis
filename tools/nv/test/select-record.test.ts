@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, rmSync, utimesSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { commitsOf, sinceOverlay } from "../select/change.ts";
-import { ROOT } from "../lib/paths.ts";
+import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
+import { abs, ROOT } from "../lib/paths.ts";
+import { caseId } from "../select/atoms.ts";
 import { CovMap, recordedIn, recordsIn, staleMaps } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
-import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, recordingOf, Recorder, redReason, unexplainedReds } from "../select/record.ts";
+import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, recordCases, recordingOf, Recorder, redReason, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
 import { SelectStore, type Verdict } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
@@ -344,4 +346,40 @@ describe("the readers a recorded run needs", () => {
       s.cleanup();
     }
   });
+});
+
+const nvs = abs(`${COVWS_TARGET}/${process.platform === "win32" ? "x86_64-pc-windows-msvc" : hostTriple()}/debug/nvs${process.platform === "win32" ? ".exe" : ""}`);
+describe("recording cases in batches", () => {
+  test.skipIf(!existsSync(nvs))(
+    "each batch is extracted while the next runs, and every case is recorded once, in order",
+    async () => {
+      const tree = "tests/conformance/array";
+      const cases = readdirSync(join(ROOT, tree))
+        .filter((f) => f.endsWith(".nvst"))
+        .sort()
+        .slice(0, 5)
+        .map((f) => `${tree}/${f}`);
+      const store = new SelectStore(":memory:", "test-os");
+      const r = await Recorder.open(store, new Map(), null, "batches-test");
+      try {
+        const seen: string[] = [];
+        const batches: number[] = [];
+        const got = await recordCases(r, nvs, cases, { jobs: 2, batch: 2, onCase: (path) => seen.push(path), onBatch: (done) => batches.push(done) });
+        expect(got.out).toContain("passed");
+        expect(seen).toEqual(cases);
+        expect(batches).toEqual([2, 4, 5]);
+        expect([...got.verdicts.keys()]).toEqual(cases);
+        for (const path of cases) {
+          const atom = store.atom(caseId(path))!;
+          expect(atom.verdict).toBe(got.verdicts.get(path)!);
+          expect(atom.keys).toBeGreaterThan(0);
+        }
+        expect(readdirSync(r.dir).filter((f) => /^(cases|parent)-/.test(f))).toEqual([]);
+      } finally {
+        r.close();
+        store.close();
+      }
+    },
+    600_000,
+  );
 });

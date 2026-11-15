@@ -413,7 +413,9 @@ const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
 
 /**
  * Runs `cases` through `nvs test --cases <list> --record <dir>`, one tree and one batch at a time, and
- * records every case. The `nvs test` parent is recorded too, and what it ran is part of every case of
+ * records every case. Each batch has its own folders, and is extracted while the next batch runs; its
+ * cases are then recorded in one transaction. What it spends: at most two batches' records on disk at
+ * once, and the extraction's `llvm-profdata` processes beside the next batch's `nvs test`. The `nvs test` parent is recorded too, and what it ran is part of every case of
  * its batch; its listings of the tree are not, since what else a tree holds decides nothing about one
  * case's verdict. A case is red for the reason `redReason` gives: it failed, it left no record and was
  * not skipped, or its batch ran out of time or printed no count line. Each case's record is looked up
@@ -442,24 +444,31 @@ export async function recordCases(
   for (const f of cases) (byTree.get(treeOf(f)) ?? byTree.set(treeOf(f), []).get(treeOf(f))!).push(f);
   const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), unrecorded: [], reds: new Map(), processes: 0 };
   let done = 0;
-  for (const [tree, all] of byTree) {
-    const batches = chunks(all, o.batch ?? 64);
-    for (const [index, batch] of batches.entries()) {
-      if (o.stop?.()) return result;
-      const dir = join(r.dir, "cases");
-      rmSync(dir, { recursive: true, force: true });
-      mkdirSync(dir, { recursive: true });
-      const list = join(r.dir, "cases.txt");
-      writeFileSync(list, batch.join("\n") + "\n");
-      const parent = join(r.dir, "parent");
-      rmSync(parent, { recursive: true, force: true });
-      mkdirSync(parent, { recursive: true });
-      const p = await run([nvs, "test", "--cases", list, "--record", dir, "--jobs", String(o.jobs), `${tree}/`], {
-        cwd: root,
-        env: { ...r.tmpEnv, NO_COLOR: "1", NOVIS_NO_FILE_CACHE: "1", LLVM_PROFILE_FILE: join(parent, "p-%p.profraw"), NVS_FOOTPRINT_LOG: join(parent, "p.log") },
-        timeoutMs: o.timeoutMs ?? 3_600_000,
-        reap: true,
-      });
+  const all = [...byTree].flatMap(([tree, paths]) => {
+    const batches = chunks(paths, o.batch ?? 64);
+    return batches.map((batch, index) => ({ tree, batch, index, batches }));
+  });
+  // The batch before this one, still being extracted. One batch is extracted at a time, in order, while
+  // the next one runs, so the output reads as if the batches ran one after another.
+  let prev: Promise<void> = Promise.resolve();
+  for (const [n, { tree, batch, index, batches }] of all.entries()) {
+    if (o.stop?.()) break;
+    const dir = join(r.dir, `cases-${n}`);
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    const list = join(r.dir, `cases-${n}.txt`);
+    writeFileSync(list, batch.join("\n") + "\n");
+    const parent = join(r.dir, `parent-${n}`);
+    rmSync(parent, { recursive: true, force: true });
+    mkdirSync(parent, { recursive: true });
+    const p = await run([nvs, "test", "--cases", list, "--record", dir, "--jobs", String(o.jobs), `${tree}/`], {
+      cwd: root,
+      env: { ...r.tmpEnv, NO_COLOR: "1", NOVIS_NO_FILE_CACHE: "1", LLVM_PROFILE_FILE: join(parent, "p-%p.profraw"), NVS_FOOTPRINT_LOG: join(parent, "p.log") },
+      timeoutMs: o.timeoutMs ?? 3_600_000,
+      reap: true,
+    });
+    await prev;
+    const settle = async () => {
       result.out += p.stdout + p.stderr + (p.timedOut ? `\nkilled after ${(o.timeoutMs ?? 3_600_000) / 60000} minutes\n` : "");
       const counts = CASES_RE.exec(p.stdout);
       if (counts) {
@@ -491,20 +500,33 @@ export async function recordCases(
       }
       const reasons = new Map(batch.map((path) => [path, redReason({ failed: failed.has(path), recorded: found.get(path) !== null, skipped: skipped.has(path), timedOut: p.timedOut, counted: !!counts })]));
       const lost = p.timedOut || !counts ? [] : batch.filter((path) => reasons.get(path) === NO_RECORDING);
+      const keyed = new Map<string, Keyed>();
       await pool(batch, o.jobs, async (path) => {
         const got = found.get(path) ?? null;
         const ext = got ? await r.extract(got, [nvs]) : null;
         const keys: Keyed = new Map(parentKeys);
         for (const [k, d] of ext?.keys ?? []) keys.set(k, d);
-        const why = reasons.get(path) ?? null;
-        const verdict: Verdict = why === null ? "green" : "red";
-        if (why !== null) result.reds.set(path, `${why} (batch ${index + 1}/${batches.length} of ${tree}: exit ${p.code}, ${p.stderr.length} byte(s) on stderr, ${recorded.size} recorded)`);
-        r.record(caseId(path), caseDef(path, root), verdict, keys);
-        r.store.putVerdict(caseSkipSlot(path), "", skipped.has(path) ? "skip" : "");
-        result.verdicts.set(path, verdict);
+        keyed.set(path, keys);
         result.processes += ext?.processes ?? 0;
-        o.onCase?.(path, verdict, why);
       });
+      // The batch's runs and skip slots are written in one transaction, once all of them are extracted.
+      // What it spends: a run killed while a batch is extracted loses that batch's records, not only the
+      // cases still being extracted.
+      const verdicts = batch.map((path) => {
+        const why = reasons.get(path) ?? null;
+        return { path, why, verdict: (why === null ? "green" : "red") as Verdict };
+      });
+      r.store.transaction(() => {
+        for (const { path, verdict } of verdicts) {
+          r.record(caseId(path), caseDef(path, root), verdict, keyed.get(path)!);
+          r.store.putVerdict(caseSkipSlot(path), "", skipped.has(path) ? "skip" : "");
+        }
+      });
+      for (const { path, why, verdict } of verdicts) {
+        if (why !== null) result.reds.set(path, `${why} (batch ${index + 1}/${batches.length} of ${tree}: exit ${p.code}, ${p.stderr.length} byte(s) on stderr, ${recorded.size} recorded)`);
+        result.verdicts.set(path, verdict);
+        o.onCase?.(path, verdict, why);
+      }
       if (lost.length > 0) {
         let fresh: string[] | string;
         try {
@@ -516,10 +538,16 @@ export async function recordCases(
         const relooked = lost.filter((path) => recorded.has(recordName(path)));
         result.out += lostBlock({ tree, index: index + 1, batches: batches.length, size: batch.length, lost, listed: recorded.size, listError, relooked, parent: !!parentRec, dir: dirState(dir), fresh });
       }
+      for (const d of [dir, parent, list]) rmSync(d, { recursive: true, force: true });
       done += batch.length;
       o.onBatch?.(done, cases.length);
-    }
+    };
+    prev = settle();
+    // Awaited before the next batch's extraction, or below; this only keeps a failure from being taken
+    // for an unhandled one while the next batch runs.
+    prev.catch(() => {});
   }
+  await prev;
   return result;
 }
 
