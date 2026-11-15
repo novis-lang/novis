@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/string.rs, crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/budget.rs]
   - id: 3
     title: an array key allocates only what the array keeps
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/helpers.rs]
   - id: 4
     title: a spawned task and a freed container allocate once
@@ -122,6 +122,13 @@ processes, and the hash key is drawn per process. Declined.
 **No pass removes retain and release pairs.** A wrong pair is a memory-safety bug, and nothing
 measured asks for it. Declined until a program shows the cost.
 
+**A spread's one reservation asks the request's budget first.** `NvsArray::try_reserve` alone goes
+to the allocator and not to the budget, so a spread of a large subject would pass the ceiling
+before the per-entry check ran. `NvsArray::reserve_within_budget` prices the reservation the way
+`affords_write` prices one write. A spread that cannot afford every entry stops before its first,
+with the same fault the per-entry check gives. **What it spends:** nothing. A spread whose string
+keys overwrite keys the literal already has reserves a little more than it stores.
+
 **Lanes:** stages 1 and 2 share `crates/nvs-codegen/src/emit.rs` and run in order. Stages 3 and 4
 touch only `crates/nvs-runtime/` and can run as a side goal beside them.
 
@@ -166,19 +173,19 @@ to free.
 **Does:** format an integer key on the stack, keep a `mixed` string key by reference, and read
 elements with one borrow.
 
-- [ ] `crates/nvs-runtime/src/array.rs:589`: one `int_key_bytes` helper over a stack buffer, used at
+- [x] `crates/nvs-runtime/src/array.rs:589`: one `int_key_bytes` helper over a stack buffer, used at
   `:516`, `:589`, `:606`, `:649`, `:688`, `:789` and `:1129` (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/helpers.rs:772`: `nvs_value_to_array_key` retains a string key and
+- [x] `crates/nvs-runtime/src/helpers.rs:772`: `nvs_value_to_array_key` retains a string key and
   formats an integer key with `decimal_digits` at `:100` (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/array.rs:872`: `take_values` reserves the live count
+- [x] `crates/nvs-runtime/src/array.rs:872`: `take_values` reserves the live count
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/helpers.rs:3024`: `write_rendered` uses `as_text` for a string
+- [x] `crates/nvs-runtime/src/helpers.rs:3024`: `write_rendered` uses `as_text` for a string
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/helpers.rs:2513`: `every_element_has_tag` walks the values under one
+- [x] `crates/nvs-runtime/src/helpers.rs:2513`: `every_element_has_tag` walks the values under one
   borrow (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/array.rs:2813`: `nvs_array_spread` reserves the source's count once
+- [x] `crates/nvs-runtime/src/array.rs:2813`: `nvs_array_spread` reserves the source's count once
   through `try_reserve` at `:1775`, and keeps the check per entry (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/array.rs:584`: the test
+- [x] `crates/nvs-runtime/src/array.rs:584`: the test
   `an_integer_key_on_a_hashed_array_allocates_no_text` (`rule:testing/perf-two-mechanisms`).
 
 ### 4. a spawned task and a freed container allocate once
@@ -204,40 +211,37 @@ heap worklist.
 
 ### State
 
-Stages 1 and 2 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0.
+Stages 1, 2 and 3 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0.
 
-- `Emitter::emit_refcount` (`crates/nvs-codegen/src/emit.rs:4693`) emits a release of a string,
-  `bytes`, object or array inline outside a landing block. It does a null test, a load and one
-  unsigned compare. It stores the count minus one above one, and calls the entry from a cold block
-  at one or at `IMMORTAL_REFCOUNT`. The `Release` arm returns `self.current_block()`.
-- The `Explore` list showed no release entry does more at a plain decrement than a string's. An
-  object's and an array's own work is all in the sweep at zero.
-- Measured with `nvs run --dump-asm`: `html-page` 2,355 to 2,769 instructions, `json-api` 4,096 to
-  4,851. The standing decisions and `nvs_codegen`'s § *The inline retain* carry the figures.
-- `a_release_that_frees_nothing_calls_no_helper` (`crates/nvs-codegen/src/lib.rs`) passed by name.
-  `cargo test --test refcount_calls --test strings --test objects --test arrays` passed: every count
-  balances. Nothing else ran.
-- Tests that may go red at the gate: a test that greps the CLIF or the assembly for a fixed count of
-  `nvs_*_release` calls or a fixed block layout, such as in `crates/nvs-codegen/tests/probes.rs`.
-  A test that counts `refcount_calls()` and expects a release entry per row is the other one.
+- Stage 3: `int_key_bytes` and `slot_key_bytes` (`crates/nvs-runtime/src/array.rs:458`) write a
+  key's decimal through `helpers::write_decimal` into a stack buffer. Every integer-key site uses
+  them, so a read on a hashed array allocates nothing and a write allocates the kept `NvsStr` alone.
+- `value_to_array_key` (`crates/nvs-runtime/src/helpers.rs:773`) retains a string key and returns
+  it, and renders an integer with `decimal_digits`. Its one unsafe block now retains instead of
+  copying. `every_element_has_tag` borrows the array once through `ArrayRef::borrowed` and walks
+  `NvsArray::every_value` (`array.rs:1957`): two unsafe blocks became one.
+- `nvs_array_spread` (`array.rs:2894`) calls the new `NvsArray::reserve_within_budget`
+  (`array.rs:1858`) once. See the standing decision on the spread's reservation.
+- `an_integer_key_on_a_hashed_array_allocates_no_text` passed by name. Nothing else ran.
+- Tests that may go red at the gate for stage 3: a budget test that expects a spread to fail
+  after a fixed number of entries, since it now fails before the first. One that checks a
+  `mixed` key is a fresh copy, since it is now the same string.
+- Stage 2 may turn red at the gate: a test that greps CLIF or assembly for a fixed count of
+  `nvs_*_release` calls (`crates/nvs-codegen/tests/probes.rs`), or one that expects a
+  `refcount_calls()` release entry per row.
 - The sweep's `env-secret-proofs` is stale state in looper's service. Its log does not exist, and
   nothing in the tree names it but `.loop/last-sweep.md`.
 
 ### Next
 
-Stage 3, in one session. It touches `crates/nvs-runtime/` alone.
+Stage 4, in one session. It touches `crates/nvs-runtime/src/ctx/` and `release.rs` alone.
 
-- [ ] `crates/nvs-runtime/src/array.rs:586`: one `int_key_bytes` helper over a stack buffer, used by
-  `get_index`, `set_index` and the other integer-key sites the stage names.
-- [ ] `crates/nvs-runtime/src/helpers.rs:797`: `nvs_value_to_array_key`, with `decimal_digits` at
-  `:100`.
-- [ ] `crates/nvs-runtime/src/array.rs:869`: `take_values` reserves the live count.
-- [ ] `crates/nvs-runtime/src/helpers.rs:3018`: `write_rendered`.
-- [ ] `crates/nvs-runtime/src/helpers.rs:2513`: `every_element_has_tag`.
-- [ ] `crates/nvs-runtime/src/array.rs:2781`: `nvs_array_spread`.
-- [ ] `crates/nvs-runtime/src/array.rs:586`: the test
-  `an_integer_key_on_a_hashed_array_allocates_no_text`, counted with
-  `counting_alloc::allocated_bytes()`, not `live_bytes()` (the playbook says why).
+- [ ] `crates/nvs-runtime/src/ctx/wiring.rs:131`: an internal constructor that takes the tree and
+  the deadline, called by `Ctx::child` at `crates/nvs-runtime/src/ctx/isolate.rs:396`. The trace
+  id is still drawn per task.
+- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:422`: `origin` becomes an `Arc<str>`.
+- [ ] `crates/nvs-runtime/src/release.rs:84`: the first eight dying entries are held inline, in
+  place of `Vec::new()`. Decline it if it needs `unsafe`.
 
 ### Backlog
 

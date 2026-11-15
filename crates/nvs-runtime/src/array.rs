@@ -60,7 +60,7 @@
 //! `foreach ($a as $v)` cost the same either way.
 //!
 //! Nearly all of an unpacked append is the key the packed form does not build:
-//! rendering the index to a decimal `String`, allocating the [`NvsStr`] for it,
+//! rendering the index to its decimal, allocating the [`NvsStr`] for it,
 //! hashing and probing it, and behind those the index-map insert and its
 //! growth. A `Vec<Value>` push and an index into one are a small fraction of
 //! any of them. The assoc and iteration rows are healthy and this changes
@@ -411,6 +411,22 @@ fn amortized(len: usize, capacity: usize, stride: usize) -> usize {
     capacity.max(FIRST_SLOTS).saturating_mul(stride)
 }
 
+/// What a store of `capacity` slots holding `len` of them, each `stride` bytes
+/// wide, adds to the balance when it reserves room for `additional` more:
+/// nothing while there is room, and otherwise the grown store less the old
+/// one. A reservation grows to at least double, as [`Vec::try_reserve`] does.
+fn reserved(len: usize, capacity: usize, additional: usize, stride: usize) -> usize {
+    let needed = len.saturating_add(additional);
+    if needed <= capacity {
+        return 0;
+    }
+    needed
+        .max(capacity.saturating_mul(2))
+        .max(FIRST_SLOTS)
+        .saturating_sub(capacity)
+        .saturating_mul(stride)
+}
+
 /// The `i64` a canonical decimal key denotes, or `None` if the key is not one.
 ///
 /// Canonical means what PHP means by it: an optional `-`, then either `0` or a
@@ -433,6 +449,19 @@ fn integer_key(bytes: &[u8]) -> Option<i64> {
     }
     let text = std::str::from_utf8(bytes).ok()?;
     text.parse::<i64>().ok()
+}
+
+/// `index`'s decimal key, written into `buf` on the stack. A lookup borrows the
+/// answer and allocates nothing; a write copies it into the one [`NvsStr`] the
+/// table keeps. `crate::helpers::write_decimal` writes it, so a key and
+/// `$i as string` are always the same text.
+fn int_key_bytes(index: i64, buf: &mut [u8; crate::helpers::DECIMAL_MAX]) -> &[u8] {
+    crate::helpers::write_decimal(index < 0, index.unsigned_abs(), buf)
+}
+
+/// [`int_key_bytes`] for a position, which is never negative.
+fn slot_key_bytes(slot: usize, buf: &mut [u8; crate::helpers::DECIMAL_MAX]) -> &[u8] {
+    crate::helpers::write_decimal(false, slot as u64, buf)
 }
 
 /// The position a canonical decimal key names in the packed form, whatever the
@@ -513,7 +542,8 @@ impl Table {
                 live: 0,
             };
             for (index, value) in packed.into_iter().enumerate() {
-                let displaced = hashed.set(NvsStr::new(index.to_string().as_bytes()), value);
+                let mut buf = [0; crate::helpers::DECIMAL_MAX];
+                let displaced = hashed.set(NvsStr::new(slot_key_bytes(index, &mut buf)), value);
                 debug_assert!(displaced.is_none(), "a packed key appears exactly once");
             }
             self.shape = Shape::Hashed(hashed);
@@ -580,13 +610,16 @@ impl Table {
     /// — `$a[$i]`'s whole point.
     ///
     /// A negative index answers `None` from the packed form directly, because
-    /// `"−1"` is a key the packed invariant forbids. Only the hash form has to
-    /// synthesize the string, and there it is what the caller would be building
-    /// anyway.
+    /// `"−1"` is a key the packed invariant forbids. The hash form renders the
+    /// decimal into a stack buffer with [`int_key_bytes`], so it allocates
+    /// nothing either.
     fn get_index(&self, index: i64) -> Option<Value> {
         match &self.shape {
             Shape::Packed(values) => values.get(usize::try_from(index).ok()?).copied(),
-            Shape::Hashed(hashed) => hashed.get(KeyRef::bare(index.to_string().as_bytes())),
+            Shape::Hashed(hashed) => {
+                let mut buf = [0; crate::helpers::DECIMAL_MAX];
+                hashed.get(KeyRef::bare(int_key_bytes(index, &mut buf)))
+            }
         }
     }
 
@@ -603,7 +636,8 @@ impl Table {
         {
             return replace_or_push(values, slot, value);
         }
-        let key = NvsStr::new(index.to_string().as_bytes());
+        let mut buf = [0; crate::helpers::DECIMAL_MAX];
+        let key = NvsStr::new(int_key_bytes(index, &mut buf));
         self.hashed_mut().set(key, value)
     }
 
@@ -646,7 +680,8 @@ impl Table {
                 let at = match step {
                     PathKey::Str(key) => hashed.find(KeyRef::of(key))?,
                     PathKey::Index(index) => {
-                        hashed.find(KeyRef::bare(index.to_string().as_bytes()))?
+                        let mut buf = [0; crate::helpers::DECIMAL_MAX];
+                        hashed.find(KeyRef::bare(int_key_bytes(index, &mut buf)))?
                     }
                     PathKey::Append => return None,
                 };
@@ -685,7 +720,8 @@ impl Table {
             self.next_index = Some(counter.saturating_add(1));
             return Ok(());
         }
-        let key = NvsStr::new(counter.to_string().as_bytes());
+        let mut buf = [0; crate::helpers::DECIMAL_MAX];
+        let key = NvsStr::new(int_key_bytes(counter, &mut buf));
         self.note_key(key.as_bytes());
         let displaced = self.hashed_mut().set(key, value);
         debug_assert!(
@@ -729,6 +765,33 @@ impl Table {
             .saturating_add(amortized(
                 hashed.index.len(),
                 hashed.index.capacity(),
+                INDEX_BUCKET,
+            )),
+        }
+    }
+
+    /// The bytes [`Table::try_reserve`] adds to the balance for `additional`
+    /// more entries, priced the way [`Table::growth_cost`] prices one: the
+    /// difference between the grown store and the one it replaces, and `0`
+    /// while there is room.
+    fn reserve_cost(&self, additional: usize) -> usize {
+        match &self.shape {
+            Shape::Packed(values) => reserved(
+                values.len(),
+                values.capacity(),
+                additional,
+                size_of::<Value>(),
+            ),
+            Shape::Hashed(hashed) => reserved(
+                hashed.entries.len(),
+                hashed.entries.capacity(),
+                additional,
+                size_of::<Option<Entry>>(),
+            )
+            .saturating_add(reserved(
+                hashed.index.len(),
+                hashed.index.capacity(),
+                additional,
                 INDEX_BUCKET,
             )),
         }
@@ -786,7 +849,8 @@ impl Table {
     fn key_at(&self, slot: usize) -> Option<NvsStr> {
         match &self.shape {
             Shape::Packed(values) => {
-                (slot < values.len()).then(|| NvsStr::new(slot.to_string().as_bytes()))
+                let mut buf = [0; crate::helpers::DECIMAL_MAX];
+                (slot < values.len()).then(|| NvsStr::new(slot_key_bytes(slot, &mut buf)))
             }
             Shape::Hashed(hashed) => hashed.at(slot).map(|entry| entry.key.clone()),
         }
@@ -870,13 +934,18 @@ impl Table {
         match &mut self.shape {
             Shape::Packed(values) => std::mem::take(values),
             Shape::Hashed(hashed) => {
+                // Sized to the live count once: the entries have holes, so
+                // collecting them would grow the result from nothing.
+                let mut values = Vec::with_capacity(hashed.live);
+                values.extend(
+                    std::mem::take(&mut hashed.entries)
+                        .into_iter()
+                        .flatten()
+                        .map(|entry| entry.value),
+                );
                 hashed.index.clear();
                 hashed.live = 0;
-                std::mem::take(&mut hashed.entries)
-                    .into_iter()
-                    .flatten()
-                    .map(|entry| entry.value)
-                    .collect()
+                values
             }
         }
     }
@@ -1126,7 +1195,10 @@ impl SlotKey {
     #[must_use]
     pub fn to_str(&self) -> NvsStr {
         match self {
-            Self::Index(index) => NvsStr::new(index.to_string().as_bytes()),
+            Self::Index(index) => {
+                let mut buf = [0; crate::helpers::DECIMAL_MAX];
+                NvsStr::new(int_key_bytes(*index, &mut buf))
+            }
             Self::Str(key) => key.clone(),
         }
     }
@@ -1777,6 +1849,31 @@ impl NvsArray {
         self.header().table.borrow_mut().try_reserve(additional)
     }
 
+    /// [`NvsArray::try_reserve`] asked of the running request's budget first,
+    /// the way [`NvsArray::affords_write`] asks for one write. `false` where
+    /// the budget refuses, and [`crate::budget::affords`] has then recorded the
+    /// refusal. Otherwise it reserves, and whether the allocator gave the room
+    /// is not this answer: a write that follows still grows the store itself.
+    #[must_use]
+    pub fn reserve_within_budget(&mut self, additional: usize) -> bool {
+        let ask = {
+            let table = self.header().table.borrow();
+            let reserve = table.reserve_cost(additional);
+            if self.refcount() == 1 {
+                reserve
+            } else {
+                size_of::<ArrayHeader>()
+                    .saturating_add(table.separation_cost())
+                    .saturating_add(reserve)
+            }
+        };
+        if !crate::budget::affords(ask) {
+            return false;
+        }
+        let _reserved = self.try_reserve(additional);
+        true
+    }
+
     /// Removes `key` if present, separating first if this handle is not the
     /// only owner — `unset($a[$k])`.
     pub fn unset(&mut self, key: &[u8]) {
@@ -1851,6 +1948,22 @@ impl NvsArray {
     #[must_use]
     pub fn value_at(&self, slot: usize) -> Option<Value> {
         self.header().table.borrow().value_at(slot)
+    }
+
+    /// Whether `test` is true for every value, in insertion order. Each value
+    /// is borrowed, and the walk stops at the first `false`. The table is
+    /// borrowed once for the whole walk, so `test` must not write to this
+    /// array.
+    pub(crate) fn every_value(&self, mut test: impl FnMut(Value) -> bool) -> bool {
+        let table = self.header().table.borrow();
+        let mut slot = 0;
+        while let Some(live) = table.next_slot(slot) {
+            if table.value_at(live).is_some_and(|value| !test(value)) {
+                return false;
+            }
+            slot = live.saturating_add(1);
+        }
+        true
     }
 
     /// A new array with the same keys in the same order, whose values are
@@ -2800,9 +2913,12 @@ pub unsafe extern "C" fn nvs_array_spread(
         // arrays in any case: the destination is the literal under
         // construction and nothing else can name it yet.
         let mut refused = None;
-        let mut over_ceiling = false;
+        // Room for every entry is reserved once, so the loop below grows the
+        // destination's store at most once. A spread whose entries do not fit
+        // the request's budget stops here, with the same fault as below.
+        let mut over_ceiling = !handle.reserve_within_budget(source.count());
         let mut from = 0;
-        while let Some(slot) = source.next_slot(from) {
+        while let Some(slot) = source.next_slot(from).filter(|_| !over_ceiling) {
             from = slot.saturating_add(1);
             // Asked once per entry and ahead of the retain, so a spread of a
             // large subject is bounded entry by entry rather than as the one
@@ -3625,6 +3741,58 @@ mod tests {
         assert!(!negative.is_packed(), "a negative key degrades");
         assert_eq!(negative.get(b"-1").and_then(Value::as_int), Some(-10));
         assert_eq!(negative.get_index(-1).and_then(Value::as_int), Some(-10));
+    }
+
+    #[test]
+    fn an_integer_key_on_a_hashed_array_allocates_no_text() {
+        // A hashed array keeps every key as a string, so `$a[$i]` on one has
+        // to name `$i` in decimal. The decimal is written on the stack: a read
+        // allocates nothing, and a new key allocates the string the array keeps.
+        const RUN: i64 = 16;
+
+        let mut array = NvsArray::new();
+        array.set(key("name"), Value::int(-1));
+        for index in 0..RUN {
+            array.set_index(index, Value::int(index));
+        }
+
+        let before = allocated_bytes();
+        for index in 0..RUN {
+            assert_eq!(
+                array.get_index(index).and_then(|value| value.as_int()),
+                Some(index)
+            );
+        }
+        assert!(array.get_index(-RUN).is_none());
+        assert_eq!(
+            allocated_bytes() - before,
+            0,
+            "{RUN} integer reads on a hashed array allocated something"
+        );
+
+        // The bytes of the one string a new key is stored as.
+        let mut buf = [0; crate::helpers::DECIMAL_MAX];
+        let before = allocated_bytes();
+        drop(NvsStr::new(int_key_bytes(RUN, &mut buf)));
+        let one_key = allocated_bytes() - before;
+        assert!(one_key > 0);
+
+        // Room for the entry is reserved first, so the write's own storage
+        // does not grow and the key is all that is left to allocate.
+        assert!(array.try_reserve(1));
+        let before = allocated_bytes();
+        array.set_index(RUN, Value::int(RUN));
+        assert_eq!(
+            allocated_bytes() - before,
+            one_key,
+            "a new integer key on a hashed array allocated more than its string"
+        );
+        assert_eq!(
+            array
+                .get(RUN.to_string().as_bytes())
+                .and_then(|value| value.as_int()),
+            Some(RUN)
+        );
     }
 
     #[test]

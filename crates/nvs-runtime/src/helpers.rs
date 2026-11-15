@@ -761,29 +761,32 @@ fn value_index(base: Value, key: Value, absent_is_null: bool) -> Result<Value, F
 /// [`not_subscriptable`]'s reason — a `mixed` deferred the question rather
 /// than answering it differently.
 ///
-/// The answer is **owned**: a `string` key is copied rather than passed back,
-/// because the caller stages whatever this returns as a temporary it releases,
-/// exactly as it does for [`nvs_uint_to_string`]'s freshly rendered buffer.
+/// The answer is **owned**, because the caller stages whatever this returns as
+/// a temporary it releases. A `string` key is the same string with one more
+/// reference, so nothing is copied. An integer is rendered by
+/// [`decimal_digits`], the one allocation the key needs.
 #[expect(
     unsafe_code,
     reason = "a Tag::Str argument owns a reference to a live allocation, so \
-              its bytes are live for the copy taken from them here"
+              adding a second one for the caller to release is sound"
 )]
 fn value_to_array_key(key: Value) -> Result<Value, Fault> {
     if let Some(text) = key.str_ptr() {
-        let bytes = unsafe { NvsStr::bytes_of(text) };
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "the bytes are copied from a Novis `string`"
-        )]
-        let copied = Value::str(NvsStr::new(bytes));
-        return Ok(copied);
+        unsafe { crate::string::nvs_str_retain(text) };
+        return Ok(key);
     }
     if let Some(index) = key.as_int() {
-        return Ok(Value::text(&index.to_string()));
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "decimal digits and a sign are ASCII"
+        )]
+        let digits = Value::str(decimal_digits(index < 0, index.unsigned_abs()));
+        return Ok(digits);
     }
     if let Some(index) = key.as_uint() {
-        return Ok(Value::text(&index.to_string()));
+        #[expect(clippy::disallowed_methods, reason = "decimal digits are ASCII")]
+        let digits = Value::str(decimal_digits(false, index));
+        return Ok(digits);
     }
     Err(Fault::thrown(format!(
         "`{}` is not an array key — array keys are `int`, `uint`, or `string`",
@@ -2511,29 +2514,14 @@ fn element_has_tag(value: Value, tags: u64) -> bool {
               the signature cannot express it"
 )]
 unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64) -> bool {
-    let mut from = 0usize;
-    loop {
-        #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
-        let slot = unsafe { crate::array::nvs_array_next_slot(array, from) };
-        let Ok(slot) = usize::try_from(slot) else {
-            return true;
-        };
-        let mut value = Value::null();
-        #[expect(
-            unsafe_code,
-            reason = "the slot is one `nvs_array_next_slot` just returned and \
-                      `value` is a writable 16-byte slot"
-        )]
-        unsafe {
-            crate::array::nvs_array_value_at(array, slot, &raw mut value);
-        }
-        // Borrowed, so there is nothing to release: `nvs_array_value_at`
-        // hands back the entry's own `Value` and the array still owns it.
-        if !element_has_tag(value, tags) {
-            return false;
-        }
-        from = slot + 1;
-    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the allocation is live for this walk"
+    )]
+    let array = unsafe { crate::array::ArrayRef::borrowed(array) };
+    // One borrow of the table for the whole walk. Each value is borrowed, so
+    // nothing is released, and `element_has_tag` only reads.
+    array.every_value(|value| element_has_tag(value, tags))
 }
 
 /// `rule:types/conversion`'s `array<T> as array<U>` row, shared by its throwing and its
@@ -3021,18 +3009,19 @@ fn write_rendered(
     rendered: Value,
     raw: Raw,
 ) -> Result<(), Fault> {
-    let bytes = rendered
-        .as_str_bytes()
+    // A `string`'s tag is its UTF-8 guarantee, so the text is read without a
+    // second validation pass.
+    let text = rendered
+        .as_text()
         .ok_or_else(|| wrong_tag(who, Tag::Str, rendered))?;
     let carrier = ctx.carrier();
     match raw {
-        Raw::Yes => ctx.write_output(bytes),
+        Raw::Yes => ctx.write_output(text.as_bytes()),
         Raw::No => {
-            let text = String::from_utf8_lossy(bytes);
             let written = if carrier == crate::CARRIER_HTML_MARKUP {
-                nvs_render::html::escape(&text)
+                nvs_render::html::escape(text)
             } else {
-                nvs_render::text::substitute(&text)
+                nvs_render::text::substitute(text)
             };
             ctx.write_output(written.as_bytes())
         }
