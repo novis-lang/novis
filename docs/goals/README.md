@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [fewer-round-trips, lean-members-and-checker, one-copy-each]
+chain: [lean-members-and-checker, one-copy-each]
 floor:
   - id: ci-check
     name: "every check the goal end's push runs is green"
@@ -32,13 +32,12 @@ floor:
 
 # Goals
 
-The chain holds 3 goal(s). `fewer-round-trips` is live.
+The chain holds 2 goal(s). `lean-members-and-checker` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`fewer-round-trips`](fewer-round-trips.md) **live** | Reached when every socket sends without Nagle's delay, a database row shares its keys, a pool reset is one write, a static file is one hand-off, and an extension instance resolves its imports once. | 1 ✓ a socket sends at once, and a client request is one write · 2 ✓ a result's rows share their keys, in one row loop · 3 ✓ a pool reset and a batch wait for fewer answers · 4 ✓ the door and the request members copy each value once · 5 ✓ a static file is one hand-off · 6 ✓ an extension instance resolves its imports once · 7 ✓ the goal is verified once, and every failure is fixed |
-| 2 | [`lean-members-and-checker`](lean-members-and-checker.md) | Reached when the listed members allocate only their result, the checker's walks clone no names, and an editor request resolves no path it already resolved. | **1 the array members allocate per result, not per element** · 2 the text and byte members scan once and copy once · 3 a stream reads in large steps into one buffer · 4 the checker's walks borrow their names · 5 an editor request resolves a path once · 6 the goal is verified once, and every failure is fixed |
-| 3 | [`one-copy-each`](one-copy-each.md) | Reached when each listed block of repeated code has one home, with no change in behaviour and fewer lines than before. | **1 the loop forms share one preamble** · 2 a connection's and a transaction's members are declared once · 3 the tree walks and the case parser have one home each · 4 the small helpers are written once · 5 the server tests of nvs-cli share their support · 6 the goal is verified once, and every failure is fixed |
+| 1 | [`lean-members-and-checker`](lean-members-and-checker.md) **live** | Reached when the listed members allocate only their result, the checker's walks clone no names, and an editor request resolves no path it already resolved. | **1 the array members allocate per result, not per element** · 2 the text and byte members scan once and copy once · 3 a stream reads in large steps into one buffer · 4 the checker's walks borrow their names · 5 an editor request resolves a path once · 6 the goal is verified once, and every failure is fixed |
+| 2 | [`one-copy-each`](one-copy-each.md) | Reached when each listed block of repeated code has one home, with no change in behaviour and fewer lines than before. | **1 the loop forms share one preamble** · 2 a connection's and a transaction's members are declared once · 3 the tree walks and the case parser have one home each · 4 the small helpers are written once · 5 the server tests of nvs-cli share their support · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
