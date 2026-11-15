@@ -218,6 +218,16 @@ No stage started. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0,
 
 ### Next
 
+Before stage 1, read `cheaper-pipeline`'s goal-end push, which its `after_retire` hook made, with
+`bun nv ci --status`. Its base was push run 43649226665: 1,160 runner-minutes and a 54.6-minute
+wall. The run should save the 34, 15, 12 and 9 minutes of the jobs that moved to the nightly, and
+about 38.7 minutes of the six binary builds, less the artifact transfers. Write its runner-minutes by
+OS in the commit that ticks stage 1's first item. A job that goal changed in `ci.yml` or `build.yml`
+that is red gets one fix. If it is red again, revert that change. If the Linux artifact transfer
+costs more than the build it replaces, keep the artifact on Windows and macOS only. `nvs-debug`
+(`.github/workflows/ci.yml:703`) feeds six jobs per OS: a browser suite red for a feature only the
+workspace build unified points there. `build.yml`'s matrix expressions first run on GitHub then.
+
 Stage 1. First lower `start_cost.rs`'s bounds to `fast-start`'s measured figures plus 10%: `core`
 8,109, `built_in` 6,699, `check` 9,652, `collection` 1,166, `configuration` 418, `grants` 25. Then
 the `Explore` list of every manifest reader, then the `Arc<Manifest>` change.

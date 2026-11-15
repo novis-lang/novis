@@ -26,10 +26,12 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
-- **`bun nv ci` reads `.github/workflows/build.yml`'s matrix to judge a run's optional legs.** A
-  workflow edit that changed the matrix's shape made 33 tests of `tools/nv/test/ci.test.ts` throw,
-  and no session saw it until the next one ran that file. After a change to `build.yml`'s matrix,
-  run `bun test tools/nv/test/ci.test.ts` by name. See `tools/nv/cmd/ci.ts` `parseLegs`.
+- **Three readers parse `.github/workflows/build.yml`'s matrix: `bun nv ci`, the supply-chain test
+  and `extension_release`.** A workflow edit that changed the matrix's shape made 33 tests of
+  `tools/nv/test/ci.test.ts` throw, and a later one broke the other two, and no session saw it until
+  the gate. After a change to `build.yml`'s matrix, run `bun test tools/nv/test/ci.test.ts
+  tools/nv/test/supply-chain.test.ts` and `cargo test --test extension_release` by name. See
+  `tools/nv/cmd/ci.ts` `parseLegs`.
 - **`cargo test --lib` runs none of `nvs-cli`'s tests.** The crate has only the `nvs` binary, so a
   test in `crates/nvs-cli/src/` runs under `cargo test --bin nvs`. A goal check that names such a
   test with `--lib` finds zero tests and fails. See `crates/nvs-cli/Cargo.toml`.

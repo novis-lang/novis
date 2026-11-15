@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-ext/src/load.rs, crates/nvs-syntax/tests/prefixes.rs, crates/nvs-diagnostics/tests/every_code_is_tested.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: pre-push-once
@@ -240,10 +240,10 @@ the x86_64 gap.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
-- [ ] `docs/agent/commands.md:1`: after the goal end's push, read that run with
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [x] `docs/agent/commands.md:1`: after the goal end's push, read that run with
   `bun nv ci --status` and write its runner-minutes by OS beside the 1,160 above. A job this goal
   changed that is red gets one fix, then a revert.
 
@@ -251,36 +251,23 @@ the x86_64 gap.
 
 ### State
 
-Stages 1 to 6 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5:
-1, stage 6: 1, stage 7: 0.
+Every stage is done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 1,
+stage 6: 1, stage 7: 1.
 
-- Stage 6: `crates/nvs-ext/tests/support/module_cache.rs` is a file `ModuleCache` under
-  `target/test-scratch/module-cache/<environment>/<pin>`, written by rename. The twelve test files
-  that load built-in components use it; `builtin.rs`, `builtin_stored.rs` and `cache.rs` keep their
-  memory caches, since they test the compile itself. `image_guest.rs` loads through
-  `support/image_arms.rs` and does not use it. `crates/nvs-syntax/tests/pool/mod.rs`
-  (`map_ordered`) is the pool `lossless.rs` and `prefixes.rs` share. `every_code_is_tested.rs`
-  scans its text once (`Asserted::scan`). `spreadsheet_read`, `prefixes`, `lossless` and
-  `every_code_is_tested` each ran green once by name.
-- Stage 5: `CovMap.ensure` takes a function that merges an indexed profile on a cache miss.
-- `nvs-debug` (`.github/workflows/ci.yml:703`) feeds six jobs per OS. If a browser suite goes red on
-  the push for a feature only the workspace build unified, that is the cause.
-- `tested` (`:97`) runs in the nightly alone; `tools/nv/test/ci-push-builds.test.ts` pins the kept
-  list. `build.yml`'s matrix expressions first run on GitHub at the push.
-- Minutes the goal end's push should show saved: stage 1's 34, 15, 12 and 9, the bench and doc
-  tests' share of the 53.1-minute wall, and stage 2's 38.7 less the transfers. If the Linux transfer
-  costs more, keep the artifact on Windows and macOS only.
+- Stage 7: `looper verify` is green, and so are `bun nv verify --doc`, `bun nv owners --closes
+  cheaper-pipeline` and `bun nv ci --check`. The gate fixed four tests that earlier stages left
+  behind: `extension_release.rs` and `supply-chain.test.ts` read each JSON row of `build.yml`'s
+  matrix expression, `select-query.test.ts` expects the four kinds `discover` lists in full, and
+  `module_cache.rs` reaches its directory through the new `nvs_repo::shared_scratch`.
+- The last item cannot run in this goal: the push is `after_retire`'s, after this file is deleted.
+  `docs/goals/lighter-start.md`'s `### Next` now opens with reading that run, the expected savings
+  and the one-fix-then-revert rule.
 - The sweep's `env-secret-proofs` is stale looper state: nothing names it, and no log exists.
 
 ### Next
 
-Stage 7, the gate, in one session: `looper verify` over the whole goal, every failure fixed in
-one pass, `looper verify` again, then the goal-end gates of AGENTS.md § *In the loop*. The last
-item reads the push's run with `bun nv ci --status` after the push.
-
-No test is expected to go red. If an `nvs-ext` test of the twelve goes red only on a warm cache,
-the entry it read is the suspect: `cargo clean`'s `target/test-scratch/module-cache/` and run it
-again. `select-record.test.ts`'s `CovMap` test passes `ensure` a function.
+Nothing. The goal is reached; `after_retire` pushes, and `lighter-start` reads the push's run first.
+No test is expected to go red.
 
 ### Backlog
 
