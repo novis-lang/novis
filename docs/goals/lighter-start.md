@@ -139,7 +139,7 @@ regression.
 `seed_enums`, `ext_lib::signatures` and `live_manifests`, and every `Vec<Manifest>` or
 `&[Manifest]` they pass on, as `file.rs:NN`, before the first edit.
 
-- [ ] `crates/nvs-cli/tests/start_cost.rs:14`: every bound is `fast-start`'s measured figure plus
+- [x] `crates/nvs-cli/tests/start_cost.rs:14`: every bound is `fast-start`'s measured figure plus
   10%, before any other edit, and the doc comment names the figures
   (`rule:testing/perf-two-mechanisms`).
 - [ ] `crates/nvs-cli/src/extensions.rs:151`: `with_built_in` returns `Vec<Arc<Manifest>>` and copies

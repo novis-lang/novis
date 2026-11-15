@@ -2,22 +2,22 @@
 //! `phases:` line for a one-line program, bounded per phase (`rule:testing/perf-two-mechanisms`).
 //!
 //! The bounds are counts, so they hold on any machine however loaded. Each is the figure
-//! `bun nv start-cost` measured, with half again on top for the platforms' own allocations. A
-//! change that adds work to a start phase past that fails here, and a change that removes work
-//! lowers the bound in the same commit. The goal `fast-start` writes the measured table beside the
-//! bounds.
+//! `bun nv start-cost` measured, plus 10%, rounded up to the next hundred. `grants` is the
+//! exception: its count follows the length of the directory's path, 25 from `.agent-tmp/` and 33
+//! from this test's scratch directory, so its bound is 60. A change that adds work to a start phase
+//! past its bound fails here, and a change that removes work lowers the bound in the same commit.
 
 use std::process::Command;
 
 /// Each phase's allocation bound, in the order the line prints them. The measured figures on
-/// Windows were 385, 6,729, 25, 16,624, 1,193 and 9,657.
+/// Windows are 418, 6,699, 25, 8,109, 1,166 and 9,652.
 const ALLOCATIONS: [(&str, u64); 6] = [
-    ("configuration", 600),
-    ("built_in", 10_100),
+    ("configuration", 500),
+    ("built_in", 7_400),
     ("grants", 60),
-    ("core", 25_000),
-    ("collection", 1_800),
-    ("check", 14_500),
+    ("core", 9_000),
+    ("collection", 1_300),
+    ("check", 10_700),
 ];
 
 /// The figures on a `phases:` line, by name, such as `core.allocations`.
