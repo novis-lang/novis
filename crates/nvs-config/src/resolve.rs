@@ -790,14 +790,13 @@ fn read_into(
     // The four open blocks have no `deny_unknown_fields` to check their keys, so the same per-file
     // check runs here by hand, with this file's line under a refusal.
     crate::settings::check_file(source, document.get_ref(), &file)?;
-    let table = <toml::Table as serde::Deserialize>::deserialize(toml::de::Deserializer::from(
-        document,
-    ))
-    .map_err(|err| {
-        // Unreachable in practice — the same document was typed above — but a configuration
-        // reader is not the place to unwrap on that reasoning.
-        Diagnostic::error(code::E_BAD_DIRECTIVE, err.message().to_string())
-    })?;
+    let table =
+        <toml::Table as serde::Deserialize>::deserialize(toml::de::Deserializer::from(document))
+            .map_err(|err| {
+                // Unreachable in practice — the same document was typed above — but a configuration
+                // reader is not the place to unwrap on that reasoning.
+                Diagnostic::error(code::E_BAD_DIRECTIVE, err.message().to_string())
+            })?;
 
     let origin = Origin {
         path: path.to_path_buf(),

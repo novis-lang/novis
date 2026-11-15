@@ -58,8 +58,8 @@
 //! except [`create_private_dir`], which is the one create a temporary directory always cost.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use crate::trust;
 
@@ -505,7 +505,9 @@ pub fn config_file() -> Option<PathBuf> {
     let folder = current()?;
     REFRESHED.call_once(|| {
         if let (_, Some(text)) = folder.refresh_reading() {
-            *READ.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+            *READ
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 Some((folder.config_file(), text));
         }
     });

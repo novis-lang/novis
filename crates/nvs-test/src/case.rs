@@ -729,7 +729,10 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         None => false,
         Some((_, body)) if body.trim() == "on" => true,
         Some((header, _)) => {
-            return Err(err("`--COMPILE_CACHE--` is the one word `on`", Some(header)));
+            return Err(err(
+                "`--COMPILE_CACHE--` is the one word `on`",
+                Some(header),
+            ));
         }
     };
 
