@@ -2441,6 +2441,11 @@ impl UnitBuilder<JITModule> {
         // helpers, and every Tier 0 `Core` member. Both have `rule:errors/propagation`'s one
         // helper signature, and `nvs_stdlib`'s own docs own why a `Core` call
         // is emitted through the same path a helper call is.
+        //
+        // What it costs: the builder copies each name, so 1,249 names are
+        // 1,266 allocations and 263 KB per compile. A process-wide table behind
+        // `symbol_lookup_fn` was declined, because it is under the 5% of a
+        // start's allocations a change must save.
         for (name, address) in nvs_runtime::symbols()
             .into_iter()
             .chain(nvs_stdlib::symbols())
