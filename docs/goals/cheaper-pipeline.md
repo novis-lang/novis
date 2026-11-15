@@ -26,7 +26,7 @@ stages:
     context: [tools/nv/select/extract.ts, tools/nv/select/record.ts, tools/nv/select/store.ts]
   - id: 6
     title: the slow Rust tests share their set-up
-    status: open
+    status: done
     context: [crates/nvs-ext/src/load.rs, crates/nvs-syntax/tests/prefixes.rs, crates/nvs-diagnostics/tests/every_code_is_tested.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -125,6 +125,16 @@ skipped job count as green, which `release --tested` cannot accept. Declined.
 `gh`. If the `nvs-ext` component compiles explain it, the cache item fixes it. If not, the finding
 is one line in `### Backlog` and nothing more is tried.
 
+**The probe's finding: `nvs-ext` is most of the gap, and x86_64 is slower everywhere.** Run
+43649226665's x86_64 `tests` leg (job 132613835503) took 53 minutes, and aarch64's (job
+132613835510) 36. The build took 653 s and 633 s, so the gap is the nextest step: 2,294 s against
+1,291 s over the same 9,062 tests. The `nvs-ext` binaries are 5,947 of 8,994 test-seconds on x86_64
+and 2,979 of 4,966 on aarch64, led by `pdf_read`, `pdf_standards`, the four image binaries and the
+two spreadsheet ones. So the component compiles explain most of the absolute gap, and the file
+cache of stage 6 is the fix. Every other group also ran about 1.8 times slower on x86_64, among
+them two `nvs-cli` agent-index tests at 435 s and 179 s. That part is not explained, and it is one
+line in `### Backlog`.
+
 **The `nvs-ext` test cache is a file cache under `target/test-scratch/`,** through the existing
 `ModuleCache` trait, keyed as the product's cache is. The first process compiles and the others
 deserialize. **What it spends:** the artifacts' size on disk, which `bun nv disk` counts.
@@ -217,14 +227,14 @@ the next batch's run, and write a batch in one transaction.
 **Does:** give the `nvs-ext` tests a file cache, thread two serial tests, and spend one session on
 the x86_64 gap.
 
-- [ ] `crates/nvs-ext/src/load.rs:266`: a file-backed `ModuleCache` for tests under
+- [x] `crates/nvs-ext/src/load.rs:266`: a file-backed `ModuleCache` for tests under
   `target/test-scratch/`, used by `crates/nvs-ext/tests/spreadsheet_read.rs:86` and the six other
   files that call `Loader::new` (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`).
-- [ ] `crates/nvs-syntax/tests/prefixes.rs:112`: the three sweeps use the worker pool of
+- [x] `crates/nvs-syntax/tests/prefixes.rs:112`: the three sweeps use the worker pool of
   `crates/nvs-syntax/tests/lossless.rs:125` (`rule:testing/perf-two-mechanisms`).
-- [ ] `crates/nvs-diagnostics/tests/every_code_is_tested.rs:46`: one scan of the text into a set,
+- [x] `crates/nvs-diagnostics/tests/every_code_is_tested.rs:46`: one scan of the text into a set,
   then one lookup per code (`rule:testing/perf-two-mechanisms`).
-- [ ] `.github/workflows/ci.yml:124`: the probe of the x86_64 leg, read with `gh` from run
+- [x] `.github/workflows/ci.yml:124`: the probe of the x86_64 leg, read with `gh` from run
   43649226665, written as one paragraph in `## Standing decisions`
   (`rule:testing/every-run-runs-every-job`).
 
@@ -241,15 +251,18 @@ the x86_64 gap.
 
 ### State
 
-Stages 1 to 5 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5:
-1, stage 6: 0.
+Stages 1 to 6 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5:
+1, stage 6: 1, stage 7: 0.
 
-- Stage 5: one `merge -sparse -text` names an atom's functions (`namesFromText`); the `one-profdata`
-  test matched merge then `show` over ten atoms. `llvm-cov` reads only an indexed profile, so
-  `CovMap.ensure` takes a function that merges one on a cache miss. `recordCases` extracts batch n-1
-  while batch n runs, in `cases-<n>`, and records a batch in one `store.transaction`.
-- Stage 4: `commitsOf` and `untrackedPaths` in `change.ts`; `discover` lists atoms in full.
-- Stage 3: `--push` skips checks when `STAMP` names the pushed tree. `pool` is in `lib/proc.ts`.
+- Stage 6: `crates/nvs-ext/tests/support/module_cache.rs` is a file `ModuleCache` under
+  `target/test-scratch/module-cache/<environment>/<pin>`, written by rename. The twelve test files
+  that load built-in components use it; `builtin.rs`, `builtin_stored.rs` and `cache.rs` keep their
+  memory caches, since they test the compile itself. `image_guest.rs` loads through
+  `support/image_arms.rs` and does not use it. `crates/nvs-syntax/tests/pool/mod.rs`
+  (`map_ordered`) is the pool `lossless.rs` and `prefixes.rs` share. `every_code_is_tested.rs`
+  scans its text once (`Asserted::scan`). `spreadsheet_read`, `prefixes`, `lossless` and
+  `every_code_is_tested` each ran green once by name.
+- Stage 5: `CovMap.ensure` takes a function that merges an indexed profile on a cache miss.
 - `nvs-debug` (`.github/workflows/ci.yml:703`) feeds six jobs per OS. If a browser suite goes red on
   the push for a feature only the workspace build unified, that is the cause.
 - `tested` (`:97`) runs in the nightly alone; `tools/nv/test/ci-push-builds.test.ts` pins the kept
@@ -261,20 +274,13 @@ Stages 1 to 5 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage
 
 ### Next
 
-Stage 6, in one session. It touches only `crates/`.
+Stage 7, the gate, in one session: `looper verify` over the whole goal, every failure fixed in
+one pass, `looper verify` again, then the goal-end gates of AGENTS.md § *In the loop*. The last
+item reads the push's run with `bun nv ci --status` after the push.
 
-- [ ] `crates/nvs-ext/src/load.rs:266` (`ModuleCache`): a file-backed cache for tests under
-  `target/test-scratch/`, used by `crates/nvs-ext/tests/spreadsheet_read.rs` and the six other files
-  that call `Loader::new`.
-- [ ] `crates/nvs-syntax/tests/prefixes.rs:118`, `:152` and `:225`: the three sweeps use the worker
-  pool of `crates/nvs-syntax/tests/lossless.rs`.
-- [ ] `crates/nvs-diagnostics/tests/every_code_is_tested.rs:80` (`asserted`): one scan of the text
-  into a set, then one lookup per code.
-- [ ] `.github/workflows/ci.yml:142`: read run 43649226665's per-test times of the x86_64 leg with
-  `gh`, one paragraph in `## Standing decisions`.
-
-No test is expected to go red. `select-record.test.ts`'s `CovMap` test now passes `ensure` a
-function. `tsc` over the tools is clean.
+No test is expected to go red. If an `nvs-ext` test of the twelve goes red only on a warm cache,
+the entry it read is the suspect: `cargo clean`'s `target/test-scratch/module-cache/` and run it
+again. `select-record.test.ts`'s `CovMap` test passes `ensure` a function.
 
 ### Backlog
 
@@ -282,3 +288,5 @@ function. `tsc` over the tools is clean.
   one binary per crate, and two Windows `tests` partitions.
 - Declined before the run: running the `--probes` and checked-types conformance passes on Linux
   only. Each target is its own backend.
+- Not explained by the probe: every test group on the x86_64 `tests` leg ran about 1.8 times
+  slower than on aarch64 in run 43649226665, the build did not. Nothing more is tried.
