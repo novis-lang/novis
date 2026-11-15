@@ -17,13 +17,17 @@
 //! than dropping them.
 //!
 //! The cost, stated as AGENTS.md requires: **one `Vec` allocation per
-//! outermost release that frees a container holding another container**, and
-//! nothing at all for a release that only decrements, that frees a string, or
-//! that frees a container whose own slots hold no refcounted value. The
-//! worklist starts empty, is only ever touched once a count has already
-//! reached zero, and allocates only when a dismantle hands it a second
-//! allocation to take apart — which is why freeing a leaf object costs exactly
-//! the one `dealloc` that object is.
+//! outermost release that has more than [`INLINE`] containers waiting to be
+//! taken apart at once**, and nothing at all for any other release. The
+//! [`Worklist`] keeps its first [`INLINE`] entries in an array on the stack,
+//! and only an entry past those goes to the heap. A linked list of any length
+//! keeps one entry waiting at a time, so freeing one never allocates. An array
+//! of many objects spills once, when it hands over its ninth. **What it
+//! spends:** about 160 bytes of stack per outermost release that reaches zero,
+//! and no heap.
+//!
+//! The array is plain safe Rust: an `Option` per entry and a count. No entry
+//! is read past the count, because each is moved out with `take`.
 
 use crate::array;
 use crate::object;
@@ -37,6 +41,54 @@ use crate::value::{Tag, Value};
 pub(crate) enum Dying {
     Object(*mut object::ObjHeader),
     Array(*mut array::ArrayHeader),
+}
+
+/// How many waiting entries [`Worklist`] keeps on the stack.
+pub(crate) const INLINE: usize = 8;
+
+/// The allocations still to take apart, last in, first out.
+///
+/// The first [`INLINE`] entries are kept in an array, and the rest in a `Vec`
+/// that allocates on its first push. The module doc states the cost.
+pub(crate) struct Worklist {
+    inline: [Option<Dying>; INLINE],
+    /// How many leading entries of `inline` are `Some`.
+    held: usize,
+    spill: Vec<Dying>,
+}
+
+impl Worklist {
+    fn new() -> Self {
+        Self {
+            inline: [const { None }; INLINE],
+            held: 0,
+            spill: Vec::new(),
+        }
+    }
+
+    /// Adds `dying` to the list. It goes into the array while the array has
+    /// room and nothing has spilled, and onto the `Vec` otherwise.
+    pub(crate) fn push(&mut self, dying: Dying) {
+        if self.spill.is_empty()
+            && let Some(slot) = self.inline.get_mut(self.held)
+        {
+            *slot = Some(dying);
+            self.held = self.held.saturating_add(1);
+            return;
+        }
+        self.spill.push(dying);
+    }
+
+    /// The entry pushed last, or `None` when the list is empty. The `Vec` is
+    /// emptied first, because what it has was pushed after the array filled.
+    fn pop(&mut self) -> Option<Dying> {
+        if let Some(dying) = self.spill.pop() {
+            return Some(dying);
+        }
+        let last = self.held.checked_sub(1)?;
+        self.held = last;
+        self.inline.get_mut(last)?.take()
+    }
 }
 
 /// Drops the one reference `value` owns, freeing it and everything it solely
@@ -76,12 +128,10 @@ pub(crate) unsafe fn release_value(value: Value) {
     };
 
     // The first one is dismantled out of a local rather than out of the
-    // worklist, so a container whose slots hold nothing refcounted — the
-    // common shape, and every object of a class whose properties are scalars —
-    // never allocates the `Vec` at all. `Vec::new` allocates on its first
-    // push, which is the first time a dismantle finds a second allocation
-    // behind the one it is taking apart.
-    let mut work: Vec<Dying> = Vec::new();
+    // worklist, and the worklist keeps its first entries on the stack, so a
+    // small graph is freed with no allocation of its own. The module doc
+    // states when it spills to the heap.
+    let mut work = Worklist::new();
     let mut dying = first;
     loop {
         #[expect(

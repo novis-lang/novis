@@ -2299,7 +2299,7 @@ pub(crate) unsafe fn drop_one(ptr: *mut ArrayHeader) -> bool {
     clippy::indexing_slicing,
     clippy::arithmetic_side_effects
 )]
-pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::release::Dying>) {
+pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut crate::release::Worklist) {
     #[expect(
         unsafe_code,
         reason = "the count reached zero, so nothing else can observe the \

@@ -4892,7 +4892,7 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
     clippy::indexing_slicing,
     clippy::arithmetic_side_effects
 )]
-pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::release::Dying>) {
+pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut crate::release::Worklist) {
     #[expect(
         unsafe_code,
         reason = "the count reached zero, and an unwind that kept the object \
