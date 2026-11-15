@@ -13,7 +13,7 @@ racing to compile the same content each produce a valid entry and the survivor i
 written by independent, non-communicating processes, and correctness never depends on durability
 across a crash. A crash can leave the final name over a short or empty file whose rename reached the
 disk before its data did. That file fails its length or checksum check, and
-[`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error)
+`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`
 deletes it and recompiles, so a crash costs one compile. A sync on every write would make each first
 run wait on the disk for that durability, and buy nothing. A failed write is likewise nobody's error: the caller drops it and the
 run continues on the compile it just did.
