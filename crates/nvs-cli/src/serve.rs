@@ -3722,11 +3722,12 @@ mod tests {
     /// The lease is then asked the question the ticker asks, against the store
     /// itself: a key is taken once and refused the second time. Skipped where
     /// `tests/db/compose.yaml`'s `redis` is not running, since a set-if-absent
-    /// is the server's semantics and nothing here stands in for it.
+    /// is the server's semantics and nothing here stands in for it. The store's
+    /// timeout is a minute, so a store slowed by a loaded machine still answers.
     #[test]
     fn serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease() {
         let config = config_of(
-            "[cache.shared]\nurl = 'redis://127.0.0.1:16379'\n\n[[schedule]]\nname = \
+            "[cache.shared]\nurl = 'redis://127.0.0.1:16379'\ntimeout = '60s'\n\n[[schedule]]\nname = \
              'fleet-case'\ncron = '0 3 * * *'\nscript = 'jobs/report.nvs'\nscope = 'fleet'\n",
         );
         let Some(lease) = super::fleet_lease(&config) else {
