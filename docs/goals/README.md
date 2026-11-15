@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [fast-start, cheaper-pipeline, lean-generated-code, fewer-round-trips, lean-members-and-checker, one-copy-each]
 floor:
   - id: ci-check
     name: "every check the goal end's push runs is green"
@@ -32,7 +32,16 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 6 goal(s). `fast-start` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`fast-start`](fast-start.md) **live** | Reached when the fixed cost of one start is attributed by a recorded measurement, every part above its floor is removed or declined with its number, and a test case writes no compile cache it never reads. | **1 one start is measured by command and counted by phase** · 2 a test case and a first run write no cache they wait for · 3 the configuration and the built-in sources are read once and parsed once · 4 a program pays for the `Core` signatures and symbols it names · 5 a helper thread starts when its work does · 6 the goal is verified once, and every failure is fixed |
+| 2 | [`cheaper-pipeline`](cheaper-pipeline.md) | Reached when the jobs that gate nothing run nightly, the jobs that only need the binary share one build, the pre-push checks run side by side and once per tree, and the recording step starts one process per atom. | **1 a job that gates nothing runs nightly** · 2 the jobs that only need the binary share one build · 3 the pre-push checks run side by side and once per tree · 4 a selection reads the tree once · 5 a recorded atom starts one process · 6 the slow Rust tests share their set-up · 7 the goal is verified once, and every failure is fixed |
+| 3 | [`lean-generated-code`](lean-generated-code.md) | Reached when a scalar test or widening is inline, a release that frees nothing is inline, an integer key on a hashed array allocates no text, and each change is pinned by a count. | **1 a scalar test, a widening and a string comparison are inline** · 2 a release that frees nothing is inline · 3 an array key allocates only what the array keeps · 4 a spawned task and a freed container allocate once · 5 the goal is verified once, and every failure is fixed |
+| 4 | [`fewer-round-trips`](fewer-round-trips.md) | Reached when every socket sends without Nagle's delay, a database row shares its keys, a pool reset is one write, a static file is one hand-off, and an extension instance resolves its imports once. | **1 a socket sends at once, and a client request is one write** · 2 a result's rows share their keys, in one row loop · 3 a pool reset and a batch wait for fewer answers · 4 the door and the request members copy each value once · 5 a static file is one hand-off · 6 an extension instance resolves its imports once · 7 the goal is verified once, and every failure is fixed |
+| 5 | [`lean-members-and-checker`](lean-members-and-checker.md) | Reached when the listed members allocate only their result, the checker's walks clone no names, and an editor request resolves no path it already resolved. | **1 the array members allocate per result, not per element** · 2 the text and byte members scan once and copy once · 3 a stream reads in large steps into one buffer · 4 the checker's walks borrow their names · 5 an editor request resolves a path once · 6 the goal is verified once, and every failure is fixed |
+| 6 | [`one-copy-each`](one-copy-each.md) | Reached when each listed block of repeated code has one home, with no change in behaviour and fewer lines than before. | **1 the loop forms share one preamble** · 2 a connection's and a transaction's members are declared once · 3 the tree walks and the case parser have one home each · 4 the small helpers are written once · 5 the server tests of nvs-cli share their support · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
