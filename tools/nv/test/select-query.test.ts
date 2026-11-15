@@ -181,7 +181,7 @@ describe("the reverse-index query", () => {
         "tests/hostile/lang/concurrency/spawn/01-spawn.nvs",
       ]);
       const found = discover(null, t.root);
-      expect(found.complete).toEqual([]);
+      expect(found.complete).toEqual(["case", "proof", "bench", "nvtest"]);
       expect(found.atoms).toContain("proof:tests/hostile/lang/concurrency/spawn/01-spawn.nvs");
       expect(found.atoms).toContain("case:tests/conformance/a.nvst");
       expect(found.atoms).toContain("nvtest:tools/nv/test/a.test.ts");

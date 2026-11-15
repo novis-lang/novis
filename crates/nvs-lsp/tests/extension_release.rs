@@ -12,7 +12,7 @@
 //! reason: reading the workflow means a YAML parser, and a new dependency is
 //! exactly what `editors/vscode/test/contributions/contributions.test.ts`'s
 //! allowlist refuses. Both files are read as text instead, which they can be —
-//! the matrix is a flat list of scalars, and `install.ts` says in its own header
+//! each matrix row is a flat JSON object, and `install.ts` says in its own header
 //! that each `TARGETS` row is one line with its fields in declaration order
 //! because this test parses them that way.
 //!
@@ -70,7 +70,7 @@ fn matrix_lines(workflow: &str) -> Vec<&str> {
         .collect();
     let mut inside = body
         .iter()
-        .skip_while(|line| line.trim() != "include:")
+        .skip_while(|line| !line.trim().starts_with("include:"))
         .copied();
     let header = inside.next().expect("the `build` job has a matrix include");
     let depth = indent(header);
@@ -82,28 +82,33 @@ fn matrix_lines(workflow: &str) -> Vec<&str> {
 }
 
 /// Every archive a release builds, by name.
+///
+/// The `include:` is one `${{ fromJSON(...) }}` expression that joins a JSON object per row, since
+/// a matrix row cannot carry an `if`. Each `{"name":...}` object in it is a row, whichever run lists
+/// it, and its fields are flat strings and booleans.
 fn release_matrix() -> BTreeMap<String, Archive> {
     let path = nvs_repo::path(".github/workflows/build.yml");
     let workflow = read(&path);
+    let text = matrix_lines(&workflow).concat();
 
     let mut built: BTreeMap<String, Archive> = BTreeMap::new();
-    let mut current = String::new();
-    for line in matrix_lines(&workflow) {
-        let entry = line.trim();
-        if let Some(name) = entry.strip_prefix("- name: ") {
-            current = name.trim().to_owned();
-            built.insert(current.clone(), Archive::default());
-        } else if let Some(format) = entry.strip_prefix("archive: ") {
-            let archive = built
-                .get_mut(&current)
-                .unwrap_or_else(|| panic!("`archive: {format}` before any `- name:`"));
-            archive.format = format.trim().to_owned();
-        } else if entry == "musl: true" {
-            let archive = built
-                .get_mut(&current)
-                .unwrap_or_else(|| panic!("`musl: true` before any `- name:`"));
-            archive.musl = true;
-        }
+    for (at, _) in text.match_indices("{\"name\":") {
+        let row = &text[at + 1..];
+        let row = &row[..row
+            .find('}')
+            .unwrap_or_else(|| panic!("a matrix row is not closed: {row}"))];
+        let field = |key: &str| {
+            row.split(',').find_map(|pair| {
+                let (k, v) = pair.trim().split_once(':')?;
+                (k.trim().trim_matches('"') == key).then(|| v.trim().trim_matches('"').to_owned())
+            })
+        };
+        let name = field("name").unwrap_or_else(|| panic!("a matrix row has no name: {row}"));
+        let archive = Archive {
+            format: field("archive").unwrap_or_default(),
+            musl: field("musl").as_deref() == Some("true"),
+        };
+        built.insert(name, archive);
     }
 
     assert!(

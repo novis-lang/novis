@@ -61,14 +61,20 @@ function uncovered(dirs: string[], steps: Step[], prePush: PrePush[]): string[] 
   return gaps;
 }
 
-/** Every `target:` a matrix row of `build.yml` names. */
+/** Every `target:` a matrix row of `build.yml` names. A matrix is a YAML list, or the `${{ fromJSON(...) }}`
+ * expression that joins one JSON object per row, each of which is read whichever run lists it. */
 function releaseTargets(): string[] {
   const build = Bun.YAML.parse(read(".github/workflows/build.yml")) as {
-    jobs: Record<string, { strategy?: { matrix?: { include?: { target?: string }[] } } }>;
+    jobs: Record<string, { strategy?: { matrix?: { include?: { target?: string }[] | string } } }>;
   };
   const targets = new Set<string>();
   for (const job of Object.values(build.jobs)) {
-    for (const row of job.strategy?.matrix?.include ?? []) if (row.target !== undefined) targets.add(row.target);
+    const include = job.strategy?.matrix?.include ?? [];
+    const rows =
+      typeof include === "string"
+        ? [...include.matchAll(/\{"name":[^{}]*\}/g)].map((m) => JSON.parse(m[0]) as { target?: string })
+        : include;
+    for (const row of rows) if (row.target !== undefined) targets.add(row.target);
   }
   return [...targets].sort();
 }

@@ -16,7 +16,7 @@
 //! configuration a test uses, tens of MiB, which `bun nv disk` counts and `cargo clean` deletes.
 //! An entry a rebuilt component no longer has stays until then.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -28,13 +28,7 @@ pub(crate) fn shared() -> Arc<dyn ModuleCache> {
     CACHE
         .get_or_init(|| {
             Arc::new(Files {
-                root: Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .ancestors()
-                    .nth(2)
-                    .expect("a package sits two directories below the repository root")
-                    .join("target")
-                    .join("test-scratch")
-                    .join("module-cache"),
+                root: nvs_repo::shared_scratch("module-cache"),
             })
         })
         .clone()

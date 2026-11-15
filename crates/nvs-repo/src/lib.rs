@@ -391,6 +391,34 @@ fn fresh(name: &str) -> PathBuf {
     fresh_under(name)
 }
 
+/// The directory `target/test-scratch/<name>`, created if it is missing and never deleted, for a
+/// cache that test processes share and that outlives each of them. Nothing is recorded: the
+/// directory is under `target/`, which no change to the tree moves. `cargo clean` deletes it.
+///
+/// # Panics
+///
+/// If `name` is empty or holds a separator or `..`, and if the directory cannot be created.
+#[must_use]
+pub fn shared_scratch(name: &str) -> PathBuf {
+    assert!(
+        !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
+        "nvs_repo::shared_scratch takes a directory name, and `{name}` is not one"
+    );
+    let path = scratch_root().join(name);
+    std::fs::create_dir_all(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    path
+}
+
+/// `<root>/target/test-scratch`, as this package's manifest places the repository root.
+fn scratch_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("a package sits two directories below the repository root")
+        .join("target")
+        .join("test-scratch")
+}
+
 /// `<root>/target/test-scratch/<name>-<pid>-<n>`, created empty, where `n` counts the calls in
 /// this process. The root is the repository's with no `..` in it, so the path is the one a
 /// program that normalizes it prints back, and every byte of a socket path is one it needs.
@@ -402,13 +430,7 @@ fn fresh(name: &str) -> PathBuf {
 fn fresh_under(name: &str) -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("a package sits two directories below the repository root")
-        .join("target")
-        .join("test-scratch")
-        .join(format!("{name}-{}-{n}", std::process::id()));
+    let path = scratch_root().join(format!("{name}-{}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&path);
     std::fs::create_dir_all(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
     #[cfg(unix)]
