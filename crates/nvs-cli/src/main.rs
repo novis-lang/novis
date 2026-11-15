@@ -761,6 +761,8 @@ fn main() -> ExitCode {
     if let Some(status) = nvs_runtime::child_watch::main_if_asked() {
         return status;
     }
+    // A footprint log's own allocations stay out of every count from here on.
+    nvs_runtime::budget::keep_footprint_outside();
 
     // Before the footer read below, because a bundled application serves
     // requests too and the hook is what puts a panic under one of them into

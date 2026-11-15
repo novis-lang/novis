@@ -209,22 +209,30 @@ fn unnameable(path: &Path, shown: &str) -> bool {
 }
 
 /// Writes the line for `kind` and `path`, unless no file system could be asked about the path.
+/// The path's text is made inside [`outside`], since it exists only for the log.
 fn write_path(kind: Kind, path: &Path) {
-    let shown = shown(path);
-    if !unnameable(path, &shown) {
-        write(kind, &shown);
-    }
+    outside(&mut || {
+        let shown = shown(path);
+        if !unnameable(path, &shown) {
+            write_here(kind, &shown);
+        }
+    });
 }
 
 static LOG: OnceLock<Option<Mutex<Log>>> = OnceLock::new();
 
-/// The process's log, opened on first use from [`LOG_ENV`].
+/// The process's log, opened on first use from [`LOG_ENV`]. The open runs inside [`outside`].
 fn log() -> Option<&'static Mutex<Log>> {
-    LOG.get_or_init(|| match from_variable(std::env::var_os(LOG_ENV)) {
-        Ok(log) => log.map(Mutex::new),
-        Err(error) => stop(&format!("could not open the log {LOG_ENV} names: {error}")),
-    })
-    .as_ref()
+    if let Some(log) = LOG.get() {
+        return log.as_ref();
+    }
+    outside(&mut || {
+        LOG.get_or_init(|| match from_variable(std::env::var_os(LOG_ENV)) {
+            Ok(log) => log.map(Mutex::new),
+            Err(error) => stop(&format!("could not open the log {LOG_ENV} names: {error}")),
+        });
+    });
+    LOG.get().and_then(Option::as_ref)
 }
 
 /// Ends the process after saying why, for a log that cannot take a line.
@@ -259,6 +267,19 @@ pub fn capture<R>(body: impl FnOnce() -> R) -> (R, Vec<String>) {
 }
 
 fn write(kind: Kind, value: &str) {
+    outside(&mut || write_here(kind, value));
+}
+
+/// Runs `body`, which does work only the log needs, through what [`keep_outside`] installed.
+fn outside(body: &mut dyn FnMut()) {
+    match OUTSIDE.get() {
+        Some(outside) => outside(body),
+        None => body(),
+    }
+}
+
+/// [`write`]'s line, written on this thread as it stands: the caller is already inside [`outside`].
+fn write_here(kind: Kind, value: &str) {
     let captured = CAPTURED.with(|captured| {
         captured.borrow_mut().as_mut().is_some_and(|lines| {
             lines.push(line(kind, value).trim_end_matches('\n').to_string());
@@ -268,25 +289,19 @@ fn write(kind: Kind, value: &str) {
     if captured {
         return;
     }
-    let mut record = || {
-        let Some(log) = log() else { return };
-        let mut log = log.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Err(error) = log.record(kind, value) {
-            let path = log.path.display().to_string();
-            stop(&format!("could not write to {path}: {error}"));
-        }
-    };
-    match OUTSIDE.get() {
-        Some(outside) => outside(&mut record),
-        None => record(),
+    let Some(log) = log() else { return };
+    let mut log = log.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Err(error) = log.record(kind, value) {
+        let path = log.path.display().to_string();
+        stop(&format!("could not write to {path}: {error}"));
     }
 }
 
 /// What runs each write to the log, once [`keep_outside`] installed it.
 static OUTSIDE: OnceLock<fn(&mut dyn FnMut())> = OnceLock::new();
 
-/// Installs `outside` to run every write to the log, so the log's own bytes are not charged to the
-/// program that is running.
+/// Installs `outside` to run every write to the log, the text of each path it writes and the
+/// log's opening, so the log's own bytes are not charged to the program that is running.
 ///
 /// The log keeps each line it wrote, so it grows with every distinct path a program reads or tests.
 /// Those bytes belong to the recording, not to the program. A program that tests many paths would

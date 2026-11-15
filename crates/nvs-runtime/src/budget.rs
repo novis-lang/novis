@@ -475,15 +475,27 @@ impl Drop for Detached {
 /// bracket exists for: what it keeps is counted against the process, never the request that
 /// happened to read a path. A program then reaches its memory limit at the same step whether a log
 /// is written or not. Every write the log makes is inside the bracket, which keeps it symmetric.
-/// [`crate::Ctx`]'s constructor calls this, so it is installed before any program runs.
+/// [`crate::Ctx`]'s constructor calls this, so it is installed before any program runs, and `nvs`
+/// calls it first thing, so it covers the front end too.
 ///
-/// **Cost:** one atomic load per context made. Without a log, a write is never reached.
-pub(crate) fn keep_footprint_outside() {
+/// A write also gives back what it added to [`allocations`] and [`allocated_bytes`]. Those count the
+/// work this thread did, and the log's lines are the recording's work. A counted run then prints the
+/// same figures with a log as without one, as `rule:testing/bench-counters` needs.
+///
+/// **Cost:** one atomic load per call. Without a log, a write is never reached.
+pub fn keep_footprint_outside() {
     static INSTALLED: std::sync::Once = std::sync::Once::new();
     INSTALLED.call_once(|| {
         nvs_footprint::keep_outside(|write| {
-            let _process = Detached::begin();
-            write();
+            let before = COUNTERS.with(|c| (c.requests.get(), c.total.get()));
+            {
+                let _process = Detached::begin();
+                write();
+            }
+            COUNTERS.with(|c| {
+                c.requests.set(before.0);
+                c.total.set(before.1);
+            });
         });
     });
 }
