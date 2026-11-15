@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/core_lib.rs, crates/nvs-types/src/signatures.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs]
   - id: 5
     title: a helper thread starts when its work does
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/script.rs, crates/nvs-host/src/slice.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -250,9 +250,9 @@ process.
 
 **Gate:** as stage 3.
 
-- [ ] `crates/nvs-cli/src/script.rs:1691`: `nvs-revalidate` starts on the first
+- [x] `crates/nvs-cli/src/script.rs:1691`: `nvs-revalidate` starts on the first
   `Compiler::compiled` call (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-host/src/slice.rs:177`: the slice clock starts when the scheduler gets its second
+- [x] `crates/nvs-host/src/slice.rs:177`: the slice clock starts when the scheduler gets its second
   task (`rule:concurrency/the-parking-contract`).
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -267,16 +267,25 @@ process.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 landed in two commits. A `Core` class's signatures are built on
-its first lookup (`core_lib::Natives`): the base interns every `Core` type first, so a class built
-later adds no type and changes no id, and `build_class` asserts that. `core` went from 16,624 to
-8,109 allocations; 6,688 of what is left is the type pre-pass, whose lowering allocates even on an
-interner hit. The helper symbol tables were priced and declined, and each site's comment has its
-number. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 0.
+Stages 1 to 5 are done. Stage 5 landed in two commits, and `nvs run` on a program that never
+spawns now starts neither helper thread:
+
+- `nvs-revalidate` starts with the compiler's first path pointer (`Compiler::first_pointer`,
+  called from `advance`), which is narrower than the item's "first `compiled` call": a
+  `Resolver::resolve` makes a pointer too. Only a watch with no `also` waits; `nvs serve` and
+  `nvs test --watch` have `also` work and start at once. The handle lives in `Wake`, under the
+  signal's lock.
+- `nvs-slice` starts when a spawn leaves a seated scheduler with two tasks, parked ones counted
+  (`Scheduler::start` calls `slice::second_task`). `SliceClock::start` makes no thread;
+  the `cfg(test)` `ticking_every` starts it at once for tests with no scheduler.
+
+Each has a new test, run once and green: `a_watch_with_nothing_to_check_starts_no_thread_until_a_path_compiles`
+(`nvs-cli`) and `slice::tests::a_started_clock_has_no_thread_until_a_second_task` (`nvs-host`).
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 1, stage 6: 0.
 
 The sweep's findings before this session needed no change. `env-secret-proofs` has no check and no
-log in the tree. Nightly 43581848915 is the same run the last handoff named, older than
-`8bd6b6eda9`'s Miri fix.
+log in the tree. Nightly 43581848915 ran at `be62f3f5a7`, which does not contain `8bd6b6eda9`'s
+Miri fix.
 
 Measure from a directory with no `nvs.toml` of its own, such as `.agent-tmp/`: the repository's
 own `nvs.toml` adds about 33,000 configuration allocations that a user's start does not pay. The
@@ -284,15 +293,13 @@ front end of a one-line `nvs check` is now about 26,000 allocations, so the 5% f
 
 ### Next
 
-Stage 5, in one session. The files are `crates/nvs-cli/src/script.rs` and
-`crates/nvs-host/src/slice.rs`. Each item is one thread, so each is at the floor.
+Stage 6, the gate: `looper verify` in the background, every failure fixed in one pass, then once
+more. Then `bun nv start-cost` once, with its table written into `crates/nvs-cli/src/main.rs`'s
+module doc `# What it costs` (stage 6's last item), and the goal-end gates AGENTS.md names.
 
-- [ ] `crates/nvs-cli/src/script.rs:1691`: `nvs-revalidate` starts on the first
-  `Compiler::compiled` call.
-- [ ] `crates/nvs-host/src/slice.rs:177`: the slice clock starts when the scheduler gets its second
-  task (`rule:concurrency/the-parking-contract`).
-
-Tests that may go red at stage 6: `nvs-types`'s tests that read `SignatureTable::iter` and expect
+Tests that may go red at stage 6: a test that has one task spin and waits for a `YIELD` from the
+slice clock started by `SliceClock::start` with no second task (none is known; the one in
+`watchdog.rs` now uses `ticking_every`), a test that counts the threads a run spawns, `nvs-types`'s tests that read `SignatureTable::iter` and expect
 a `Core` class in it (none is known; only `check.rs` and `mark_overridden_methods` read it), a
 test that pins a `TypeId` number of a native type (the base interns `Core` before the error
 classes now, as before, but in another order), the conformance cases that relied on a case writing
