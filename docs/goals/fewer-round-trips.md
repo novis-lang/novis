@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/db/execute.rs, crates/nvs-stdlib/src/db/stream.rs, crates/nvs-stdlib/src/db/span.rs]
   - id: 3
     title: a pool reset and a batch wait for fewer answers
-    status: open
+    status: done
     context: [crates/nvs-db/src/mysql.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-cli/src/worker.rs, docs/rules/security.md]
   - id: 4
     title: the door and the request members copy each value once
@@ -200,7 +200,7 @@ worker from asking the roster between jobs.
 - [x] `crates/nvs-cli/src/worker.rs:698`: after a round that claimed a job, the worker claims again
   on the same queues and asks the roster when a claim is empty
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-db/src/mysql.rs:2795`: `execute_many` writes its executes in windows of 64 KiB
+- [x] `crates/nvs-db/src/mysql.rs:2795`: `execute_many` writes its executes in windows of 64 KiB
   and reads each window's answers (`rule:programs/memory-priority`). This item has one session. If
   it is not green, it is declined.
 
@@ -264,45 +264,45 @@ sleep.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 has three of four items committed, each checked by clippy and
-its new test run once by name (green). `bun nv db-matrix` passed the MySQL and MariaDB TCP legs;
-its socket legs fail on Windows (`/mnt/wsl` paths are not supported), which the reset never uses.
-Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0, stage 5: 0, stage 6: 0.
+Stages 1, 2 and 3 are done. Each stage 3 item was checked by clippy and its new tests, run once by
+name (green). `bun nv db-matrix --no-up --driver mysql --driver mariadb` passed the MySQL and
+MariaDB TCP legs in both stage 3 sessions. Its socket legs fail on Windows (`/mnt/wsl` paths are
+not supported), and no stage 3 change touches a socket path.
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 0, stage 5: 0, stage 6: 0.
 
-- `Wire::send_all` (`crates/nvs-db/src/mysql.rs`) frames several commands into one flush, and
-  `Wire::next_answer` sets the codec's sequence id to `1` before each later answer, by framing an
-  empty packet into a discarded buffer. `reset_session` uses both.
-- The test `Peer` in `mysql.rs` answers each packet of a flush and counts `flushes`.
-- `Hot` and `ROSTER_EVERY` (16) in `crates/nvs-cli/src/worker.rs` keep a busy worker on its
-  queues; `round` is the shared claim loop, and `tests::ROSTERS_ASKED` counts roster statements.
-- `RowKeys` (`crates/nvs-stdlib/src/db/execute.rs:578`) makes a result's keys once; a stream keeps
-  them in `STREAM_KEYS_AT`. A hashed array holds each key twice, so the test asserts growth only.
+- `execute_many` (`crates/nvs-db/src/mysql.rs`) prepares once, then writes `execute_payload`s in
+  windows of `BATCH_WINDOW` (64 KiB) through `Wire::send_all`, and reads each set's answer with
+  `read_set`. `read_set` counts a result set's rows without decoding them, and follows
+  `SERVER_MORE_RESULTS_EXISTS` to a `CALL`'s last status packet. A set whose parameters do not fit
+  a packet now ends the batch with the connection idle; before, it poisoned it.
+  `execute_one` is gone. `rule:core-classes/db-statement-members` says the batch is windowed.
 - The sweep's `env-secret-proofs` is stale state in looper's service: no log and no definition in
   the tree. Nothing in the tree can fix it.
 
 Tests that may go red at stage 7: an SSE case that waits less than one second for a stream whose
 client left to end, an HTTP client test that counts writes on the origin side for a small body,
 and any test that builds `Core\Db\Stream` with five slots (`instance::build` asserts the count).
-From stage 3: a MySQL test whose scripted server answers a flush rather than each packet in it, and
-a worker test that counts turns or roster statements for a queue with several jobs.
+From stage 3: a MySQL test whose scripted server answers a flush rather than each packet in it, a
+worker test that counts turns or roster statements for a queue with several jobs, a test that
+expects a too-large `executeMany` set to poison the connection, and a test that expects a `CALL`
+in `executeMany` to fail with "a second result set".
 
 ### Next
 
-Stage 3's last item, in the stage's second and last session. It has not had its one attempt yet.
-Run `bun nv db-matrix --no-up --driver mysql --driver mariadb` once at the end; the TCP legs are the
-ones that count here.
+Stage 4, in its first session. Its items share `crates/nvs-server/src/` and `crates/nvs-stdlib/src/`;
+take them in order while the context allows. The stage checks with a build alone.
 
-- [ ] `crates/nvs-db/src/mysql.rs:2894`: `execute_many` writes its executes in windows of 64 KiB
-  and reads each window's answers. The parts: `execute` (`:2621`) builds one payload, so split its
-  payload building from its send; `cached_statement` (`:2687`) prepares once before the first
-  window; `Wire::send_all` and `Wire::next_answer` are the framing. Each answer is `read_answer`:
-  `Done { affected }` adds to the sum, an `ERR` is kept as the first refusal and the batch goes on,
-  and `Columns(n)` is a `CALL`'s result set, which must be drained with `read_columns` and
-  `next_row_of` (`:4306`), including `SERVER_MORE_RESULTS_EXISTS`. If that drain cannot share the
-  existing reader cleanly, send a window of one for a statement whose prepare reported columns.
-  Rewrite the doc above it (`:2834`), which says two commands cannot be in flight. A wire failure
-  still ends the batch and poisons the connection. Not green in this session means declined.
-- Then stage 3 is done: set its status in the front matter, and stage 4 is next.
+- [ ] `crates/nvs-server/src/spooled.rs:200`: `door_store` tests the `debug_store` flag on the
+  snapshot (`crates/nvs-config/src/snapshot.rs:147`) before it builds a `Request`.
+- [ ] `crates/nvs-server/src/mount.rs:811`: `under()` is called once for the static and the
+  script step. Find its two callers with `bun nv peek --locate`.
+- [ ] `crates/nvs-server/src/serve.rs:2210`: the two stream slots are made in the arm that runs a
+  program.
+- [ ] `crates/nvs-stdlib/src/uri.rs:1304`: `decode` borrows a field with no `%` or `+`, and the query
+  parser near `:3303` builds each value once.
+- [ ] `crates/nvs-stdlib/src/router.rs:3068`, `crates/nvs-stdlib/src/html.rs:868` (`markup_concat`,
+  `join`, `escaped_text` at `:618`) and `crates/nvs-stdlib/src/ratelimit.rs:869`, as the stage
+  lists them.
 
 ### Backlog
 
