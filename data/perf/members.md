@@ -88,30 +88,30 @@ marked `~`: it is the machine, not the code.
 | `Core\Ast\Node::offset` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b31d460051e9 |
 | `Core\Attributes::all` | 4.00 | 0.00 | 6.00 | 384.0 |  | -0.001 | complexity constant, calls 0, allocations 6 | 12bd24661f00 |
 | `Core\Attributes::get` | 6.00 | 0.00 | 1.00 | 48.0 |  | +0.031 | complexity constant, calls 0, allocations 1 | 12bd24661f00 |
-| `Core\BigInt::abs` | 3.00 | 2.00 | 4.00 | 142.0 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::add` | 3.00 | 1.00 | 5.00 | 164.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\BigInt::compareTo` | 5.00 | 1.00 | 2.00 | 32.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\BigInt::div` | 3.00 | 2.00 | 6.00 | 154.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::format` | 4.00 | 2.00 | 3.50 | 90.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::gcd` | 4.00 | 2.00 | 9.00 | 208.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::lcm` | 4.00 | 2.00 | 11.00 | 296.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::mod` | 3.00 | 2.00 | 7.00 | 154.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::mul` | 3.00 | 2.00 | 5.00 | 156.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::neg` | 3.00 | 2.00 | 4.00 | 142.0 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::of` | 3.00 | 2.00 | 3.00 | 106.0 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::ofUint` | 3.00 | 2.00 | 3.00 | 120.0 |  |  | complexity constant, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::parse` | 3.00 | 2.00 | 5.00 | 116.7 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::pow` | 3.00 | 2.00 | 4.00 | 116.7 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::powMod` | 4.00 | 2.00 | 362.00 | 9088.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::shl` | 3.00 | 2.00 | 4.00 | 128.0 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::shr` | 3.00 | 2.00 | 4.00 | 130.0 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::sign` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 3f9e0edb6a30 |
-| `Core\BigInt::sqrt` | 3.00 | 2.00 | 10.00 | 304.0 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::sub` | 3.00 | 1.00 | 5.00 | 180.0 |  |  | complexity linear, calls 1 | 3f9e0edb6a30 |
-| `Core\BigInt::toDecimal` | 5.00 | 1.00 | 1.00 | 12.0 |  |  | complexity constant, calls 1, allocations 1 | 3f9e0edb6a30 |
-| `Core\BigInt::toInt` | 5.00 | 1.00 | 1.00 | 8.0 |  |  | complexity constant, calls 1, allocations 1 | 3f9e0edb6a30 |
-| `Core\BigInt::toString` | 3.00 | 2.00 | 5.50 | 167.5 |  |  | complexity karatsuba, calls 2 | 3f9e0edb6a30 |
-| `Core\BigInt::toUint` | 5.00 | 1.00 | 1.00 | 8.0 |  |  | complexity constant, calls 1, allocations 1 | 3f9e0edb6a30 |
+| `Core\BigInt::abs` | 3.00 | 2.00 | 4.00 | 142.0 |  |  | complexity linear, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::add` | 3.00 | 1.00 | 5.00 | 164.0 |  |  | complexity linear, calls 1 | f2dd5017e6fe |
+| `Core\BigInt::compareTo` | 5.00 | 1.00 | 2.00 | 32.0 |  |  | complexity linear, calls 1 | f2dd5017e6fe |
+| `Core\BigInt::div` | 3.00 | 2.00 | 6.00 | 154.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::format` | 4.00 | 2.00 | 3.50 | 90.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::gcd` | 4.00 | 2.00 | 9.00 | 208.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::lcm` | 4.00 | 2.00 | 11.00 | 296.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::mod` | 3.00 | 2.00 | 7.00 | 154.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::mul` | 3.00 | 2.00 | 6.00 | 172.0 | +1.000 | +16.000 | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::neg` | 3.00 | 2.00 | 4.00 | 142.0 |  |  | complexity linear, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::of` | 3.00 | 2.00 | 3.00 | 106.0 |  |  | complexity constant, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::ofUint` | 3.00 | 2.00 | 3.00 | 120.0 |  |  | complexity constant, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::parse` | 3.00 | 2.00 | 5.00 | 116.7 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::pow` | 3.00 | 2.00 | 4.00 | 116.7 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::powMod` | 4.00 | 2.00 | 362.00 | 9088.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::shl` | 3.00 | 2.00 | 4.00 | 128.0 |  |  | complexity linear, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::shr` | 3.00 | 2.00 | 4.00 | 130.0 |  |  | complexity linear, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::sign` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | f2dd5017e6fe |
+| `Core\BigInt::sqrt` | 3.00 | 2.00 | 10.00 | 304.0 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::sub` | 3.00 | 1.00 | 5.00 | 180.0 |  |  | complexity linear, calls 1 | f2dd5017e6fe |
+| `Core\BigInt::toDecimal` | 5.00 | 1.00 | 1.00 | 12.0 |  |  | complexity constant, calls 1, allocations 1 | f2dd5017e6fe |
+| `Core\BigInt::toInt` | 5.00 | 1.00 | 1.00 | 8.0 |  |  | complexity constant, calls 1, allocations 1 | f2dd5017e6fe |
+| `Core\BigInt::toString` | 3.00 | 2.00 | 5.50 | 167.5 |  |  | complexity karatsuba, calls 2 | f2dd5017e6fe |
+| `Core\BigInt::toUint` | 5.00 | 1.00 | 1.00 | 8.0 |  |  | complexity constant, calls 1, allocations 1 | f2dd5017e6fe |
 | `Core\Budget::memoryHeld` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0, statements 3 | 12bd24661f00 |
 | `Core\Budget::memoryLimit` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.008 | complexity constant, calls 0, allocations 0, statements 3 | 12bd24661f00 |
 | `Core\Budget::memoryPeak` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0, allocations 0, statements 3 | 12bd24661f00 |
@@ -303,12 +303,12 @@ marked `~`: it is the machine, not the code.
 | `Core\Heap::peek` | 3.00 | 0.00 | 0.00 | 0.0 |  | +0.001 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::pop` | 5.00 | 0.00 | 0.00 | 0.0 |  | -0.157 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
 | `Core\Heap::push` | 5.00 | 0.00 | 0.02 | 32.0 | +0.009 | -0.857 | complexity constant, allocations 0, calls 0 | 12bd24661f00 |
-| `Core\Html::escape` | 3.00 | 3.00 | 3.00 | 118.0 |  |  | complexity linear, calls 3 | 9284f7e0c6f4 |
-| `Core\Html::join` | 3.00 | 3.00 | 3.00 | 157.0 |  |  | complexity linear, calls 3 | 9284f7e0c6f4 |
-| `Core\Html::later` | 4.00 | 3.00 | 176.02 | 26218.0 |  | +456.000 | complexity constant | 9284f7e0c6f4 |
-| `Core\Html::parse` | 4.00 | 3.00 | 89.00 | 13253.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Html::sanitize` | 3.00 | 3.00 | 51.50 | 9722.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Html::toSource` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | 9284f7e0c6f4 |
+| `Core\Html::escape` | 3.00 | 3.00 | 2.00 | 103.0 | -1.000 | -15.000 | complexity linear, calls 3 | babfa73cbd11 |
+| `Core\Html::join` | 3.00 | 3.00 | 2.00 | 122.5 | -1.000 | -34.500 | complexity linear, calls 3 | babfa73cbd11 |
+| `Core\Html::later` | 4.00 | 3.00 | 157.02 | 24502.0 | -19.000 | -1716.000 | complexity constant | babfa73cbd11 |
+| `Core\Html::parse` | 4.00 | 3.00 | 87.00 | 12869.0 | -2.000 | -384.000 | complexity linear | babfa73cbd11 |
+| `Core\Html::sanitize` | 3.00 | 3.00 | 51.50 | 9722.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Html::toSource` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2, allocations 0 | babfa73cbd11 |
 | `Core\Http::allowUrl` | 5.00 | 2.00 | 12.00 | 548.0 |  |  | complexity linear | 3f9e0edb6a30 |
 | `Core\Http::methodName` | 3.00 | 2.00 | 1.00 | 43.0 |  |  | complexity constant | 3f9e0edb6a30 |
 | `Core\Http\Client::delete` | 5.00 | 2.00 | 13.02 | 744.8 |  |  | complexity linear, calls 2 | 3f9e0edb6a30 |
@@ -675,11 +675,11 @@ marked `~`: it is the machine, not the code.
 | `Core\Random\Seeded::sample` | 4.00 | 1.00 | 4.00 | 236.0 |  | -16.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\Random\Seeded::shuffle` | 4.00 | 1.00 | 5.00 | 384.0 |  | -16.000 | complexity linear | bfb1fa66dfa4 |
 | `Core\Random\Seeded::token` | 5.00 | 1.00 | 1.00 | 52.0 |  | +8.000 | complexity linear, calls 1, allocations 1 | bfb1fa66dfa4 |
-| `Core\RateLimit::shed` | 4.00 | 2.00 | 10.00 | 246.3 |  | +0.344 | complexity constant | 3f9e0edb6a30 |
-| `Core\RateLimit\Decision::allowed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
-| `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
-| `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
-| `Core\RateLimit\Decision::retryAfter` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3f9e0edb6a30 |
+| `Core\RateLimit::shed` | 4.00 | 2.00 | 10.00 | 247.2 |  | +0.921 | complexity constant | babfa73cbd11 |
+| `Core\RateLimit\Decision::allowed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\RateLimit\Decision::retryAfter` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
 | `Core\Reflect::forClass` | 6.00 | 3.00 | 14.50 | 1065.0 |  |  | complexity constant | 2afea1f166db |
 | `Core\Reflect::forObject` | 4.00 | 3.00 | 10.50 | 807.0 |  |  | complexity constant | 2afea1f166db |
 | `Core\Reflect::steps` | 3.00 | 2.00 | 10.00 | 699.0 |  |  | complexity linear, calls 2 | 2afea1f166db |
@@ -779,21 +779,21 @@ marked `~`: it is the machine, not the code.
 | `Core\Response\Stream::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
 | `Core\Response\Stream::offset` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
 | `Core\Response\Stream::write` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Router::dispatch` | 5.00 | 1.00 | 16.00 | 771.0 | -5.000 | -104.000 | complexity constant | ba0f22eff7e6 |
-| `Core\Router::match` | 7.00 | 1.00 | 8.02 | 617.2 |  |  | complexity linear | ba0f22eff7e6 |
-| `Core\Router::methodsFor` | 3.00 | 2.00 | 7.00 | 642.0 |  |  | complexity linear | ba0f22eff7e6 |
-| `Core\Router::signedRoute` | 4.00 | 2.00 | 73.00 | 3455.0 |  |  | complexity linear | ba0f22eff7e6 |
-| `Core\Router::url` | 6.00 | 0.00 | 15.00 | 589.7 |  |  | complexity linear | 0129bcd837ec |
-| `Core\Router::urlAbsolute` | 6.00 | 0.00 | 18.00 | 725.7 |  |  | complexity linear | ba0f22eff7e6 |
-| `Core\Router::urlSigned` | 4.00 | 1.00 | 48.00 | 2266.0 |  |  | complexity linear | ba0f22eff7e6 |
-| `Core\Router\Match::access` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
-| `Core\Router\Match::accessAs` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
-| `Core\Router\Match::attribute` | 7.00 | 1.00 | 7.00 | 500.0 |  |  | complexity constant, calls 1 | ba0f22eff7e6 |
-| `Core\Router\Match::is` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | ba0f22eff7e6 |
-| `Core\Router\Match::method` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
+| `Core\Router::dispatch` | 5.00 | 1.00 | 15.00 | 659.0 | -1.000 | -112.000 | complexity constant | babfa73cbd11 |
+| `Core\Router::match` | 7.00 | 1.00 | 7.02 | 537.1 | -1.000 | -80.125 | complexity linear | babfa73cbd11 |
+| `Core\Router::methodsFor` | 3.00 | 2.00 | 7.00 | 642.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Router::signedRoute` | 4.00 | 2.00 | 69.00 | 3051.0 | -4.000 | -404.000 | complexity linear | babfa73cbd11 |
+| `Core\Router::url` | 6.00 | 0.00 | 15.00 | 541.7 |  | -48.000 | complexity linear | babfa73cbd11 |
+| `Core\Router::urlAbsolute` | 6.00 | 0.00 | 18.00 | 677.7 |  | -48.000 | complexity linear | babfa73cbd11 |
+| `Core\Router::urlSigned` | 4.00 | 1.00 | 47.00 | 2074.0 | -1.000 | -192.000 | complexity linear | babfa73cbd11 |
+| `Core\Router\Match::access` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | babfa73cbd11 |
+| `Core\Router\Match::accessAs` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | babfa73cbd11 |
+| `Core\Router\Match::attribute` | 7.00 | 1.00 | 6.00 | 404.0 | -1.000 | -96.000 | complexity constant, calls 1 | babfa73cbd11 |
+| `Core\Router\Match::is` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | babfa73cbd11 |
+| `Core\Router\Match::method` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | babfa73cbd11 |
 | `Core\Router\Match::name` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b358c465f632 |
-| `Core\Router\Match::param` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | ba0f22eff7e6 |
-| `Core\Router\Match::params` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | ba0f22eff7e6 |
+| `Core\Router\Match::param` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | babfa73cbd11 |
+| `Core\Router\Match::params` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | babfa73cbd11 |
 | `Core\Router\Responder` | 4.00 | 4.00 | 85.02 | 7774.0 |  |  | complexity linear | f2ed85dbe899 |
 | `Core\Script::args` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | e24b0706338d |
 | `Core\Script::onExit` | 5.00 | 2.00 | 1.02 | 112.0 |  |  | complexity constant | e24b0706338d |
@@ -830,58 +830,58 @@ marked `~`: it is the machine, not the code.
 | `Core\Socket\Message::text` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
 | `Core\Socket\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
 | `Core\Socket\Message::value` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Sse::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Sse::receive` | 6.00 | 3.00 | 9.00 | 246.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Sse::retry` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Sse::send` | 4.00 | 1.00 | 2.00 | 66.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Sse::stream` | 4.00 | 1.00 | 6.00 | 103.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Sse::upgrade` | 1.00 | 1.00 | 46.00 | 5972.0 |  | +64.000 | complexity constant | 9284f7e0c6f4 |
-| `Core\Sse\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Sse\Message::value` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
+| `Core\Sse::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | babfa73cbd11 |
+| `Core\Sse::receive` | 6.00 | 3.00 | 9.00 | 246.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Sse::retry` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | babfa73cbd11 |
+| `Core\Sse::send` | 4.00 | 1.00 | 2.00 | 66.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Sse::stream` | 4.00 | 1.00 | 6.00 | 103.0 |  |  | complexity constant | babfa73cbd11 |
+| `Core\Sse::upgrade` | 1.00 | 1.00 | 45.00 | 5872.0 | -1.000 | -100.000 | complexity constant | babfa73cbd11 |
+| `Core\Sse\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | babfa73cbd11 |
+| `Core\Sse\Message::value` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | babfa73cbd11 |
 | `Core\Storage::delete` | 6.00 | 2.00 | 95.00 | 5482.0 |  | -35.000 | complexity constant | 7ec957692e53 |
 | `Core\Storage::get` | 4.00 | 2.00 | 77.00 | 2745.0 |  | -15.000 | complexity linear | 7ec957692e53 |
 | `Core\Storage::list` | 3.00 | 2.00 | 57.00 | 67491.0 |  | -7.000 | complexity linear | 7ec957692e53 |
 | `Core\Storage::put` | 5.00 | 2.00 | 40.00 | 1614.0 |  | -10.000 | complexity linear | 7ec957692e53 |
-| `Core\Str::after` | 6.00 | 1.00 | 1.00 | 46.0 |  |  | complexity linear, calls 1 | 9284f7e0c6f4 |
-| `Core\Str::at` | 4.00 | 2.00 | 1.00 | 41.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::before` | 6.00 | 1.00 | 1.00 | 44.0 |  |  | complexity linear, calls 1 | 9284f7e0c6f4 |
-| `Core\Str::chunk` | 3.00 | 2.00 | 6.00 | 335.7 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::codePoints` | 3.00 | 2.00 | 3.00 | 288.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::compare` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::contains` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::countOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::endsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::fold` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::format` | 3.00 | 1.00 | 1.00 | 59.1 |  |  | complexity linear, calls 1, allocations 1 | 9284f7e0c6f4 |
-| `Core\Str::fromCodePoint` | 3.00 | 2.00 | 1.00 | 43.0 |  |  | complexity constant, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::fromCodePoints` | 3.00 | 2.00 | 2.00 | 54.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::graphemes` | 3.00 | 2.00 | 11.50 | 745.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::indexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::isEmpty` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::join` | 4.00 | 2.00 | 1.00 | 104.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::lastIndexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::lines` | 4.00 | 2.00 | 4.00 | 258.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::lower` | 4.00 | 2.00 | 1.00 | 52.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::lowerFirst` | 4.00 | 2.00 | 1.00 | 51.4 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::normalize` | 4.00 | 2.00 | 2.00 | 67.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::padEnd` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::padStart` | 4.00 | 2.00 | 1.00 | 46.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::parts` | 4.00 | 3.00 | 10.00 | 543.0 |  |  | complexity linear, calls 3 | 9284f7e0c6f4 |
-| `Core\Str::repeat` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::replace` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::replaceAll` | 4.00 | 2.00 | 6.00 | 267.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::replaceRange` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::reverse` | 3.00 | 2.00 | 1.00 | 45.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::slice` | 4.00 | 2.00 | 1.00 | 49.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::split` | 3.00 | 2.00 | 5.00 | 292.0 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::startsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | 9284f7e0c6f4 |
-| `Core\Str::trim` | 3.00 | 2.00 | 1.00 | 51.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Str::trimEnd` | 3.00 | 2.00 | 1.00 | 55.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Str::trimStart` | 4.00 | 2.00 | 1.00 | 43.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Str::upper` | 4.00 | 2.00 | 1.00 | 49.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::upperFirst` | 4.00 | 2.00 | 1.00 | 48.7 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
-| `Core\Str::wrap` | 4.00 | 2.00 | 1.00 | 65.3 |  |  | complexity linear, calls 2 | 9284f7e0c6f4 |
+| `Core\Str::after` | 6.00 | 1.00 | 1.00 | 46.0 |  |  | complexity linear, calls 1 | babfa73cbd11 |
+| `Core\Str::at` | 4.00 | 2.00 | 1.00 | 41.3 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::before` | 6.00 | 1.00 | 1.00 | 44.0 |  |  | complexity linear, calls 1 | babfa73cbd11 |
+| `Core\Str::chunk` | 3.00 | 2.00 | 6.00 | 335.7 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::codePoints` | 3.00 | 2.00 | 3.00 | 288.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::compare` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::contains` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::countOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::endsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::fold` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::format` | 3.00 | 1.00 | 1.00 | 59.1 |  |  | complexity linear, calls 1, allocations 1 | babfa73cbd11 |
+| `Core\Str::fromCodePoint` | 3.00 | 2.00 | 1.00 | 43.0 |  |  | complexity constant, calls 2 | babfa73cbd11 |
+| `Core\Str::fromCodePoints` | 3.00 | 2.00 | 2.00 | 54.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::graphemes` | 3.00 | 2.00 | 11.50 | 745.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::indexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::isEmpty` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::join` | 4.00 | 2.00 | 1.00 | 104.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::lastIndexOf` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0 | babfa73cbd11 |
+| `Core\Str::lines` | 4.00 | 2.00 | 4.00 | 258.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::lower` | 4.00 | 2.00 | 1.00 | 52.3 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::lowerFirst` | 4.00 | 2.00 | 1.00 | 51.4 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::normalize` | 4.00 | 2.00 | 2.00 | 67.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::padEnd` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::padStart` | 4.00 | 2.00 | 1.00 | 46.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::parts` | 4.00 | 3.00 | 10.00 | 543.0 |  |  | complexity linear, calls 3 | babfa73cbd11 |
+| `Core\Str::repeat` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::replace` | 4.00 | 2.00 | 1.00 | 54.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::replaceAll` | 4.00 | 2.00 | 6.00 | 267.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::replaceRange` | 4.00 | 2.00 | 1.00 | 48.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::reverse` | 3.00 | 2.00 | 1.00 | 45.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::slice` | 4.00 | 2.00 | 1.00 | 49.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::split` | 3.00 | 2.00 | 5.00 | 292.0 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::startsWith` | 3.67 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1, allocations 0 | babfa73cbd11 |
+| `Core\Str::trim` | 3.00 | 2.00 | 1.00 | 51.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Str::trimEnd` | 3.00 | 2.00 | 1.00 | 55.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Str::trimStart` | 4.00 | 2.00 | 1.00 | 43.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Str::upper` | 4.00 | 2.00 | 1.00 | 49.3 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::upperFirst` | 4.00 | 2.00 | 1.00 | 48.7 |  |  | complexity linear, calls 2 | babfa73cbd11 |
+| `Core\Str::wrap` | 4.00 | 2.00 | 1.00 | 65.3 |  |  | complexity linear, calls 2 | babfa73cbd11 |
 | `Core\Taint::assertTrusted` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | bcd51e793119 |
 | `Core\Taint::assertTrustedBytes` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | bcd51e793119 |
 | `Core\Task::afterResponse` | 5.00 | 2.00 | 19.03 | 6220.0 | +1.000 | +1936.000 | complexity constant | bfb1fa66dfa4 |
@@ -997,29 +997,29 @@ marked `~`: it is the machine, not the code.
 | `Core\Topic::unsubscribe` | 6.00 | 2.00 | 5.00 | 90.0 | +2.000 | +63.000 | complexity constant | 0c6ddd43a805 |
 | `Core\Totp::check` | 5.00 | 1.00 | 0.00 | 0.0 |  | -0.002 | complexity linear, allocations 0 | bfb1fa66dfa4 |
 | `Core\Totp::code` | 3.00 | 2.00 | 1.00 | 46.0 |  | +8.000 | complexity linear | bfb1fa66dfa4 |
-| `Core\Uri::buildQuery` | 4.00 | 2.00 | 38.00 | 1226.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::compareTo` | 4.00 | 1.00 | 18.00 | 340.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::decodeComponent` | 3.00 | 2.00 | 2.00 | 62.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::decodeFormValue` | 3.00 | 2.00 | 2.00 | 58.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::encodeComponent` | 3.00 | 2.00 | 1.00 | 56.5 | -2.000 | -34.500 | complexity linear | b31d460051e9 |
-| `Core\Uri::encodeFormValue` | 3.00 | 2.00 | 1.00 | 49.0 | -1.000 | -9.000 | complexity linear | b31d460051e9 |
-| `Core\Uri::fragment` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::host` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::parse` | 4.00 | 3.00 | 6.50 | 464.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::parseQuery` | 4.00 | 2.00 | 15.70 | 760.9 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::path` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::port` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::query` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::queryParameter` | 4.00 | 2.00 | 16.00 | 623.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::resolve` | 4.00 | 3.00 | 7.00 | 464.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::scheme` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::sign` | 4.00 | 3.00 | 90.00 | 5570.0 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::toString` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::tryParse` | 6.00 | 2.00 | 2.50 | 338.5 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::userInfo` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | b31d460051e9 |
-| `Core\Uri::verifySignature` | 4.00 | 1.00 | 109.22 | 5281.4 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::with` | 4.00 | 3.00 | 8.67 | 480.3 |  |  | complexity linear | b31d460051e9 |
-| `Core\Uri::withQueryParameter` | 4.00 | 3.00 | 32.65 | 1114.4 |  |  | complexity linear | b31d460051e9 |
+| `Core\Uri::buildQuery` | 4.00 | 2.00 | 35.00 | 1144.0 | -3.000 | -82.000 | complexity linear | babfa73cbd11 |
+| `Core\Uri::compareTo` | 4.00 | 1.00 | 18.00 | 340.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::decodeComponent` | 3.00 | 2.00 | 2.00 | 62.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::decodeFormValue` | 3.00 | 2.00 | 2.00 | 58.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::encodeComponent` | 3.00 | 2.00 | 1.00 | 56.5 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::encodeFormValue` | 3.00 | 2.00 | 1.00 | 49.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::fragment` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::host` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::parse` | 4.00 | 3.00 | 6.50 | 464.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::parseQuery` | 4.00 | 2.00 | 11.30 | 672.1 | -4.398 | -88.813 | complexity linear | babfa73cbd11 |
+| `Core\Uri::path` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::port` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::query` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::queryParameter` | 4.00 | 2.00 | 10.00 | 585.5 | -6.000 | -37.500 | complexity linear | babfa73cbd11 |
+| `Core\Uri::resolve` | 4.00 | 3.00 | 7.00 | 464.0 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::scheme` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::sign` | 4.00 | 3.00 | 83.00 | 5298.0 | -7.000 | -272.000 | complexity linear | babfa73cbd11 |
+| `Core\Uri::toString` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::tryParse` | 6.00 | 2.00 | 2.50 | 338.5 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::userInfo` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | babfa73cbd11 |
+| `Core\Uri::verifySignature` | 4.00 | 1.00 | 100.23 | 4854.3 | -8.985 | -427.046 | complexity linear | babfa73cbd11 |
+| `Core\Uri::with` | 4.00 | 3.00 | 8.67 | 480.3 |  |  | complexity linear | babfa73cbd11 |
+| `Core\Uri::withQueryParameter` | 4.00 | 3.00 | 29.51 | 1071.2 | -3.140 | -43.154 | complexity linear | babfa73cbd11 |
 | `Core\Uuid::fromBytes` | 4.00 | 1.00 | 1.00 | 64.0 |  |  | complexity constant | bfb1fa66dfa4 |
 | `Core\Uuid::parse` | 4.00 | 1.00 | 1.00 | 64.0 |  |  | complexity constant | bfb1fa66dfa4 |
 | `Core\Uuid::toBytes` | 3.00 | 2.00 | 1.00 | 56.0 |  | +8.000 | complexity constant | bfb1fa66dfa4 |
@@ -1039,31 +1039,31 @@ marked `~`: it is the machine, not the code.
 | `Core\WebPush\Sent::gone` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | d3b2b8946baf |
 | `Core\WebPush\Sent::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | d3b2b8946baf |
 | `Core\WebPush\Subscription::endpoint` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | d3b2b8946baf |
-| `Core\Xml::parse` | 6.00 | 4.00 | 65.00 | 5788.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml::reader` | 8.00 | 4.00 | 52.00 | 3314.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml::writer` | 11.00 | 10.00 | 23.00 | 1572.0 |  |  | complexity linear, allocations 23 | 9284f7e0c6f4 |
-| `Core\Xml\Node::attributes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Xml\Node::children` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Xml\Node::kind` | 4.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
-| `Core\Xml\Node::name` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
-| `Core\Xml\Node::namespaceUri` | 4.50 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
-| `Core\Xml\Node::source` | 5.00 | 1.00 | 17.75 | 500.5 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Node::text` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
-| `Core\Xml\Reader::depth` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 9284f7e0c6f4 |
-| `Core\Xml\Reader::read` | 6.00 | 1.00 | 16.00 | 1025.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::attribute` | 6.06 | 1.03 | 3.31 | 291.6 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::cdata` | 4.00 | 1.00 | 0.02 | 67.2 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::comment` | 4.00 | 1.00 | 0.02 | 55.3 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::content` | 0.50 | 0.13 | 0.22 | 8.6 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::doctype` | 6.00 | 3.00 | 7.00 | 682.0 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::endDocument` | 7.00 | 6.00 | 10.00 | 887.5 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::endElement` | 7.50 | 2.00 | 4.52 | 227.6 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::instruction` | 4.00 | 1.00 | 0.01 | 33.4 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Xml\Writer::startDocument` | 5.00 | 2.00 | 6.00 | 567.0 |  |  | complexity constant | 9284f7e0c6f4 |
-| `Core\Xml\Writer::startElement` | 5.00 | 2.00 | 2.02 | 159.1 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Zip::entries` | 3.00 | 2.00 | 32.00 | 4388.5 |  |  | complexity constant, allocations 32, calls 2 | 9284f7e0c6f4 |
-| `Core\Zip::extract` | 4.00 | 2.00 | 306.00 | 297343.9 |  |  | complexity linear | 9284f7e0c6f4 |
-| `Core\Zip::read` | 3.00 | 2.00 | 16.00 | 142539.0 |  |  | complexity linear | 9284f7e0c6f4 |
+| `Core\Xml::parse` | 6.00 | 4.00 | 65.00 | 5788.0 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml::reader` | 8.00 | 4.00 | 52.00 | 3314.0 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml::writer` | 11.00 | 10.00 | 23.00 | 1572.0 |  |  | complexity linear, allocations 23 | 6c669083bc1b |
+| `Core\Xml\Node::attributes` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6c669083bc1b |
+| `Core\Xml\Node::children` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant | 6c669083bc1b |
+| `Core\Xml\Node::kind` | 4.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 6c669083bc1b |
+| `Core\Xml\Node::name` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 6c669083bc1b |
+| `Core\Xml\Node::namespaceUri` | 4.50 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 6c669083bc1b |
+| `Core\Xml\Node::source` | 5.00 | 1.00 | 17.75 | 500.5 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Node::text` | 3.66 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 6c669083bc1b |
+| `Core\Xml\Reader::depth` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 6c669083bc1b |
+| `Core\Xml\Reader::read` | 6.00 | 1.00 | 16.00 | 1025.0 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::attribute` | 6.06 | 1.03 | 3.31 | 291.6 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::cdata` | 4.00 | 1.00 | 0.02 | 67.2 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::comment` | 4.00 | 1.00 | 0.02 | 55.3 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::content` | 0.50 | 0.13 | 0.22 | 8.6 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::doctype` | 6.00 | 3.00 | 7.00 | 682.0 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::endDocument` | 7.00 | 6.00 | 10.00 | 887.5 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::endElement` | 7.50 | 2.00 | 4.52 | 227.6 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::instruction` | 4.00 | 1.00 | 0.01 | 33.4 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Xml\Writer::startDocument` | 5.00 | 2.00 | 6.00 | 567.0 |  |  | complexity constant | 6c669083bc1b |
+| `Core\Xml\Writer::startElement` | 5.00 | 2.00 | 2.02 | 159.1 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Zip::entries` | 3.00 | 2.00 | 32.00 | 4388.5 |  |  | complexity constant, allocations 32, calls 2 | 6c669083bc1b |
+| `Core\Zip::extract` | 4.00 | 2.00 | 306.00 | 297343.9 |  |  | complexity linear | 6c669083bc1b |
+| `Core\Zip::read` | 3.00 | 2.00 | 16.00 | 142539.0 |  |  | complexity linear | 6c669083bc1b |
 | `Novis\Image\Barcode::render` | 10.00 | 1.00 | 81.95 | 105423.5 |  |  | complexity constant | c283504a5d22 |
 | `Novis\Image\Barcode::svg` | 10.00 | 1.00 | 86.00 | 107293.4 |  |  | complexity constant | c283504a5d22 |
 | `Novis\Image\Codec::info` | 4.00 | 0.00 | 100.31 | 12662.5 |  |  | complexity constant | 25c4779f7055 |
@@ -1284,16 +1284,16 @@ marked `~`: it is the machine, not the code.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 30.00 | 2.00 | 31.00 | 884.0 |  |  | complexity linear | 86a90a32a544 |
 | `lang:iteration/the-two-interfaces` | 45.00 | 18.00 | 1.00 | 64.0 |  |  | complexity linear | 86a90a32a544 |
 | `lang:iteration/what-foreach-walks` | 19.00 | 0.00 | 0.00 | 0.0 |  |  | complexity linear | 86a90a32a544 |
-| `lang:programs/a-complete-program-annotated` | 11.00 | 1.00 | 6.00 | 392.0 |  |  | complexity nlogn | ba0f22eff7e6 |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | ba0f22eff7e6 |
-| `lang:programs/code-mode-and-html-mode` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | ba0f22eff7e6 |
-| `lang:programs/comments` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
-| `lang:programs/doc-comments` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
-| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 9.00 | 1.00 | 39.50 | 2938.0 |  |  | complexity constant | ba0f22eff7e6 |
-| `lang:programs/names-and-casing` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
-| `lang:programs/namespaces-and-use` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | ba0f22eff7e6 |
-| `lang:programs/require-run-another-file-in-this-frame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | ba0f22eff7e6 |
+| `lang:programs/a-complete-program-annotated` | 11.00 | 1.00 | 6.00 | 392.0 |  |  | complexity nlogn | 94f422ddd1b6 |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 94f422ddd1b6 |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 94f422ddd1b6 |
+| `lang:programs/code-mode-and-html-mode` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant | 94f422ddd1b6 |
+| `lang:programs/comments` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 94f422ddd1b6 |
+| `lang:programs/doc-comments` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 94f422ddd1b6 |
+| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 9.00 | 1.00 | 39.50 | 2938.0 |  |  | complexity constant | 94f422ddd1b6 |
+| `lang:programs/names-and-casing` | 4.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 94f422ddd1b6 |
+| `lang:programs/namespaces-and-use` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 94f422ddd1b6 |
+| `lang:programs/require-run-another-file-in-this-frame` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 94f422ddd1b6 |
 | `lang:statements/break-and-continue` | 29.41 | 0.00 | 0.00 | 0.0 |  | -0.002 | complexity linear, allocations 0, calls 0 | e57596567000 |
 | `lang:statements/catch-as-an-expression` | 6.33 | 1.33 | 4.67 | 341.6 |  | -0.002 | complexity constant | e57596567000 |
 | `lang:statements/echo-print-unset-exit-yield` | 6.00 | 0.00 | 1.00 | 1.0 |  |  | complexity constant, calls 0 | e57596567000 |
@@ -1350,6 +1350,14 @@ a person with a profiler looks first; it is not a verdict.
 |---|---|---|
 | `Core\Arr::hasKey` | Core\Arr | 1030.5 units against a `constant` ceiling of 100 |
 | `Core\Arr::shapeAs` | Core\Arr | 388.5 units against a `constant` ceiling of 100 |
+| `Core\BigInt::compareTo` | Core\BigInt | 29.4x its group's median of 1474.3 units |
+| `Core\BigInt::div` | Core\BigInt | 16.3x its group's median of 1474.3 units |
+| `Core\BigInt::of` | Core\BigInt | 602.9 units against a `constant` ceiling of 100 |
+| `Core\BigInt::ofUint` | Core\BigInt | 630.5 units against a `constant` ceiling of 100 |
+| `Core\BigInt::sign` | Core\BigInt | 1850.0 units against a `constant` ceiling of 100 |
+| `Core\BigInt::toDecimal` | Core\BigInt | 4459.5 units against a `constant` ceiling of 100 |
+| `Core\BigInt::toInt` | Core\BigInt | 3829.2 units against a `constant` ceiling of 100 |
+| `Core\BigInt::toUint` | Core\BigInt | 258.2 units against a `constant` ceiling of 100 |
 | `Core\Bytes::join` | Core\Bytes | 45.8x its group's median of 3512.2 units |
 | `Core\Bytes::length` | Core\Bytes | 6.8x its group's median of 3512.2 units — 23974.9 units against a `constant` ceiling of 100 |
 | `Core\Bytes::pack` | Core\Bytes | 6.9x its group's median of 3512.2 units |
@@ -1426,7 +1434,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Hash::stream` | Core\Hash | 2914.8 units against a `constant` ceiling of 100 |
 | `Core\Hash\Stream::finish` | Core\Hash\Stream | 2880.0 units against a `constant` ceiling of 100 |
 | `Core\Heap::pop` | Core\Heap | 240.6 units against a `constant` ceiling of 100 |
-| `Core\Html::later` | Core\Html | 4617.9 units against a `constant` ceiling of 100 |
+| `Core\Html::later` | Core\Html | 3423.4 units against a `constant` ceiling of 100 |
+| `Core\Html::parse` | Core\Html | 15.5x its group's median of 4610.9 units |
+| `Core\Html::sanitize` | Core\Html | 5.2x its group's median of 4610.9 units |
+| `Core\Html::toSource` | Core\Html | 4610.9 units against a `constant` ceiling of 100 |
 | `Core\Http\Event::data` | Core\Http\Event | 2749.9 units against a `constant` ceiling of 100 |
 | `Core\Http\Part::file` | Core\Http\Part | 11608.5 units against a `constant` ceiling of 100 |
 | `Core\Http\Stream::lines` | Core\Http\Stream | 22.4x its group's median of 1145.4 units |
@@ -1597,6 +1608,11 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::float` | Core\Random\Seeded | 1140.7 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::int` | Core\Random\Seeded | 1037.4 units against a `constant` ceiling of 100 |
 | `Core\Random\Seeded::pick` | Core\Random\Seeded | 271.0 units against a `constant` ceiling of 100 |
+| `Core\RateLimit::shed` | Core\RateLimit | 10043.3 units against a `constant` ceiling of 100 |
+| `Core\RateLimit\Decision::allowed` | Core\RateLimit\Decision | 2265.7 units against a `constant` ceiling of 100 |
+| `Core\RateLimit\Decision::limit` | Core\RateLimit\Decision | 2179.9 units against a `constant` ceiling of 100 |
+| `Core\RateLimit\Decision::remaining` | Core\RateLimit\Decision | 1982.4 units against a `constant` ceiling of 100 |
+| `Core\RateLimit\Decision::retryAfter` | Core\RateLimit\Decision | 2052.5 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forClass` | Core\Reflect | 952.1 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forObject` | Core\Reflect | 4756.9 units against a `constant` ceiling of 100 |
 | `Core\Reflect::typeOf` | Core\Reflect | 904.7 units against a `constant` ceiling of 100 |
@@ -1621,13 +1637,25 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Response::redirect` | Core\Response | 5.1x its group's median of 159.0 units |
 | `Core\Response::sendFile` | Core\Response | 302.8x its group's median of 159.0 units — 48143.7 units against a `constant` ceiling of 100 |
 | `Core\Response::slotted` | Core\Response | 39.2x its group's median of 159.0 units |
-| `Core\Router::dispatch` | Core\Router | 1035.1 units against a `constant` ceiling of 100 |
+| `Core\Router::dispatch` | Core\Router | 697.3 units against a `constant` ceiling of 100 |
+| `Core\Router::methodsFor` | Core\Router | 8.9x its group's median of 442.3 units |
+| `Core\Router\Match::access` | Core\Router\Match | 2635.8 units against a `constant` ceiling of 100 |
+| `Core\Router\Match::accessAs` | Core\Router\Match | 3769.9 units against a `constant` ceiling of 100 |
+| `Core\Router\Match::attribute` | Core\Router\Match | 2334.6 units against a `constant` ceiling of 100 |
+| `Core\Router\Match::method` | Core\Router\Match | 2671.3 units against a `constant` ceiling of 100 |
 | `Core\Router\Match::name` | Core\Router\Match | 271.2 units against a `constant` ceiling of 100 |
+| `Core\Router\Match::param` | Core\Router\Match | 950.4 units against a `constant` ceiling of 100 |
+| `Core\Router\Match::params` | Core\Router\Match | 3565.0 units against a `constant` ceiling of 100 |
 | `Core\Server::traceId` | Core\Server | 1487.2 units against a `constant` ceiling of 100 |
 | `Core\Session::destroy` | Core\Session | 59183.4 units against a `constant` ceiling of 100 |
-| `Core\Sse\Message::topic` | Core\Sse\Message | 35710.5 units against a `constant` ceiling of 100 |
-| `Core\Sse\Message::value` | Core\Sse\Message | 46007.3 units against a `constant` ceiling of 100 |
+| `Core\Sse::current` | Core\Sse | 7066.1 units against a `constant` ceiling of 100 |
+| `Core\Sse::retry` | Core\Sse | 12009.7 units against a `constant` ceiling of 100 |
+| `Core\Sse::stream` | Core\Sse | 2507.8 units against a `constant` ceiling of 100 |
+| `Core\Sse::upgrade` | Core\Sse | 99.3x its group's median of 12009.7 units — 1192540.6 units against a `constant` ceiling of 100 |
+| `Core\Sse\Message::topic` | Core\Sse\Message | 286782.9 units against a `constant` ceiling of 100 |
+| `Core\Sse\Message::value` | Core\Sse\Message | 286498.2 units against a `constant` ceiling of 100 |
 | `Core\Storage::delete` | Core\Storage | 79085.0 units against a `constant` ceiling of 100 |
+| `Core\Str::isEmpty` | Core\Str | 125.1 units against a `constant` ceiling of 100 |
 | `Core\Task::afterResponse` | Core\Task | 28464.9 units against a `constant` ceiling of 100 |
 | `Core\Task::all` | Core\Task | 32167.6 units against a `constant` ceiling of 100 |
 | `Core\Test::assertDoesNotThrow` | Core\Test | 3893.2 units against a `constant` ceiling of 100 |
@@ -1669,8 +1697,15 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\WebPush::applicationServerKey` | Core\WebPush | 102596.9 units against a `constant` ceiling of 100 |
 | `Core\WebPush\Sent::gone` | Core\WebPush\Sent | 827.1 units against a `constant` ceiling of 100 |
 | `Core\WebPush\Sent::status` | Core\WebPush\Sent | 1036.3 units against a `constant` ceiling of 100 |
-| `Core\Zip::entries` | Core\Zip | 13145.7 units against a `constant` ceiling of 100 |
-| `Core\Zip::extract` | Core\Zip | 40.5x its group's median of 13145.7 units |
+| `Core\Xml\Node::attributes` | Core\Xml\Node | 261.8 units against a `constant` ceiling of 100 |
+| `Core\Xml\Node::kind` | Core\Xml\Node | 330.4 units against a `constant` ceiling of 100 |
+| `Core\Xml\Node::name` | Core\Xml\Node | 126.0 units against a `constant` ceiling of 100 |
+| `Core\Xml\Node::namespaceUri` | Core\Xml\Node | 149.5 units against a `constant` ceiling of 100 |
+| `Core\Xml\Node::text` | Core\Xml\Node | 632.8 units against a `constant` ceiling of 100 |
+| `Core\Xml\Reader::depth` | Core\Xml\Reader | 169.0 units against a `constant` ceiling of 100 |
+| `Core\Xml\Writer::startDocument` | Core\Xml\Writer | 1523.2 units against a `constant` ceiling of 100 |
+| `Core\Zip::entries` | Core\Zip | 61133.4 units against a `constant` ceiling of 100 |
+| `Core\Zip::extract` | Core\Zip | 6.9x its group's median of 61133.4 units |
 | `Novis\Image\Barcode::render` | Novis\Image\Barcode | 1960563.0 units against a `constant` ceiling of 100 |
 | `Novis\Image\Barcode::svg` | Novis\Image\Barcode | 1953154.9 units against a `constant` ceiling of 100 |
 | `Novis\Image\Codec::info` | Novis\Image\Codec | 38301.3 units against a `constant` ceiling of 100 |
@@ -1803,7 +1838,7 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:expressions/logical-operators-and-truth` | lang:expressions | 447.7 units against a `constant` ceiling of 100 |
 | `lang:expressions/precedence-and-associativity` | lang:expressions | 636.9 units against a `constant` ceiling of 100 |
 | `lang:expressions/string-operators` | lang:expressions | 5.3x its group's median of 636.9 units |
-| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | lang:programs | 30101.9x its group's median of 0.7 units — 22567.4 units against a `constant` ceiling of 100 |
+| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | lang:programs | 25556.8x its group's median of 0.5 units — 11564.5 units against a `constant` ceiling of 100 |
 | `lang:statements/echo-print-unset-exit-yield` | lang:statements | 373.4 units against a `constant` ceiling of 100 |
 | `lang:statements/for` | lang:statements | 9.2x its group's median of 131.7 units — 1211.3 units against a `constant` ceiling of 100 |
 | `lang:statements/if-elseif-else` | lang:statements | 131.7 units against a `constant` ceiling of 100 |
@@ -1907,30 +1942,30 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ast\Node::offset` | 0.0 | 789.0 | 0.000 |  | flat | b31d460051e9 | 9fe4b43674ae7d306516a196be9a9024 |
 | `Core\Attributes::all` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | eda28e0511fd4ba90cd136c58cd0d2c1 |
 | `Core\Attributes::get` | 0.0 | 6290.6 | 0.000 | -100.0% | flat | 12bd24661f00 | eda28e0511fd4ba90cd136c58cd0d2c1 |
-| `Core\BigInt::abs` | 2298.4 | 14503.1 | 780.587 | -86.3% ~ | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::add` | 4209.4 | 18550.0 | 1429.572 |  | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::compareTo` | 6003.1 | 18743.0 | 2038.759 |  | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::div` | 7143.0 | 11627.3 | 2425.868 |  | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::format` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::gcd` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::lcm` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::mod` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::mul` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::neg` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::of` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::ofUint` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::pow` | 0.0 | 0.0 | 0.000 | -100.0% | flat, unclear | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::powMod` | 0.0 | 0.0 | 0.000 | -100.0% | flat, unclear | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::shl` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::shr` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::sign` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::sqrt` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::sub` | 0.0 | 3052.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::toDecimal` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::toInt` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::toString` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
-| `Core\BigInt::toUint` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | bfe29be8ae032e1c6d194000d964fd4d |
+| `Core\BigInt::abs` | 5136.3 | 6555.5 | 1474.325 | +123.5% | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::add` | 15327.0 | 19084.8 | 4399.430 | +264.1% | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::compareTo` | 151096.1 | 208962.9 | 43370.436 | +2417.0% | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::div` | 83600.0 | 221311.7 | 23996.441 | +1070.4% | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::format` | 0.0 | 1658.6 | 0.000 |  | flat, unclear | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::gcd` | 358.2 | 4994.1 | 102.818 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::lcm` | 4459.0 | 7109.8 | 1279.901 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::mod` | 0.0 | 1216.0 | 0.000 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::mul` | 14945.7 | 64519.1 | 4289.996 |  | flat, unclear | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::neg` | 3013.3 | 14321.5 | 864.928 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::of` | 2100.4 | 5676.2 | 602.894 |  | flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::ofUint` | 2196.5 | 5447.7 | 630.476 |  | flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::parse` | 20614.1 | 304102.0 | 5917.035 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::pow` | 1265.6 | 23557.0 | 363.283 |  | flat, unclear | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::powMod` | 7056.6 | 13365.2 | 2025.530 |  | flat, unclear | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::shl` | 3403.1 | 13385.2 | 976.829 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::shr` | 2336.7 | 3359.0 | 670.729 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::sign` | 6445.1 | 12625.3 | 1849.998 |  | flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::sqrt` | 0.0 | 6264.8 | 0.000 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::sub` | 24582.8 | 52207.4 | 7056.220 |  | flat, flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::toDecimal` | 15536.3 | 18741.4 | 4459.528 |  | flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::toInt` | 13340.2 | 21827.3 | 3829.164 |  | flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::toString` | 11824.2 | 36438.7 | 3394.009 |  | flat, unclear | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
+| `Core\BigInt::toUint` | 899.6 | 12107.8 | 258.223 |  | flat | f2dd5017e6fe | 4fb0bcc3d3aa78777de4eb01eb4e0cd6 |
 | `Core\Budget::memoryHeld` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bbfe493f30a832bc0794e5d01c8f8289 |
 | `Core\Budget::memoryLimit` | 0.0 | 46.3 | 0.000 | -100.0% | flat | 12bd24661f00 | bbfe493f30a832bc0794e5d01c8f8289 |
 | `Core\Budget::memoryPeak` | 0.0 | 195.0 | 0.000 | -100.0% | flat | 12bd24661f00 | bbfe493f30a832bc0794e5d01c8f8289 |
@@ -2122,12 +2157,12 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Heap::peek` | 0.0 | 151.5 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::pop` | 825.7 | 1849.8 | 240.587 | -5.9% ~ | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
 | `Core\Heap::push` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 12bd24661f00 | d3ca1ddf7615560e143a19cf57e44d79 |
-| `Core\Html::escape` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
-| `Core\Html::join` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
-| `Core\Html::later` | 7789.3 | 8184.1 | 4617.934 | -31.3% | flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
-| `Core\Html::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
-| `Core\Html::sanitize` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
-| `Core\Html::toSource` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | ae9a9606a19d459e22b415f08e913168 |
+| `Core\Html::escape` | 7009.4 | 10175.4 | 2001.764 |  | flat, flat | babfa73cbd11 | 04443943bc77af0368f7a056a69f1bbc |
+| `Core\Html::join` | 8003.5 | 12062.9 | 2285.674 |  | flat, flat | babfa73cbd11 | 04443943bc77af0368f7a056a69f1bbc |
+| `Core\Html::later` | 11987.5 | 12719.3 | 3423.449 | +53.9% | flat | babfa73cbd11 | 04443943bc77af0368f7a056a69f1bbc |
+| `Core\Html::parse` | 249516.8 | 322578.9 | 71257.938 |  | flat, flat | babfa73cbd11 | 04443943bc77af0368f7a056a69f1bbc |
+| `Core\Html::sanitize` | 84006.6 | 97174.6 | 23990.930 |  | flat, flat | babfa73cbd11 | 04443943bc77af0368f7a056a69f1bbc |
+| `Core\Html::toSource` | 16145.5 | 18225.4 | 4610.894 |  | flat | babfa73cbd11 | 04443943bc77af0368f7a056a69f1bbc |
 | `Core\Http::allowUrl` | 0.0 | 0.0 | 0.000 |  | flat, flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
 | `Core\Http::methodName` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
 | `Core\Http\Client::delete` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 3f9e0edb6a30 | 8a0a7fcbd09e319e9c78de68aabbc467 |
@@ -2494,11 +2529,11 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::sample` | 697.7 | 37377.0 | 189.869 |  | flat, flat | bfb1fa66dfa4 | 86a0769bcb90f97a75936220b11fd72d |
 | `Core\Random\Seeded::shuffle` | 3729.7 | 29968.8 | 1015.047 |  | flat, flat | bfb1fa66dfa4 | 86a0769bcb90f97a75936220b11fd72d |
 | `Core\Random\Seeded::token` | 5173.8 | 29810.2 | 1408.074 | -92.7% ~ | flat, flat | bfb1fa66dfa4 | 86a0769bcb90f97a75936220b11fd72d |
-| `Core\RateLimit::shed` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
-| `Core\RateLimit\Decision::allowed` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
-| `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
-| `Core\RateLimit\Decision::remaining` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
-| `Core\RateLimit\Decision::retryAfter` | 0.0 | 0.0 | 0.000 |  | flat | 3f9e0edb6a30 | a40b395b12afbe5154ff8b852a672e01 |
+| `Core\RateLimit::shed` | 35167.6 | 60968.8 | 10043.288 |  | flat | babfa73cbd11 | 0af5d53e7ad80bfce93bbe736ce3cd58 |
+| `Core\RateLimit\Decision::allowed` | 7933.5 | 10805.5 | 2265.677 |  | flat | babfa73cbd11 | 0af5d53e7ad80bfce93bbe736ce3cd58 |
+| `Core\RateLimit\Decision::limit` | 7633.3 | 9186.7 | 2179.947 |  | flat | babfa73cbd11 | 0af5d53e7ad80bfce93bbe736ce3cd58 |
+| `Core\RateLimit\Decision::remaining` | 6941.5 | 15856.6 | 1982.381 |  | flat | babfa73cbd11 | 0af5d53e7ad80bfce93bbe736ce3cd58 |
+| `Core\RateLimit\Decision::retryAfter` | 7187.0 | 8495.5 | 2052.494 |  | flat | babfa73cbd11 | 0af5d53e7ad80bfce93bbe736ce3cd58 |
 | `Core\Reflect::forClass` | 2961.3 | 8628.1 | 952.134 | -43.3% ~ | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
 | `Core\Reflect::forObject` | 14794.9 | 22031.6 | 4756.904 |  | flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
 | `Core\Reflect::steps` | 14519.5 | 22705.9 | 4668.359 | +301.0% | flat, flat | 2afea1f166db | 2851bb3b67385c2715074b5f30461a47 |
@@ -2598,21 +2633,21 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Response\Stream::length` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
 | `Core\Response\Stream::offset` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
 | `Core\Response\Stream::write` | 0.0 | 71.9 | 0.000 | -100.0% | skipped, flat | 9284f7e0c6f4 | ffbbe28ae68f0a209c0e7369b80901a9 |
-| `Core\Router::dispatch` | 3636.9 | 6604.1 | 1035.067 | -98.7% | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router::match` | 1452.5 | 3944.1 | 413.393 | -61.3% ~ | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router::methodsFor` | 4146.5 | 4516.4 | 1180.091 | -92.9% | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router::signedRoute` | 8319.5 | 10906.6 | 2367.741 | -61.6% | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router::url` | 4704.3 | 7878.9 | 1156.856 | -94.5% | flat, flat | 0129bcd837ec | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router::urlAbsolute` | 4271.9 | 4733.2 | 1215.777 | -64.0% | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router::urlSigned` | 11691.0 | 22812.5 | 3327.266 | +9.5% ~ | flat, flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router\Match::access` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router\Match::accessAs` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router\Match::attribute` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router\Match::is` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router\Match::method` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router::dispatch` | 3250.6 | 4572.9 | 697.304 | -10.6% ~ | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router::match` | 2061.7 | 2338.1 | 442.272 | +41.9% | flat, flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router::methodsFor` | 18302.3 | 21272.3 | 3926.151 | +341.4% | flat, flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router::signedRoute` | 2478.1 | 3002.0 | 531.598 | -70.2% | flat, flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router::url` | 0.0 | 680.9 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router::urlAbsolute` | 0.0 | 1751.2 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router::urlSigned` | 1924.2 | 2383.2 | 412.776 | -83.5% | flat, flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router\Match::access` | 9229.5 | 10928.4 | 2635.793 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router\Match::accessAs` | 13200.7 | 16408.0 | 3769.901 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router\Match::attribute` | 8175.0 | 10570.3 | 2334.647 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router\Match::is` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router\Match::method` | 9353.9 | 11642.9 | 2671.323 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
 | `Core\Router\Match::name` | 1057.4 | 4533.1 | 271.186 |  | flat | b358c465f632 | b0c8c8209978f0bbe6b373fe336b1489 |
-| `Core\Router\Match::param` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
-| `Core\Router\Match::params` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | 0e97cc92636fc96e12187b1aa5dbf7e5 |
+| `Core\Router\Match::param` | 3328.0 | 3515.7 | 950.417 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
+| `Core\Router\Match::params` | 12483.3 | 15587.8 | 3565.028 |  | flat | babfa73cbd11 | 7ecf9d7d92bd4cebabf95aaf41598fb2 |
 | `Core\Router\Responder` | 134607.4 | 146628.9 | 25422.330 |  | flat, flat | f2ed85dbe899 |  |
 | `Core\Script::args` | 0.0 | 0.0 | 0.000 | -100.0% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
 | `Core\Script::onExit` | 0.0 | 0.0 | 0.000 | -100.0% | flat | e24b0706338d | 9ad215f04aca81ba82b5d11a5dbea654 |
@@ -2649,58 +2684,58 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Socket\Message::text` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
 | `Core\Socket\Message::topic` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
 | `Core\Socket\Message::value` | 0.0 | 567.8 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 4b8bf90ef9e4f58fa1e5efc560dfd210 |
-| `Core\Sse::current` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse::receive` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse::retry` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse::send` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse::stream` | 0.0 | 0.0 | 0.000 |  | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse::upgrade` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse\Message::topic` | 60234.8 | 75567.9 | 35710.548 | -4.0% ~ | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
-| `Core\Sse\Message::value` | 77602.8 | 107697.5 | 46007.311 | +35.6% ~ | flat | 9284f7e0c6f4 | 20b0dc6a2bf3737056af2e6f6de217d3 |
+| `Core\Sse::current` | 24742.6 | 38497.3 | 7066.078 |  | flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse::receive` | 44526.6 | 52840.2 | 12716.062 |  | flat, flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse::retry` | 42053.1 | 47463.7 | 12009.688 |  | flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse::send` | 21148.0 | 29882.4 | 6039.538 |  | flat, flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse::stream` | 8781.2 | 12012.5 | 2507.782 |  | flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse::upgrade` | 4175800.0 | 5452900.0 | 1192540.553 |  | skipped | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse\Message::topic` | 1004199.0 | 1009637.4 | 286782.906 | +1567.1% | flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
+| `Core\Sse\Message::value` | 1003202.1 | 1005880.7 | 286498.187 | +1192.7% | flat | babfa73cbd11 | 012447f3abec44cb9f3d6b8e8daf80d4 |
 | `Core\Storage::delete` | 256705.9 | 261568.4 | 79084.970 | -22.3% | flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
 | `Core\Storage::get` | 139893.0 | 146106.6 | 43097.697 | -2.7% ~ | flat, flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
 | `Core\Storage::list` | 84407.8 | 90819.1 | 26004.040 | +15.9% | flat, flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
 | `Core\Storage::put` | 106456.2 | 115593.4 | 32796.639 | -7.6% ~ | flat, flat | 7ec957692e53 | 2e9538dff96dee6bec54547dfcf3e938 |
-| `Core\Str::after` | 27769.1 | 38418.8 | 16463.104 | +29.3% ~ | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::at` | 1471.5 | 30369.9 | 872.378 | -91.8% ~ | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::before` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::chunk` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::codePoints` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::compare` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::contains` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::countOf` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::endsWith` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::fold` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::format` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::fromCodePoint` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::fromCodePoints` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::graphemes` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::indexOf` | 0.0 | 853.1 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::isEmpty` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::join` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::lastIndexOf` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::length` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::lines` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::lower` | 0.0 | 3911.3 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::lowerFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::normalize` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::padEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::padStart` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::parts` | 16437.1 | 36051.6 | 9744.840 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::repeat` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::replace` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::replaceAll` | 55078.1 | 130743.0 | 32653.401 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::replaceRange` | 220150.8 | 307360.9 | 130517.730 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::reverse` | 77216.8 | 106238.3 | 45778.448 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::slice` | 104795.3 | 267416.0 | 62128.538 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::split` | 33201.6 | 35808.6 | 19683.749 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::startsWith` | 62521.1 | 135065.6 | 37066.011 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::trim` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::trimEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::trimStart` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::upper` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::upperFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
-| `Core\Str::wrap` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | 8b34673a6d1ac5e49811bcaf60bd35d6 |
+| `Core\Str::after` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::at` | 6841.8 | 8809.8 | 1953.906 | +365.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::before` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::chunk` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::codePoints` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::compare` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::contains` | 3361.5 | 3663.1 | 959.996 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::countOf` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::endsWith` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::fold` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::format` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::fromCodePoint` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::fromCodePoints` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::graphemes` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::indexOf` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::isEmpty` | 437.9 | 488.2 | 125.055 |  | flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::join` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::lastIndexOf` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::length` | 761.3 | 1252.0 | 217.423 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::lines` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::lower` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::lowerFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::normalize` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::padEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::padStart` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::parts` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::repeat` | 0.0 | 277653.9 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::replace` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::replaceAll` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::replaceRange` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::reverse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::slice` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::split` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::startsWith` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::trim` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::trimEnd` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::trimStart` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::upper` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::upperFirst` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
+| `Core\Str::wrap` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | f4cb53617adb1b110ddbf94ab7597aa0 |
 | `Core\Taint::assertTrusted` | 0.0 | 925.3 | 0.000 |  | flat | bcd51e793119 | f435f5854ce5445252827c55c30a1022 |
 | `Core\Taint::assertTrustedBytes` | 0.0 | 1088.2 | 0.000 |  | flat | bcd51e793119 | f435f5854ce5445252827c55c30a1022 |
 | `Core\Task::afterResponse` | 104591.4 | 137521.1 | 28464.894 | -78.4% | flat | bfb1fa66dfa4 | 700584153fc07378c101ba32e67c9ab7 |
@@ -2816,29 +2851,29 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Topic::unsubscribe` | 968.8 | 4634.0 | 312.374 |  | flat | 0c6ddd43a805 | 17daab7dba8614bc3028334bd7169134 |
 | `Core\Totp::check` | 427.3 | 1646.9 | 116.303 | +61.3% ~ | flat, flat | bfb1fa66dfa4 | a375e575f0bfb10fa649c455786d7f90 |
 | `Core\Totp::code` | 96.9 | 25217.6 | 26.365 |  | flat, flat | bfb1fa66dfa4 | a375e575f0bfb10fa649c455786d7f90 |
-| `Core\Uri::buildQuery` | 0.0 | 443.8 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::compareTo` | 0.0 | 0.0 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::decodeComponent` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::decodeFormValue` | 0.0 | 0.0 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::encodeComponent` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::encodeFormValue` | 0.0 | 0.0 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::fragment` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::host` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::parseQuery` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::path` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::port` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::query` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::queryParameter` | 0.0 | 0.0 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::resolve` | 0.0 | 931.6 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::scheme` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::sign` | 0.0 | 1007.8 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::toString` | 0.0 | 0.0 | 0.000 |  | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::tryParse` | 0.0 | 0.0 | 0.000 |  | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::userInfo` | 0.0 | 0.0 | 0.000 | -100.0% | flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::verifySignature` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::with` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
-| `Core\Uri::withQueryParameter` | 24.9 | 398.3 | 10.601 | -98.4% ~ | flat, flat | b31d460051e9 | 83a15f288998a2481452706ad5961f13 |
+| `Core\Uri::buildQuery` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::compareTo` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::decodeComponent` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::decodeFormValue` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::encodeComponent` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::encodeFormValue` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::fragment` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::host` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::parseQuery` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::path` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::port` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::query` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::queryParameter` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::resolve` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::scheme` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::sign` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::toString` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::tryParse` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::userInfo` | 0.0 | 0.0 | 0.000 |  | flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::verifySignature` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::with` | 0.0 | 0.0 | 0.000 |  | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
+| `Core\Uri::withQueryParameter` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | babfa73cbd11 | e9f178db3b8100f21fc1e627ee84b0d0 |
 | `Core\Uuid::fromBytes` | 18100.8 | 24550.4 | 4926.187 |  | flat | bfb1fa66dfa4 | 7d31c2337391b8d57387f48fd4de8d87 |
 | `Core\Uuid::parse` | 4634.0 | 11201.2 | 1261.154 | -59.9% ~ | flat | bfb1fa66dfa4 | 7d31c2337391b8d57387f48fd4de8d87 |
 | `Core\Uuid::toBytes` | 930.5 | 15447.3 | 253.230 | -97.8% ~ | flat | bfb1fa66dfa4 | 7d31c2337391b8d57387f48fd4de8d87 |
@@ -2858,31 +2893,31 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\WebPush\Sent::gone` | 2957.3 | 4248.2 | 827.108 |  | unclear | d3b2b8946baf | 38dbddefadb59a2b11566697f09b0118 |
 | `Core\WebPush\Sent::status` | 3705.5 | 4227.9 | 1036.350 |  | flat | d3b2b8946baf | 38dbddefadb59a2b11566697f09b0118 |
 | `Core\WebPush\Subscription::endpoint` | 54.3 | 202.7 | 16.925 |  | flat | d3b2b8946baf | 38dbddefadb59a2b11566697f09b0118 |
-| `Core\Xml::parse` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml::reader` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml::writer` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::attributes` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::children` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::kind` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::name` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::namespaceUri` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::source` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Node::text` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Reader::depth` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Reader::read` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::attribute` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::cdata` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::comment` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::content` | 0.0 | 0.0 | 0.000 |  | skipped, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::doctype` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::endDocument` | 0.0 | 0.0 | 0.000 |  | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::endElement` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::instruction` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::startDocument` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Xml\Writer::startElement` | 0.0 | 0.0 | 0.000 |  | unclear, flat | 9284f7e0c6f4 | d2efa09bd9819f2646985d6fbe80ae1a |
-| `Core\Zip::entries` | 22173.4 | 26473.4 | 13145.658 | -24.5% | flat, flat | 9284f7e0c6f4 | c1da3ac22b6874cb36049e4c72b3b282 |
-| `Core\Zip::extract` | 897448.4 | 922426.2 | 532057.767 | +4.5% | flat, flat | 9284f7e0c6f4 | c1da3ac22b6874cb36049e4c72b3b282 |
-| `Core\Zip::read` | 8008.6 | 11335.5 | 4747.944 | +12.0% ~ | flat, flat | 9284f7e0c6f4 | c1da3ac22b6874cb36049e4c72b3b282 |
+| `Core\Xml::parse` | 0.0 | 10938.7 | 0.000 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml::reader` | 1172.3 | 11480.5 | 517.032 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml::writer` | 0.0 | 2009.4 | 0.000 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::attributes` | 1129.7 | 1533.1 | 261.780 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::children` | 299.7 | 454.3 | 69.453 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::kind` | 1425.7 | 6170.2 | 330.356 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::name` | 543.7 | 1885.8 | 125.991 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::namespaceUri` | 645.3 | 1427.6 | 149.530 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::source` | 4910.5 | 8202.3 | 1137.860 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Node::text` | 2730.9 | 2890.2 | 632.788 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Reader::depth` | 729.3 | 2580.0 | 168.991 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Reader::read` | 5108.2 | 43320.7 | 1183.660 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::attribute` | 4330.5 | 9138.7 | 1003.445 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::cdata` | 2431.6 | 13119.9 | 563.454 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::comment` | 7752.3 | 17148.4 | 1796.354 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::content` | 999.9 | 2136.9 | 231.695 |  | skipped, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::doctype` | 7405.9 | 207332.8 | 1716.067 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::endDocument` | 21206.6 | 33705.1 | 4913.950 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::endElement` | 19005.9 | 43091.0 | 4403.990 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::instruction` | 10235.4 | 30522.7 | 2371.710 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::startDocument` | 6573.4 | 52903.9 | 1523.181 |  | flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Xml\Writer::startElement` | 5121.9 | 34193.4 | 1186.828 |  | flat, flat | 6c669083bc1b | 6f68805794630c958b7e45a9f80399be |
+| `Core\Zip::entries` | 138607.8 | 208496.1 | 61133.424 | +525.1% | flat, flat | 6c669083bc1b | 83b54fa950ae11a6507c65fdc1178e1d |
+| `Core\Zip::extract` | 952248.4 | 994546.1 | 419992.254 | +6.1% | flat, flat | 6c669083bc1b | 83b54fa950ae11a6507c65fdc1178e1d |
+| `Core\Zip::read` | 2952.0 | 5721.9 | 1301.968 | -63.1% ~ | flat, flat | 6c669083bc1b | 83b54fa950ae11a6507c65fdc1178e1d |
 | `Novis\Image\Barcode::render` | 7983118.4 | 8030926.6 | 1960562.977 |  | unclear | c283504a5d22 |  |
 | `Novis\Image\Barcode::svg` | 7952953.9 | 7979355.5 | 1953154.931 |  | flat | c283504a5d22 |  |
 | `Novis\Image\Codec::info` | 251339.1 | 532615.6 | 38301.328 |  | unclear | 25c4779f7055 |  |
@@ -3103,16 +3138,16 @@ a person with a profiler looks first; it is not a verdict.
 | `lang:iteration/materialising-a-sequence-core-arr-from` | 0.0 | 0.0 | 0.000 |  | flat, flat | 86a90a32a544 | 5f521933d911b84d02e632c19e7e36a1 |
 | `lang:iteration/the-two-interfaces` | 0.0 | 0.0 | 0.000 |  | flat, flat | 86a90a32a544 | 5f521933d911b84d02e632c19e7e36a1 |
 | `lang:iteration/what-foreach-walks` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 86a90a32a544 | 5f521933d911b84d02e632c19e7e36a1 |
-| `lang:programs/a-complete-program-annotated` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.7 | 3.6 | 1.040 | -15.7% ~ | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/autoload-find-a-class-by-its-namespace` | 0.0 | 0.0 | 0.000 | -100.0% | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/code-mode-and-html-mode` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/comments` | 2.2 | 2.4 | 0.859 | -31.7% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/doc-comments` | 1.9 | 2.3 | 0.750 | -35.1% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 58216.0 | 69439.1 | 22567.409 | -16.2% ~ | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/names-and-casing` | 2.4 | 2.6 | 0.934 | -13.0% | skipped | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/namespaces-and-use` | 0.0 | 0.0 | 0.000 |  | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
-| `lang:programs/require-run-another-file-in-this-frame` | 0.0 | 1685.4 | 0.000 | -100.0% | flat | ba0f22eff7e6 | de217f499051e149cf00e8eb40ea58a9 |
+| `lang:programs/a-complete-program-annotated` | 0.0 | 0.0 | 0.000 |  | flat, flat | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/a-program-is-a-file-of-top-level-statements` | 2.4 | 2.9 | 0.453 | -9.8% ~ | skipped | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/autoload-find-a-class-by-its-namespace` | 0.0 | 0.0 | 0.000 |  | flat | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/code-mode-and-html-mode` | 8.5 | 14.4 | 1.592 |  | skipped | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/comments` | 2.5 | 2.9 | 0.474 | +14.3% ~ | skipped | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/doc-comments` | 2.5 | 3.6 | 0.464 | +28.3% ~ | skipped | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file` | 61868.8 | 73632.4 | 11564.469 | +6.3% ~ | flat | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/names-and-casing` | 2.2 | 2.5 | 0.418 | -7.2% ~ | skipped | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/namespaces-and-use` | 0.0 | 0.0 | 0.000 |  | flat | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
+| `lang:programs/require-run-another-file-in-this-frame` | 0.0 | 0.0 | 0.000 |  | flat | 94f422ddd1b6 | dbd84b03b7dc1706c8cbdbf48cc7b0fb |
 | `lang:statements/break-and-continue` | 68.2 | 77.6 | 20.353 | +7.3% ~ | skipped, flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
 | `lang:statements/catch-as-an-expression` | 120.4 | 137.1 | 35.913 | -61.0% | skipped | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
 | `lang:statements/echo-print-unset-exit-yield` | 1251.6 | 2502.5 | 373.434 | +64.3% ~ | flat | e57596567000 | a83fdc728a3a54f2f7505ee302470534 |
