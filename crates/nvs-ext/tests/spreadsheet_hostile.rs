@@ -361,11 +361,13 @@ fn read_time(file: &[u8]) -> Duration {
 }
 
 /// Asserts that reading `large`, eight times `small`, costs at most four times as much per unit:
-/// the fastest of at least three reads of each, taken in turn so both see the same load
-/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run). While the
-/// fastest pair is over the bound, it takes another round, up to twelve. A burst of load
-/// beside the test slows the longer read more, and a quadratic path stays over the bound
-/// in every round.
+/// the fastest of at least three rounds, taken in turn so both see the same load
+/// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same run). One round times
+/// eight reads of `small` back to back as one figure, and one read of `large`. Both windows then
+/// hold the same work if the reader is linear, so a loaded machine has the same chance to slow
+/// each. A short window alone would often fall between two bursts of load, and a long one would
+/// not. While the fastest pair is over the bound, it takes another round, up to twelve. A
+/// quadratic path stays over the bound in every round.
 fn linear(small: &[u8], large: &[u8], what: &str) {
     linear_by(small, large, what, read_time);
 }
@@ -374,15 +376,15 @@ fn linear(small: &[u8], large: &[u8], what: &str) {
 fn linear_by(small: &[u8], large: &[u8], what: &str, time: fn(&[u8]) -> Duration) {
     let (mut fastest_small, mut fastest_large) = (Duration::MAX, Duration::MAX);
     for round in 0..12 {
-        fastest_small = fastest_small.min(time(small));
+        fastest_small = fastest_small.min((0..8).map(|_| time(small)).sum());
         fastest_large = fastest_large.min(time(large));
-        if round >= 2 && fastest_large < fastest_small * 32 {
+        if round >= 2 && fastest_large < fastest_small * 4 {
             break;
         }
     }
     assert!(
-        fastest_large < fastest_small * 32,
-        "{what}: N took {fastest_small:?} and 8N {fastest_large:?}"
+        fastest_large < fastest_small * 4,
+        "{what}: eight reads of N took {fastest_small:?} and one of 8N {fastest_large:?}"
     );
 }
 
