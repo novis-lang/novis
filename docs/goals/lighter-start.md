@@ -22,7 +22,7 @@ stages:
     context: [tools/nv/cmd/start-cost.ts, crates/nvs-cli/src/main.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: start-counted
@@ -208,67 +208,51 @@ before the first edit. The smallest one that links `std` is the comparison.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
-- [ ] `crates/nvs-cli/src/main.rs:134`: run `bun nv start-cost` once and write its table into the
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
+- [x] `crates/nvs-cli/src/main.rs:134`: run `bun nv start-cost` once and write its table into the
   module doc's `# What it costs`, with the `built_in` and `core` lines of what stays rewritten.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1,
-stage 3: 1, stage 4: 1, stage 5: 0.
+Every stage is done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1,
+stage 4: 1, stage 5: 1. The goal is reached.
 
-Stage 4's floor, from `bun nv start-cost --floor` on Linux in WSL: `nvs --version` takes 1,234
-minor faults and 9.97 ms, and `nvs-serve-probe --help` takes 109 and 5.38 ms. No major faults. About
-787 of the 1,125 more faults are the 158,070 relative relocations the loader writes into the 3.2 MB
-`.data.rel.ro`, which is 64% of `--version`'s faults. `crates/nvs-cli/src/main.rs`'s
-`## What it costs` has the table, and `### Backlog` has the two changes it suggests.
+`looper verify` was green on its first run (716 s), so no fix and no second run were needed.
+`bun nv start-cost`'s phase table is in `crates/nvs-cli/src/main.rs`'s `## What it costs`:
+22,942 allocations in all, from 26,069. `built_in` 5,726, `core` 6,099, `check` 9,508. The
+`built_in` and `core` bullets say what stages 1 to 3 changed.
 
-Stage 3's `core` is **6,099** allocations, from 8,109 (26.6% of a one-line `nvs check`'s start).
-`check` fell with it, to 9,508 from 9,652: a checked call's `Core` types hit the same table. The
-other phases did not move. `start_cost.rs`'s bounds are now `core` 6,800 and `check` 10,500.
-The table is `CoreName` in `crates/nvs-types/src/ty.rs`, inside the base's `TypeInterner`, and
-**Standing decisions** says why it sits there and not beside the interner.
-`every_core_class_builds_over_the_frozen_types` and `start_cost` each ran once and are green.
+The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes lighter-start` (no
+gap) and `bun nv ci --check`. Each standing decision's declined alternative now sits beside its
+code: `with_built_in`'s doc in `extensions.rs` and `core_names` in `crates/nvs-types/src/ty.rs`.
+The two floor suggestions of the backlog are under "Not built yet" in `main.rs`'s
+`## What it costs`, so nothing is lost when this file is deleted.
 
-Stage 2 is declined: a lazy parse needs four walks changed, not one lookup. The figure and the
-reason are in `crates/nvs-cli/src/extensions.rs`'s `# What it costs`. `built_in` is 5,726.
+The sweep's `env-secret-proofs` is stale state in looper's service, three sessions running:
+`looper check --name env-secret-proofs` finds no check, no log exists, and the only mention in the
+tree is this handoff. Nothing in the tree is red for it.
 
-`cheaper-pipeline`'s goal-end push has not run: `main` is not pushed, and the newest push run is
-still the base, 43649226665. Its runner-minutes are not recorded anywhere yet.
-
-The sweep's `env-secret-proofs` is no check: `looper check --name env-secret-proofs` finds none,
-and no log for it exists under `.looper/loops/main/checks/`. The sweep's list is stale, two
-sessions running. Nothing in the tree is red for it.
+`cheaper-pipeline`'s goal-end push has not run: `main` is not pushed. Its runner-minutes are not
+recorded anywhere yet.
 
 ### Next
 
-Stage 5: the goal is verified once, and every failure is fixed. Start `looper verify` with
-`run_in_background`, fix every failure in one pass, then run it once more.
+- `docs/goals/lighter-start.md:1`: nothing is left. The loop retires the goal, and `after_retire`
+  rebuilds `target/release/nvs`.
 
-- `crates/nvs-cli/src/main.rs:147`: after verify is green, run `bun nv start-cost` once and write
-  its phase table into `## What it costs`. Rewrite the `built_in` and `core` bullets of what stays:
-  the manifests are shared (stage 1), lazy parsing is declined (stage 2), and the `Core` names are
-  parsed once (stage 3). The floor paragraph below the table is stage 4's and stays.
-- Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes lighter-start`,
-  `bun nv ci --check`.
-
-No test is expected to go red. `tools/nv/test/start-cost.test.ts` is green (5 pass). A non-Windows
-runner's `start_cost` may count a few more allocations than the 10% margin allows. If one does,
-measure on that OS and set the bound from that figure.
+No test is expected to go red. A non-Windows runner's `start_cost` may count a few more
+allocations than the 10% margin allows. If one does, measure on that OS and set the bound from
+that figure.
 
 ### Backlog
 
 - **The 3.2 MB `.data.rel.ro` costs about 787 of `nvs --version`'s 1,234 minor faults (64%) and
-  0.4 ms per start.** Find what fills it (`&'static str` and pointer tables, among them the `Core`
-  registry's rows and its cards) and make the largest tables pointer-free, for example as offsets
-  into one string. A table that loses its pointers needs no relocations, so its pages are never
-  written at a start. Figure: up to 787 faults per start.
-- **`-z pack-relative-relocs` shrinks the 3.8 MB `.rela.dyn` into a RELR table of a few KiB.** That
-  cuts what the loader reads, but its writes to `.data.rel.ro` and their faults stay. It needs
-  glibc 2.36 or later on every Linux target a release supports, so check that first.
-- Declined: a non-PIE build. It removes every relative relocation and gives up ASLR, and
-  **security** outranks **latency**.
+  0.4 ms per start.** Make the largest pointer tables pointer-free, for example the `Core`
+  registry's rows as offsets into one string. Recorded in `main.rs`'s `## What it costs`.
+- **`-z pack-relative-relocs`** shrinks the 3.8 MB `.rela.dyn` to a few KiB, and needs glibc 2.36
+  on every Linux target a release supports. Recorded in the same place.
+- Declined: a non-PIE build. It gives up ASLR, and **security** outranks **latency**.

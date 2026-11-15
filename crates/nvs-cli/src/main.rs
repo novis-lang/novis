@@ -139,25 +139,26 @@
 //!
 //! | command | shared | fresh |
 //! |---|---:|---:|
-//! | `--version` | 11.4 ms | 12.8 ms |
-//! | `ast` | 11.4 ms | 13.1 ms |
-//! | `check` | 16.4 ms | 22.1 ms |
-//! | `run` | 19.7 ms | 30.0 ms |
+//! | `--version` | 14.3 ms | 16.3 ms |
+//! | `ast` | 14.8 ms | 17.5 ms |
+//! | `check` | 22.0 ms | 29.8 ms |
+//! | `run` | 26.0 ms | 39.2 ms |
 //!
-//! The debug `nvs check --count`, by start phase ([`phases`]); `run --count` differs only by six
+//! The debug `nvs check --count`, by start phase ([`phases`]); `run --count` differs only by seven
 //! configuration allocations. No phase reads a source file after the entry.
 //!
 //! | phase | allocations | bytes | settings | resolved | share |
 //! |---|---:|---:|---:|---:|---:|
-//! | configuration | 418 | 925,997 | 1 | 2 | 1.6% |
-//! | built_in | 6,699 | 1,075,168 | 0 | 0 | 25.7% |
+//! | configuration | 418 | 925,997 | 1 | 2 | 1.8% |
+//! | built_in | 5,726 | 1,017,315 | 0 | 0 | 25.0% |
 //! | grants | 25 | 1,229 | 0 | 0 | 0.1% |
-//! | core | 8,109 | 634,490 | 0 | 0 | 31.1% |
-//! | collection | 1,166 | 134,480 | 0 | 1 | 4.5% |
-//! | check | 9,652 | 696,515 | 0 | 0 | 37.0% |
+//! | core | 6,099 | 602,460 | 0 | 0 | 26.6% |
+//! | collection | 1,166 | 134,480 | 0 | 1 | 5.1% |
+//! | check | 9,508 | 692,507 | 0 | 0 | 41.4% |
 //!
-//! That is 26,069 allocations in all. The configuration is parsed once, the built-in manifests
-//! once, and only the `Core` classes a program names are lowered. A run that never spawns starts
+//! That is 22,942 allocations in all. The configuration is parsed once, the built-in manifests
+//! once and shared without a copy, the `Core` pre-pass parses each named type once, and only the
+//! `Core` classes a program names are lowered. A run that never spawns starts
 //! neither the revalidation thread nor the slice thread. The milliseconds are a note: two runs of
 //! one shape differ by about 4 ms here, and the counts are what a change is judged by.
 //!
@@ -179,14 +180,21 @@
 //! start. Declined: a non-PIE build, which removes the relocations and gives up ASLR, and
 //! **security** outranks **latency**.
 //!
+//! Not built yet: making the largest pointer tables in `.data.rel.ro` pointer-free, such as the
+//! `Core` registry's rows as offsets into one string, so their pages are never written at a start
+//! (up to 787 faults). And `-z pack-relative-relocs`, which shrinks the 3.8 MB `.rela.dyn` to a few
+//! KiB but leaves the writes; it needs glibc 2.36 on every Linux target a release supports.
+//!
 //! A change to a start is built only where this table gives its phase at least 5% of the
 //! allocations, one file read of 16 KiB or more, or one thread. What stays, and why:
 //!
-//! * `built_in` is nearly all the one parse of the built-in manifests' JSON and the copy of each
-//!   `Manifest` in `extensions::with_built_in`. Nothing removes it yet.
-//! * Most of `core` is the `Core` type pre-pass in `nvs_types::core_lib`: `QName::parse` and
-//!   argument vectors, paid again on every interner hit. Lowering a type without building its
-//!   `Ty` first would remove most of them.
+//! * `built_in` is nearly all the one parse of the built-in manifests' JSON.
+//!   `extensions::with_built_in` shares each `Manifest` as an `Arc` and copies none. Parsing a
+//!   component only when a program names its namespace is declined: it changes four walks of the
+//!   extension list, not one lookup, and `extensions.rs`'s `# What it costs` has the figure.
+//! * Most of `core` is the `Core` type pre-pass in `nvs_types::core_lib`. Each named `Core` type
+//!   is parsed once, and a repeat is a hit in the interner's `CoreName` table
+//!   (`nvs_types::ty`). What is left is the first lowering of each distinct type.
 //! * The watchdog thread starts with every run, because it enforces the CPU limit, and an
 //!   enforcement thread is not traded for a thread spawn.
 //! * Declined: a fast path past the full argument parser for `run`. Two parsers drift, and the

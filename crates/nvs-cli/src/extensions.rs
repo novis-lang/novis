@@ -167,7 +167,8 @@ static BUILT_IN: OnceLock<Result<Vec<Builtin>, String>> = OnceLock::new();
 ///
 /// No manifest is copied. A built-in one is shared with the process's list, and each of
 /// `manifests` is wrapped once. What it spends: one atomic count per manifest, and one count bump
-/// per built-in entry at each call.
+/// per built-in entry at each call. Declined: borrowing `&'static Manifest` beside the program's
+/// own list, which splits every reader into two iterators for the same saving.
 pub(crate) fn with_built_in(manifests: Vec<Manifest>) -> Vec<Arc<Manifest>> {
     let built_in = BUILT_IN_MANIFESTS.get_or_init(|| {
         nvs_ext::load::builtin_manifests()

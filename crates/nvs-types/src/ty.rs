@@ -526,7 +526,8 @@ pub struct TypeInterner {
     /// name, so a name the base has interned costs one lookup and no `QName`.
     /// It lives beside the ids it records, so an id here always names a type
     /// of this interner or its base. One entry per distinct named `Core` type,
-    /// a few hundred, held for the process in the base.
+    /// a few hundred, held for the process in the base. Declined: `QName` made
+    /// of shared segments, which touches every crate for the same saving.
     core_names: FxHashMap<CoreName, TypeId>,
 }
 
