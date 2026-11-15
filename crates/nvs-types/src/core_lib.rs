@@ -63,6 +63,14 @@ pub(crate) fn base() -> &'static Base {
     })
 }
 
+/// Builds the process's [`base`] now, if no check has built it yet.
+///
+/// The first check builds it anyway, at the same cost. A debug build of `nvs`
+/// calls this before its check, so `--count` gives the base a phase of its own.
+pub fn build_base() {
+    let _ = base();
+}
+
 /// Adds every native declaration to `table`: `Core`, then the error classes,
 /// then the iteration interfaces.
 pub(crate) fn seed_natives(table: &mut SignatureTable, interner: &mut TypeInterner) {

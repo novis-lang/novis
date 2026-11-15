@@ -76,6 +76,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   services: () => import("./cmd/services.ts"),
   soundness: () => import("./cmd/soundness.ts"),
   splice: () => import("./cmd/splice.ts"),
+  "start-cost": () => import("./cmd/start-cost.ts"),
   suite: () => import("./cmd/suite.ts"),
   sweep: () => import("./cmd/sweep.ts"),
   try: () => import("./cmd/try.ts"),

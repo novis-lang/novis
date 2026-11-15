@@ -182,6 +182,7 @@ mod meta;
 mod openapi;
 mod package;
 mod peer;
+mod phases;
 mod profile;
 mod queue;
 mod registry;
@@ -925,7 +926,8 @@ impl Checked {
     /// lexed a second time for it. `nodes` is [`nvs_syntax::walk`]'s tree,
     /// the one `Core\Ast` reads. `ir` is the instructions and terminators of
     /// every function, and is present only for a command that lowers. The
-    /// file-system counts follow it (`nvs_diagnostics::work`).
+    /// file-system counts follow it (`nvs_diagnostics::work`). A debug build
+    /// prints [`phases::line`] on the line after it.
     fn count_line(&self, program: Option<&nvs_ir::Program>) -> String {
         fn nodes(node: &nvs_syntax::walk::Node) -> usize {
             1 + node.children.iter().map(nodes).sum::<usize>()
@@ -956,6 +958,11 @@ impl Checked {
         // The file-system work this thread did since the process started: the
         // compile and the configuration it read run here, and nothing before them.
         line.push_str(&format!(" {}", nvs_diagnostics::work::so_far()));
+        // A debug build adds the `phases:` line, each start phase's own share ([`phases`]).
+        if let Some(phases) = phases::line() {
+            line.push('\n');
+            line.push_str(&phases);
+        }
         line
     }
 
@@ -1206,18 +1213,23 @@ fn front_end_in(
     };
     // A `config` list reads `[regex] backtracking` from the same tree as the grants. Without
     // one, the caller read the tree and passed the policy in.
+    let mark = phases::start();
     let (grants, extensions, backtracking) = match config {
         Some(config) => config::grants(config, configured, init)?,
         None => (None, extensions, backtracking),
     };
+    mark.end(phases::Phase::Configuration);
+    let mark = phases::start();
     let extensions = extensions::with_built_in(extensions);
     let classes = nvs_types::ext_lib::hir_classes(&extensions);
+    mark.end(phases::Phase::BuiltIn);
     // `rule:security/grants-are-keyed-on-a-namespace`'s table, from the nearest
     // `package.toml` at or above the entry. The walk starts at the entry and not
     // the working directory: a run started from another directory would
     // otherwise read no table, and every package would hold the application's
     // authority. Absolute, so a relative entry still walks above the working
     // directory.
+    let mark = phases::start();
     let start = std::path::absolute(configured).unwrap_or_else(|_| configured.to_path_buf());
     let mut namespace_grants = match nvs_config::grants::Grants::read(&start, &mut map) {
         Ok(read) => read,
@@ -1231,7 +1243,13 @@ fn front_end_in(
             return Err(ExitCode::FAILURE);
         }
     };
+    mark.end(phases::Phase::Grants);
 
+    let mark = phases::start();
+    // A debug build builds the `Core` signature base here, so the phase count
+    // names it. The first check builds it otherwise, at the same cost.
+    #[cfg(debug_assertions)]
+    nvs_types::core_lib::build_base();
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
     let sealed = nvs_stdlib::registry::sealed_classes();
@@ -1242,12 +1260,14 @@ fn front_end_in(
         sealed: &sealed,
         imports: &imports,
     };
+    mark.end(phases::Phase::Core);
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
     let mut lent: Option<nvs_hir::lenders::Lender> = None;
     let (mut diags, module, loaded, autoload, interner, exprs, enums, layouts) = loop {
         let borrowed = lent
             .as_ref()
             .map_or(&[][..], nvs_hir::lenders::Lender::sites);
+        let mark = phases::start();
         let (mut diags, module, loaded, autoload) =
             resolve_entry(&mut map, id, roster, strict_docs, borrowed, &classes);
         // `rule:packaging/a-package-file-stays-under-its-declared-prefix` and
@@ -1269,7 +1289,9 @@ fn front_end_in(
                 .iter()
                 .map(|package| (package.name().to_owned(), package.files().to_vec())),
         );
+        mark.end(phases::Phase::Collection);
 
+        let mark = phases::start();
         let mut interner = nvs_types::TypeInterner::new();
         let mut exprs = nvs_types::ExprTypeTable::new();
         // The one edge only the walk above knows — which file each written
@@ -1302,6 +1324,7 @@ fn front_end_in(
             &mut exprs,
             &mut diags,
         );
+        mark.end(phases::Phase::Check);
 
         // Both phases report an undeclared name: name resolution for a `use`,
         // an `extends` or the left of `::`, the type phase for a written type,
@@ -1332,8 +1355,10 @@ fn front_end_in(
             }
         }
 
+        let mark = phases::start();
         let layouts =
             (!diags.has_errors()).then(|| nvs_types::build_class_layouts(&files, &module.graph));
+        mark.end(phases::Phase::Check);
         drop(files);
         break (
             diags, module, loaded, autoload, interner, exprs, enums, layouts,
@@ -1971,8 +1996,10 @@ fn run_run(
     // its snapshot, and the extension host loads its set. A tree that does not resolve compiles
     // the program against no extension, and the refusal is reported where the snapshot is taken
     // below, so a program's own diagnostics still come first.
+    let mark = phases::start();
     let mut config_sources = SourceMap::new();
     let booted = config::boot_origins(config, Some(&config_entry), &mut config_sources, init);
+    mark.end(phases::Phase::Configuration);
     let extensions = match &booted {
         Ok((snapshot, origins)) => {
             match extensions::manifests(&snapshot.config, origins, &config_sources) {
