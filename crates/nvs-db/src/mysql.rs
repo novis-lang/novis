@@ -2624,6 +2624,19 @@ pub(crate) fn execute<S: Read + Write>(
     stmt: Prepared,
     params: &[Option<&[u8]>],
 ) -> io::Result<Answer> {
+    let payload = execute_payload(stmt, params)?;
+    wire.codec.reset_seq_id();
+    wire.send(&payload)?;
+    read_answer(wire, capabilities)
+}
+
+/// The `COM_STMT_EXECUTE` payload [`execute`] sends, built and not sent, so
+/// [`execute_many`] can put several of them in one write.
+///
+/// # Errors
+///
+/// As [`execute`]'s `InvalidInput`.
+fn execute_payload(stmt: Prepared, params: &[Option<&[u8]>]) -> io::Result<Vec<u8>> {
     if params.len() != usize::from(stmt.params) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -2658,10 +2671,7 @@ pub(crate) fn execute<S: Read + Write>(
     }
     let mut payload = Vec::new();
     request.serialize(&mut payload);
-
-    wire.codec.reset_seq_id();
-    wire.send(&payload)?;
-    read_answer(wire, capabilities)
+    Ok(payload)
 }
 
 /// `rule:core-classes/db-one-api`'s cache in front of [`prepare`]: the statement this connection is
@@ -2834,18 +2844,19 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// `rule:core-classes/db-statement-members`'s `executeMany`: one prepare, N `COM_STMT_EXECUTE`s, and the
 /// affected counts summed.
 ///
-/// **N round trips where [`crate::pg`]'s batch costs one, and the protocol is
-/// what decides that.** PostgreSQL's extended query puts every `Bind`/`Execute`
-/// pair in one flush because the replies are self-describing messages on a
-/// stream with no per-command numbering. A MySQL command restarts the packet
-/// sequence id ([`Wire::codec`]'s `reset_seq_id`), so two commands in flight are
-/// two packet runs numbered from the same 0 and nothing framing them tells the
-/// second reply from the first. What `executeMany` buys here is therefore the
-/// one prepare —
-/// paid once for the whole batch, which is what the cache gives a loop of
-/// [`start_statement`] anyway — and one member's worth of round trips is the
-/// honest price rather than a hidden one: `rule:core-classes/db-one-api` records the cost of this
-/// protocol rather than hiding it, and this is the same account.
+/// **The executes go out in windows of [`BATCH_WINDOW`] bytes, one write and
+/// one round trip per window.** The server reads commands off the socket in
+/// order and answers them in that order, so the answers are read one after
+/// another: [`Wire::send_all`] frames the window, and [`Wire::next_answer`]
+/// sets the codec's sequence id before each answer after the first. A window
+/// holds at least one set, so a set larger than the window goes out alone.
+/// The bound keeps a window inside the socket buffers: the client writes the
+/// whole window before it reads, and a server that cannot write its answers
+/// stops reading commands.
+///
+/// **What it spends:** one window of payloads, framed once more for the write,
+/// so about twice [`BATCH_WINDOW`] per batch in flight, and one trace span per
+/// set of the window.
 ///
 /// **The batch is not a transaction, and a refusal does not end it**, which is
 /// [`crate::pg`]'s `execute_many` semantics reached a different way: there each
@@ -2858,10 +2869,9 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// on either driver.
 ///
 /// **This is the loop on MariaDB too, and `COM_STMT_BULK_EXECUTE` is the thing
-/// it is deliberately not.** That command carries every set at once and would
-/// turn this member's N round trips into one, which is the only reason to want
-/// it — and the trade is refused because the ways it diverges are mostly in
-/// what a caller observes rather than in what the wire costs. A bulk command
+/// it is deliberately not.** That command carries every set at once, and the
+/// windows above already give the batch its round trips back. It is refused
+/// because the ways it diverges are in what a caller observes. A bulk command
 /// **ends** at a refusal where the paragraph above has the batch carry on, and
 /// no driver can hide the difference: PostgreSQL's flush is already gone by the
 /// time it reads the error, so the loop cannot be made to stop, and MariaDB's
@@ -2872,13 +2882,20 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// `rule:core-classes/db-statement-members` owns that decision and names what would reopen it.
 ///
 /// A wire failure is the one thing that does end it: a poisoned connection is
-/// one nothing can find a packet boundary in, so the remaining sets are not
+/// one nothing can find a packet boundary in, so the later windows are not
 /// written and that error is the answer even where a server refusal came first.
+/// The sets of the failing window after the failure were already written, so
+/// the server may have run them, as on [`crate::pg`]'s single flush. A set
+/// whose parameters do not fit one packet also ends the batch, after the sets
+/// before it are answered. Nothing was written for it, so the connection stays
+/// idle.
 ///
 /// A set that answered with a result set — MySQL has no `RETURNING`, but a
-/// `CALL` does it — is drained and contributes the rows it produced, which is
-/// the number [`MySqlRows::affected`] reports for one and the number
-/// PostgreSQL's `SELECT n` tag contributes to the other driver's sum.
+/// `CALL` does it — is drained by [`read_set`] and contributes the rows it
+/// produced, which is the number [`MySqlRows::affected`] reports for one and
+/// the number PostgreSQL's `SELECT n` tag contributes to the other driver's
+/// sum. A `CALL`'s further result sets are drained too, and the status packet
+/// that ends it adds its own count.
 ///
 /// An empty `sets` is the no-op answering `0`, with the busy check still ahead
 /// of it for [`crate::pg`]'s reason: `rule:core-classes/db-connection-busy-state`'s
@@ -2918,46 +2935,152 @@ pub(crate) fn execute_many<S: Read + Write>(
         ));
     }
 
+    state.set(State::Executing);
+    let stmt = match cached_statement(wire, capabilities, cache, sql, arity) {
+        Ok(stmt) => stmt,
+        Err(e) => return Err(poison_on_write(state, e)),
+    };
+
     let mut affected = 0_u64;
     let mut refused: Option<io::Error> = None;
-    for set in sets {
-        match execute_one(wire, state, capabilities, cache, sql, set) {
-            Ok(count) => affected += count,
-            Err(e) => {
-                if state.get() == State::Poisoned {
+    let mut rest = sets;
+    let mut unbuildable: Option<io::Error> = None;
+    while !rest.is_empty() && unbuildable.is_none() {
+        let mut payloads: Vec<Vec<u8>> = Vec::new();
+        let mut spans: Vec<QuerySpan> = Vec::new();
+        let mut bytes = 0_usize;
+        while let Some((set, tail)) = rest.split_first() {
+            if bytes >= BATCH_WINDOW {
+                break;
+            }
+            match execute_payload(stmt, set) {
+                Ok(payload) => {
+                    bytes += payload.len();
+                    payloads.push(payload);
+                    spans.push(QuerySpan::opened(Driver::MySql, sql));
+                    rest = tail;
+                }
+                Err(e) => {
+                    unbuildable = Some(e);
+                    break;
+                }
+            }
+        }
+        if payloads.is_empty() {
+            break;
+        }
+
+        let commands: Vec<&[u8]> = payloads.iter().map(Vec::as_slice).collect();
+        if let Err(e) = wire.send_all(&commands) {
+            return Err(poison_on_write(state, e));
+        }
+        let last = spans.len() - 1;
+        for (at, span) in spans.iter_mut().enumerate() {
+            if at > 0 {
+                wire.next_answer();
+            }
+            match read_set(wire, capabilities, span) {
+                Ok(count) => affected = affected.saturating_add(count),
+                Err(e) if ServerError::of(&e).is_some() => {
+                    refused.get_or_insert(e);
+                }
+                Err(e) => {
+                    if at < last {
+                        // Answers are still unread behind this one, so a
+                        // settle could not find the boundary either.
+                        wire.stalled = false;
+                    }
+                    state.set(State::Poisoned);
                     return Err(e);
                 }
-                refused.get_or_insert(e);
             }
         }
     }
 
-    match refused {
+    state.set(State::Idle);
+    match unbuildable.or(refused) {
         Some(e) => Err(e),
         None => Ok(affected),
     }
 }
 
-/// One of [`execute_many`]'s sets, drained, and what it changed.
+/// How many bytes of `COM_STMT_EXECUTE` payloads [`execute_many`] writes before
+/// it reads their answers: 64 KiB, which fits the default socket buffers of
+/// every platform CI runs on.
+const BATCH_WINDOW: usize = 64 * 1024;
+
+/// Reads one of [`execute_many`]'s answers to its end, and returns its count.
 ///
-/// Split out so the batch's own accounting is a `match` on one result rather
-/// than a stream held across the next iteration: a [`MySqlRows`] borrows the
-/// wire, and the count has to be read before it is dropped.
+/// A status packet is the count it carries. A result set is drained without
+/// decoding a row, and its count is the rows it had. A `CALL` sends one result
+/// set per `SELECT` it ran, each flagged `SERVER_MORE_RESULTS_EXISTS`, and then
+/// a status packet, so the reader goes on to the next answer while the flag is
+/// set and adds the counts.
 ///
 /// # Errors
 ///
-/// As [`start_statement`] and [`MySqlRows::next_row`].
-fn execute_one<S: Read + Write>(
+/// The server's own refusal, after which the wire is at a boundary.
+/// `InvalidData` for a packet the protocol does not allow here, and whatever
+/// the stream reported.
+fn read_set<S: Read + Write>(
     wire: &mut Wire<S>,
-    state: &Cell<State>,
     capabilities: CapabilityFlags,
-    cache: &mut StatementCache<Prepared>,
-    sql: &str,
-    set: &[Option<&[u8]>],
+    span: &mut QuerySpan,
 ) -> io::Result<u64> {
-    let mut rows = start_statement(wire, state, capabilities, cache, sql, set)?;
-    while rows.next_row()?.is_some() {}
-    Ok(rows.affected().unwrap_or(0))
+    let mut rows = 0_u64;
+    loop {
+        let columns = match read_answer(wire, capabilities) {
+            Ok(Answer::Done { affected, .. }) => {
+                let count = rows.saturating_add(affected);
+                span.finished(Some(count));
+                return Ok(count);
+            }
+            Ok(Answer::Columns(columns)) => columns,
+            Err(e) => {
+                span.finished(None);
+                return Err(e);
+            }
+        };
+        for _ in 0..columns {
+            wire.read_packet()?;
+        }
+        wire.owed = Owed::Rows;
+        loop {
+            let packet = wire.read_packet()?;
+            match packet.first() {
+                Some(0x00) => {
+                    rows += 1;
+                    span.row();
+                }
+                Some(0xFE) => {
+                    let status = OkPacketDeserializer::<ResultSetTerminator>::deserialize(
+                        capabilities,
+                        &mut ParseBuf(&packet),
+                    )?
+                    .into_inner()
+                    .status_flags();
+                    wire.owed = Owed::Nothing;
+                    if status.contains(StatusFlags::SERVER_MORE_RESULTS_EXISTS) {
+                        break;
+                    }
+                    span.finished(Some(rows));
+                    return Ok(rows);
+                }
+                Some(0xFF) => {
+                    wire.owed = Owed::Nothing;
+                    span.finished(None);
+                    return Err(server_refusal(wire.backend, &packet, capabilities));
+                }
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "the server sent something that is neither a binary row, the end of a \
+                         result set, nor an error",
+                    ));
+                }
+            }
+        }
+    }
 }
 
 /// `rule:core-classes/db-transactions`'s `START TRANSACTION`, or
@@ -8111,6 +8234,114 @@ mod tests {
             state.get(),
             State::Idle,
             "a batch that ended leaves the connection reusable"
+        );
+    }
+
+    /// A batch writes its executes in windows, one flush per window, and the
+    /// window closes once it holds `BATCH_WINDOW` bytes. Three small sets are
+    /// one window. Three sets of 40 KiB are two: the first two pass the bound,
+    /// and the third goes out alone.
+    #[test]
+    fn a_batch_writes_its_executes_in_windows_of_one_flush_each() {
+        const SQL: &str = "INSERT INTO t (a) VALUES (?)";
+        let server = |sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(21, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out
+            }
+            Some(0x17) => packet(1, &ok_packet(1, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        };
+
+        let mut wire = Wire::new(Peer::new(server));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+        let small: [[Option<&[u8]>; 1]; 3] = [[Some(b"x")], [Some(b"y")], [Some(b"z")]];
+        let sets: [&[Option<&[u8]>]; 3] = [&small[0], &small[1], &small[2]];
+        let written = execute_many(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            SQL,
+            &sets,
+        )
+        .expect("three small sets");
+        assert_eq!(written, 3);
+        assert_eq!(
+            wire.peer().flushes,
+            2,
+            "the prepare, then one flush for all three executes"
+        );
+
+        let big = vec![b'v'; 40 * 1024];
+        let large: [[Option<&[u8]>; 1]; 3] = [[Some(&big)], [Some(&big)], [Some(&big)]];
+        let sets: [&[Option<&[u8]>]; 3] = [&large[0], &large[1], &large[2]];
+        let written = execute_many(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            SQL,
+            &sets,
+        )
+        .expect("three large sets");
+        assert_eq!(written, 3);
+        assert_eq!(
+            wire.peer().flushes,
+            4,
+            "the cached statement needs no prepare, and the three sets are two windows"
+        );
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// A set answered with result sets, as a `CALL` is, is read to its last
+    /// status packet, and the set after it in the same window is still read.
+    /// The batch's count is the rows and the counts of both sets.
+    #[test]
+    fn a_batch_drains_a_calls_result_sets_and_reads_the_next_answer() {
+        const SQL: &str = "CALL p(?)";
+        const MORE_RESULTS: u16 = 0x0008;
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(23, 0, 1));
+                out.extend_from_slice(&packet(2, &column_def("a")));
+                out
+            }
+            Some(0x17) if contains(sent, b"rows") => {
+                let mut out = packet(1, &[0x01]);
+                out.extend_from_slice(&packet(2, &column_def("v")));
+                out.extend_from_slice(&packet(3, &[0x00, 0x00, 0x01, b'a']));
+                out.extend_from_slice(&packet(4, &[0x00, 0x00, 0x01, b'b']));
+                out.extend_from_slice(&packet(5, &result_set_end(0x0002 | MORE_RESULTS)));
+                out.extend_from_slice(&packet(6, &ok_packet(0, 0)));
+                out
+            }
+            Some(0x17) => packet(1, &ok_packet(1, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let state = Cell::new(State::Idle);
+        let mut cache = sized_cache(2);
+        let bound: [[Option<&[u8]>; 1]; 2] = [[Some(b"rows")], [Some(b"one")]];
+        let sets: [&[Option<&[u8]>]; 2] = [&bound[0], &bound[1]];
+
+        let written = execute_many(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            SQL,
+            &sets,
+        )
+        .expect("a CALL and a write the server answered");
+
+        assert_eq!(written, 3, "two rows from the CALL, and one changed row");
+        assert_eq!(wire.peer().flushes, 2);
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "every answer was read, so the connection is at a boundary"
         );
     }
 

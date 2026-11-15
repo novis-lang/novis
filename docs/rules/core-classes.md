@@ -2323,8 +2323,9 @@ so that code written against one driver runs on all five.
 one, which composes with savepoint nesting and with retry. It is one prepare and N executions on
 every driver, including MariaDB: its bulk-execute command ends on a refusal where the loop attempts
 every later set, and it cannot route a statement that answers with a result set, so taking it would
-mean one program leaving different rows in two servers. The price is N round trips where one command
-would do, and it is recorded here rather than hidden. An empty set list is a no-op answering `0`.
+mean one program leaving different rows in two servers. The executions are not N round trips: MySQL
+and MariaDB write them in windows of 64 KiB, one write and one round trip per window, and read each
+window's answers in order. An empty set list is a no-op answering `0`.
 `INSERT … ON DUPLICATE KEY UPDATE` reports `2` for a row it updated on MySQL and MariaDB; that is the
 server's number and it is not rewritten.
 
@@ -2365,7 +2366,7 @@ never change it. WAL is the session store's mode too, set by the same line.
   one would silently change lock duration on a large batch, and the caller's own `transaction()`
   already composes ([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)).
 - **MariaDB's `COM_STMT_BULK_EXECUTE`.** Taking it would spend a property of the surface on round
-  trips. `MARIADB_CLIENT_BULK_UNIT_RESULTS`, which answers per set, reopens it only once a real server
+  trips the windowed executions already save. `MARIADB_CLIENT_BULK_UNIT_RESULTS`, which answers per set, reopens it only once a real server
   is shown to continue past a refused set under it.
 
 <sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state).</sub>
