@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-runtime/src/release.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: scalars-inline
@@ -129,6 +129,13 @@ before the per-entry check ran. `NvsArray::reserve_within_budget` prices the res
 with the same fault the per-entry check gives. **What it spends:** nothing. A spread whose string
 keys overwrite keys the literal already has reserves a little more than it stores.
 
+**`echo` checks a string's UTF-8 at the sink.** Stage 3 had `write_rendered` read the payload with
+`as_text`, which skips the check. The gate's `echo_replaces_ill_formed_utf8_rather_than_writing_it`
+showed that an ill-formed payload then reaches `from_utf8_unchecked`. That is undefined behaviour in
+release, at the one place every byte of output passes. Security outranks the one scan, so the
+checked `from_utf8_lossy` read is back. Declined: skipping the check at the sink. **What it
+spends:** nothing in memory, and one scan per write.
+
 **Lanes:** stages 1 and 2 share `crates/nvs-codegen/src/emit.rs` and run in order. Stages 3 and 4
 touch only `crates/nvs-runtime/` and can run as a side goal beside them.
 
@@ -203,43 +210,30 @@ heap worklist.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1,
-stage 5: 0.
+Every stage is done, and the goal is reached. Sessions used: one per stage.
 
-- Stage 4: `Ctx::child` (`crates/nvs-runtime/src/ctx/isolate.rs:396`) calls the new
-  `Ctx::sharing` with its parent's tree and deadline. `Ctx::new` makes both and records `made`.
-  `origin` is an `Arc<str>`. `release.rs`'s `Worklist` keeps eight entries on the stack, in safe
-  code. Build and clippy ran. No test ran.
-- Since the last verify, stage 3 made integer keys render into a stack buffer and a spread reserve
-  once through `NvsArray::reserve_within_budget`. Stage 2 made a release that frees nothing inline.
-- Tests that may go red at the gate:
-  - a debug allocation count for spawning a task, now two lower;
-  - a count for freeing a nested graph, now one lower when at most eight containers wait;
-  - a budget test that expects a spread to fail after some entries: it now fails before the first;
-  - a test that a `mixed` key is a fresh copy: it is now the same string;
-  - a test that counts `nvs_*_release` calls in CLIF (`crates/nvs-codegen/tests/probes.rs`), or
-    expects a `refcount_calls()` release entry per row.
+- The first `looper verify` failed one test: `echo_replaces_ill_formed_utf8_rather_than_writing_it`.
+  Stage 3 had `write_rendered` (`crates/nvs-runtime/src/helpers.rs:3006`) read a string with
+  `as_text`, which skips the UTF-8 check. The checked `from_utf8_lossy` read is back, and
+  `## Standing decisions` records why. No other test went red.
+- The second `looper verify`, `bun nv verify --doc`, `bun nv owners --closes lean-generated-code`
+  and `bun nv ci --check` are green.
+- The three declined savings that only this file held are now in `nvs_codegen`'s module doc,
+  § *One tier, and scalar code*. Every other standing decision already lives in a module doc.
 - The sweep's `env-secret-proofs` is stale state in looper's service. Its log does not exist, and
   no goal in the tree defines it.
 
 ### Next
 
-Stage 5, the gate, in one session.
-
-- [ ] `crates/nvs-runtime/src/release.rs:1`: start `looper verify` with `run_in_background`,
-  then end the turn and wait for its report.
-- [ ] `crates/nvs-codegen/src/lib.rs:3913`: fix every failure it names in one pass. The likely
-  ones are under `### State`. A count that is now lower is set to the new count, never loosened.
-- [ ] `crates/nvs-runtime/src/array.rs:3747`: run `looper verify` once more, then
-  `bun nv verify --doc`, `bun nv owners --closes lean-generated-code` and `bun nv ci --check`.
+Nothing. The goal is reached, and its file is deleted when the goal is retired.
 
 ### Backlog
 

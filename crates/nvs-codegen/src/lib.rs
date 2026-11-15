@@ -166,6 +166,14 @@
 //! guarantee that a running request can have its probes turned on, which is a
 //! decision for that rule rather than a defect here.
 //!
+//! **Three savings are declined.** Cranelift's verifier stays on in every
+//! build, because it turns an emitter bug into a compile error, and a warm
+//! start from the artifact cache never pays it. A literal array key's hash is
+//! not written into the code, because a compiled unit is cached across
+//! processes and the hash key is drawn per process. No pass removes a retain
+//! and the release that pairs with it, because a wrong pair is a memory-safety
+//! bug and no measured program asks for it.
+//!
 //! **The safepoint poll is the one way a running request is stopped.** Every
 //! flag [`nvs_runtime::SafepointFlags`] defines — the CPU-time and wall-clock
 //! limits, cancellation, a collection, a debugger break, shutdown — is acted
