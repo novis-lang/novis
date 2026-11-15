@@ -908,6 +908,51 @@ impl<S: Read + Write> Wire<S> {
         result
     }
 
+    /// Frames each of `commands` as a command of its own, sequence id `0`, and
+    /// writes them all in one flush.
+    ///
+    /// The server reads commands off the socket in order, so their answers
+    /// come back in the same order. The caller reads each one, calling
+    /// [`Self::next_answer`] before every answer after the first. The codec
+    /// is left owing the first command's answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::send`].
+    pub(crate) fn send_all(&mut self, commands: &[&[u8]]) -> io::Result<()> {
+        self.owed = Owed::Nothing;
+        let mut out = BytesMut::new();
+        for command in commands {
+            self.codec.reset_seq_id();
+            self.codec
+                .encode(&mut &command[..], &mut out)
+                .map_err(codec_failed)?;
+        }
+        // The codec now owes the last command's answer, which has the same
+        // sequence id as the first one's.
+        let result = self
+            .stream
+            .write_all(&out)
+            .and_then(|()| self.stream.flush());
+        if result.is_err() {
+            self.stalled = false;
+        }
+        result
+    }
+
+    /// Sets the codec to read the answer to the next command of a
+    /// [`Self::send_all`]: sequence id `1`, as after sending one command.
+    ///
+    /// The codec has no setter for the id, so this frames an empty packet
+    /// into a buffer that is thrown away. Framing it moves the id from `0`
+    /// to `1`.
+    pub(crate) fn next_answer(&mut self) {
+        self.codec.reset_seq_id();
+        let mut discarded = BytesMut::with_capacity(4);
+        // An empty payload is never past `MAX_PACKET`, so this cannot fail.
+        let _ = self.codec.encode(&mut &[][..], &mut discarded);
+    }
+
     /// Reads until the inbox holds a whole packet, and takes its payload.
     ///
     /// Bytes that arrived after this packet — or the head of one that has not
@@ -2229,9 +2274,13 @@ impl Drop for MySqlConn {
 /// with the reset too, the real asymmetry with PostgreSQL, and the protocol's
 /// rather than a choice.
 ///
-/// **What it spends:** one `COM_INIT_DB` and one `SET ROLE` round trip per
-/// pooled release, on top of the reset and the `SET` the zone already cost.
-/// `Wire::send` flushes one command at a time, so the four are not pipelined.
+/// **The four commands go out in one write, and cost one round trip.**
+/// [`Wire::send_all`] frames them together, and their answers are read in
+/// order. Every answer is read before the connection is handed out, and the
+/// first that is not an `OK` fails the reset. The reset is never joined to a
+/// request's statement: a failed reset would run it under the last request's
+/// session. **What it spends:** one buffer of the four commands per pooled
+/// release, a few hundred bytes.
 ///
 /// Free and generic in the stream for this crate's usual reason: a
 /// `Wire<MyStream>` needs a socket and a certificate that no unit test has.
@@ -2248,8 +2297,50 @@ pub(crate) fn reset_session<S: Read + Write>(
     seconds_east: i32,
     cache: &mut StatementCache<Prepared>,
 ) -> io::Result<()> {
-    wire.codec.reset_seq_id();
-    wire.send(&[COM_RESET_CONNECTION])?;
+    let schema = if database.is_empty() {
+        let mut payload = vec![COM_QUERY];
+        payload.extend_from_slice(SELECT_DATABASE.as_bytes());
+        payload
+    } else {
+        let mut payload = vec![COM_INIT_DB];
+        payload.extend_from_slice(database.as_bytes());
+        payload
+    };
+    let mut set = vec![COM_QUERY];
+    set.extend_from_slice(
+        format!(
+            "SET character_set_client = utf8mb4, character_set_connection = utf8mb4, \
+             character_set_results = utf8mb4, collation_connection = utf8mb4_general_ci, \
+             time_zone = '{}'",
+            offset_literal(seconds_east)
+        )
+        .as_bytes(),
+    );
+    let mut role = vec![COM_QUERY];
+    role.extend_from_slice(roles.as_bytes());
+    wire.send_all(&[&[COM_RESET_CONNECTION], &schema, &set, &role])?;
+
+    let read = read_reset_answers(wire, capabilities, database.is_empty(), cache);
+    if read.is_err() {
+        // Answers may still be unread behind the failed one, so the wire has
+        // no boundary a settle could find. The pool closes the connection.
+        wire.stalled = false;
+    }
+    read
+}
+
+/// Reads the four answers [`reset_session`] is owed, in the order it sent the
+/// commands, and stops at the first that is not an `OK`.
+///
+/// # Errors
+///
+/// As [`reset_session`].
+fn read_reset_answers<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    no_database: bool,
+    cache: &mut StatementCache<Prepared>,
+) -> io::Result<()> {
     read_ok(wire, capabilities)?;
     // Emptied here rather than by the caller so the invalidation cannot be
     // forgotten by whoever pools the connection: the statements are gone from
@@ -2259,34 +2350,28 @@ pub(crate) fn reset_session<S: Read + Write>(
     // (`rule:security/db-pool-reset-is-a-boundary`), so what the cache holds
     // on that path is nobody's business.
     cache.clear();
-    if database.is_empty() {
+    wire.next_answer();
+    if no_database {
         no_database_is_selected(wire, capabilities)?;
     } else {
-        let mut payload = vec![COM_INIT_DB];
-        payload.extend_from_slice(database.as_bytes());
-        wire.codec.reset_seq_id();
-        wire.send(&payload)?;
         read_ok(wire, capabilities)?;
     }
-    run_own_text(
-        wire,
-        capabilities,
-        &format!(
-            "SET character_set_client = utf8mb4, character_set_connection = utf8mb4, \
-             character_set_results = utf8mb4, collation_connection = utf8mb4_general_ci, \
-             time_zone = '{}'",
-            offset_literal(seconds_east)
-        ),
-    )?;
-    run_own_text(wire, capabilities, roles)
+    wire.next_answer();
+    read_ok(wire, capabilities)?;
+    wire.next_answer();
+    read_ok(wire, capabilities)
 }
+
+/// The statement that reads the session's schema, `NULL` for none.
+const SELECT_DATABASE: &str = "SELECT DATABASE()";
 
 /// Checks that the session has no schema selected, for a connection that
 /// logged in with none.
 ///
 /// MySQL has no command that deselects a schema, so a request's `USE` on such
-/// a connection cannot be undone. This reads the session's schema, and a
-/// caller that gets an error closes the connection.
+/// a connection cannot be undone. This reads the answer to a
+/// [`SELECT_DATABASE`] the caller already sent, and a caller that gets an
+/// error closes the connection.
 ///
 /// # Errors
 ///
@@ -2296,7 +2381,7 @@ fn no_database_is_selected<S: Read + Write>(
     wire: &mut Wire<S>,
     capabilities: CapabilityFlags,
 ) -> io::Result<()> {
-    if own_text_cell(wire, capabilities, "SELECT DATABASE()")?.is_some() {
+    if read_text_cell(wire, capabilities, SELECT_DATABASE)?.is_some() {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "a request selected a database on a connection configured with none, and no \
@@ -2322,6 +2407,20 @@ fn own_text_cell<S: Read + Write>(
     payload.extend_from_slice(sql.as_bytes());
     wire.codec.reset_seq_id();
     wire.send(&payload)?;
+    read_text_cell(wire, capabilities, sql)
+}
+
+/// Reads the answer to `sql`, one of this module's own text statements that
+/// returns one row of one column, once it is sent.
+///
+/// # Errors
+///
+/// As [`own_text_cell`].
+fn read_text_cell<S: Read + Write>(
+    wire: &mut Wire<S>,
+    capabilities: CapabilityFlags,
+    sql: &str,
+) -> io::Result<Option<Vec<u8>>> {
     let unexpected = || {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -4642,16 +4741,18 @@ mod tests {
     ///
     /// [`crate::pg`]'s `Peer` and for its reason: an authentication exchange's
     /// every packet depends on the one before it, so a canned transcript could
-    /// only assert that we send *something*. A flush is the message boundary —
-    /// every write in this module is `write_all` then `flush` — so the Rust closure
-    /// is handed exactly what the driver considers one send.
+    /// only assert that we send *something*. A flush may carry several
+    /// commands, as [`super::Wire::send_all`]'s does, so the Rust closure is
+    /// handed each packet of a flush in turn, and answers each one.
     struct Peer<F: FnMut(&[u8]) -> Vec<u8>> {
         server: F,
         pending: Vec<u8>,
         inbound: Vec<u8>,
         read: usize,
-        /// Every flushed group, for the assertions that are about what we sent.
+        /// Every packet flushed, for the assertions that are about what we sent.
         sent: Vec<Vec<u8>>,
+        /// How many flushes carried those packets.
+        flushes: usize,
     }
 
     impl<F: FnMut(&[u8]) -> Vec<u8>> Peer<F> {
@@ -4662,6 +4763,7 @@ mod tests {
                 inbound: Vec::new(),
                 read: 0,
                 sent: Vec::new(),
+                flushes: 0,
             }
         }
     }
@@ -4674,8 +4776,17 @@ mod tests {
 
         fn flush(&mut self) -> io::Result<()> {
             let message = std::mem::take(&mut self.pending);
-            self.inbound.extend_from_slice(&(self.server)(&message));
-            self.sent.push(message);
+            self.flushes += 1;
+            let mut rest = &message[..];
+            while rest.len() >= 4 {
+                let len = usize::from(rest[0])
+                    | (usize::from(rest[1]) << 8)
+                    | (usize::from(rest[2]) << 16);
+                let (one, tail) = rest.split_at((4 + len).min(rest.len()));
+                self.inbound.extend_from_slice(&(self.server)(one));
+                self.sent.push(one.to_vec());
+                rest = tail;
+            }
             Ok(())
         }
     }
@@ -5759,15 +5870,16 @@ mod tests {
     /// The type: `MySqlConn::reset` takes `self` by value and names a
     /// `MySqlConn` only inside its `Ok`, so a refused reset leaves the caller
     /// nothing to pool. The write: the `?` in `reset` drops `self`, and
-    /// dropping it is [`super::say_goodbye`], so the last flush is one
-    /// `COM_QUIT` and no `SET time_zone` follows the refused reset. A
-    /// `Wire<MyStream>` needs a socket, so the two are asserted apart.
+    /// dropping it is [`super::say_goodbye`], so the only write after the
+    /// reset's own one is a `COM_QUIT`. A `Wire<MyStream>` needs a socket, so
+    /// the two are asserted apart.
     #[test]
     fn a_failed_reset_destroys_the_connection_rather_than_returning_it() {
         let _: fn(super::MySqlConn) -> io::Result<super::MySqlConn> = super::MySqlConn::reset;
 
         let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
             Some(0x1F) => packet(1, &error_packet(1227, "42000", "Access denied")),
+            Some(0x02 | 0x03) => packet(1, &ok_packet(0, 0)),
             Some(0x01) => Vec::new(),
             other => panic!("the driver sent command {other:?}"),
         }));
@@ -5789,8 +5901,13 @@ mod tests {
 
         assert_eq!(
             commands(&wire.peer().sent),
-            [Some(0x1F), Some(0x01)],
+            [Some(0x1F), Some(0x02), Some(0x03), Some(0x03), Some(0x01)],
             "a destroyed connection wrote something other than its goodbye"
+        );
+        assert_eq!(
+            wire.peer().flushes,
+            2,
+            "the reset and the goodbye"
         );
     }
 
@@ -5832,6 +5949,40 @@ mod tests {
                 NO_ROLE,
             ],
         );
+    }
+
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset in one write: the
+    /// four commands share one flush, and the driver reads the four answers
+    /// in the order it sent them before the reset passes.
+    #[test]
+    fn a_mysql_reset_is_one_write_and_reads_every_answer() {
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x1F | 0x02 | 0x03) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let mut cache = sized_cache(2);
+
+        super::reset_session(&mut wire, CLIENT_CAPABILITIES, "shop", NO_ROLE, 0, &mut cache)
+            .expect("a reset the server acknowledged");
+        assert_eq!(wire.peer().flushes, 1, "the reset took more than one write");
+        assert_eq!(
+            wire.peer().read,
+            wire.peer().inbound.len(),
+            "the reset passed with an answer still unread"
+        );
+
+        // A refused `SET ROLE`, the last answer, still fails the reset.
+        let mut refused = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(&COM_QUERY) if sent[5..].starts_with(b"SET ROLE") => {
+                packet(1, &error_packet(1227, "42000", "Access denied"))
+            }
+            Some(0x1F | 0x02 | 0x03) => packet(1, &ok_packet(0, 0)),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let failed =
+            super::reset_session(&mut refused, CLIENT_CAPABILITIES, "shop", NO_ROLE, 0, &mut cache)
+                .expect_err("a reset passed with its last command refused");
+        assert!(failed.to_string().contains("(code 1227)"), "{failed}");
     }
 
     /// The statement a reset runs for a login that holds no active role.
@@ -5912,7 +6063,7 @@ mod tests {
         assert_eq!(failed.kind(), io::ErrorKind::PermissionDenied, "{failed}");
         assert_eq!(
             commands(&chosen.peer().sent),
-            [Some(0x1F), Some(0x03)],
+            [Some(0x1F), Some(0x03), Some(0x03), Some(0x03)],
             "no `COM_INIT_DB` goes out for a connection with no database"
         );
 
