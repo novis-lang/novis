@@ -1524,6 +1524,22 @@ export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]
 }
 
 
+/** Which of `atoms` verify has proved over the tree as it stands: each the store records green and the
+ * change since the store's tree does not select, as an unnarrowed run decides it (`wanted`). A store with
+ * no tree settles nothing. `bun nv ci`'s pre-push checks skip each step settled here. What it spends: one
+ * `cargo metadata` and the change's git calls. */
+export async function settledSteps(atoms: readonly string[]): Promise<Set<string>> {
+  const store = new SelectStore();
+  try {
+    if (store.base() === null) return new Set();
+    const { change, sel } = await select(store, await metadata());
+    if (change.full) return new Set();
+    return new Set(atoms.filter((id) => !sel.selected.has(id) && store.atom(id)?.verdict === "green"));
+  } finally {
+    store.close();
+  }
+}
+
 const USAGE = "usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache] [--list]";
 
 export async function run(args: string[]): Promise<number> {

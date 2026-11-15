@@ -230,3 +230,12 @@ export async function passthrough(argv: string[], opts: Omit<RunOptions, "input"
     tree.close();
   }
 }
+
+/** Runs `body` over `items`, `width` at a time, each worker taking the next item in list order. */
+export async function pool<T>(items: T[], width: number, body: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await body(items[next++]!);
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(width, items.length)) }, worker));
+}

@@ -37,7 +37,18 @@
 // check refuses the push: the command exits 1, prints each red check and its command, and writes them to
 // `REFUSED`, which `--watch` and `--status` report as red until a push goes out. **`--check`** runs
 // the same checks and pushes nothing, for a session before it claims a goal done and for looper as the
-// floor check `ci-check` of `docs/goals/README.md`. The push itself starts
+// floor check `ci-check` of `docs/goals/README.md`.
+//
+// **The checks ahead of `rustdoc links` need no build, and start together**, `PRE_PUSH_WIDTH` at a time,
+// with the `cargo deny` checks one after another in one lane, since they share one advisory database.
+// Their verdicts print in list order once all of them end; the rest run one at a time after them. A check
+// with an `atom` is not run when `bun nv verify` has proved it over this tree: its step's atom is green in
+// the store and the change since the store's tree does not select it (`settledSteps`). `chapter
+// examples` has none, since it runs the debug binary and verify runs another. A green run writes `STAMP`:
+// `HEAD` and the tree's signature (`select/change.ts` `treeSig`). `--push` runs no check when `STAMP`
+// names the tree it pushes, commit and uncommitted bytes alike, so a push after a green `--check` checks
+// nothing twice. What it spends: one `git diff` and `git ls-files` for the signature, and one `cargo
+// metadata` and the change's git calls for the store's verdicts. The push itself starts
 // the push's `CI` and `Website` runs, so the command starts no run. It then
 // cancels every run of a workflow in `ONE_RUN_ON_MAIN` still going on `main` for an older commit, so each
 // workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`); `ci.yml`'s own
@@ -145,9 +156,10 @@
 // going, up to `LOGS_KEPT` job logs on disk, and `SEEN_KEPT` run ids in `SEEN`.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { run as proc } from "../lib/proc.ts";
+import { pool, run as proc } from "../lib/proc.ts";
 import { greenFullRun, type WorkflowRun } from "./release.ts";
 
 export const summary =
@@ -280,18 +292,20 @@ export interface PrePush {
   name: string;
   argv: string[];
   env?: Record<string, string>;
+  /** The step atom of `bun nv verify` that runs the same check, whose green in the store skips this one. */
+  atom?: string;
 }
 
 /** The checks `--push` runs before it pushes, cheapest first. Each is the step of a CI job (`ci.yml`'s
  * `lint`, `attribution`, `supply-chain`, `docs`, `reference` and `proofs` jobs) with the binary
  * named, so none reads a release binary built before the goal's own changes. */
 export const PRE_PUSH: PrePush[] = [
-  { name: "rustfmt", argv: ["cargo", "fmt", "--all", "--check"] },
-  { name: "lint tables", argv: ["bun", "nv", "lints", "--check"] },
-  { name: "rules", argv: ["bun", "nv", "rules", "--check"] },
-  { name: "rulebook pages", argv: ["bun", "nv", "rules", "--render", "--check"] },
-  { name: "rendered files", argv: ["bun", "nv", "render", "--check"] },
-  { name: "repository layout", argv: ["bun", "nv", "layout", "--check"] },
+  { name: "rustfmt", argv: ["cargo", "fmt", "--all", "--check"], atom: "step:fmt" },
+  { name: "lint tables", argv: ["bun", "nv", "lints", "--check"], atom: "step:lints" },
+  { name: "rules", argv: ["bun", "nv", "rules", "--check"], atom: "step:rules" },
+  { name: "rulebook pages", argv: ["bun", "nv", "rules", "--render", "--check"], atom: "step:rules-render" },
+  { name: "rendered files", argv: ["bun", "nv", "render", "--check"], atom: "step:render" },
+  { name: "repository layout", argv: ["bun", "nv", "layout", "--check"], atom: "step:layout" },
   { name: "third-party attribution", argv: ["bun", "nv", "gen-attribution", "--check"] },
   { name: "advisories", argv: ["cargo", "deny", "check", "advisories"] },
   ...LOCKFILE_DIRS.map((d): PrePush => ({
@@ -303,7 +317,9 @@ export const PRE_PUSH: PrePush[] = [
     name: "rustdoc links",
     argv: ["cargo", "doc", "--no-deps", "--workspace"],
     env: { RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" },
+    atom: "step:doc",
   },
+  // Not skipped by verify's `build`: that one builds `target/covws`, and the checks below read this one.
   { name: "build", argv: ["cargo", "build"] },
   // `nv reference` runs each example in a folder of its own, so the binary's path is absolute.
   { name: "chapter examples", argv: ["bun", "nv", "reference"], env: { NVS_BIN: join(ROOT, DEBUG_NVS) } },
@@ -312,8 +328,14 @@ export const PRE_PUSH: PrePush[] = [
   { name: "website stale guard", argv: ["bun", "nv", "site", "--check", "structure", "snippets", "stale", "questions", "syntax", "guides", "tools", "in-depth", "roadmap", "prose", "apps", "code", "--nvs", DEBUG_NVS] },
 ];
 
+/** The first `PRE_PUSH` check that runs after the ones started together. */
+const FIRST_IN_TURN = "rustdoc links";
+/** How many of the checks ahead of `FIRST_IN_TURN` run at once. */
+export const PRE_PUSH_WIDTH = Math.max(2, Math.min(6, availableParallelism()));
 /** Where a refused push leaves its red checks, under the root. */
 export const REFUSED = ".agent-tmp/ci/refused-push.txt";
+/** The tree whose `PRE_PUSH` checks last ended green, under the root: `{ head, sig }` as JSON. */
+export const STAMP = ".agent-tmp/ci/pre-push-green.json";
 /** The ended runs whose verdict a watch or `--status` printed, one id per line, under the root. */
 export const SEEN = ".agent-tmp/ci/seen-runs.txt";
 const SEEN_KEPT = 500;
@@ -335,6 +357,10 @@ export interface CiSeams {
   git(args: string[]): Promise<Ran>;
   /** Runs one `PRE_PUSH` check in the root. */
   check(c: PrePush): Promise<Ran>;
+  /** The tree as it stands: `HEAD`, and the signature of `HEAD` with the uncommitted bytes. */
+  tree(): Promise<Tree>;
+  /** Which of `atoms` `bun nv verify` has proved over the tree as it stands. */
+  settled(atoms: string[]): Promise<Set<string>>;
   sleep(ms: number): Promise<void>;
   now(): number;
   say(line: string): void;
@@ -356,6 +382,21 @@ const REAL: CiSeams = {
   check: async (c) => {
     const r = await proc(c.argv, { cwd: ROOT, timeoutMs: 1_800_000, env: c.env ?? {} });
     return { code: r.code, stdout: r.stdout, stderr: r.timedOut ? `${r.stderr}\ntimed out` : r.stderr };
+  },
+  // Both are imported when first used, so a `--watch` loads none of the selection's modules.
+  tree: async () => {
+    const { snapshot, treeSig } = await import("../select/change.ts");
+    const t = await snapshot(ROOT);
+    return { head: t.commit, sig: treeSig(t) };
+  },
+  // A store that cannot be read settles nothing, so every check runs.
+  settled: async (atoms) => {
+    try {
+      return await (await import("./verify.ts")).settledSteps(atoms);
+    } catch (e) {
+      console.log(`pre-push: verify's store could not be read, so every check runs: ${(e as Error).message.split("\n")[0]}`);
+      return new Set();
+    }
   },
   sleep: (ms) => Bun.sleep(ms),
   now: () => Date.now(),
@@ -818,12 +859,61 @@ export function checkLines(out: string): string[] {
   return [...lines.slice(0, CHECK_HEAD), "...", ...lines.slice(-(CHECK_LINES - CHECK_HEAD))];
 }
 
-/** Runs every `PRE_PUSH` check, and returns what each red one printed, empty when all are green. A
- * `cargo deny` that is not installed is passed over with a note, since CI's `supply-chain` job runs it. */
-export async function prePush(s: CiSeams): Promise<string[]> {
+/** A tree as `STAMP` records it. */
+export interface Tree {
+  head: string;
+  sig: string;
+}
+
+/** The tree `STAMP` names, or null when there is none or it cannot be read. */
+function stamped(root: string): Tree | null {
+  try {
+    const t = JSON.parse(readFileSync(join(root, STAMP), "utf8")) as Partial<Tree>;
+    return typeof t.head === "string" && typeof t.sig === "string" ? { head: t.head, sig: t.sig } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The checks ahead of `FIRST_IN_TURN` as lanes that run side by side, each lane's checks in turn: one
+ * lane per check, and one for every `cargo deny`. */
+function lanes(checks: PrePush[]): PrePush[][] {
+  const deny = checks.filter((c) => c.argv[1] === "deny");
+  const out = checks.filter((c) => c.argv[1] !== "deny").map((c) => [c]);
+  return deny.length > 0 ? [...out, deny] : out;
+}
+
+/**
+ * Runs every `PRE_PUSH` check, and returns what each red one printed, empty when all are green. A
+ * `cargo deny` that is not installed is passed over with a note, since CI's `supply-chain` job runs it.
+ * With `pushing`, the commit `--push` pushes, it runs none when `STAMP` names the tree as it stands.
+ * All green writes `STAMP`.
+ */
+export async function prePush(s: CiSeams, pushing?: string): Promise<string[]> {
+  const tree = await s.tree();
+  const was = stamped(s.root);
+  if (pushing !== undefined && was !== null && was.sig === tree.sig && was.head === pushing) {
+    s.say(`pre-push: every check ended green on this tree at ${short(tree.head)}, so none runs again`);
+    return [];
+  }
+  const settled = await s.settled(PRE_PUSH.flatMap((c) => (c.atom ? [c.atom] : [])));
+  const results = new Map<PrePush, Ran | null>();
+  const runOne = async (c: PrePush) => {
+    results.set(c, c.atom !== undefined && settled.has(c.atom) ? null : await s.check(c));
+  };
+  const split = PRE_PUSH.findIndex((c) => c.name === FIRST_IN_TURN);
+  const together = PRE_PUSH.slice(0, split);
+  await pool(lanes(together), PRE_PUSH_WIDTH, async (lane) => {
+    for (const c of lane) await runOne(c);
+  });
   const reds: string[] = [];
   for (const c of PRE_PUSH) {
-    const r = await s.check(c);
+    if (!results.has(c)) await runOne(c);
+    const r = results.get(c)!;
+    if (r === null) {
+      s.say(`pre-push: ${c.name}: green in verify for this tree, not run`);
+      continue;
+    }
     const out = `${r.stdout}\n${r.stderr}`;
     if (r.code === 0) s.say(`pre-push: ${c.name}: ok`);
     else if (c.argv[1] === "deny" && /no such (sub)?command/.test(out)) s.say(`pre-push: ${c.name}: cargo-deny is not installed, so CI's supply-chain job is the only check`);
@@ -833,6 +923,10 @@ export async function prePush(s: CiSeams): Promise<string[]> {
       reds.push([`${c.name}: red (\`${env}${c.argv.join(" ")}\` exited ${r.code})`, ...lines.map((l) => `  ${l}`)].join("\n"));
       s.say(`pre-push: ${c.name}: red`);
     }
+  }
+  if (reds.length === 0) {
+    mkdirSync(join(s.root, ".agent-tmp", "ci"), { recursive: true });
+    writeFileSync(join(s.root, STAMP), `${JSON.stringify(tree)}\n`);
   }
   return reds;
 }
@@ -848,7 +942,7 @@ export async function push(s: CiSeams): Promise<number> {
   const refused = join(s.root, REFUSED);
   if (head === remote) s.say(`origin/${BRANCH} is at ${short(head)} already: nothing to push`);
   else {
-    const reds = await prePush(s);
+    const reds = await prePush(s, head);
     if (reds.length > 0) {
       const text = `the push of ${BRANCH} at ${short(head)} was refused: ${reds.length} pre-push check(s) are red. Fix each, commit, and run \`bun nv ci --push\` again.\n\n${reds.join("\n\n")}\n`;
       mkdirSync(join(s.root, ".agent-tmp", "ci"), { recursive: true });
@@ -1232,9 +1326,13 @@ export interface Leg {
 
 const BUILD_YML = ".github/workflows/build.yml";
 
+/** The legs `build.yml`'s matrix lists: a YAML list, or the `${{ fromJSON(...) }}` expression that joins
+ * one JSON object per leg, each of which is read as a leg whichever run it is listed for. */
 function parseLegs(text: string): Leg[] {
-  const wf = (Bun.YAML.parse(text) ?? {}) as { jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] } } } } };
-  return wf.jobs?.build?.strategy?.matrix?.include ?? [];
+  const wf = (Bun.YAML.parse(text) ?? {}) as { jobs?: { build?: { strategy?: { matrix?: { include?: Leg[] | string } } } } };
+  const include = wf.jobs?.build?.strategy?.matrix?.include ?? [];
+  if (typeof include !== "string") return include;
+  return [...include.matchAll(/\{"name":[^{}]*\}/g)].map((m) => JSON.parse(m[0]) as Leg);
 }
 
 function buildLegs(root: string): Leg[] {

@@ -29,7 +29,7 @@ import { scanItems } from "../keys/scan.ts";
 import type { Graph } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, ROOT } from "../lib/paths.ts";
-import { run } from "../lib/proc.ts";
+import { pool, run } from "../lib/proc.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseDef, caseId, treeOf } from "./atoms.ts";
 import { buildScripts, type Generated, generatedDigest, generatedIncludes, generatedMeta } from "./build.ts";
@@ -55,14 +55,7 @@ export async function privateDir(dir: string): Promise<void> {
   if (r.code !== 0) throw new Error(`icacls ${dir} failed:\n${r.stdout}${r.stderr}`);
 }
 
-/** Runs `body` over `items`, `width` at a time. */
-export async function pool<T>(items: T[], width: number, body: (item: T) => Promise<void>): Promise<void> {
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) await body(items[next++]!);
-  };
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(width, items.length)) }, worker));
-}
+export { pool };
 
 export function chunks<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];

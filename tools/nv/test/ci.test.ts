@@ -7,7 +7,9 @@
 // `--release-status` judges a dry or a real run as `release.yml` does; `--approve-release` approves only
 // green builds; `--publish-release` publishes only a whole draft; and `--release-published` reads the
 // published release, its promote run and its image. `--green` exits 0 only when `origin/main` has the
-// built commit and each required workflow's push run on it ended green.
+// built commit and each required workflow's push run on it ended green. The pre-push checks that need
+// no build start together and print in list order, a push after a green check of the same tree runs no
+// check again, and a check verify proved over the tree is not run.
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -27,6 +29,7 @@ import {
   POLL_BUSY_MS,
   POLL_IDLE_MS,
   PRE_PUSH,
+  PRE_PUSH_WIDTH,
   type PrePush,
   PUBLISH_JOB,
   type Ran,
@@ -34,6 +37,7 @@ import {
   replacedByRelease,
   type Run,
   SEEN,
+  STAMP,
   tail,
   VISIBILITY_CLICK,
   WORKFLOW_FILES,
@@ -66,7 +70,8 @@ interface World {
   jobs: Record<number, Job[]>;
 }
 
-/** Seams over a scratch root, whose `gh` answers from `world(poll)`, where a sleep ends a poll. */
+/** Seams over a scratch root, whose `gh` answers from `world(poll)`, where a sleep ends a poll. Its tree
+ * is `tree.sig` at `tree.head`, and verify's store has proved no step over it. */
 function seams(name: string, world: (poll: number) => World | "fail", git: (args: string[]) => Ran = () => ok(""), check: (c: PrePush) => Ran = () => ok("")) {
   const root = join(TMP, name);
   mkdirSync(root, { recursive: true });
@@ -76,8 +81,11 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
   const slept: number[] = [];
   let poll = 0;
   let clock = 0;
+  const tree = { head: "new", sig: "tree-1" };
   const s: Partial<CiSeams> & { root: string } = {
     root,
+    tree: async () => ({ ...tree }),
+    settled: async () => new Set(),
     say: (l) => said.push(l),
     now: () => clock,
     sleep: async (ms) => {
@@ -101,7 +109,7 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
       return ok("");
     },
   };
-  return { s, said, asked, checked, slept };
+  return { s, said, asked, checked, slept, tree };
 }
 
 describe("bun nv ci --green", () => {
@@ -583,6 +591,72 @@ describe("bun nv ci --push", () => {
       c.argv[1] === "deny" ? { code: 101, stdout: "", stderr: "error: no such command: `deny`" } : ok(""));
     expect(await ci(["--push"], w.s)).toBe(0);
     expect(w.said).toContain("pre-push: advisories: cargo-deny is not installed, so CI's supply-chain job is the only check");
+  });
+
+  test("the checks that need no build start together, at most the width at once, and print in list order", async () => {
+    const w = seams("together", () => ({ runs: [], jobs: {} }), heads("new", "old"));
+    const split = PRE_PUSH.findIndex((c) => c.name === "rustdoc links");
+    const together = PRE_PUSH.slice(0, split);
+    let going = 0;
+    let most = 0;
+    let startedLate = false;
+    w.s.check = async (c) => {
+      w.checked.push(c.name);
+      if (!together.includes(c)) {
+        startedLate ||= going > 0;
+        return ok("");
+      }
+      going++;
+      most = Math.max(most, going);
+      // The pool starts each of its workers before any of them goes on, so one turn of the event loop
+      // leaves every lane started.
+      await new Promise<void>((done) => setImmediate(done));
+      going--;
+      return ok("");
+    };
+    expect(await ci(["--check"], w.s)).toBe(0);
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(PRE_PUSH_WIDTH);
+    expect(startedLate).toBe(false);
+    expect(w.said.filter((l) => l.startsWith("pre-push: "))).toEqual(PRE_PUSH.map((c) => `pre-push: ${c.name}: ok`));
+    // The `cargo deny` checks run one after another, in list order.
+    const deny = PRE_PUSH.filter((c) => c.argv[1] === "deny").map((c) => c.name);
+    expect(w.checked.filter((n) => deny.includes(n))).toEqual(deny);
+  });
+
+  test("a push after a green check of the same tree runs no check again, and a changed tree or a red check runs them all", async () => {
+    let red = false;
+    const w = seams("once", () => ({ runs: [], jobs: {} }), heads("new", "old"), (c) => (red && c.name === "rules" ? { code: 1, stdout: "a red rule", stderr: "" } : ok("")));
+    expect(await ci(["--check"], w.s)).toBe(0);
+    expect(JSON.parse(readFileSync(join(w.s.root, STAMP), "utf8"))).toEqual({ head: "new", sig: "tree-1" });
+    w.checked.length = 0;
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.checked).toEqual([]);
+    expect(w.asked).toContainEqual(["git", "push", "origin", "main:main"]);
+    // An uncommitted edit changes the signature, and every check runs again.
+    w.tree.sig = "tree-2";
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.checked).toEqual(PRE_PUSH.map((c) => c.name));
+    // A red check writes no stamp, so the next push of that tree checks it again.
+    w.tree.sig = "tree-3";
+    red = true;
+    expect(await ci(["--check"], w.s)).toBe(1);
+    red = false;
+    w.checked.length = 0;
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(w.checked).toEqual(PRE_PUSH.map((c) => c.name));
+  });
+
+  test("a check verify proved over this tree is not run, and the chapter examples always run", async () => {
+    const w = seams("settled", () => ({ runs: [], jobs: {} }), heads("new", "old"));
+    const atoms = PRE_PUSH.flatMap((c) => (c.atom ? [c.atom] : []));
+    w.s.settled = async (asked) => new Set(asked);
+    expect(await ci(["--check"], w.s)).toBe(0);
+    expect(w.checked).toEqual(PRE_PUSH.filter((c) => !c.atom).map((c) => c.name));
+    expect(w.checked).toContain("chapter examples");
+    expect(w.checked).toContain("build");
+    expect(atoms).toContain("step:fmt");
+    expect(w.said).toContain("pre-push: rustfmt: green in verify for this tree, not run");
   });
 
   test("the checks after `cargo build` read the debug binary it made", () => {
