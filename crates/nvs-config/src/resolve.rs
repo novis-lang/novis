@@ -270,7 +270,14 @@ impl Files for Unowned {
         Disk.read(path)
     }
 
+    /// The data folder's `nvs.toml` is read once per start: the first read takes the text the
+    /// refresh read ([`mod@crate::data`]), and is counted as a read like any other.
     fn read_config(&self, path: &Path) -> Result<String, String> {
+        if let Some(text) = crate::data::take_read(path) {
+            nvs_footprint::config(path);
+            nvs_diagnostics::work::count(nvs_diagnostics::work::Kind::Settings);
+            return Ok(text);
+        }
         Disk.read_config(path)
     }
 

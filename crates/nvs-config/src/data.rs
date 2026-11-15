@@ -45,13 +45,20 @@
 //! version's [`config_template`], so a block a later version removed never stops it from starting.
 //! A file somebody changed fails the hash and is never touched again.
 //!
+//! **That read is the start's only read of the file.** [`config_file`] keeps the text it read, or
+//! the template it wrote, and the first configuration read of [`crate::resolve::Unowned`] takes it
+//! (`take_read`). A read for that path gets the text and every other read goes to the disk. A
+//! reader with an ownership check never takes it, because its check runs before its read.
+//!
 //! Cost: one `current_exe` and one canonicalization per process, and at [`prepare`] one create
 //! attempt per folder plus the trust check's two reads, and at the first [`config_file`] one read
-//! and one hash of `nvs.toml`. Nothing here runs per request except
-//! [`create_private_dir`], which is the one create a temporary directory always cost.
+//! of `nvs.toml`. The template's hash is a constant `build.rs` computes, so a current file costs
+//! one comparison and an older one hash. What it spends: the file's text, held from the first
+//! [`config_file`] to the first configuration read, once per process. Nothing here runs per request
+//! except [`create_private_dir`], which is the one create a temporary directory always cost.
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::trust;
@@ -497,17 +504,55 @@ pub fn config_file() -> Option<PathBuf> {
     static REFRESHED: std::sync::Once = std::sync::Once::new();
     let folder = current()?;
     REFRESHED.call_once(|| {
-        let _ = folder.refresh_config();
+        if let (_, Some(text)) = folder.refresh_reading() {
+            *READ.lock().unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some((folder.config_file(), text));
+        }
     });
     Some(folder.config_file())
 }
+
+/// The text of [`config_file`]'s file as its first call read or wrote it, until `take_read`.
+static READ: Mutex<Option<(PathBuf, String)>> = Mutex::new(None);
+
+/// The text [`config_file`] kept, when `path` is its file. The first call empties the slot
+/// whatever `path` is, so the text is read at most once and never outlives the start's first
+/// configuration read.
+pub(crate) fn take_read(path: &Path) -> Option<String> {
+    let kept = READ
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .take()?;
+    (kept.0 == path).then_some(kept.1)
+}
+
+/// The hash in [`config_template`]'s marker line: `build.rs` hashes [`crate::default_file`].
+const DEFAULT_HASH: &str = include!(concat!(env!("OUT_DIR"), "/default_hash.rs"));
 
 /// The data folder's `nvs.toml` as Novis writes it: [`mark`]'s line for this version, then
 /// [`crate::default_file`]. `nvs init` writes the template without the line, because that file is
 /// the operator's to edit from the start.
 #[must_use]
 pub fn config_template() -> String {
-    mark(env!("CARGO_PKG_VERSION"), crate::default_file())
+    format!(
+        "{MARK_HEAD}{}{MARK_WROTE}{MARK_HASH}{DEFAULT_HASH}\n{}",
+        env!("CARGO_PKG_VERSION"),
+        crate::default_file()
+    )
+}
+
+/// Whether `text` is [`config_template`], compared without building it.
+fn is_template(text: &str) -> bool {
+    let Some((line, body)) = text.split_once('\n') else {
+        return false;
+    };
+    body == crate::default_file()
+        && line
+            .strip_prefix(MARK_HEAD)
+            .and_then(|rest| rest.strip_prefix(env!("CARGO_PKG_VERSION")))
+            .and_then(|rest| rest.strip_prefix(MARK_WROTE))
+            .and_then(|rest| rest.strip_prefix(MARK_HASH))
+            == Some(DEFAULT_HASH)
 }
 
 /// `body` under the marker line that says Novis `version` wrote it: one comment line of plain text
@@ -515,14 +560,16 @@ pub fn config_template() -> String {
 #[must_use]
 pub fn mark(version: &str, body: &str) -> String {
     format!(
-        "{MARK_HEAD}{version} wrote this file. Novis updates it when you update Novis, unless you \
-         change it.{MARK_HASH}{}\n{body}",
+        "{MARK_HEAD}{version}{MARK_WROTE}{MARK_HASH}{}\n{body}",
         blake3::hash(body.as_bytes()).to_hex()
     )
 }
 
 /// How [`mark`]'s line starts.
 const MARK_HEAD: &str = "# Novis ";
+/// What comes after the version in [`mark`]'s line.
+const MARK_WROTE: &str =
+    " wrote this file. Novis updates it when you update Novis, unless you change it.";
 /// What comes before the hash at the end of [`mark`]'s line.
 const MARK_HASH: &str = " blake3:";
 
@@ -567,33 +614,42 @@ impl Folder {
     /// old file as it was and is returned rather than printed: a service whose `nvs.toml` is
     /// read-only to it reads the file as it is, every start.
     pub fn refresh_config(&self) -> Refresh {
+        self.refresh_reading().0
+    }
+
+    /// [`Folder::refresh_config`], and the file's text after it: the text it read, or the template
+    /// it wrote. `None` when it skipped the file.
+    fn refresh_reading(&self) -> (Refresh, Option<String>) {
         let file = self.config_file();
         let Ok(text) = std::fs::read_to_string(&file) else {
-            return Refresh::Skipped(format!("`{}` cannot be read", file.display()));
+            let why = format!("`{}` cannot be read", file.display());
+            return (Refresh::Skipped(why), None);
         };
-        let template = config_template();
-        if text == template {
-            return Refresh::Current;
+        if is_template(&text) {
+            return (Refresh::Current, Some(text));
         }
         if !unedited(&text) {
-            return Refresh::Edited;
+            return (Refresh::Edited, Some(text));
         }
         if let Err(why) = self.check().and_then(|_| trust::check(&file)) {
-            return Refresh::Skipped(why.message().to_owned());
+            return (Refresh::Skipped(why.message().to_owned()), None);
         }
         let old = match std::fs::symlink_metadata(&file) {
             Ok(old) if !old.is_file() => {
-                return Refresh::Skipped(format!("`{}` is not a plain file", file.display()));
+                let why = format!("`{}` is not a plain file", file.display());
+                return (Refresh::Skipped(why), None);
             }
             Ok(old) if old.permissions().readonly() => {
-                return Refresh::Skipped(format!("`{}` is read-only", file.display()));
+                let why = format!("`{}` is read-only", file.display());
+                return (Refresh::Skipped(why), None);
             }
             Ok(old) => old,
-            Err(err) => return Refresh::Skipped(err.to_string()),
+            Err(err) => return (Refresh::Skipped(err.to_string()), None),
         };
+        let template = config_template();
         match replace(&file, &template, &old) {
-            Ok(()) => Refresh::Replaced,
-            Err(err) => Refresh::Skipped(err.to_string()),
+            Ok(()) => (Refresh::Replaced, Some(template)),
+            Err(err) => (Refresh::Skipped(err.to_string()), None),
         }
     }
 }
@@ -1152,6 +1208,13 @@ mod tests {
         assert_eq!(rest, OLD_BODY);
         assert!(super::unedited(&written));
         assert!(super::unedited(&super::config_template()));
+        assert_eq!(
+            super::config_template(),
+            super::mark(env!("CARGO_PKG_VERSION"), crate::default_file()),
+            "the hash `build.rs` wrote is the shipped file's"
+        );
+        assert!(super::is_template(&super::config_template()));
+        assert!(!super::is_template(&written));
         assert!(!super::unedited(&written.replace("# socket", "socket")));
         assert!(!super::unedited(OLD_BODY));
         assert!(!super::unedited(""));
