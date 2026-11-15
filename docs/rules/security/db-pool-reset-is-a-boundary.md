@@ -72,3 +72,6 @@ switch is unscoped: a `[db.pool]` table of bounds is refused at boot, because no
 - **`DISCARD ALL` on PostgreSQL.** It also deallocates every prepared statement, which would throw
   away the statement cache (`rule:core-classes/db-one-api`) that pooling exists to preserve.
 - **One process-wide pool.** It needs a lock on every acquire.
+- **Sending the reset in the same write as the request's first statement.** A reset that failed
+  would run that statement under the last request's role. The reset's own commands share one write,
+  and every answer to them is read before the connection is handed out.

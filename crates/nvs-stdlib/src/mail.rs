@@ -77,6 +77,9 @@
 //! transport has to choose a `Content-Type` regardless and a mail with no plain-text alternative is
 //! a mail half its readers cannot read; anything richer — templates, files, `multipart/related` —
 //! belongs to the program or a package, which composes *into* these arguments.
+//!
+//! **Declined:** keeping an SMTP session open between messages. Each send opens its own
+//! connection and closes it, and no measured program sends enough mail for the handshake to count.
 
 use std::io::{Read, Write};
 use std::net::SocketAddr;

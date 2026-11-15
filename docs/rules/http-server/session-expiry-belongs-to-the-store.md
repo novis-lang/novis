@@ -16,3 +16,5 @@ statement on the blocking pool beside the write that ran it.
   same small delete once a minute.
 - **A sweep run by a scheduled job.** It would need a `[[schedule]]` entry nobody wrote, so a
   deployment with no configuration would never sweep.
+- **Moving the SQLite store's reads and writes off the core thread.** Each is one indexed statement
+  on a local file, and no measured program waits on it. It is reconsidered when one does.

@@ -26,6 +26,13 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A goal that changes a `Core` member's source file makes that member's perf record stale, and
+  `bun nv ci --check` shows only the first 29.** Recording those 29 brought the next batch to
+  light. List every one with `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe`, grepped
+  for `perf: stale`. Then build the release binary with `bun nv relink --build`, and record them in
+  one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
+  --only`. A doc comment edit in that file makes it stale again, so edit first and measure last.
+  See `tools/nv/proofs/collect.ts` `perfAny`.
 - **Three readers parse `.github/workflows/build.yml`'s matrix: `bun nv ci`, the supply-chain test
   and `extension_release`.** A workflow edit that changed the matrix's shape made 33 tests of
   `tools/nv/test/ci.test.ts` throw, and a later one broke the other two, and no session saw it until

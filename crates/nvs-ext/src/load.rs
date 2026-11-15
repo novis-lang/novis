@@ -72,6 +72,9 @@
 //! Cost: one SHA-256 of the file, one wasmtime compile or one deserialize of the compiled form,
 //! and one walk of the component's type, at boot and at reload. Nothing here runs on
 //! a request path.
+//!
+//! **Declined:** a compiled form of the built-in components inside the binary. The cache already
+//! serves every start after the first, so it would save only the first start's compile.
 
 use std::fmt;
 use std::hash::{Hash, Hasher};

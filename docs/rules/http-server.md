@@ -1207,6 +1207,8 @@ statement on the blocking pool beside the write that ran it.
   same small delete once a minute.
 - **A sweep run by a scheduled job.** It would need a `[[schedule]]` entry nobody wrote, so a
   deployment with no configuration would never sweep.
+- **Moving the SQLite store's reads and writes off the core thread.** Each is one indexed statement
+  on a local file, and no measured program waits on it. It is reconsidered when one does.
 
 <sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
 
@@ -1681,6 +1683,9 @@ its budget.
 - **Keeping one pinned address and letting the connect fail.** One address is a single point of failure
   for a name that answers several, and it gains no security: the security is in checking every address,
   not in discarding all but one.
+- **A cache of resolved names.** The HTTP client and the shared store resolve the host on each call,
+  so a DNS change is seen at the next call. A cache would delay that, and no deployment has measured
+  the lookup's cost. It is reconsidered when one does.
 
 <sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 

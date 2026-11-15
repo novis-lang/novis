@@ -117,8 +117,11 @@
 //! arrivals, which is `rule:core-classes/ratelimit-gcra`'s O(1)-per-key and what makes limiting per user
 //! affordable at a million users. `consume`'s entry is in the shared store and
 //! expires on its own once the key drains; `shed`'s is in this process's
-//! memory tier, held once for every core and bounded by that tier's cap and by
-//! nothing else, since the entry has no TTL. In this process, `consume` spends
+//! memory tier, held once for every core and bounded by that tier's cap. It
+//! lives as long as the key's window (`tau`), after which it reads as an absent
+//! one, so a flood of new keys evicts entries already past their window before
+//! a live limiter's. Under a fixed test clock it lives for ever, because that
+//! clock never passes a window. In this process, `consume` spends
 //! the request text and one three-integer reply, both released with the call,
 //! and `shed` spends the scoped key it looks up, released with the call, and
 //! the decimal timestamp it stores.

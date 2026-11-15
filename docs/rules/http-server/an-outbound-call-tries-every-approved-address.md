@@ -33,3 +33,6 @@ its budget.
 - **Keeping one pinned address and letting the connect fail.** One address is a single point of failure
   for a name that answers several, and it gains no security: the security is in checking every address,
   not in discarding all but one.
+- **A cache of resolved names.** The HTTP client and the shared store resolve the host on each call,
+  so a DNS change is seen at the next call. A cache would delay that, and no deployment has measured
+  the lookup's cost. It is reconsidered when one does.
