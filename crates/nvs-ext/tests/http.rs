@@ -150,6 +150,7 @@ fn host_with(entry: &[&str], requests: &[&str]) -> (Host, Extension) {
             ..Granted::default()
         },
         component: Component::new(host.engine(), &bytes).expect("the guest compiles"),
+        prepared: nvs_ext::call::Prepared::default(),
         manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
         source: Source {
             source: FORMAT,

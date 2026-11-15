@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use nvs_ext::builtin::{STORED, expanded, expansions};
-use nvs_ext::load::{CacheKey, Loader, ModuleCache, builtin_manifests, pin};
+use nvs_ext::load::{CacheKey, Lent, Loader, ModuleCache, builtin_manifests, pin};
 use wasmtime::Engine;
 
 /// A cache in memory.
@@ -18,8 +18,13 @@ use wasmtime::Engine;
 struct Memory(Mutex<HashMap<CacheKey, Vec<u8>>>);
 
 impl ModuleCache for Memory {
-    fn get(&self, key: &CacheKey) -> Option<Vec<u8>> {
-        self.0.lock().unwrap().get(key).cloned()
+    fn get(&self, key: &CacheKey) -> Option<Lent> {
+        self.0
+            .lock()
+            .unwrap()
+            .get(key)
+            .cloned()
+            .map(|bytes| Box::new(bytes) as Lent)
     }
 
     fn put(&self, key: &CacheKey, bytes: &[u8]) {

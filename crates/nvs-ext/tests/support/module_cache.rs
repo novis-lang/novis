@@ -9,8 +9,8 @@
 //! An entry is `<environment>/<pin>`, the two halves of the [`CacheKey`], so a component compiled
 //! by another engine configuration is never looked at. A store writes a file of its own and
 //! renames it into place, so a process reading an entry never sees half of another's write, and
-//! two processes storing one key both leave a whole entry. The loader checks every entry's
-//! checksum, so a damaged file is a miss and is overwritten.
+//! two processes storing one key both leave a whole entry. Nothing else writes the directory, so
+//! an entry is the bytes its store wrote, which is the [`ModuleCache`] contract.
 //!
 //! What it spends: the serialized components on disk, one per built-in component and engine
 //! configuration a test uses, tens of MiB, which `bun nv disk` counts and `cargo clean` deletes.
@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
-use nvs_ext::load::{CacheKey, ModuleCache};
+use nvs_ext::load::{CacheKey, Lent, ModuleCache};
 
 /// The cache, one per process.
 pub(crate) fn shared() -> Arc<dyn ModuleCache> {
@@ -49,8 +49,10 @@ impl Files {
 }
 
 impl ModuleCache for Files {
-    fn get(&self, key: &CacheKey) -> Option<Vec<u8>> {
-        std::fs::read(self.entry(key)?).ok()
+    fn get(&self, key: &CacheKey) -> Option<Lent> {
+        std::fs::read(self.entry(key)?)
+            .ok()
+            .map(|bytes| Box::new(bytes) as Lent)
     }
 
     fn put(&self, key: &CacheKey, bytes: &[u8]) {

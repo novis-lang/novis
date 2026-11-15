@@ -125,7 +125,9 @@ use nvs_ext::call::{
 };
 use nvs_ext::convert::{Key, Value as Crossed, fits};
 use nvs_ext::grants::Caller;
-use nvs_ext::load::{Builtin, CacheKey, Entry, Extension as Loaded, Loader, ModuleCache, Set};
+use nvs_ext::load::{
+    Builtin, CacheKey, Entry, Extension as Loaded, Lent, Loader, ModuleCache, Set,
+};
 use nvs_ext::manifest::Manifest;
 use nvs_ext::types::{CORE_CLASSES, CoreRecord, Field, NovisType};
 use nvs_runtime::{
@@ -170,18 +172,22 @@ static BUILT_IN: OnceLock<Result<Vec<Builtin>, String>> = OnceLock::new();
 /// per built-in entry at each call. Declined: borrowing `&'static Manifest` beside the program's
 /// own list, which splits every reader into two iterators for the same saving.
 pub(crate) fn with_built_in(manifests: Vec<Manifest>) -> Vec<Arc<Manifest>> {
-    let built_in = BUILT_IN_MANIFESTS.get_or_init(|| {
+    built_in_manifests()
+        .iter()
+        .cloned()
+        .chain(manifests.into_iter().map(Arc::new))
+        .collect()
+}
+
+/// The built-in components' manifests, read on the first call from the copies the binary stores.
+fn built_in_manifests() -> &'static [Arc<Manifest>] {
+    BUILT_IN_MANIFESTS.get_or_init(|| {
         nvs_ext::load::builtin_manifests()
             .unwrap_or_else(|refused| panic!("a built-in component does not read: {refused}"))
             .into_iter()
             .map(Arc::new)
             .collect()
-    });
-    built_in
-        .iter()
-        .cloned()
-        .chain(manifests.into_iter().map(Arc::new))
-        .collect()
+    })
 }
 
 /// The built-in component declaring `class`, compiled on the first call into it. `config` places
@@ -326,7 +332,7 @@ fn pool_size(config: &Config) -> u32 {
         .as_ref()
         .and_then(|server| server.max_in_flight)
         .unwrap_or(nvs_config::defaults::SERVER_MAX_IN_FLIGHT);
-    let classes = with_built_in(Vec::new()).len() + config.extension.len();
+    let classes = built_in_manifests().len() + config.extension.len();
     let slots = in_flight
         .saturating_mul(u64::try_from(classes.max(1)).unwrap_or(u64::MAX))
         .min(u64::from(nvs_ext::call::MOST_PLACES));
@@ -1456,8 +1462,8 @@ impl Modules {
 }
 
 impl ModuleCache for Modules {
-    fn get(&self, key: &CacheKey) -> Option<Vec<u8>> {
-        Some(self.cache.load(self.key(key))?.payload().to_vec())
+    fn get(&self, key: &CacheKey) -> Option<Lent> {
+        Some(Box::new(self.cache.load(self.key(key))?))
     }
 
     fn put(&self, key: &CacheKey, bytes: &[u8]) {
@@ -1520,18 +1526,23 @@ mod tests {
         let pin = "a".repeat(64);
         modules.put(&key(&pin, "engine"), b"compiled");
 
+        let read = |pin: &str, environment: &str| {
+            modules
+                .get(&key(pin, environment))
+                .map(|lent| (*lent).as_ref().to_vec())
+        };
         assert_eq!(
-            modules.get(&key(&pin, "engine")).as_deref(),
+            read(&pin, "engine").as_deref(),
             Some(b"compiled".as_slice())
         );
-        assert_eq!(modules.get(&key(&pin, "another engine")), None);
-        assert_eq!(modules.get(&key(&"b".repeat(64), "engine")), None);
+        assert_eq!(read(&pin, "another engine"), None);
+        assert_eq!(read(&"b".repeat(64), "engine"), None);
 
         let path = modules.cache.path(modules.key(&key(&pin, "engine")));
         let mut bytes = fs::read(&path).expect("the entry is on disk");
         *bytes.last_mut().expect("a payload") ^= 1;
         fs::write(&path, bytes).expect("the entry is writable");
-        assert_eq!(modules.get(&key(&pin, "engine")), None);
+        assert!(modules.get(&key(&pin, "engine")).is_none());
         assert!(!path.exists(), "a corrupt entry is deleted");
     }
 
@@ -1727,6 +1738,7 @@ mod tests {
             sha256: String::new(),
             memory: None,
             grants: nvs_config::extension::Granted::default(),
+            prepared: nvs_ext::call::Prepared::default(),
             component: wasmtime::component::Component::new(host.engine(), &bytes)
                 .expect("the component compiles"),
             manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
@@ -1909,6 +1921,7 @@ mod tests {
             sha256: String::new(),
             memory: None,
             grants: nvs_config::extension::Granted::default(),
+            prepared: nvs_ext::call::Prepared::default(),
             component: wasmtime::component::Component::new(host.engine(), &bytes)
                 .expect("the component compiles"),
             manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),

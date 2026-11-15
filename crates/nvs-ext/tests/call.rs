@@ -173,6 +173,7 @@ fn extension(host: &Host, entry: Option<u64>, manifest: Option<u64>) -> Extensio
         memory: entry,
         grants: nvs_config::extension::Granted::default(),
         component: Component::new(host.engine(), &bytes).expect("the component compiles"),
+        prepared: nvs_ext::call::Prepared::default(),
         manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
         source: Source {
             source: FORMAT,

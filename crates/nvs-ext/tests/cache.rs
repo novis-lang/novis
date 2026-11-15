@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use nvs_ext::load::{CacheKey, Entry, Loader, ModuleCache, pin};
+use nvs_ext::load::{CacheKey, Entry, Lent, Loader, ModuleCache, pin};
 use nvs_ext::pack::append_section;
 use nvs_ext::section::MANIFEST;
 use wasmtime::{Config, Engine};
@@ -46,8 +46,13 @@ struct Memory {
 }
 
 impl ModuleCache for Memory {
-    fn get(&self, key: &CacheKey) -> Option<Vec<u8>> {
-        self.entries.lock().unwrap().get(key).cloned()
+    fn get(&self, key: &CacheKey) -> Option<Lent> {
+        self.entries
+            .lock()
+            .unwrap()
+            .get(key)
+            .cloned()
+            .map(|bytes| Box::new(bytes) as Lent)
     }
 
     fn put(&self, key: &CacheKey, bytes: &[u8]) {
@@ -156,10 +161,9 @@ fn a_corrupt_stored_compiled_component_is_a_miss_and_is_compiled_again() {
     load(&loader, &bytes);
     let key = cache.keys().remove(0);
     let corruptions: [fn(&mut Vec<u8>); 3] = [
-        |stored| {
-            let last = stored.len() - 1;
-            stored[last] ^= 0xff;
-        },
+        // The cache checks its own bytes, so a corrupt entry the loader sees is one wasmtime
+        // does not accept: here, one whose header is not wasmtime's.
+        |stored| stored[0] ^= 0xff,
         |stored| stored.truncate(stored.len() / 2),
         |stored| stored.truncate(5),
     ];

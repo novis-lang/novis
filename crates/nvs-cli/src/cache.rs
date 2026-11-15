@@ -325,6 +325,13 @@ pub(crate) struct Verified {
     header: Header,
 }
 
+/// A verified artifact lends its payload, so a reader takes the bytes without a copy.
+impl AsRef<[u8]> for Verified {
+    fn as_ref(&self) -> &[u8] {
+        self.payload()
+    }
+}
+
 impl Verified {
     /// The artifact's payload — the bytes the header's checksum covers, and nothing else.
     #[must_use]

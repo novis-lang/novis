@@ -58,17 +58,19 @@
 //!
 //! **The compiled form is cached behind a seam.** A loader given a [`ModuleCache`] looks the
 //! component up under a [`CacheKey`] — the file's pin and [`Loader::environment`], a SHA-256 of
-//! wasmtime's own compatibility hash (its version, the engine's configuration and the target) — and
+//! wasmtime's own compatibility hash (its version, the engine's configuration and the target) and
+//! of the stored form's version — and
 //! deserializes it on a hit rather than compiling. A miss compiles and stores the serialized form.
-//! The bytes stored are a SHA-256 of wasmtime's serialized component followed by that component, so
-//! an entry whose checksum does not match, or that wasmtime does not accept, is a miss and is
+//! The bytes stored are wasmtime's serialized component alone. The cache checks them whole and
+//! lends its own buffer, so the loader neither copies nor hashes them again
+//! ([`ModuleCache`]'s contract). An entry that wasmtime does not accept is a miss and is
 //! overwritten by the next store: `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`. The
 //! store itself is `nvs-cli`'s artifact cache, which owns the directory's ownership check
 //! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`); this crate never touches a file
 //! for it. Deserializing is the library's one `unsafe` call, and [`Loader::cached`] states why it holds.
 //!
-//! Cost: one SHA-256 of the file, one wasmtime compile or one deserialize and SHA-256 of the
-//! compiled form, and one walk of the component's type, at boot and at reload. Nothing here runs on
+//! Cost: one SHA-256 of the file, one wasmtime compile or one deserialize of the compiled form,
+//! and one walk of the component's type, at boot and at reload. Nothing here runs on
 //! a request path.
 
 use std::fmt;
@@ -172,6 +174,9 @@ pub struct Extension {
     pub grants: Granted,
     /// The compiled component, shared by every core.
     pub component: Component,
+    /// Its imports resolved, made at its first instance. A new extension has
+    /// `Prepared::default()`.
+    pub prepared: crate::call::Prepared,
     /// The class it declares and that class's signatures.
     pub manifest: Manifest,
     /// The Novis source it carries.
@@ -263,12 +268,27 @@ fn hex(bytes: &[u8]) -> String {
 ///
 /// Neither call reports a failure. A `get` that cannot read is a miss, and a `put` that cannot
 /// write is dropped, because the loader's next move is the compile it would have done anyway.
+///
+/// **A `get` returns only bytes a `put` stored, whole and unchanged.** The loader deserializes
+/// them as machine code and checks nothing of its own, so a cache that keeps its bytes where
+/// anything else can change them verifies them before it lends them: `nvs-cli`'s artifact cache
+/// by its header's BLAKE3 over the payload
+/// (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`).
 pub trait ModuleCache: Send + Sync {
-    /// The bytes last stored under `key`, if any.
-    fn get(&self, key: &CacheKey) -> Option<Vec<u8>>;
+    /// The bytes last stored under `key`, if any, lent by whatever verified them.
+    fn get(&self, key: &CacheKey) -> Option<Lent>;
     /// Stores `bytes` under `key`, replacing what was there.
     fn put(&self, key: &CacheKey, bytes: &[u8]);
 }
+
+/// The bytes a [`ModuleCache`] lends for one key. The cache's own verified buffer, so a hit is
+/// not copied before it is deserialized.
+pub type Lent = Box<dyn AsRef<[u8]> + Send>;
+
+/// The version of what a [`ModuleCache`] entry is: wasmtime's serialized component and nothing
+/// else. It is folded into [`Loader::environment`], so an entry of another version is under
+/// another key and is never read.
+const STORED_VERSION: u32 = 2;
 
 /// What a compiled component is stored under: the file it was compiled from and the engine that
 /// compiled it. Either one differing is a different key, so a component compiled by another engine
@@ -320,6 +340,7 @@ impl Loader {
     pub fn new(engine: &Engine) -> Self {
         let mut hasher = Sha256Hasher(Sha256::new());
         engine.precompile_compatibility_hash().hash(&mut hasher);
+        hasher.0.update(STORED_VERSION.to_le_bytes());
         Self {
             engine: engine.clone(),
             world: WORLD,
@@ -343,7 +364,8 @@ impl Loader {
     }
 
     /// The engine's environment: a SHA-256, in lower-case hexadecimal, of everything wasmtime
-    /// requires to match before it loads a component another engine compiled.
+    /// requires to match before it loads a component another engine compiled, and of the
+    /// version of the stored form.
     pub fn environment(&self) -> &str {
         &self.environment
     }
@@ -363,36 +385,32 @@ impl Loader {
             pin: sha256.to_owned(),
             environment: self.environment.clone(),
         };
-        if let Some(component) = cache.get(&key).and_then(|stored| self.cached(&stored)) {
+        if let Some(component) = cache
+            .get(&key)
+            .and_then(|stored| self.cached((*stored).as_ref()))
+        {
             return Ok(component);
         }
         let component = Component::from_binary(&self.engine, read()?.as_ref())?;
         if let Ok(serialized) = component.serialize() {
-            let mut stored = Sha256::digest(&serialized).to_vec();
-            stored.extend_from_slice(&serialized);
-            cache.put(&key, &stored);
+            cache.put(&key, &serialized);
         }
         Ok(component)
     }
 
-    /// The component a stored entry carries, or [`None`] when its checksum does not match or
-    /// wasmtime does not accept it.
+    /// The component a stored entry carries, or [`None`] when wasmtime does not accept it.
     #[expect(
         unsafe_code,
-        reason = "`Component::deserialize` is unsafe because it loads machine code without \
-                  validating it; the block below states why these bytes are ones this engine wrote"
+        reason = "`Component::deserialize` is unsafe because it loads machine code without                   validating it; the block below states why these bytes are ones this engine wrote"
     )]
     fn cached(&self, stored: &[u8]) -> Option<Component> {
-        let (checksum, serialized) = stored.split_at_checked(32)?;
-        if Sha256::digest(serialized).as_slice() != checksum {
-            return None;
-        }
-        // SAFETY: the entry is under a key carrying this engine's environment, and its checksum
-        // matches the bytes `Component::serialize` returned when it was stored, so it is unchanged
-        // output of an engine wasmtime calls compatible, which it checks again from the bytes' own
-        // header. Who can write the store is bounded by its owner's check on the directory, the
-        // same one the artifact cache's native code rests on.
-        unsafe { Component::deserialize(&self.engine, serialized) }.ok()
+        // SAFETY: the entry is under a key carrying this engine's environment, and the cache
+        // lends only the bytes `Component::serialize` returned when it was stored, verified whole
+        // by the cache's own checksum ([`ModuleCache`]'s contract). So it is unchanged output of
+        // an engine wasmtime calls compatible, which it checks again from the bytes' own header.
+        // Who can write the store is bounded by its owner's check on the directory, the same one
+        // the artifact cache's native code rests on.
+        unsafe { Component::deserialize(&self.engine, stored) }.ok()
     }
 
     /// Every entry of `entries`, loaded into one set, or the first entry that does not load.
@@ -437,6 +455,7 @@ impl Loader {
             memory: entry.memory,
             grants: entry.grants.clone(),
             component,
+            prepared: crate::call::Prepared::default(),
             manifest,
             source,
         })
@@ -744,6 +763,7 @@ impl Builtin {
                     memory: None,
                     grants: Granted::default(),
                     component,
+                    prepared: crate::call::Prepared::default(),
                     manifest: self.manifest.clone(),
                     source: self.source.clone(),
                 })

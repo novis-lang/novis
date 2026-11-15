@@ -106,6 +106,7 @@ fn fixture() -> (Host, Extension) {
         memory: None,
         grants: nvs_config::extension::Granted::default(),
         component: Component::new(host.engine(), &bytes).expect("the component compiles"),
+        prepared: nvs_ext::call::Prepared::default(),
         manifest: Manifest::parse(MANIFEST.as_bytes()).expect("the manifest reads"),
         source: Source {
             source: FORMAT,

@@ -2,9 +2,15 @@
 //! request's own core, its CPU time and linear memory charged to the request.
 //!
 //! [`Host`] is the process's half: one engine with epoch interruption, the pooling allocator and
-//! only the wasm features in [`PROPOSALS`], the linker every instance is made with, and the ticker thread that advances the epoch every
-//! [`TICK`]. A [`Loader`](crate::load::Loader) made over [`Host::engine`] compiles each component
-//! once, and every core instantiates that same compiled component.
+//! only the wasm features in [`PROPOSALS`], the linker every instance is made with, and the ticker
+//! thread that advances the epoch every [`TICK`]. A [`Loader`](crate::load::Loader) made over
+//! [`Host::engine`] compiles each component once, and every core instantiates that same compiled
+//! component. An extension's first instance resolves its imports against the linker
+//! ([`Prepared`]), and every later instance starts from that.
+//!
+//! **The ticker parks while no instance is live**, so an idle process wakes no thread every tick.
+//! The instance that ends an idle time unparks it, before its guest runs, so that guest's first
+//! deadline comes one tick later, as any other guest's does.
 //!
 //! [`Request`] is one request's half (`rule:packaging/a-fresh-instance-per-request`). It holds no
 //! instance until the request's first call to an extension, then one per extension it called, and
@@ -89,20 +95,21 @@
 //! What it spends: one instance per extension a request calls, its linear memory charged to that
 //! request and freed with it, so O(in-flight). The pooling allocator reserves address space for
 //! [`Host::new`]'s `slots` instances, not committed memory, and one ticker thread per process.
+//! Each extension keeps one [`Prepared`] for as long as its set is loaded.
 
 use std::ffi::OsString;
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::task::{Poll, Waker};
-use std::thread::JoinHandle;
+use std::thread::{JoinHandle, Thread};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{fmt, future};
 
 use rand::Rng;
-use wasmtime::component::{ComponentExportIndex, Instance, Linker, ResourceAny, Val};
+use wasmtime::component::{ComponentExportIndex, Instance, InstancePre, Linker, ResourceAny, Val};
 use wasmtime::{
     AsContextMut, Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig,
     ResourceLimiter, Store, Trap, UpdateDeadline, WasmFeatures,
@@ -860,6 +867,31 @@ impl ResourceLimiter for Guest {
     }
 }
 
+/// What every instance of one extension shares: its imports resolved against the host's linker,
+/// and the index of the interface its manifest names. [`Request`] makes it at the extension's
+/// first instance, and every later instance in any request starts from it.
+///
+/// It is the same for every request and carries no request's state, so sharing it shares
+/// nothing between requests (`rule:security/no-cross-request-state`). A store and an instance
+/// are still made per request. Clones of an [`Extension`] share one. **What it spends:** one
+/// resolved import table per extension per process, freed with the extension's set.
+#[derive(Clone, Default)]
+pub struct Prepared(Arc<OnceLock<Resolved>>);
+
+impl fmt::Debug for Prepared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Prepared")
+            .field("resolved", &self.0.get().is_some())
+            .finish()
+    }
+}
+
+/// An extension's imports, resolved, and its interface's index.
+struct Resolved {
+    pre: InstancePre<Guest>,
+    interface: ComponentExportIndex,
+}
+
 /// The process's half: the engine, the linker every instance is made with, and the epoch ticker.
 /// Cloning it shares all three.
 #[derive(Clone)]
@@ -872,12 +904,17 @@ struct Shared {
     linker: Linker<Guest>,
     live: Arc<AtomicUsize>,
     stop: Arc<AtomicBool>,
+    /// How many times the ticker parked because no instance was live.
+    parked: Arc<AtomicUsize>,
     ticker: Option<JoinHandle<()>>,
+    /// The ticker's thread, which the first instance after an idle time unparks.
+    ticking: Thread,
 }
 
 impl Drop for Shared {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+        self.ticking.unpark();
         if let Some(ticker) = self.ticker.take() {
             // A ticker that panicked has nothing left to stop.
             let _ = ticker.join();
@@ -991,25 +1028,37 @@ impl Host {
         wasi::link(&mut linker)?;
         imports(&mut linker)?;
         let stop = Arc::new(AtomicBool::new(false));
+        let live = Arc::new(AtomicUsize::new(0));
+        let parked = Arc::new(AtomicUsize::new(0));
         let ticker = {
             let engine = engine.clone();
             let stop = Arc::clone(&stop);
+            let live = Arc::clone(&live);
+            let parked = Arc::clone(&parked);
             std::thread::Builder::new()
                 .name("nvs-ext-epoch".to_owned())
                 .spawn(move || {
                     while !stop.load(Ordering::Acquire) {
+                        if live.load(Ordering::Acquire) == 0 {
+                            parked.fetch_add(1, Ordering::AcqRel);
+                            std::thread::park();
+                            continue;
+                        }
                         std::thread::sleep(TICK);
                         engine.increment_epoch();
                     }
                 })?
         };
+        let ticking = ticker.thread().clone();
         Ok(Self {
             shared: Arc::new(Shared {
                 engine,
                 linker,
-                live: Arc::default(),
+                live,
                 stop,
+                parked,
                 ticker: Some(ticker),
+                ticking,
             }),
         })
     }
@@ -1024,6 +1073,12 @@ impl Host {
     #[must_use]
     pub fn live_instances(&self) -> usize {
         self.shared.live.load(Ordering::Acquire)
+    }
+
+    /// How many times the ticker has parked because no instance was live.
+    #[must_use]
+    pub fn ticker_parks(&self) -> usize {
+        self.shared.parked.load(Ordering::Acquire)
     }
 
     /// The instances of one request, charged to `budget`.
@@ -1371,7 +1426,10 @@ impl Request {
             self.budget.caller(),
             &Disk,
         );
-        self.host.shared.live.fetch_add(1, Ordering::AcqRel);
+        if self.host.shared.live.fetch_add(1, Ordering::AcqRel) == 0 {
+            // The ticker may be parked. It ticks again before the guest's first deadline.
+            self.host.shared.ticking.unpark();
+        }
         let mut store = Store::new(
             &self.host.shared.engine,
             Guest {
@@ -1405,30 +1463,57 @@ impl Request {
             }
             Ok(UpdateDeadline::Yield(1))
         });
-        let instance = match self
-            .host
-            .shared
-            .linker
-            .instantiate_async(&mut store, &extension.component)
-            .await
-        {
+        let resolved = match self.resolved(extension) {
+            Ok(resolved) => resolved,
+            Err(Resolving::Linker(err)) => return Err(failure(&store, &err, at)),
+            Err(Resolving::NoInterface) => {
+                return Err(Failure::NoMethod(extension.manifest.interface.clone()));
+            }
+        };
+        let instance = match resolved.pre.instantiate_async(&mut store).await {
             Ok(instance) => instance,
             Err(err) => return Err(failure(&store, &err, at)),
         };
+        Ok(Live {
+            store,
+            instance,
+            interface: resolved.interface,
+        })
+    }
+
+    /// `extension`'s [`Prepared`], resolved now when no instance of it was made before.
+    fn resolved<'e>(&self, extension: &'e Extension) -> Result<&'e Resolved, Resolving> {
+        if let Some(resolved) = extension.prepared.0.get() {
+            return Ok(resolved);
+        }
+        let pre = self
+            .host
+            .shared
+            .linker
+            .instantiate_pre(&extension.component)
+            .map_err(Resolving::Linker)?;
         let interface = extension
             .component
             .component_type()
             .exports(&self.host.shared.engine)
             .map(|(name, _)| name)
             .find(|name| crate::load::export_names(name, &extension.manifest.interface))
-            .and_then(|name| instance.get_export_index(&mut store, None, name))
-            .ok_or_else(|| Failure::NoMethod(extension.manifest.interface.clone()))?;
-        Ok(Live {
-            store,
-            instance,
-            interface,
-        })
+            .and_then(|name| extension.component.get_export_index(None, name))
+            .ok_or(Resolving::NoInterface)?;
+        // Two cores resolving at once make equal values, and the first one kept is the one used.
+        Ok(extension
+            .prepared
+            .0
+            .get_or_init(|| Resolved { pre, interface }))
     }
+}
+
+/// Why an extension's [`Prepared`] could not be made.
+enum Resolving {
+    /// The linker does not define one of its imports.
+    Linker(wasmtime::Error),
+    /// The component exports no interface under the manifest's name.
+    NoInterface,
 }
 
 /// The method `method` of `extension`'s manifest, matched as a Novis method name is.
@@ -1743,23 +1828,54 @@ mod tests {
     /// A guest that allocates nothing of its own is still stopped once its request is over the
     /// ceiling, whatever put it there. The epoch tick asks the budget, and the call ends as the
     /// memory limit while the CPU deadline is far away.
-    #[test]
-    fn a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling() {
-        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+    /// The extension whose one method is [`LOOPS`]'s `forever`, compiled for `host`.
+    fn looping(host: &Host) -> Extension {
         let bytes = wat::parse_str(LOOPS).expect("the test component compiles");
         let manifest = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\\Loop", "interface": "shop:loop/api", "methods": [{"name": "forever", "params": [], "returns": "void"}]}"#;
-        let extension = Extension {
+        Extension {
             path: PathBuf::from("loop.nvsx"),
             sha256: pin_of(&bytes),
             memory: None,
             grants: nvs_config::extension::Granted::default(),
             component: Component::new(host.engine(), &bytes).expect("the component compiles"),
+            prepared: super::Prepared::default(),
             manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
             source: Source {
                 source: FORMAT,
                 files: Vec::new(),
             },
-        };
+        }
+    }
+
+    /// Waits until the host's ticker has parked `times` times since the host started.
+    fn parked(host: &Host, times: usize) {
+        while host.ticker_parks() < times {
+            thread::yield_now();
+        }
+    }
+
+    /// The ticker parks while no instance is live. A guest started then still reaches its CPU
+    /// deadline, because its instance wakes the ticker. The second call starts from idle again,
+    /// and from the extension's resolved imports.
+    #[test]
+    fn a_guest_started_from_idle_is_stopped_at_its_cpu_deadline() {
+        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+        let extension = looping(&host);
+        for idle in 1..=2 {
+            parked(&host, idle);
+            let meter = Arc::new(Meter::new(Duration::from_millis(20), None));
+            let request = host.request(meter as Arc<dyn super::Budget>);
+            let out = block_on(request.call(&extension, "forever", &[]));
+            assert_eq!(out, Err(Failure::Limit(Limit::Cpu)), "call {idle}");
+            drop(request);
+            assert_eq!(host.live_instances(), 0, "call {idle} dropped its instance");
+        }
+    }
+
+    #[test]
+    fn a_guest_is_interrupted_once_its_request_is_over_the_memory_ceiling() {
+        let host = Host::new(2, |_| Ok(())).expect("the host starts");
+        let extension = looping(&host);
         let meter = Arc::new(Meter::new(Duration::from_secs(60), None));
         let request = host.request(Arc::clone(&meter) as Arc<dyn super::Budget>);
         // The call asks once after lowering, and that answer lets the loop start. Every later

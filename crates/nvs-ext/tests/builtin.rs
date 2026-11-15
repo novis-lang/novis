@@ -17,7 +17,7 @@ use nvs_ext::builtin::{
 };
 use nvs_ext::call::{Error, Failure, Host, Meter};
 use nvs_ext::convert::{Key, Value};
-use nvs_ext::load::{Builtin, CacheKey, Entry, Loader, ModuleCache};
+use nvs_ext::load::{Builtin, CacheKey, Entry, Lent, Loader, ModuleCache};
 use nvs_ext::pack::append_section;
 use nvs_ext::section::MANIFEST;
 use wasmtime::Engine;
@@ -31,9 +31,14 @@ struct Memory {
 }
 
 impl ModuleCache for Memory {
-    fn get(&self, key: &CacheKey) -> Option<Vec<u8>> {
+    fn get(&self, key: &CacheKey) -> Option<Lent> {
         *self.gets.lock().unwrap() += 1;
-        self.entries.lock().unwrap().get(key).cloned()
+        self.entries
+            .lock()
+            .unwrap()
+            .get(key)
+            .cloned()
+            .map(|bytes| Box::new(bytes) as Lent)
     }
 
     fn put(&self, key: &CacheKey, bytes: &[u8]) {

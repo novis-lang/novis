@@ -217,6 +217,7 @@ fn extension(host: &Host, entry: Granted, requests: &str) -> Extension {
         memory: None,
         grants: entry,
         component: Component::new(host.engine(), &bytes).expect("the guest compiles"),
+        prepared: nvs_ext::call::Prepared::default(),
         manifest: Manifest::parse(manifest.as_bytes()).expect("the manifest reads"),
         source: Source {
             source: FORMAT,
