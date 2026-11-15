@@ -785,22 +785,19 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// How long the wait parks for before it looks at what the other cores
-/// published again.
+/// How long the wait parks for before it checks again whether the stream was
+/// closed.
 ///
-/// A publish from **this** core wakes the wait where it stands —
-/// [`nvs_runtime::Inbox`]'s own wake, fired by the fan-out that filled the
-/// queue — so this bound is the cross-core half alone: a publish from another
-/// core lands in a queue this core drains ([`crate::topic`]'s
-/// `deliver_from_other_cores`) rather than in a push it is told about, and a
-/// stream with nothing happening on its own core would otherwise never look.
+/// A publish never waits for this bound. A publish from **this** core fires
+/// [`nvs_runtime::Inbox`]'s wake, and a publish from another core fires the
+/// wake the wait registered with the bus (`crate::bus::park_on_hand_off`), as
+/// [`crate::socket`]'s wait does. The one thing that wakes nobody is the
+/// stream's close, when the client goes away, so this bound is how soon a
+/// parked stream sees it.
 ///
-/// **What it spends:** one wakeup per idle stream per tick, and nothing on a
-/// stream whose topics are busy on its own core. It is the one number here that
-/// trades latency against itself — a shorter tick buys cross-core latency
-/// with wakeups — and the trade goes away rather than being tuned the day the
-/// bus wakes the core it hands a value to.
-const CROSS_CORE_TICK: std::time::Duration = std::time::Duration::from_millis(50);
+/// **What it spends:** one wakeup per idle stream per second, and up to one
+/// second in which a stream whose client left still holds its isolate.
+const CLOSE_TICK: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// One [`MESSAGE`] built out of what the bus delivered, decoded with this
 /// program's own classes ([`crate::topic::decoded`]). Two slots and not the
@@ -835,7 +832,7 @@ nvs_runtime::nvs_helper! {
     /// true.
     ///
     /// The park is where the core goes back to its neighbours, and it is
-    /// bounded — [`CROSS_CORE_TICK`] owns why a wait that is woken still has a
+    /// bounded — [`CLOSE_TICK`] owns why a wait that is woken still has a
     /// deadline. A wake is a hint, so the queue is looked at again on every
     /// turn rather than the resume being taken for an answer.
     fn nvs_core_sse_receive(ctx, args: [1]) {
@@ -892,12 +889,23 @@ nvs_runtime::nvs_helper! {
                 ));
             };
             ctx.inbox().wake_on(waker);
+            // A publish from another core ends the park through this
+            // registration. It is taken out when the park returns, fired or
+            // not, and a wake this task drops itself costs nothing.
+            let _parked = nvs_host::wake_this_task()
+                .and_then(|wake| crate::bus::park_on_hand_off(Box::new(move || drop(wake.wake()))));
+            // An envelope another core queued between the drain at the top of
+            // this loop and the registration above fired no wake, so it is
+            // taken now.
+            if crate::bus::has_mail() {
+                continue;
+            }
             // The handler's turn ends at this wait, so the connection's CPU
             // count starts again (`rule:concurrency/a-connection-is-a-root-isolate`).
             ctx.turn_ends();
             // The scheduler ends the park at the request's wall deadline if
             // that is sooner, and answers `Cancelled` (`rule:errors/on-limit`).
-            let until = Some(std::time::Instant::now() + CROSS_CORE_TICK);
+            let until = Some(std::time::Instant::now() + CLOSE_TICK);
             if let Some(nvs_runtime::host::Woken::Cancelled) =
                 nvs_runtime::host::with_current(|host| host.park(until))
             {

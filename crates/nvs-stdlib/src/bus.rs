@@ -260,8 +260,22 @@ fn count_in(mailbox: &Mailbox, topic: &str) -> u64 {
 /// number is as fresh as this core's own last look at that row — the staleness
 /// that leaves, and why it is the one a publish's count carries, is that
 /// module's own decision.
+///
+/// Most calls repeat the count the row already has, so they take the read lock
+/// alone. A publish on another core reads the counts under that lock too, so
+/// it never waits behind a write that changes nothing. Only a changed count
+/// takes the write lock.
 pub(crate) fn note_subscribers(topic: &str, live: usize) {
     with_mine(|mine| {
+        let unchanged = mine
+            .topics
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(topic)
+            .map_or(live == 0, |&held| held == live);
+        if unchanged {
+            return;
+        }
         // The row's name is put there by one subscriber and dropped by
         // whichever one leaves last, so both ends of it are the process's.
         let _bracket = budget::Detached::begin();
@@ -354,7 +368,7 @@ fn one_parked(core: &Mailbox) -> Option<nvs_runtime::Interrupt> {
     parked.held.remove(&ticket)
 }
 
-/// A socket wait parked on this core, registered so that a publish from
+/// A socket or event-stream wait parked on this core, registered so that a publish from
 /// another core ends it ([`park_on_hand_off`]). Dropping it takes the wait
 /// back out, fired or not.
 #[derive(Debug)]
@@ -380,9 +394,9 @@ impl Drop for ParkedOnBus {
 }
 
 /// Registers `wake` to be fired by the next envelope another core queues for
-/// this one, for a socket wait about to park.
+/// this one, for a socket or event-stream wait about to park.
 ///
-/// **What it spends:** one map entry per socket wait parked on this core that
+/// **What it spends:** one map entry per wait parked on this core that
 /// subscribed to something, the process's and held for as long as the wait
 /// is. `None` on a core whose mailbox is gone, where nothing can publish to it.
 pub(crate) fn park_on_hand_off(wake: nvs_runtime::Interrupt) -> Option<ParkedOnBus> {

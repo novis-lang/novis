@@ -21,9 +21,8 @@
 //! fan-out that fills it — and both doors' `receive()` registers against it,
 //! so a publish on this core reaches a connection that is already waiting. A
 //! delivery from another core is drained at the same `receive()` the local
-//! queue is read at. A socket's wait is also registered with [`crate::bus`],
-//! whose hand-off ends it; an event stream's looks again each
-//! `CROSS_CORE_TICK` (`crate::sse`).
+//! queue is read at. Both doors' waits are also registered with
+//! [`crate::bus`], whose hand-off ends them.
 //!
 //! # Decision: the table is per core, and it holds a weak reference
 //!
