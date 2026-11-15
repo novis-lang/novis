@@ -1666,11 +1666,12 @@ pub(crate) enum Provenance {
 /// the run would have done anyway, and none of them reaches the script.
 ///
 /// A cold run pays codegen **twice** — once through the JIT for the unit it is about to run, and
-/// once through the object backend for the artifact it publishes. That is deliberate: the run in
-/// hand is not made to wait on a file being written, and the alternative — running the payload
-/// this process just wrote, through place-and-relocate — would put the loader on the path of every
-/// cold run to save a Cranelift walk on none of them. What it costs is one extra walk on the run
-/// that populates a key, and nothing at all on every run after it.
+/// once through the object backend for the artifact it publishes. That is deliberate: the
+/// alternative — running the payload this process just wrote, through place-and-relocate — would
+/// put the loader on the path of every cold run to save a Cranelift walk on none of them. The two
+/// walks run side by side, the object walk on a scoped thread ([`compile_beside_object`]), so a
+/// cold run waits for the longer walk and not for both. What it costs is one thread for one
+/// compile on the run that populates a key, and nothing at all on every run after it.
 ///
 /// # Errors
 ///
@@ -1695,15 +1696,55 @@ pub(crate) fn unit_for(
     if let Some(unit) = warm_hit(program, cache, key) {
         return Ok((unit, Provenance::Loaded));
     }
-    let unit = nvs_codegen::compile(program)?;
-    // The writer, on the path that has just paid for a compile: a failure to publish is a cache
-    // that stays cold, which is the one thing this whole module promises can never be worse. A
-    // host [`HOST_PUBLISHES`] says no for writes nothing, because the object walk would be paid on
-    // every cold run for a file no loader will ever read.
-    if HOST_PUBLISHES && let Ok(payload) = nvs_codegen::compile_object(program) {
+    // A host [`HOST_PUBLISHES`] says no for writes nothing, because the object walk would be paid
+    // on every cold run for a file no loader will ever read.
+    if !HOST_PUBLISHES {
+        return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
+    }
+    let (unit, payload) = compile_beside_object(program);
+    let unit = unit?;
+    // The writer, once the JIT compile has succeeded, so no artifact is published for a program
+    // the cold path refuses. A failure to publish is a cache that stays cold, which is the one
+    // thing this whole module promises can never be worse.
+    if let Some(payload) = payload {
         drop(cache.store(key, &payload));
     }
     Ok((unit, Provenance::Compiled))
+}
+
+/// The JIT unit on this thread and the artifact's object on a scoped thread beside it, joined
+/// before either is returned. The object is [`None`] when its walk failed.
+///
+/// A thread that cannot be started leaves the object walk to this thread, after the JIT compile
+/// and only if that succeeded, so the run is never refused for a thread.
+///
+/// # What it costs
+///
+/// One thread with the main thread's 8 MiB stack (`build.rs`'s `main_thread_stack`), for the
+/// length of one compile, on a cold run that publishes. A warm hit and a run with no cache start
+/// none.
+fn compile_beside_object(
+    program: &nvs_ir::Program,
+) -> (
+    Result<nvs_codegen::Unit, nvs_codegen::CodegenError>,
+    Option<Vec<u8>>,
+) {
+    let object = || nvs_codegen::compile_object(program).ok();
+    std::thread::scope(|scope| {
+        let walker = std::thread::Builder::new()
+            .name("nvs artifact".to_owned())
+            .stack_size(8 << 20)
+            .spawn_scoped(scope, object);
+        let unit = nvs_codegen::compile(program);
+        let payload = match walker {
+            Ok(walker) => walker
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+            Err(_) if unit.is_ok() => object(),
+            Err(_) => None,
+        };
+        (unit, payload)
+    })
 }
 
 /// The read path in one expression: the artifact under `key`, verified, placed, relocated,
