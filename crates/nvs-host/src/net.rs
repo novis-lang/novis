@@ -396,7 +396,9 @@ impl NvsStream<mio::net::TcpStream> {
     /// descriptor.
     pub fn from_std(stream: std::net::TcpStream) -> io::Result<Self> {
         stream.set_nonblocking(true)?;
-        Ok(Self::new(mio::net::TcpStream::from_std(stream)))
+        let stream = mio::net::TcpStream::from_std(stream);
+        send_at_once(&stream);
+        Ok(Self::new(stream))
     }
 
     /// Connects to `addr`, parking rather than blocking while the handshake is
@@ -422,7 +424,7 @@ impl NvsStream<mio::net::TcpStream> {
     /// The platform refused the socket or the address, or the connection itself
     /// failed — refused, unreachable, or reset while it was being established.
     pub fn connect(addr: SocketAddr) -> io::Result<Self> {
-        connected(mio::net::TcpStream::connect(addr)?, None)
+        connected(dialled(addr)?, None)
     }
 
     /// [`NvsTcp::connect`], giving up with `TimedOut` if the handshake is not
@@ -446,7 +448,7 @@ impl NvsStream<mio::net::TcpStream> {
         // Before the syscall, per the paragraph above: the platform's own time
         // inside `connect` is the caller's budget too.
         let at = Instant::now() + after;
-        connected(mio::net::TcpStream::connect(addr)?, Some(at))
+        connected(dialled(addr)?, Some(at))
     }
 
     /// Connects to whichever of `addrs` comes up first, under one `within`
@@ -493,7 +495,7 @@ impl NvsStream<mio::net::TcpStream> {
         while Instant::now() < at {
             while started < addrs.len() && Instant::now() >= due {
                 due = Instant::now() + ATTEMPT_DELAY;
-                match mio::net::TcpStream::connect(addrs[started]) {
+                match dialled(addrs[started]) {
                     Ok(socket) => inflight.push((started, Self::new(socket))),
                     // The constructor spent none of the delay it just set, and
                     // there is nothing in flight to pace against, so the next
@@ -620,13 +622,18 @@ impl Accepting for mio::net::TcpListener {
 
     /// On Windows, one `accept` at a time across the whole process
     /// (the Windows-only `ACCEPTING` lock); on Unix the syscall itself, which
-    /// is atomic.
+    /// is atomic. The stream it returns sends without Nagle's delay
+    /// (`send_at_once`).
     fn accept(&self) -> io::Result<(Self::Stream, Self::Peer)> {
-        #[cfg(windows)]
-        let _one_at_a_time = ACCEPTING
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        mio::net::TcpListener::accept(self)
+        let accepted = {
+            #[cfg(windows)]
+            let _one_at_a_time = ACCEPTING
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            mio::net::TcpListener::accept(self)?
+        };
+        send_at_once(&accepted.0);
+        Ok(accepted)
     }
 }
 
@@ -1175,6 +1182,32 @@ impl Write for NvsConnection {
             Self::Unix(stream) => stream.flush(),
         }
     }
+}
+
+/// Starts a TCP connect to `addr` and turns Nagle's algorithm off on the socket.
+///
+/// Every TCP connect in this module starts here, so no outbound stream waits on
+/// Nagle's delay.
+fn dialled(addr: SocketAddr) -> io::Result<mio::net::TcpStream> {
+    let socket = mio::net::TcpStream::connect(addr)?;
+    send_at_once(&socket);
+    Ok(socket)
+}
+
+/// Sets `TCP_NODELAY`, so a write goes out at once and never waits for the
+/// peer to acknowledge the last segment.
+///
+/// Every TCP stream this module makes or accepts passes through here, and there
+/// is no setting: a request writes whole messages, and Nagle's algorithm only
+/// delays the last segment of one by up to a round trip
+/// (`rule:programs/memory-priority`, latency over footprint). What it spends:
+/// a program that writes many small pieces sends more, smaller segments.
+///
+/// A failure is ignored. The option changes only when bytes leave, never
+/// which bytes, and a socket that will not take it is one whose peer already
+/// reset it, which its next read or write reports.
+fn send_at_once(stream: &mio::net::TcpStream) {
+    let _ = stream.set_nodelay(true);
 }
 
 /// Wraps a socket whose connect is in flight and waits it out, bounded by `at`.
@@ -1950,6 +1983,35 @@ mod tests {
             NvsTcp::from_std(server).expect("the socket refused non-blocking mode"),
             client,
         )
+    }
+
+    /// `send_at_once` is reached by every way a TCP stream is made here: a
+    /// connect, an accept and a `std` socket taken over. None of them may wait on
+    /// Nagle's delay (`rule:testing/perf-two-mechanisms`).
+    #[test]
+    fn an_accepted_and_a_connected_stream_send_without_delay() {
+        let mut listener = NvsListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let connected = NvsTcp::connect_timeout(addr, Duration::from_secs(10))
+            .expect("the loopback refused a connection");
+        let (accepted, _) = listener.accept().expect("the accept failed");
+        let (taken_over, _client) = connected_pair();
+        for (made, stream) in [
+            ("connected", &connected),
+            ("accepted", &accepted),
+            ("taken over", &taken_over),
+        ] {
+            assert!(
+                stream
+                    .inner
+                    .nodelay()
+                    .expect("the option could not be read"),
+                "a {made} stream still waits on Nagle's delay",
+            );
+        }
     }
 
     /// `rule:concurrency/try-the-syscall-then-park`'s whole reason for trying
