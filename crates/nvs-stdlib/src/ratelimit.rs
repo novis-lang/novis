@@ -854,19 +854,29 @@ nvs_runtime::nvs_helper! {
         // server never share an allowance.
         // A test's fixed clock is its own timeline, kept apart as the module
         // doc says.
-        let (now, timeline) = match ctx.fixed_clock() {
-            Some(nanos) => (nanos.div_euclid(1000), "fixed:"),
-            None => (crate::time::monotonic_micros(), ""),
+        // An admitted arrival stores a time at most `tau` past `now`, so after
+        // `tau` the entry reads as an absent one, and it lives that long. The
+        // tier then evicts a flood of dead keys before any live one. A fixed
+        // clock's entry keeps no lifetime: the tier ends one by the monotonic
+        // clock, which the fixed timeline does not follow.
+        let (now, timeline, lifetime) = match ctx.fixed_clock() {
+            Some(nanos) => (nanos.div_euclid(1000), "fixed:", crate::cache::Lifetime::Forever),
+            None => (
+                crate::time::monotonic_micros(),
+                "",
+                crate::cache::Lifetime::For(std::time::Duration::from_micros(
+                    u64::try_from(window.tau).unwrap_or(u64::MAX),
+                )),
+            ),
         };
         let namespaced = format!("{PREFIX}{timeline}{key}");
         let scoped = crate::cache::scoped(ctx, namespaced.as_bytes());
         let reply = crate::cache::memory_update(
             &scoped,
-            // The cap is what bounds a limiter's entries, not a clock: a
-            // window's own arithmetic already answers for an arrival too old to
-            // matter, and an entry the cap forgot is the same approximation
-            // `shed` is chosen for.
-            crate::cache::Lifetime::Forever,
+            // The cap bounds a limiter's entries, and the lifetime above takes
+            // each one off once it reads as absent. An entry the cap forgot
+            // earlier is the same approximation `shed` is chosen for.
+            lifetime,
             // Under the same `[cache.memory] max_size` every other entry of the
             // tier is under, which is the whole of what the `None` row in
             // `registry::CAPABILITIES` says bounds this member: a limiter that
