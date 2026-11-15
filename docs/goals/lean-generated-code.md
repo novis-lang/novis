@@ -6,7 +6,7 @@ context: [crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/array.rs, crate
 stages:
   - id: 1
     title: a scalar test, a widening and a string comparison are inline
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/emit.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-runtime/src/helpers.rs]
   - id: 2
     title: a release that frees nothing is inline
@@ -124,16 +124,16 @@ touch only `crates/nvs-runtime/` and can run as a side goal beside them.
 **Does:** emit native instructions for truthiness and widening of a known scalar, and test pointer
 and length before a string comparison calls.
 
-- [ ] `crates/nvs-codegen/src/emit.rs:892`: `IntTruthy`, `UintTruthy` and `FloatTruthy` are one
+- [x] `crates/nvs-codegen/src/emit.rs:892`: `IntTruthy`, `UintTruthy` and `FloatTruthy` are one
   compare. NaN is truthy and -0.0 is not, as `crates/nvs-runtime/src/helpers.rs:277` says
   (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-codegen/src/emit.rs:2913`: `IntToFloat`, `UintToFloat`, `IntToUint` and
+- [x] `crates/nvs-codegen/src/emit.rs:2913`: `IntToFloat`, `UintToFloat`, `IntToUint` and
   `UintToInt` test the range inline and call the helper outside it (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-codegen/src/emit.rs:2033`: string and bytes `==` and `!=` answer from equal
+- [x] `crates/nvs-codegen/src/emit.rs:2033`: string and bytes `==` and `!=` answer from equal
   pointers or unequal lengths before the call (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-codegen/src/emit.rs:3505`: a class test answers from an equal class word before
+- [x] `crates/nvs-codegen/src/emit.rs:3505`: a class test answers from an equal class word before
   the call (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-codegen/src/lib.rs:140`: the test `a_known_scalar_test_and_widening_call_no_helper`,
+- [x] `crates/nvs-codegen/src/lib.rs:140`: the test `a_known_scalar_test_and_widening_call_no_helper`,
   and the module doc names what is inline now (`rule:testing/perf-two-mechanisms`).
 
 ### 2. a release that frees nothing is inline
@@ -196,17 +196,34 @@ heap worklist.
 
 ### State
 
-Nothing is built. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0.
+Stage 1 is done in `32223460f4`. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0.
+
+- `Emitter::emit_inline_helper` (`crates/nvs-codegen/src/emit.rs:2929`) runs first in the
+  `HelperCall` arm. Truthiness is one compare. A widening branches to a fast block and a slow block
+  that calls `emit_helper`, then joins at a block parameter. A constant operand in range emits no
+  call, and one out of range takes the plain helper call.
+- `Emitter::emit_str_eq` and the class-word test in `emit_class_test` end in a merge block, so the
+  `ClassTest` arm returns `self.current_block()`.
+- `a_known_scalar_test_and_widening_call_no_helper` passed by name. A scratch script checked the
+  results at run time: the 2^53 bounds, `-0.0`, equal and unequal strings, a subclass, and both
+  error messages. Nothing else ran.
+- Tests that may go red at the gate: none expected. A test that greps the CLIF for a call to
+  `nvs_str_eq`, `nvs_object_is_class` or a truthiness helper next to a fixed block layout is
+  the likely one, such as in `crates/nvs-codegen/tests/refcount_calls.rs` or `probes.rs`.
+- The sweep's `env-secret-proofs` is stale state in looper's service. `looper check --name` finds
+  no such check, and nothing in the tree names it.
 
 ### Next
 
-Stage 1, in one session. The files are `crates/nvs-codegen/src/emit.rs` and
-`crates/nvs-ir/src/lower/convert.rs`.
+Stage 2, in one session. It follows its `**Split:**` line first.
 
-- [ ] `crates/nvs-codegen/src/emit.rs:892`: the truthiness helpers inline.
-- [ ] `crates/nvs-codegen/src/emit.rs:2913`: the widening helpers inline, with the helper as the
-  slow path.
-- [ ] `crates/nvs-codegen/src/emit.rs:2033`: the early answers of a string comparison.
+- [ ] `crates/nvs-codegen/src/emit.rs:4693`: `emit_refcount`'s release branch, for strings and
+  bytes first (`:4710`).
+- [ ] `crates/nvs-codegen/src/emit.rs:4711`: the same for objects and arrays, only if the `Explore`
+  list shows that a decrement does no more for them.
+- [ ] `crates/nvs-runtime/src/budget.rs:1280`: `count_refcount_call` counts an inline release.
+- [ ] `crates/nvs-codegen/src/lib.rs:3820`: the test `a_release_that_frees_nothing_calls_no_helper`,
+  run once by name with the balance tests.
 
 ### Backlog
 
