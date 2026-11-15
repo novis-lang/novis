@@ -160,6 +160,20 @@
 //! once, and only the `Core` classes a program names are lowered. A run that never spawns starts
 //! neither the revalidation thread nor the slice thread. The milliseconds are a note: two runs of
 //! one shape differ by about 4 ms here, and the counts are what a change is judged by.
+//!
+//! A change to a start is built only where this table gives its phase at least 5% of the
+//! allocations, one file read of 16 KiB or more, or one thread. What stays, and why:
+//!
+//! * `built_in` is nearly all the one parse of the built-in manifests' JSON and the copy of each
+//!   `Manifest` in `extensions::with_built_in`. Nothing removes it yet.
+//! * Most of `core` is the `Core` type pre-pass in `nvs_types::core_lib`: `QName::parse` and
+//!   argument vectors, paid again on every interner hit. Lowering a type without building its
+//!   `Ty` first would remove most of them.
+//! * The watchdog thread starts with every run, because it enforces the CPU limit, and an
+//!   enforcement thread is not traded for a thread spawn.
+//! * Declined: a fast path past the full argument parser for `run`. Two parsers drift, and the
+//!   saving was never measured. Declined too: making the reactor on its first park
+//!   (`rule:concurrency/the-parking-contract`).
 
 #![allow(
     clippy::print_stdout,
