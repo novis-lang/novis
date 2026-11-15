@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/load.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-lsp/src/tree_cache.rs, crates/nvs-cli/tests/start_cost.rs]
   - id: 2
     title: a built-in component is parsed when a program names its namespace
-    status: open
+    status: done
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext/src/load.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-hir/src/symbol.rs]
   - id: 3
     title: "the `Core` pre-pass parses each name once"
@@ -157,18 +157,18 @@ regression.
 **Gate:** stage 1's recorded `built_in` figure is at least 5% of the start's allocations. Otherwise
 every item below is ticked as declined with the figure.
 
-- [ ] `crates/nvs-cli/src/extensions.rs:143`: one `OnceLock` per `Stored` entry replaces
+- [x] `crates/nvs-cli/src/extensions.rs:143`: one `OnceLock` per `Stored` entry replaces
   `BUILT_IN_MANIFESTS`, filled by `nvs_ext::load` for that entry alone
-  (`rule:packaging/the-first-party-components-are-built-in`).
-- [ ] `crates/nvs-hir/src/symbol.rs:163`: name resolution reaches a built-in class through one
+  (`rule:packaging/the-first-party-components-are-built-in`). Declined: see `### State`.
+- [x] `crates/nvs-hir/src/symbol.rs:163`: name resolution reaches a built-in class through one
   lookup by namespace on the extension list, which parses the component on its first call. If this
   needs more than that one call, the stage is declined as **Standing decisions** says
-  (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-ext/tests/builtin_stored.rs:76`: `every_built_in_manifest_parses_on_its_own`
+  (`rule:programs/memory-priority`). Declined: it needs four walks changed, not one call.
+- [x] `crates/nvs-ext/tests/builtin_stored.rs:76`: `every_built_in_manifest_parses_on_its_own`
   parses each `Stored` entry through the new path
-  (`rule:packaging/the-first-party-components-are-built-in`).
-- [ ] `crates/nvs-cli/tests/start_cost.rs:14`: `built_in`'s bound is the new measured figure plus
-  10% (`rule:testing/perf-two-mechanisms`).
+  (`rule:packaging/the-first-party-components-are-built-in`). Declined: no new path exists.
+- [x] `crates/nvs-cli/tests/start_cost.rs:14`: `built_in`'s bound is the new measured figure plus
+  10% (`rule:testing/perf-two-mechanisms`). Declined: the figure is stage 1's, 5,726.
 
 ### 3. the `Core` pre-pass parses each name once
 
@@ -214,10 +214,19 @@ before the first edit. The smallest one that links `std` is the comparison.
 
 ### State
 
-Stage 1 is done. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+Stages 1 and 2 are done, stage 2 as declined. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0,
+stage 4: 0, stage 5: 0.
+
+Stage 2's gate was open, and the stage is declined as **Standing decisions** says. A lazy parse
+needs four walks of the whole list changed, not one lookup: `crates/nvs-hir/src/resolve.rs:87`
+declares every class before resolving, `resolve.rs:420` and `crates/nvs-hir/src/requires.rs:374`
+declare every class's members, and `crates/nvs-types/src/signatures.rs:1020` and
+`crates/nvs-types/src/enums.rs:175` seed from every manifest. The checker would also need to learn
+which components the resolver reached. The figure and the reason are in
+`crates/nvs-cli/src/extensions.rs`'s `# What it costs`. No code changed.
 
 Stage 1's measured `built_in` is **5,726** allocations, 22.8% of a one-line `nvs check`'s start
-(it was 6,699). That is over the 5% floor, so stage 2's gate is open. The other phases are
+(it was 6,699). The other phases are
 unchanged: `configuration` 418, `grants` 25, `core` 8,109, `collection` 1,166, `check` 9,652.
 `start_cost.rs`'s bounds are each plus 10%, rounded up to the next hundred, except `grants`, which
 stays at 60: its count follows the directory's path, 25 from `.agent-tmp/` and 33 from the test's
@@ -231,23 +240,20 @@ so the sweep's list is stale. Nothing in the tree is red for it.
 
 ### Next
 
-Stage 2 starts with its gate, which is open (5,726 is 22.8%). Before the first edit, judge the
-**Standing decisions** condition. `crates/nvs-cli/src/main.rs:1270` calls `hir_classes` over the
-whole list right after `with_built_in`, and `crates/nvs-types/src/check.rs:165` passes the whole
-list to `seed_enums` and `ext_lib::seed`. A lazy parse that has to change those two walks, and not
-only one lookup on the list, is the decline the decision names. In that case, tick every stage 2 item
-as declined, and write the figure and the reason in `crates/nvs-cli/src/extensions.rs`'s
-`# What it costs`.
+Stage 3: the `Core` pre-pass parses each name once. The `core` phase is 8,109 allocations, so its
+gate under the 5% floor is open. Read the **Standing decisions** paragraph on the name table first.
 
-- `crates/nvs-cli/src/extensions.rs:143`: `BUILT_IN_MANIFESTS` is `OnceLock<Vec<Arc<Manifest>>>`.
-  Stage 2's per-`Stored` `OnceLock` replaces it.
-- `crates/nvs-hir/src/symbol.rs:163`: the resolver's walk of `ExtensionClass`.
-- `crates/nvs-lsp/src/tree_cache.rs:135`: the editor reads the built-in list itself, apart from
-  `with_built_in`. A stage 2 accessor has to serve it too, or the editor keeps the eager parse.
+- `crates/nvs-types/src/core_lib.rs:39`: `struct Base`, where the name table goes.
+- `crates/nvs-types/src/core_lib.rs:794`: `lower`, which parses an `Instance`, `InstanceAt`,
+  `Enum` or `EnumCase` name today. It reads the table first.
+- `crates/nvs-types/src/core_lib.rs:176`: `build_class` reads the table on each class's first
+  lookup.
+- `crates/nvs-types/src/core_lib.rs:1254`: `every_core_class_builds_over_the_frozen_types` runs
+  once by name. It is the `core-names-once` check.
+- Measure with `bun nv start-cost` from `.agent-tmp/`, then set `core`'s bound in
+  `crates/nvs-cli/tests/start_cost.rs` to the figure plus 10%, in the same commit.
 
-The tests the handoff named did go red, and they are fixed: `crates/nvs-types/tests/extensions.rs`,
-`crates/nvs-ir/tests/generator_shapes.rs` and `crates/nvs-ir/src/lower/tests.rs:5190` wrap their
-manifests in `Arc`. No test is expected to go red from stage 1. A non-Windows runner's
+No test is expected to go red from stages 1 and 2. A non-Windows runner's
 `start_cost` may count a few more allocations than the 10% margin allows. If one does, measure
 on that OS and set the bound from that figure.
 

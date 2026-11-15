@@ -90,6 +90,21 @@
 //! What it spends: each loaded component's compiled code, once per process and shared by every
 //! core, and during a reload the old set and the new one together until the swap. On disk, one
 //! entry per component file per build, under the cache's own size cap.
+//!
+//! # What it costs
+//!
+//! Reading the built-in manifests is a start's `built_in` phase: 5,726 allocations, 22.8% of a
+//! one-line `nvs check`'s start, measured by `bun nv start-cost` from a directory with no
+//! `nvs.toml`. Every compile pays it, whether or not the program names a built-in class.
+//!
+//! **The manifests are not parsed lazily, by namespace.** A program that names none of them would
+//! skip that phase, and the latency it buys is under a millisecond. It is declined because the
+//! list is walked whole in four places, and each would have to ask for a namespace instead:
+//! `nvs_hir`'s resolver declares every class before it resolves a name, its member table declares
+//! every class's members, and `nvs_types` seeds the signature table and the enum table from every
+//! manifest. The checker would also need to learn which components the resolver reached.
+//! **Simplicity** outranks **memory footprint** (`rule:programs/memory-priority`), so the parse
+//! stays eager and once per process.
 
 use std::collections::BTreeMap;
 use std::fs::File;
