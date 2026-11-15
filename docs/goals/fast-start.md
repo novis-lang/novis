@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-config/src/data.rs, crates/nvs-config/src/resolve.rs, crates/nvs-cli/src/extensions.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-hir/src/requires.rs, crates/nvs-cli/src/config.rs]
   - id: 4
     title: "a program pays for the `Core` signatures and symbols it names"
-    status: open
+    status: done
     context: [crates/nvs-types/src/core_lib.rs, crates/nvs-types/src/signatures.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs]
   - id: 5
     title: a helper thread starts when its work does
@@ -238,10 +238,11 @@ process.
 
 **Gate:** as stage 3.
 
-- [ ] `crates/nvs-types/src/core_lib.rs:53`: `base()` seeds a class on its first `get`
-  (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-cli/src/cache.rs:1717`: `this_process` reads one process-wide table, shared with
-  `crates/nvs-codegen/src/lib.rs:2441` (`rule:programs/memory-priority`).
+- [x] `crates/nvs-types/src/core_lib.rs:53`: `base()` seeds a class on its first `get`
+  (`rule:programs/memory-priority`). Built: `core` went from 16,624 to 8,109 allocations.
+- [x] `crates/nvs-cli/src/cache.rs:1717`: `this_process` reads one process-wide table, shared with
+  `crates/nvs-codegen/src/lib.rs:2441` (`rule:programs/memory-priority`). Declined: the JIT's
+  table is 1,266 allocations per compile and the warm hit's 123, under the floor of about 1,300.
 
 ### 5. a helper thread starts when its work does
 
@@ -266,33 +267,36 @@ process.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 landed in three commits: a configuration file is parsed once
-(`nvs_config::file::parse_document`), the data folder's `nvs.toml` is read once per start and its
-template hash is a constant (`crates/nvs-config/build.rs`, `data::take_read`), and a component's
-Novis source is an `Arc<str>` shared by every reader. The TLS item was priced at 18 allocations and
-33 KB and declined. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0, stage 5: 0.
+Stages 1 to 4 are done. Stage 4 landed in two commits. A `Core` class's signatures are built on
+its first lookup (`core_lib::Natives`): the base interns every `Core` type first, so a class built
+later adds no type and changes no id, and `build_class` asserts that. `core` went from 16,624 to
+8,109 allocations; 6,688 of what is left is the type pre-pass, whose lowering allocates even on an
+interner hit. The helper symbol tables were priced and declined, and each site's comment has its
+number. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 0.
 
 The sweep's findings before this session needed no change. `env-secret-proofs` has no check and no
 log in the tree. Nightly 43581848915 is the same run the last handoff named, older than
 `8bd6b6eda9`'s Miri fix.
 
 Measure from a directory with no `nvs.toml` of its own, such as `.agent-tmp/`: the repository's
-own `nvs.toml` adds about 33,000 configuration allocations that a user's start does not pay.
+own `nvs.toml` adds about 33,000 configuration allocations that a user's start does not pay. The
+front end of a one-line `nvs check` is now about 26,000 allocations, so the 5% floor is about 1,300.
 
 ### Next
 
-Stage 4, in one session. The files are `crates/nvs-types/src/core_lib.rs`,
-`crates/nvs-types/src/signatures.rs`, `crates/nvs-cli/src/cache.rs` and
-`crates/nvs-codegen/src/lib.rs`.
+Stage 5, in one session. The files are `crates/nvs-cli/src/script.rs` and
+`crates/nvs-host/src/slice.rs`. Each item is one thread, so each is at the floor.
 
-- [ ] `crates/nvs-types/src/core_lib.rs:53`: `base()` seeds a class on its first `get`. At the
-  floor: `core` is 16,624 allocations, 47.9% of the start.
-- [ ] `crates/nvs-cli/src/cache.rs:1717`: `this_process` reads one process-wide table. Not priced:
-  wrap it in a `phases::start()`/`end` with a temporary `eprintln!` of `phases::line()` after it,
-  because `--count` prints its line before the run's compile. Remove the mark before the commit.
+- [ ] `crates/nvs-cli/src/script.rs:1691`: `nvs-revalidate` starts on the first
+  `Compiler::compiled` call.
+- [ ] `crates/nvs-host/src/slice.rs:177`: the slice clock starts when the scheduler gets its second
+  task (`rule:concurrency/the-parking-contract`).
 
-Tests that may go red at stage 6: the conformance cases that relied on a case writing a compile
-artifact (none is known), `nvs-cli`'s
+Tests that may go red at stage 6: `nvs-types`'s tests that read `SignatureTable::iter` and expect
+a `Core` class in it (none is known; only `check.rs` and `mark_overridden_methods` read it), a
+test that pins a `TypeId` number of a native type (the base interns `Core` before the error
+classes now, as before, but in another order), the conformance cases that relied on a case writing
+a compile artifact (none is known), `nvs-cli`'s
 `a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`, whose cold arm is shorter,
 and a `nvs-config` test that expected an empty unknown header in the merge table before
 `Merge::finish` (none is known; `finish` dropped it already).
@@ -305,3 +309,6 @@ and a `nvs-config` test that expected an empty unknown header in the merge table
   (`rule:concurrency/the-parking-contract`).
 - Found in stage 3: `built_in` still makes 6,699 allocations, nearly all of them the one parse of
   the built-in manifests' JSON and the copy of each `Manifest` in `with_built_in`. Not in a stage.
+- Found in stage 4: the `Core` type pre-pass makes 6,688 allocations, 4,948 of them transient
+  (`QName::parse` and argument vectors in `core_lib::lower`, paid again on every interner hit).
+  Lowering a type without building its `Ty` first would remove most of them. Not in a stage.
