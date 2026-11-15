@@ -106,6 +106,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `bun nv ci --check`'s website stale guard red at the goal's end. Run `bun nv site --check questions`
   after such a sweep. Where the reader sees no change, stamp every page it names. See
   `tools/nv/cmd/site.ts`. `until: gone tools/nv/cmd/site.ts:a handwritten page its key and its file`
+- **An edit to a `docs/examples/` file makes its reference page's questions stale too.** A fix to
+  `Core\Storage::delete`'s third example turned the website stale guard red, and the goal's DONE
+  was refused. After any example edit, run `bun nv site --check questions`, and stamp the page it
+  names with `MSYS_NO_PATHCONV=1`. See `tools/nv/cmd/site.ts`.
 - **`bun nv proofs --gate --group 'Core\X'` does not reach a value class inside it, `Core\X\Y`.**
   Each class is its own group, so a goal that gated only the outer class learns at `bun nv ci
   --check` that every member of the inner one owes all its proofs. Gate both groups from the start,

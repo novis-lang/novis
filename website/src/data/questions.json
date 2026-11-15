@@ -13990,7 +13990,7 @@
   },
   "/reference/core/storage/delete/": {
     "feature": "Core\\Storage::delete",
-    "hash": "67342190e29791de",
+    "hash": "9c3676c557fcca6b",
     "questions": [
       "How do I remove a saved file from storage?",
       "Delete an uploaded file by its name",
