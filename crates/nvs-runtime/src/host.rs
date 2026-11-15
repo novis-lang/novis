@@ -451,39 +451,48 @@ pub const ECHOED_MEDIA_TYPE: &str = "text/html; charset=utf-8";
 /// `rule:http-server/static-serving-is-one-policy` refuses. A `charset` is stated
 /// wherever the type is text, because a browser that guesses one is a browser
 /// that can be made to guess `UTF-7`.
+///
+/// The extension is folded to lower case in a buffer on the stack, so a lookup
+/// allocates nothing. An extension longer than the longest one the table names
+/// is not in it.
 #[must_use]
 pub fn file_media_type(path: &std::path::Path) -> &'static str {
-    let extension = path
-        .extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    match extension.as_str() {
-        "html" | "htm" => "text/html; charset=utf-8",
-        "css" => "text/css; charset=utf-8",
-        "js" | "mjs" => "text/javascript; charset=utf-8",
-        "json" | "map" => "application/json",
-        "txt" => "text/plain; charset=utf-8",
-        "csv" => "text/csv; charset=utf-8",
-        "xml" => "application/xml",
-        "svg" => "image/svg+xml",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "avif" => "image/avif",
-        "ico" => "image/x-icon",
-        "woff2" => "font/woff2",
-        "woff" => "font/woff",
-        "ttf" => "font/ttf",
-        "otf" => "font/otf",
-        "wasm" => "application/wasm",
-        "pdf" => "application/pdf",
-        "zip" => "application/zip",
-        "mp3" => "audio/mpeg",
-        "mp4" => "video/mp4",
-        "webm" => "video/webm",
-        _ => "application/octet-stream",
+    const UNKNOWN: &str = "application/octet-stream";
+    let Some(extension) = path.extension().and_then(std::ffi::OsStr::to_str) else {
+        return UNKNOWN;
+    };
+    let mut buffer = [0_u8; 5];
+    let Some(folded) = buffer.get_mut(..extension.len()) else {
+        return UNKNOWN;
+    };
+    folded.copy_from_slice(extension.as_bytes());
+    folded.make_ascii_lowercase();
+    match &*folded {
+        b"html" | b"htm" => "text/html; charset=utf-8",
+        b"css" => "text/css; charset=utf-8",
+        b"js" | b"mjs" => "text/javascript; charset=utf-8",
+        b"json" | b"map" => "application/json",
+        b"txt" => "text/plain; charset=utf-8",
+        b"csv" => "text/csv; charset=utf-8",
+        b"xml" => "application/xml",
+        b"svg" => "image/svg+xml",
+        b"png" => "image/png",
+        b"jpg" | b"jpeg" => "image/jpeg",
+        b"gif" => "image/gif",
+        b"webp" => "image/webp",
+        b"avif" => "image/avif",
+        b"ico" => "image/x-icon",
+        b"woff2" => "font/woff2",
+        b"woff" => "font/woff",
+        b"ttf" => "font/ttf",
+        b"otf" => "font/otf",
+        b"wasm" => "application/wasm",
+        b"pdf" => "application/pdf",
+        b"zip" => "application/zip",
+        b"mp3" => "audio/mpeg",
+        b"mp4" => "video/mp4",
+        b"webm" => "video/webm",
+        _ => UNKNOWN,
     }
 }
 
