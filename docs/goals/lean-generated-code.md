@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/helpers.rs]
   - id: 4
     title: a spawned task and a freed container allocate once
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-runtime/src/release.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -193,12 +193,12 @@ elements with one borrow.
 **Does:** build a child context from its parent's shared parts, and free a small tree without a
 heap worklist.
 
-- [ ] `crates/nvs-runtime/src/ctx/wiring.rs:131`: an internal constructor takes the tree and the
+- [x] `crates/nvs-runtime/src/ctx/wiring.rs:131`: an internal constructor takes the tree and the
   deadline, and `Ctx::child` at `crates/nvs-runtime/src/ctx/isolate.rs:396` calls it. The trace id
   is still drawn per task, so exported spans do not change (`rule:security/no-cross-request-state`).
-- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:422`: `origin` is an `Arc<str>`
+- [x] `crates/nvs-runtime/src/ctx/isolate.rs:422`: `origin` is an `Arc<str>`
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-runtime/src/release.rs:84`: the first eight dying entries are held inline
+- [x] `crates/nvs-runtime/src/release.rs:84`: the first eight dying entries are held inline
   (`rule:programs/memory-priority`). Safe default if this needs `unsafe`: decline.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -211,37 +211,35 @@ heap worklist.
 
 ### State
 
-Stages 1, 2 and 3 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 0.
+Stages 1 to 4 are done. Sessions used: stage 1: 1, stage 2: 1, stage 3: 1, stage 4: 1,
+stage 5: 0.
 
-- Stage 3: `int_key_bytes` and `slot_key_bytes` (`crates/nvs-runtime/src/array.rs:458`) write a
-  key's decimal through `helpers::write_decimal` into a stack buffer. Every integer-key site uses
-  them, so a read on a hashed array allocates nothing and a write allocates the kept `NvsStr` alone.
-- `value_to_array_key` (`crates/nvs-runtime/src/helpers.rs:773`) retains a string key and returns
-  it, and renders an integer with `decimal_digits`. Its one unsafe block now retains instead of
-  copying. `every_element_has_tag` borrows the array once through `ArrayRef::borrowed` and walks
-  `NvsArray::every_value` (`array.rs:1957`): two unsafe blocks became one.
-- `nvs_array_spread` (`array.rs:2894`) calls the new `NvsArray::reserve_within_budget`
-  (`array.rs:1858`) once. See the standing decision on the spread's reservation.
-- `an_integer_key_on_a_hashed_array_allocates_no_text` passed by name. Nothing else ran.
-- Tests that may go red at the gate for stage 3: a budget test that expects a spread to fail
-  after a fixed number of entries, since it now fails before the first. One that checks a
-  `mixed` key is a fresh copy, since it is now the same string.
-- Stage 2 may turn red at the gate: a test that greps CLIF or assembly for a fixed count of
-  `nvs_*_release` calls (`crates/nvs-codegen/tests/probes.rs`), or one that expects a
-  `refcount_calls()` release entry per row.
+- Stage 4: `Ctx::child` (`crates/nvs-runtime/src/ctx/isolate.rs:396`) calls the new
+  `Ctx::sharing` with its parent's tree and deadline. `Ctx::new` makes both and records `made`.
+  `origin` is an `Arc<str>`. `release.rs`'s `Worklist` keeps eight entries on the stack, in safe
+  code. Build and clippy ran. No test ran.
+- Since the last verify, stage 3 made integer keys render into a stack buffer and a spread reserve
+  once through `NvsArray::reserve_within_budget`. Stage 2 made a release that frees nothing inline.
+- Tests that may go red at the gate:
+  - a debug allocation count for spawning a task, now two lower;
+  - a count for freeing a nested graph, now one lower when at most eight containers wait;
+  - a budget test that expects a spread to fail after some entries: it now fails before the first;
+  - a test that a `mixed` key is a fresh copy: it is now the same string;
+  - a test that counts `nvs_*_release` calls in CLIF (`crates/nvs-codegen/tests/probes.rs`), or
+    expects a `refcount_calls()` release entry per row.
 - The sweep's `env-secret-proofs` is stale state in looper's service. Its log does not exist, and
-  nothing in the tree names it but `.loop/last-sweep.md`.
+  no goal in the tree defines it.
 
 ### Next
 
-Stage 4, in one session. It touches `crates/nvs-runtime/src/ctx/` and `release.rs` alone.
+Stage 5, the gate, in one session.
 
-- [ ] `crates/nvs-runtime/src/ctx/wiring.rs:131`: an internal constructor that takes the tree and
-  the deadline, called by `Ctx::child` at `crates/nvs-runtime/src/ctx/isolate.rs:396`. The trace
-  id is still drawn per task.
-- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:422`: `origin` becomes an `Arc<str>`.
-- [ ] `crates/nvs-runtime/src/release.rs:84`: the first eight dying entries are held inline, in
-  place of `Vec::new()`. Decline it if it needs `unsafe`.
+- [ ] `crates/nvs-runtime/src/release.rs:1`: start `looper verify` with `run_in_background`,
+  then end the turn and wait for its report.
+- [ ] `crates/nvs-codegen/src/lib.rs:3913`: fix every failure it names in one pass. The likely
+  ones are under `### State`. A count that is now lower is set to the new count, never loosened.
+- [ ] `crates/nvs-runtime/src/array.rs:3747`: run `looper verify` once more, then
+  `bun nv verify --doc`, `bun nv owners --closes lean-generated-code` and `bun nv ci --check`.
 
 ### Backlog
 
