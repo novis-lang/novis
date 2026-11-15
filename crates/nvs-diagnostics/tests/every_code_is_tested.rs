@@ -11,6 +11,7 @@
 //! The walk reads the repository's `crates/` and `tests/` trees once per run of this test, through
 //! `nvs_repo`, so the test runs again when a test anywhere in them changes.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -75,19 +76,53 @@ fn collect(dir: &Path, in_tests: bool, skipped: &Path, out: &mut String) {
     }
 }
 
-/// Whether `text` asserts the code: its number rendered or quoted, or its constant with no
-/// longer name continuing it.
-fn asserted(text: &str, number: &str, name: &str) -> bool {
-    if text.contains(&format!("[{number}]")) || text.contains(&format!("\"{number}\"")) {
-        return true;
+/// What `text` asserts, read in one pass: each word rendered as `[E0401]` or quoted as
+/// `"E0401"`, and each word written whole after `code::`.
+///
+/// A word is a maximal run of ASCII letters, digits and `_`, which every code's number and
+/// constant is, so a constant with a longer name continuing it is a different word. One scan
+/// and two sets replace a search of the whole text per code, which was the test's whole time.
+#[derive(Default)]
+struct Asserted<'t> {
+    numbers: HashSet<&'t str>,
+    constants: HashSet<&'t str>,
+}
+
+impl<'t> Asserted<'t> {
+    fn scan(text: &'t str) -> Self {
+        let bytes = text.as_bytes();
+        let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+        let mut out = Self::default();
+        let mut at = 0;
+        while at < bytes.len() {
+            if !word(bytes[at]) {
+                at += 1;
+                continue;
+            }
+            let start = at;
+            while at < bytes.len() && word(bytes[at]) {
+                at += 1;
+            }
+            let found = &text[start..at];
+            let before = start.checked_sub(1).map(|i| bytes[i]);
+            let after = bytes.get(at).copied();
+            if matches!(
+                (before, after),
+                (Some(b'['), Some(b']')) | (Some(b'"'), Some(b'"'))
+            ) {
+                out.numbers.insert(found);
+            }
+            if text[..start].ends_with("code::") {
+                out.constants.insert(found);
+            }
+        }
+        out
     }
-    let constant = format!("code::{name}");
-    text.match_indices(&constant).any(|(at, _)| {
-        text[at + constant.len()..]
-            .chars()
-            .next()
-            .is_none_or(|next| !(next.is_ascii_alphanumeric() || next == '_'))
-    })
+
+    /// Whether the text asserts the code: its number rendered or quoted, or its constant.
+    fn has(&self, number: &str, name: &str) -> bool {
+        self.numbers.contains(number) || self.constants.contains(name)
+    }
 }
 
 #[test]
@@ -102,6 +137,7 @@ fn every_code_is_asserted_by_its_code_in_a_test() {
     collect(&crates, false, &own, &mut text);
     collect(&nvs_repo::path("tests"), true, &own, &mut text);
 
+    let asserted = Asserted::scan(&text);
     let declared = declarations();
     assert_eq!(
         declared.len(),
@@ -111,7 +147,7 @@ fn every_code_is_asserted_by_its_code_in_a_test() {
 
     let untested: Vec<String> = declared
         .iter()
-        .filter(|(number, name)| !asserted(&text, number, name))
+        .filter(|(number, name)| !asserted.has(number, name))
         .map(|(number, name)| format!("{number} ({name})"))
         .collect();
     assert!(
