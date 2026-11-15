@@ -6,18 +6,19 @@
 // The timings run `target/release/nvs` on a one-line program: `--version`, `ast`, `check` and `run`, each
 // on a shared data folder that earlier runs have warmed and on a fresh one made for that run alone. The
 // runs interleave, one of each shape in turn, so a burst of load lands on every shape alike. It prints
-// the median and the spread of each. Then it runs `target/debug/nvs check --count` and `run --count` once
-// each and prints their `phases:` lines as a table: each start phase's allocations, bytes and file work
+// the median and the spread of each. Then it builds the pipeline's debug `nvs` (`lib/covws.ts`), runs its
+// `check --count` and `run --count` once each, and prints their `phases:` lines as a table: each start phase's allocations, bytes and file work
 // (`crates/nvs-cli/src/phases.rs`). The counts are the figures that decide, since they are the same on
 // every machine; the times are a note (`rule:testing/perf-two-mechanisms`).
 //
 // Everything it writes is under `.agent-tmp/start-cost/`, and each fresh data folder is deleted after
-// its run. Build both binaries first: `bun nv relink --build` and `cargo build`.
+// its run. Build the release binary first with `bun nv relink --build`.
 //
 // What it spends: about a minute at 25 runs, on one core at a time.
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildCovws } from "../lib/covws.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { releaseCli } from "../lib/relink.ts";
@@ -100,13 +101,11 @@ export async function run(args: string[]): Promise<number> {
     return 2;
   }
   const release = releaseCli();
-  const debug = join(ROOT, "target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
-  for (const [exe, build] of [[release, "bun nv relink --build"], [debug, "cargo build"]] as const) {
-    if (!existsSync(exe)) {
-      console.error(`nv start-cost: ${rel(exe)} does not exist; run \`${build}\` first`);
-      return 1;
-    }
+  if (!existsSync(release)) {
+    console.error(`nv start-cost: ${rel(release)} does not exist; run \`bun nv relink --build\` first`);
+    return 1;
   }
+  const debug = (await buildCovws()).nvs;
   mkdirSync(WORK, { recursive: true });
   writeFileSync(join(WORK, "small.nvs"), PROGRAM);
   const shared = join(WORK, "shared");
