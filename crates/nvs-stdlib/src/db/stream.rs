@@ -98,6 +98,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
         STREAM_ROW_SLOT,
         STREAM_CLASS_SLOT,
         STREAM_SITE_SLOT,
+        STREAM_KEYS_SLOT,
     ],
     constants: &[],
 };
@@ -217,13 +218,26 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
     // arm below holds the thing the span is filed on. The call site id is the
     // one the `stream` call passed, which the walk keeps in its own slot.
     let watch = QueryWatch::of(ctx, &block).at(crate::instance::slot(receiver, STREAM_SITE_AT));
+    // The keys an earlier step made, or `None` before the first row.
+    let mut keys = RowKeys::of_list(crate::instance::slot(receiver, STREAM_KEYS_AT));
+    let made = keys.is_none();
     let stepped = match filed_connection(ctx, key, STREAM_MEMBER)? {
-        nvs_db::Connection::Postgres(postgres) => postgres_step(postgres, &block, &watch),
-        nvs_db::Connection::MySql(mysql) => mysql_step(Framed::MySql(mysql), &block, &watch),
-        nvs_db::Connection::MariaDb(maria) => mysql_step(Framed::MariaDb(maria), &block, &watch),
-        nvs_db::Connection::SqlServer(tds) => tds_step(tds, &block, &watch),
-        nvs_db::Connection::Sqlite(sqlite) => sqlite_step(sqlite, &block, &watch),
+        nvs_db::Connection::Postgres(postgres) => {
+            postgres_step(postgres, &block, &watch, &mut keys)
+        }
+        nvs_db::Connection::MySql(mysql) => {
+            mysql_step(Framed::MySql(mysql), &block, &watch, &mut keys)
+        }
+        nvs_db::Connection::MariaDb(maria) => {
+            mysql_step(Framed::MariaDb(maria), &block, &watch, &mut keys)
+        }
+        nvs_db::Connection::SqlServer(tds) => tds_step(tds, &block, &watch, &mut keys),
+        nvs_db::Connection::Sqlite(sqlite) => sqlite_step(sqlite, &block, &watch, &mut keys),
     };
+    // Kept for the next step only when this step made them.
+    if made && let Some(keys) = &keys {
+        crate::instance::set_slot(receiver, STREAM_KEYS_AT, keys.to_list());
+    }
     // A step the walk's deadline stopped cancels the statement and waits for
     // the connection before the program sees the failure.
     let (row, taken) = settled(ctx, key, stepped)?;
@@ -242,6 +256,7 @@ fn postgres_step(
     postgres: &mut nvs_db::PgConn,
     block: &Value,
     watch: &QueryWatch,
+    keys: &mut Option<RowKeys>,
 ) -> Result<Stepped, Fault> {
     let read = postgres
         .stream_next_row()
@@ -260,20 +275,21 @@ fn postgres_step(
     // keeps this walk's per-row cost the decode and nothing else.
     let zone = postgres.time_zone();
     let columns = postgres.stream_columns().unwrap_or(&[]);
-    // Built whole before it is parked, on [`postgres_rows`]' reasoning: a
+    let keys =
+        keys.get_or_insert_with(|| RowKeys::of(columns.iter().map(|column| column.name.as_str())));
+    // Built whole before it is parked, on [`RowKeys::row`]'s reasoning: a
     // column this driver cannot read back releases the half-built row rather
     // than leaving it in the slot.
-    let mut one = NvsArray::new();
-    for (index, column) in columns.iter().enumerate() {
+    let one = keys.row(|index| {
+        let column = &columns[index];
         let body = read
             .column(index)
             .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
         let scalar = column
             .scalar(body)
             .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
-        let value = column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
-        one.set(NvsStr::new(column.name.as_bytes()), value);
-    }
+        column_value(scalar, zone, STREAM_MEMBER, &column.name)
+    })?;
     Ok((Some(one), None))
 }
 
@@ -304,7 +320,12 @@ type Stepped = (Option<NvsArray>, Option<crate::db::span::Taken>);
 /// that failed under it, and [`mysql_column_value`]'s for a column with no Novis
 /// representation. A [`Fault::fatal`] for a row narrower than the definitions it
 /// was decoded against, which is a `nvs-db` bug rather than a program's.
-fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Result<Stepped, Fault> {
+fn mysql_step(
+    mut framed: Framed<'_>,
+    block: &Value,
+    watch: &QueryWatch,
+    keys: &mut Option<RowKeys>,
+) -> Result<Stepped, Fault> {
     let read = framed
         .stream_next_row()
         .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
@@ -330,26 +351,31 @@ fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Resu
     }
     .unwrap_or_default();
 
+    let failed =
+        |refused: std::io::Error| statement_failure(STREAM_MEMBER, block, None, true, &refused);
+    // A label that is not UTF-8 is refused before the first key is made, as in
+    // [`mysql_rows`].
+    let labels = columns
+        .iter()
+        .map(|column| nvs_db::mysql::label(column).map_err(failed))
+        .collect::<Result<Vec<&str>, Fault>>()?;
+    let keys = keys.get_or_insert_with(|| RowKeys::of(labels.iter().copied()));
+
     // Built whole before it is parked, on [`park_row`]'s reasoning: a column this
     // driver cannot read back releases the half-built row rather than leaving it
     // in the slot.
-    let mut one = NvsArray::new();
-    for (index, column) in columns.iter().enumerate() {
+    let one = keys.row(|index| {
         // Unreachable, as in [`mysql_rows`]: `nvs-db` decodes one value per
-        // definition, so a row is exactly as wide as this loop.
+        // definition, so a row is exactly as wide as the keys.
         let body = read.value(index).ok_or_else(|| {
             Fault::fatal(format!(
                 "{STREAM_MEMBER}: the row has no column {index}, where the result set described {}",
                 columns.len()
             ))
         })?;
-        let scalar = nvs_db::mysql::scalar(column, body)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
-        let label = nvs_db::mysql::label(column)
-            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
-        let value = mysql_column_value(scalar, zone, STREAM_MEMBER, label)?;
-        one.set(NvsStr::new(label.as_bytes()), value);
-    }
+        let scalar = nvs_db::mysql::scalar(&columns[index], body).map_err(failed)?;
+        mysql_column_value(scalar, zone, STREAM_MEMBER, labels[index])
+    })?;
     Ok((Some(one), None))
 }
 
@@ -369,6 +395,7 @@ fn tds_step(
     tds: &mut nvs_db::TdsConn,
     block: &Value,
     watch: &QueryWatch,
+    keys: &mut Option<RowKeys>,
 ) -> Result<Stepped, Fault> {
     let read = tds
         .stream_next_row()
@@ -383,22 +410,23 @@ fn tds_step(
 
     let zone = tds.time_zone();
     let columns = tds.stream_columns().unwrap_or(&[]);
+    let keys =
+        keys.get_or_insert_with(|| RowKeys::of(columns.iter().map(|column| column.name.as_str())));
     // Built whole before it is parked, on [`park_row`]'s reasoning.
-    let mut one = NvsArray::new();
-    for (index, column) in columns.iter().enumerate() {
+    let one = keys.row(|index| {
         // Unreachable and fatal for [`tds_rows`]' reason: `nvs-db` reads one
-        // value per described column, so a row is exactly as wide as this loop.
+        // value per described column, so a row is exactly as wide as the keys.
         let body = read.column(index).ok_or_else(|| {
             Fault::fatal(format!(
                 "{STREAM_MEMBER}: the row has no column {index}, where the result set described {}",
                 columns.len()
             ))
         })?;
+        let column = &columns[index];
         let scalar = nvs_db::tds::scalar(column, body)
             .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, true, &refused))?;
-        let value = tds_column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
-        one.set(NvsStr::new(column.name.as_bytes()), value);
-    }
+        tds_column_value(scalar, zone, STREAM_MEMBER, &column.name)
+    })?;
     Ok((Some(one), None))
 }
 
@@ -422,6 +450,7 @@ fn sqlite_step(
     sqlite: &mut nvs_db::SqliteConn,
     block: &Value,
     watch: &QueryWatch,
+    keys: &mut Option<RowKeys>,
 ) -> Result<Stepped, Fault> {
     let read = sqlite
         .stream_next_row()
@@ -444,14 +473,15 @@ fn sqlite_step(
         )));
     }
 
-    // Built whole before it is parked, on [`park_row`]'s reasoning.
-    let mut one = NvsArray::new();
-    for (column, cell) in columns.iter().zip(cells) {
-        one.set(
-            NvsStr::new(column.name.as_bytes()),
-            sqlite_column_value(column, cell, zone, STREAM_MEMBER)?,
-        );
-    }
+    let keys =
+        keys.get_or_insert_with(|| RowKeys::of(columns.iter().map(|column| column.name.as_str())));
+    // Built whole before it is parked, on [`park_row`]'s reasoning. The cells
+    // are moved out in column order.
+    let mut cells = cells;
+    let one = keys.row(|index| {
+        let cell = std::mem::replace(&mut cells[index], nvs_db::SqliteValue::Null);
+        sqlite_column_value(&columns[index], cell, zone, STREAM_MEMBER)
+    })?;
     Ok((Some(one), None))
 }
 
@@ -620,6 +650,7 @@ fn open_stream(
             Value::null(),
             class,
             args[4],
+            Value::null(),
         ],
     ))
 }
@@ -803,7 +834,8 @@ mod tests {
         // The fourth slot is the class a `streamAs<T>` would have written, and
         // this walk is `stream`'s: the rows stay `Db\Row`s, which is what makes
         // the count below one about the parking and not about a constructor.
-        // The fifth is the call site id, and 0 names no site.
+        // The fifth is the call site id, and 0 names no site. The sixth is
+        // the keys, which only a driver step writes.
         let stream = crate::instance::build(
             &STREAM,
             [
@@ -812,6 +844,7 @@ mod tests {
                 Value::null(),
                 Value::null(),
                 Value::int(0),
+                Value::null(),
             ],
         );
         let receiver = stream.obj_ptr().expect("`build` answers an object");

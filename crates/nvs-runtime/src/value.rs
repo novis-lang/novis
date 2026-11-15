@@ -650,6 +650,22 @@ impl Value {
         Some(object.class_name().to_owned())
     }
 
+    /// A handle of its own on this value's string, or `None` for
+    /// any other value. It shares the allocation and takes one reference, so a
+    /// caller that writes the same key into many arrays makes the string once.
+    #[must_use]
+    pub fn str_handle(&self) -> Option<NvsStr> {
+        let ptr = self.str_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str value owns a reference to a live \
+                      allocation, and the borrowed handle is never dropped: the \
+                      clone takes the one reference the caller gets"
+        )]
+        let held = std::mem::ManuallyDrop::new(unsafe { NvsStr::from_raw(ptr) });
+        Some(NvsStr::clone(&held))
+    }
+
     /// The reference count of this value's string, `bytes`, object or array,
     /// or `None` for a value with no count. A literal's header reads
     /// [`crate::IMMORTAL_REFCOUNT`].

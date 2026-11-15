@@ -574,6 +574,16 @@ const STREAM_SITE_SLOT: &str = "site";
 /// Where [`STREAM_SITE_SLOT`] sits. See [`HANDLE_AT`].
 const STREAM_SITE_AT: usize = 4;
 
+/// A [`STREAM`]'s sixth slot: the walk's row keys as a list of strings, made by
+/// the first step that reads a row and `null` before it. Every later row takes
+/// another reference to these strings, so a step allocates no key
+/// (`execute::RowKeys`). **What it spends:** one string per column for the
+/// walk's whole length.
+const STREAM_KEYS_SLOT: &str = "keys";
+
+/// Where [`STREAM_KEYS_SLOT`] sits. See [`HANDLE_AT`].
+const STREAM_KEYS_AT: usize = 5;
+
 /// `Core\Db\Write`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 const WRITE_NAME: &str = r"Core\Db\Write";
 

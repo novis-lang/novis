@@ -565,6 +565,98 @@ pub(super) fn write_object(written: &Written) -> Value {
     )
 }
 
+/// A result's column names as row keys, made once for every row it has.
+///
+/// Every row of one result has the same keys, so each row takes another
+/// reference to these strings and allocates none of its own. A key is never
+/// written in place, so a row that is changed later separates as any shared
+/// string does. A stream keeps the list from [`Self::to_list`] in its own slot
+/// and reads it back on each step with [`Self::of_list`].
+///
+/// **What it spends:** one string per column for as long as the result is
+/// being read. Per row it saves one string per column.
+pub(super) struct RowKeys(Vec<NvsStr>);
+
+impl RowKeys {
+    /// The keys for columns named `names`, in column order.
+    pub(super) fn of<'a>(names: impl IntoIterator<Item = &'a str>) -> Self {
+        Self(
+            names
+                .into_iter()
+                .map(|name| NvsStr::new(name.as_bytes()))
+                .collect(),
+        )
+    }
+
+    /// The keys a [`Self::to_list`] wrote, or `None` for any other value.
+    pub(super) fn of_list(list: Value) -> Option<Self> {
+        let list = list.as_array()?;
+        let mut keys = Vec::with_capacity(list.count());
+        let mut slot = list.next_slot(0);
+        while let Some(at) = slot {
+            keys.push(list.value_at(at)?.str_handle()?);
+            slot = list.next_slot(at + 1);
+        }
+        Some(Self(keys))
+    }
+
+    /// These keys as a list of strings, for a value slot to keep.
+    pub(super) fn to_list(&self) -> Value {
+        let mut list = NvsArray::with_capacity(self.0.len());
+        for key in &self.0 {
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "every key was made from a `&str` in `RowKeys::of`"
+            )]
+            list.append(Value::str(key.clone()));
+        }
+        Value::array(list)
+    }
+
+    /// One row: the value `cell` gives for each column, under that column's
+    /// key, asked in column order.
+    ///
+    /// The row is built whole before the caller keeps it. A cell that fails
+    /// frees the part already built, through `NvsArray`'s own `Drop`.
+    ///
+    /// # Errors
+    ///
+    /// The first error `cell` gives.
+    pub(super) fn row(
+        &self,
+        mut cell: impl FnMut(usize) -> Result<Value, Fault>,
+    ) -> Result<NvsArray, Fault> {
+        let mut one = NvsArray::with_capacity(self.0.len());
+        for (index, key) in self.0.iter().enumerate() {
+            one.set(key.clone(), cell(index)?);
+        }
+        Ok(one)
+    }
+}
+
+/// Every row of a buffered result, for all four drivers' `*_rows`.
+///
+/// `next` reads the driver's next row, and `cell` gives one column of it.
+/// Each row is checked against the memory ceiling as it joins the result.
+///
+/// # Errors
+///
+/// The first error `next` or `cell` gives, and [`rows_fit`]'s.
+fn collected_rows<R>(
+    keys: &RowKeys,
+    named: &str,
+    mut next: impl FnMut() -> Result<Option<R>, Fault>,
+    mut cell: impl FnMut(&mut R, usize) -> Result<Value, Fault>,
+) -> Result<NvsArray, Fault> {
+    let mut rows = NvsArray::new();
+    while let Some(mut row) = next()? {
+        let one = keys.row(|index| cell(&mut row, index))?;
+        rows.append(Value::array(one));
+        rows_fit(named)?;
+    }
+    Ok(rows)
+}
+
 /// [`queried_rows`] over the PostgreSQL driver: the extended-query stream,
 /// `rule:core-classes/db-column-types`' decode of every row, and
 /// `rule:observability/a-query-is-a-trace-event`'s span taken off the rows
@@ -601,50 +693,28 @@ pub(super) fn postgres_rows(
     // out of one borrow, and the rows are read with it held mutably.
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
     let described = described_columns(&columns);
+    let keys = RowKeys::of(columns.iter().map(|column| column.name.as_str()));
+    let failed = |refused: std::io::Error| {
+        statement_failure(
+            named,
+            &statement.block,
+            source,
+            statement.withholds_text(),
+            &refused,
+        )
+    };
 
-    let mut rows = NvsArray::new();
-    loop {
-        let Some(row) = answered.next_row().map_err(|refused| {
-            statement_failure(
-                named,
-                &statement.block,
-                source,
-                statement.withholds_text(),
-                &refused,
-            )
-        })?
-        else {
-            break;
-        };
-        // Built whole before it joins the result, so that a column this
-        // driver cannot read back releases the row it was half way through
-        // rather than leaving it in one — `NvsArray`'s own `Drop`.
-        let mut one = NvsArray::new();
-        for (index, column) in columns.iter().enumerate() {
-            let body = row.column(index).map_err(|refused| {
-                statement_failure(
-                    named,
-                    &statement.block,
-                    source,
-                    statement.withholds_text(),
-                    &refused,
-                )
-            })?;
-            let scalar = column.scalar(body).map_err(|refused| {
-                statement_failure(
-                    named,
-                    &statement.block,
-                    source,
-                    statement.withholds_text(),
-                    &refused,
-                )
-            })?;
-            let value = column_value(scalar, zone, named, &column.name)?;
-            one.set(NvsStr::new(column.name.as_bytes()), value);
-        }
-        rows.append(Value::array(one));
-        rows_fit(named)?;
-    }
+    let rows = collected_rows(
+        &keys,
+        named,
+        || answered.next_row().map_err(failed),
+        |row, index| {
+            let column = &columns[index];
+            let body = row.column(index).map_err(failed)?;
+            let scalar = column.scalar(body).map_err(failed)?;
+            column_value(scalar, zone, named, &column.name)
+        },
+    )?;
     // After the drain, so the span carries the duration the caller waited and
     // the rows it actually got.
     let taken = watch.taken(answered.span());
@@ -829,14 +899,11 @@ impl Framed<'_> {
 /// `rule:core-classes/db-column-types`' decode of the binary rows it answers
 /// with.
 ///
-/// **The same shape as [`postgres_rows`] and deliberately not shared with it.**
-/// The two drivers agree on what a row *is* — a keyed array under the labels the
-/// result set described — and on nothing else in the walk: the description is
-/// read off the stream here and off a cloned `PgColumn` there, a value is a
-/// `MyValue` read against its own definition rather than a body the column
-/// decodes, and the two `Scalar` enums are two sets of rows because MySQL has no
-/// `UUID` and no array type. A trait over that would be four abstract methods
-/// standing for eight concrete lines.
+/// **The row loop is [`collected_rows`], shared by all four drivers**, and what
+/// stays here is the cell. A value is a `MyValue` read against its own
+/// definition rather than a body the column decodes, and the two `Scalar` enums
+/// are two sets of rows because MySQL has no `UUID` and no array type. So each
+/// driver gives one closure for a cell, and nothing else differs.
 ///
 /// **The query's trace event is the one thing the two do share**
 /// (`rule:observability/a-query-is-a-trace-event`), down to the line: a
@@ -884,9 +951,7 @@ pub(super) fn mysql_rows(
         statement.withholds_text(),
     )?;
     let columns = answered.columns().to_vec();
-
-    let mut rows = NvsArray::new();
-    while let Some(row) = answered.next_row().map_err(|refused| {
+    let failed = |refused: std::io::Error| {
         statement_failure(
             named,
             &statement.block,
@@ -894,12 +959,23 @@ pub(super) fn mysql_rows(
             statement.withholds_text(),
             &refused,
         )
-    })? {
-        // Built whole before it joins the result, for [`postgres_rows`]' reason.
-        let mut one = NvsArray::new();
-        for (index, column) in columns.iter().enumerate() {
+    };
+    // A label is bytes on this driver and text on the other, and a row's key
+    // is UTF-8 on both, so a label that is not is refused here as it is in the
+    // description above.
+    let labels = columns
+        .iter()
+        .map(|column| nvs_db::mysql::label(column).map_err(failed))
+        .collect::<Result<Vec<&str>, Fault>>()?;
+    let keys = RowKeys::of(labels.iter().copied());
+
+    let rows = collected_rows(
+        &keys,
+        named,
+        || answered.next_row().map_err(failed),
+        |row, index| {
             // Unreachable: `nvs-db` decodes one value per definition, so a row
-            // is exactly as wide as this loop. It is a `fatal` rather than a
+            // is exactly as wide as the keys. It is a `fatal` rather than a
             // refusal because a narrower row is that crate disagreeing with
             // itself and not something a statement can ask for.
             let body = row.value(index).ok_or_else(|| {
@@ -908,33 +984,10 @@ pub(super) fn mysql_rows(
                     columns.len()
                 ))
             })?;
-            let scalar = nvs_db::mysql::scalar(column, body).map_err(|refused| {
-                statement_failure(
-                    named,
-                    &statement.block,
-                    source,
-                    statement.withholds_text(),
-                    &refused,
-                )
-            })?;
-            // A label is bytes on this driver and text on the other, and a
-            // row's key is UTF-8 on both, so a label that is not is refused
-            // here as it is in the description above.
-            let label = nvs_db::mysql::label(column).map_err(|refused| {
-                statement_failure(
-                    named,
-                    &statement.block,
-                    source,
-                    statement.withholds_text(),
-                    &refused,
-                )
-            })?;
-            let value = mysql_column_value(scalar, zone, named, label)?;
-            one.set(NvsStr::new(label.as_bytes()), value);
-        }
-        rows.append(Value::array(one));
-        rows_fit(named)?;
-    }
+            let scalar = nvs_db::mysql::scalar(&columns[index], body).map_err(failed)?;
+            mysql_column_value(scalar, zone, named, labels[index])
+        },
+    )?;
     // After the drain, as [`postgres_rows`]: the terminator is what freezes the
     // duration, and the rows counted are the ones that came back.
     let taken = watch.taken(answered.span());
@@ -951,9 +1004,9 @@ pub(super) fn mysql_rows(
 /// `sp_prepexec`, and `rule:core-classes/db-column-types`' decode of the token
 /// stream it answers with.
 ///
-/// **[`mysql_rows`]' shape a third time**, and that function's doc argues at
-/// length why the three are not one walk. What differs here is smaller than
-/// what differs between the other two: a value is the row's own octets read
+/// **[`mysql_rows`]' shape a third time**, over the same [`collected_rows`].
+/// What differs here is smaller than what differs between the other two: a
+/// value is the row's own octets read
 /// against the column `COLMETADATA` described, which is `nvs_db::tds::scalar`'s
 /// reading rather than this module's, and a label is a `String` because TDS
 /// carries it as UCS-2 and the driver has already decoded it — so the key is
@@ -992,9 +1045,8 @@ pub(super) fn tds_rows(
     // are lent out of a shared borrow and the rows out of a mutable one.
     let columns: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
     let described = tds_described_columns(&answered);
-
-    let mut rows = NvsArray::new();
-    while let Some(row) = answered.next_row().map_err(|refused| {
+    let keys = RowKeys::of(columns.iter().map(|column| column.name.as_str()));
+    let failed = |refused: std::io::Error| {
         statement_failure(
             named,
             &statement.block,
@@ -1002,34 +1054,27 @@ pub(super) fn tds_rows(
             statement.withholds_text(),
             &refused,
         )
-    })? {
-        // Built whole before it joins the result, for [`postgres_rows`]' reason.
-        let mut one = NvsArray::new();
-        for (index, column) in columns.iter().enumerate() {
+    };
+
+    let rows = collected_rows(
+        &keys,
+        named,
+        || answered.next_row().map_err(failed),
+        |row, index| {
             // Unreachable and fatal for [`mysql_rows`]' reason: `nvs-db` reads
             // one value per described column, so a row is exactly as wide as
-            // this loop.
+            // the keys.
             let body = row.column(index).ok_or_else(|| {
                 Fault::fatal(format!(
                     "{named}: the row has no column {index}, where the result set described {}",
                     columns.len()
                 ))
             })?;
-            let scalar = nvs_db::tds::scalar(column, body).map_err(|refused| {
-                statement_failure(
-                    named,
-                    &statement.block,
-                    source,
-                    statement.withholds_text(),
-                    &refused,
-                )
-            })?;
-            let value = tds_column_value(scalar, zone, named, &column.name)?;
-            one.set(NvsStr::new(column.name.as_bytes()), value);
-        }
-        rows.append(Value::array(one));
-        rows_fit(named)?;
-    }
+            let column = &columns[index];
+            let scalar = nvs_db::tds::scalar(column, body).map_err(failed)?;
+            tds_column_value(scalar, zone, named, &column.name)
+        },
+    )?;
     // After the drain, as the other two: the `DONE` token is what freezes the
     // duration and the count the span carries.
     let taken = watch.taken(answered.span());
@@ -1222,37 +1267,37 @@ pub(super) fn sqlite_rows(
     // are lent out of a shared borrow and the rows out of a mutable one.
     let columns: Vec<nvs_db::SqliteColumn> = answered.columns().to_vec();
     let described = sqlite_described_columns(&columns);
+    let keys = RowKeys::of(columns.iter().map(|column| column.name.as_str()));
 
-    let mut rows = NvsArray::new();
-    while let Some(row) = answered.next_row() {
-        // Unreachable and fatal for [`tds_rows`]' reason: `nvs-db` steps one
-        // value per described column, so a row is exactly as wide as the
-        // description. Asked of the whole row rather than per cell because the
-        // cells are *moved* into the result below — the owned buffer a `TEXT`
-        // or `BLOB` came back in becomes the Novis value's, which is the one
-        // copy this driver's materialized rows do not have to pay twice.
-        if row.len() != columns.len() {
-            return Err(Fault::fatal(format!(
-                "{named}: the row holds {} column(s), where the result set described {}",
-                row.len(),
-                columns.len()
-            )));
-        }
-        // Built whole before it joins the result, for [`postgres_rows`]' reason
-        // — which this driver now needs for its own: a cell the column's
-        // declaration does not describe throws part way through a row, and
-        // `NvsArray`'s `Drop` releases what was already set.
-        let mut one = NvsArray::new();
-        for (column, cell) in columns.iter().zip(row) {
-            one.set(
-                NvsStr::new(column.name.as_bytes()),
-                sqlite_column_value(column, cell, zone, named)?,
-            );
-        }
-        span.row();
-        rows.append(Value::array(one));
-        rows_fit(named)?;
-    }
+    let rows = collected_rows(
+        &keys,
+        named,
+        || {
+            let Some(row) = answered.next_row() else {
+                return Ok(None);
+            };
+            // Unreachable and fatal for [`tds_rows`]' reason: `nvs-db` steps
+            // one value per described column, so a row is exactly as wide as
+            // the description. Asked of the whole row rather than per cell
+            // because the cells are *moved* into the result below — the owned
+            // buffer a `TEXT` or `BLOB` came back in becomes the Novis value's,
+            // which is the one copy this driver's materialized rows do not have
+            // to pay twice.
+            if row.len() != columns.len() {
+                return Err(Fault::fatal(format!(
+                    "{named}: the row holds {} column(s), where the result set described {}",
+                    row.len(),
+                    columns.len()
+                )));
+            }
+            span.row();
+            Ok(Some(row))
+        },
+        |row, index| {
+            let cell = std::mem::replace(&mut row[index], nvs_db::SqliteValue::Null);
+            sqlite_column_value(&columns[index], cell, zone, named)
+        },
+    )?;
     // No affected count on a read: `nvs_db::SqliteRows::affected` answers what
     // the last data-changing statement on this *connection* reported, which is
     // SQLite's own rule and belongs to [`sqlite_write`] alone.
@@ -2151,6 +2196,79 @@ mod tests {
             answered.rows.count(),
             2,
             "the result changed under a statement that ran after it"
+        );
+    }
+
+    /// **Every row of one result uses the same key strings.** The keys are
+    /// made once, before the first row, so each column's key string has one
+    /// reference per row and no row allocates a key of its own.
+    // covers: Core\Db\Connection::query
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_results_rows_share_one_set_of_keys() {
+        const ROWS: usize = 50;
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let mut conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        conn.query(
+            "create table notes (id integer primary key, text text not null)",
+            Vec::new(),
+        )
+        .expect("the schema is applied");
+        for n in 0..ROWS {
+            conn.query(
+                "insert into notes (text) values (?)",
+                vec![nvs_db::SqliteValue::Text(format!("note {n}"))],
+            )
+            .expect("a row is written");
+        }
+
+        let ctx = nvs_runtime::Ctx::buffered();
+        let statement = crate::db::bind::Statement {
+            key: 0,
+            block: Value::null(),
+            sql: String::from("select id, text from notes order by id"),
+            binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+            plain_binds: false,
+        };
+        let (answered, _) = sqlite_rows(
+            &mut conn,
+            &statement,
+            None,
+            crate::db::span::QueryWatch::named(&ctx, None),
+            "query",
+        )
+        .expect("a `select` over an open connection answers its rows");
+        assert_eq!(answered.rows.count(), ROWS, "the result lost rows");
+
+        // 1. The first row's two keys, read back with one reference each of
+        //    the test's own.
+        let first = answered
+            .rows
+            .get_index(0)
+            .and_then(|row| row.as_array().map(|row| (row.key_at(0), row.key_at(1))))
+            .expect("the first row is an array");
+        let (Some(id), Some(text)) = first else {
+            panic!("the first row has no two keys");
+        };
+
+        // 2. Each key string is the one every row uses, so its count grows
+        //    with the rows. A hashed row keeps its key in its entry and in its
+        //    index, so a row that made its own key would leave this count at
+        //    3, whatever the number of rows.
+        assert!(
+            id.refcount() > ROWS,
+            "the rows do not share the `id` key: {} references",
+            id.refcount()
+        );
+        assert!(
+            text.refcount() > ROWS,
+            "the rows do not share the `text` key: {} references",
+            text.refcount()
         );
     }
 
