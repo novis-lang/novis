@@ -2402,12 +2402,18 @@ fn exchange(
     bounds: Bounds,
     key: &str,
 ) -> Result<Sent, Fault> {
-    if let Err(err) = stream.write_all(request.as_bytes()) {
+    // A small body goes out in the head's write, so the request is one write.
+    // Any other body follows the head, as `rest`.
+    let (written, rest) = match body.and_then(|body| joined(request, body)) {
+        Some(message) => (stream.write_all(&message), None),
+        None => (stream.write_all(request.as_bytes()), body),
+    };
+    if let Err(err) = written {
         return Ok(Sent::WhileSending(format!(
             "sending to {reached} failed: {err}"
         )));
     }
-    if let Some(body) = body
+    if let Some(body) = rest
         && let Some(err) = write_body(body, &mut stream, call.member)?
     {
         return Ok(Sent::WhileSending(format!(
@@ -2603,6 +2609,39 @@ fn compose(call: &Call<'_>, hop: Hop<'_>, parts: &Parts) -> Result<String, Fault
     }
     out.push_str("\r\n");
     Ok(out)
+}
+
+/// The largest body [`joined`] sends in the head's write.
+///
+/// Up to this size a body is copied once more, so the request leaves in one
+/// write and one segment where it fits (`rule:programs/memory-priority`,
+/// latency over footprint). What it spends: one buffer of the head and the body,
+/// per attempt, released when the write returns. A larger body keeps two
+/// writes, because the copy would cost more than the write it saves.
+const JOINED_BODY: u64 = 16 * 1024;
+
+/// The head and the body in one buffer, when every piece of the body is held
+/// and the whole body is at most [`JOINED_BODY`].
+///
+/// `None` is every other body, and [`exchange`] writes it after the head with
+/// [`write_body`]. A file piece is never joined, because reading it here would
+/// move its failure out of [`write_body`], where it is split from the socket's.
+fn joined(head: &str, body: &Body) -> Option<Vec<u8>> {
+    let held = |piece: &Piece| match piece {
+        Piece::Held(_) => true,
+        Piece::File { .. } => false,
+    };
+    if body.length > JOINED_BODY || !body.pieces.iter().all(held) {
+        return None;
+    }
+    let mut message = Vec::with_capacity(head.len() + usize::try_from(body.length).ok()?);
+    message.extend_from_slice(head.as_bytes());
+    for piece in &body.pieces {
+        if let Piece::Held(octets) = piece {
+            message.extend_from_slice(octets);
+        }
+    }
+    Some(message)
 }
 
 /// The body out, piece by piece, after the head.
