@@ -61,6 +61,8 @@
 //!   per resource class name for the life of the process, and one two-slot object per resource a
 //!   request holds.
 
+use std::sync::Arc;
+
 use nvs_config::Cap;
 use nvs_ext::manifest::{Const, Enum, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
@@ -77,7 +79,7 @@ use crate::ty::{ShapeField, Ty, TypeId, TypeInterner};
 /// constants [`seed`] gives it a signature for, and on the manifest's class the source files its
 /// extension carries.
 #[must_use]
-pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
+pub fn hir_classes(manifests: &[Arc<Manifest>]) -> Vec<ExtensionClass> {
     let mut classes = Vec::new();
     for manifest in manifests {
         classes.push(ExtensionClass {
@@ -117,7 +119,7 @@ pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
 }
 
 /// Adds every enum `manifests` declare to `table`, each case numbered by its position.
-pub(crate) fn seed_enums(table: &mut EnumTable, manifests: &[Manifest]) {
+pub(crate) fn seed_enums(table: &mut EnumTable, manifests: &[Arc<Manifest>]) {
     for manifest in manifests {
         for declared in &manifest.enums {
             let cases = declared
@@ -169,7 +171,7 @@ fn enum_named(manifest: &Manifest, short: &str) -> QName {
 /// A table holding the classes of `manifests` and nothing else, for a reader that asks about the
 /// set alone: what a method's signature is, with no program around it.
 #[must_use]
-pub fn signatures(manifests: &[Manifest], interner: &mut TypeInterner) -> SignatureTable {
+pub fn signatures(manifests: &[Arc<Manifest>], interner: &mut TypeInterner) -> SignatureTable {
     let mut table = SignatureTable::new();
     seed(&mut table, interner, manifests);
     table
@@ -179,7 +181,7 @@ pub fn signatures(manifests: &[Manifest], interner: &mut TypeInterner) -> Signat
 pub(crate) fn seed(
     table: &mut SignatureTable,
     interner: &mut TypeInterner,
-    manifests: &[Manifest],
+    manifests: &[Arc<Manifest>],
 ) {
     for manifest in manifests {
         let qname = QName::parse(&manifest.class);

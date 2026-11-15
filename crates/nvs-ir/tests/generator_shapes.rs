@@ -11,6 +11,8 @@ use nvs_ir::ir::Program;
 /// Parse, resolve, check and lower one file against the manifests in `set`, panicking on the
 /// first phase that reports, since every fixture here compiles clean.
 fn compile(src: &str, set: &[nvs_ext::manifest::Manifest]) -> Program {
+    let set: Vec<_> = set.iter().cloned().map(std::sync::Arc::new).collect();
+    let set = set.as_slice();
     let mut map = SourceMap::new();
     let id = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();

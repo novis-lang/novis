@@ -167,7 +167,7 @@ impl EnumTable {
 /// (`crate::ext_lib::seed_enums`).
 pub(crate) fn build_enum_table(
     files: &[crate::ProgramFile<'_>],
-    extensions: &[nvs_ext::manifest::Manifest],
+    extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
     diags: &mut nvs_diagnostics::Diagnostics,
 ) -> EnumTable {
     let mut table = EnumTable::default();

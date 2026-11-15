@@ -5,6 +5,8 @@
 //! `rule:security/extension-contagion` over a shape result, which no `Ledger` method returns from
 //! a `string`, and its manifest is written beside it ([`outline`]).
 
+use std::sync::Arc;
+
 use nvs_diagnostics::{Diagnostics, SourceMap, code};
 use nvs_ext::manifest::Manifest;
 use nvs_hir::{QName, resolve_file_with_extensions};
@@ -24,6 +26,8 @@ fn ledger() -> Manifest {
 
 /// Checks `body` inside a method, with `set` as the loaded extension set.
 fn check(body: &str, set: &[Manifest]) -> Diagnostics {
+    let set: Vec<_> = set.iter().cloned().map(Arc::new).collect();
+    let set = set.as_slice();
     let src = format!("<?nvs\nclass T {{\n  function m(): void {{\n{body}\n  }}\n}}\n");
     let mut map = SourceMap::new();
     let file = map.add("t.nvs", &src);
@@ -56,7 +60,8 @@ fn check(body: &str, set: &[Manifest]) -> Diagnostics {
 /// The signature table of `set` alone.
 fn table(set: &[Manifest]) -> (SignatureTable, TypeInterner) {
     let mut interner = TypeInterner::new();
-    let table = nvs_types::ext_lib::signatures(set, &mut interner);
+    let set: Vec<_> = set.iter().cloned().map(Arc::new).collect();
+    let table = nvs_types::ext_lib::signatures(&set, &mut interner);
     (table, interner)
 }
 

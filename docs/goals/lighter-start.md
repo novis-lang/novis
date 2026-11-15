@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/load.rs, crates/n
 stages:
   - id: 1
     title: the built-in manifests are shared, and the bounds are the measured figures
-    status: open
+    status: done
     context: [crates/nvs-cli/src/extensions.rs, crates/nvs-ext/src/load.rs, crates/nvs-types/src/ext_lib.rs, crates/nvs-lsp/src/tree_cache.rs, crates/nvs-cli/tests/start_cost.rs]
   - id: 2
     title: a built-in component is parsed when a program names its namespace
@@ -142,12 +142,12 @@ regression.
 - [x] `crates/nvs-cli/tests/start_cost.rs:14`: every bound is `fast-start`'s measured figure plus
   10%, before any other edit, and the doc comment names the figures
   (`rule:testing/perf-two-mechanisms`).
-- [ ] `crates/nvs-cli/src/extensions.rs:151`: `with_built_in` returns `Vec<Arc<Manifest>>` and copies
+- [x] `crates/nvs-cli/src/extensions.rs:151`: `with_built_in` returns `Vec<Arc<Manifest>>` and copies
   no `Manifest` (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-types/src/ext_lib.rs:80`: `hir_classes`, `seed_enums` and `signatures` take
+- [x] `crates/nvs-types/src/ext_lib.rs:80`: `hir_classes`, `seed_enums` and `signatures` take
   `&[Arc<Manifest>]`, and `crates/nvs-lsp/src/tree_cache.rs:63` holds the same list
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-cli/tests/start_cost.rs:14`: `built_in`'s bound is the new measured figure plus
+- [x] `crates/nvs-cli/tests/start_cost.rs:14`: `built_in`'s bound is the new measured figure plus
   10%, and `### State` records the figure for stage 2's gate (`rule:testing/perf-two-mechanisms`).
 
 ### 2. a built-in component is parsed when a program names its namespace
@@ -214,26 +214,41 @@ before the first edit. The smallest one that links `std` is the comparison.
 
 ### State
 
-No stage started. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+Stage 1 is done. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+
+Stage 1's measured `built_in` is **5,726** allocations, 22.8% of a one-line `nvs check`'s start
+(it was 6,699). That is over the 5% floor, so stage 2's gate is open. The other phases are
+unchanged: `configuration` 418, `grants` 25, `core` 8,109, `collection` 1,166, `check` 9,652.
+`start_cost.rs`'s bounds are each plus 10%, rounded up to the next hundred, except `grants`, which
+stays at 60: its count follows the directory's path, 25 from `.agent-tmp/` and 33 from the test's
+scratch directory.
+
+`cheaper-pipeline`'s goal-end push has not run: `main` is not pushed, and the newest push run is
+still the base, 43649226665. Its runner-minutes are not recorded anywhere yet.
+
+The sweep's `env-secret-proofs` is no check: `looper check --name env-secret-proofs` finds none,
+so the sweep's list is stale. Nothing in the tree is red for it.
 
 ### Next
 
-Before stage 1, read `cheaper-pipeline`'s goal-end push, which its `after_retire` hook made, with
-`bun nv ci --status`. Its base was push run 43649226665: 1,160 runner-minutes and a 54.6-minute
-wall. The run should save the 34, 15, 12 and 9 minutes of the jobs that moved to the nightly, and
-about 38.7 minutes of the six binary builds, less the artifact transfers. Write its runner-minutes by
-OS in the commit that ticks stage 1's first item. A job that goal changed in `ci.yml` or `build.yml`
-that is red gets one fix. If it is red again, revert that change. If the Linux artifact transfer
-costs more than the build it replaces, keep the artifact on Windows and macOS only. `nvs-debug`
-(`.github/workflows/ci.yml:703`) feeds six jobs per OS: a browser suite red for a feature only the
-workspace build unified points there. `build.yml`'s matrix expressions first run on GitHub then.
+Stage 2 starts with its gate, which is open (5,726 is 22.8%). Before the first edit, judge the
+**Standing decisions** condition. `crates/nvs-cli/src/main.rs:1270` calls `hir_classes` over the
+whole list right after `with_built_in`, and `crates/nvs-types/src/check.rs:165` passes the whole
+list to `seed_enums` and `ext_lib::seed`. A lazy parse that has to change those two walks, and not
+only one lookup on the list, is the decline the decision names. In that case, tick every stage 2 item
+as declined, and write the figure and the reason in `crates/nvs-cli/src/extensions.rs`'s
+`# What it costs`.
 
-Stage 1. First lower `start_cost.rs`'s bounds to `fast-start`'s measured figures plus 10%: `core`
-8,109, `built_in` 6,699, `check` 9,652, `collection` 1,166, `configuration` 418, `grants` 25. Then
-the `Explore` list of every manifest reader, then the `Arc<Manifest>` change.
+- `crates/nvs-cli/src/extensions.rs:143`: `BUILT_IN_MANIFESTS` is `OnceLock<Vec<Arc<Manifest>>>`.
+  Stage 2's per-`Stored` `OnceLock` replaces it.
+- `crates/nvs-hir/src/symbol.rs:163`: the resolver's walk of `ExtensionClass`.
+- `crates/nvs-lsp/src/tree_cache.rs:135`: the editor reads the built-in list itself, apart from
+  `with_built_in`. A stage 2 accessor has to serve it too, or the editor keeps the eager parse.
 
-Tests that may go red: an `nvs-types` or `nvs-lsp` test that builds a `Vec<Manifest>` by hand for
-`hir_classes` or `signatures` (it wraps each in `Arc::new`), and any test that compares two manifest
-lists with `==` (`Arc<Manifest>` compares by value, so it holds).
+The tests the handoff named did go red, and they are fixed: `crates/nvs-types/tests/extensions.rs`,
+`crates/nvs-ir/tests/generator_shapes.rs` and `crates/nvs-ir/src/lower/tests.rs:5190` wrap their
+manifests in `Arc`. No test is expected to go red from stage 1. A non-Windows runner's
+`start_cost` may count a few more allocations than the 10% margin allows. If one does, measure
+on that OS and set the bound from that figure.
 
 ### Backlog

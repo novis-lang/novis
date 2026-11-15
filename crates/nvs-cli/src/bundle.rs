@@ -354,6 +354,7 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>, config: &[PathBuf]) -> Exi
     let built_in = crate::extensions::with_built_in(Vec::new());
     let carried: HashSet<String> = built_in
         .iter()
+        .map(|manifest| &**manifest)
         .chain(&manifests)
         .flat_map(|manifest| {
             manifest

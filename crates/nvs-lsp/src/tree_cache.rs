@@ -60,13 +60,14 @@ use nvs_ext::manifest::Manifest;
 #[derive(Clone, Debug)]
 pub(crate) struct Extensions {
     /// The built-in components' manifests, then the tree's.
-    pub(crate) manifests: Arc<Vec<Manifest>>,
+    /// Each built-in manifest is shared with the process's list, so a set copies none of them.
+    pub(crate) manifests: Arc<Vec<Arc<Manifest>>>,
     /// The BLAKE3 hash of `manifests`, computed once when the set was read.
     pub(crate) digest: blake3::Hash,
 }
 
 impl Extensions {
-    fn of(manifests: Vec<Manifest>) -> Self {
+    fn of(manifests: Vec<Arc<Manifest>>) -> Self {
         let digest = blake3::hash(format!("{manifests:?}").as_bytes());
         Self {
             manifests: Arc::new(manifests),
@@ -134,7 +135,15 @@ impl std::fmt::Debug for TreeCache {
 /// which every `nvs check` reports, and the editor types against the rest.
 fn built_in() -> &'static Extensions {
     static BUILT_IN: OnceLock<Extensions> = OnceLock::new();
-    BUILT_IN.get_or_init(|| Extensions::of(nvs_ext::load::builtin_manifests().unwrap_or_default()))
+    BUILT_IN.get_or_init(|| {
+        Extensions::of(
+            nvs_ext::load::builtin_manifests()
+                .unwrap_or_default()
+                .into_iter()
+                .map(Arc::new)
+                .collect(),
+        )
+    })
 }
 
 impl TreeCache {
@@ -201,7 +210,12 @@ impl TreeCache {
         }
         let stamps = stamps_of(entries.iter().map(|entry| entry.path.clone()).collect());
         let mut manifests = built_in().manifests.as_ref().clone();
-        manifests.extend(nvs_ext::load::read_manifests(&entries).unwrap_or_default());
+        manifests.extend(
+            nvs_ext::load::read_manifests(&entries)
+                .unwrap_or_default()
+                .into_iter()
+                .map(Arc::new),
+        );
         let set = Extensions::of(manifests);
         self.sets.insert(
             named,

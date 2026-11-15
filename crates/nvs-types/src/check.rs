@@ -162,7 +162,7 @@ pub fn check_program_loaded(
     backtracking: nvs_config::regex::Backtracking,
     namespace_grants: &nvs_config::grants::Grants,
     packages: Option<&crate::package::Packages>,
-    extensions: &[nvs_ext::manifest::Manifest],
+    extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
@@ -213,7 +213,7 @@ pub fn check_program_partial(
     backtracking: nvs_config::regex::Backtracking,
     namespace_grants: &nvs_config::grants::Grants,
     packages: Option<&crate::package::Packages>,
-    extensions: &[nvs_ext::manifest::Manifest],
+    extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
     bodies: &FxHashSet<nvs_diagnostics::SourceId>,
     cache: &mut crate::CheckCache,
     interner: &mut TypeInterner,
@@ -241,7 +241,7 @@ struct Inputs<'i, 'f> {
     backtracking: nvs_config::regex::Backtracking,
     namespace_grants: &'i nvs_config::grants::Grants,
     packages: Option<&'i crate::package::Packages>,
-    extensions: &'i [nvs_ext::manifest::Manifest],
+    extensions: &'i [std::sync::Arc<nvs_ext::manifest::Manifest>],
 }
 
 /// The one body of [`check_program_loaded`] and [`check_program_partial`].

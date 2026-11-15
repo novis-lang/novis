@@ -5187,7 +5187,9 @@ fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
 fn an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline() {
     let path = nvs_repo::path("tests/conformance/ext/fixtures/ledger/manifest.json");
     let bytes = std::fs::read(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let set = [nvs_ext::manifest::Manifest::parse(&bytes).expect("the fixture's manifest reads")];
+    let set = [std::sync::Arc::new(
+        nvs_ext::manifest::Manifest::parse(&bytes).expect("the fixture's manifest reads"),
+    )];
     let src = "<?nvs\n\
                var $n = Shop\\Ledger::echoInt(40 + 2);\n\
                echo Shop\\Ledger::echoString(\"x\"), \"\\n\";\n\

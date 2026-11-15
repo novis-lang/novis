@@ -139,8 +139,9 @@ static LOADER: OnceLock<Loader> = OnceLock::new();
 /// The set the configuration now serving loaded, which [`install`] replaces whole.
 static LIVE: Mutex<Option<Arc<Set>>> = Mutex::new(None);
 
-/// The built-in components' manifests, read on the first compile.
-static BUILT_IN_MANIFESTS: OnceLock<Vec<Manifest>> = OnceLock::new();
+/// The built-in components' manifests, read on the first compile and shared by every list
+/// [`with_built_in`] returns.
+static BUILT_IN_MANIFESTS: OnceLock<Vec<Arc<Manifest>>> = OnceLock::new();
 
 /// The built-in components, made on the first call into one, or why the engine did not start.
 static BUILT_IN: OnceLock<Result<Vec<Builtin>, String>> = OnceLock::new();
@@ -148,12 +149,23 @@ static BUILT_IN: OnceLock<Result<Vec<Builtin>, String>> = OnceLock::new();
 /// The built-in components' manifests, then `manifests`: every class a program is typed against
 /// (`rule:packaging/the-first-party-components-are-built-in`). An `[[extension]]` entry cannot
 /// declare a `Novis\` class, so no class appears twice.
-pub(crate) fn with_built_in(manifests: Vec<Manifest>) -> Vec<Manifest> {
+///
+/// No manifest is copied. A built-in one is shared with the process's list, and each of
+/// `manifests` is wrapped once. What it spends: one atomic count per manifest, and one count bump
+/// per built-in entry at each call.
+pub(crate) fn with_built_in(manifests: Vec<Manifest>) -> Vec<Arc<Manifest>> {
     let built_in = BUILT_IN_MANIFESTS.get_or_init(|| {
         nvs_ext::load::builtin_manifests()
             .unwrap_or_else(|refused| panic!("a built-in component does not read: {refused}"))
+            .into_iter()
+            .map(Arc::new)
+            .collect()
     });
-    built_in.iter().cloned().chain(manifests).collect()
+    built_in
+        .iter()
+        .cloned()
+        .chain(manifests.into_iter().map(Arc::new))
+        .collect()
 }
 
 /// The built-in component declaring `class`, compiled on the first call into it. `config` places

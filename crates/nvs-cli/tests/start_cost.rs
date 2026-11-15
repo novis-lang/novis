@@ -10,10 +10,10 @@
 use std::process::Command;
 
 /// Each phase's allocation bound, in the order the line prints them. The measured figures on
-/// Windows are 418, 6,699, 25, 8,109, 1,166 and 9,652.
+/// Windows are 418, 5,726, 25, 8,109, 1,166 and 9,652.
 const ALLOCATIONS: [(&str, u64); 6] = [
     ("configuration", 500),
-    ("built_in", 7_400),
+    ("built_in", 6_300),
     ("grants", 60),
     ("core", 9_000),
     ("collection", 1_300),

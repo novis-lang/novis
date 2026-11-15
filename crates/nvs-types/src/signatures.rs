@@ -992,7 +992,7 @@ pub fn build_signatures(
     module: &nvs_hir::Module,
     enums: &crate::enums::EnumTable,
     consts: &crate::consts::ConstTable,
-    extensions: &[nvs_ext::manifest::Manifest],
+    extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
     interner: &mut crate::ty::TypeInterner,
     diags: &mut Diagnostics,
 ) -> SignatureTable {

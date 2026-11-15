@@ -856,7 +856,7 @@ pub struct Analysed {
     /// The manifests of the extension set the document's tree pins, which the
     /// walk and the type phase read. An extension class has no declaration to
     /// answer a cursor from, so completion and hover read its manifest.
-    pub extensions: std::sync::Arc<Vec<nvs_ext::manifest::Manifest>>,
+    pub extensions: std::sync::Arc<Vec<std::sync::Arc<nvs_ext::manifest::Manifest>>>,
     /// The files this analysis parsed and the files whose bodies it checked.
     /// It parsed only the files whose text the store's parse cache did not
     /// hold, and it checked the bodies of every file of the graph.
@@ -870,6 +870,7 @@ impl Analysed {
         self.extensions
             .iter()
             .find(|manifest| manifest.class.eq_ignore_ascii_case(class))
+            .map(|manifest| &**manifest)
     }
 
     /// The path of every file this analysis depends on: the graph it read,
