@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-db/src/mysql.rs, crates/nvs-db/src/sqlite.rs, crates/nvs-cli/src/worker.rs, docs/rules/security.md]
   - id: 4
     title: the door and the request members copy each value once
-    status: open
+    status: done
     context: [crates/nvs-server/src/spooled.rs, crates/nvs-server/src/mount.rs, crates/nvs-server/src/serve.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/ratelimit.rs]
   - id: 5
     title: a static file is one hand-off
@@ -208,21 +208,21 @@ worker from asking the roster between jobs.
 
 **Does:** remove the copies and repeated parses a request makes before and inside its handler.
 
-- [ ] `crates/nvs-server/src/spooled.rs:200`: `door_store` tests a `debug_store` flag on the
+- [x] `crates/nvs-server/src/spooled.rs:200`: `door_store` tests a `debug_store` flag on the
   snapshot at `crates/nvs-config/src/snapshot.rs:147` before it builds a `Request`
   (`rule:config/the-config-is-an-immutable-snapshot`).
-- [ ] `crates/nvs-server/src/mount.rs:445`: `under()` is called once for the static and the script
+- [x] `crates/nvs-server/src/mount.rs:445`: `under()` is called once for the static and the script
   step (`rule:http-server/static-serving-is-one-policy`).
-- [ ] `crates/nvs-server/src/serve.rs:2210`: the two stream slots are made in the arm that runs a
+- [x] `crates/nvs-server/src/serve.rs:2210`: the two stream slots are made in the arm that runs a
   program (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/uri.rs:1304`: `decode` borrows a field with no `%` or `+`, and
+- [x] `crates/nvs-stdlib/src/uri.rs:1304`: `decode` borrows a field with no `%` or `+`, and
   `parse_query` at `:3303` builds each value once (`rule:errors/ambiguous-input-refused`).
-- [ ] `crates/nvs-stdlib/src/router.rs:3068`: the repeated keys are counted in one pass
+- [x] `crates/nvs-stdlib/src/router.rs:3068`: the repeated keys are counted in one pass
   (`rule:errors/ambiguous-input-refused`).
-- [ ] `crates/nvs-stdlib/src/html.rs:868`: `markup_concat`, `join` at `:938` and `escaped_text` at
+- [x] `crates/nvs-stdlib/src/html.rs:868`: `markup_concat`, `join` at `:938` and `escaped_text` at
   `:618` build the result string directly, and `join` asks the budget for one page
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/ratelimit.rs:869`: the entry's lifetime is its window
+- [x] `crates/nvs-stdlib/src/ratelimit.rs:869`: the entry's lifetime is its window
   (`rule:programs/memory-priority`).
 
 ### 5. a static file is one hand-off
@@ -264,45 +264,37 @@ sleep.
 
 ### State
 
-Stages 1, 2 and 3 are done. Each stage 3 item was checked by clippy and its new tests, run once by
-name (green). `bun nv db-matrix --no-up --driver mysql --driver mariadb` passed the MySQL and
-MariaDB TCP legs in both stage 3 sessions. Its socket legs fail on Windows (`/mnt/wsl` paths are
-not supported), and no stage 3 change touches a socket path.
-Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 0, stage 5: 0, stage 6: 0.
+Stages 1 to 4 are done; stage 4 was checked by build and clippy alone, one commit per item.
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 1, stage 5: 0, stage 6: 0.
 
-- `execute_many` (`crates/nvs-db/src/mysql.rs`) prepares once, then writes `execute_payload`s in
-  windows of `BATCH_WINDOW` (64 KiB) through `Wire::send_all`, and reads each set's answer with
-  `read_set`. `read_set` counts a result set's rows without decoding them, and follows
-  `SERVER_MORE_RESULTS_EXISTS` to a `CALL`'s last status packet. A set whose parameters do not fit
-  a packet now ends the batch with the connection idle; before, it poisoned it.
-  `execute_one` is gone. `rule:core-classes/db-statement-members` says the batch is windowed.
+- `uri::decode` returns `Cow<[u8]>`. `html.rs` writes through `crate::str::built` and
+  `nvs_render::html::escape_planned`, and `join` asks `affords(size)`. `shed` stores its entry
+  for `tau`, and `Forever` under a fixed clock.
 - The sweep's `env-secret-proofs` is stale state in looper's service: no log and no definition in
   the tree. Nothing in the tree can fix it.
 
-Tests that may go red at stage 7: an SSE case that waits less than one second for a stream whose
-client left to end, an HTTP client test that counts writes on the origin side for a small body,
-and any test that builds `Core\Db\Stream` with five slots (`instance::build` asserts the count).
-From stage 3: a MySQL test whose scripted server answers a flush rather than each packet in it, a
-worker test that counts turns or roster statements for a queue with several jobs, a test that
-expects a too-large `executeMany` set to poison the connection, and a test that expects a `CALL`
-in `executeMany` to fail with "a second result set".
+Tests that may go red at stage 7: an SSE case that waits under one second for a closed stream, an
+HTTP client test that counts origin writes for a small body, a test that builds `Core\Db\Stream`
+with five slots, a scripted MySQL server that answers each packet of a flush, a worker test that
+counts turns for several jobs, `executeMany` tests that expect a poisoned connection or "a second
+result set", `html_join_past_the_memory_limit_is_refused_before_a_byte_is_copied` if its limit is
+between one and two pages, and a `shed` test that expects an entry past its window.
 
 ### Next
 
-Stage 4, in its first session. Its items share `crates/nvs-server/src/` and `crates/nvs-stdlib/src/`;
-take them in order while the context allows. The stage checks with a build alone.
+Stage 5, in its first session. All its items are in `crates/nvs-server/src/statics.rs`; take them
+in order. The stage checks with a build alone, and its two new tests run once by name.
 
-- [ ] `crates/nvs-server/src/spooled.rs:200`: `door_store` tests the `debug_store` flag on the
-  snapshot (`crates/nvs-config/src/snapshot.rs:147`) before it builds a `Request`.
-- [ ] `crates/nvs-server/src/mount.rs:811`: `under()` is called once for the static and the
-  script step. Find its two callers with `bun nv peek --locate`.
-- [ ] `crates/nvs-server/src/serve.rs:2210`: the two stream slots are made in the arm that runs a
-  program.
-- [ ] `crates/nvs-stdlib/src/uri.rs:1304`: `decode` borrows a field with no `%` or `+`, and the query
-  parser near `:3303` builds each value once.
-- [ ] `crates/nvs-stdlib/src/router.rs:3068`, `crates/nvs-stdlib/src/html.rs:868` (`markup_concat`,
-  `join`, `escaped_text` at `:618`) and `crates/nvs-stdlib/src/ratelimit.rs:869`, as the stage
-  lists them.
+- [ ] `crates/nvs-server/src/statics.rs:235` (`serve`) and `:266` (`send`): lookup, open and the
+  first chunk are one blocking job when the request has no range and no condition.
+  `open_regular` is at `:180`.
+- [ ] `crates/nvs-server/src/statics.rs:266`: a not-modified answer is made from the first `stat`,
+  so it opens no file.
+- [ ] `crates/nvs-server/src/statics.rs:350` (`mime`): the media type is looked up once, without an
+  allocation.
+- [ ] `crates/nvs-server/src/statics.rs:1`: the tests `a_small_static_file_is_one_blocking_job`
+  and `a_not_modified_answer_opens_no_file` (check `static-one-hand-off`), and the module doc's
+  § *What it spends* says one hand-off.
 
 ### Backlog
 
