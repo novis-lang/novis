@@ -1,6 +1,7 @@
 // The release binaries and the container images are built by `build.yml` and `image.yml`, which the
 // release calls with its version and `ci.yml` calls with none. Every CI run builds the binaries, and
-// a push to `main` publishes the `dev` image once every other job of its run is green. The release's
+// a push to `main` publishes the `dev` image once every other job of its run is green. The jobs whose
+// result gates nothing, and `build.yml`'s musl leg, run in the nightly and a dispatch alone. The release's
 // call of `ci.yml` grants every permission a job there asks for, which GitHub checks when the run
 // starts.
 
@@ -22,6 +23,10 @@ interface Workflow {
   on: { workflow_call?: { inputs?: Record<string, unknown> } | null };
   jobs: Record<string, Job>;
 }
+
+/** The `if` of a job that runs in the nightly and a dispatch alone, because its result gates nothing. */
+const NIGHTLY_ONLY = "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'";
+const nightlyOnly = (job: Job): boolean => job.if === NIGHTLY_ONLY;
 
 function workflow(file: string): Workflow {
   return Bun.YAML.parse(readFileSync(join(ROOT, ".github/workflows", file), "utf8")) as Workflow;
@@ -57,11 +62,20 @@ test("only a push to main publishes the dev image, after every other job of its 
   expect(image.uses).toBe("./.github/workflows/image.yml");
   expect(image.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
   const needs = [image.needs ?? []].flat().sort();
-  const others = Object.keys(ci).filter((name) => name !== "dev-image").sort();
+  const others = Object.keys(ci).filter((name) => name !== "dev-image" && !nightlyOnly(ci[name]!)).sort();
   expect(needs).toEqual(others);
   // The only job of ci.yml that writes anything.
   const writes = Object.entries(ci).filter(([, job]) => Object.values(job.permissions ?? {}).includes("write"));
   expect(writes.map(([name]) => name)).toEqual(["dev-image"]);
+});
+
+test("only the jobs whose result gates nothing run in the nightly and a dispatch alone", () => {
+  const ci = workflow("ci.yml").jobs;
+  const nightly = Object.keys(ci).filter((name) => nightlyOnly(ci[name]!)).sort();
+  expect(nightly).toEqual(["flood", "unsafe-audit"]);
+  const include = String((workflow("build.yml").jobs.build as { strategy?: { matrix?: { include?: unknown } } }).strategy?.matrix?.include);
+  expect(include).toContain("github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'");
+  expect(include).toContain('"name":"linux-x86_64-musl"');
 });
 
 test("each run proves the release's version step on the next patch version", () => {

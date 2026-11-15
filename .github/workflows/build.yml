@@ -67,33 +67,24 @@ jobs:
       LABEL: ${{ inputs.version || 'dev' }}
     strategy:
       fail-fast: false
+      # ubuntu-22.04 rather than -latest on purpose: the glibc a binary is *linked* against is a
+      # floor on the systems it runs on, and 24.04's 2.39 would exclude every stable distro older
+      # than itself. 22.04 gives 2.35.
+      #
+      # The musl leg is optional, so its result gates nothing, and it builds in a release, the
+      # nightly and a dispatch alone (`rule:testing/every-run-runs-every-job`). A push's run saves
+      # its 12 minutes. A matrix row cannot carry an `if`, so the rows are one JSON list, and the
+      # musl row is appended for those runs. A `ci.yml` call keeps its caller's `github.event_name`.
       matrix:
-        include:
-          # ubuntu-22.04 rather than -latest on purpose: the glibc a binary is *linked* against is
-          # a floor on the systems it runs on, and 24.04's 2.39 would exclude every stable distro
-          # older than itself. 22.04 gives 2.35.
-          - name: linux-x86_64
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-          - name: linux-aarch64
-            os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            archive: tar.gz
-          - name: linux-x86_64-musl
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-musl
-            archive: tar.gz
-            musl: true
-            optional: true
-          - name: windows-x86_64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
-          - name: macos-aarch64
-            os: macos-latest
-            target: aarch64-apple-darwin
-            archive: tar.gz
+        include: >-
+          ${{ fromJSON(format('[{0}{1}]',
+          '{"name":"linux-x86_64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","archive":"tar.gz"},
+          {"name":"linux-aarch64","os":"ubuntu-22.04-arm","target":"aarch64-unknown-linux-gnu","archive":"tar.gz"},
+          {"name":"windows-x86_64","os":"windows-latest","target":"x86_64-pc-windows-msvc","archive":"zip"},
+          {"name":"macos-aarch64","os":"macos-latest","target":"aarch64-apple-darwin","archive":"tar.gz"}',
+          (inputs.version != '' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          && ',{"name":"linux-x86_64-musl","os":"ubuntu-22.04","target":"x86_64-unknown-linux-musl","archive":"tar.gz","musl":true,"optional":true}'
+          || '')) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

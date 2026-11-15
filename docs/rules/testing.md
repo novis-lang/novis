@@ -3740,19 +3740,24 @@ so no symbol-registration shim exists; callgrind still runs JIT-compiled pages c
 
 `rule:testing/every-run-runs-every-job`
 
-Every run of `ci.yml` runs every job, whatever its event and whatever its diff touched.
+Every run of `ci.yml` runs every job that gates anything, whatever its event and whatever its diff
+touched.
 
 A push to `main`, a pull request, the nightly, a manual dispatch and a release's call of the workflow
-run the same jobs, and no job carries an `if:` that reads the diff. One workflow file holds every job,
+run the same gating jobs, and no job carries an `if:` that reads the diff. One workflow file holds every job,
 and a job is never defined twice: a second copy of a suite drifts, and nothing compares the copies.
 
 **The nightly runs the same jobs**, to catch what changes outside the tree on a day with no push: a new
 advisory, a new nightly toolchain, a download that moved. No run searches with a fuzzer, and the
 inputs the searches found are replayed by `cargo test` ([`testing/a-fuzz-search-gates-nothing`](testing.md#testing-a-fuzz-search-gates-nothing)).
-Miri, the unsafe audit, the `valgrind` leak check over every `examples/` program and the comparison's `flood`
-row in its smoke form run in every run. The `valgrind` job is the one run that looks for leaks from end
-to end, since the `asan` job runs with leak detection off. The unsafe audit's counts and the `flood`
-row's results gate nothing.
+Miri and the `valgrind` leak check over every `examples/` program run in every run. The `valgrind` job
+is the one run that looks for leaks from end to end, since the `asan` job runs with leak detection off.
+
+**A job whose result gates nothing runs nightly.** The unsafe audit's counts, the comparison's `flood`
+row in its smoke form and `build.yml`'s optional musl leg cannot turn a run red, so they run in the
+nightly, a dispatch and a release alone, and the `dev` image does not wait for them. A push's run
+saves about 60 runner minutes. What it spends: an unsafe count, a flood row or a musl break is seen up
+to a day later.
 
 **A green run of a commit on `main` is the release's proof.** `bun nv release --tested` accepts a green
 `ci.yml` run of that commit from a push, the nightly or a dispatch, and `release.yml`'s `test` job then

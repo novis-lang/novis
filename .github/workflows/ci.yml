@@ -5,11 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # Every run runs every job, whatever its event and whatever its diff touched
+  # Every run runs every job that gates anything, whatever its event and whatever its diff touched
   # (`rule:testing/every-run-runs-every-job`), so a green run of a commit is the whole proof a release
   # needs. The nightly runs the same jobs, to catch what changes outside the tree on a day with no
-  # push: a new advisory, a new nightly toolchain, a download that moved. GitHub reads `schedule` only
-  # from the default branch, which is `main`.
+  # push: a new advisory, a new nightly toolchain, a download that moved. A job whose result gates
+  # nothing runs only in the nightly and a dispatch: `unsafe-audit`, `flood` and `build.yml`'s musl
+  # leg. GitHub reads `schedule` only from the default branch, which is `main`.
   schedule:
     - cron: '0 3 * * *'
   # `release.yml` calls this workflow rather than restating any of it, when its commit has no green
@@ -115,7 +116,11 @@ jobs:
     # a third of the tests (nextest's `--partition slice:<n>/3`). One leg took 53 minutes warm: 18 to
     # build and 32 of tests, the longest in the run. The split spends two more Windows builds of
     # runner time to bring the leg to about 30 minutes. The first shard alone saves the cache entry
-    # and runs the doc tests and the benches, which take seconds.
+    # and runs the doc tests and the benches.
+    #
+    # Linux x86_64's `tests` leg is the run's wall time, so its doc tests and benches run in its
+    # `conformance 2/2` leg, which ends sooner. That leg builds them from the conformance cache entry,
+    # which holds fewer of their dependencies, and spends those minutes off the longest leg.
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -300,11 +305,11 @@ jobs:
         run: >-
           cargo nextest run --profile ci --workspace --lib --bins --tests --examples
           ${{ matrix.shard && format('--partition slice:{0}/3', matrix.shard) || '' }}
-      - if: matrix.part != 'conformance' && (matrix.shard || 1) == 1
+      - if: (matrix.part == 'tests' && (matrix.shard || 1) == 1 && matrix.name != 'linux-x86_64') || (matrix.name == 'linux-x86_64' && matrix.half == 2)
         run: cargo test --workspace --benches
       # Doc tests are excluded from --all-targets and are real tests for a
       # library this API-heavy.
-      - if: matrix.part != 'conformance' && (matrix.shard || 1) == 1
+      - if: (matrix.part == 'tests' && (matrix.shard || 1) == 1 && matrix.name != 'linux-x86_64') || (matrix.name == 'linux-x86_64' && matrix.half == 2)
         run: cargo test --workspace --doc
 
       # The `.nvst` conformance suite, on every platform for the reason the
@@ -752,16 +757,23 @@ jobs:
             os: ubuntu-26.04
             wasi-sdk: x86_64-linux
             wasi-sdk-sha256: b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4
+            wit-bindgen: x86_64-linux.tar.gz
+            wit-bindgen-sha256: bf4efe883ab70d34a4740253911dda20caf895d58a003af58369506b04684cbe
           - name: windows-x86_64
             os: windows-latest
             wasi-sdk: x86_64-windows
             wasi-sdk-sha256: cccb5c323a9b34f0349a9b09e8804a0a7632c68c3310f4b5f437ed57d7e71d8f
+            wit-bindgen: x86_64-windows.zip
+            wit-bindgen-sha256: 213393e4a8b4875a3f19856e943e43067d0315141fca5743e4cfb7795bc9af14
           - name: macos-aarch64
             os: macos-latest
             wasi-sdk: arm64-macos
             wasi-sdk-sha256: 9c59398106b417f8f14913380fdf0097a8cc0ff4af9eb3ce0065a859e88d49e9
+            wit-bindgen: aarch64-macos.tar.gz
+            wit-bindgen-sha256: cccbf4b17e00c11b020b389ddfcd4d3a214bc072295566263fc8b358b336815a
     env:
       WASI_SDK_VERSION: '34'
+      WIT_BINDGEN_VERSION: '0.63.0'
       NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ matrix.os == 'windows-latest' && '.exe' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -800,8 +812,25 @@ jobs:
           echo "${{ matrix.wasi-sdk-sha256 }}  wasi-sdk.tar.gz" | $sum -c -
           tar -xzf wasi-sdk.tar.gz
           echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}" >> "$GITHUB_ENV"
+      # wit-bindgen's own prebuilt binary, checked against the SHA256 its matrix row pins, as the
+      # wasi-sdk step above checks its tarball. Building it from crates.io took about 3 minutes a leg.
+      # Raising `WIT_BINDGEN_VERSION` raises the three digests with it. The Windows asset is a zip,
+      # which Git Bash's `unzip` reads and its GNU tar does not.
       - name: wit-bindgen
-        run: cargo install wit-bindgen-cli --version 0.63.0 --locked
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          asset="wit-bindgen-${WIT_BINDGEN_VERSION}-${{ matrix.wit-bindgen }}"
+          curl -fsSL --retry 4 -o "$asset" \
+            "https://github.com/bytecodealliance/wit-bindgen/releases/download/v${WIT_BINDGEN_VERSION}/$asset"
+          if command -v sha256sum > /dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
+          echo "${{ matrix.wit-bindgen-sha256 }}  $asset" | $sum -c -
+          case "$asset" in
+            *.zip) unzip -q "$asset" ;;
+            *) tar -xzf "$asset" ;;
+          esac
+          dir="${asset%.tar.gz}"
+          echo "$RUNNER_TEMP/${dir%.zip}" >> "$GITHUB_PATH"
 
       - run: cargo build --bin nvs
 
@@ -1290,9 +1319,12 @@ jobs:
       - name: No Windows child writes with an echo loop
         run: bun test tools/nv/test/no-echo-loop-child.test.ts
 
-  # The counts it writes to the run summary gate nothing. The job is never red.
+  # The counts it writes to the run summary gate nothing. The job is never red, so it runs in the
+  # nightly and a dispatch alone, and `dev-image` does not wait for it
+  # (`rule:testing/every-run-runs-every-job`).
   unsafe-audit:
     name: unsafe audit
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-26.04
     # Geiger builds every member under its own feature set, so the scan grows with the workspace.
     timeout-minutes: 60
@@ -1322,10 +1354,12 @@ jobs:
   # The comparison's `flood` row puts load past capacity on each stack
   # behind nginx and prints what each did: its refusals, how long `/` took beside the load, and how
   # soon it answered again. The run fails when a stack cannot serve the row, and its results gate
-  # nothing. It builds every peer's image, and Novis's from this checkout in release.
-  # `benches/compare/README.md` § *The feature scenarios* is the row.
+  # nothing, so it runs in the nightly and a dispatch alone, and `dev-image` does not wait for it
+  # (`rule:testing/every-run-runs-every-job`). It builds every peer's image, and Novis's from this
+  # checkout in release. `benches/compare/README.md` § *The feature scenarios* is the row.
   flood:
     name: overload past capacity
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     steps:
@@ -1737,8 +1771,6 @@ jobs:
       - attribution
       - reference
       - docs
-      - unsafe-audit
-      - flood
       - miri
       - miri-units
       - valgrind
