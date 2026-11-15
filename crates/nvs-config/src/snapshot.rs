@@ -148,6 +148,14 @@ impl Snapshot {
         crate::limits::resolved(self).access
     }
 
+    /// Whether `[debug] store` is on for a request under this snapshot that has not set it itself.
+    /// Read off the resolved limits, as [`access_log`](Snapshot::access_log) is, so the door asks it
+    /// before it builds a [`crate::Request`].
+    #[must_use]
+    pub fn debug_store(self: &Arc<Self>) -> bool {
+        crate::limits::resolved(self).debug_store
+    }
+
     /// Whether a record the server writes under this snapshot names the client address: `[log]
     /// client_ip`, `true` unless the file wrote `false`
     /// (`rule:http-server/a-log-line-can-leave-out-the-client-address`). Read off the resolved

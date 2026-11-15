@@ -195,9 +195,13 @@ pub fn response(
     }
 }
 
-/// The gate an answer the door wrote alone is under: `[debug] store` as `under` resolves it.
+/// The gate an answer the door wrote alone is under: `[debug] store` as `under` resolves it. The
+/// snapshot's flag is tested first, so a request with the store off builds no `Request`.
 #[must_use]
 pub fn door_store(under: &Arc<nvs_config::Snapshot>) -> Option<Store> {
+    if !under.debug_store() {
+        return None;
+    }
     Store::of(&nvs_config::Request::new(Arc::clone(under)))
 }
 
