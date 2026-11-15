@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, tools/nv/main.ts, docs/rules/testing/perf-two-mechanisms.md]
   - id: 2
     title: a test case and a first run write no cache they wait for
-    status: open
+    status: done
     context: [crates/nvs-test/src/run.rs, crates/nvs-cli/src/cache.rs, tools/nv/accept/runner.ts, docs/rules/packaging.md]
   - id: 3
     title: the configuration and the built-in sources are read once and parsed once
@@ -189,18 +189,22 @@ bumped, as `file.rs:NN`, before the first edit.
 **Does:** stop a test case from compiling for a cache it deletes, and stop a first run from waiting
 on the disk.
 
-- [ ] `crates/nvs-test/src/run.rs:588`: a case's `nvs` runs with `NOVIS_NO_FILE_CACHE=1`, and a case
+- [x] `crates/nvs-test/src/run.rs:588`: a case's `nvs` runs with `NOVIS_NO_FILE_CACHE=1`, and a case
   that tests the compile cache opts back in with a directive
-  (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`).
-- [ ] `tools/nv/accept/runner.ts:138`: the Bun harness sets the same variable for every proof run
-  (`rule:testing/feature-proofs`).
-- [ ] `crates/nvs-test/src/run.rs:520`: `a_case_run_writes_no_compile_artifact`
+  (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`). Built as `run::case_env`, and the
+  directive is `--COMPILE_CACHE--` `on`.
+- [x] `tools/nv/accept/runner.ts:138`: the Bun harness sets the same variable for every proof run
+  (`rule:testing/feature-proofs`). Built in `tools/nv/proofs/run.ts`'s `spawnProof`, which every
+  proof run goes through; a `.cmd` proof keeps its own command line's cache.
+- [x] `crates/nvs-test/src/run.rs:520`: `a_case_run_writes_no_compile_artifact`
   (`rule:testing/perf-two-mechanisms`).
-- [ ] `crates/nvs-cli/src/cache.rs:1568`: `write_temp` writes and closes without `sync_all`, and
+- [x] `crates/nvs-cli/src/cache.rs:1568`: `write_temp` writes and closes without `sync_all`, and
   `docs/rules/packaging.md:253` says what a crash costs
-  (`rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`).
-- [ ] `crates/nvs-cli/src/cache.rs:1687`: the object compile runs on a scoped thread beside the JIT
-  compile, and the doc comment at `:1657` says so (`rule:programs/memory-priority`).
+  (`rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`). A file shorter than a
+  header or with an all-zero header is now corrupt and deleted, so a torn file cannot hold a key cold.
+- [x] `crates/nvs-cli/src/cache.rs:1687`: the object compile runs on a scoped thread beside the JIT
+  compile, and the doc comment at `:1657` says so (`rule:programs/memory-priority`). Built as
+  `compile_beside_object`.
 
 ### 3. the configuration and the built-in sources are read once and parsed once
 
@@ -253,28 +257,38 @@ process.
 
 ### State
 
-Stage 1 is done. `bun nv start-cost` measures one start, `crates/nvs-cli/src/phases.rs` counts the
-six front-end phases in a debug build (`nvs check --count` and `run --count` print a `phases:` line),
-and `crates/nvs-cli/tests/start_cost.rs` bounds each phase. **The measured start** in
-`## Standing decisions` holds the table and puts every candidate of stages 3 to 5 at its floor, or
-names the count its session takes first. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4:
-0, stage 5: 0.
+Stages 1 and 2 are done. Stage 1's `bun nv start-cost` and `crates/nvs-cli/src/phases.rs` measure
+one start, and **The measured start** in `## Standing decisions` puts every candidate of stages 3 to
+5 at its floor. Stage 2 landed in three commits: a `.nvst` case and a proof run with the compile
+cache off (`nvs_test::run::case_env`, `--COMPILE_CACHE--` `on` to opt back in, `spawnProof`), the
+artifact written without `sync_all`, and the object walk on a scoped thread (`compile_beside_object`
+in `crates/nvs-cli/src/cache.rs`). `case-writes-no-cache` passes. Sessions used: stage 1: 1, stage
+2: 1, stage 3: 0, stage 4: 0, stage 5: 0.
+
+The sweep's findings before this session needed no change. `env-secret-proofs` is no check in the
+tree (a stale name from a retired goal). Nightly 43581848915's four `miri units (nvs-stdlib …)`
+failures are Miri timeouts in tests that `8bd6b6eda9` shrank or gave a Miri deadline, and that commit
+is newer than the nightly's. The next nightly is the check.
 
 ### Next
 
-Stage 2, in one session. The files are `crates/nvs-test/src/run.rs`, `tools/nv/accept/runner.ts` and
-`crates/nvs-cli/src/cache.rs`.
+Stage 3, in one session. The files are `crates/nvs-config/src/data.rs`,
+`crates/nvs-config/src/resolve.rs`, `crates/nvs-cli/src/extensions.rs` and
+`crates/nvs-cli/src/config.rs`.
 
-- [ ] `crates/nvs-test/src/run.rs:588`: a case's `nvs` runs with `NOVIS_NO_FILE_CACHE=1`.
-- [ ] `tools/nv/accept/runner.ts:138`: the proof harness sets the same variable.
-- [ ] `crates/nvs-test/src/run.rs:520`: `a_case_run_writes_no_compile_artifact`.
-- [ ] `crates/nvs-cli/src/cache.rs:1568`: `write_temp` without `sync_all`.
-- [ ] `crates/nvs-cli/src/cache.rs:1687`: the object compile on a scoped thread.
+- [ ] `crates/nvs-config/src/data.rs:569`: the default file's hash is a compile-time constant, and
+  the file is read once per start. At the floor by the 78,788-byte file.
+- [ ] `crates/nvs-config/src/resolve.rs:770`: one parse into a table, and the typed `Config` is
+  derived from it. At the floor by the same file.
+- [ ] `crates/nvs-cli/src/extensions.rs:151`: `Manifest.source` and `ExtensionFile.text` shared, not
+  cloned. At the floor: `built_in` is 19.4%.
+- [ ] `crates/nvs-cli/src/config.rs:790`: the TLS client built by its first handshake. Not priced:
+  wrap `install_tls_client` in `phases::start()`/`end` first, and build it only at its floor.
 
-The goal's check `case-writes-no-cache` runs `cargo test --lib`, and the test lives in `nvs-test`,
-which is a library, so `--lib` finds it there. No test is expected to go red from stage 1: the
-`phases:` line is a second line, and every existing `--count` parser finds the `compile:` line by
-its prefix.
+Tests that may go red at stage 6: the conformance cases that relied on a case writing a compile
+artifact (none is known; no `.nvst` names the cache), and `nvs-cli`'s
+`a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`, whose cold arm is now
+shorter by the sync and by the overlapped object walk, so its ratio narrows.
 
 ### Backlog
 
