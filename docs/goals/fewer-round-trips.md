@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-server/src/spooled.rs, crates/nvs-server/src/mount.rs, crates/nvs-server/src/serve.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/html.rs, crates/nvs-stdlib/src/ratelimit.rs]
   - id: 5
     title: a static file is one hand-off
-    status: open
+    status: done
     context: [crates/nvs-server/src/mount.rs, crates/nvs-server/src/statics.rs, crates/nvs-server/src/serve.rs, docs/rules/http-server.md]
   - id: 6
     title: an extension instance resolves its imports once
@@ -144,6 +144,14 @@ from idle missing its CPU deadline: the thread ticks as today.
 (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`). The format version
 moves, so an old entry is a miss.
 
+**A static file is read ahead by a per-request disk, `statics::Prefetch`.** It is the `Existing`
+and the `Source` of one request. The table asks `Existing::sendable` for a path step 3 may send,
+judged on the joined path (not `.nvs`, not withheld) before the lookup. The lookup opens and reads
+only where the canonical path is the asked path, so no link was crossed, and only for a `GET` with
+no `Range`, `If-Range` or `If-None-Match`. Every other lookup keeps the `stat` for a `304`.
+`Selection` and `What` keep their shape. **What it spends:** nothing more; the first chunk is held
+from the lookup to the body's first poll. `nvs_host::counts` gains `blocking_jobs` (debug only).
+
 **Lanes:** stages 2 and 3 touch the database code and run in order. Stages 4 and 5 share
 `crates/nvs-server/src/` and run in order. Stage 6 touches only `crates/nvs-ext/` and
 `crates/nvs-cli/src/extensions.rs` and can run as a side goal.
@@ -230,13 +238,13 @@ worker from asking the roster between jobs.
 **Does:** look a static file up, open it and read its first chunk in one blocking job, and answer a
 304 from the `stat`.
 
-- [ ] `crates/nvs-server/src/statics.rs:156`: lookup, open and the first chunk are one job when the
+- [x] `crates/nvs-server/src/statics.rs:156`: lookup, open and the first chunk are one job when the
   request has no range and no condition (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).
-- [ ] `crates/nvs-server/src/statics.rs:180`: a not-modified answer is made from the first `stat`
+- [x] `crates/nvs-server/src/statics.rs:180`: a not-modified answer is made from the first `stat`
   (`rule:http-server/static-serving-is-one-policy`).
-- [ ] `crates/nvs-server/src/statics.rs:344`: the media type is looked up once, without an
+- [x] `crates/nvs-server/src/statics.rs:344`: the media type is looked up once, without an
   allocation (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-server/src/statics.rs:1`: the two tests of the check `static-one-hand-off`, and
+- [x] `crates/nvs-server/src/statics.rs:1`: the two tests of the check `static-one-hand-off`, and
   the module doc's cost section says one hand-off (`rule:testing/perf-two-mechanisms`).
 
 ### 6. an extension instance resolves its imports once
@@ -264,12 +272,16 @@ sleep.
 
 ### State
 
-Stages 1 to 4 are done; stage 4 was checked by build and clippy alone, one commit per item.
-Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 1, stage 5: 0, stage 6: 0.
+Stages 1 to 5 are done; stage 5 was checked by build and clippy, its two new tests run once by
+name, and its check `static-one-hand-off` is green.
+Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 1, stage 5: 1, stage 6: 0.
 
 - `uri::decode` returns `Cow<[u8]>`. `html.rs` writes through `crate::str::built` and
   `nvs_render::html::escape_planned`, and `join` asks `affords(size)`. `shed` stores its entry
   for `tau`, and `Forever` under a fixed clock.
+- `nvs serve` hands `statics::Prefetch` to `Table::select` and `statics::serve`. `Answer::File`
+  carries a `head` and an `Option` seek (`Answer::begun`). `file_media_type` folds the extension
+  in a stack buffer. The standing decision on `Prefetch` says why.
 - The sweep's `env-secret-proofs` is stale state in looper's service: no log and no definition in
   the tree. Nothing in the tree can fix it.
 
@@ -278,23 +290,25 @@ HTTP client test that counts origin writes for a small body, a test that builds 
 with five slots, a scripted MySQL server that answers each packet of a flush, a worker test that
 counts turns for several jobs, `executeMany` tests that expect a poisoned connection or "a second
 result set", `html_join_past_the_memory_limit_is_refused_before_a_byte_is_copied` if its limit is
-between one and two pages, and a `shed` test that expects an entry past its window.
+between one and two pages, a `shed` test that expects an entry past its window, a served test
+that counts file calls or blocking jobs for a static `GET` (the first chunk now joins the lookup's
+job), and a footprint test that expects `exists` and `file` lines in another order for a static
+file.
 
 ### Next
 
-Stage 5, in its first session. All its items are in `crates/nvs-server/src/statics.rs`; take them
-in order. The stage checks with a build alone, and its two new tests run once by name.
+Stage 6, in its first session. It touches only `crates/nvs-ext/` and
+`crates/nvs-cli/src/extensions.rs`; take its items in order. The stage checks with a build alone,
+and the ticker's new test runs once by name.
 
-- [ ] `crates/nvs-server/src/statics.rs:235` (`serve`) and `:266` (`send`): lookup, open and the
-  first chunk are one blocking job when the request has no range and no condition.
-  `open_regular` is at `:180`.
-- [ ] `crates/nvs-server/src/statics.rs:266`: a not-modified answer is made from the first `stat`,
-  so it opens no file.
-- [ ] `crates/nvs-server/src/statics.rs:350` (`mime`): the media type is looked up once, without an
-  allocation.
-- [ ] `crates/nvs-server/src/statics.rs:1`: the tests `a_small_static_file_is_one_blocking_job`
-  and `a_not_modified_answer_opens_no_file` (check `static-one-hand-off`), and the module doc's
-  § *What it spends* says one hand-off.
+- [ ] `crates/nvs-ext/src/call.rs:1409`: `instantiate_pre` once per extension, held on the
+  extension, and the export index at `:1419` kept beside it.
+- [ ] `crates/nvs-ext/src/load.rs:366`: the inner SHA-256 goes and the format version moves;
+  `Modules::get` at `crates/nvs-cli/src/extensions.rs:1431` borrows the verified payload.
+- [ ] `crates/nvs-ext/src/call.rs:995`: the ticker parks while no instance is live, with a test
+  that a guest started from idle is stopped at its CPU deadline.
+- [ ] `crates/nvs-cli/src/extensions.rs:301`: the pool is sized from a count, not from a clone of
+  every manifest.
 
 ### Backlog
 
