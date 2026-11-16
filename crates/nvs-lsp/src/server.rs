@@ -3454,3 +3454,56 @@ fn send(
     connection.sender.send(notification.into())?;
     Ok(())
 }
+
+/// The work a request does, measured where the index it reads is built.
+#[cfg(test)]
+mod work {
+    use super::{CheckScope, Client, CompletionFiles, Documents, SymbolIndex, analyse, uri_of};
+    use nvs_diagnostics::PositionEncoding;
+
+    /// The paths a completion at a bare name makes canonical, over a workspace
+    /// of `files` indexed files besides the open one.
+    fn resolved_by_a_completion(files: usize) -> u64 {
+        let dir = nvs_repo::scratch("lsp-completion-resolves");
+        for n in 0..files {
+            let text = format!("<?nvs\nnamespace App;\nclass Kind{n} {{}}\n");
+            std::fs::write(dir.join(format!("Kind{n}.nvs")), text).expect("a scratch write");
+        }
+        let entry = dir.join("main.nvs");
+        let source = "<?nvs\nnamespace App;\nKin\n";
+        std::fs::write(&entry, source).expect("a scratch write");
+        let uri = uri_of(&entry).expect("a test path is UTF-8");
+        let mut documents = Documents::new();
+        documents.open(uri.clone(), 1, source.to_owned());
+        let analysed = analyse(&documents, &uri).expect("an open document analyses");
+        let index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(&dir));
+        let at = u32::try_from(source.len() - 1).expect("a short document");
+        let before = nvs_diagnostics::work::so_far();
+        let items = crate::completion::at(
+            &analysed,
+            &index,
+            &CompletionFiles::default(),
+            at,
+            Client::default(),
+            PositionEncoding::Utf8,
+        );
+        let resolved = (nvs_diagnostics::work::so_far() - before).resolved;
+        let last = format!("Kind{}", files - 1);
+        assert!(
+            items.iter().any(|item| item.label == last),
+            "the index's types are offered"
+        );
+        resolved
+    }
+
+    /// A completion at a bare name lists every type the index holds, and reads
+    /// each one off the stored entries. So the paths it resolves do not grow
+    /// with the files the index holds.
+    #[test]
+    fn a_completion_resolves_no_indexed_path_again() {
+        let few = resolved_by_a_completion(2);
+        let many = resolved_by_a_completion(40);
+        assert_eq!(few, many, "a completion resolved an indexed path again");
+        assert!(many <= 2, "a completion resolved {many} paths");
+    }
+}

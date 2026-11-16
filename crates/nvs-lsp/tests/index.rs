@@ -217,9 +217,12 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 /// which is what [`every_reader_queries_the_one_index`] counts. `work` is
 /// asked by `tests/incremental.rs` alone, `generation` and `save_to` by the
 /// server's idle write and that suite, and `workers_running` by that suite's
-/// test that a settled index runs no worker. None of them looks a name up.
-const BOOKKEEPING: [&str; 11] = [
+/// test that a settled index runs no worker. `all_declarations` is the walk of
+/// the stored entries that completion lists types from, which `files` and
+/// `declarations_in` gave it before. None of them looks a name up.
+const BOOKKEEPING: [&str; 12] = [
     "files",
+    "all_declarations",
     "holds",
     "len",
     "is_empty",
