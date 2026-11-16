@@ -198,15 +198,23 @@ sockets and archives.
 - [ ] `crates/nvs-stdlib/src/io.rs:2961`: the read-ahead buffer, dropped by every other member of
   the handle (`rule:programs/memory-priority`). This item has one session. If a member of the
   handle cannot keep its position promise, it is declined.
-- [ ] `crates/nvs-stdlib/src/http/transport.rs:557`: 64 KiB steps into a reused buffer, read
+  - [x] The buffer lives beside the file in the runtime's table, and `open_file_mut` gives it back.
+  - [x] The test `a_line_read_ahead_leaves_every_other_member_at_the_line_end` passes.
+  - [x] Allocations 2 → 1, bytes 76 → 58.
+  - [ ] `readLine.scale.nvs` passes: instructions slope 1.26 against the bound 1.15.
+- [x] `crates/nvs-stdlib/src/http/transport.rs:557`: 64 KiB steps into a reused buffer, read
   straight into the held body where no framing stands between (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/net.rs:1887`: `Datagram::receive` and `Stream::read` at `:1633` read
+  Kept without a figure: every `Core\Http\Client` bench goes through the answer table and never
+  reaches `Framed::pull`.
+- [x] `crates/nvs-stdlib/src/net.rs:1887`: `Datagram::receive` and `Stream::read` at `:1633` read
   into a buffer they do not zero first (`rule:programs/memory-priority`). Safe default if that
-  needs `unsafe`: a reused per-thread buffer.
-- [ ] `crates/nvs-stdlib/src/zip.rs:1206`: one block per extraction
-  (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/compress.rs:890`: the output reserves a hint capped by the ceiling
-  (`rule:programs/memory-priority`).
+  needs `unsafe`: a reused per-thread buffer. Per-thread buffer, taken out for the call.
+  `receive` allocations 7 → 6 and bytes 65753 → 217, `read` 2 → 1.
+- [x] `crates/nvs-stdlib/src/zip.rs:1206`: one block per extraction
+  (`rule:programs/memory-priority`). `extract` allocations 306 → 305, bytes 297344 → 231808.
+- [x] `crates/nvs-stdlib/src/compress.rs:890`: the output reserves a hint capped by the ceiling
+  (`rule:programs/memory-priority`). `decompress` 20 → 18 is kept. Declined and restored: the
+  encode hint, `compress` 130 → 130.
 
 ### 4. the checker's walks borrow their names
 
@@ -258,22 +266,30 @@ through the session's cache.
 
 ### State
 
-Stages 1 and 2 are done and committed. Stage 2 kept `Str::trim`, `Regex::replace`,
-`Regex::replaceWith`, `Csv::parse` and `BigInt::compareTo`, `neg` and `abs`. Every other stage 2
-member showed no drop and is restored. Each changed member's record is taken against its final
-file. The `Core\Arr`, `Core\Str` and other members of the changed files that this goal did not
-touch still read `perf: stale`; stage 6 records them in one run, as the playbook's first bullet
-says. The new test `the_stored_order_is_the_numbers_order` passes. No test is expected to go
-red. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0, stage 5: 0.
+Stages 1 and 2 are done. Stage 3 is committed except for one open checkpoint: the
+`readLine` scale bench. `Ctx::open_file_mut` now returns `Option<io::Result<&mut File>>`, and
+every caller handles the give-back seek's error. The records for `Net\Stream::read`,
+`Net\Datagram::receive`, `Zip::extract`, `Zip::read`, `Compress::compress` and
+`Compress::decompress` are taken against their final files. `readLine`'s main bench record is
+stale. Its scale bench fails: `instructions grows with slope 1.26, 5594 per op at 4096 and 8009 at
+16384`. The old code passed it. Ruled out: the shrink after a long line (removed), 4 KiB growth
+reads (now a whole block), the `copy_within` of a buffer already at the front (now guarded), and
+`affordable` (O(1)). Left to check: the `resize` zeroing per fill, and the byte-by-byte
+`position` scan. Untouched members of the changed files still read `perf: stale`; stage 6
+records them. Expected red: nothing but that scale bench. Sessions used: stage 1: 1, stage 2: 1,
+stage 3: 1, stage 4: 0, stage 5: 0.
 
 The sweep's `env-secret-proofs` is still stale state in looper's service: `looper check --name`
 finds no such check, and it has no log and no definition in the tree.
 
 ### Next
 
-- `crates/nvs-stdlib/src/io.rs:1`: stage 3, in one session, by its own item list. Its files are
-  `io.rs`, `http/transport.rs`, `net.rs`, `zip.rs` and `compress.rs`. Measure once, at the end of
-  the stage, after any restore, with the release binary from `bun nv relink --build`.
+- `crates/nvs-stdlib/src/io.rs:3027`: make `readLine.scale.nvs` pass. `read_ahead` is the fill.
+  Rebuild with `bun nv relink --build`, then run `bun nv proofs --record-perf --force --nvs
+  target/release/nvs.exe --only 'Core\IO\File::readLine'`. This is stage 3's second and last
+  session. If it still fails, restore `readLine` and `ReadAhead` from `d8e98e00ec^` and decline the item with both
+  figures. Then set stage 3 to done.
+- `crates/nvs-types/src/signatures.rs:1`: stage 4, by its own item list.
 
 ### Backlog
 
