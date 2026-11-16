@@ -897,13 +897,15 @@ fn timed_header(read: &Read, times: u32) -> (Duration, Value) {
 }
 
 /// Numbering a full row of equal names grows linearly with the row. One read
-/// of a header of 16384 equal names takes under three times as long as eight
-/// reads of one of 2048 equal names, the same code on an eighth of the row:
+/// of a header of 16384 equal names takes under five times as long as sixteen
+/// reads of one of 1024 equal names, the same code on a sixteenth of the row:
 /// linear growth is even, and numbering each duplicate from `(2)` up again is
-/// eight times. Both windows do the same work when the growth is linear, so a
-/// loaded runner stretches both alike; one long window beside one eight times
-/// shorter was preempted unevenly and read 27 times on a runner that reads 8
-/// unloaded. The two are timed in turn and the fastest of five each is kept
+/// sixteen times. Linear code read 3.3 times under a loaded verify, because the
+/// whole row's table outgrows a cache the small one fits, so the window is a
+/// sixteenth to keep both sides at least three times from the bound. Both
+/// windows do the same work when the growth is linear, so a loaded runner
+/// stretches both alike; one long window beside one eight times shorter was
+/// preempted unevenly and read 27 times on a runner that reads 8 unloaded. The two are timed in turn and the fastest of five each is kept
 /// (`rule:testing/a-test-holds-at-any-speed`, a bound measured in the same
 /// run). A header of distinct names is no baseline: it formats and hashes no
 /// numbered name, and a runner measured linear numbering at nearly five times
@@ -911,7 +913,7 @@ fn timed_header(read: &Read, times: u32) -> (Duration, Value) {
 #[test]
 fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
     const COLUMNS: u32 = 16_384;
-    const SMALL: u32 = COLUMNS / 8;
+    const SMALL: u32 = COLUMNS / 16;
     // `Name (2)` in the second column is the numbered name a duplicate would
     // otherwise take.
     let equal_of = |columns| {
@@ -937,8 +939,8 @@ fn a_header_of_every_column_equal_is_numbered_in_linear_time() {
         "a name given in the file is skipped"
     );
     assert!(
-        fastest_equal < fastest_small * 3,
-        "{COLUMNS} equal names took {fastest_equal:?} and eight reads of {SMALL} {fastest_small:?}"
+        fastest_equal < fastest_small * 5,
+        "{COLUMNS} equal names took {fastest_equal:?} and sixteen reads of {SMALL} {fastest_small:?}"
     );
     block_on(equal.request.end()).expect("the request ends");
     block_on(small.request.end()).expect("the request ends");
