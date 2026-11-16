@@ -10558,10 +10558,13 @@ mod tests {
     /// `groupBy` and `countBy` allocate per bucket, not per entry. The subject
     /// is a map, so its string keys are shared with the buckets and not
     /// rendered, and every allocation left is a bucket's or the result's.
+    ///
+    /// Under Miri 3000 callback calls outrun the runner's five-minute limit, so
+    /// it walks 300, which still puts one allocation per entry over the bound.
     // covers: Core\Arr::groupBy, Core\Arr::countBy
     #[test]
     fn a_bucket_member_allocates_per_bucket() {
-        const ENTRIES: i64 = 3000;
+        const ENTRIES: i64 = if cfg!(miri) { 300 } else { 3000 };
         let mut ctx = Ctx::buffered();
         let mut array = NvsArray::new();
         for entry in 0..ENTRIES {
@@ -10586,7 +10589,7 @@ mod tests {
             let spent = nvs_runtime::budget::allocations() - before;
             // Three buckets, each a name, a lookup key and an array that grows
             // by doubling, and the result. One allocation per entry would be
-            // three thousand.
+            // `ENTRIES`, at least 300.
             assert!(
                 spent < 100,
                 "{member} made {spent} allocations over {ENTRIES} entries"
