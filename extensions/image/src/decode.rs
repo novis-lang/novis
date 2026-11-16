@@ -354,7 +354,7 @@ pub(crate) fn srgb(profile: &ColorProfile, pixels: &[u8]) -> Option<Vec<u8>> {
     let mut out = vec![0u8; pixels.len()];
     transform.transform(pixels, &mut out).ok()?;
     if profile.color_space == DataColorSpace::Cmyk {
-        for pixel in out.chunks_exact_mut(4) {
+        for pixel in out.as_chunks_mut::<4>().0.iter_mut() {
             pixel[3] = 255;
         }
     }
@@ -386,7 +386,7 @@ fn cmyk_jpeg(data: &[u8], profile: &ColorProfile) -> Result<Option<RgbaImage>, E
     }
     // A YCCK JPEG encodes `255 - stored` for cyan, magenta and yellow as YCbCr, so converting
     // that back to RGB gives their ink amounts directly. Black is stored as it is in CMYK.
-    for pixel in channels.chunks_exact_mut(4) {
+    for pixel in channels.as_chunks_mut::<4>().0.iter_mut() {
         if stored == ColorSpace::YCCK {
             let (y, cb, cr) = (
                 f32::from(pixel[0]),

@@ -264,11 +264,14 @@ fn set(font: &FontRef<'_>, layout: &Layout<'_>) -> Result<Set, Error> {
             .filter(|&c| !c.is_control() && c != '\u{2029}')
             .collect();
         let bidi = BidiInfo::new(&clean, None);
-        let ranges = match layout.max_width {
-            Some(max) => wrap(&pen, &bidi, max as f32),
-            None => vec![0..clean.len()],
-        };
-        lines.extend(ranges.into_iter().map(|range| pen.line(&bidi, range)));
+        match layout.max_width {
+            Some(max) => lines.extend(
+                wrap(&pen, &bidi, max as f32)
+                    .into_iter()
+                    .map(|range| pen.line(&bidi, range)),
+            ),
+            None => lines.push(pen.line(&bidi, 0..clean.len())),
+        }
     }
     let scaled = font.as_scaled(scale);
     let ascent = scaled.ascent();
@@ -343,7 +346,7 @@ pub fn render(layout: &Layout<'_>, color: [u8; 4], cap: u64) -> Result<Pixels, E
         }
     }
     if color[3] != 255 {
-        for px in rgba.chunks_exact_mut(4) {
+        for px in rgba.as_chunks_mut::<4>().0.iter_mut() {
             px[3] = ((u16::from(px[3]) * u16::from(color[3]) + 127) / 255) as u8;
         }
     }
@@ -390,7 +393,13 @@ mod tests {
     }
 
     fn inked(frame: &Pixels) -> usize {
-        frame.rgba.chunks_exact(4).filter(|px| px[3] > 0).count()
+        frame
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|px| px[3] > 0)
+            .count()
     }
 
     /// The advance of `text` set alone in one line.
@@ -583,7 +592,9 @@ mod tests {
         draw(&mut canvas, text, 1 << 20).unwrap();
         let red = canvas
             .rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .filter(|px| px[0] == 255 && px[1] == 0 && px[2] == 0)
             .count();
         assert!(red > 20);

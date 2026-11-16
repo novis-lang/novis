@@ -104,7 +104,9 @@ pub fn encode(pixels: Pixels, format: Format, encoding: Encoding) -> Result<Vec<
             let quality = quality(encoding, DEFAULT_LOSSY_QUALITY);
             let pixels: Vec<ravif::RGBA8> = image
                 .as_bytes()
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|px| ravif::RGBA8::new(px[0], px[1], px[2], px[3]))
                 .collect();
             let frame = ravif::Img::new(pixels.as_slice(), width as usize, height as usize);

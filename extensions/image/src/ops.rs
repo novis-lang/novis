@@ -306,7 +306,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64, frames: u64) -> Result<(), E
             "a `composite` step runs only inside a plan, which has its overlays".to_owned(),
         )),
         Op::Flatten(background) => {
-            for px in pixels.rgba.chunks_exact_mut(4) {
+            for px in pixels.rgba.as_chunks_mut::<4>().0.iter_mut() {
                 let alpha = f32::from(px[3]) / 255.0;
                 for (c, bg) in px[..3].iter_mut().zip(background) {
                     *c = to_u8(f32::from(*c) * alpha + f32::from(bg) * (1.0 - alpha));
@@ -324,7 +324,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64, frames: u64) -> Result<(), E
             Ok(())
         }
         Op::Grayscale => {
-            for px in pixels.rgba.chunks_exact_mut(4) {
+            for px in pixels.rgba.as_chunks_mut::<4>().0.iter_mut() {
                 let luma = 0.2126 * f32::from(px[0])
                     + 0.7152 * f32::from(px[1])
                     + 0.0722 * f32::from(px[2]);
@@ -348,7 +348,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64, frames: u64) -> Result<(), E
         Op::Tint(tint) => {
             let strength = f32::from(tint[3]) / 255.0;
             let gains = [0, 1, 2].map(|at| 1.0 - strength + strength * f32::from(tint[at]) / 255.0);
-            for px in pixels.rgba.chunks_exact_mut(4) {
+            for px in pixels.rgba.as_chunks_mut::<4>().0.iter_mut() {
                 for (c, gain) in px[..3].iter_mut().zip(gains) {
                     *c = to_u8(f32::from(*c) * gain);
                 }
@@ -421,7 +421,7 @@ pub fn composite(pixels: &mut Pixels, overlay: &Pixels, options: Composite) {
         if y >= pixels.height {
             break;
         }
-        for (column, above) in line.chunks_exact(4).enumerate() {
+        for (column, above) in line.as_chunks::<4>().0.iter().enumerate() {
             let Ok(x) = u32::try_from(left + column as i64) else {
                 continue;
             };
@@ -478,7 +478,7 @@ fn frame(width: u64, height: u64, cap: u64, frames: u64) -> Result<(u32, u32), E
 /// Applies `map` to every colour channel through a table of the 256 values.
 fn curve(pixels: &mut Pixels, map: impl Fn(f64) -> f64) {
     let table: [u8; 256] = std::array::from_fn(|at| to_u8(map(at as f64) as f32));
-    for px in pixels.rgba.chunks_exact_mut(4) {
+    for px in pixels.rgba.as_chunks_mut::<4>().0.iter_mut() {
         for c in &mut px[..3] {
             *c = table[usize::from(*c)];
         }
@@ -488,14 +488,12 @@ fn curve(pixels: &mut Pixels, map: impl Fn(f64) -> f64) {
 /// The left, top, width and height of the part of a frame a `Cover` resize reads.
 type SourceBox = (f64, f64, f64, f64);
 
-/// What `options` makes of a `width` by `height` frame: the size of the resized frame, the
-/// source box it is read from when that is not the whole frame, and the canvas a `Contain`
-/// result is placed on.
-fn resized(
-    width: u32,
-    height: u32,
-    options: Resize,
-) -> ((u64, u64), Option<SourceBox>, Option<(u64, u64)>) {
+/// The size of a resized frame, the source box it is read from when that is not the whole
+/// frame, and the canvas a `Contain` result is placed on.
+type Resized = ((u64, u64), Option<SourceBox>, Option<(u64, u64)>);
+
+/// What `options` makes of a `width` by `height` frame.
+fn resized(width: u32, height: u32, options: Resize) -> Resized {
     let limit = |by: f64| if options.upscale { by } else { by.min(1.0) };
     let both = |by: f64| (scale(width, by), scale(height, by));
     match (options.width, options.height) {
@@ -622,7 +620,7 @@ pub(crate) fn trimmed(pixels: &Pixels, threshold: f64) -> (u32, u32, u32, u32) {
     let row = pixels.width as usize * 4;
     let mut bounds: Option<(usize, usize, usize, usize)> = None;
     for (y, line) in pixels.rgba.chunks_exact(row).enumerate() {
-        for (x, px) in line.chunks_exact(4).enumerate() {
+        for (x, px) in line.as_chunks::<4>().0.iter().enumerate() {
             let differs = px
                 .iter()
                 .zip(corner)
@@ -704,11 +702,7 @@ fn rotate(
         match quarter {
             0 => {}
             2 => {
-                let mut quads: Vec<[u8; 4]> = pixels
-                    .rgba
-                    .chunks_exact(4)
-                    .map(|px| px.try_into().expect("four bytes"))
-                    .collect();
+                let mut quads: Vec<[u8; 4]> = pixels.rgba.as_chunks::<4>().0.to_vec();
                 quads.reverse();
                 pixels.rgba = quads.concat();
             }
@@ -827,9 +821,9 @@ fn gaussian(pixels: &mut Pixels, sigma: f64, sharpen: bool) {
     let (width, height) = (pixels.width as usize, pixels.height as usize);
     let radius = ((3.0 * sigma).ceil() as usize).clamp(1, width.max(height));
     let weights = kernel(sigma, radius);
-    let translucent = pixels.rgba.chunks_exact(4).any(|px| px[3] != 255);
+    let translucent = pixels.rgba.as_chunks::<4>().0.iter().any(|px| px[3] != 255);
     if translucent {
-        for px in pixels.rgba.chunks_exact_mut(4) {
+        for px in pixels.rgba.as_chunks_mut::<4>().0.iter_mut() {
             let alpha = f32::from(px[3]) / 255.0;
             for c in &mut px[..3] {
                 *c = to_u8(f32::from(*c) * alpha);
@@ -880,7 +874,7 @@ fn gaussian(pixels: &mut Pixels, sigma: f64, sharpen: bool) {
         }
     }
     if translucent {
-        for px in pixels.rgba.chunks_exact_mut(4) {
+        for px in pixels.rgba.as_chunks_mut::<4>().0.iter_mut() {
             let [r, g, b, a] = [px[0], px[1], px[2], px[3]].map(f32::from);
             px.copy_from_slice(&straight([r, g, b, a]));
         }
@@ -1145,7 +1139,13 @@ mod tests {
             exif: None,
         };
         apply(&mut flat, Op::Blur { sigma: 2.0 }, 1 << 20, 1).unwrap();
-        assert!(flat.rgba.chunks_exact(4).all(|px| px == [40, 80, 120, 255]));
+        assert!(
+            flat.rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|px| *px == [40, 80, 120, 255])
+        );
         let mut edge = Pixels {
             width: 8,
             height: 1,

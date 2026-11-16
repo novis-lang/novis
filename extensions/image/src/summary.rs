@@ -78,7 +78,7 @@ pub fn palette(data: &[u8], count: u64) -> Result<Vec<[u8; 4]>, Error> {
 /// The palette of a decoded frame, `count` at most [`MAX_PALETTE`], as the module doc says.
 #[must_use]
 pub fn colours(frame: &Pixels, count: usize) -> Vec<[u8; 4]> {
-    let visible = || frame.rgba.chunks_exact(4).filter(|p| p[3] > 0);
+    let visible = || frame.rgba.as_chunks::<4>().0.iter().filter(|p| p[3] > 0);
     let total = visible().count();
     if count == 0 || total == 0 {
         return Vec::new();
@@ -92,7 +92,7 @@ pub fn colours(frame: &Pixels, count: usize) -> Vec<[u8; 4]> {
     // brings them down to `count`.
     let net = NeuQuant::new(10, count.max(64), &sample);
     let mut clusters = vec![Cluster::default(); count.max(64)];
-    for pixel in sample.chunks_exact(4) {
+    for pixel in sample.as_chunks::<4>().0.iter() {
         let cluster = &mut clusters[net.index_of(pixel)];
         for (sum, &c) in cluster.sum.iter_mut().zip(pixel) {
             *sum += f64::from(c);
@@ -176,7 +176,7 @@ fn shrink(frame: &Pixels) -> Small {
     let mut counts = vec![0u64; (nx * ny) as usize];
     for (y, row) in frame.rgba.chunks_exact(width as usize * 4).enumerate() {
         let cy = y as u64 * ny / height;
-        for (x, p) in row.chunks_exact(4).enumerate() {
+        for (x, p) in row.as_chunks::<4>().0.iter().enumerate() {
             let at = (cy * nx + x as u64 * nx / width) as usize;
             let alpha = f64::from(p[3]) / 255.0;
             for c in 0..3 {

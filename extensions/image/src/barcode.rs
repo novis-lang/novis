@@ -204,8 +204,10 @@ pub fn render(data: &str, symbology: Symbology, options: Options) -> Result<Vec<
         let left = (pad + x * cell.0) as usize;
         for row in top..top + cell.1 {
             let start = (row * width) as usize + left;
-            for px in
-                frame.rgba[start * 4..(start + (run * cell.0) as usize) * 4].chunks_exact_mut(4)
+            for px in frame.rgba[start * 4..(start + (run * cell.0) as usize) * 4]
+                .as_chunks_mut::<4>()
+                .0
+                .iter_mut()
             {
                 px.copy_from_slice(&[0, 0, 0, 255]);
             }

@@ -52,7 +52,13 @@ pub fn pixels(a: &Pixels, b: &Pixels, tolerance: u64, render: bool) -> Result<Di
     let mut differing_pixels = 0;
     let mut max_delta = 0;
     let mut marks = Vec::new();
-    for (x, y) in a.rgba.chunks_exact(4).zip(b.rgba.chunks_exact(4)) {
+    for (x, y) in a
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(b.rgba.as_chunks::<4>().0.iter())
+    {
         let delta = x
             .iter()
             .zip(y)
@@ -99,7 +105,9 @@ fn named(which: &str, err: Error) -> Error {
 pub(crate) fn luma(pixels: &Pixels) -> Vec<f64> {
     pixels
         .rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|p| {
             let y = 0.299 * f64::from(p[0]) + 0.587 * f64::from(p[1]) + 0.114 * f64::from(p[2]);
             y * f64::from(p[3]) / 255.0
@@ -153,7 +161,7 @@ fn ssim(a: &[f64], b: &[f64], width: usize, height: usize) -> f64 {
 /// The diff PNG: `base` in grey faded towards white, and red wherever `marks` is set.
 fn rendered(base: &Pixels, marks: &[bool]) -> Result<Vec<u8>, Error> {
     let mut rgba = Vec::with_capacity(base.rgba.len());
-    for (p, &mark) in base.rgba.chunks_exact(4).zip(marks) {
+    for (p, &mark) in base.rgba.as_chunks::<4>().0.iter().zip(marks) {
         if mark {
             rgba.extend_from_slice(&[255, 0, 0, 255]);
         } else {
@@ -271,9 +279,11 @@ mod tests {
         assert_eq!((shown.width, shown.height), (9, 5));
         let red = shown
             .rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .enumerate()
-            .filter(|(_, p)| *p == [255, 0, 0, 255])
+            .filter(|(_, p)| **p == [255, 0, 0, 255])
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
         assert_eq!(red, [2 * 9 + 7]);

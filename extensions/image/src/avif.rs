@@ -220,7 +220,7 @@ fn composite(
     let mut rgba = color.to_rgba();
     if let Some(alpha) = alpha {
         let values = alpha.luma();
-        for (pixel, a) in rgba.chunks_exact_mut(4).zip(values) {
+        for (pixel, a) in rgba.as_chunks_mut::<4>().0.iter_mut().zip(values) {
             pixel[3] = a;
             if premultiplied {
                 for channel in &mut pixel[..3] {

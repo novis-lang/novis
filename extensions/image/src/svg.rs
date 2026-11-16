@@ -122,7 +122,7 @@ pub(crate) fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
     let mut pixmap = Pixmap::new(width, height).ok_or_else(too_big)?;
     resvg::render(&tree, Transform::identity(), &mut pixmap.as_mut());
     let mut rgba = pixmap.take();
-    for pixel in rgba.chunks_exact_mut(4) {
+    for pixel in rgba.as_chunks_mut::<4>().0.iter_mut() {
         let alpha = u16::from(pixel[3]);
         if alpha != 0 && alpha != 255 {
             for channel in &mut pixel[..3] {
@@ -172,7 +172,12 @@ mod tests {
                 r#"<svg xmlns="http://www.w3.org/2000/svg" width="120" height="30"><text x="2" y="22" font-family="{family}" font-size="20">Shop</text></svg>"#
             );
             let got = decode(svg.as_bytes(), 10_000).unwrap();
-            got.rgba.chunks_exact(4).filter(|px| px[3] > 128).count()
+            got.rgba
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .filter(|px| px[3] > 128)
+                .count()
         };
         let counts = ["serif", "sans-serif", "monospace"].map(inked);
         assert!(counts.iter().all(|&n| n > 50), "{counts:?}");

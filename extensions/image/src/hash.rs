@@ -183,7 +183,7 @@ mod tests {
     fn mirrored(frame: &Pixels) -> Pixels {
         let mut rgba = Vec::with_capacity(frame.rgba.len());
         for row in frame.rgba.chunks_exact(frame.width as usize * 4) {
-            for pixel in row.chunks_exact(4).rev() {
+            for pixel in row.as_chunks::<4>().0.iter().rev() {
                 rgba.extend_from_slice(pixel);
             }
         }
