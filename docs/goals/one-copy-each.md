@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/db/registry.rs, crates/nvs-stdlib/src/classes.rs]
   - id: 3
     title: "the tree walks and the case parser have one home each"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/hints.rs, crates/nvs-lsp/src/semantic.rs, crates/nvs-lsp/src/case.rs, crates/nvs-test/src/case.rs, crates/nvs-types/src/deprecated.rs, crates/nvs-types/src/retrieval.rs, crates/nvs-types/src/test_code.rs]
   - id: 4
     title: "the small helpers are written once"
@@ -134,13 +134,20 @@ in its decision above has landed.
 **Does:** share the statement walk of the two editor passes, the case-file parser, and the
 namespace walk of three checker passes.
 
-- [ ] `crates/nvs-lsp/src/hints.rs:124`: one walker with a visitor, used by
+- [x] `crates/nvs-lsp/src/hints.rs:124`: one walker with a visitor, used by
   `crates/nvs-lsp/src/semantic.rs:572` (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-test/src/case.rs:509`: the section parser is public, and
+  - [x] `crates/nvs-lsp/src/walk.rs` holds the shared walk as trait `Walk`
+  - [x] hints and semantic tokens override the nodes they read and call the shared children walk
+  - [x] build and clippy green, with fewer lines
+- [x] `crates/nvs-test/src/case.rs:509`: the section parser is public, and
   `crates/nvs-lsp/src/case.rs:315` calls it (`rule:testing/feature-proofs`).
-- [ ] `crates/nvs-types/src/deprecated.rs:438`: one namespace walk, used by
+  - [x] `nvs_test::section::aux_path` holds the path check, with each format's reserved names
+  - [x] both case parsers call it, with every message unchanged
+- [x] `crates/nvs-types/src/deprecated.rs:438`: one namespace walk, used by
   `crates/nvs-types/src/retrieval.rs:238` and `crates/nvs-types/src/test_code.rs:80`
   (`rule:programs/memory-priority`).
+  - [x] `deprecated::each_declaration` walks the namespaces and imports
+  - [x] the three table builders read their declarations through it
 
 ### 4. the small helpers are written once
 
@@ -182,34 +189,42 @@ edit. Writing subagents then convert disjoint files side by side, and the sessio
 
 ### State
 
-Stages 1 and 2 are done, built and clippy-clean, with no test run. Lines over `crates/`: stage 1
-+156 -313, stage 2 +179 -254. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0,
-stage 5: 0.
+Stages 1 to 3 are done, built and clippy-clean, with no test run. Lines over `crates/`: stage 1
++156 -313, stage 2 +179 -254, stage 3 +698 -936. Sessions used: stage 1: 1, stage 2: 1,
+stage 3: 1, stage 4: 0, stage 5: 0.
 
 - Stage 1: `Lowering::open_loop_header` and `close_foreach_body` in
   `crates/nvs-ir/src/lower/control.rs`, and `Lowering::into_lowered` in `lower/mod.rs`.
-- Stage 2: the six statement rows of `crates/nvs-stdlib/src/db/registry.rs` (`QUERY_ROW` to
-  `STREAM_AS_ROW`) are one `const` each, listed by `CONNECTION` and `TRANSACTION`.
-  `rowsOf` in `tools/nv/cmd/gaps.ts` gives such a row to every class that lists it. The playbook
-  trap "a `Core\Db` statement member is declared twice" is deleted, because it is no longer true.
+- Stage 2: the six statement rows of `crates/nvs-stdlib/src/db/registry.rs` are one `const` each,
+  listed by both classes, and `rowsOf` in `tools/nv/cmd/gaps.ts` follows them.
+- Stage 3: trait `Walk` in `crates/nvs-lsp/src/walk.rs` is the one statement and expression walk.
+  Its default walk is the old hints walk. Semantic tokens add what only they read (string holes,
+  receivers, member names, `new` targets) in their own overrides, so neither pass reaches a node
+  it did not reach before. `nvs_test::section::aux_path` is the one `--FILE <path>--` check, and
+  `nvs_types::deprecated::each_declaration` the one namespace and `use` walk.
 
 The sweep's `env-secret-proofs` finding names a retired check: `looper check --name` finds no
 such check and no log exists. Nothing in the tree is changed for it.
 
 Tests that could go red in stage 6: the `insta` snapshots under
-`crates/nvs-ir/src/lower/snapshots/`, and `db::transaction`'s
-`a_transaction_is_a_callable_and_transaction_is_a_queryable`, which compares the two rosters.
+`crates/nvs-ir/src/lower/snapshots/`; `db::transaction`'s
+`a_transaction_is_a_callable_and_transaction_is_a_queryable`, which compares the two rosters;
+`nvs-lsp`'s `tests/hints.rs`, `semantic.rs`'s own unit tests and the `.lspt` corpus for the
+shared walk; `nvs-test`'s `case.rs` tests and `nvs-lsp`'s `case.rs` tests for the path check.
 
 ### Next
 
-Stage 3, in up to two sessions. Each item is its own slice and its own commit.
+Stage 4, in up to two sessions. Each item is its own slice and its own commit, and each anchor
+is from the scan, so read the code there before the first edit.
 
-- [ ] `crates/nvs-lsp/src/hints.rs:124`: one walker with a visitor, used by
-  `crates/nvs-lsp/src/semantic.rs:572`.
-- [ ] `crates/nvs-test/src/case.rs:509`: the section parser is public, and
-  `crates/nvs-lsp/src/case.rs:315` calls it.
-- [ ] `crates/nvs-types/src/deprecated.rs:438`: one namespace walk, used by
-  `crates/nvs-types/src/retrieval.rs:238` and `crates/nvs-types/src/test_code.rs:80`.
+- [ ] `crates/nvs-stdlib/src/encoding.rs:1617`: one hex encoder, used by `random.rs:769`,
+  `server.rs:153`, `queue.rs:252` and `json.rs:1391` in `crates/nvs-stdlib/src/`.
+- [ ] `crates/nvs-stdlib/src/csrf.rs:306`: one string-argument accessor, used by
+  `signed_cookie.rs:292`, `session.rs:1061`, `ratelimit.rs:713`, `log.rs:297`, `html.rs:574` and
+  `metrics.rs:413`.
+- [ ] `crates/nvs-runtime/src/callable.rs:771`: one function for the block at `:832` and `:1006`.
+- [ ] `crates/nvs-codegen/src/emit.rs:1556`: one function for the probe branch at `:1765` and
+  `:3973`.
 
 ### Backlog
 
