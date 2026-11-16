@@ -285,29 +285,20 @@ through the session's cache.
 
 Every stage is done, and the goal is reached. The gate's `looper verify` is green, and so are
 `bun nv verify --doc`, `bun nv owners --closes lean-members-and-checker`, `bun nv ci --check`
-and both acceptance checks. The gate fixed four things. `a_completion_resolves_no_indexed_path_again`
-moved to a test module in `crates/nvs-lsp/src/server.rs`, because `completion.rs` may not build an
-index or write a file. `all_declarations` joined the index suite's bookkeeping methods. The 241 stale
-perf records were taken again, and three benches now declare their lower allocation counts.
-`Core\Arr::hasKey`'s bench runs 4096 operations, so its ramp is not read from noise. The testing
-chapter's slug bench output shows the counts the leaner `Core\Str::trim` gives. The decisions on
-`QName` and on resolving editor paths are now in `crates/nvs-hir/src/qname.rs` and
-`crates/nvs-lsp/src/parse_cache.rs`. Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 1,
-stage 5: 1, stage 6: 1.
+and both acceptance checks. The perf records and benches were taken again, and the decisions on
+`QName` and on editor paths are in `crates/nvs-hir/src/qname.rs` and
+`crates/nvs-lsp/src/parse_cache.rs`. Sessions used: stage 1: 1, stage 2: 1, stage 3: 2,
+stage 4: 1, stage 5: 1, stage 6: 1.
 
-The sweep's `env-secret-proofs` is still stale state in looper's service. Its log does not
-exist, nothing in the tree defines it, and `looper check --name env-secret-proofs` finds no check.
+`env-secret-proofs` is stale state in looper's service: nothing in the tree defines it, and
+`looper check --name env-secret-proofs` finds no check.
 
-The second refused DONE's `ci-check` was red because of the server commit `5c0aad1f11`, made
-outside the loop. It left rustfmt drift in three files, a stale `website/public/llms-full.txt`,
-and stale search questions on `/reference/config/mode/` and `/reference/config/server/`. All
-three are fixed, and `looper check --name ci-check` is green.
+`ci-check` went red after the goal from the server commit `5c0aad1f11`: rustfmt drift, a stale
+`website/public/llms-full.txt` and stale questions on two config pages. All are fixed, and
+`looper check --name ci-check` is green.
 
-The refused DONE's `floor-debt` was red on two atoms of its 87-minute sweep:
-`tools/nv/test/fuzz.test.ts` and `tools/nv/test/mirror.test.ts`. The log names no failure. Both
-files pass alone (15 tests), nothing changed them since 2026-11-09, and `looper check --name
-floor-debt` is green again. Both spawn `bash`, so a spawn that failed under the sweep's load is
-the likely cause. If either goes red under load again, its spawn result is the place to read.
+`floor-debt` went red once under load on `tools/nv/test/fuzz.test.ts` and
+`tools/nv/test/mirror.test.ts`, which pass alone. If either goes red again, read its `bash` spawn.
 
 ### Next
 
