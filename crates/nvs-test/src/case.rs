@@ -505,38 +505,6 @@ const RESERVED_NAMES: &[&str] = &[
     crate::request::FILE_NAME,
 ];
 
-/// Checks an auxiliary file's path, returning it or the reason it is refused.
-///
-/// The path is joined onto a temporary directory the runner owns, so this is
-/// the whole of the containment argument: `/` separators only, no root, no
-/// drive letter, and no `.` or `..` segment means the result cannot name
-/// anything outside that directory.
-fn aux_path(raw: &str) -> Result<String, String> {
-    if raw.is_empty() {
-        return Err("`--FILE <path>--` needs a path after the name".to_owned());
-    }
-    if raw.contains('\\') {
-        return Err(format!(
-            "`{raw}` separates with `\\`; an auxiliary path is written with `/` on both legs"
-        ));
-    }
-    if raw.starts_with('/') || raw.contains(':') {
-        return Err(format!("`{raw}` is not a relative path"));
-    }
-    if raw
-        .split('/')
-        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
-    {
-        return Err(format!(
-            "`{raw}` has an empty, `.` or `..` segment; an auxiliary file stays under the case's own directory"
-        ));
-    }
-    if RESERVED_NAMES.contains(&raw) {
-        return Err(format!("`{raw}` is the name the runner writes itself"));
-    }
-    Ok(raw.to_owned())
-}
-
 /// Reads `text` as a `.nvst` case named by `path`.
 ///
 /// # Errors
@@ -562,7 +530,8 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         match (seen.arg.as_deref(), name) {
             (None, _) => {}
             (Some(raw), TAKES_A_PATH) => {
-                aux_path(raw).map_err(|why| err(why, Some(number)))?;
+                section::aux_path(raw, RESERVED_NAMES, "the runner writes itself")
+                    .map_err(|why| err(why, Some(number)))?;
             }
             (Some(_), _) => {
                 return Err(err(

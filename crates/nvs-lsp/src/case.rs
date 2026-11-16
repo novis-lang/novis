@@ -307,37 +307,10 @@ fn err(message: impl Into<String>, line: Option<usize>) -> ParseError {
     }
 }
 
-/// Checks an auxiliary file's path, returning it or the reason it is refused.
-///
-/// The path is joined onto a directory the runner owns, so this is the whole of
-/// the containment argument: `/` separators only, no root, no drive letter, and
-/// no `.` or `..` segment means the result cannot name anything outside it.
+/// Checks a `--FILE <path>--` header's path. The case's own [`MAIN_PATH`] is
+/// refused, because the first `--FILE--` is written there.
 fn aux_path(raw: &str) -> Result<String, String> {
-    if raw.is_empty() {
-        return Err("`--FILE <path>--` needs a path after the name".to_owned());
-    }
-    if raw.contains('\\') {
-        return Err(format!(
-            "`{raw}` separates with `\\`; an auxiliary path is written with `/` on both legs"
-        ));
-    }
-    if raw.starts_with('/') || raw.contains(':') {
-        return Err(format!("`{raw}` is not a relative path"));
-    }
-    if raw
-        .split('/')
-        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
-    {
-        return Err(format!(
-            "`{raw}` has an empty, `.` or `..` segment; an auxiliary file stays under the case's own directory"
-        ));
-    }
-    if raw == MAIN_PATH {
-        return Err(format!(
-            "`{raw}` is the name the case's own `--FILE--` is written to"
-        ));
-    }
-    Ok(raw.to_owned())
+    section::aux_path(raw, &[MAIN_PATH], "the case's own `--FILE--` is written to")
 }
 
 /// Reads the request name and its arguments off a `--REQUEST--` body.
@@ -485,7 +458,7 @@ fn moved_path(raw: &str) -> Result<String, String> {
     if raw == MAIN_PATH {
         return Ok(raw.to_owned());
     }
-    aux_path(raw)
+    section::aux_path(raw, &[], "")
 }
 
 /// Takes the cursor out of `document`, returning where it was, and where a

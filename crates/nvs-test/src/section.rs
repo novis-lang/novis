@@ -91,6 +91,43 @@ pub fn header(line: &str) -> Option<(&str, Option<&str>)> {
     Some((name, arg))
 }
 
+/// Checks a `--FILE <path>--` header's path, returning it or the reason it is
+/// refused. `reserved` lists the names the format writes itself, and `owner`
+/// ends the message that refuses one.
+///
+/// The path is joined onto a directory the runner owns, so this is the whole of
+/// the containment argument: `/` separators only, no root, no drive letter, and
+/// no `.` or `..` segment means the result cannot name anything outside it.
+///
+/// # Errors
+///
+/// Returns the reason the path is refused, as the message a case shows.
+pub fn aux_path(raw: &str, reserved: &[&str], owner: &str) -> Result<String, String> {
+    if raw.is_empty() {
+        return Err("`--FILE <path>--` needs a path after the name".to_owned());
+    }
+    if raw.contains('\\') {
+        return Err(format!(
+            "`{raw}` separates with `\\`; an auxiliary path is written with `/` on both legs"
+        ));
+    }
+    if raw.starts_with('/') || raw.contains(':') {
+        return Err(format!("`{raw}` is not a relative path"));
+    }
+    if raw
+        .split('/')
+        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+    {
+        return Err(format!(
+            "`{raw}` has an empty, `.` or `..` segment; an auxiliary file stays under the case's own directory"
+        ));
+    }
+    if reserved.contains(&raw) {
+        return Err(format!("`{raw}` is the name {owner}"));
+    }
+    Ok(raw.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
