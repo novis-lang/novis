@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/src/heap.rs, docs/rules/testing/member-perf-ledger.md]
   - id: 2
     title: the text and byte members scan once and copy once
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/bytes.rs, crates/nvs-stdlib/src/regex.rs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/encoding.rs, crates/nvs-stdlib/src/bigint.rs]
   - id: 3
     title: a stream reads in large steps into one buffer
@@ -101,7 +101,8 @@ keystroke in a file with `require` parses its whole graph again in an empty cach
 
 **`memchr` becomes a direct dependency of `nvs-stdlib`.** It is already in the lock file through
 `regex`. Its `memmem` search replaces the window compare, inside the same 64 KiB windows and the
-same deadline poll. **What it spends:** nothing new in the binary.
+same deadline poll. **What it spends:** nothing new in the binary. Stage 2 measured no drop in
+`Core\Bytes::indexOf` and restored it, so `memchr` stays out of `nvs-stdlib`'s own list.
 
 **A member returns its argument when the result equals it,** after the stage checks that the taint
 and secret state of the returned value is what the copied value had. Safe default if they can
@@ -159,26 +160,35 @@ members, and skip ordered runs in the merge.
 **Does:** search bytes with `memmem`, give the case members an ASCII path, and stop copying a
 result that is the argument or is built twice.
 
-- [ ] `crates/nvs-stdlib/src/bytes.rs:775`: `scanned` calls `memchr::memmem::find`
-  (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/str.rs:4068`: `lower`, `upper` at `:4090` and `fold` at `:4137` map an
-  ASCII subject by bytes (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/str.rs:2596`: the trim members and `replace` at `:3035` return the
-  argument when nothing changed (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/str.rs:2177`: `split` stops counting at its `limit`
-  (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/str.rs:3975`: the pad members read the cached length
-  (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/regex.rs:2304`: `replace` and `replaceWith` at `:2446` reserve the
+- [x] `crates/nvs-stdlib/src/bytes.rs:775`: `scanned` calls `memchr::memmem::find`
+  (`rule:testing/member-perf-ledger`). Declined and restored: `indexOf` allocations 0 → 0 and
+  calls 1 → 1, `contains` the same. `memchr` is not added.
+- [x] `crates/nvs-stdlib/src/str.rs:4068`: `lower`, `upper` at `:4090` and `fold` at `:4137` map an
+  ASCII subject by bytes (`rule:testing/member-perf-ledger`). Declined and restored: each 1 → 1
+  allocations, calls 2 → 2.
+- [x] `crates/nvs-stdlib/src/str.rs:2596`: the trim members and `replace` at `:3035` return the
+  argument when nothing changed (`rule:testing/member-perf-ledger`). `trim` 1 → 0.5 is kept, with
+  `unchanged` beside it. Declined and restored: `trimStart` 1 → 1, `trimEnd` 1 → 1, `replace`
+  1 → 1, calls unchanged.
+- [x] `crates/nvs-stdlib/src/str.rs:2177`: `split` stops counting at its `limit`
+  (`rule:testing/member-perf-ledger`). Declined and restored: allocations 5 → 5, calls 2 → 2.
+- [x] `crates/nvs-stdlib/src/str.rs:3975`: the pad members read the cached length
+  (`rule:testing/member-perf-ledger`). Declined and restored: `padStart` 1 → 1, `padEnd` 1 → 1.
+- [x] `crates/nvs-stdlib/src/regex.rs:2304`: `replace` and `replaceWith` at `:2446` reserve the
   subject's length and return the argument on no match (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/csv.rs:957`: a keyed row retains its header names
-  (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/encoding.rs:1405`: `encodeText` and `decodeText` at `:1435` share the
-  payload for UTF-8, after the same validation (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/bigint.rs:2371`: `compareTo`, `neg` at `:2310` and `abs` at `:2318`
-  work on the stored bytes (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/identity_store.rs:90`: `chain_key` writes its digits by hand
-  (`rule:testing/member-perf-ledger`).
+  `replace` 6.5 → 5.5 and `replaceWith` 5 → 3 are kept.
+- [x] `crates/nvs-stdlib/src/csv.rs:957`: a keyed row retains its header names
+  (`rule:testing/member-perf-ledger`). `parse` 21 → 20 is kept, and its bench declares 20.
+  `rows` 51 → 51 shares the code.
+- [x] `crates/nvs-stdlib/src/encoding.rs:1405`: `encodeText` and `decodeText` at `:1435` share the
+  payload for UTF-8, after the same validation (`rule:testing/member-perf-ledger`). Declined and
+  restored: `encodeText` 2 → 2, `decodeText` 3 → 3. Both benches use `Windows1252`.
+- [x] `crates/nvs-stdlib/src/bigint.rs:2371`: `compareTo`, `neg` at `:2310` and `abs` at `:2318`
+  work on the stored bytes (`rule:testing/member-perf-ledger`). `compareTo` 2 → 0, `neg` 4 → 1
+  and `abs` 4 → 1 are kept, over `Value::bytes_handle` in `nvs-runtime`.
+- [x] `crates/nvs-stdlib/src/identity_store.rs:90`: `chain_key` writes its digits by hand
+  (`rule:testing/member-perf-ledger`). Declined and restored: `ObjectMap::get`, `set`, `has` and
+  `ObjectSet::add` 0 → 0 allocations.
 
 ### 3. a stream reads in large steps into one buffer
 
@@ -248,22 +258,22 @@ through the session's cache.
 
 ### State
 
-Stage 1 is done and committed: `groupBy`, `countBy`, `unique`, `mapKeys`, `diff`, `intersect`
-and `appendAll` allocate less, and their ledger records are taken against the final `arr.rs`.
-`append`, `prepend`, `replaceRange`, `slice` and `merge_sort` were changed, measured with no drop,
-and restored, as the standing decision says. `a_bucket_member_allocates_per_bucket` passes. No
-test is expected to go red. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0,
-stage 5: 0.
+Stages 1 and 2 are done and committed. Stage 2 kept `Str::trim`, `Regex::replace`,
+`Regex::replaceWith`, `Csv::parse` and `BigInt::compareTo`, `neg` and `abs`. Every other stage 2
+member showed no drop and is restored. Each changed member's record is taken against its final
+file. The `Core\Arr`, `Core\Str` and other members of the changed files that this goal did not
+touch still read `perf: stale`; stage 6 records them in one run, as the playbook's first bullet
+says. The new test `the_stored_order_is_the_numbers_order` passes. No test is expected to go
+red. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0, stage 5: 0.
 
 The sweep's `env-secret-proofs` is still stale state in looper's service: `looper check --name`
 finds no such check, and it has no log and no definition in the tree.
 
 ### Next
 
-Stage 2, in one session, by its own item list. Its files are `crates/nvs-stdlib/src/str.rs`,
-`bytes.rs`, `regex.rs`, `csv.rs`, `encoding.rs` and `bigint.rs`, and `memchr` becomes a direct
-dependency of `nvs-stdlib` first. Run one `bun nv proofs --record-perf --only <members>` at the
-end of the stage, after any restore, so every record carries the final file hash.
+- `crates/nvs-stdlib/src/io.rs:1`: stage 3, in one session, by its own item list. Its files are
+  `io.rs`, `http/transport.rs`, `net.rs`, `zip.rs` and `compress.rs`. Measure once, at the end of
+  the stage, after any restore, with the release binary from `bun nv relink --build`.
 
 ### Backlog
 
