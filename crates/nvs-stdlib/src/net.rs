@@ -158,7 +158,7 @@ const HOST_SLOT: usize = 1;
 /// [`MESSAGE`]'s third slot: the port they arrived from.
 const PORT_SLOT: usize = 2;
 
-/// The largest buffer one [`nvs_core_net_stream_read`] allocates, whatever
+/// The most one [`nvs_core_net_stream_read`] asks the socket for, whatever
 /// `$max` says.
 ///
 /// A socket read answers what has **arrived**, not what was asked for, so a
@@ -170,8 +170,8 @@ const PORT_SLOT: usize = 2;
 /// number a program picks is not a footprint the runtime chose.
 const READ_CEILING: u64 = 256 * 1024;
 
-/// The buffer every [`nvs_core_net_datagram_receive`] allocates, and the ceiling
-/// on that member's `$max`.
+/// The buffer every [`nvs_core_net_datagram_receive`] receives into, and the
+/// ceiling on that member's `$max`.
 ///
 /// **This is a correctness figure and not a footprint one.** A buffer shorter
 /// than the datagram waiting on the socket is where the platforms part company:
@@ -190,6 +190,36 @@ const READ_CEILING: u64 = 256 * 1024;
 /// A `usize` where [`READ_CEILING`] is a `u64`, because this one is a buffer
 /// length before it is a bound on an argument.
 const DATAGRAM_CEILING: usize = 64 * 1024;
+
+thread_local! {
+    /// The buffer [`nvs_core_net_stream_read`] and
+    /// [`nvs_core_net_datagram_receive`] read into, zeroed once per thread
+    /// rather than once per call. See [`with_scratch`].
+    static SCRATCH: std::cell::Cell<Vec<u8>> = const { std::cell::Cell::new(Vec::new()) };
+}
+
+/// Runs `read` over the first `len` octets of this thread's [`SCRATCH`]
+/// buffer, and returns what it returns.
+///
+/// The buffer is taken out of the thread for the length of the call and put
+/// back after it. A read parks its task, and another task on this thread that
+/// reads meanwhile finds no buffer and makes its own, so two reads never share
+/// one. Only the octets a read wrote are ever copied out, so what an earlier
+/// read left in the buffer never reaches a program.
+///
+/// **What it spends:** one buffer per thread, as long as the longest read it
+/// served: at most [`READ_CEILING`], and [`DATAGRAM_CEILING`] on a thread that
+/// received a datagram. It lives as long as the thread. In return, a read
+/// allocates only its answer.
+fn with_scratch<T>(len: usize, read: impl FnOnce(&mut [u8]) -> T) -> T {
+    let mut buffer = SCRATCH.take();
+    if buffer.len() < len {
+        buffer.resize(len, 0);
+    }
+    let answer = read(&mut buffer[..len]);
+    SCRATCH.set(buffer);
+    answer
+}
 
 /// `Core\Time\Duration` as this module's parameter type, since every waiting
 /// member takes one — see this module's second decision.
@@ -1613,9 +1643,8 @@ nvs_runtime::nvs_helper! {
     /// the read ended, so this call's budget cannot become the next one's — the
     /// same split `nvs_host::net`'s own `connect_timeout` makes.
     ///
-    /// **What it spends:** one buffer of at most [`READ_CEILING`] octets for
-    /// the length of the call, plus the answer, both charged to the request
-    /// that asked.
+    /// **What it spends:** the answer, charged to the request that asked. The
+    /// read itself goes through this thread's buffer ([`with_scratch`]).
     fn nvs_core_net_stream_read(ctx, args: [3]) {
         const MEMBER: &str = r"Core\Net\Stream::read";
 
@@ -1630,12 +1659,14 @@ nvs_runtime::nvs_helper! {
         let bound = within(args,2, MEMBER)?;
         let wanted = usize::try_from(max.min(READ_CEILING)).unwrap_or(0);
         let stream = stream_of(ctx, key, "read")?;
-        let mut buffer = vec![0u8; wanted];
         stream.set_deadline(Some(Instant::now() + bound));
-        let outcome = stream.read(&mut buffer);
+        let outcome = with_scratch(wanted, |buffer| {
+            stream
+                .read(buffer)
+                .map(|read| Value::bytes(NvsStr::new(&buffer[..read])))
+        });
         stream.set_deadline(None);
-        let read = outcome.map_err(|err| failed(MEMBER, &err))?;
-        Ok(Value::bytes(NvsStr::new(&buffer[..read])))
+        outcome.map_err(|err| failed(MEMBER, &err))
     }
 }
 
@@ -1864,10 +1895,10 @@ nvs_runtime::nvs_helper! {
     /// given a buffer no datagram can overflow, and `$max` is applied to what
     /// came back.
     ///
-    /// **What it spends:** one [`DATAGRAM_CEILING`] buffer for the length of the
-    /// call, plus the message it answers with, both charged to the request that
-    /// asked. It is a fixed 64 KiB rather than the `$max` a program named,
-    /// because that is what the paragraph above costs.
+    /// **What it spends:** the message it answers with, charged to the request
+    /// that asked. The datagram is received into this thread's buffer
+    /// ([`with_scratch`]), which is a fixed 64 KiB rather than the `$max` a
+    /// program named, because that is what the paragraph above costs.
     fn nvs_core_net_datagram_receive(ctx, args: [3]) {
         const MEMBER: &str = r"Core\Net\Datagram::receive";
 
@@ -1884,17 +1915,19 @@ nvs_runtime::nvs_helper! {
             .unwrap_or(DATAGRAM_CEILING)
             .min(DATAGRAM_CEILING);
         let socket = datagram_of(ctx, key, "receive")?;
-        let mut buffer = vec![0u8; DATAGRAM_CEILING];
         socket.set_deadline(Some(Instant::now() + bound));
-        let outcome = socket.recv_from(&mut buffer);
+        let outcome = with_scratch(DATAGRAM_CEILING, |buffer| {
+            socket
+                .recv_from(buffer)
+                .map(|(read, from)| (NvsStr::new(&buffer[..read.min(wanted)]), from))
+        });
         socket.set_deadline(None);
-        let (read, from) = outcome.map_err(|err| failed(MEMBER, &err))?;
-        let kept = read.min(wanted);
+        let (octets, from) = outcome.map_err(|err| failed(MEMBER, &err))?;
         let sender = from.ip().to_string();
         Ok(crate::instance::build(
             &MESSAGE,
             [
-                Value::bytes(NvsStr::new(&buffer[..kept])),
+                Value::bytes(octets),
                 Value::text(&sender),
                 Value::uint(u64::from(from.port())),
             ],
