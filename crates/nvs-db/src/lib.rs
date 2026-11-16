@@ -14,6 +14,10 @@
 //! (`rule:core-classes/db-drivers-are-an-enum`): the five are [`Connection`]'s variants and each entry point `match`es
 //! once.
 //!
+//! Each driver writes its own reset, begin, commit and read loop, even where
+//! two read alike. Each speaks another protocol, and one shared form would hide
+//! where they differ, so that join stays declined.
+//!
 //! # Where this sits
 //!
 //! Below `nvs-stdlib`, never beside it. `Core\Db`'s registry rows, reference
