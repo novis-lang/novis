@@ -2973,7 +2973,7 @@ nvs_runtime::nvs_helper! {
         let mut scanned = 0usize;
         loop {
             let start = ahead.at + scanned;
-            let found = ahead.bytes[start..]
+            let found = ahead.bytes[start..ahead.end]
                 .iter()
                 .position(|byte| *byte == b'\n' || *byte == b'\r');
             let Some(offset) = found else {
@@ -2985,8 +2985,8 @@ nvs_runtime::nvs_helper! {
                     if ahead.pending() == 0 {
                         return Ok(Value::null());
                     }
-                    let line = text_of(&ahead.bytes[ahead.at..], "Core\\IO\\File::readLine", FILE_HINT)?;
-                    ahead.at = ahead.bytes.len();
+                    let line = text_of(&ahead.bytes[ahead.at..ahead.end], "Core\\IO\\File::readLine", FILE_HINT)?;
+                    ahead.at = ahead.end;
                     return Ok(line);
                 }
                 continue;
@@ -2994,7 +2994,7 @@ nvs_runtime::nvs_helper! {
             let mut end = start + offset;
             let mut next = end + 1;
             if ahead.bytes[end] == b'\r' {
-                if next == ahead.bytes.len() {
+                if next == ahead.end {
                     // A `\r` that ends what was read: one more byte decides
                     // whether this is a `\r\n` cluster or a lone `\r`. The read
                     // moves the unread bytes, so the `\r` is found again.
@@ -3020,10 +3020,10 @@ nvs_runtime::nvs_helper! {
 ///
 /// The unread bytes move to the front first, so the buffer keeps one
 /// allocation while lines are shorter than half of [`LINE_CHUNK`]. Past that,
-/// each read takes a whole [`LINE_CHUNK`] more, so a long line costs one read
+/// the buffer grows by a whole [`LINE_CHUNK`], so a long line costs one read
 /// per [`LINE_CHUNK`] of it. The request's memory limit is checked before each
-/// growth. The buffer keeps its size, so a file of long lines grows it once and
-/// not once per line.
+/// growth. The buffer keeps its size and is zeroed only where it grows, so a
+/// file of long lines grows it once and a read zeroes nothing.
 fn read_ahead(
     file: &mut nvs_runtime::capability::File,
     ahead: &mut nvs_runtime::ReadAhead,
@@ -3033,27 +3033,22 @@ fn read_ahead(
     // A line longer than one read is still at the front, and is not moved
     // again, which keeps a long line's cost linear in its length.
     if ahead.at > 0 {
-        ahead.bytes.copy_within(ahead.at.., 0);
-        ahead.bytes.truncate(pending);
+        ahead.bytes.copy_within(ahead.at..ahead.end, 0);
         ahead.at = 0;
+        ahead.end = pending;
     }
     let room = if pending <= LINE_CHUNK / 2 {
         LINE_CHUNK
     } else {
         pending + LINE_CHUNK
     };
-    nvs_runtime::affordable(Some(room), "Core\\IO\\File::readLine")?;
-    ahead.bytes.resize(room, 0);
-    match file.read(&mut ahead.bytes[pending..]) {
-        Ok(read) => {
-            ahead.bytes.truncate(pending + read);
-            Ok(read)
-        }
-        Err(err) => {
-            ahead.bytes.truncate(pending);
-            Err(failed(&err))
-        }
+    if ahead.bytes.len() < room {
+        nvs_runtime::affordable(Some(room), "Core\\IO\\File::readLine")?;
+        ahead.bytes.resize(room, 0);
     }
+    let read = file.read(&mut ahead.bytes[pending..]).map_err(|err| failed(&err))?;
+    ahead.end = pending + read;
+    Ok(read)
 }
 
 nvs_runtime::nvs_helper! {

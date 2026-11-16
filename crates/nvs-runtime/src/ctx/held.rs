@@ -58,7 +58,7 @@ pub(crate) struct OpenFile {
 }
 
 /// The bytes `Core\IO\File::readLine` read from a descriptor and has not yet
-/// returned: `bytes[at..]`, which lie before the descriptor's own position.
+/// returned: `bytes[at..end]`, which lie before the descriptor's own position.
 ///
 /// A line is found in the buffer and copied once into its result, and the
 /// descriptor is read once per buffer rather than read and seeked back once
@@ -66,27 +66,33 @@ pub(crate) struct OpenFile {
 /// before it lends the descriptor to any other member, so the position a
 /// program sees is always the end of the last line it read.
 ///
-/// **What it spends:** the buffer's capacity, usually 8 KiB, per open file that
-/// has read a line, for the life of the handle. A longer line grows it to about
-/// that line's length, under the request's memory limit, and it stays that
-/// size until the handle is closed.
+/// `bytes` keeps its whole length, and `end` says where the read bytes stop.
+/// A read goes into `bytes[end..]` as it stands, so the buffer is zeroed once
+/// when it grows and never once per read.
+///
+/// **What it spends:** the buffer, usually 8 KiB, per open file that has read
+/// a line, for the life of the handle. A longer line grows it to about that
+/// line's length, under the request's memory limit, and it stays that size
+/// until the handle is closed.
 #[derive(Debug, Default)]
 pub struct ReadAhead {
-    /// What was read. Only `bytes[at..]` is still unread.
+    /// The buffer. Only `bytes[at..end]` is read and still unread.
     pub bytes: Vec<u8>,
     /// Where the unread bytes start.
     pub at: usize,
+    /// Where the read bytes stop.
+    pub end: usize,
 }
 
 impl ReadAhead {
     /// How many bytes were read and not yet returned.
     #[must_use]
     pub fn pending(&self) -> usize {
-        self.bytes.len() - self.at
+        self.end - self.at
     }
 
     /// Moves `file` back over the unread bytes and empties the buffer, keeping
-    /// its capacity. A descriptor that cannot seek cannot take bytes back, so
+    /// its size. A descriptor that cannot seek cannot take bytes back, so
     /// with unread bytes it fails and the bytes stay where they are.
     fn give_back(&mut self, file: &mut std::fs::File) -> std::io::Result<()> {
         use std::io::Seek as _;
@@ -102,8 +108,8 @@ impl ReadAhead {
             let back = i64::try_from(pending).map_err(std::io::Error::other)?;
             file.seek(std::io::SeekFrom::Current(-back))?;
         }
-        self.bytes.clear();
         self.at = 0;
+        self.end = 0;
         Ok(())
     }
 }
