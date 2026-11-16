@@ -550,11 +550,34 @@ enum Bounds {
 
 /// How much of a coded body one [`Incoming::pull`] decodes.
 ///
-/// One socket read's worth, which is what [`Framed::pull`] reads into as well.
 /// What a streamed decode holds beyond its window is one of these and never
 /// whatever the frame would expand to, and that is the whole of why a decode
 /// with no output ceiling over it is still bounded.
 const STEP: usize = 8192;
+
+/// How much one socket read of a reply body asks for.
+///
+/// A read returns what has arrived, so a larger step costs a streamed event no
+/// wait. It costs a buffered body fewer reads. Uncoded octets are read straight
+/// onto the end of the body a reader takes from, and chunked octets onto the
+/// end of [`Framed::raw`], so the step is room in a buffer the reply holds
+/// anyway. **What it spends:** up to 56 KiB more of that room per client call
+/// while its reply is read.
+const READ_STEP: usize = 64 * 1024;
+
+/// Reads from `source` onto the end of `bytes`, at most `most` octets, and
+/// returns how many arrived. `bytes` is as long as before when the read fails.
+fn read_onto<R: Read + ?Sized>(
+    bytes: &mut Vec<u8>,
+    source: &mut R,
+    most: usize,
+) -> std::io::Result<usize> {
+    let len = bytes.len();
+    bytes.resize(len + most, 0);
+    let read = source.read(&mut bytes[len..]);
+    bytes.truncate(len + read.as_ref().map_or(0, |read| *read));
+    read
+}
 
 /// A reply's body, read off the wire as a program asks for it.
 ///
@@ -651,6 +674,17 @@ impl Pending {
     fn append(&mut self, octets: &mut Vec<u8>) {
         self.make_room();
         self.bytes.append(octets);
+    }
+
+    /// Reads from `source` onto the end of the untaken octets, at most `most`
+    /// of them, and returns how many arrived.
+    fn read_from<R: Read + ?Sized>(
+        &mut self,
+        source: &mut R,
+        most: usize,
+    ) -> std::io::Result<usize> {
+        self.make_room();
+        read_onto(&mut self.bytes, source, most)
     }
 
     /// The octets not yet taken, as one buffer.
@@ -873,7 +907,6 @@ impl Framed {
     /// for chunked framing the other end never finished.
     fn pull(&mut self) -> Result<bool, Fault> {
         let had = self.held.len();
-        let mut buffer = [0_u8; STEP];
         while !self.ended {
             let now = Instant::now();
             if now >= self.until {
@@ -887,7 +920,18 @@ impl Framed {
             // socket parks under, and which of them it was is read back off the
             // clock when it fires.
             source.bound_by(Some(self.until.min(now + self.idle)));
-            match source.read(&mut buffer) {
+            // Only chunked framing stands between the socket and the body, so
+            // every other body is read straight onto what a reader takes from.
+            // `raw` is empty for those once `over` has framed the head's octets.
+            let read = match self.frame {
+                Frame::Chunked => read_onto(&mut self.raw, &mut *source, READ_STEP),
+                Frame::Sized(left) => {
+                    let most = usize::try_from(left).map_or(READ_STEP, |left| left.min(READ_STEP));
+                    self.held.read_from(&mut *source, most)
+                }
+                Frame::UntilClose => self.held.read_from(&mut *source, READ_STEP),
+            };
+            match read {
                 Ok(0) => {
                     self.ended = true;
                     if matches!(self.frame, Frame::Chunked) {
@@ -899,8 +943,16 @@ impl Framed {
                 }
                 Ok(read) => {
                     self.source = Some(source);
-                    self.raw.extend_from_slice(&buffer[..read]);
-                    if self.deframe()? {
+                    let ended = match self.frame {
+                        Frame::Chunked => self.dechunk()?,
+                        Frame::Sized(left) => {
+                            let left = left - u64::try_from(read).unwrap_or(u64::MAX);
+                            self.frame = Frame::Sized(left);
+                            left == 0
+                        }
+                        Frame::UntilClose => false,
+                    };
+                    if ended {
                         self.finished();
                     }
                 }
@@ -1192,7 +1244,7 @@ impl Incoming {
     /// left stops at the ceiling inside the read. One compare per pull.
     pub(crate) fn whole(&mut self, ceiling: usize) -> Result<Vec<u8>, Fault> {
         while {
-            nvs_runtime::affordable(Some(STEP), self.member())?;
+            nvs_runtime::affordable(Some(READ_STEP), self.member())?;
             self.pull()?
         } {
             if self.held().len() > ceiling {
