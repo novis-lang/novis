@@ -141,42 +141,8 @@ impl<'a> Lowering<'a> {
         // owes a header phi exactly as the body does. Missing it leaves the
         // increment reading the pre-loop value forever.
         self.collect_reassigned_in_expr(cond, &mut seen, &mut reassigned);
-        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
-
-        let pre_block = *cur;
-        let header_block = self.new_block();
-        self.seal(pre_block, Terminator::Jump(header_block));
-
-        // Seed a phi for every pre-existing local the body might touch. Each
-        // phi starts with the pre-loop incoming edge alone, and the back edge
-        // is added below, once the body's exit environment is known.
-        let mut header_env = env.clone();
-        let mut phi_slots: Vec<(String, usize)> = Vec::new();
-        for name in &reassigned {
-            let Some(&(pre_v, ty)) = env.get(name) else {
-                continue;
-            };
-            // An `inout $x` parameter's binding is an address that never changes:
-            // writing to it stores *through* it rather than rebinding it
-            // (`Ty::Ref`), so a header phi for one would carry the same value
-            // on both edges and describe nothing.
-            if ty == Ty::Ref {
-                continue;
-            }
-            let phi_v = self.ids.next_value();
-            let inst_index = self.block_insts[header_block.index() as usize].len();
-            self.block_insts[header_block.index() as usize].push(Inst {
-                result: Some(phi_v),
-                ty: Some(ty),
-                kind: InstKind::Phi {
-                    incoming: vec![(pre_block, pre_v)],
-                },
-                on_error: None,
-                raise_site: None,
-            });
-            header_env.insert(name.clone(), (phi_v, ty));
-            phi_slots.push((name.clone(), inst_index));
-        }
+        let (header_block, mut header_env, phi_slots) =
+            self.open_loop_header(*cur, env, seen, reassigned);
 
         // `cond` may itself need to branch (a `&&`/`||`/ternary condition —
         // see `Self::lower_truthy_cond`), in which case the loop's own
@@ -315,39 +281,10 @@ impl<'a> Lowering<'a> {
         // The condition is re-evaluated per iteration and may re-point a local
         // itself, so it owes a header phi just as the body does — see
         // `Self::lower_while`, which collects the same set for the same reason.
-        self.collect_reassigned_in_expr(cond, &mut seen, &mut reassigned);
-        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
-
-        let pre_block = *cur;
-        let header_block = self.new_block();
-        self.seal(pre_block, Terminator::Jump(header_block));
-
-        // Seeded exactly as `Self::lower_while` seeds them, and patched below
-        // once the condition block's exit environment is known — see that
-        // method for why a `Ty::Ref` binding is skipped.
-        let mut header_env = env.clone();
-        let mut phi_slots: Vec<(String, usize)> = Vec::new();
-        for name in &reassigned {
-            let Some(&(pre_v, ty)) = env.get(name) else {
-                continue;
-            };
-            if ty == Ty::Ref {
-                continue;
-            }
-            let phi_v = self.ids.next_value();
-            let inst_index = self.block_insts[header_block.index() as usize].len();
-            self.block_insts[header_block.index() as usize].push(Inst {
-                result: Some(phi_v),
-                ty: Some(ty),
-                kind: InstKind::Phi {
-                    incoming: vec![(pre_block, pre_v)],
-                },
-                on_error: None,
-                raise_site: None,
-            });
-            header_env.insert(name.clone(), (phi_v, ty));
-            phi_slots.push((name.clone(), inst_index));
-        }
+        // The header phis are patched below once the condition block's exit
+        // environment is known.
+        let (header_block, header_env, phi_slots) =
+            self.open_loop_header(*cur, env, seen, reassigned);
 
         let cond_block = self.new_block();
         let after_block = self.new_block();
@@ -512,38 +449,10 @@ impl<'a> Lowering<'a> {
         for e in step.iter().chain(cond) {
             self.collect_reassigned_in_expr(e, &mut seen, &mut reassigned);
         }
-        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
-
-        let pre_block = *cur;
-        let header_block = self.new_block();
-        self.seal(pre_block, Terminator::Jump(header_block));
-
-        // Seeded exactly as `Self::lower_while` seeds them, and patched below
-        // once the step block's exit environment is known — see that method
-        // for why a `Ty::Ref` binding is skipped.
-        let mut header_env = env.clone();
-        let mut phi_slots: Vec<(String, usize)> = Vec::new();
-        for name in &reassigned {
-            let Some(&(pre_v, ty)) = env.get(name) else {
-                continue;
-            };
-            if ty == Ty::Ref {
-                continue;
-            }
-            let phi_v = self.ids.next_value();
-            let inst_index = self.block_insts[header_block.index() as usize].len();
-            self.block_insts[header_block.index() as usize].push(Inst {
-                result: Some(phi_v),
-                ty: Some(ty),
-                kind: InstKind::Phi {
-                    incoming: vec![(pre_block, pre_v)],
-                },
-                on_error: None,
-                raise_site: None,
-            });
-            header_env.insert(name.clone(), (phi_v, ty));
-            phi_slots.push((name.clone(), inst_index));
-        }
+        // The header phis are patched below once the step block's exit
+        // environment is known.
+        let (header_block, mut header_env, phi_slots) =
+            self.open_loop_header(*cur, env, seen, reassigned);
 
         // An omitted condition is PHP's `for (;;)` — an unconditional loop,
         // spelled here as the constant the branch then tests, so the block
@@ -1086,39 +995,8 @@ impl<'a> Lowering<'a> {
             reassigned.push(name.clone());
         }
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
-        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
-
-        let pre_block = *cur;
-        let header_block = self.new_block();
-        self.seal(pre_block, Terminator::Jump(header_block));
-
-        let mut header_env = env.clone();
-        let mut phi_slots: Vec<(String, usize)> = Vec::new();
-        for name in &reassigned {
-            let Some(&(pre_v, ty)) = env.get(name) else {
-                continue;
-            };
-            // An `inout $x` parameter's binding is an address that never changes:
-            // writing to it stores *through* it rather than rebinding it
-            // (`Ty::Ref`), so a header phi for one would carry the same value
-            // on both edges and describe nothing.
-            if ty == Ty::Ref {
-                continue;
-            }
-            let phi_v = self.ids.next_value();
-            let inst_index = self.block_insts[header_block.index() as usize].len();
-            self.block_insts[header_block.index() as usize].push(Inst {
-                result: Some(phi_v),
-                ty: Some(ty),
-                kind: InstKind::Phi {
-                    incoming: vec![(pre_block, pre_v)],
-                },
-                on_error: None,
-                raise_site: None,
-            });
-            header_env.insert(name.clone(), (phi_v, ty));
-            phi_slots.push((name.clone(), inst_index));
-        }
+        let (header_block, header_env, phi_slots) =
+            self.open_loop_header(*cur, env, seen, reassigned);
 
         // Both reserved names are read back out of `header_env` rather than
         // reused from before the loop: inside a generator every live local
@@ -1251,34 +1129,7 @@ impl<'a> Lowering<'a> {
                 .pop()
                 .expect("just pushed this loop's own by-reference binding above");
         }
-        let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
-        if !self.is_terminated(body_cur) {
-            self.end_iteration(body_cur, &mut body_env);
-            self.emit_safepoint(body_cur, &body_env);
-            self.seal(body_cur, Terminator::Jump(header_block));
-            back_edges.push((body_cur, body_env));
-        }
-        let frame = self
-            .loop_stack
-            .pop()
-            .expect("just pushed this loop's own frame above");
-        back_edges.extend(frame.continue_edges);
-        for (name, inst_index) in &phi_slots {
-            for (block, back_env) in &back_edges {
-                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
-                    panic!(
-                        "nvs-ir: `{name}` was reassigned in a foreach body per the syntactic \
-                         scan but is missing from a back edge's exit environment — bug in \
-                         collect_reassigned_locals"
-                    )
-                });
-                let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
-                let InstKind::Phi { incoming } = &mut inst.kind else {
-                    unreachable!("phi_slots only ever indexes a Phi instruction");
-                };
-                incoming.push((*block, back_v));
-            }
-        }
+        let frame = self.close_foreach_body(body_cur, body_env, header_block, &phi_slots);
 
         let mut exit_env = header_env.clone();
         exit_env.remove(&cursor_name);
@@ -1480,38 +1331,8 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = Vec::new();
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
-        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
-
-        let pre_block = *cur;
-        let header_block = self.new_block();
-        self.seal(pre_block, Terminator::Jump(header_block));
-
-        let mut header_env = env.clone();
-        let mut phi_slots: Vec<(String, usize)> = Vec::new();
-        for name in &reassigned {
-            let Some(&(pre_v, ty)) = env.get(name) else {
-                continue;
-            };
-            // See `Self::lower_foreach`: an `inout $x` parameter's binding is an
-            // address that never changes, so a header phi for one would carry
-            // the same value on both edges and describe nothing.
-            if ty == Ty::Ref {
-                continue;
-            }
-            let phi_v = self.ids.next_value();
-            let inst_index = self.block_insts[header_block.index() as usize].len();
-            self.block_insts[header_block.index() as usize].push(Inst {
-                result: Some(phi_v),
-                ty: Some(ty),
-                kind: InstKind::Phi {
-                    incoming: vec![(pre_block, pre_v)],
-                },
-                on_error: None,
-                raise_site: None,
-            });
-            header_env.insert(name.clone(), (phi_v, ty));
-            phi_slots.push((name.clone(), inst_index));
-        }
+        let (header_block, header_env, phi_slots) =
+            self.open_loop_header(*cur, env, seen, reassigned);
 
         // Read back out of `header_env` for the reason
         // [`Self::lower_foreach`] states at the same point: a generator's
@@ -1561,34 +1382,7 @@ impl<'a> Lowering<'a> {
         body_env.insert(value_name, (v_v, value_ty));
 
         self.lower_stmt(body, &mut body_cur, &mut body_env);
-        let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
-        if !self.is_terminated(body_cur) {
-            self.end_iteration(body_cur, &mut body_env);
-            self.emit_safepoint(body_cur, &body_env);
-            self.seal(body_cur, Terminator::Jump(header_block));
-            back_edges.push((body_cur, body_env));
-        }
-        let frame = self
-            .loop_stack
-            .pop()
-            .expect("just pushed this loop's own frame above");
-        back_edges.extend(frame.continue_edges);
-        for (name, inst_index) in &phi_slots {
-            for (block, back_env) in &back_edges {
-                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
-                    panic!(
-                        "nvs-ir: `{name}` was reassigned in a foreach body per the syntactic \
-                         scan but is missing from a back edge's exit environment — bug in \
-                         collect_reassigned_locals"
-                    )
-                });
-                let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
-                let InstKind::Phi { incoming } = &mut inst.kind else {
-                    unreachable!("phi_slots only ever indexes a Phi instruction");
-                };
-                incoming.push((*block, back_v));
-            }
-        }
+        let frame = self.close_foreach_body(body_cur, body_env, header_block, &phi_slots);
 
         let mut exit_env = header_env.clone();
         exit_env.remove(&cursor_name);
@@ -1975,6 +1769,100 @@ impl<'a> Lowering<'a> {
             self.emit_release(block, v);
         }
     }
+    /// The preamble every loop form shares: seals `cur` into a fresh header
+    /// block and seeds one phi there for each name in `reassigned` that `env`
+    /// already binds, plus each name a generator carries
+    /// ([`Self::seed_generator_loop_carried`]).
+    ///
+    /// Each phi starts with the pre-loop incoming edge alone. The caller adds
+    /// the back edges once the body's exit environment is known, through the
+    /// returned `(name, index)` slots. An `inout $x` parameter's binding
+    /// (`Ty::Ref`) gets no phi: it is an address that never changes, since
+    /// writing to it stores *through* it rather than rebinding it, so a phi
+    /// would carry the same value on both edges and describe nothing.
+    ///
+    /// Returns the header block, the environment at its top, and the slots.
+    fn open_loop_header(
+        &mut self,
+        cur: BlockId,
+        env: &mut Env,
+        mut seen: FxHashSet<String>,
+        mut reassigned: Vec<String>,
+    ) -> (BlockId, Env, Vec<(String, usize)>) {
+        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
+        let header_block = self.new_block();
+        self.seal(cur, Terminator::Jump(header_block));
+        let mut header_env = env.clone();
+        let mut phi_slots: Vec<(String, usize)> = Vec::new();
+        for name in &reassigned {
+            let Some(&(pre_v, ty)) = env.get(name) else {
+                continue;
+            };
+            if ty == Ty::Ref {
+                continue;
+            }
+            let phi_v = self.ids.next_value();
+            let inst_index = self.block_insts[header_block.index() as usize].len();
+            self.block_insts[header_block.index() as usize].push(Inst {
+                result: Some(phi_v),
+                ty: Some(ty),
+                kind: InstKind::Phi {
+                    incoming: vec![(cur, pre_v)],
+                },
+                on_error: None,
+                raise_site: None,
+            });
+            header_env.insert(name.clone(), (phi_v, ty));
+            phi_slots.push((name.clone(), inst_index));
+        }
+        (header_block, header_env, phi_slots)
+    }
+
+    /// Ends a `foreach` body that was lowered into `body_cur`: the fall-through
+    /// exit, if the body reaches one, ends the iteration, polls a safepoint
+    /// and jumps back to `header_block`. Pops the loop's frame, and adds that
+    /// edge and one per `continue` to every header phi in `phi_slots`.
+    ///
+    /// Returns the popped frame, whose `break_edges` the caller merges into
+    /// the loop's exit.
+    fn close_foreach_body(
+        &mut self,
+        body_cur: BlockId,
+        mut body_env: Env,
+        header_block: BlockId,
+        phi_slots: &[(String, usize)],
+    ) -> LoopFrame {
+        let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
+        if !self.is_terminated(body_cur) {
+            self.end_iteration(body_cur, &mut body_env);
+            self.emit_safepoint(body_cur, &body_env);
+            self.seal(body_cur, Terminator::Jump(header_block));
+            back_edges.push((body_cur, body_env));
+        }
+        let mut frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this loop's own frame above");
+        back_edges.append(&mut frame.continue_edges);
+        for (name, inst_index) in phi_slots {
+            for (block, back_env) in &back_edges {
+                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
+                    panic!(
+                        "nvs-ir: `{name}` was reassigned in a foreach body per the syntactic \
+                         scan but is missing from a back edge's exit environment — bug in \
+                         collect_reassigned_locals"
+                    )
+                });
+                let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
+                let InstKind::Phi { incoming } = &mut inst.kind else {
+                    unreachable!("phi_slots only ever indexes a Phi instruction");
+                };
+                incoming.push((*block, back_v));
+            }
+        }
+        frame
+    }
+
     /// Adds every remaining [`Env`] binding to a loop's carried set, but only
     /// inside a generator's `advance()`.
     ///

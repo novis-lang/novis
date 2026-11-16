@@ -1731,35 +1731,7 @@ pub fn lower_method(
         low.release_all_locals(cur, &env, None);
         low.seal(cur, Terminator::Return(None));
     }
-
-    let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
-    let callables = std::mem::take(&mut low.callables);
-    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
-    let shapes = std::mem::take(&mut low.shapes);
-    let debug_returns_secret = low.debug_returns_secret();
-    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
-    let (anon_fns, mut classes) =
-        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
-    classes.extend(shapes);
-    Lowered {
-        function: Function {
-            name: name.to_owned(),
-            params: param_tys,
-            ret: ret_ty,
-            blocks,
-            entry,
-            stmt_spans,
-            edge_spans,
-            debug_slots,
-            debug_returns_secret,
-            debug_catches,
-            // Filled by the caller, which holds the layouts the class arm reads.
-            param_checks: crate::ir::ParamChecks::default(),
-        },
-        anon_fns,
-        classes,
-    }
+    low.into_lowered(name, param_tys, entry)
 }
 
 /// [`crate::ir::Function::param_checks`] for method `m`: each declared
@@ -2144,34 +2116,7 @@ pub fn lower_property_hook(
         low.release_all_locals(cur, &env, None);
         low.seal(cur, Terminator::Return(None));
     }
-
-    let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
-    let callables = std::mem::take(&mut low.callables);
-    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
-    let shapes = std::mem::take(&mut low.shapes);
-    let debug_returns_secret = low.debug_returns_secret();
-    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
-    let (anon_fns, mut classes) =
-        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
-    classes.extend(shapes);
-    Lowered {
-        function: Function {
-            name: name.to_owned(),
-            params: param_tys,
-            ret: ret_ty,
-            blocks,
-            entry,
-            stmt_spans,
-            edge_spans,
-            debug_slots,
-            debug_returns_secret,
-            debug_catches,
-            param_checks: crate::ir::ParamChecks::default(),
-        },
-        anon_fns,
-        classes,
-    }
+    low.into_lowered(name, param_tys, entry)
 }
 
 /// Who enters a script frame — which is the whole of what a file that runs
@@ -2262,34 +2207,7 @@ pub fn lower_script(
         let sealed = low.coerce(cur, raw, raw_ty, Ty::Tagged, &mut env);
         low.seal(cur, Terminator::Return(Some(sealed)));
     }
-
-    let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
-    let callables = std::mem::take(&mut low.callables);
-    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
-    let shapes = std::mem::take(&mut low.shapes);
-    let debug_returns_secret = low.debug_returns_secret();
-    let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
-    let (anon_fns, mut classes) =
-        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
-    classes.extend(shapes);
-    Lowered {
-        function: Function {
-            name: name.to_owned(),
-            params: Vec::new(),
-            ret: ret_ty,
-            blocks,
-            entry,
-            stmt_spans,
-            edge_spans,
-            debug_slots,
-            debug_returns_secret,
-            debug_catches,
-            param_checks: crate::ir::ParamChecks::default(),
-        },
-        anon_fns,
-        classes,
-    }
+    low.into_lowered(name, Vec::new(), entry)
 }
 
 /// Builds one function's basic blocks incrementally — see the module docs.
@@ -4372,6 +4290,49 @@ impl<'a> Lowering<'a> {
             }
         }
     }
+    /// Consumes the builder of a method, a hook or a script frame whose blocks
+    /// are all sealed, and lowers the anonymous functions, callables and shapes
+    /// its body produced beside it. `param_checks` is left empty: the caller
+    /// fills it, since it holds the layouts the class arm reads.
+    fn into_lowered(mut self, name: &str, params: Vec<Ty>, entry: BlockId) -> Lowered {
+        let pending = std::mem::take(&mut self.anon_fns);
+        // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
+        let callables = std::mem::take(&mut self.callables);
+        // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
+        let shapes = std::mem::take(&mut self.shapes);
+        let debug_returns_secret = self.debug_returns_secret();
+        let (src, exprs, checked_types, enums) =
+            (self.src, self.exprs, self.checked_types, self.enums);
+        let ret = self.ret_ty;
+        let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = self.finish();
+        let (anon_fns, mut classes) =
+            drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
+        classes.extend(shapes);
+        Lowered {
+            function: Function {
+                name: name.to_owned(),
+                params,
+                ret,
+                blocks,
+                entry,
+                stmt_spans,
+                edge_spans,
+                debug_slots,
+                debug_returns_secret,
+                debug_catches,
+                param_checks: crate::ir::ParamChecks::default(),
+            },
+            anon_fns,
+            classes,
+        }
+    }
+
+    /// [`crate::ir::Function::debug_returns_secret`] for the function being
+    /// lowered.
+    pub(crate) fn debug_returns_secret(&self) -> bool {
+        self.debug.as_ref().is_none_or(|debug| !debug.plain_return)
+    }
+
     /// Consumes the builder, pairing up every block's id, instructions and
     /// terminator.
     ///
@@ -4381,12 +4342,6 @@ impl<'a> Lowering<'a> {
     /// every block this lowering creates is expected to reach a terminator
     /// one way or another; hitting this would be a lowering bug, not a
     /// malformed input program.
-    /// [`crate::ir::Function::debug_returns_secret`] for the function being
-    /// lowered.
-    pub(crate) fn debug_returns_secret(&self) -> bool {
-        self.debug.as_ref().is_none_or(|debug| !debug.plain_return)
-    }
-
     pub(crate) fn finish(self) -> Finished {
         let (stmt_spans, edge_spans) = self.ids.into_spans();
         let (debug_slots, debug_catches) = match self.debug {

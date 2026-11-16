@@ -6,7 +6,7 @@ context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-stdlib/src/db/registry.
 stages:
   - id: 1
     title: "the loop forms share one preamble"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/mod.rs]
   - id: 2
     title: "a connection's and a transaction's members are declared once"
@@ -110,11 +110,11 @@ in its decision above has landed.
 
 **Does:** write the loop preamble and the back-edge block of the IR lowering once.
 
-- [ ] `crates/nvs-ir/src/lower/control.rs:133`: one function for the preamble, called at `:309`,
+- [x] `crates/nvs-ir/src/lower/control.rs:133`: one function for the preamble, called at `:309`,
   `:515`, `:1088` and `:1482` (`rule:errors/propagation`).
-- [ ] `crates/nvs-ir/src/lower/control.rs:1254`: one function for the back-edge block, called at
+- [x] `crates/nvs-ir/src/lower/control.rs:1254`: one function for the back-edge block, called at
   `:1564` (`rule:errors/propagation`).
-- [ ] `crates/nvs-ir/src/lower/mod.rs:1730`: the block at `:2143` calls the one at `:1730`
+- [x] `crates/nvs-ir/src/lower/mod.rs:1730`: the block at `:2143` calls the one at `:1730`
   (`rule:errors/propagation`).
 
 ### 2. a connection's and a transaction's members are declared once
@@ -178,15 +178,30 @@ edit. Writing subagents then convert disjoint files side by side, and the sessio
 
 ### State
 
-Nothing is built. Sessions used: stage 1: 0, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+Stage 1 is done, built and clippy-clean, with no test run: 156 lines added, 313 removed over
+`crates/`. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+
+- `Lowering::open_loop_header` in `crates/nvs-ir/src/lower/control.rs` is the preamble of all five
+  loop forms (`while`, `do`, `for`, both `foreach` shapes).
+- `Lowering::close_foreach_body` beside it is the back-edge block of both `foreach` shapes. The
+  `while`, `do` and `for` back edges differ in order and stay their own.
+- `Lowering::into_lowered` in `crates/nvs-ir/src/lower/mod.rs` is the tail of `lower_method`,
+  `lower_property_hook` and the script frame. The copies in `anon_fn.rs` and `generator.rs` are
+  not on the list and stay.
+
+The sweep's `env-secret-proofs` finding names no check: `looper check --name env-secret-proofs`
+answers "no check matches", and no log exists. Nothing was changed for it.
+
+Tests that could go red in stage 6 if a block was not the same code: the `insta` snapshots under
+`crates/nvs-ir/src/lower/snapshots/`. Value and block numbering is meant to be unchanged.
 
 ### Next
 
-Stage 1, in one session. The files are `crates/nvs-ir/src/lower/control.rs` and
-`crates/nvs-ir/src/lower/mod.rs`.
+Stage 2, in one session. The files are `crates/nvs-stdlib/src/db/registry.rs` and the rendered
+`crates/nvs-stdlib/src/classes.rs`.
 
-- [ ] `crates/nvs-ir/src/lower/control.rs:133`: the loop preamble, once.
-- [ ] `crates/nvs-ir/src/lower/control.rs:1254`: the back-edge block, once.
+- [ ] `crates/nvs-stdlib/src/db/registry.rs:333`: one member list for `Connection` and
+  `Transaction` (`:715`), then `bun nv render` leaves `classes.rs` unchanged.
 
 ### Backlog
 
