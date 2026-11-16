@@ -58,7 +58,7 @@ use crate::Env;
 use crate::derive::stands_in_for_a_class;
 use crate::expr::is_assignable;
 use crate::expr_table::{ArgSlot, Delegation};
-use crate::signatures::{resolve_method, resolve_property};
+use crate::signatures::{resolve_method, resolve_method_ref, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{span_text, strip_sigil};
 
@@ -1628,12 +1628,12 @@ fn resolve_delegations(
             continue;
         }
         for (_, method) in owed {
-            if resolve_method(qname, &method, env.signatures, env.graph)
+            if resolve_method_ref(qname, &method, env.signatures, env.graph)
                 .is_some_and(|(_, sig)| sig.has_body)
             {
                 continue;
             }
-            let Some((_, sig)) = resolve_method(&interface, &method, env.signatures, env.graph)
+            let Some((_, sig)) = resolve_method_ref(&interface, &method, env.signatures, env.graph)
             else {
                 continue;
             };
@@ -1856,7 +1856,7 @@ pub(crate) fn check_double_answers(
     let unknown: Vec<String> = named
         .iter()
         .filter(|(name, _)| {
-            !resolve_method(&interface, name, env.signatures, env.graph)
+            !resolve_method_ref(&interface, name, env.signatures, env.graph)
                 .is_some_and(|(_, sig)| !sig.interface_private)
         })
         .map(|(name, _)| name.clone())

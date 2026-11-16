@@ -47,7 +47,7 @@ use crate::expr::members::{check_method_visibility, class_qname_of};
 use crate::expr_table::{ArgSlot, ExprInfo, ResolvedCall};
 use crate::locals::{Live, LocalScope};
 use crate::retrieval::{fold_payload, matching, sites_for};
-use crate::signatures::{resolve_method, resolve_property};
+use crate::signatures::{resolve_method, resolve_method_ref, resolve_property};
 use crate::ty::{ShapeField, Ty, TypeId};
 use crate::{Ctx, Env};
 
@@ -184,7 +184,7 @@ pub(crate) fn expand_with(
         // a method's own sites, or the constructor's joined with a property's.
         let (method, property) = match &member_name {
             Some((_, name)) if !name.is_empty() => {
-                if resolve_method(class, name, env.signatures, env.graph).is_some() {
+                if resolve_method_ref(class, name, env.signatures, env.graph).is_some() {
                     (name.clone(), None)
                 } else if resolve_property(class, name, env.signatures, env.graph).is_some() {
                     ("constructor".to_owned(), Some(name.as_str()))

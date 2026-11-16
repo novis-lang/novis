@@ -34,7 +34,7 @@ use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::lower::lower_optional_type;
 use crate::signatures::{
-    property_visibility, resolve_const_owned, resolve_method, resolve_property_owned,
+    property_visibility, resolve_const_owned, resolve_method, resolve_method_ref, resolve_property_owned,
 };
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -355,7 +355,7 @@ fn check_replacement_members(
                 if name == "constructor" || want.visibility != Visibility::Public {
                     continue;
                 }
-                let fits = resolve_method(replacement, name, env.signatures, env.graph)
+                let fits = resolve_method_ref(replacement, name, env.signatures, env.graph)
                     .is_some_and(|(_, got)| {
                         got.visibility == Visibility::Public
                             && got.is_static == want.is_static

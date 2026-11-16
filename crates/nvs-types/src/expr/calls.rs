@@ -102,10 +102,14 @@ pub(crate) fn infer_method_call(
     // An unknown method's call is recorded once its arguments are typed
     // ([`unresolved_call`]).
     let mut unknown: Option<(QName, String)> = None;
-    let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
+    // The signature is read in place, and copied only where the receiver's
+    // type arguments are substituted into it.
+    let receiver_class = class_qname_of(receiver_ty, env.interner);
+    let (signatures, graph) = (env.signatures, env.graph);
+    let resolved = match (receiver_class.as_ref(), method) {
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
-            let found = resolve_method(&qname, &name, env.signatures, env.graph);
+            let found = resolve_method_ref(qname, &name, signatures, graph);
             // A `Core` receiver is held to the registry here for the same reason
             // the static path holds one at [`infer_static_call`]: the registry
             // states every member `Core` has, so a name it does not hold is
@@ -116,9 +120,9 @@ pub(crate) fn infer_method_call(
             // `Core` instance is to have been given one by a row that returns it.
             if found.is_none() {
                 if qname.is_reserved_global_class() {
-                    report_exception_accessor(object.span, &qname, &name, env);
+                    report_exception_accessor(object.span, qname, &name, env);
                 } else {
-                    report_unknown_member(object.span, &qname, &name, "method", env);
+                    report_unknown_member(object.span, qname, &name, "method", env);
                     unknown = Some((qname.clone(), name.clone()));
                 }
             }
@@ -129,7 +133,7 @@ pub(crate) fn infer_method_call(
             // `ResolvedCall::class` promises, and `nvs-ir` renders the call's
             // target label from it — `$dog->name()` on a `Dog` that inherits
             // `name` must name `Animal::name`, the symbol that actually exists.
-            found.map(|(owner, sig)| (owner, name, sig))
+            found.map(|(owner, sig)| (owner.clone(), name, sig))
         }
         _ => None,
     };
@@ -165,7 +169,7 @@ pub(crate) fn infer_method_call(
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     // `Core\Router\Match::is(Shop::show)` names a route as a link does, so its
     // written target is marked and folded the same way.
-    note_link_target(resolved.as_ref(), args, env);
+    note_link_target(resolved.as_ref().map(|(o, n, _)| (o, n.as_str())), args, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     if let Some((qname, name, _)) = &resolved {
         note_plain_binds(qname, name, expr.span, env);
@@ -727,7 +731,7 @@ pub(crate) fn infer_static_call(
     // [`note_method_ref_args`].
     note_method_ref_args(resolved.as_ref(), args, env);
     note_retrieval_target(resolved.as_ref(), args, env);
-    note_link_target(resolved.as_ref(), args, env);
+    note_link_target(resolved.as_ref().map(|(o, n, _)| (o, n.as_str())), args, env);
     // `rule:core-classes/html-later`'s closed head, armed over a `later`
     // call's own arguments — see [`crate::response::is_later`] — and
     // `rule:concurrency/deferred-work-cannot-write-the-response`'s, armed over
@@ -1547,12 +1551,8 @@ fn note_retrieval_target(
 /// (`rule:routing/link-target-and-params-are-checked`). The target is found as
 /// [`crate::links::record_site`] finds it: the first argument, or the one
 /// written `route:`.
-fn note_link_target(
-    resolved: Option<&(QName, String, MethodSig)>,
-    args: &CallArgs,
-    env: &mut Env<'_>,
-) {
-    let (Some((owner, member, _)), CallArgs::List(list)) = (resolved, args) else {
+fn note_link_target(resolved: Option<(&QName, &str)>, args: &CallArgs, env: &mut Env<'_>) {
+    let (Some((owner, member)), CallArgs::List(list)) = (resolved, args) else {
         return;
     };
     if !crate::links::is_link(owner, member) && !crate::links::is_match_is(owner, member) {

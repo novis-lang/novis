@@ -89,7 +89,7 @@ use crate::defaults::ConstArg;
 use crate::expr::{built_fits, check_anon_object, check_expr, field_fits, resolve_class_expr};
 use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
-use crate::signatures::{resolve_method, resolve_property};
+use crate::signatures::{resolve_method_ref, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
@@ -509,7 +509,7 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
 /// [`MethodSig::param_names`]: crate::signatures::MethodSig::param_names
 /// [`MethodSig::param_index`]: crate::signatures::MethodSig::param_index
 pub(crate) fn declares_member(class: &QName, method: &str, member: &str, env: &Env<'_>) -> bool {
-    if let Some((_, sig)) = resolve_method(class, method, env.signatures, env.graph)
+    if let Some((_, sig)) = resolve_method_ref(class, method, env.signatures, env.graph)
         && sig.param_names.iter().any(|name| name == member)
     {
         return true;

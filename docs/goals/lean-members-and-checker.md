@@ -221,14 +221,17 @@ sockets and archives.
 
 **Does:** stop the ancestor walks, the roster hooks and a variable read from allocating names.
 
-- [ ] `crates/nvs-types/src/signatures.rs:2485`: one ancestor walk over borrowed names serves
+- [x] `crates/nvs-types/src/signatures.rs:2485`: one ancestor walk over borrowed names serves
   `:2034`, `:2555`, `:2587` and `crates/nvs-hir/src/hierarchy.rs:879`, and a caller that only reads
   gets a borrowed `MethodSig` (`rule:programs/memory-priority`).
+  - [x] `nvs_hir::find_in_ancestors` is the one walk, and `implements_interface` uses it.
+  - [x] the property, method, interface-argument and iteration walks use it.
+  - [x] `resolve_method_ref` serves the instance call and every caller that only reads.
 - [ ] `crates/nvs-types/src/expr/calls.rs:755`: the `Core` roster hooks run only for an owner in
   `Core`, and the extension hook at `:830` stays ungated (`rule:security/capability-check-at-the-door`).
 - [ ] `crates/nvs-types/src/expr/mod.rs:362`: a variable read keeps the borrowed name
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-types/src/signatures.rs:1107`: `mark_overridden_methods` walks the ancestors once
+- [x] `crates/nvs-types/src/signatures.rs:1107`: `mark_overridden_methods` walks the ancestors once
   per class (`rule:programs/memory-priority`).
 - [ ] `crates/nvs-types/src/expr/calls.rs:161`: the call label at `:718` and the description at
   `crates/nvs-types/src/check.rs:1618` are built on the error path

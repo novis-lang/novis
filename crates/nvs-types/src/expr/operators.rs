@@ -937,11 +937,14 @@ pub(crate) fn object_comparison_result(
     // call node in the AST to key it by. `Comparable::compareTo` is bodiless,
     // so `has_body` is `false` and the call dispatches on the receiver's
     // runtime class, exactly like any other call to an interface method.
-    if let Some((owner, sig)) = resolve_method(&lhs_q, "compareTo", env.signatures, env.graph) {
+    if let Some((owner, sig)) =
+        crate::signatures::resolve_method_ref(&lhs_q, "compareTo", env.signatures, env.graph)
+    {
         // One argument, at the one parameter: the operator writes the call
         // itself, so its mapping is fixed rather than resolved.
         let slots = vec![ArgSlot::Param(0)];
-        let call = resolved_call(owner, "compareTo".to_owned(), &sig, slots, env.signatures);
+        let call =
+            resolved_call(owner.clone(), "compareTo".to_owned(), sig, slots, env.signatures);
         env.exprs.record(span, ExprInfo::Call(call));
     }
     Some(match op {
@@ -3163,12 +3166,14 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
     // ordinary expression that has usually already recorded an entry there
     // (`echo $b->build()` records the call `it` is), and one span holding two
     // independent facts is what `ExprTypeTable`'s side maps exist for.
-    if let Some((owner, sig)) = resolve_method(&qname, "toString", env.signatures, env.graph) {
+    if let Some((owner, sig)) =
+        crate::signatures::resolve_method_ref(&qname, "toString", env.signatures, env.graph)
+    {
         // `toString()` takes no arguments, so there is nothing to map.
         let call = resolved_call(
-            owner,
+            owner.clone(),
             "toString".to_owned(),
-            &sig,
+            sig,
             Vec::new(),
             env.signatures,
         );

@@ -53,7 +53,8 @@ use crate::expr_table::{ArgSlot, ExprInfo, ForeachDrive, ResolvedCall};
 use crate::locals::{Captures, Live, LocalScope, check_block};
 use crate::lower::{lower_optional_type, lower_type};
 use crate::signatures::{
-    MethodSig, SignatureTable, resolve_method, resolve_property, resolve_property_owned,
+    MethodSig, SignatureTable, resolve_method, resolve_method_ref, resolve_property,
+    resolve_property_owned,
 };
 use crate::ty::{ShapeField, Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, FnSelf, span_text, strip_sigil};

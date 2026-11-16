@@ -1534,7 +1534,7 @@ fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
 /// Whether `name`, resolved from the enclosing class, itself returns `static`.
 fn forwards_the_called_class(name: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     ctx.current_class
-        .and_then(|c| crate::signatures::resolve_method(c, name, env.signatures, env.graph))
+        .and_then(|c| crate::signatures::resolve_method_ref(c, name, env.signatures, env.graph))
         .is_some_and(|(_, sig)| sig.return_binds_static)
 }
 

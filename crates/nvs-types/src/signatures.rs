@@ -1117,52 +1117,38 @@ pub fn build_signatures(
 /// wrong code. The ancestor's own declaration must have a body, though —
 /// without one there is no static label to devirtualize *to*, and the call
 /// already dispatches on the receiver for that separate reason.
+///
+/// Each class walks its ancestors once, through [`nvs_hir::find_in_ancestors`],
+/// the same walk [`resolve_method`] takes, so the two agree on what "inherits
+/// from" means. Every method the class declares is looked up at each ancestor.
 fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
     let mut marks: Vec<(QName, String)> = Vec::new();
     for (qname, sig) in table.iter() {
         // Most entries are native classes with no supertype in the program's
         // graph, and none of their methods can override anything.
-        let direct = supertypes(qname, graph);
-        if direct.is_empty() {
+        if graph
+            .get(qname)
+            .is_none_or(|links| links.extends.is_empty() && links.implements.is_empty())
+        {
             continue;
         }
-        for name in sig.methods.keys() {
-            let mut seen = FxHashSet::default();
-            seen.insert(qname.clone());
-            let mut queue: Vec<QName> = direct.clone();
-            while let Some(ancestor) = queue.pop() {
-                if !seen.insert(ancestor.clone()) {
-                    continue;
-                }
-                if table
-                    .get(&ancestor)
-                    .and_then(|found| found.methods.get(name))
-                    .is_some_and(|found| found.has_body)
-                {
+        // One walk over the ancestors serves every method the class declares.
+        nvs_hir::find_in_ancestors(qname, graph, |ancestor| {
+            if std::ptr::eq(ancestor, qname) {
+                return None::<()>;
+            }
+            let found = table.get(ancestor)?;
+            for name in sig.methods.keys() {
+                if found.methods.get(name).is_some_and(|method| method.has_body) {
                     marks.push((ancestor.clone(), name.clone()));
                 }
-                queue.extend(supertypes(&ancestor, graph));
             }
-        }
+            None
+        });
     }
     for (qname, method) in marks {
         table.entry(qname).overridden_methods.insert(method);
     }
-}
-
-/// One declaration's direct `extends` and `implements` targets, together —
-/// the step [`mark_overridden_methods`] walks upwards, matching
-/// [`resolve_method`]'s own chain exactly so the two agree on what "inherits
-/// from" means.
-fn supertypes(qname: &QName, graph: &ClassGraph) -> Vec<QName> {
-    graph.get(qname).map_or_else(Vec::new, |links| {
-        links
-            .extends
-            .iter()
-            .chain(links.implements.iter())
-            .cloned()
-            .collect()
-    })
 }
 
 fn qname_segments(src: &SourceFile, name: &nvs_syntax::ast::Name) -> Vec<String> {
@@ -2040,31 +2026,11 @@ pub fn resolve_property_owned(
     table: &SignatureTable,
     graph: &ClassGraph,
 ) -> Option<(QName, TypeId)> {
-    let mut seen = FxHashSet::default();
-    resolve_property_rec(qname, name, table, graph, &mut seen)
-}
-
-fn resolve_property_rec(
-    qname: &QName,
-    name: &str,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-    seen: &mut FxHashSet<QName>,
-) -> Option<(QName, TypeId)> {
-    if !seen.insert(qname.clone()) {
-        return None;
-    }
-    if let Some(sig) = table.get(qname)
-        && let Some(&ty) = sig.properties.get(name)
-    {
-        return Some((qname.clone(), ty));
-    }
-    let links = graph.get(qname)?;
-    links
-        .extends
-        .iter()
-        .chain(links.implements.iter())
-        .find_map(|parent| resolve_property_rec(parent, name, table, graph, seen))
+    nvs_hir::find_in_ancestors(qname, graph, |class| {
+        let ty = *table.get(class)?.properties.get(name)?;
+        Some((class, ty))
+    })
+    .map(|(owner, ty)| (owner.clone(), ty))
 }
 
 /// The type of a class constant whose declaration writes no annotation: the
@@ -2491,31 +2457,22 @@ pub fn resolve_method(
     table: &SignatureTable,
     graph: &ClassGraph,
 ) -> Option<(QName, MethodSig)> {
-    let mut seen = FxHashSet::default();
-    resolve_method_rec(qname, name, table, graph, &mut seen)
+    resolve_method_ref(qname, name, table, graph).map(|(owner, sig)| (owner.clone(), sig.clone()))
 }
 
-fn resolve_method_rec(
-    qname: &QName,
+/// [`resolve_method`], borrowed: the declaring class and its signature, read
+/// in place. A caller that only reads the signature uses this one, and copies
+/// neither the name nor the signature.
+#[must_use]
+pub fn resolve_method_ref<'a>(
+    qname: &'a QName,
     name: &str,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-    seen: &mut FxHashSet<QName>,
-) -> Option<(QName, MethodSig)> {
-    if !seen.insert(qname.clone()) {
-        return None;
-    }
-    if let Some(sig) = table.get(qname)
-        && let Some(found) = sig.methods.get(name)
-    {
-        return Some((qname.clone(), found.clone()));
-    }
-    let links = graph.get(qname)?;
-    links
-        .extends
-        .iter()
-        .chain(links.implements.iter())
-        .find_map(|parent| resolve_method_rec(parent, name, table, graph, seen))
+    table: &'a SignatureTable,
+    graph: &'a ClassGraph,
+) -> Option<(&'a QName, &'a MethodSig)> {
+    nvs_hir::find_in_ancestors(qname, graph, |class| {
+        Some((class, table.get(class)?.methods.get(name)?))
+    })
 }
 
 /// What a `foreach` over an instance of `qname` yields, and which of
@@ -2538,9 +2495,27 @@ pub fn resolve_iteration_element(
     table: &SignatureTable,
     graph: &ClassGraph,
 ) -> Option<(QName, TypeId)> {
-    let mut seen = FxHashSet::default();
-    let mut cursor = None;
-    resolve_iteration_rec(qname, table, graph, &mut seen, &mut cursor).or(cursor)
+    // An `Iterable` ends the walk. The first `Iterator` found on the way is the
+    // fallback.
+    let mut cursor: Option<(&QName, TypeId)> = None;
+    let iterable = nvs_hir::find_in_ancestors(qname, graph, |class| {
+        for (interface, args) in &table.get(class)?.implements {
+            let Some(&elem) = args.first() else { continue };
+            if !interface.is_reserved_global_interface() {
+                continue;
+            }
+            if interface.short_name() == nvs_hir::interfaces::ITERABLE {
+                return Some((interface, elem));
+            }
+            if interface.short_name() == nvs_hir::interfaces::ITERATOR {
+                cursor.get_or_insert((interface, elem));
+            }
+        }
+        None
+    });
+    iterable
+        .or(cursor)
+        .map(|(interface, elem)| (interface.clone(), elem))
 }
 
 /// The concrete type arguments `qname` fixed for `target` — `Some(vec![])`
@@ -2561,76 +2536,16 @@ pub fn resolve_interface_args(
     table: &SignatureTable,
     graph: &ClassGraph,
 ) -> Option<Vec<TypeId>> {
-    let mut seen = FxHashSet::default();
-    resolve_interface_args_rec(qname, target, table, graph, &mut seen)
-}
-
-fn resolve_interface_args_rec(
-    qname: &QName,
-    target: &QName,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-    seen: &mut FxHashSet<QName>,
-) -> Option<Vec<TypeId>> {
-    if !seen.insert(qname.clone()) {
-        return None;
-    }
-    if let Some(sig) = table.get(qname)
-        && let Some((_, args)) = sig.implements.iter().find(|(name, _)| name == target)
-    {
-        return Some(args.clone());
-    }
-    let links = graph.get(qname)?;
-    let parents: Vec<QName> = links
-        .extends
-        .iter()
-        .chain(links.implements.iter())
-        .cloned()
-        .collect();
-    parents.iter().find_map(|parent| {
-        if parent == target {
+    nvs_hir::find_in_ancestors(qname, graph, |class| {
+        // An ancestor that *is* `target` fixed no arguments. `qname` itself is
+        // asked only for what it declares.
+        if class == target && !std::ptr::eq(class, qname) {
             return Some(Vec::new());
         }
-        resolve_interface_args_rec(parent, target, table, graph, seen)
+        let sig = table.get(class)?;
+        let (_, args) = sig.implements.iter().find(|(name, _)| name == target)?;
+        Some(args.clone())
     })
-}
-
-/// The `Iterable` half of [`resolve_iteration_element`]; any `Iterator` found
-/// on the way is left in `cursor` as the fallback.
-fn resolve_iteration_rec(
-    qname: &QName,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-    seen: &mut FxHashSet<QName>,
-    cursor: &mut Option<(QName, TypeId)>,
-) -> Option<(QName, TypeId)> {
-    if !seen.insert(qname.clone()) {
-        return None;
-    }
-    if let Some(sig) = table.get(qname) {
-        for (interface, args) in &sig.implements {
-            let Some(&elem) = args.first() else { continue };
-            if !interface.is_reserved_global_interface() {
-                continue;
-            }
-            if interface.short_name() == nvs_hir::interfaces::ITERABLE {
-                return Some((interface.clone(), elem));
-            }
-            if interface.short_name() == nvs_hir::interfaces::ITERATOR {
-                cursor.get_or_insert((interface.clone(), elem));
-            }
-        }
-    }
-    let links = graph.get(qname)?;
-    let parents: Vec<QName> = links
-        .extends
-        .iter()
-        .chain(links.implements.iter())
-        .cloned()
-        .collect();
-    parents
-        .iter()
-        .find_map(|parent| resolve_iteration_rec(parent, table, graph, seen, cursor))
 }
 
 /// Every property `qname`'s own constructor must definitely assign per

@@ -872,27 +872,48 @@ pub fn implements_interface(qname: &QName, target: &QName, graph: &ClassGraph) -
     if qname == target {
         return true;
     }
-    let mut seen = FxHashSet::default();
-    implements_interface_rec(qname, target, graph, &mut seen)
+    // `start` is not `target`, so the first visit that is `target` is a parent's.
+    find_in_ancestors(qname, graph, |class| (class == target).then_some(())).is_some()
 }
 
-fn implements_interface_rec(
-    qname: &QName,
-    target: &QName,
-    graph: &ClassGraph,
-    seen: &mut FxHashSet<QName>,
-) -> bool {
-    if !seen.insert(qname.clone()) {
-        return false;
+/// The first answer `visit` gives for `start` or one of its ancestors, or
+/// `None` when it gives none.
+///
+/// The walk is depth first: `start`, then each `extends` target and then each
+/// `implements` target, in declaration order, with each one's own ancestors
+/// before the next. A name is visited once, so a cycle ends the walk rather
+/// than looping. This is the one ancestor walk every member lookup in
+/// `nvs-types` and [`implements_interface`] share.
+///
+/// The names it visits are borrowed from `start` and from `graph`, so a walk
+/// allocates only its visited set and copies no name.
+pub fn find_in_ancestors<'a, T>(
+    start: &'a QName,
+    graph: &'a ClassGraph,
+    mut visit: impl FnMut(&'a QName) -> Option<T>,
+) -> Option<T> {
+    let mut seen = FxHashSet::default();
+    find_in_ancestors_rec(start, graph, &mut seen, &mut visit)
+}
+
+fn find_in_ancestors_rec<'a, T>(
+    qname: &'a QName,
+    graph: &'a ClassGraph,
+    seen: &mut FxHashSet<&'a QName>,
+    visit: &mut impl FnMut(&'a QName) -> Option<T>,
+) -> Option<T> {
+    if !seen.insert(qname) {
+        return None;
     }
-    let Some(links) = graph.get(qname) else {
-        return false;
-    };
+    if let Some(found) = visit(qname) {
+        return Some(found);
+    }
+    let links = graph.get(qname)?;
     links
         .extends
         .iter()
         .chain(links.implements.iter())
-        .any(|parent| parent == target || implements_interface_rec(parent, target, graph, seen))
+        .find_map(|parent| find_in_ancestors_rec(parent, graph, seen, visit))
 }
 
 /// Every non-abstract class in `graph` that satisfies `target`, sorted by

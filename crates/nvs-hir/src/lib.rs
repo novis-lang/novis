@@ -72,8 +72,8 @@ pub mod symbol;
 pub use aliases::{AliasResolver, AliasSite, AliasTable};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
-    ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, Undeclared, implementors,
-    implements_interface, relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
+    ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, Undeclared, find_in_ancestors,
+    implementors, implements_interface, relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
     undeclared_name_at,
 };
 pub use imports::{ImportSite, candidates, import_site};

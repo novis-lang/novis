@@ -130,7 +130,7 @@ use nvs_syntax::visit::each_child_expr;
 use crate::expr::is_this_receiver;
 use crate::expr_table::{CtorAccess, CtorAccesses};
 use crate::live::{Live, Mark, assigned_on_every_way};
-use crate::signatures::{own_required_properties, resolve_method};
+use crate::signatures::{own_required_properties, resolve_method, resolve_method_ref};
 use crate::{Env, span_text, strip_sigil};
 
 /// The `$this->prop = ...`/`parent::constructor(...)` obligations one class
@@ -698,7 +698,7 @@ fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
     links
         .extends
         .iter()
-        .any(|parent| resolve_method(parent, "constructor", env.signatures, env.graph).is_some())
+        .any(|parent| resolve_method_ref(parent, "constructor", env.signatures, env.graph).is_some())
 }
 
 /// The required properties of every class `qname` extends, nearest first.

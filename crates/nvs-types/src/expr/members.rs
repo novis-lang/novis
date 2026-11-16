@@ -315,7 +315,7 @@ pub(crate) fn method_reference(
     let Some(qname) = qname else {
         return env.interner.string();
     };
-    if resolve_method(qname, &method, env.signatures, env.graph).is_none() {
+    if crate::signatures::resolve_method_ref(qname, &method, env.signatures, env.graph).is_none() {
         env.diags.report(
             Diagnostic::error(
                 code::E_METHOD_REF_UNDECLARED,
@@ -1926,7 +1926,7 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
         return None;
     }
     let label = |member: &str| {
-        crate::signatures::resolve_method(qname, member, env.signatures, env.graph)
+        crate::signatures::resolve_method_ref(qname, member, env.signatures, env.graph)
             .filter(|(_, sig)| sig.has_body)
             .map(|(owner, _)| format!("{owner}::{member}"))
     };
@@ -1945,7 +1945,7 @@ fn guard_calls(qname: &QName, env: &Env<'_>) -> Option<GuardCalls> {
         return None;
     }
     let label = |member: &str| {
-        crate::signatures::resolve_method(qname, member, env.signatures, env.graph)
+        crate::signatures::resolve_method_ref(qname, member, env.signatures, env.graph)
             .filter(|(_, sig)| sig.has_body)
             .map(|(owner, _)| format!("{owner}::{member}"))
     };
