@@ -230,4 +230,11 @@ describe("disk live set", () => {
     expect(await liveSet({ root: tmp.root, file, ask })).toBeNull();
     expect(asks).toBe(2);
   });
+
+  test("a budget that is spent asks cargo nothing, and is never remembered", async () => {
+    tmp = crate();
+    const file = join(tmp.root, "live.json");
+    expect(await liveSet({ root: tmp.root, file, budgetMs: 0 })).toBeNull();
+    expect(existsSync(file)).toBe(false);
+  });
 });

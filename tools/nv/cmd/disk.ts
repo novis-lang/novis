@@ -508,21 +508,27 @@ async function workspaceMembers(root: string = ROOT): Promise<Set<string> | null
  * workspace's own packages, which costs the time of that build and no new disk, and is killed at the
  * first line `mintsGeneration` names: on a tree the loop edits all the time, a query that rebuilt
  * dependencies would be seven full builds written onto a full disk. Null if any query is stopped or
- * fails, and the caller then leaves `deps/` untouched rather than deleting on a partial answer.
+ * fails, or the clock passes `deadline` (epoch ms), and the caller then leaves `deps/` untouched rather
+ * than deleting on a partial answer. A query stopped at the deadline keeps what it built, so the next
+ * call starts warmer: after a version bump changes every manifest, the queries rebuild the workspace
+ * seven times, which no single hook timeout covers.
  */
-async function liveArtifacts(): Promise<Set<string> | null> {
+async function liveArtifacts(deadline: number = Number.POSITIVE_INFINITY): Promise<Set<string> | null> {
+  if (Date.now() >= deadline) return null;
   const live = new Set<string>();
   const members = await workspaceMembers();
   if (members === null) return null;
   const queries = [...LIVE_QUERIES.map((q) => queryArgv(q, null)), ...COVWS_QUERIES.map((q) => queryArgv(q.args, q))];
   for (const { argv, env } of queries) {
+    const left = Math.min(30 * 60 * 1000, deadline - Date.now());
+    if (left <= 0) return null;
     const stop = new AbortController();
     const onLine = (line: string, stream: "stdout" | "stderr") => {
       if (stream === "stderr" && mintsGeneration(line, members)) stop.abort();
     };
     let out;
     try {
-      out = await runProgram(argv, { timeoutMs: 30 * 60 * 1000, onLine, signal: stop.signal, ...(env ? { env } : {}) });
+      out = await runProgram(argv, { timeoutMs: left, onLine, signal: stop.signal, ...(env ? { env } : {}) });
     } catch {
       return null;
     }
@@ -622,15 +628,18 @@ export interface LiveSetOptions {
   root?: string;
   file?: string;
   ask?: () => Promise<Set<string> | null>;
+  /** How long cargo may take to answer, from the call; unbounded when absent. Ignored with `ask`. */
+  budgetMs?: number;
 }
 
 /**
  * The live set, from `file` when `liveKey` is what it was the last time cargo was asked, and from
  * `liveArtifacts` otherwise. A new answer is remembered only when the key is the same after the asking
  * as before it, so a manifest edited during a sweep is never stored under the key from before the edit.
- * An answer cargo could not give is never remembered.
+ * An answer cargo could not give, or not within `budgetMs`, is never remembered.
  */
 export async function liveSet(opts: LiveSetOptions = {}): Promise<Set<string> | null> {
+  const deadline = Date.now() + (opts.budgetMs ?? Number.POSITIVE_INFINITY);
   const root = opts.root ?? ROOT;
   const file = opts.file ?? LIVE_CACHE;
   const before = await liveKey(root);
@@ -638,7 +647,7 @@ export async function liveSet(opts: LiveSetOptions = {}): Promise<Set<string> | 
     const saved = recall(before, file);
     if (saved) return saved;
   }
-  const live = await (opts.ask ?? liveArtifacts)();
+  const live = await (opts.ask ?? (() => liveArtifacts(deadline)))();
   if (live !== null && before !== null && (await liveKey(root)) === before) remember(before, live, file);
   return live;
 }
@@ -920,12 +929,15 @@ export interface CleanOptions {
   /** Whether `target/deps` is swept; true unless named. Without it cargo is not asked for the live set,
    * and the result has no `target/deps` part. */
   build?: boolean;
+  /** How long cargo may take to name the live set (`LiveSetOptions.budgetMs`); unbounded when absent.
+   * Past it, `deps/` is left alone for this run. */
+  liveBudgetMs?: number;
 }
 
 /**
  * The whole of `--clean`, as the bytes freed per part. `target/deps` is null when cargo could not name
- * the live set, and `deps/` was then left alone. The command a person types and `bun nv sweep` run
- * this one function under the same policy.
+ * the live set, or not within `liveBudgetMs`, and `deps/` was then left alone. The command a person
+ * types and `bun nv sweep` run this one function under the same policy; only the sweep sets a budget.
  */
 export async function clean(opts: CleanOptions = {}): Promise<Record<string, number | null>> {
   const dryRun = opts.dryRun ?? false;
@@ -946,7 +958,7 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   for (const p of strayProfiles()) leftovers += await rm(p, dryRun);
   for (const p of RETIRED_MEMOS) if (existsSync(join(ROOT, p))) leftovers += await rm(join(ROOT, p), dryRun);
   // Last, so everything above is freed before cargo is asked anything.
-  const live = build ? await liveSet() : null;
+  const live = build ? await liveSet(opts.liveBudgetMs === undefined ? {} : { budgetMs: opts.liveBudgetMs }) : null;
   let deps: number | null = null;
   if (live !== null) {
     deps = 0;

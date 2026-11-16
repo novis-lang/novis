@@ -42,6 +42,13 @@ export const HOOK_LINE = "- after-session hook: ";
 /** How each line about the nightly CI run starts in `LAST_SWEEP`. Every line with neither prefix is looper's. */
 export const NIGHTLY_LINE = "- nightly CI: ";
 
+/**
+ * How long cargo may take to name the live set in one sweep. `looper.toml` gives the hook 900 seconds,
+ * and the nightly read's two `gh` calls may take 60 each, so the cargo queries stop well inside it.
+ * When they stop, `deps/` waits for the next sweep, which starts from the builds this one left.
+ */
+export const LIVE_BUDGET_MS = 10 * 60 * 1000;
+
 /** The progress items of the run's two parts. */
 export const DISK_ITEM = "sweep:disk";
 export const NIGHTLY_ITEM = "sweep:nightly";
@@ -81,7 +88,7 @@ async function sweepDisk(keepRuns: number, say: (line: string) => void, root: st
   const before = freeGb(root);
   let freed: Record<string, number | null>;
   try {
-    freed = await clean({ keepRuns });
+    freed = await clean({ keepRuns, liveBudgetMs: LIVE_BUDGET_MS });
   } catch (e) {
     const failed = `disk: the sweep failed -- ${(e as Error).message}`;
     say(failed);
@@ -89,7 +96,7 @@ async function sweepDisk(keepRuns: number, say: (line: string) => void, root: st
   }
   let summary = `disk: freed ${human(total(freed))}, ${before.toFixed(1)}G -> ${freeGb(root).toFixed(1)}G free`;
   for (const line of freedLines(freed)) say(`  ${line}`);
-  if (freed["target/deps"] === null) summary += "; deps/ left alone, cargo could not name the live set";
+  if (freed["target/deps"] === null) summary += "; deps/ left alone, cargo did not name the live set in time or could not";
   return summary;
 }
 
