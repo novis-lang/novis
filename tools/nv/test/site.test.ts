@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, copyProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, copyProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, testFailureLines, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
 import { ROOT } from "../lib/paths.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -585,5 +585,34 @@ describe("nv site --check apps: an app's copies", () => {
     const relativePath = relative(process.cwd(), join(s.root, "bin/nvs.exe"));
     expect(binary(relativePath)).toBe(join(s.root, "bin/nvs.exe"));
     expect(binary("no/such/nvs.exe")).toBeNull();
+  });
+});
+
+describe("testFailureLines", () => {
+  test("a red run gives each failed test with its detail, then the summary", () => {
+    const out = [
+      "      Shop\\OrdersTest",
+      "        ✓ anOrderIsSaved     2.0 ms",
+      "        ✗ aRefundIsSaved     3.0 ms",
+      "          expected 2, got 3",
+      "          at tests/OrdersTest.nvs:12",
+      "        ✓ anOrderIsListed    1.0 ms",
+      ...Array.from({ length: 20 }, (_, i) => `        ✓ another${i}    1.0 ms`),
+      "",
+      "      1 failed, 22 passed, 0 skipped, 0 flaky in 40 ms",
+    ].join("\n");
+    expect(testFailureLines(out)).toEqual([
+      "        ✗ aRefundIsSaved     3.0 ms",
+      "          expected 2, got 3",
+      "          at tests/OrdersTest.nvs:12",
+      "        ✓ another19    1.0 ms",
+      "",
+      "      1 failed, 22 passed, 0 skipped, 0 flaky in 40 ms",
+    ]);
+  });
+
+  test("a run that stopped before any test gives its last lines", () => {
+    const out = Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n");
+    expect(testFailureLines(out)).toEqual(Array.from({ length: 15 }, (_, i) => `line ${i + 15}`));
   });
 });

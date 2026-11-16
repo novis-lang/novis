@@ -2346,6 +2346,25 @@ export async function deployProblems(nvs: string, app: string, root: string = RO
 }
 
 /**
+ * What a red `nvs test` printed that says why: each failed test's `✗` line with the lines indented
+ * under it, then the last three lines, which hold the summary. Without a `✗` line, as when the run
+ * stopped before any test, the last fifteen lines. A run of a hundred tests prints its failure far
+ * above its end, so the end alone names only tests that passed.
+ */
+export function testFailureLines(out: string): string[] {
+  const lines = out.trimEnd().split("\n");
+  const indent = (l: string) => l.length - l.trimStart().length;
+  const failed: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i]!.trimStart().startsWith("✗")) continue;
+    const depth = indent(lines[i]!);
+    failed.push(lines[i]!);
+    while (i + 1 < lines.length && lines[i + 1]!.trim() !== "" && indent(lines[i + 1]!) > depth) failed.push(lines[++i]!);
+  }
+  return failed.length === 0 ? lines.slice(-15) : [...failed, ...lines.slice(-3)];
+}
+
+/**
  * The `apps` part: every app under `APPS` passes `nvs test .`, `nvs serve public/index.nvs` answers
  * `GET /` with a `200` within `BOOT_MS`, and each of its copies is what the server returns now
  * (`appFileProblem`). Both run in the app's own directory, as its page tells a reader to. Its
@@ -2361,8 +2380,8 @@ export async function appsProblems(nvs: string, root: string = ROOT): Promise<st
     await inApp(root, app, async (cwd) => {
       const test =await runProc([nvs, "test", "."], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
       if (test.code !== 0) {
-        const tail = (test.stdout + test.stderr).trim().split("\n").slice(-15);
-        problems.push(`${app}: \`nvs test .\` exited ${test.code}`, ...tail.map((l) => `  ${l}`));
+        const lines = testFailureLines(test.stdout + test.stderr);
+        problems.push(`${app}: \`nvs test .\` exited ${test.code}`, ...lines.map((l) => `  ${l}`));
       }
       const why = await withServer(nvs, cwd, async (port) => {
         for (const file of appFiles(dir, root)) {
