@@ -33,6 +33,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
   --only`. A doc comment edit in that file makes it stale again, so edit first and measure last.
   See `tools/nv/proofs/collect.ts` `perfAny`.
+- **A chapter example's expected output is its `.out` under `docs/examples/`, not the chapter.**
+  A member that allocates less changes a bench example's `count:` line, and `bun nv reference`
+  fails on the chapter. Editing `docs/reference/lang/*.md` makes `bun nv render --check` fail
+  next. Edit the `.out`, bless the matching `.term` snippet with `bun nv site --bless`, and run
+  `bun nv render` and `bun nv render --website`. The chapter's feature perf records then go stale,
+  and the pages that cover the feature need `bun nv site --stamp`. See `tools/nv/cmd/reference.ts`.
 - **Three readers parse `.github/workflows/build.yml`'s matrix: `bun nv ci`, the supply-chain test
   and `extension_release`.** A workflow edit that changed the matrix's shape made 33 tests of
   `tools/nv/test/ci.test.ts` throw, and a later one broke the other two, and no session saw it until
