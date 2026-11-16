@@ -785,8 +785,7 @@ fn hex_from(
                 .iter_mut()
                 .zip(pass[..width].iter().copied())
             {
-                pair[0] = HEX_DIGITS[usize::from(byte >> 4)];
-                pair[1] = HEX_DIGITS[usize::from(byte & 0x0f)];
+                *pair = crate::encoding::hex_pair(byte);
             }
             out.push(&hex[..2 * width]);
             left -= width;
@@ -1400,10 +1399,6 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Lower-case hex, which is what `bin2hex` emits and what every consumer of a
-/// token compares against.
-const HEX_DIGITS: [u8; 16] = *b"0123456789abcdef";
-
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{Ctx, NvsArray, OutputSink, Value, call};
@@ -1960,7 +1955,7 @@ mod tests {
         );
         assert_eq!(first.len(), 32);
         assert!(
-            first.bytes().all(|b| super::HEX_DIGITS.contains(&b)),
+            first.bytes().all(|b| crate::encoding::HEX_DIGITS.contains(&b)),
             "{first}"
         );
         assert_eq!(first, replayed);

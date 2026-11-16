@@ -971,6 +971,14 @@ pub(crate) fn decode_argument(
 /// cut sequence. Cost: one decrement per piece, and no copy.
 const PIECE: usize = 4096;
 
+/// Lower-case hex digits, which `bin2hex` writes and every token compares against.
+pub(crate) const HEX_DIGITS: [u8; 16] = *b"0123456789abcdef";
+
+/// `byte` as two lower-case hex digits, the high half first.
+pub(crate) const fn hex_pair(byte: u8) -> [u8; 2] {
+    [HEX_DIGITS[(byte >> 4) as usize], HEX_DIGITS[(byte & 0x0f) as usize]]
+}
+
 /// The ranges of `0..len` in steps of `step`, the last one shorter.
 fn pieces(len: usize, step: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
     (0..len)
@@ -1615,14 +1623,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// Total: every octet has a spelling, so there is nothing to reject.
     fn nvs_core_encoding_to_hex(ctx, args: [1]) {
-        const DIGITS: &[u8; 16] = b"0123456789abcdef";
-
         let raw = bytes_of(args, "toHex")?;
         let mut out = Vec::with_capacity(raw.len() * 2);
         nvs_runtime::bounded_loop(ctx, r"Core\Encoding::toHex", raw.chunks(PIECE), |_, piece| {
             for octet in piece {
-                out.push(DIGITS[usize::from(octet >> 4)]);
-                out.push(DIGITS[usize::from(octet & 0x0f)]);
+                out.extend_from_slice(&hex_pair(*octet));
             }
             Ok(())
         })?;

@@ -1388,9 +1388,8 @@ fn escaped(out: &mut ChunkWriter, text: &str, ascii: bool) {
 
 /// One UTF-16 code unit as `\u` and four lowercase hex digits.
 fn unit_escape(out: &mut ChunkWriter, unit: u16) {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let digit = |shift: u16| HEX[usize::from(unit >> shift & 0xF)];
-    out.put(&[b'\\', b'u', digit(12), digit(8), digit(4), digit(0)]);
+    let [high, low] = unit.to_be_bytes().map(crate::encoding::hex_pair);
+    out.put(&[b'\\', b'u', high[0], high[1], low[0], low[1]]);
 }
 
 /// The walk's own stack, on the heap.

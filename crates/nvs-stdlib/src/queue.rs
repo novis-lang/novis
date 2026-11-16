@@ -249,11 +249,9 @@ fn fresh_token(ctx: &mut nvs_runtime::Ctx) -> String {
 /// `pub` so `crates/nvs-stdlib/tests/queue_sqlite.rs` writes the column's own form.
 #[must_use]
 pub fn token_text(raw: &[u8; TOKEN_BYTES]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(2 * TOKEN_BYTES);
     for byte in raw {
-        out.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        out.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+        out.extend(crate::encoding::hex_pair(*byte).map(char::from));
     }
     out
 }
