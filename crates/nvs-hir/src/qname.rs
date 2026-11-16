@@ -134,6 +134,12 @@ impl QName {
         &self.segments
     }
 
+    /// The path's segments, root to leaf, moved out of the name with no copy.
+    #[must_use]
+    pub fn into_segments(self) -> Vec<String> {
+        self.segments
+    }
+
     /// The last segment — the name a bare, unqualified reference resolves
     /// under once imported.
     #[must_use]

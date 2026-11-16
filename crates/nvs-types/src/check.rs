@@ -31,10 +31,10 @@
 //! and its `nested_declaration` reports `E0233` on the spot — so there is
 //! nothing under a body left for this pass to descend into.
 
-use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, Span, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
-    Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier, Name,
+    Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier,
     NamespaceDecl, NewTarget, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -50,9 +50,7 @@ use crate::signatures::build_signatures;
 use crate::ty::{Ty, TypeInterner};
 use crate::{Ctx, Env, TypeId, span_text, strip_sigil};
 
-fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
-    QName::parse(span_text(src, name.span)).segments().to_vec()
-}
+use nvs_hir::qname_segments;
 
 /// Type-checks every method body reachable from `files`, using the already
 /// name-resolved `module` for symbol/alias lookups. `interner` accumulates

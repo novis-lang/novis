@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-stdlib/src/net.rs, crates/nvs-stdlib/src/zip.rs, crates/nvs-stdlib/src/compress.rs]
   - id: 4
     title: "the checker's walks borrow their names"
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/mod.rs, crates/nvs-hir/src/hierarchy.rs]
   - id: 5
     title: an editor request resolves a path once
@@ -239,7 +239,7 @@ sockets and archives.
 - [x] `crates/nvs-types/src/expr/calls.rs:161`: the call label at `:718` and the description at
   `crates/nvs-types/src/check.rs:1618` are built on the error path
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-hir/src/qname.rs:19`: `QName::into_segments`, and the four copies of
+- [x] `crates/nvs-hir/src/qname.rs:19`: `QName::into_segments`, and the four copies of
   `qname_segments` go (`rule:programs/memory-priority`).
 
 ### 5. an editor request resolves a path once
@@ -273,20 +273,26 @@ through the session's cache.
 
 ### State
 
-Stages 1, 2 and 3 are done. The cause of the `readLine` scale failure was the `resize` zeroing
-a whole 8 KiB block per fill, which a short line paid for in full. `ReadAhead` now keeps its
-length and an `end` field, so the buffer is zeroed only where it grows. `readLine`'s record is
-taken against its final file: 1 allocation, 58 bytes, `growth: flat`. Untouched members of the
-changed files still read `perf: stale`, and stage 6 records them. Expected red: those stale perf
-records alone. Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 0, stage 5: 0.
+Stages 1 to 4 are done. Stage 4: `nvs_hir::find_in_ancestors` is the one ancestor walk, over
+borrowed names, and `resolve_method_ref` gives a reader the signature in place. A static call
+to a class outside `Core` skips the `Core` hook roster. Only `reject_ungranted_call` and
+`reject_secret_extension_argument` run for every class, because each can match a class outside
+`Core`. `every_registry_class_is_under_core` holds the registry to that gate. Stage 4 ran no
+test but that one. One behaviour differs, and only in a program with an `extends` cycle, which
+is already an error: `resolve_interface_args` no longer finds a class reaching itself.
 
-The sweep's `env-secret-proofs` is still stale state in looper's service. `looper check --name`
-finds no such check, and it has no log and no definition in the tree.
+Expected red at the gate: the stale perf records of the stage 1 to 3 files, and any
+`nvs-types` test that pinned a diagnostic's order inside a static call to a `Core` member (the
+order is kept, so none is expected). Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage
+4: 1, stage 5: 0.
+
+The sweep's `env-secret-proofs` is still stale state in looper's service. Its log does not
+exist, and nothing in the tree defines it.
 
 ### Next
 
-- `crates/nvs-types/src/signatures.rs:2485`: stage 4, by its own item list. Start with the one
-  ancestor walk over borrowed names, then `crates/nvs-types/src/expr/calls.rs:755`.
+- `crates/nvs-lsp/src/index.rs:1307`: stage 5, by its own item list, in `crates/nvs-lsp/` alone.
+  The check `completion-resolves-once` names the test the stage writes.
 
 ### Backlog
 

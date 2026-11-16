@@ -376,8 +376,11 @@ pub(crate) fn name_text<'a>(src: &'a SourceFile, name: &Name) -> &'a str {
     src.span_text(name.span).unwrap_or_default()
 }
 
-pub(crate) fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
-    QName::parse(name_text(src, name)).segments().to_vec()
+/// The segments of a name as the source writes it, root to leaf. Every crate
+/// that splits a written name calls this one.
+#[must_use]
+pub fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
+    QName::parse(name_text(src, name)).into_segments()
 }
 
 /// Resolves one parsed file's namespace/`use`/declaration structure in one

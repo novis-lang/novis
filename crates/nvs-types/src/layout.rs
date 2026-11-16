@@ -53,9 +53,7 @@ use crate::span_text;
 /// A namespace name's segments — the same one-liner [`crate::check`] and
 /// [`crate::signatures`] each keep for themselves, kept here too rather than
 /// exported: it is two lines, and hoisting it would only move the duplication.
-fn qname_segments(src: &SourceFile, name: &nvs_syntax::ast::Name) -> Vec<String> {
-    QName::parse(span_text(src, name.span)).segments().to_vec()
-}
+use nvs_hir::qname_segments;
 
 /// One row of [`ClassLayout::methods`]: `(method name, declaring class label,
 /// is `public`, is `protected`, parameter names, parameter type spellings)`.

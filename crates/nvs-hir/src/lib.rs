@@ -73,8 +73,8 @@ pub use aliases::{AliasResolver, AliasSite, AliasTable};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
     ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, Undeclared, find_in_ancestors,
-    implementors, implements_interface, relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
-    undeclared_name_at,
+    implementors, implements_interface, relative_spelling, resolve_ref, seed_exception_tree,
+    undeclared_name, undeclared_name_at,
 };
 pub use imports::{ImportSite, candidates, import_site};
 pub use lenders::Lender;
@@ -85,7 +85,7 @@ pub use requires::{
     Loaded, Parses, resolve_program, resolve_program_borrowing, resolve_program_linted,
 };
 pub use resolve::{
-    Import, Module, Resolver, owned_enum, owned_enum_in_scope, resolve_file,
+    Import, Module, Resolver, owned_enum, owned_enum_in_scope, qname_segments, resolve_file,
     resolve_file_with_extensions,
 };
 pub use symbol::{ExtensionClass, ExtensionFile, Symbol, SymbolKind, SymbolTable};

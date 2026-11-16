@@ -1139,7 +1139,11 @@ fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
             }
             let found = table.get(ancestor)?;
             for name in sig.methods.keys() {
-                if found.methods.get(name).is_some_and(|method| method.has_body) {
+                if found
+                    .methods
+                    .get(name)
+                    .is_some_and(|method| method.has_body)
+                {
                     marks.push((ancestor.clone(), name.clone()));
                 }
             }
@@ -1151,9 +1155,7 @@ fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
     }
 }
 
-fn qname_segments(src: &SourceFile, name: &nvs_syntax::ast::Name) -> Vec<String> {
-    QName::parse(span_text(src, name.span)).segments().to_vec()
-}
+use nvs_hir::qname_segments;
 
 fn collect_stmts(
     stmts: &[Stmt],
