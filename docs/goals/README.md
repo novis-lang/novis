@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [one-copy-each]
+chain: []
 floor:
   - id: ci-check
     name: "every check the goal end's push runs is green"
@@ -32,11 +32,7 @@ floor:
 
 # Goals
 
-The chain holds 1 goal(s). `one-copy-each` is live.
-
-| # | Goal | Reached when | Stages |
-|---|---|---|---|
-| 1 | [`one-copy-each`](one-copy-each.md) **live** | Reached when each listed block of repeated code has one home, with no change in behaviour and fewer lines than before. | 1 ✓ the loop forms share one preamble · 2 ✓ a connection's and a transaction's members are declared once · 3 ✓ the tree walks and the case parser have one home each · 4 ✓ the small helpers are written once · 5 ✓ the server tests of nvs-cli share their support · 6 ✓ the goal is verified once, and every failure is fixed |
+The chain is empty.
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
