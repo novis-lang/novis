@@ -5437,25 +5437,26 @@ pub(crate) mod tests {
 
     /// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
     /// first bound. The head arrives and the body never does, and what ends the
-    /// call is the silence — well inside a `deadline` that has not moved, which
-    /// is the whole point of the stream carrying two bounds of its own.
+    /// call is the silence, inside a `deadline` that has not passed, which is
+    /// the whole point of the stream carrying two bounds of its own. The error
+    /// names which bound ended the call, so the test reads that and no clock:
+    /// under Miri one exchange takes most of a minute.
     #[test]
     fn stream_idle_ends_a_silent_reply() {
         let (at, done, served) = quiet("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
         let mut asking = call(at, "test");
         asking.idle = Duration::from_millis(50);
 
-        let began = Instant::now();
         let mut reply = send_streamed(&asking, &mut never).expect("a head");
         assert_eq!(reply.status, 200);
-        let refused = reply.body.pull().expect_err("a body that never came");
-        assert!(
-            format!("{refused:?}").contains("sent nothing for"),
-            "{refused:?}"
+        let refused = format!(
+            "{:?}",
+            reply.body.pull().expect_err("a body that never came")
         );
+        assert!(refused.contains("sent nothing for"), "{refused}");
         assert!(
-            began.elapsed() < Duration::from_secs(5),
-            "the silence ended it and not the ten-second deadline"
+            !refused.contains("the deadline covering this call passed"),
+            "the silence ended it and not the deadline: {refused}"
         );
 
         done.send(()).ok();
