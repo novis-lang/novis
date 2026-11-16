@@ -3296,7 +3296,7 @@ fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
         .map(|occurrence| occurrence.symbol.as_str())
         .collect();
     let candidates = every_type(symbols);
-    let taken = taken_short_names(symbols, &imports, &here);
+    let taken = taken_among(&candidates, &imports, &here);
     let site = crate::imports::entry_stmts(analysed)
         .and_then(|stmts| nvs_hir::import_site(stmts, file, offset));
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
@@ -3379,11 +3379,9 @@ fn every_type(symbols: &SymbolIndex) -> Vec<(String, CompletionItemKind, Tier)> 
                 .map(|core| (core.name.to_owned(), CompletionItemKind::ENUM)),
         )
         .map(|(symbol, kind)| (symbol, kind, Tier::Core));
-    let declared = symbols.files().flat_map(|path| {
-        symbols.declarations_in(path).iter().filter_map(|declared| {
-            let kind = namespace_kind(declared.kind)?;
-            Some((declared.symbol.clone(), kind, Tier::Workspace))
-        })
+    let declared = symbols.all_declarations().filter_map(|declared| {
+        let kind = namespace_kind(declared.kind)?;
+        Some((declared.symbol.clone(), kind, Tier::Workspace))
     });
     declared.chain(core).collect()
 }
@@ -3399,16 +3397,22 @@ pub(crate) fn taken_short_names(
     imports: &FxHashMap<String, QName>,
     here: &[String],
 ) -> FxHashSet<String> {
+    taken_among(&every_type(symbols), imports, here)
+}
+
+/// [`taken_short_names`] over the types [`every_type`] already listed, so a
+/// completion that lists them for its items lists them once.
+fn taken_among(
+    types: &[(String, CompletionItemKind, Tier)],
+    imports: &FxHashMap<String, QName>,
+    here: &[String],
+) -> FxHashSet<String> {
     let mut taken: FxHashSet<String> = imports.keys().cloned().collect();
-    taken.extend(
-        every_type(symbols)
-            .into_iter()
-            .filter_map(|(symbol, _, _)| {
-                let segments = QName::parse(&symbol).segments().to_vec();
-                (segments.len() == here.len() + 1 && segments.starts_with(here))
-                    .then(|| segments[here.len()].clone())
-            }),
-    );
+    taken.extend(types.iter().filter_map(|(symbol, _, _)| {
+        let segments = QName::parse(symbol).segments().to_vec();
+        (segments.len() == here.len() + 1 && segments.starts_with(here))
+            .then(|| segments[here.len()].clone())
+    }));
     taken
 }
 
@@ -4197,7 +4201,57 @@ fn member_key(owner: &str, member: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::{CASE_WORDS, MEMBER_WORDS, STATEMENT_WORDS};
+    use crate::completion_files::CompletionFiles;
+    use crate::settings::Client;
+    use crate::{CheckScope, Documents, SymbolIndex, analyse, uri_of};
+    use nvs_diagnostics::PositionEncoding;
     use nvs_syntax::Keyword;
+
+    /// The paths a completion at a bare name makes canonical, over a workspace
+    /// of `files` indexed files besides the open one.
+    fn resolved_by_a_completion(files: usize) -> u64 {
+        let dir = nvs_repo::scratch("lsp-completion-resolves");
+        for n in 0..files {
+            let text = format!("<?nvs\nnamespace App;\nclass Kind{n} {{}}\n");
+            std::fs::write(dir.join(format!("Kind{n}.nvs")), text).expect("a scratch write");
+        }
+        let entry = dir.join("main.nvs");
+        let source = "<?nvs\nnamespace App;\nKin\n";
+        std::fs::write(&entry, source).expect("a scratch write");
+        let uri = uri_of(&entry).expect("a test path is UTF-8");
+        let mut documents = Documents::new();
+        documents.open(uri.clone(), 1, source.to_owned());
+        let analysed = analyse(&documents, &uri).expect("an open document analyses");
+        let index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(&dir));
+        let at = u32::try_from(source.len() - 1).expect("a short document");
+        let before = nvs_diagnostics::work::so_far();
+        let items = super::at(
+            &analysed,
+            &index,
+            &CompletionFiles::default(),
+            at,
+            Client::default(),
+            PositionEncoding::Utf8,
+        );
+        let resolved = (nvs_diagnostics::work::so_far() - before).resolved;
+        let last = format!("Kind{}", files - 1);
+        assert!(
+            items.iter().any(|item| item.label == last),
+            "the index's types are offered"
+        );
+        resolved
+    }
+
+    /// A completion at a bare name lists every type the index holds, and reads
+    /// each one off the stored entries. So the paths it resolves do not grow
+    /// with the files the index holds.
+    #[test]
+    fn a_completion_resolves_no_indexed_path_again() {
+        let few = resolved_by_a_completion(2);
+        let many = resolved_by_a_completion(40);
+        assert_eq!(few, many, "a completion resolved an indexed path again");
+        assert!(many <= 2, "a completion resolved {many} paths");
+    }
 
     /// The three lists above are spellings copied out of a grammar that owns
     /// them, and this is what keeps the copy honest: a word that stops being

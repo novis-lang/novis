@@ -1310,6 +1310,12 @@ impl SymbolIndex {
             .map_or(&[], |indexed| indexed.decls.as_slice())
     }
 
+    /// Every name every file declares, in path and then source order. A walk
+    /// of the stored entries, so no path is resolved again.
+    pub fn all_declarations(&self) -> impl Iterator<Item = &Declaration> {
+        self.files.values().flat_map(|indexed| &indexed.decls)
+    }
+
     /// Every use `path` writes, in source order, or nothing for a file the
     /// index does not hold.
     #[must_use]
