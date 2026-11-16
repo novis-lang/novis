@@ -20,8 +20,8 @@
 //! that has data (`de-AT` to `de`, `en-GB` to `en-001`), or `und` for the root locale. Segmentation
 //! answers with the few locales that tailor word breaks, and `und` for every other.
 
-use icu_locale::fallback::LocaleFallbackConfig;
 use icu_locale::LocaleFallbacker;
+use icu_locale::fallback::LocaleFallbackConfig;
 use icu_provider::prelude::*;
 
 use crate::Error;
@@ -90,14 +90,18 @@ pub fn resolve(tags: &[String], service: Service) -> Result<Vec<String>, Error> 
                     locale,
                     "",
                 ),
-                Service::Dates => answered::<icu_datetime::provider::names::DatetimeNamesWeekdayV1>(
-                    &icu_datetime::provider::Baked,
-                    locale,
-                    "5",
-                ),
+                Service::Dates => {
+                    answered::<icu_datetime::provider::names::DatetimeNamesWeekdayV1>(
+                        &icu_datetime::provider::Baked,
+                        locale,
+                        "5",
+                    )
+                }
                 Service::RelativeTime => answered::<
                     icu_experimental::relativetime::provider::DatetimeRelativeDayLongV1,
-                >(&icu_experimental::provider::Baked, locale, ""),
+                >(
+                    &icu_experimental::provider::Baked, locale, ""
+                ),
                 Service::Lists => answered::<icu_list::provider::ListAndV1>(
                     &icu_list::provider::Baked,
                     locale,
@@ -105,7 +109,9 @@ pub fn resolve(tags: &[String], service: Service) -> Result<Vec<String>, Error> 
                 ),
                 Service::Segmentation => answered::<
                     icu_segmenter::provider::SegmenterBreakWordOverrideV1,
-                >(&icu_segmenter::provider::Baked, locale, ""),
+                >(
+                    &icu_segmenter::provider::Baked, locale, ""
+                ),
             })
         })
         .collect()
@@ -118,11 +124,13 @@ fn answered<M>(provider: &impl DataProvider<M>, locale: DataLocale, attributes: 
 where
     M: DataMarker,
 {
-    let mut request = DataRequest::default();
-    request.id = DataIdentifierBorrowed::for_marker_attributes_and_locale(
-        DataMarkerAttributes::from_str_or_panic(attributes),
-        &locale,
-    );
+    let request = DataRequest {
+        id: DataIdentifierBorrowed::for_marker_attributes_and_locale(
+            DataMarkerAttributes::from_str_or_panic(attributes),
+            &locale,
+        ),
+        ..Default::default()
+    };
     match provider.load(request) {
         Ok(response) => response.metadata.locale.unwrap_or(locale).to_string(),
         Err(_) => "und".to_owned(),
@@ -142,7 +150,10 @@ fn ranges(header: &str) -> Option<Vec<(Option<icu_locale::Locale>, f32)>> {
         let mut weight = 1.0;
         for param in parts {
             let value = param.trim().strip_prefix("q=")?;
-            weight = value.parse::<f32>().ok().filter(|q| (0.0..=1.0).contains(q))?;
+            weight = value
+                .parse::<f32>()
+                .ok()
+                .filter(|q| (0.0..=1.0).contains(q))?;
         }
         if weight == 0.0 {
             continue;
@@ -168,8 +179,14 @@ mod tests {
     #[test]
     fn the_heaviest_offered_range_wins() {
         let tags = offered(&["en", "de", "fr"]);
-        assert_eq!(negotiate("fr;q=0.5, de, en;q=0.8", &tags, "en").unwrap(), "de");
-        assert_eq!(negotiate("ja, fr;q=0.4, de;q=0.4", &tags, "en").unwrap(), "fr");
+        assert_eq!(
+            negotiate("fr;q=0.5, de, en;q=0.8", &tags, "en").unwrap(),
+            "de"
+        );
+        assert_eq!(
+            negotiate("ja, fr;q=0.4, de;q=0.4", &tags, "en").unwrap(),
+            "fr"
+        );
     }
 
     #[test]
@@ -183,7 +200,16 @@ mod tests {
     #[test]
     fn an_empty_malformed_or_unmatched_header_returns_the_default() {
         let tags = offered(&["en", "de"]);
-        for header in ["", " , ", "de;q=2", "de;x=1", "not a tag", "ja, fr", "de;q=0", "*"] {
+        for header in [
+            "",
+            " , ",
+            "de;q=2",
+            "de;x=1",
+            "not a tag",
+            "ja, fr",
+            "de;q=0",
+            "*",
+        ] {
             assert_eq!(negotiate(header, &tags, "en").unwrap(), "en", "{header:?}");
         }
     }
@@ -197,19 +223,46 @@ mod tests {
     #[test]
     fn a_tag_resolves_to_the_locale_with_data() {
         let tags = offered(&["de-AT-x-shop", "en-GB", "zz"]);
-        assert_eq!(resolve(&tags, Service::Lists).unwrap(), ["de", "en-001", "und"]);
-        assert_eq!(resolve(&tags, Service::Plurals).unwrap(), ["de", "en", "und"]);
-        assert_eq!(resolve(&offered(&["de-CH"]), Service::Numbers).unwrap(), ["de-CH"]);
-        for service in [Service::Collation, Service::Dates, Service::RelativeTime, Service::Segmentation] {
-            assert_eq!(resolve(&offered(&["zz"]), service).unwrap(), ["und"], "{service:?}");
+        assert_eq!(
+            resolve(&tags, Service::Lists).unwrap(),
+            ["de", "en-001", "und"]
+        );
+        assert_eq!(
+            resolve(&tags, Service::Plurals).unwrap(),
+            ["de", "en", "und"]
+        );
+        assert_eq!(
+            resolve(&offered(&["de-CH"]), Service::Numbers).unwrap(),
+            ["de-CH"]
+        );
+        for service in [
+            Service::Collation,
+            Service::Dates,
+            Service::RelativeTime,
+            Service::Segmentation,
+        ] {
+            assert_eq!(
+                resolve(&offered(&["zz"]), service).unwrap(),
+                ["und"],
+                "{service:?}"
+            );
         }
-        assert!(matches!(resolve(&offered(&["!"]), Service::Lists), Err(Error::Invalid(_))));
+        assert!(matches!(
+            resolve(&offered(&["!"]), Service::Lists),
+            Err(Error::Invalid(_))
+        ));
     }
 
     #[test]
     fn a_malformed_offered_tag_is_invalid() {
         let tags = offered(&["en", "not a tag"]);
-        assert!(matches!(negotiate("en", &tags, "en"), Err(Error::Invalid(_))));
-        assert!(matches!(negotiate("en", &offered(&["en"]), "!"), Err(Error::Invalid(_))));
+        assert!(matches!(
+            negotiate("en", &tags, "en"),
+            Err(Error::Invalid(_))
+        ));
+        assert!(matches!(
+            negotiate("en", &offered(&["en"]), "!"),
+            Err(Error::Invalid(_))
+        ));
     }
 }
