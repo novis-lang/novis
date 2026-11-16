@@ -35,6 +35,7 @@
 //! `tests/incremental.rs` (100 files of about 220 bytes each) a parse is about
 //! 10 KB a file; `crate::session` gives the whole session's figure.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -52,6 +53,10 @@ use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
 pub(crate) struct ParseCache {
     pins: Pins,
     files: HashMap<PathBuf, Entry>,
+    /// Each path a parse was asked for, with the key it resolved to. A path is
+    /// made canonical once, and [`retain`](Self::retain) clears this when the
+    /// tree changes. **What it spends:** two paths per file of the tree.
+    keys: HashMap<PathBuf, PathBuf>,
     /// How many files were parsed, because the cache held no entry for their
     /// text and id, since the cache was made.
     misses: usize,
@@ -115,6 +120,9 @@ impl ParseCache {
             .filter(|path| !keep(path))
             .cloned()
             .collect();
+        if !gone.is_empty() {
+            self.keys.clear();
+        }
         let mut ids = Vec::with_capacity(gone.len());
         for path in gone {
             if let Some(entry) = self.files.remove(&path) {
@@ -128,7 +136,7 @@ impl ParseCache {
     /// The hash of `src`'s text and of its declaration surface, where the
     /// cache holds the parse of that text at `src`'s id.
     pub(crate) fn hashes(&self, src: &SourceFile) -> Option<(Digest, Digest)> {
-        let entry = self.files.get(&key_of(src))?;
+        let entry = self.files.get(self.key_of(src).as_ref())?;
         (entry.id == src.id()).then_some((entry.hash, entry.surface))
     }
 
@@ -136,7 +144,12 @@ impl ParseCache {
     /// with its diagnostics reported into `diags` either way.
     fn entry(&mut self, src: &SourceFile, diags: &mut Diagnostics) -> &Entry {
         let hash = content_hash(src.text().as_bytes());
-        let key = key_of(src);
+        let key = self.key_of(src).into_owned();
+        if let Some(path) = src.path()
+            && !self.keys.contains_key(path)
+        {
+            self.keys.insert(path.to_path_buf(), key.clone());
+        }
         let fresh = self
             .files
             .get(&key)
@@ -171,14 +184,20 @@ impl ParseCache {
         }
         entry
     }
-}
 
-/// The cache's key for `src`: its canonical path, or its name for a file with
-/// no path. A NUL is in no real path, so a file with no path never takes the
-/// key of one that has one.
-fn key_of(src: &SourceFile) -> PathBuf {
-    src.path()
-        .map_or_else(|| PathBuf::from(format!("\0{}", src.name())), canonical_key)
+    /// The cache's key for `src`: its canonical path, or its name for a file
+    /// with no path. A NUL is in no real path, so a file with no path never
+    /// takes the key of one that has one. A path [`entry`](Self::entry)
+    /// already resolved is not resolved again.
+    fn key_of(&self, src: &SourceFile) -> Cow<'_, Path> {
+        match src.path() {
+            Some(path) => self.keys.get(path).map_or_else(
+                || Cow::Owned(canonical_key(path)),
+                |key| Cow::Borrowed(key.as_path()),
+            ),
+            None => Cow::Owned(PathBuf::from(format!("\0{}", src.name()))),
+        }
+    }
 }
 
 impl Parses for ParseCache {
