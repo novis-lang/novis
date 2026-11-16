@@ -323,156 +323,20 @@ const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// What `connect` answers with, and `Core\Db\Queryable`'s own home: `rule:classes/no-traits`
-/// has `Transaction` delegate the interface to its connection, so the seven
-/// members are declared here once. `query`, `execute`, `executeMany` and
-/// `transaction` are the four that have landed.
+/// has `Transaction` delegate the interface to its connection, so its seven
+/// members are declared once, as the `*_ROW` consts both classes list.
 // rank: 1500
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     doc: Some(&CONNECTION_CARD),
     methods: &[],
     instance: &[
-        CoreMethod {
-            name: "query",
-            names: &["sql", "params"],
-            params: &[
-                // `rule:core-classes/db-one-api`'s split, and
-                // `rule:security/sink-predicate`'s whole injection story: the
-                // statement text is the sink, so a `tainted` value cannot reach
-                // it at all and the bound parameters below accept one freely.
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // `Rows<Row>` — [`ROWS`] at the one concrete argument an
-            // unhydrated result set has, and `queryAs<T>` is the same class at
-            // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
-            // [`CoreTy::Instance`]: the bare spelling would intern the class at
-            // its *own* `T`, a variable no call site of `query` ever binds.
-            // Written out on both classes rather than named once, because
-            // `bun nv gaps` attributes a case to the class a member answers
-            // by reading this very line.
-            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
-            symbol: "nvs_core_db_connection_query",
-            doc: Some(&QUERY_DOC),
-        },
-        CoreMethod {
-            name: "queryAs",
-            names: &["sql", "params"],
-            // `query`'s parameters exactly, bag and all: this is the same
-            // statement, read the same way and bounded the same way, and the
-            // only difference is what each row becomes.
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // `Rows<T>` at the `T` the call site wrote — the whole
-            // reason [`CoreTy::Written`] descends into a
-            // [`CoreTy::InstanceAt`]. It is also what makes this member
-            // generic: `CoreMethod::written` finds the `T` here and nowhere
-            // else, so a call naming no type argument is `E0442`.
-            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),
-            symbol: "nvs_core_db_connection_query_as",
-            doc: Some(&QUERY_AS_DOC),
-        },
-        CoreMethod {
-            name: "execute",
-            names: &["sql", "params"],
-            // The same [`CoreTy`]s `query` above declares, for the same
-            // reasons — the statement text is a sink on both members, and a
-            // write is exactly where a `tainted` value most wants to reach one.
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            return_ty: CoreTy::Instance(WRITE_NAME),
-            symbol: "nvs_core_db_connection_execute",
-            doc: Some(&EXECUTE_DOC),
-        },
-        CoreMethod {
-            name: "executeMany",
-            names: &["sql", "sets"],
-            params: &[
-                // The same sink, and it is the member's whole point that there
-                // is only one of them: `rule:core-classes/db-statement-members`
-                // makes the batch one statement run many times, so the text is
-                // written once and cannot pick up a `tainted` fragment per set.
-                CoreTy::Text(Qual::Sink),
-                // `array<array<mixed>>`. The outer array is the sets and
-                // the inner one is `query`'s own `$params`, which is why each
-                // set is read by [`statement_of`] and gains no binding rule of
-                // its own.
-                CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
-                // The bag bounds the *batch*: the sets are one statement run N
-                // times over one connection, and there is no per-set answer for
-                // a per-set clock to belong to.
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // A bare `uint` and not a [`WRITE`]: the batch answers a count and
-            // has no second return to hand rows or a `lastId` back through,
-            // because there is no one execution for either to belong to.
-            return_ty: CoreTy::Uint,
-            symbol: "nvs_core_db_connection_execute_many",
-            doc: Some(&EXECUTE_MANY_DOC),
-        },
-        CoreMethod {
-            name: "stream",
-            names: &["sql", "params"],
-            // `query`'s two exactly: this member runs the same statement under
-            // the same binding rule, and the only difference is where the
-            // rows are when it answers. The options bag is `{timeout?}`
-            // alone: on this member the deadline stays
-            // filed while the portal is open, so it bounds every `advance()` up
-            // to the last row rather than the call that opens the walk.
-            // [`crate::db`] § *`stream` declares no `chunk`, and the portal is
-            // why* keeps that decision — a size that reached no read would be
-            // an option that parsed and did nothing.
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // `Iterable<Db\Row>`, spelled as the class that *is* the
-            // walk — [`CoreTy::Iterated`] is parameter position only, so
-            // `Core\IO\Lines`' spelling is the one available here. The element
-            // rides as that class's own type argument, exactly as it does on
-            // the [`ROWS`] the member above answers: `Core\Db\Stream` is one
-            // generic walk at two arguments, `Db\Row` here and the call site's
-            // own `T` on `streamAs` below, because a second class would be a
-            // second iteration protocol saying the same thing.
-            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
-            symbol: "nvs_core_db_connection_stream",
-            doc: Some(&STREAM_DOC),
-        },
-        CoreMethod {
-            name: "streamAs",
-            names: &["sql", "params"],
-            // `stream`'s parameters exactly, for the reason `queryAs` takes
-            // `query`'s: this is the same statement over the same
-            // portal, bound the same way and bounded by the same `timeout`,
-            // and the only difference is what each row becomes.
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // `Iterable<T>`, which is the walk above at the type its
-            // call site wrote. The [`CoreTy::Written`] is what makes the member
-            // generic, exactly as `queryAs`'s is: `CoreMethod::written` finds
-            // the `T` here and nowhere else, so a call naming no type argument
-            // is `E0442`.
-            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
-            symbol: "nvs_core_db_connection_stream_as",
-            doc: Some(&STREAM_AS_DOC),
-        },
+        QUERY_ROW,
+        QUERY_AS_ROW,
+        EXECUTE_ROW,
+        EXECUTE_MANY_ROW,
+        STREAM_ROW,
+        STREAM_AS_ROW,
         TRANSACTION_ROW,
         CoreMethod {
             name: "close",
@@ -522,6 +386,166 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
     ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
     constants: &[],
+};
+
+// `Core\Db\Queryable`'s statement members, one row each. [`CONNECTION`] and
+// [`TRANSACTION`] both list every one under the same symbol, which is
+// `rule:classes/no-traits`' delegation: one body reached through either handle,
+// read the same way by [`handle_of`]. Each class lists the row itself, because
+// `crate::registry::WRITTEN_CLASS_MEMBERS` is keyed by the *declaring* class,
+// so a `$tx->streamAs<Person>(…)` needs the row on `Transaction` to keep the
+// class its call site wrote. `bun nv gaps` follows the name in each list here.
+
+/// `query`'s row.
+const QUERY_ROW: CoreMethod = CoreMethod {
+    name: "query",
+    names: &["sql", "params"],
+    params: &[
+        // `rule:core-classes/db-one-api`'s split, and
+        // `rule:security/sink-predicate`'s whole injection story: the
+        // statement text is the sink, so a `tainted` value cannot reach
+        // it at all and the bound parameters below accept one freely.
+        CoreTy::Text(Qual::Sink),
+        CoreTy::Array(&CoreTy::Mixed),
+        CoreTy::Options(STATEMENT_OPTIONS),
+    ],
+    defaults: &[],
+    // `Rows<Row>` — [`ROWS`] at the one concrete argument an
+    // unhydrated result set has, and `queryAs<T>` is the same class at
+    // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
+    // [`CoreTy::Instance`]: the bare spelling would intern the class at
+    // its *own* `T`, a variable no call site of `query` ever binds.
+    return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
+    symbol: "nvs_core_db_connection_query",
+    doc: Some(&QUERY_DOC),
+};
+
+/// `queryAs`'s row.
+const QUERY_AS_ROW: CoreMethod = CoreMethod {
+    name: "queryAs",
+    names: &["sql", "params"],
+    // `query`'s parameters exactly, bag and all: this is the same
+    // statement, read the same way and bounded the same way, and the
+    // only difference is what each row becomes.
+    params: &[
+        CoreTy::Text(Qual::Sink),
+        CoreTy::Array(&CoreTy::Mixed),
+        CoreTy::Options(STATEMENT_OPTIONS),
+    ],
+    defaults: &[],
+    // `Rows<T>` at the `T` the call site wrote — the whole
+    // reason [`CoreTy::Written`] descends into a
+    // [`CoreTy::InstanceAt`]. It is also what makes this member
+    // generic: `CoreMethod::written` finds the `T` here and nowhere
+    // else, so a call naming no type argument is `E0442`.
+    return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),
+    symbol: "nvs_core_db_connection_query_as",
+    doc: Some(&QUERY_AS_DOC),
+};
+
+/// `execute`'s row.
+const EXECUTE_ROW: CoreMethod = CoreMethod {
+    name: "execute",
+    names: &["sql", "params"],
+    // The same [`CoreTy`]s `query` above declares, for the same
+    // reasons — the statement text is a sink on both members, and a
+    // write is exactly where a `tainted` value most wants to reach one.
+    params: &[
+        CoreTy::Text(Qual::Sink),
+        CoreTy::Array(&CoreTy::Mixed),
+        CoreTy::Options(STATEMENT_OPTIONS),
+    ],
+    defaults: &[],
+    return_ty: CoreTy::Instance(WRITE_NAME),
+    symbol: "nvs_core_db_connection_execute",
+    doc: Some(&EXECUTE_DOC),
+};
+
+/// `executeMany`'s row.
+const EXECUTE_MANY_ROW: CoreMethod = CoreMethod {
+    name: "executeMany",
+    names: &["sql", "sets"],
+    params: &[
+        // The same sink, and it is the member's whole point that there
+        // is only one of them: `rule:core-classes/db-statement-members`
+        // makes the batch one statement run many times, so the text is
+        // written once and cannot pick up a `tainted` fragment per set.
+        CoreTy::Text(Qual::Sink),
+        // `array<array<mixed>>`. The outer array is the sets and
+        // the inner one is `query`'s own `$params`, which is why each
+        // set is read by [`statement_of`] and gains no binding rule of
+        // its own.
+        CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
+        // The bag bounds the *batch*: the sets are one statement run N
+        // times over one connection, and there is no per-set answer for
+        // a per-set clock to belong to.
+        CoreTy::Options(STATEMENT_OPTIONS),
+    ],
+    defaults: &[],
+    // A bare `uint` and not a [`WRITE`]: the batch answers a count and
+    // has no second return to hand rows or a `lastId` back through,
+    // because there is no one execution for either to belong to.
+    return_ty: CoreTy::Uint,
+    symbol: "nvs_core_db_connection_execute_many",
+    doc: Some(&EXECUTE_MANY_DOC),
+};
+
+/// `stream`'s row. Inside a transaction the walk holds the very connection
+/// the `COMMIT` goes out on, so the `LogicError` a second statement meets is
+/// the same from either receiver (`rule:core-classes/db-connection-busy-state`).
+const STREAM_ROW: CoreMethod = CoreMethod {
+    name: "stream",
+    names: &["sql", "params"],
+    // `query`'s two exactly: this member runs the same statement under
+    // the same binding rule, and the only difference is where the
+    // rows are when it answers. The options bag is `{timeout?}`
+    // alone: on this member the deadline stays
+    // filed while the portal is open, so it bounds every `advance()` up
+    // to the last row rather than the call that opens the walk.
+    // [`crate::db`] § *`stream` declares no `chunk`, and the portal is
+    // why* keeps that decision — a size that reached no read would be
+    // an option that parsed and did nothing.
+    params: &[
+        CoreTy::Text(Qual::Sink),
+        CoreTy::Array(&CoreTy::Mixed),
+        CoreTy::Options(STATEMENT_OPTIONS),
+    ],
+    defaults: &[],
+    // `Iterable<Db\Row>`, spelled as the class that *is* the
+    // walk — [`CoreTy::Iterated`] is parameter position only, so
+    // `Core\IO\Lines`' spelling is the one available here. The element
+    // rides as that class's own type argument, exactly as it does on
+    // the [`ROWS`] the member above answers: `Core\Db\Stream` is one
+    // generic walk at two arguments, `Db\Row` here and the call site's
+    // own `T` on `streamAs` below, because a second class would be a
+    // second iteration protocol saying the same thing.
+    return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
+    symbol: "nvs_core_db_connection_stream",
+    doc: Some(&STREAM_DOC),
+};
+
+/// `streamAs`'s row.
+const STREAM_AS_ROW: CoreMethod = CoreMethod {
+    name: "streamAs",
+    names: &["sql", "params"],
+    // `stream`'s parameters exactly, for the reason `queryAs` takes
+    // `query`'s: this is the same statement over the same
+    // portal, bound the same way and bounded by the same `timeout`,
+    // and the only difference is what each row becomes.
+    params: &[
+        CoreTy::Text(Qual::Sink),
+        CoreTy::Array(&CoreTy::Mixed),
+        CoreTy::Options(STATEMENT_OPTIONS),
+    ],
+    defaults: &[],
+    // `Iterable<T>`, which is the walk above at the type its
+    // call site wrote. The [`CoreTy::Written`] is what makes the member
+    // generic, exactly as `queryAs`'s is: `CoreMethod::written` finds
+    // the `T` here and nowhere else, so a call naming no type argument
+    // is `E0442`.
+    return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
+    symbol: "nvs_core_db_connection_stream_as",
+    doc: Some(&STREAM_AS_DOC),
 };
 
 /// The [`CONNECTION`] rows that are **not** `Core\Db\Queryable`'s, and so are
@@ -686,10 +710,10 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 ///
 /// **`implements Queryable by $connection` is spelled here as the same rows
 /// under the same symbols**, which is `rule:classes/no-traits`'s
-/// delegation with no second body to drift from the first: `query`, `execute`,
-/// `executeMany` and `transaction` resolve to [`CONNECTION`]'s helpers, which
-/// reach the connection through [`handle_of`] and so accept either receiver.
-/// The alternative — four forwarding bodies — is four places for a rule to be
+/// delegation with no second body to drift from the first: every `Queryable`
+/// member resolves to [`CONNECTION`]'s helper, which reaches the connection
+/// through [`handle_of`] and so accepts either receiver.
+/// The alternative — seven forwarding bodies — is seven places for a rule to be
 /// stated twice, and `rule:core-api/shape-rules` R17 is the same objection to two spellings of one
 /// operation.
 ///
@@ -704,7 +728,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// [`SCOPE_SLOT`] is what makes the escape a `LogicError` rather than a use of
 /// a connection that has moved on.
 ///
-/// What `rule:core-classes/db-transactions`'s callable is handed. It carries the same four rows
+/// What `rule:core-classes/db-transactions`'s callable is handed. It carries the same seven rows
 /// under the same symbols — which is what the delegation above is at
 /// runtime — plus `rollBack`, the one member of the pair that is a
 /// transaction's alone.
@@ -714,111 +738,12 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
     doc: Some(&TRANSACTION_CARD),
     methods: &[],
     instance: &[
-        CoreMethod {
-            name: "query",
-            names: &["sql", "params"],
-            // [`CONNECTION`]'s parameters, bag included and for the reason its
-            // symbol is shared: one body reads either handle, so a bag declared
-            // on one class and not the other would be one arity at two spellings.
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // `Rows<Row>` — [`ROWS`] at the one concrete argument an
-            // unhydrated result set has, and `queryAs<T>` is the same class at
-            // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
-            // [`CoreTy::Instance`]: the bare spelling would intern the class at
-            // its *own* `T`, a variable no call site of `query` ever binds.
-            // Written out on both classes rather than named once, because
-            // `bun nv gaps` attributes a case to the class a member answers
-            // by reading this very line.
-            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
-            symbol: "nvs_core_db_connection_query",
-            doc: Some(&QUERY_DOC),
-        },
-        CoreMethod {
-            name: "queryAs",
-            names: &["sql", "params"],
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // [`CONNECTION`]'s row, written out for the reason its `query`
-            // sibling is: this is the class `bun nv gaps` attributes a case
-            // to. The symbol is the connection's too — `rule:classes/no-traits`'s delegation
-            // is one body reached through either handle, and [`handle_of`] is
-            // what reads the two of them the same way.
-            return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),
-            symbol: "nvs_core_db_connection_query_as",
-            doc: Some(&QUERY_AS_DOC),
-        },
-        CoreMethod {
-            name: "execute",
-            names: &["sql", "params"],
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            return_ty: CoreTy::Instance(WRITE_NAME),
-            symbol: "nvs_core_db_connection_execute",
-            doc: Some(&EXECUTE_DOC),
-        },
-        CoreMethod {
-            name: "executeMany",
-            names: &["sql", "sets"],
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            return_ty: CoreTy::Uint,
-            symbol: "nvs_core_db_connection_execute_many",
-            doc: Some(&EXECUTE_MANY_DOC),
-        },
-        CoreMethod {
-            name: "stream",
-            names: &["sql", "params"],
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // [`CONNECTION`]'s row under [`CONNECTION`]'s symbol, for its
-            // `queryAs` sibling's reason — and
-            // `rule:core-classes/db-connection-busy-state` is what makes the delegation worth stating twice here: a stream
-            // opened inside a transaction holds the very connection the
-            // `COMMIT` has to go out on, so the `LogicError` a second statement
-            // meets is the same one either receiver produces.
-            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
-            symbol: "nvs_core_db_connection_stream",
-            doc: Some(&STREAM_DOC),
-        },
-        CoreMethod {
-            name: "streamAs",
-            names: &["sql", "params"],
-            params: &[
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Array(&CoreTy::Mixed),
-                CoreTy::Options(STATEMENT_OPTIONS),
-            ],
-            defaults: &[],
-            // The row above's delegation at a written type, and the second
-            // reason it is spelled out here rather than inherited:
-            // `crate::registry::WRITTEN_CLASS_MEMBERS` is keyed by the
-            // *declaring* class, so a `$tx->streamAs<Person>(…)` that this row
-            // did not exist for would lose the class its call site wrote.
-            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
-            symbol: "nvs_core_db_connection_stream_as",
-            doc: Some(&STREAM_AS_DOC),
-        },
+        QUERY_ROW,
+        QUERY_AS_ROW,
+        EXECUTE_ROW,
+        EXECUTE_MANY_ROW,
+        STREAM_ROW,
+        STREAM_AS_ROW,
         TRANSACTION_ROW,
         CoreMethod {
             name: "rollBack",

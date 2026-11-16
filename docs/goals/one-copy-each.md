@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/mod.rs]
   - id: 2
     title: "a connection's and a transaction's members are declared once"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/db/registry.rs, crates/nvs-stdlib/src/classes.rs]
   - id: 3
     title: "the tree walks and the case parser have one home each"
@@ -94,9 +94,10 @@ joins them when it stops their clones.
 **Generated files stay generated.** `crates/nvs-stdlib/src/classes.rs` is written by `bun nv
 render`, so stage 2 changes the source table and renders.
 
-**The `Connection` and `Transaction` members are one `const` list used by both classes.** Safe
-default if a member differs between the two in more than its receiver: that member stays written
-twice, and the others share.
+**The `Connection` and `Transaction` members are one `const` row each, listed by both classes.**
+Rust cannot splice one `const` slice into another, so each shared row is its own `const`, as
+`TRANSACTION_ROW` already was, and both instance lists name the seven. `bun nv gaps` reads the
+class literals as text, so it follows a row named on its own line to every class that lists it.
 
 **The test support lives in `crates/nvs-test/`,** as a module the test files import. It is a helper
 crate, so no test binaries are merged.
@@ -121,9 +122,12 @@ in its decision above has landed.
 
 **Does:** declare the shared database members in one list.
 
-- [ ] `crates/nvs-stdlib/src/db/registry.rs:333`: one member list, used by `Connection` and by
+- [x] `crates/nvs-stdlib/src/db/registry.rs:333`: one member list, used by `Connection` and by
   `Transaction` at `:715`, and `bun nv render` leaves `crates/nvs-stdlib/src/classes.rs`
   unchanged (`rule:core-api/reference-card`).
+  - [x] the six statement rows are one `const` each, listed by both classes
+  - [x] `bun nv gaps` attributes a row listed by name to every class that lists it
+  - [x] build and clippy green, and `bun nv render` leaves `classes.rs` unchanged
 
 ### 3. the tree walks and the case parser have one home each
 
@@ -178,30 +182,34 @@ edit. Writing subagents then convert disjoint files side by side, and the sessio
 
 ### State
 
-Stage 1 is done, built and clippy-clean, with no test run: 156 lines added, 313 removed over
-`crates/`. Sessions used: stage 1: 1, stage 2: 0, stage 3: 0, stage 4: 0, stage 5: 0.
+Stages 1 and 2 are done, built and clippy-clean, with no test run. Lines over `crates/`: stage 1
++156 -313, stage 2 +179 -254. Sessions used: stage 1: 1, stage 2: 1, stage 3: 0, stage 4: 0,
+stage 5: 0.
 
-- `Lowering::open_loop_header` in `crates/nvs-ir/src/lower/control.rs` is the preamble of all five
-  loop forms (`while`, `do`, `for`, both `foreach` shapes).
-- `Lowering::close_foreach_body` beside it is the back-edge block of both `foreach` shapes. The
-  `while`, `do` and `for` back edges differ in order and stay their own.
-- `Lowering::into_lowered` in `crates/nvs-ir/src/lower/mod.rs` is the tail of `lower_method`,
-  `lower_property_hook` and the script frame. The copies in `anon_fn.rs` and `generator.rs` are
-  not on the list and stay.
+- Stage 1: `Lowering::open_loop_header` and `close_foreach_body` in
+  `crates/nvs-ir/src/lower/control.rs`, and `Lowering::into_lowered` in `lower/mod.rs`.
+- Stage 2: the six statement rows of `crates/nvs-stdlib/src/db/registry.rs` (`QUERY_ROW` to
+  `STREAM_AS_ROW`) are one `const` each, listed by `CONNECTION` and `TRANSACTION`.
+  `rowsOf` in `tools/nv/cmd/gaps.ts` gives such a row to every class that lists it. The playbook
+  trap "a `Core\Db` statement member is declared twice" is deleted, because it is no longer true.
 
-The sweep's `env-secret-proofs` finding names no check: `looper check --name env-secret-proofs`
-answers "no check matches", and no log exists. Nothing was changed for it.
+The sweep's `env-secret-proofs` finding names a retired check: `looper check --name` finds no
+such check and no log exists. Nothing in the tree is changed for it.
 
-Tests that could go red in stage 6 if a block was not the same code: the `insta` snapshots under
-`crates/nvs-ir/src/lower/snapshots/`. Value and block numbering is meant to be unchanged.
+Tests that could go red in stage 6: the `insta` snapshots under
+`crates/nvs-ir/src/lower/snapshots/`, and `db::transaction`'s
+`a_transaction_is_a_callable_and_transaction_is_a_queryable`, which compares the two rosters.
 
 ### Next
 
-Stage 2, in one session. The files are `crates/nvs-stdlib/src/db/registry.rs` and the rendered
-`crates/nvs-stdlib/src/classes.rs`.
+Stage 3, in up to two sessions. Each item is its own slice and its own commit.
 
-- [ ] `crates/nvs-stdlib/src/db/registry.rs:333`: one member list for `Connection` and
-  `Transaction` (`:715`), then `bun nv render` leaves `classes.rs` unchanged.
+- [ ] `crates/nvs-lsp/src/hints.rs:124`: one walker with a visitor, used by
+  `crates/nvs-lsp/src/semantic.rs:572`.
+- [ ] `crates/nvs-test/src/case.rs:509`: the section parser is public, and
+  `crates/nvs-lsp/src/case.rs:315` calls it.
+- [ ] `crates/nvs-types/src/deprecated.rs:438`: one namespace walk, used by
+  `crates/nvs-types/src/retrieval.rs:238` and `crates/nvs-types/src/test_code.rs:80`.
 
 ### Backlog
 

@@ -211,14 +211,35 @@ function ownerAt(starts: [number, string][], offset: number): string {
   return owner;
 }
 
+/** `const QUERY_ROW: CoreMethod = ` just before a member literal: a row declared once, listed by name. */
+const ROW_CONST_RE = /const\s+([A-Z][A-Z0-9_]*)\s*:\s*CoreMethod\s*=\s*$/u;
+
+/**
+ * Each member literal in `text` with the class that lists it. A literal written inside a class belongs to
+ * it. A literal declared as a `const` belongs to every class whose list names that const on a line of its
+ * own, as `Core\Db\Connection` and `Core\Db\Transaction` share their statement rows.
+ */
+function rowsOf(text: string, starts: [number, string][]): [string, RegExpExecArray][] {
+  const out: [string, RegExpExecArray][] = [];
+  const named: [string, RegExpExecArray][] = [];
+  for (const m of text.matchAll(METHOD_RE)) {
+    const decl = ROW_CONST_RE.exec(text.slice(Math.max(0, m.index! - 80), m.index!));
+    if (decl) named.push([decl[1]!, m]);
+    else out.push([ownerAt(starts, m.index!), m]);
+  }
+  for (const [name, m] of named) {
+    for (const r of text.matchAll(new RegExp(`^[ \\t]+${name},[ \\t]*$`, "gmu"))) out.push([ownerAt(starts, r.index!), m]);
+  }
+  return out;
+}
+
 /** The `Class::member` names `registry` reads out of one file's `text`. */
 export function registryNames(path: string, text: string): string[] {
   const consts = classConsts(path, text);
   const starts = classStarts(text, consts);
   if (starts.length === 0) return [];
   const out: string[] = [];
-  for (const m of text.matchAll(METHOD_RE)) {
-    const owner = ownerAt(starts, m.index!);
+  for (const [owner, m] of rowsOf(text, starts)) {
     const member = m[1] || consts.get(m[2]!) || "";
     if (owner && member) out.push(`${owner}::${member}`);
   }
@@ -239,8 +260,7 @@ export function registry(): Map<string, Pos> {
     const consts = classConsts(path, text);
     const starts = classStarts(text, consts);
     if (starts.length === 0) continue;
-    for (const m of text.matchAll(METHOD_RE)) {
-      const owner = ownerAt(starts, m.index!);
+    for (const [owner, m] of rowsOf(text, starts)) {
       const member = m[1] || consts.get(m[2]!) || "";
       if (!owner || !member) continue;
       const end = m.index! + m[0].length;
@@ -261,16 +281,15 @@ function producers(): Map<string, [string, string, string]> {
     if (starts.length === 0) continue;
     // A literal's own extent rather than a fixed window: an options bag written inline puts a
     // member's `return_ty` far below its name.
-    const methods = [...text.matchAll(METHOD_RE)];
-    methods.forEach((m, index) => {
-      const owner = ownerAt(starts, m.index!);
-      const stop = index + 1 < methods.length ? methods[index + 1]!.index! : text.length;
+    const methods = [...text.matchAll(METHOD_RE)].map((m) => m.index!);
+    for (const [owner, m] of rowsOf(text, starts)) {
+      const stop = methods.find((at) => at > m.index!) ?? text.length;
       const made = RETURNS_RE.exec(text.slice(m.index! + m[0].length, stop));
-      if (!owner || !made) return;
+      if (!owner || !made) continue;
       const name = made[1] || consts.get(made[2]!) || "";
       const member = m[1] || consts.get(m[2]!) || "";
       if (name && member) found.set(`${owner}::${member}`, [owner, member, name]);
-    });
+    }
   }
   return found;
 }
