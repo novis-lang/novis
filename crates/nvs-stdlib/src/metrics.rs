@@ -363,7 +363,7 @@ fn write(args: &[Value], member: &str, written: Written) -> Result<Value, Fault>
         unsafe { nvs_runtime::source::of_operand(args[0]) }
             .map(|source| nvs_runtime::source::location(&source))
     };
-    let name = name_of(&args[1], member)?;
+    let name = crate::string_arg(&args[1], format_args!("Core\\Metrics::{member}'s $name"))?;
     within_key_bound(name, "name", member)?;
     let labels = labels_of(args[3], member)?;
     let written_labels: Vec<(&str, &str)> = labels
@@ -404,22 +404,6 @@ fn mismatch(member: &str, name: &str, refusal: &Refused, here: Option<&str>) -> 
              {refusal} — fixed {fixed}, written {here} by `Core\\Metrics::{member}`"
         ),
     )
-}
-
-/// The `$name` argument as text.
-///
-/// A `Fault::fatal` rather than a throw, and unreachable from source: the row's
-/// parameter is a `CoreTy::Text`, so `E0401` refuses anything else at the call.
-fn name_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
-    value.as_text().ok_or_else(|| {
-        // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
-        // `E0401` refuses anything that is not a `string` at the call.
-        Fault::fatal(format!(
-            "a metric name must be a `string`, and this one arrived as tag {} at \
-             `Core\\Metrics::{member}`",
-            value.tag_byte()
-        ))
-    })
 }
 
 /// The `labels` bag as the pairs the registry keys a series by.

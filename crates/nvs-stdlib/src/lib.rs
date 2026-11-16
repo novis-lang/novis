@@ -311,6 +311,26 @@ pub use test::hooks::{Counts as TestCounts, outcome as test_outcome, summary as 
 
 use registry::CoreClass;
 
+/// The text of a `string` argument, for the member `who` names.
+///
+/// # Errors
+///
+/// A [`nvs_runtime::Fault::fatal`] naming `who`. The member's row declares a `string` there, so
+/// `E0401` refuses any other argument at the call, and another tag is compiled code's bug. `bytes`
+/// is its own tag over the same allocation and fails here too, which keeps binary data out of a
+/// text format.
+pub(crate) fn string_arg(
+    value: &nvs_runtime::Value,
+    who: impl std::fmt::Display,
+) -> Result<&str, nvs_runtime::Fault> {
+    value.as_text().ok_or_else(|| {
+        nvs_runtime::Fault::fatal(format!(
+            "{who} expected a `string`, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
 /// Every `Core` implementation's symbol and address, for the JIT to resolve
 /// against — the same shape and the same purpose as
 /// [`nvs_runtime::symbols`], which `nvs-codegen` already registers.

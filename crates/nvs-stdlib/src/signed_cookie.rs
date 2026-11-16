@@ -282,22 +282,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// The `string` in `slot`.
-///
-/// # Errors
-///
-/// A [`Fault::fatal`] naming the member: slots 0 and 1 are a `string` in both
-/// rows, so another tag is a compiled-code bug rather than anything a program
-/// can write.
-fn text_of<'a>(args: &'a [Value], slot: usize, member: &str) -> Result<&'a str, Fault> {
-    args[slot].as_text().ok_or_else(|| {
-        Fault::fatal(format!(
-            "{NAME}::{member} expected a `string`, got tag {}",
-            args[slot].tag_byte()
-        ))
-    })
-}
-
 nvs_runtime::nvs_helper! {
     /// `Core\SignedCookie::seal(string $name, string $value, array<secret bytes> $keys): string`
     /// — the write half of `rule:security/protocol-roster`'s first entry, replacing the
@@ -308,8 +292,8 @@ nvs_runtime::nvs_helper! {
     /// program writes is `$keys[0]`; the module doc's own section is the home
     /// of why the newest end is the front and not the back.
     fn nvs_core_signed_cookie_seal(ctx, args: [3]) {
-        let name = text_of(args, 0, "seal")?;
-        let value = text_of(args, 1, "seal")?;
+        let name = crate::string_arg(&args[0], format_args!("{NAME}::seal"))?;
+        let value = crate::string_arg(&args[1], format_args!("{NAME}::seal"))?;
         let ring = crate::keyring::borrow(args, 2, SEAL)?;
 
         let (slot, held) = crate::keyring::newest(&ring);
@@ -338,8 +322,8 @@ nvs_runtime::nvs_helper! {
     /// holder of a key in the ring can seal a cookie. A plaintext that is not
     /// UTF-8 gets the same refusal as a cookie that does not authenticate.
     fn nvs_core_signed_cookie_open(_ctx, args: [3]) {
-        let name = text_of(args, 0, "open")?;
-        let cookie = text_of(args, 1, "open")?;
+        let name = crate::string_arg(&args[0], format_args!("{NAME}::open"))?;
+        let cookie = crate::string_arg(&args[1], format_args!("{NAME}::open"))?;
         let ring = crate::keyring::borrow(args, 2, OPEN)?;
         let aad = bound_to(name);
 

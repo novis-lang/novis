@@ -705,28 +705,11 @@ fn decoded(reply: &[i64], limit: u64) -> Result<Value, String> {
     Ok(built(allowed, limit, remaining, wait))
 }
 
-/// The `string` in argument slot `at`.
-///
-/// # Errors
-///
-/// A [`Fault::fatal`] naming the member, for the reason [`crate::cache`]'s own
-/// `key_of` gives: the row declares a `string` there, so another tag is
-/// compiled code's bug — unreachable from source, because `E0401` refuses the
-/// call before any of this runs.
-fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
-    args[at].as_text().ok_or_else(|| {
-        Fault::fatal(format!(
-            "{NAME}::{member} expected a `string` key, got tag {}",
-            args[at].tag_byte()
-        ))
-    })
-}
-
 /// The `uint` in argument slot `at`, or `None` for an option that was omitted.
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`], for [`key_of`]'s reason — unreachable from source, since
+/// A [`Fault::fatal`], for [`crate::string_arg`]'s reason — unreachable from source, since
 /// `E0401` refuses a non-`uint` argument first and an omitted option arrives as
 /// the `Tag::Null` this reads as absence.
 fn uint_of(args: &[Value], at: usize, member: &str) -> Result<Option<u64>, Fault> {
@@ -783,7 +766,7 @@ nvs_runtime::nvs_helper! {
     /// call site, which is the only place that knows whether this limiter is a
     /// plan quota to fail open on or a login throttle to fail closed on.
     fn nvs_core_ratelimit_consume(ctx, args: [5]) {
-        let key = key_of(args, 0, "consume")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::consume's $key"))?;
         let limit = uint_of(args, 1, "consume")?.unwrap_or(0);
         let per = crate::time::nanos_of(args, 2, "consume")?;
         let burst = uint_of(args, 3, "consume")?.unwrap_or(limit);
@@ -841,7 +824,7 @@ nvs_runtime::nvs_helper! {
     /// A thrown `RuntimeError` for a limit that cannot be enforced, from
     /// [`window`] and from nowhere else.
     fn nvs_core_ratelimit_shed(ctx, args: [5]) {
-        let key = key_of(args, 0, "shed")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::shed's $key"))?;
         let limit = uint_of(args, 1, "shed")?.unwrap_or(0);
         let per = crate::time::nanos_of(args, 2, "shed")?;
         let burst = uint_of(args, 3, "shed")?.unwrap_or(limit);

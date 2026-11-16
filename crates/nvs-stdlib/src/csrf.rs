@@ -296,27 +296,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// The `string` at `slot`.
-///
-/// # Errors
-///
-/// A [`Fault::fatal`] naming the member: every text slot in both rows is a
-/// `string`, so another tag is a compiled-code bug rather than anything a
-/// program can write.
-fn text_at<'a>(
-    args: &'a [Value],
-    slot: usize,
-    member: &str,
-    param: &str,
-) -> Result<&'a str, Fault> {
-    args[slot].as_text().ok_or_else(|| {
-        Fault::fatal(format!(
-            "{NAME}::{member} expected a `string` for {param}, got tag {}",
-            args[slot].tag_byte()
-        ))
-    })
-}
-
 /// The token key made out of the `bytes` at `slot`.
 ///
 /// # Errors
@@ -350,7 +329,7 @@ nvs_runtime::nvs_helper! {
     /// first one's form. The module doc's own section is the home of why the
     /// session is an argument.
     fn nvs_core_csrf_issue(ctx, args: [2]) {
-        let session = text_at(args, 0, "issue", "$session")?;
+        let session = crate::string_arg(&args[0], format_args!("{NAME}::issue's $session"))?;
         let key = keyed(args, 1, "issue")?;
         let nonce = drawn_nonce(ctx);
         let token = key.issue(&nonce, session, "Core\\Csrf::issue")?;
@@ -429,8 +408,8 @@ nvs_runtime::nvs_helper! {
     /// wrong and a token whose session is wrong take the same path as well as
     /// the same time.
     fn nvs_core_csrf_verify(_ctx, args: [3]) {
-        let token = text_at(args, 0, "verify", "$token")?;
-        let session = text_at(args, 1, "verify", "$session")?;
+        let token = crate::string_arg(&args[0], format_args!("{NAME}::verify's $token"))?;
+        let session = crate::string_arg(&args[1], format_args!("{NAME}::verify's $session"))?;
         let key = keyed(args, 2, "verify")?;
 
         Ok(Value::bool(key.verify(token, session)))

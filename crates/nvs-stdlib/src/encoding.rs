@@ -976,7 +976,10 @@ pub(crate) const HEX_DIGITS: [u8; 16] = *b"0123456789abcdef";
 
 /// `byte` as two lower-case hex digits, the high half first.
 pub(crate) const fn hex_pair(byte: u8) -> [u8; 2] {
-    [HEX_DIGITS[(byte >> 4) as usize], HEX_DIGITS[(byte & 0x0f) as usize]]
+    [
+        HEX_DIGITS[(byte >> 4) as usize],
+        HEX_DIGITS[(byte & 0x0f) as usize],
+    ]
 }
 
 /// The ranges of `0..len` in steps of `step`, the last one shorter.

@@ -233,7 +233,7 @@ nvs_runtime::nvs_helper! {
         )]
         let source = unsafe { nvs_runtime::source::of_operand(args[0]) };
         let level = level_of(&args[1])?;
-        let message = message_of(&args[2])?;
+        let message = crate::string_arg(&args[2], r"Core\Log::write's $message")?;
         // A record below `[log] level` is never written, so it is never built
         // either. Building it first would cost the fields' conversion, the
         // clock and a slot in `nvs_runtime::floor`'s coalescing table, and
@@ -291,20 +291,6 @@ fn level_of(value: &Value) -> Result<Level, Fault> {
         value.tag_byte(),
         value.as_int()
     )))
-}
-
-/// The message in slot 1.
-fn message_of(value: &Value) -> Result<&str, Fault> {
-    // Unreachable from source: the row's parameter is `CoreTy::Text`, so
-    // `E0401` refuses anything that is not a `string` at the call — `bytes`
-    // included, which is its own tag and not a string this could be handed by
-    // accident.
-    value.as_text().ok_or_else(|| {
-        Fault::fatal(format!(
-            "Core\\Log::write expected a `string` for its message, got tag {}",
-            value.tag_byte()
-        ))
-    })
 }
 
 /// This call as `rule:errors/diagnostic-record`'s record — the envelope fields this crate has a

@@ -1057,18 +1057,6 @@ fn unstarted(member: &str) -> Fault {
     ))
 }
 
-/// The `$key` argument, as the checker has already guaranteed it.
-fn key_at<'a>(key: &'a Value, member: &str) -> Result<&'a str, Fault> {
-    // Unreachable from source: a `string` parameter, refused at the checker with `E0401` before
-    // any of this runs. The guard is what makes the answer below total.
-    key.as_text().ok_or_else(|| {
-        Fault::fatal(format!(
-            "{NAME}::{member} expected a string key, got tag {}",
-            key.tag_byte()
-        ))
-    })
-}
-
 /// The `$value` argument of [`nvs_core_session_set_secret`], as the checker has already
 /// guaranteed it.
 ///
@@ -1367,7 +1355,7 @@ nvs_runtime::nvs_helper! {
     /// As [`record`]: [`unstarted`] before `start`, and a thrown `ParseError` for a record naming
     /// a class this program cannot resolve.
     fn nvs_core_session_get(ctx, args: [1]) {
-        let key = key_at(&args[0], "get")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::get's $key"))?;
         let held = record(ctx, "get")?;
         // `NvsArray::get` borrows rather than retains, and the handle releases the whole record
         // when it is dropped below — so the answer needs a reference of its own first.
@@ -1406,7 +1394,7 @@ nvs_runtime::nvs_helper! {
     /// record this unit cannot decode, and a thrown `LogicError` for a `$value` the cross-boundary
     /// copy refuses.
     fn nvs_core_session_set(ctx, args: [2]) {
-        let key = key_at(&args[0], "set")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::set's $key"))?;
         let mut held = record(ctx, "set")?;
         // The record takes over one reference and the argument slot keeps its own, which is the
         // same split `Core\Cache\Store::put` makes before handing a value to the carrier.
@@ -1448,7 +1436,7 @@ nvs_runtime::nvs_helper! {
     /// empty or holds something that is not a key.
     fn nvs_core_session_set_secret(ctx, args: [3]) {
         let mut held = record(ctx, "setSecret")?;
-        let key = key_at(&args[0], "setSecret")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::setSecret's $key"))?;
         let value = secret_at(&args[1], "setSecret")?;
 
         let who = format!("{NAME}::setSecret");
@@ -1480,7 +1468,7 @@ nvs_runtime::nvs_helper! {
     /// something that is not a key.
     fn nvs_core_session_get_secret(ctx, args: [2]) {
         let held = record(ctx, "getSecret")?;
-        let key = key_at(&args[0], "getSecret")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::getSecret's $key"))?;
 
         let who = format!("{NAME}::getSecret");
         let ring = crate::keyring::borrow(args, 1, &who)?;
@@ -1503,7 +1491,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// As [`nvs_core_session_set`].
     fn nvs_core_session_remove(ctx, args: [1]) {
-        let key = key_at(&args[0], "remove")?;
+        let key = crate::string_arg(&args[0], format_args!("{NAME}::remove's $key"))?;
         let mut held = record(ctx, "remove")?;
         if !held.has_key(key.as_bytes()) {
             drop(held);

@@ -565,28 +565,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// A `string`, or the fault a non-`string` tag produces. `subject` names what
-/// was expected to be text and heads the message.
-///
-/// The tag check is `rule:types/bytes`'s UTF-8 guarantee itself: `bytes` is its own tag
-/// over the same allocation and reaches `None` here, which is what keeps a
-/// binary payload out of a text format.
-fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
-    value.as_text().ok_or_else(|| {
-        // Unreachable from source: `escape`'s row declares one `CoreTy::Text`
-        // parameter, so a `bytes` argument — the only other tag over this
-        // allocation — is `E0401` (*expected `string`, found `bytes`*) at the
-        // call and never reaches this body, and a carrier's slot holds what
-        // this module put there. The check stays because the ABI is
-        // `*const Value` and nothing in it carries either promise.
-        Fault::fatal(format!(
-            "{subject} expected {:?}, got tag {}",
-            Tag::Str,
-            value.tag_byte()
-        ))
-    })
-}
-
 /// [`nvs_render::html::escape`] over a `Value`, which is the whole of
 /// `rule:security/launderers-are-sink-named`'s transform for the HTML sink:
 /// `&`, `<`, `>`, `"` and `'` written as character references and every
@@ -616,7 +594,7 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
 /// [`nvs_render::text::substitute`] answers a borrow for the same reason one
 /// sink over.
 fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
-    let text = text(&value, subject)?;
+    let text = crate::string_arg(&value, subject)?;
     // The measure finds the "nothing to escape" case, so the unchanged text is
     // not scanned a second time. Escaped text is written straight into the
     // string the answer is made of.
@@ -809,7 +787,7 @@ nvs_runtime::nvs_helper! {
         // over a `Ty::Str` the checker proved is a literal. The check stays
         // because the ABI is `*const Value`, and the slot it fills is the one
         // `nvs_runtime::value_to_string` writes out raw.
-        text(&args[0], r"the literal lifted by `as Core\Html\Markup`")?;
+        crate::string_arg(&args[0], r"the literal lifted by `as Core\Html\Markup`")?;
 
         // A `CoreCall`'s arguments are borrowed and `instance::build` takes
         // over each slot's reference, so the reference the carrier ends up
@@ -870,8 +848,8 @@ nvs_runtime::nvs_helper! {
 fn markup_concat(left: Value, right: Value) -> Result<Value, Fault> {
     let left = markup_slot(left, "the left operand")?;
     let right = markup_slot(right, "the right operand")?;
-    let left = text(&left, "the left operand of `Markup + Markup`")?;
-    let right = text(&right, "the right operand of `Markup + Markup`")?;
+    let left = crate::string_arg(&left, "the left operand of `Markup + Markup`")?;
+    let right = crate::string_arg(&right, "the right operand of `Markup + Markup`")?;
 
     let joined = crate::str::built(left.len() + right.len(), |out| {
         out.push_str(left);
@@ -899,9 +877,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_html_markup_append(_ctx, args: [2]) {
         let carrier = crate::instance::receiver(args[0], &MARKUP, "the left operand")?;
         let right = markup_slot(args[1], "the right operand")?;
-        text(&right, "the right operand of `Markup + Markup`")?;
+        crate::string_arg(&right, "the right operand of `Markup + Markup`")?;
         let left = crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT);
-        text(&left, "the left operand of `Markup + Markup`")?;
+        crate::string_arg(&left, "the left operand of `Markup + Markup`")?;
         if args[0].bits() == args[1].bits() || !crate::instance::sole_owner(carrier) {
             return markup_concat(args[0], args[1]);
         }
@@ -951,7 +929,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let separator = markup_slot(args[1], r"`Core\Html::join`'s `$separator`")?;
-        let separator = text(&separator, r"`Core\Html::join`'s `$separator`")?;
+        let separator = crate::string_arg(&separator, r"`Core\Html::join`'s `$separator`")?;
 
         // One counting pass sizes the page, so a list that repeats one long
         // fragment many times is refused before any byte is copied. The ask
@@ -966,7 +944,7 @@ nvs_runtime::nvs_helper! {
                 size = size.saturating_add(separator.len());
             }
             let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
-            size = size.saturating_add(text(&held, r"`Core\Html::join`'s `$parts` element")?.len());
+            size = size.saturating_add(crate::string_arg(&held, r"`Core\Html::join`'s `$parts` element")?.len());
             Ok(())
         })?;
         if !nvs_runtime::budget::affords(size) {
@@ -988,7 +966,7 @@ nvs_runtime::nvs_helper! {
                     out.push_str(separator);
                 }
                 let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
-                out.push_str(text(&held, r"`Core\Html::join`'s `$parts` element")?);
+                out.push_str(crate::string_arg(&held, r"`Core\Html::join`'s `$parts` element")?);
                 Ok(())
             })
         })?;
@@ -1019,7 +997,7 @@ nvs_runtime::nvs_helper! {
     /// [`NvsStr`] with one more reference on it, so the bytes are never copied
     /// and the carrier the caller passed is left exactly where it was.
     fn nvs_core_html_to_source(_ctx, args: [2]) {
-        let reason = text(&args[1], r"`Core\Html::toSource`'s `$reason`")?;
+        let reason = crate::string_arg(&args[1], r"`Core\Html::toSource`'s `$reason`")?;
         if reason.is_empty() {
             return Err(nvs_runtime::Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
@@ -2503,7 +2481,7 @@ nvs_runtime::nvs_helper! {
     /// pass over text, and a pass over text is what every sanitizer that has
     /// been bypassed was.
     fn nvs_core_html_sanitize(ctx, args: [1]) {
-        let document = text(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
+        let document = crate::string_arg(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
         let out = settled_with(Some(&*ctx), document, None, r"Core\Html::sanitize")?;
         Ok(crate::instance::build(
             &MARKUP,
@@ -2635,7 +2613,7 @@ mod tests {
     fn carried(value: Value) -> String {
         let held =
             markup_slot(value, "a test's markup").expect("the value is a `Core\\Html\\Markup`");
-        text(&held, "a test's markup")
+        crate::string_arg(&held, "a test's markup")
             .expect("a carrier's slot holds text")
             .to_owned()
     }
@@ -2906,7 +2884,7 @@ mod tests {
         )
         .expect("a written reason is accepted");
         assert_eq!(
-            text(&source, "the answer").expect("the answer is a string"),
+            crate::string_arg(&source, "the answer").expect("the answer is a string"),
             "<b>Tom &amp; Jerry</b>"
         );
         assert_eq!(carried(fragment), "<b>Tom &amp; Jerry</b>");

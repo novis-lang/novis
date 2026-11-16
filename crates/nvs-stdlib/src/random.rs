@@ -1955,7 +1955,9 @@ mod tests {
         );
         assert_eq!(first.len(), 32);
         assert!(
-            first.bytes().all(|b| crate::encoding::HEX_DIGITS.contains(&b)),
+            first
+                .bytes()
+                .all(|b| crate::encoding::HEX_DIGITS.contains(&b)),
             "{first}"
         );
         assert_eq!(first, replayed);
