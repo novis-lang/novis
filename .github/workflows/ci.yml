@@ -68,6 +68,8 @@ concurrency:
 #
 # - `<os>-test`, saved by each `test` leg's `tests` part: debug builds. `database` and `lint` read
 #   the Linux one. `lint` finds a third of its own, because clippy builds dependencies as metadata only.
+# - `linux-x86_64-workspaces`, saved by `clippy-workspaces`: the `target/` of each workspace with a
+#   lockfile of its own, as clippy builds them.
 # - `<os>-conformance`, saved by each `test` platform's first `conformance` leg: the dependencies of
 #   `-p nvs-cli`'s debug build, which resolves other features than the workspace's. `nvs-debug`
 #   reads it on every OS, so its build compiles the workspace's own crates alone.
@@ -1155,12 +1157,6 @@ jobs:
         run: bun nv lints --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
-      # The fuzz targets are a separate workspace that no test builds. Each one only calls its check
-      # in `nvs-fuzz-checks`, which `cargo test` replays over `fuzz/seeds/`, so a check of the
-      # wrappers is enough to keep `bun nv fuzz` working. CI runs no fuzz search
-      # (`rule:testing/a-fuzz-search-gates-nothing`).
-      - name: The fuzz targets compile
-        run: cargo check --locked --manifest-path fuzz/Cargo.toml --bins
       # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
       # architecture in its doc comments and cross-references it by name, and
       # `broken_intra_doc_links` is warn-by-default and invisible to both steps
@@ -1172,6 +1168,63 @@ jobs:
         run: cargo doc --no-deps --workspace
         env:
           RUSTDOCFLAGS: -A rustdoc::private_intra_doc_links -D warnings
+
+  # ---------------------------------------------------------------------------
+  # clippy over each workspace with a lockfile of its own, which `lint`'s `--workspace` run does not
+  # reach: `--all-targets` on the host, and each extension's library for `wasm32-wasip2` too, since
+  # the WIT glue of a component compiles only for that target. `bun nv ci --check` runs the same
+  # commands (`workspaceClippy` in `tools/nv/cmd/ci.ts`), and `tools/nv/test/workspace-clippy.test.ts`
+  # holds this job to that list. The fuzz targets are one of these workspaces, and no test builds
+  # them: each only calls its check in `nvs-fuzz-checks`, which `cargo test` replays over
+  # `fuzz/seeds/`, so linting the wrappers keeps `bun nv fuzz` working. CI runs no fuzz search
+  # (`rule:testing/a-fuzz-search-gates-nothing`). It runs beside `lint`, so it adds no time to it.
+  # ---------------------------------------------------------------------------
+  clippy-workspaces:
+    name: clippy (separate workspaces)
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: linux-x86_64-workspaces
+          workspaces: |
+            extensions/image -> target
+            extensions/intl -> target
+            extensions/pdf -> target
+            extensions/spreadsheet -> target
+            fuzz -> target
+            tools/covwrap -> target
+            tools/nv-scan -> target
+            website/guides/highlight-extension -> target
+      - name: clippy (extensions/image)
+        run: cargo clippy --locked --manifest-path extensions/image/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (extensions/image, wasm32-wasip2)
+        run: cargo clippy --locked --manifest-path extensions/image/Cargo.toml --target wasm32-wasip2 -- -D warnings
+      - name: clippy (extensions/intl)
+        run: cargo clippy --locked --manifest-path extensions/intl/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (extensions/intl, wasm32-wasip2)
+        run: cargo clippy --locked --manifest-path extensions/intl/Cargo.toml --target wasm32-wasip2 -- -D warnings
+      - name: clippy (extensions/pdf)
+        run: cargo clippy --locked --manifest-path extensions/pdf/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (extensions/pdf, wasm32-wasip2)
+        run: cargo clippy --locked --manifest-path extensions/pdf/Cargo.toml --target wasm32-wasip2 -- -D warnings
+      - name: clippy (extensions/spreadsheet)
+        run: cargo clippy --locked --manifest-path extensions/spreadsheet/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (extensions/spreadsheet, wasm32-wasip2)
+        run: cargo clippy --locked --manifest-path extensions/spreadsheet/Cargo.toml --target wasm32-wasip2 -- -D warnings
+      - name: clippy (fuzz)
+        run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (tools/covwrap)
+        run: cargo clippy --locked --manifest-path tools/covwrap/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (tools/nv-scan)
+        run: cargo clippy --locked --manifest-path tools/nv-scan/Cargo.toml --all-targets -- -D warnings
+      - name: clippy (website/guides/highlight-extension)
+        run: cargo clippy --locked --manifest-path website/guides/highlight-extension/Cargo.toml --all-targets -- -D warnings
 
   # ---------------------------------------------------------------------------
   # No C dependency enters the trusted core without the answer
@@ -1864,6 +1917,7 @@ jobs:
       - extension-host
       - docker
       - lint
+      - clippy-workspaces
       - supply-chain
       - attribution
       - reference

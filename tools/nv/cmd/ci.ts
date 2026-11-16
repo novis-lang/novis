@@ -290,6 +290,23 @@ export const LOCKFILE_DIRS = [
   "fuzz", "tools/covwrap", "tools/nv-scan", "website/guides/highlight-extension",
 ];
 
+/** The `LOCKFILE_DIRS` that build as `wasm32-wasip2` components, whose WIT glue only that target compiles. */
+export const WASM_COMPONENT_DIRS = LOCKFILE_DIRS.filter((d) => d.startsWith("extensions/"));
+
+/** The clippy run of each workspace in `LOCKFILE_DIRS`, which the root's `cargo clippy --workspace` does not
+ * reach: `--all-targets` on the host, and the library for `wasm32-wasip2` where it is a component.
+ * `ci.yml`'s `clippy-workspaces` job runs the same commands. */
+export function workspaceClippy(): PrePush[] {
+  const run = (d: string, name: string, target: string[]): PrePush => ({
+    name,
+    argv: ["cargo", "clippy", "--locked", "--manifest-path", `${d}/Cargo.toml`, ...target, "--", "-D", "warnings"],
+  });
+  return LOCKFILE_DIRS.flatMap((d) => [
+    run(d, `clippy (${d})`, ["--all-targets"]),
+    ...(WASM_COMPONENT_DIRS.includes(d) ? [run(d, `clippy (${d}, wasm32-wasip2)`, ["--target", "wasm32-wasip2"])] : []),
+  ]);
+}
+
 /** A check `--push` runs first: its name, its command, and the variables it adds. */
 export interface PrePush {
   name: string;
@@ -300,7 +317,7 @@ export interface PrePush {
 }
 
 /** The checks `--push` runs before it pushes, cheapest first. Each is the step of a CI job (`ci.yml`'s
- * `lint`, `attribution`, `supply-chain`, `docs`, `reference` and `proofs` jobs) with the binary
+ * `lint`, `clippy-workspaces`, `attribution`, `supply-chain`, `docs`, `reference` and `proofs` jobs) with the binary
  * named, so none reads a release binary built before the goal's own changes. */
 export const PRE_PUSH: PrePush[] = [
   { name: "rustfmt", argv: ["cargo", "fmt", "--all", "--check"], atom: "step:fmt" },
@@ -322,6 +339,8 @@ export const PRE_PUSH: PrePush[] = [
     env: { RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" },
     atom: "step:doc",
   },
+  // `clippy-workspaces`: each separate workspace builds into its own `target/`, so none waits on another.
+  ...workspaceClippy(),
   // Not skipped by verify's `build`: that one builds `target/covws`, and the checks below read this one.
   { name: "build", argv: ["cargo", "build"] },
   // `nv reference` runs each example in a folder of its own, so the binary's path is absolute.

@@ -32,6 +32,7 @@ import { mirrorPath, q, syncMirror, wslPath } from "../accept/mirror.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { DISTRO, wslArgv } from "../lib/wsl.ts";
+import { workspaceClippy } from "./ci.ts";
 
 export const summary = "runs every CI job this machine can run, one after another: nv deep [--failed | --only <job> | --list]";
 
@@ -215,10 +216,15 @@ export function steps(root: string = ROOT): Step[] {
         { argv: ["cargo", "fmt", "--all", "--check"] },
         { argv: ["bun", "nv", "lints", "--check"] },
         { wsl: "cargo clippy --workspace --all-targets -- -D warnings" },
-        { wsl: "cargo check --locked --manifest-path fuzz/Cargo.toml --bins" },
         { wsl: "cargo doc --no-deps --workspace", env: { RUSTDOCFLAGS: "-A rustdoc::private_intra_doc_links -D warnings" } },
       ],
-      note: "clippy, the fuzz targets' check and rustdoc run in WSL, on Linux as the job does, so code under cfg(unix) is linted",
+      note: "clippy and rustdoc run in WSL, on Linux as the job does, so code under cfg(unix) is linted",
+    },
+    {
+      id: "clippy-workspaces",
+      job: "clippy-workspaces",
+      cmds: workspaceClippy().map((c) => ({ wsl: c.argv.map(q).join(" ") })),
+      note: "runs in WSL, on Linux as the job does, so code under cfg(unix) is linted",
     },
     {
       id: "attribution",

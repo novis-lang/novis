@@ -5,8 +5,8 @@ and nothing runs it on a schedule. What gates is the replay of every input alrea
 `crates/nvs-fuzz-checks`, and the file under `fuzz/fuzz_targets/` only calls it. That crate's tests run
 every input under `fuzz/seeds/<target>/` through the same function, in the ordinary `cargo test` of
 every CI platform. So the inputs a search found stay checked forever, and the replay gives the same
-verdict on every run. The `lint` job compiles the fuzz workspace, so a wrapper never drifts from its
-check.
+verdict on every run. The `clippy-workspaces` job compiles and lints the fuzz workspace, so a wrapper
+never drifts from its check.
 
 **A search runs after a change to the code a target reaches.** `bun nv fuzz <target>` runs it, and
 `bun nv fuzz --all` runs every target and goes on after a crash. A goal that changes a parser of
