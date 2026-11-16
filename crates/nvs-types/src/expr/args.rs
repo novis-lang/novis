@@ -2081,7 +2081,7 @@ pub(crate) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<
 pub(crate) fn check_written_type_args(
     type_args: &[Type],
     sig: Option<MethodSig>,
-    label: Option<&str>,
+    label: Option<(&QName, &str)>,
     call_span: Span,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -2093,7 +2093,14 @@ pub(crate) fn check_written_type_args(
     let Some(sig) = sig else {
         return (None, written);
     };
-    let member = label.unwrap_or("this member");
+    // The member's name is written only into a diagnostic, so it is built
+    // only where one is reported.
+    let member = || {
+        label.map_or_else(
+            || "this member".to_owned(),
+            |(owner, name)| format!("{owner}::{name}"),
+        )
+    };
     let Some(span) = type_args
         .first()
         .map(|first| first.span.to(type_args[type_args.len() - 1].span))
@@ -2101,7 +2108,7 @@ pub(crate) fn check_written_type_args(
         // Nothing written. Only a member that *requires* one has anything to
         // say about that; every other call takes this path and is unchanged.
         if !sig.type_params.is_empty() {
-            report_type_arg_count(&sig, member, call_span, env);
+            report_type_arg_count(&sig, &member(), call_span, env);
         }
         return (Some(sig), written);
     };
@@ -2109,7 +2116,7 @@ pub(crate) fn check_written_type_args(
         env.diags.report(
             Diagnostic::error(
                 code::E_TYPE_ARGS_NOT_GENERIC,
-                format!("`{member}` takes no type arguments"),
+                format!("`{}` takes no type arguments", member()),
             )
             .with_primary(span, "type arguments written here")
             .with_help(
@@ -2120,9 +2127,10 @@ pub(crate) fn check_written_type_args(
         return (Some(sig), written);
     }
     if written.len() != sig.type_params.len() {
-        report_type_arg_count(&sig, member, span, env);
+        report_type_arg_count(&sig, &member(), span, env);
     }
-    let bindings: crate::generics::Bindings = sig
+    let bindings
+: crate::generics::Bindings = sig
         .type_params
         .iter()
         .cloned()

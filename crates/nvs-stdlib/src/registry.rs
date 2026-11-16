@@ -4555,6 +4555,18 @@ mod tests {
 
     use super::*;
 
+    /// The checker runs its `Core` member hooks only for a class under `Core`, so a row outside
+    /// that namespace would lose every hook its members are matched by.
+    #[test]
+    fn every_registry_class_is_under_core() {
+        let outside: Vec<&str> = CLASSES
+            .iter()
+            .map(|class| class.name)
+            .filter(|name| !name.starts_with("Core\\"))
+            .collect();
+        assert!(outside.is_empty(), "{outside:?}");
+    }
+
     /// A class's signatures name the classes its members take and return, so a program typed
     /// against `Core\Process` is recorded as using `Core\Process\Result` too.
     #[test]

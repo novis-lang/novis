@@ -361,14 +361,17 @@ fn infer_kind(
         ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
         ExprKind::HtmlTemplate(parts) => infer_html_template(parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
-            let name = strip_sigil(span_text(env.src, *span)).to_owned();
-            let ty = check_read(&name, expr.span, live, scope, env);
+            // The name is borrowed from the source, which outlives `env`'s
+            // borrow, so a read copies no name.
+            let src = env.src;
+            let name = strip_sigil(span_text(src, *span));
+            let ty = check_read(name, expr.span, live, scope, env);
             // A narrowing is only usable below the checker if the read that
             // benefits from it says so — `ExprInfo::NarrowedRead` owns why the
             // fact belongs here rather than at each consumer. The equality is
             // what keeps an *unnarrowed* read (and a `check_read` that
             // recovered with `mixed` after reporting) from recording one.
-            if scope.narrowed_ty(&name) == Some(ty) {
+            if scope.narrowed_ty(name) == Some(ty) {
                 env.exprs
                     .record(expr.span, ExprInfo::NarrowedRead { to: ty });
             }

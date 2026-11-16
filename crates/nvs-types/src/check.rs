@@ -1619,8 +1619,9 @@ pub(crate) fn check_body_exits(
     }
     let mut valueless = Vec::new();
     crate::returns::for_each_valueless_return(&body.stmts, &mut |span| valueless.push(span));
-    let described = env.interner.describe(return_ty);
+    // The type is described only where a diagnostic names it.
     for span in valueless {
+        let described = env.interner.describe(return_ty);
         env.diags.report(
             Diagnostic::error(
                 code::E_VALUELESS_RETURN,
@@ -1644,6 +1645,7 @@ pub(crate) fn check_body_exits(
         "return a value on that path, throw an error, or declare the return type `void`. A \
          missing value is not converted to `null`"
     };
+    let described = env.interner.describe(return_ty);
     env.diags.report(
         Diagnostic::error(
             code::E_MISSING_RETURN,

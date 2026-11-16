@@ -162,11 +162,8 @@ pub(crate) fn infer_method_call(
             false => sig,
         }
     });
-    let label = resolved
-        .as_ref()
-        .map(|(owner, name, _)| format!("{owner}::{name}"));
-    let (sig, written) =
-        check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
+    let label = resolved.as_ref().map(|(owner, name, _)| (owner, name.as_str()));
+    let (sig, written) = check_written_type_args(type_args, sig, label, expr.span, ctx, env);
     // `Core\Router\Match::is(Shop::show)` names a route as a link does, so its
     // written target is marked and folded the same way.
     note_link_target(resolved.as_ref().map(|(o, n, _)| (o, n.as_str())), args, env);
@@ -408,9 +405,9 @@ fn infer_union_method_call(
         true => shared.bound_to(&owners[0].1, call.union, env.interner),
         false => shared,
     };
-    let label = format!("{}::{name}", owners[0].1);
+    let label = Some((&owners[0].1, name));
     let (sig, written) =
-        check_written_type_args(type_args, Some(shared), Some(&label), expr.span, ctx, env);
+        check_written_type_args(type_args, Some(shared), label, expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     for (_, owner) in &owners {
         note_plain_binds(owner, name, expr.span, env);
@@ -719,11 +716,8 @@ pub(crate) fn infer_static_call(
         }
         None => sig.clone(),
     });
-    let label = resolved
-        .as_ref()
-        .map(|(owner, name, _)| format!("{owner}::{name}"));
-    let (sig, written) =
-        check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
+    let label = resolved.as_ref().map(|(owner, name, _)| (owner, name.as_str()));
+    let (sig, written) = check_written_type_args(type_args, sig, label, expr.span, ctx, env);
     // `rule:testing/interaction-after-the-fact`'s method reference, marked
     // before the argument list is walked rather than judged after it: the
     // spelling `Mailer::send` names no constant, so what the position does is
@@ -777,6 +771,11 @@ pub(crate) fn infer_static_call(
         // The static half of the namespace's grant, reached by a call and a
         // method reference alike. See [`crate::capability::reject_ungranted_call`].
         crate::capability::reject_ungranted_call(owner, name, expr.span, (args, &slots), ctx, env);
+    }
+    // Every hook in this block matches a `Core` member alone, so a call to any
+    // other class skips the whole roster
+    // (`rule:security/capability-check-at-the-door`).
+    if let Some((owner, name, _)) = resolved.as_ref().filter(|(owner, _, _)| owner.is_core()) {
         crate::capability::prepare_config_set(owner, name, expr.span, ctx, env);
         crate::capability::prepare_cap_has(owner, name, expr.span, ctx, env);
         // `rule:config/settings-and-secrets-are-a-programs-own-values`'s typo check reads the
@@ -869,15 +868,16 @@ pub(crate) fn infer_static_call(
         // arrives as the declared `CoreShape`, so the written literal is all
         // there is left to read. See [`reject_secret_enqueued_argument`].
         reject_secret_enqueued_argument(owner, name, args, &slots, env);
-        // `rule:security/secret-does-not-cross-an-extension`, at the parameters
-        // a type cannot refuse it at: a `mixed`, an array or a shape. Every
-        // extension method is static, so this is its one call path. See
-        // [`super::quals::reject_secret_extension_argument`].
-        if let Some(sig) = &sig {
-            super::quals::reject_secret_extension_argument(
-                owner, args, &arg_types, &slots, sig, scope, env,
-            );
-        }
+    }
+    // `rule:security/secret-does-not-cross-an-extension`, at the parameters
+    // a type cannot refuse it at: a `mixed`, an array or a shape. Every
+    // extension method is static, so this is its one call path. An extension
+    // class may sit outside `Core`, so this hook is not gated with the roster.
+    // See [`super::quals::reject_secret_extension_argument`].
+    if let (Some((owner, _, _)), Some(sig)) = (&resolved, &sig) {
+        super::quals::reject_secret_extension_argument(
+            owner, args, &arg_types, &slots, sig, scope, env,
+        );
     }
     // See [`infer_method_call`]: a method reference names a callable,
     // not the resolved method's return type, and records `CallableRef` rather

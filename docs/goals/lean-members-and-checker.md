@@ -227,13 +227,16 @@ sockets and archives.
   - [x] `nvs_hir::find_in_ancestors` is the one walk, and `implements_interface` uses it.
   - [x] the property, method, interface-argument and iteration walks use it.
   - [x] `resolve_method_ref` serves the instance call and every caller that only reads.
-- [ ] `crates/nvs-types/src/expr/calls.rs:755`: the `Core` roster hooks run only for an owner in
+- [x] `crates/nvs-types/src/expr/calls.rs:755`: the `Core` roster hooks run only for an owner in
   `Core`, and the extension hook at `:830` stays ungated (`rule:security/capability-check-at-the-door`).
-- [ ] `crates/nvs-types/src/expr/mod.rs:362`: a variable read keeps the borrowed name
+  - [x] each hook's owner match was read: only `reject_ungranted_call` and the extension hook
+    reach a class outside `Core`, and both stay ungated.
+  - [x] `every_registry_class_is_under_core` holds the registry to the gate.
+- [x] `crates/nvs-types/src/expr/mod.rs:362`: a variable read keeps the borrowed name
   (`rule:programs/memory-priority`).
 - [x] `crates/nvs-types/src/signatures.rs:1107`: `mark_overridden_methods` walks the ancestors once
   per class (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-types/src/expr/calls.rs:161`: the call label at `:718` and the description at
+- [x] `crates/nvs-types/src/expr/calls.rs:161`: the call label at `:718` and the description at
   `crates/nvs-types/src/check.rs:1618` are built on the error path
   (`rule:programs/memory-priority`).
 - [ ] `crates/nvs-hir/src/qname.rs:19`: `QName::into_segments`, and the four copies of
