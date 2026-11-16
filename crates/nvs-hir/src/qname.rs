@@ -15,6 +15,12 @@ use std::fmt;
 /// `rule:classes/names-resolve-case-sensitively` states it, and
 /// `rule:programs/autoload` already relies on it to keep an autoloaded file's on-disk name exact.
 /// Do not "fix" it back toward PHP.
+///
+/// **A walk borrows its names, and the type stays a list of owned segments.**
+/// [`crate::find_in_ancestors`] and the checker's walks over classes compare
+/// borrowed names and clone none. **Declined:** an interned name type, and
+/// checking files on several threads. Each is a change across four crates
+/// with no measured program behind it.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct QName {
     segments: Vec<String>,

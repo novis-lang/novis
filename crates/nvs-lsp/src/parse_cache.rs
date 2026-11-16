@@ -11,6 +11,14 @@
 //! The file is still read on every analysis, because the walk loads it to know
 //! its text. That read is not the measured cost.
 //!
+//! # Decision: a path is resolved once, and its file is still read
+//!
+//! A path is made canonical when a document opens and when the index records
+//! a file, and [`ParseCache`] keeps each path's key until the file leaves the
+//! tree. A request reads the stored key and resolves no path again.
+//! **Declined:** skipping the read of each graph file per request. A file that
+//! changed outside the editor must still be seen, and only that read sees it.
+//!
 //! # Decision: an entry is valid for one text and one id
 //!
 //! A statement's spans name its file by [`SourceId`], and every analysis builds

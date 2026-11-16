@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/parse_cache.rs, crates/nvs-lsp/src/document.rs, crates/nvs-lsp/src/server.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: bucket-members-lean
@@ -269,42 +269,38 @@ through the session's cache.
 - [x] `crates/nvs-lsp/src/server.rs:2909`: inlay hints are built for the asked range
   (`rule:programs/memory-priority`).
   - [x] `hints::in_range` skips a statement outside the range and builds no hint outside it.
-- [x] `crates/nvs-lsp/src/completion.rs:3298`: the test
+- [x] `crates/nvs-lsp/src/server.rs:3503`: the test
   `a_completion_resolves_no_indexed_path_again` (`rule:testing/perf-two-mechanisms`).
   - [x] it ran once by name and passed.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. Stage 5: a completion lists the index's types once, off
-`SymbolIndex::all_declarations`, and `a_completion_resolves_no_indexed_path_again` holds the paths
-it resolves flat as the index grows. `ParseCache` keeps each path's key until a file leaves the
-tree. A `Document` resolves its key once in `open`, and `record_graph`, the overlay, the
-snapshot, `to_republish` and `survey_around` read it. `text_of` copies one buffer. Inlay hints
-walk only the statements the asked range reaches (`hints::in_range`). The `resurvey` item is
-declined: it needs a new `nvs-hir` API. Stage 5 ran no test but its own.
-
-Expected red at the gate: the stale perf records of the stage 1 to 3 files. Possibly a
-`tests/hints.rs` or `.lspt` hint case that asks a range, if a hint sits outside the statement
-that wrote it (none is expected). Possibly a `document.rs` test that opens a document under a
-path that does not exist yet and saves it later: its key stays the plain path until it is opened
-again. Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 1, stage 5: 1.
+Every stage is done, and the goal is reached. The gate's `looper verify` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes lean-members-and-checker`, `bun nv ci --check`
+and both acceptance checks. The gate fixed four things. `a_completion_resolves_no_indexed_path_again`
+moved to a test module in `crates/nvs-lsp/src/server.rs`, because `completion.rs` may not build an
+index or write a file. `all_declarations` joined the index suite's bookkeeping methods. The 241 stale
+perf records were taken again, and three benches now declare their lower allocation counts.
+`Core\Arr::hasKey`'s bench runs 4096 operations, so its ramp is not read from noise. The testing
+chapter's slug bench output shows the counts the leaner `Core\Str::trim` gives. The decisions on
+`QName` and on resolving editor paths are now in `crates/nvs-hir/src/qname.rs` and
+`crates/nvs-lsp/src/parse_cache.rs`. Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 1,
+stage 5: 1, stage 6: 1.
 
 The sweep's `env-secret-proofs` is still stale state in looper's service. Its log does not
 exist, and nothing in the tree defines it.
 
 ### Next
 
-- `docs/goals/lean-members-and-checker.md:266`: stage 6, the gate. Start `looper verify` with
-  `run_in_background`, fix every failure in one pass, record the stale perf records as the
-  playbook's first Tooling bullet says, and run it once more. Then the goal-end gates.
+- `docs/goals/README.md:1`: retire the goal, then `one-copy-each` is the live goal.
 
 ### Backlog
 
