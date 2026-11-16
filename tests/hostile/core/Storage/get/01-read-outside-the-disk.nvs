@@ -39,12 +39,12 @@ while ($i < 10000) {
 echo $missing, " missing files are null\n";
 
 // 4. A file of 16 MiB is read twenty times. Each copy is freed before the next read.
-Core\Storage::put('files', 'large.bin', Core\Str::repeat('x', 16777216) as bytes);
+Core\Storage::put('files', 'read-twenty-times.bin', Core\Str::repeat('x', 16777216) as bytes);
 uint $read = 0;
 $i = 0;
 while ($i < 20) {
-    $read = $read + Core\Bytes::length(Core\Storage::get('files', 'large.bin') ?? '' as bytes);
+    $read = $read + Core\Bytes::length(Core\Storage::get('files', 'read-twenty-times.bin') ?? '' as bytes);
     $i = $i + 1;
 }
-Core\Storage::delete('files', 'large.bin');
+Core\Storage::delete('files', 'read-twenty-times.bin');
 echo $read, " bytes read\n";
