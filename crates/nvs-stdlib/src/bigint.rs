@@ -812,6 +812,79 @@ fn sign_of(args: &[Value], at: usize, member: &str) -> Result<i64, Fault> {
         })
 }
 
+/// The magnitude slot of the `BigInt` in argument slot `at`, as the `bytes`
+/// value [`built`] wrote there.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`operand`]'s reason.
+fn magnitude_slot(args: &[Value], at: usize, member: &str) -> Result<Value, Fault> {
+    let object = crate::instance::receiver(args[at], &CLASS, member)?;
+    Ok(crate::instance::slot(object, MAGNITUDE_SLOT))
+}
+
+/// The octets of a magnitude slot [`magnitude_slot`] read.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member where the slot is not `bytes`, which
+/// compiled code cannot produce.
+fn stored_bytes<'a>(magnitude: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
+    magnitude.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\BigInt::{member} found a non-`bytes` magnitude slot"
+        ))
+    })
+}
+
+/// A new `BigInt` with the magnitude of the one in argument slot 0 and `sign`.
+/// The magnitude's buffer is shared, so nothing is copied.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`operand`]'s reason.
+fn resigned(args: &[Value], sign: i64, member: &str) -> Result<Value, Fault> {
+    let magnitude = magnitude_slot(args, 0, member)?;
+    let shared = magnitude.bytes_handle().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\BigInt::{member} found a non-`bytes` magnitude slot"
+        ))
+    })?;
+    Ok(crate::instance::build(&CLASS, [Value::int(sign), Value::bytes(shared)]))
+}
+
+/// A `BigInt` as its stored sign and little-endian magnitude, ordered as the
+/// number it is, with no copy of the magnitude.
+struct Stored<'a> {
+    /// `-1`, `0` or `1`, and `0` for every magnitude that is zero.
+    sign: i64,
+    /// The magnitude with its high zero octets removed.
+    magnitude: &'a [u8],
+}
+
+impl<'a> Stored<'a> {
+    fn of(sign: i64, magnitude: &'a [u8]) -> Self {
+        let used = magnitude.iter().rposition(|&octet| octet != 0).map_or(0, |at| at + 1);
+        let magnitude = &magnitude[..used];
+        let sign = if magnitude.is_empty() { 0 } else { sign.signum() };
+        Self { sign, magnitude }
+    }
+
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let by_size = || {
+            self.magnitude
+                .len()
+                .cmp(&other.magnitude.len())
+                .then_with(|| self.magnitude.iter().rev().cmp(other.magnitude.iter().rev()))
+        };
+        self.sign.cmp(&other.sign).then_with(|| match self.sign {
+            1 => by_size(),
+            -1 => by_size().reverse(),
+            _ => std::cmp::Ordering::Equal,
+        })
+    }
+}
+
 /// The `BigInt` in argument slot `at` — slot 0 for a receiver, any other slot
 /// for a `BigInt` *parameter*.
 ///
@@ -2308,7 +2381,8 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$n->neg(): BigInt`.
     fn nvs_core_bigint_neg(_ctx, args: [1]) {
-        built(&-operand(args, 0, "neg")?)
+        let sign = sign_of(args, 0, "neg")?;
+        resigned(args, -sign, "neg")
     }
 }
 
@@ -2316,10 +2390,8 @@ nvs_runtime::nvs_helper! {
     /// `$n->abs(): BigInt` — total, unlike `abs` on `int`, whose most negative
     /// value has no positive twin.
     fn nvs_core_bigint_abs(_ctx, args: [1]) {
-        // `num_traits::Signed::abs` is the crate's own spelling, and reaching it
-        // would put a third `num-*` crate in this graph for one negation.
-        let value = operand(args, 0, "abs")?;
-        built(&if value.sign() == Sign::Minus { -value } else { value })
+        let sign = sign_of(args, 0, "abs")?;
+        resigned(args, sign.abs(), "abs")
     }
 }
 
@@ -2369,8 +2441,10 @@ nvs_runtime::nvs_helper! {
     /// (`rule:classes/comparable`), which is also what `<=>` and
     /// `Core\Arr::sort` reach through this class's descriptor.
     fn nvs_core_bigint_compare_to(_ctx, args: [2]) {
-        let left = operand(args, 0, "compareTo")?;
-        let right = operand(args, 1, "compareTo")?;
+        let left = magnitude_slot(args, 0, "compareTo")?;
+        let right = magnitude_slot(args, 1, "compareTo")?;
+        let left = Stored::of(sign_of(args, 0, "compareTo")?, stored_bytes(&left, "compareTo")?);
+        let right = Stored::of(sign_of(args, 1, "compareTo")?, stored_bytes(&right, "compareTo")?);
         Ok(ordering(left.cmp(&right)))
     }
 }
@@ -2475,6 +2549,49 @@ mod tests {
     use nvs_runtime::{Ctx, call};
 
     use super::*;
+
+    /// The order read off the stored octets is the order of the numbers, for
+    /// each pair of signs and widths, a zero with a stray sign and a magnitude
+    /// with high zero octets included.
+    #[test]
+    fn the_stored_order_is_the_numbers_order() {
+        let values: Vec<BigInt> = [
+            "0", "1", "-1", "255", "256", "-255", "-256", "65535", "-65536",
+            "18446744073709551616", "-18446744073709551616", "340282366920938463463374607431768211455",
+        ]
+        .iter()
+        .map(|text| text.parse().expect("a test literal is an integer"))
+        .collect();
+        let stored = |value: &BigInt| {
+            let (sign, magnitude) = value.to_bytes_le();
+            let sign = match sign {
+                Sign::Minus => -1,
+                Sign::NoSign => 0,
+                Sign::Plus => 1,
+            };
+            (sign, magnitude)
+        };
+        for left in &values {
+            for right in &values {
+                let (left_sign, left_bytes) = stored(left);
+                let (right_sign, right_bytes) = stored(right);
+                assert_eq!(
+                    Stored::of(left_sign, &left_bytes).cmp(&Stored::of(right_sign, &right_bytes)),
+                    left.cmp(right),
+                    "{left} against {right}"
+                );
+            }
+        }
+        let padded = [5u8, 0, 0];
+        assert_eq!(
+            Stored::of(1, &padded).cmp(&Stored::of(1, &[5])),
+            std::cmp::Ordering::Equal
+        );
+        assert_eq!(
+            Stored::of(-1, &[0]).cmp(&Stored::of(1, &[0])),
+            std::cmp::Ordering::Equal
+        );
+    }
 
     /// One instance holding `value`, built exactly as every member's answer is.
     ///

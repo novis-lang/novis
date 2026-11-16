@@ -666,6 +666,26 @@ impl Value {
         Some(NvsStr::clone(&held))
     }
 
+    /// A handle of its own on this value's `bytes`, or `None` for any other
+    /// value. It shares the allocation and takes one reference, so a result
+    /// that keeps the same octets, such as `Core\BigInt::neg`'s magnitude,
+    /// copies nothing.
+    #[must_use]
+    pub fn bytes_handle(&self) -> Option<NvsStr> {
+        if self.tag() != Some(Tag::Bytes) {
+            return None;
+        }
+        let ptr = self.buffer_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Bytes value owns a reference to a live \
+                      allocation, and the borrowed handle is never dropped: the \
+                      clone takes the one reference the caller gets"
+        )]
+        let held = std::mem::ManuallyDrop::new(unsafe { NvsStr::from_raw(ptr) });
+        Some(NvsStr::clone(&held))
+    }
+
     /// The reference count of this value's string, `bytes`, object or array,
     /// or `None` for a value with no count. A literal's header reads
     /// [`crate::IMMORTAL_REFCOUNT`].
