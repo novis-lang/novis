@@ -3,7 +3,7 @@
 // handler does once for every request it serves.
 // bench: iterations 256
 // bench: calls 2
-// bench: allocations 4
+// bench: allocations 12
 // bench: complexity constant
 
 class Bench
@@ -11,7 +11,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         // The count so far chooses the path, so the loop cannot be left out.
-        // Both entries name one database, so every round gets one connection.
+        // A `:memory:` database is never shared, so every round opens a new connection.
         array<string> $paths = [':memory:', ':memory:'];
         uint $total = 0;
         uint $i = 0;
