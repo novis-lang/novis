@@ -12,23 +12,17 @@
 //! The program lives under `CARGO_TARGET_TMPDIR`, inside the build directory,
 //! and is removed when its [`Server`] is dropped.
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use nvs_test::serve::{POLL, Served};
+
 /// How long one poll has to see the answer it waits for.
 const BOUND: Duration = Duration::from_secs(30);
-
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
-
-/// The time between two requests of one poll.
-const POLL: Duration = Duration::from_millis(50);
 
 /// One answer: the status code, the header block and the body, as text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,12 +47,17 @@ impl Answer {
 ///
 /// Dropping it stops the process and removes the directory.
 struct Server {
-    child: Child,
-    addr: SocketAddr,
-    dir: PathBuf,
+    served: Served,
     /// The private data folder `nvs serve` is given.
     _data: nvs_repo::Scratch,
-    stderr: Arc<Mutex<String>>,
+}
+
+impl std::ops::Deref for Server {
+    type Target = Served;
+
+    fn deref(&self) -> &Served {
+        &self.served
+    }
 }
 
 impl Server {
@@ -71,7 +70,7 @@ impl Server {
     /// # Panics
     ///
     /// When the process cannot start, or does not print its `listening on`
-    /// line within [`BOOT`]; the message carries what it wrote to standard
+    /// line within [`nvs_test::serve::BOOT`]; the message carries what it wrote to standard
     /// error.
     fn start(
         case: &str,
@@ -103,57 +102,11 @@ impl Server {
         if let Some(file) = named {
             command.arg(file);
         }
-        let mut child = command
-            .args(["--listen", "127.0.0.1:0"])
-            .current_dir(&dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("the `nvs` binary this test was built beside starts");
-
-        // Both pipes are read to their end on a thread of their own, so a
-        // server that writes a lot never blocks on a full pipe.
-        let stderr = Arc::new(Mutex::new(String::new()));
-        let err_pipe = child.stderr.take().expect("standard error is piped");
-        let collected = Arc::clone(&stderr);
-        thread::spawn(move || {
-            for line in BufReader::new(err_pipe).lines().map_while(Result::ok) {
-                let mut all = collected.lock().expect("no reader panicked");
-                all.push_str(&line);
-                all.push('\n');
-            }
-        });
-        let out_pipe = child.stdout.take().expect("standard output is piped");
-        let (sent, bound) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
-                if let Some(rest) = line.strip_prefix("listening on http://") {
-                    let addr = rest
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned();
-                    let _ = sent.send(addr);
-                }
-            }
-        });
-
-        let Ok(addr) = bound.recv_timeout(BOOT) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            let said = stderr.lock().expect("no reader panicked").clone();
-            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
-        };
-        let addr = addr
-            .parse()
-            .unwrap_or_else(|error| panic!("`{addr}` is not an address: {error}"));
+        command.current_dir(&dir);
+        let served = Served::spawn(command.args(["--listen", "127.0.0.1:0"]), dir);
         Self {
-            child,
-            addr,
-            dir,
+            served,
             _data: data,
-            stderr,
         }
     }
 
@@ -218,7 +171,7 @@ impl Server {
                 return answer;
             }
             if started.elapsed() > BOUND {
-                let said = self.stderr.lock().expect("no reader panicked").clone();
+                let said = self.said();
                 panic!(
                     "{what} did not happen within {BOUND:?}; the last answer was {answer:?}, \
                      and the server wrote: {said}"
@@ -234,14 +187,6 @@ impl Server {
             answer.status == 200
         })
         .body
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
 

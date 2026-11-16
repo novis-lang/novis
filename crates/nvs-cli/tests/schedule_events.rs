@@ -18,14 +18,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use nvs_test::serve::{BOOT, POLL};
+
 /// How long an event has to run its script before the case fails.
 const BOUND: Duration = Duration::from_secs(30);
-
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
-
-/// The time between two looks of one poll.
-const POLL: Duration = Duration::from_millis(50);
 
 /// What every case's `nvs.toml` starts with: production mode, a quick program
 /// check, scripts under `jobs/` that may write there, and a drain long enough

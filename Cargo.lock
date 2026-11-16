@@ -4754,6 +4754,7 @@ dependencies = [
  "nvs-runtime",
  "nvs-stdlib",
  "nvs-syntax",
+ "nvs-test",
  "rustc-hash",
  "serde_json",
 ]

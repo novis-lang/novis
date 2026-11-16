@@ -14,16 +14,13 @@
 //! of the answer to a request that set nothing too, and must not hold there, so a check the file
 //! already satisfies cannot pass.
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpStream};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::thread;
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::path::Path;
+use std::process::Command;
 use std::time::Duration;
 
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
+use nvs_test::serve::Served;
 
 /// How long one answer may take.
 const ANSWER: Duration = Duration::from_secs(30);
@@ -142,10 +139,16 @@ enum Expect {
 /// A running `nvs serve app.nvs` in a directory of its own. Dropping it stops the process and
 /// removes the directory.
 struct Server {
-    child: Child,
-    addr: SocketAddr,
-    dir: PathBuf,
+    served: Served,
     _data: nvs_repo::Scratch,
+}
+
+impl std::ops::Deref for Server {
+    type Target = Served;
+
+    fn deref(&self) -> &Served {
+        &self.served
+    }
 }
 
 impl Server {
@@ -159,52 +162,16 @@ impl Server {
         std::fs::write(dir.join("app.nvs"), program).expect("the program is written");
         std::fs::write(dir.join("nvs.toml"), CONFIG).expect("the configuration is written");
         let data = nvs_repo::scratch_private("nvsdata");
-        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .arg("--data")
-            .arg(&*data)
-            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
-            .current_dir(&dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("the `nvs` binary this test was built beside starts");
-
-        let err_pipe = child.stderr.take().expect("standard error is piped");
-        let (said, heard) = mpsc::channel();
-        thread::spawn(move || {
-            let all: Vec<String> = BufReader::new(err_pipe)
-                .lines()
-                .map_while(Result::ok)
-                .collect();
-            let _ = said.send(all.join("\n"));
-        });
-        let out_pipe = child.stdout.take().expect("standard output is piped");
-        let (sent, bound) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
-                if let Some(rest) = line.strip_prefix("listening on http://") {
-                    let _ = sent.send(
-                        rest.split_whitespace()
-                            .next()
-                            .unwrap_or_default()
-                            .to_owned(),
-                    );
-                }
-            }
-        });
-        let Ok(addr) = bound.recv_timeout(BOOT) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            let said = heard.recv_timeout(ANSWER).unwrap_or_default();
-            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
-        };
-        Self {
-            child,
-            addr: addr
-                .parse()
-                .unwrap_or_else(|error| panic!("`{addr}` is not an address: {error}")),
+        let served = Served::spawn(
+            Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .arg("--data")
+                .arg(&*data)
+                .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+                .current_dir(&dir),
             dir,
+        );
+        Self {
+            served,
             _data: data,
         }
     }
@@ -237,14 +204,6 @@ impl Server {
             head: head.to_owned(),
             body: body.to_owned(),
         }
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
 

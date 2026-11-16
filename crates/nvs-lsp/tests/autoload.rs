@@ -15,41 +15,30 @@
 //! and a survey walks one. The framework sits *outside* the workspace root on
 //! purpose, because that is where a shared framework checkout is.
 
-use std::fs;
 use std::path::PathBuf;
 
 use lsp_types::Uri;
 use nvs_diagnostics::PositionEncoding;
 use nvs_lsp::{Analysed, CheckScope, Documents, analyse, uri_of};
+use nvs_test::temp::TempDir;
 
-/// A scratch directory that cleans up after itself.
-struct TempDir {
-    path: nvs_repo::Scratch,
+/// A new scratch directory for the case `name`.
+fn temp(name: &str) -> TempDir {
+    TempDir::new(nvs_repo::scratch(&format!("lsp-autoload-{name}")))
 }
 
-impl TempDir {
-    fn new(name: &str) -> Self {
-        Self {
-            path: nvs_repo::scratch(&format!("lsp-autoload-{name}")),
-        }
-    }
+/// A test's directory in the protocol's and the editor's terms.
+trait Wire {
+    fn uri(&self, name: &str) -> Uri;
+    /// Opens `name` as a buffer holding `text`.
+    fn open(&self, documents: &mut Documents, name: &str, text: &str);
+}
 
-    fn write(&self, name: &str, text: &str) {
-        let path = self.path.join(name);
-        fs::create_dir_all(path.parent().expect("a fixture sits in a directory"))
-            .expect("a scratch directory");
-        fs::write(path, text).expect("a writable scratch file");
-    }
-
-    fn at(&self, name: &str) -> PathBuf {
-        self.path.join(name)
-    }
-
+impl Wire for TempDir {
     fn uri(&self, name: &str) -> Uri {
         uri_of(&self.at(name)).expect("a temp path is UTF-8")
     }
 
-    /// Opens `name` as a buffer holding `text`.
     fn open(&self, documents: &mut Documents, name: &str, text: &str) {
         documents.open(self.uri(name), 1, text.to_owned());
     }
@@ -81,7 +70,7 @@ const APPLICATION_TEST: &str = "<?nvs\nuse Blog\\Index;\nuse Framework\\Kernel;\
 /// The application as a developer has it on disk, and the workspace root an
 /// editor would name for it.
 fn application(name: &str) -> (TempDir, PathBuf) {
-    let dir = TempDir::new(name);
+    let dir = temp(name);
     dir.write("app/public/index.nvs", BOOT);
     dir.write("app/src/Index.nvs", INDEX);
     dir.write("app/tests/index.nvs", TESTS);
@@ -246,7 +235,7 @@ fn editing_the_declaring_file_reaches_the_documents_that_borrowed_from_it() {
 /// first.
 #[test]
 fn the_first_program_in_path_order_is_the_one_that_lends() {
-    let dir = TempDir::new("two-programs");
+    let dir = temp("two-programs");
     let boot = |lib: &str| {
         format!("<?nvs\nautoload 'App' from '../src';\nautoload 'Lib' from '../{lib}';\n")
     };
@@ -275,7 +264,7 @@ fn the_first_program_in_path_order_is_the_one_that_lends() {
 /// it, and that one lends.
 #[test]
 fn a_program_that_names_the_files_root_outranks_one_at_the_root() {
-    let dir = TempDir::new("owner-first");
+    let dir = temp("owner-first");
     dir.write(
         "app/app.nvs",
         "<?nvs\nautoload 'Demo' from './demo';\n\necho 1;\n",
@@ -394,7 +383,7 @@ fn a_plain_file_under_a_lenders_directory_borrows_its_map() {
 /// the program is found and lends its map.
 #[test]
 fn a_file_in_an_ignored_folder_borrows_the_map_of_the_program_beside_it() {
-    let dir = TempDir::new("ignored");
+    let dir = temp("ignored");
     dir.write("site/.gitignore", "/addons/\n");
     dir.write(
         "site/addons/Shop/public/index.nvs",
@@ -426,7 +415,7 @@ fn a_file_in_an_ignored_folder_borrows_the_map_of_the_program_beside_it() {
 /// scratch directory whose own name is not a namespace segment.
 #[test]
 fn a_braced_prefix_segment_hovers_as_the_directory_name_it_reaches() {
-    let dir = TempDir::new("braced");
+    let dir = temp("braced");
     let boot = "<?nvs\nautoload 'App\\{..}' from 'src';\n";
     dir.write("Blog/public/index.nvs", boot);
     dir.write(

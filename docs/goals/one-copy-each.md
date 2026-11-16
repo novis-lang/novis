@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-stdlib/src/encoding.rs, crates/nvs-stdlib/src/random.rs, crates/nvs-codegen/src/emit.rs]
   - id: 5
     title: "the server tests of nvs-cli share their support"
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/live_config.rs, crates/nvs-test/src/lib.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -187,9 +187,9 @@ module, and convert the test files that use them.
 `struct Server`, `struct TempDir`, `const BOOT` or `const POLL`, as `file.rs:NN`, before the first
 edit. Writing subagents then convert disjoint files side by side, and the session builds once.
 
-- [ ] `crates/nvs-test/src/lib.rs:1`: the support module, written from
+- [x] `crates/nvs-test/src/lib.rs:1`: the support module, written from
   `crates/nvs-cli/tests/live_config.rs:60` (`rule:testing/feature-proofs`).
-- [ ] `crates/nvs-cli/tests/live_config.rs:60`: this file and the others on the list use the
+- [x] `crates/nvs-cli/tests/live_config.rs:60`: this file and the others on the list use the
   module, largest first (`rule:testing/feature-proofs`).
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -202,39 +202,32 @@ edit. Writing subagents then convert disjoint files side by side, and the sessio
 
 ### State
 
-Stages 1 to 4 are done, built and clippy-clean, with no test run. Lines over `crates/`: stage 1
-+156 -313, stage 2 +179 -254, stage 3 +698 -936, stage 4 +108 -251. Sessions used: stage 1: 1,
-stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 0.
+Stages 1 to 5 are done and clippy-clean, with no test run. Lines over `crates/`: stage 1 +156 -313,
+stage 2 +179 -254, stage 3 +698 -936, stage 4 +108 -251, stage 5 +552 -931. One session each.
 
-- Stages 1 and 2: `open_loop_header`, `close_foreach_body` and `into_lowered` in
-  `crates/nvs-ir/src/lower/`; one `const` per statement row in `nvs-stdlib/src/db/registry.rs`.
-- Stage 3: trait `Walk` in `crates/nvs-lsp/src/walk.rs`, `nvs_test::section::aux_path` and
-  `nvs_types::deprecated::each_declaration`.
-- Stage 4: `encoding::hex_pair` and `string_arg` in `nvs-stdlib`, `callable_class` in
-  `nvs-runtime/src/callable.rs`, and `emit_probe_branch` in `nvs-codegen/src/emit.rs`.
+- Stages 1 to 4: `crates/nvs-ir/src/lower/`'s loop helpers, `db/registry.rs`'s rows, trait `Walk`,
+  `aux_path`, `each_declaration`, `hex_pair`, `string_arg`, `callable_class`, `emit_probe_branch`.
+- Stage 5: `nvs_test::serve` (`BOOT`, `POLL`, `Served`, `succeeds`) and `nvs_test::temp::TempDir`,
+  which boxes the caller's `nvs_repo::scratch` guard. `nvs-types` takes `nvs-test` as a dev-dependency.
 
-The sweep's `env-secret-proofs` finding names a retired check that `looper check` cannot find.
+The sweep's `env-secret-proofs` finding names a retired check with no log; it needed no change.
 
-Tests that could go red in stage 6: the `insta` snapshots under
-`crates/nvs-ir/src/lower/snapshots/`; `db::transaction`'s
-`a_transaction_is_a_callable_and_transaction_is_a_queryable`, which compares the two rosters;
-`nvs-lsp`'s `tests/hints.rs`, `semantic.rs`'s own unit tests and the `.lspt` corpus for the
-shared walk; `nvs-test`'s `case.rs` tests and `nvs-lsp`'s `case.rs` tests for the path check;
-`random.rs`'s seeded-token test, `server.rs`'s trace-id test, `crates/nvs-stdlib/tests/queue_sqlite.rs`
-and the JSON `\u` escape tests for the hex encoder; the `html.rs` and `callable.rs` unit tests.
+Tests that could go red in stage 6: the `insta` snapshots under `crates/nvs-ir/src/lower/snapshots/`;
+`db::transaction`'s roster test; `nvs-lsp`'s `tests/hints.rs`, `semantic.rs` and the `.lspt` corpus;
+both `case.rs` test sets; `random.rs`, `server.rs`'s trace id, `tests/queue_sqlite.rs` and the JSON
+`\u` escapes; `html.rs` and `callable.rs`. For stage 5, every `nvs-cli` server test its commit
+names, `nvs-lsp`'s six `TempDir` tests and `nvs-types`' `tests/common`. `reload_follows_links.rs`
+gives `Served` its data folder to remove, since the program folder outlives the server.
 
 ### Next
 
-Stage 5, in up to two sessions. Follow its `**Split:**` line: an `Explore` subagent lists every
-test file under `crates/` that declares `struct Server`, `struct TempDir`, `const BOOT` or
-`const POLL`, before the first edit.
+Stage 6, the gate: start `looper verify` with `run_in_background`, fix every failure in one pass,
+run it again, then the goal-end gates of AGENTS.md § *In the loop*.
 
-- [ ] `crates/nvs-test/src/lib.rs:180`: add the support module beside `pub mod case`, written from
-  `crates/nvs-cli/tests/live_config.rs:29` (`BOOT`, `POLL`), `:80` (`struct Server`), `:89`
-  (its boot) and `:433` (its `Drop`).
-- [ ] `crates/nvs-cli/tests/live_config.rs:80`: this file uses the module first, then the other
-  files on the list, largest first, each by a writing subagent on disjoint files. The session
-  builds once they all end.
+- [ ] `crates/nvs-test/src/serve.rs:1`: `looper verify` over the whole goal, every failure fixed
+  at its cause, then green on the second run.
+- [ ] `docs/goals/one-copy-each.md:1`: `bun nv verify --doc`, `bun nv owners --closes
+  one-copy-each` and `bun nv ci --check`, each red fixed.
 
 ### Backlog
 
@@ -245,3 +238,10 @@ test file under `crates/` that declares `struct Server`, `struct TempDir`, `cons
   reaches 14 identical lines, and goal `cheaper-pipeline` edits the same files.
 - Left by stage 4: `crates/nvs-stdlib/src/topic.rs:477` writes hex digits with its own table. It
   was not on the stage's list, and the list is closed.
+- Left by stage 5, because `Served` cannot express their boot: `serve_isolation.rs` (stdout joins
+  the stderr buffer, and asserts read `child.try_wait`), `telemetry_e2e.rs` (stderr read line by
+  line over a channel), `schedule_events.rs` (sends a stop signal by `child.id`),
+  `serve_ownership.rs` (a boot that must fail) and `telemetry.rs`. Each now takes `BOOT` from
+  `nvs_test::serve`. `registry_build.rs` (120s) and `builtin_warm.rs` (180s) keep their own
+  `BOOT`. The `#[cfg(test)]` `TempDir`s in `crates/nvs-hir/src/requires.rs` and
+  `crates/nvs-lsp/src/document.rs` were not on the list.

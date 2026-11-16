@@ -34,6 +34,8 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use nvs_test::serve::BOOT;
+
 /// How long one answer has to arrive before the case fails.
 const BOUND: Duration = Duration::from_secs(30);
 
@@ -44,9 +46,6 @@ const BOUND: Duration = Duration::from_secs(30);
 /// reported as wedged, and admission then answers `503`, though nothing is stuck. A core that is
 /// really stuck still fails the case, at the answer's own [`BOUND`].
 const WATCHDOG_MARGIN: &str = "30s";
-
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
 
 /// The program every case serves. It prints the static as it found it, then
 /// the value it wrote from the query.

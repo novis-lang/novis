@@ -10,7 +10,6 @@
 //! file and nothing else. The gate inside one is
 //! `rule:ide/diagnostics-are-phase-gated`'s, pinned in `document.rs`.
 
-use std::fs;
 use std::time::Duration;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
@@ -24,6 +23,7 @@ use lsp_types::{
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem, Uri,
     VersionedTextDocumentIdentifier, WorkspaceFolder,
 };
+use nvs_test::temp::TempDir;
 
 /// A file that parses, resolves and type-checks with nothing to report.
 const CLEAN: &str = "<?nvs\nclass Typed {}\n";
@@ -41,23 +41,18 @@ const HOARD: &str = "<?nvs\nclass Hoard {\n    private int $kept = 0;\n    \
 /// The fixtures are on disk rather than buffers alone because a `require`
 /// resolves against the requiring file's directory: an open buffer overlays the
 /// file under it, and there has to be a file under it for the graph to name.
-struct TempDir {
-    path: nvs_repo::Scratch,
+fn temp(name: &str) -> TempDir {
+    TempDir::new(nvs_repo::scratch(&format!("lsp-publish-{name}")))
 }
 
-impl TempDir {
-    fn new(name: &str) -> Self {
-        Self {
-            path: nvs_repo::scratch(&format!("lsp-publish-{name}")),
-        }
-    }
+/// The URI the protocol names a file of a test's directory by.
+trait Uris {
+    fn uri(&self, name: &str) -> Uri;
+}
 
-    fn write(&self, name: &str, text: &str) {
-        fs::write(self.path.join(name), text).expect("a fixture file");
-    }
-
+impl Uris for TempDir {
     fn uri(&self, name: &str) -> Uri {
-        nvs_lsp::uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
+        nvs_lsp::uri_of(&self.at(name)).expect("a temp path is UTF-8")
     }
 }
 
@@ -235,7 +230,7 @@ fn open_scope() -> InitializeParams {
 fn workspace_scope(dir: &TempDir) -> InitializeParams {
     InitializeParams {
         workspace_folders: Some(vec![WorkspaceFolder {
-            uri: nvs_lsp::uri_of(&dir.path).expect("a temp path is UTF-8"),
+            uri: nvs_lsp::uri_of(dir.root()).expect("a temp path is UTF-8"),
             name: "workspace".to_owned(),
         }]),
         initialization_options: Some(serde_json::json!({
@@ -278,7 +273,7 @@ fn reads_the_tree(codes: &[String]) -> bool {
 /// a different message.
 #[test]
 fn unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope() {
-    let dir = TempDir::new("dimming");
+    let dir = temp("dimming");
     dir.write("hoard.nvs", HOARD);
     let uri = dir.uri("hoard.nvs");
 
@@ -329,7 +324,7 @@ fn unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope(
 /// publishes the empty list that clears what was there.
 #[test]
 fn opening_a_document_publishes_for_it_and_fixing_it_clears() {
-    let dir = TempDir::new("one");
+    let dir = temp("one");
     let broken = "<?nvs\nvar $broken = ;\n";
     dir.write("main.nvs", broken);
 
@@ -371,7 +366,7 @@ fn opening_a_document_publishes_for_it_and_fixing_it_clears() {
 /// with its own diagnostics untouched and none of the edited file's.
 #[test]
 fn editing_a_required_file_publishes_for_the_requiring_document_too() {
-    let dir = TempDir::new("graph");
+    let dir = temp("graph");
     let clean_lib = "<?nvs\nclass Counter {\n    public function count(): int {\n        \
                      return 1;\n    }\n}\n";
     let broken_lib = "<?nvs\nclass Counter {\n    public function count(): int {\n        \
@@ -430,7 +425,7 @@ fn editing_a_required_file_publishes_for_the_requiring_document_too() {
 /// analysed at all.
 #[test]
 fn a_closed_document_is_published_for_one_last_time_with_nothing_in_it() {
-    let dir = TempDir::new("closed");
+    let dir = temp("closed");
     let broken = "<?nvs\nvar $broken = ;\n";
     dir.write("main.nvs", broken);
     dir.write("other.nvs", CLEAN);
@@ -470,7 +465,7 @@ fn a_closed_document_is_published_for_one_last_time_with_nothing_in_it() {
 /// the one after that would still be `main.nvs`.
 #[test]
 fn a_keystroke_in_the_debounce_window_replaces_the_one_waiting() {
-    let dir = TempDir::new("debounce");
+    let dir = temp("debounce");
     let broken = "<?nvs\nvar $broken = ;\n";
     dir.write("main.nvs", CLEAN);
     dir.write("other.nvs", CLEAN);

@@ -27,8 +27,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
+use nvs_test::serve::BOOT;
 
 /// How long the server has to write the log line of a request it answered.
 const LOGGED: Duration = Duration::from_secs(10);

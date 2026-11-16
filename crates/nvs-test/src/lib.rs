@@ -182,7 +182,9 @@ pub mod expect;
 pub mod request;
 pub mod run;
 pub mod section;
+pub mod serve;
 pub mod shard;
+pub mod temp;
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;

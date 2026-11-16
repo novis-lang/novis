@@ -22,8 +22,7 @@ use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
+use nvs_test::serve::BOOT;
 
 /// How many requests the server answers while the listener waits.
 const REQUESTS: usize = 50;

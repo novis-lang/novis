@@ -37,6 +37,7 @@ use lsp_types::{
     SignatureHelp, TextDocumentItem, Uri, WorkspaceFolder,
 };
 use nvs_lsp::{Analysed, CURSOR, Documents, analyse, hover, uri_of};
+use nvs_test::temp::TempDir;
 
 /// The class every signature-help document below calls into.
 ///
@@ -395,25 +396,27 @@ const ON_SHAPE: (u32, u32) = (1, 11);
 /// On disk because `nvs_hir::requires` canonicalizes a `require` target against
 /// the filesystem before any source map is consulted — `tests/references.rs`
 /// and `tests/index.rs` both need the same thing for the same reason.
-struct TempDir {
-    path: nvs_repo::Scratch,
+fn temp(name: &str) -> TempDir {
+    let dir = TempDir::new(nvs_repo::scratch(&format!("lsp-nav-{name}")));
+    dir.write("lib.nvs", LIB);
+    dir.write("main.nvs", MAIN);
+    dir
 }
 
-impl TempDir {
-    fn new(name: &str) -> Self {
-        let path = nvs_repo::scratch(&format!("lsp-nav-{name}"));
-        fs::write(path.join("lib.nvs"), LIB).expect("a fixture file");
-        fs::write(path.join("main.nvs"), MAIN).expect("a fixture file");
-        Self { path }
-    }
+/// A test's directory in the protocol's terms.
+trait Wire {
+    fn uri(&self, name: &str) -> Uri;
+    fn folder(&self) -> WorkspaceFolder;
+}
 
+impl Wire for TempDir {
     fn uri(&self, name: &str) -> Uri {
-        uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
+        uri_of(&self.at(name)).expect("a temp path is UTF-8")
     }
 
     fn folder(&self) -> WorkspaceFolder {
         WorkspaceFolder {
-            uri: uri_of(&self.path).expect("a temp path is UTF-8"),
+            uri: uri_of(self.root()).expect("a temp path is UTF-8"),
             name: "workspace".to_owned(),
         }
     }
@@ -535,7 +538,7 @@ fn name_of(location: &Location) -> String {
 
 #[test]
 fn type_definition_and_implementation_resolve_through_the_graph() {
-    let dir = TempDir::new("graph");
+    let dir = temp("graph");
     served(dir.folder(), |client| {
         opened(client, &dir.uri("main.nvs"), MAIN);
         opened(client, &dir.uri("lib.nvs"), LIB);
@@ -657,8 +660,8 @@ fn calls_of(
 
 #[test]
 fn call_hierarchy_walks_the_call_graph_both_ways() {
-    let dir = TempDir::new("calls");
-    fs::write(dir.path.join("parity.nvs"), PARITY).expect("a fixture file");
+    let dir = temp("calls");
+    dir.write("parity.nvs", PARITY);
     let uri = dir.uri("parity.nvs");
     served(dir.folder(), |client| {
         opened(client, &uri, PARITY);

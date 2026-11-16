@@ -16,20 +16,15 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use nvs_test::serve::{self, BOOT, POLL, Served};
+
 /// How long a reload has to reach a request before the case fails.
 const BOUND: Duration = Duration::from_secs(30);
-
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
-
-/// The time between two requests of one poll.
-const POLL: Duration = Duration::from_millis(50);
 
 /// `[mode] default` written out, so a case does not depend on what a
 /// configuration with nothing in it starts with.
@@ -78,12 +73,17 @@ enum Layout {
 ///
 /// Dropping it stops the process and removes the directory.
 struct Server {
-    child: Child,
-    addr: SocketAddr,
-    dir: PathBuf,
+    served: Served,
     /// The private data folder every `nvs` run of this server is given.
     data: nvs_repo::Scratch,
-    stderr: Arc<Mutex<String>>,
+}
+
+impl std::ops::Deref for Server {
+    type Target = Served;
+
+    fn deref(&self) -> &Served {
+        &self.served
+    }
 }
 
 impl Server {
@@ -150,19 +150,12 @@ impl Server {
             Layout::Nowhere => {}
         }
         if !first.is_empty() {
-            let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
-                .arg("--data")
-                .arg(&*data)
-                .args(first)
-                .current_dir(&dir)
-                .stdin(Stdio::null())
-                .output()
-                .expect("the `nvs` binary this test was built beside starts");
-            assert!(
-                ran.status.success(),
-                "`nvs {}` failed: {}",
-                first.join(" "),
-                String::from_utf8_lossy(&ran.stderr)
+            serve::succeeds(
+                Command::new(env!("CARGO_BIN_EXE_nvs"))
+                    .arg("--data")
+                    .arg(&*data)
+                    .args(first)
+                    .current_dir(&dir),
             );
         }
 
@@ -183,57 +176,8 @@ impl Server {
         } else {
             command.args(["serve", "app.nvs"]).current_dir(&dir);
         }
-        let mut child = command
-            .args(["--listen", "127.0.0.1:0"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("the `nvs` binary this test was built beside starts");
-
-        // Both pipes are read to their end on a thread of their own, so a
-        // server that writes a lot never blocks on a full pipe.
-        let stderr = Arc::new(Mutex::new(String::new()));
-        let err_pipe = child.stderr.take().expect("standard error is piped");
-        let collected = Arc::clone(&stderr);
-        thread::spawn(move || {
-            for line in BufReader::new(err_pipe).lines().map_while(Result::ok) {
-                let mut all = collected.lock().expect("no reader panicked");
-                all.push_str(&line);
-                all.push('\n');
-            }
-        });
-        let out_pipe = child.stdout.take().expect("standard output is piped");
-        let (sent, bound) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
-                if let Some(rest) = line.strip_prefix("listening on http://") {
-                    let addr = rest
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned();
-                    let _ = sent.send(addr);
-                }
-            }
-        });
-
-        let Ok(addr) = bound.recv_timeout(BOOT) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            let said = stderr.lock().expect("no reader panicked").clone();
-            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
-        };
-        let addr = addr
-            .parse()
-            .unwrap_or_else(|error| panic!("`{addr}` is not an address: {error}"));
-        Self {
-            child,
-            addr,
-            dir,
-            data,
-            stderr,
-        }
+        let served = Served::spawn(command.args(["--listen", "127.0.0.1:0"]), dir);
+        Self { served, data }
     }
 
     /// One `GET` of `path`, on a connection of its own.
@@ -323,7 +267,7 @@ impl Server {
                 return answer;
             }
             if started.elapsed() > BOUND {
-                let said = self.stderr.lock().expect("no reader panicked").clone();
+                let said = self.said();
                 panic!(
                     "{what} did not happen within {BOUND:?}; the last answer was {answer:?}, \
                      and the server wrote: {said}"
@@ -331,11 +275,6 @@ impl Server {
             }
             thread::sleep(POLL);
         }
-    }
-
-    /// What the server has written to standard error so far.
-    fn said(&self) -> String {
-        self.stderr.lock().expect("no reader panicked").clone()
     }
 
     /// Rewrites `nvs.toml` as [`Server::start`] wrote it, with `config` in
@@ -427,14 +366,6 @@ impl Server {
             );
             thread::sleep(POLL);
         }
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
 

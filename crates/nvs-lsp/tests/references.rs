@@ -12,7 +12,6 @@
 //! an edit is in the next answer, and that `nvs/checkWorkspace` reaches under
 //! `"open"` what only `"workspace"` reaches otherwise.
 
-use std::fs;
 use std::time::Duration;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
@@ -22,6 +21,7 @@ use lsp_types::{
     TextDocumentContentChangeEvent, TextDocumentItem, TypeHierarchyItem, Uri,
     VersionedTextDocumentIdentifier, WorkspaceFolder,
 };
+use nvs_test::temp::TempDir;
 
 /// The class, declaring `$count` on line 2 and using it on line 4.
 const LIB: &str = "<?nvs\nclass Counter {\n    public int $count = 0;\n    \
@@ -66,32 +66,28 @@ const CURSOR: (u32, u32) = (4, 11);
 /// The fixtures are on disk because a `require` resolves against the requiring
 /// file's own directory before any source map is consulted — `publish.rs` and
 /// `index.rs` both need the same thing for the same reason.
-struct TempDir {
-    path: nvs_repo::Scratch,
+fn temp(name: &str) -> TempDir {
+    let dir = TempDir::new(nvs_repo::scratch(&format!("lsp-refs-{name}")));
+    dir.write("lib.nvs", LIB);
+    dir.write("main.nvs", MAIN);
+    dir
 }
 
-impl TempDir {
-    fn new(name: &str) -> Self {
-        let path = nvs_repo::scratch(&format!("lsp-refs-{name}"));
-        fs::write(path.join("lib.nvs"), LIB).expect("a fixture file");
-        fs::write(path.join("main.nvs"), MAIN).expect("a fixture file");
-        Self { path }
-    }
-
-    fn uri(&self, name: &str) -> Uri {
-        nvs_lsp::uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
-    }
-
-    /// One more file beside the fixtures, for the test that needs a file no
-    /// open document's graph reaches.
-    fn write(&self, name: &str, text: &str) {
-        fs::write(self.path.join(name), text).expect("a fixture file");
-    }
-
+/// A test's directory in the protocol's terms.
+trait Wire {
+    fn uri(&self, name: &str) -> Uri;
     /// This directory as the one workspace folder a client named.
+    fn folder(&self) -> WorkspaceFolder;
+}
+
+impl Wire for TempDir {
+    fn uri(&self, name: &str) -> Uri {
+        nvs_lsp::uri_of(&self.at(name)).expect("a temp path is UTF-8")
+    }
+
     fn folder(&self) -> WorkspaceFolder {
         WorkspaceFolder {
-            uri: nvs_lsp::uri_of(&self.path).expect("a temp path is UTF-8"),
+            uri: nvs_lsp::uri_of(self.root()).expect("a temp path is UTF-8"),
             name: "workspace".to_owned(),
         }
     }
@@ -320,7 +316,7 @@ fn named(uri: &Uri) -> String {
 /// (`rule:ide/five-features-are-one-reference-index`).
 #[test]
 fn references_cross_a_file_the_client_never_opened() {
-    let dir = TempDir::new("cross");
+    let dir = temp("cross");
     let main = dir.uri("main.nvs");
 
     served(|client| {
@@ -356,7 +352,7 @@ fn references_cross_a_file_the_client_never_opened() {
 /// `SymbolIndex::build` and nothing else.
 #[test]
 fn the_configured_scope_decides_whether_an_unrequired_file_is_indexed() {
-    let dir = TempDir::new("scope");
+    let dir = temp("scope");
     dir.write("other.nvs", OTHER);
     let main = dir.uri("main.nvs");
 
@@ -409,7 +405,7 @@ fn the_configured_scope_decides_whether_an_unrequired_file_is_indexed() {
 /// stays there after an edit to the open document.
 #[test]
 fn a_workspace_pass_on_demand_indexes_every_file_under_the_root() {
-    let dir = TempDir::new("check-workspace");
+    let dir = temp("check-workspace");
     dir.write("other.nvs", OTHER);
     let main = dir.uri("main.nvs");
 
@@ -453,7 +449,7 @@ fn a_workspace_pass_on_demand_indexes_every_file_under_the_root() {
 /// An occurrence highlight is the reference query narrowed to the open file.
 #[test]
 fn a_highlight_is_the_reference_query_filtered_to_the_open_document() {
-    let dir = TempDir::new("highlight");
+    let dir = temp("highlight");
     let main = dir.uri("main.nvs");
 
     served(|client| {
@@ -478,7 +474,7 @@ fn a_highlight_is_the_reference_query_filtered_to_the_open_document() {
 /// the document it appears in.
 #[test]
 fn a_lens_counts_every_use_the_index_holds_of_a_declaration() {
-    let dir = TempDir::new("lens");
+    let dir = temp("lens");
     let lib = dir.uri("lib.nvs");
     let main = dir.uri("main.nvs");
 
@@ -508,7 +504,7 @@ fn a_lens_counts_every_use_the_index_holds_of_a_declaration() {
 /// parses again.
 #[test]
 fn a_lens_row_stays_while_the_document_does_not_parse() {
-    let dir = TempDir::new("lens-steady");
+    let dir = temp("lens-steady");
     let lib = dir.uri("lib.nvs");
     let main = dir.uri("main.nvs");
     let half = LIB.replace(
@@ -551,7 +547,7 @@ fn a_lens_row_stays_while_the_document_does_not_parse() {
 /// (`rule:ide/contributions-are-frozen-and-only-ever-added` freezes the name).
 #[test]
 fn a_lens_is_not_offered_when_the_client_turned_it_off() {
-    let dir = TempDir::new("lens-off");
+    let dir = temp("lens-off");
     let lib = dir.uri("lib.nvs");
 
     let off = InitializeParams {
@@ -585,7 +581,7 @@ fn a_lens_is_not_offered_when_the_client_turned_it_off() {
 /// flattened chain (`rule:ide/five-features-are-one-reference-index`).
 #[test]
 fn a_type_hierarchy_walks_the_index_one_level_per_request() {
-    let dir = TempDir::new("hierarchy");
+    let dir = temp("hierarchy");
     dir.write("shapes.nvs", SHAPES);
     let shapes = dir.uri("shapes.nvs");
 
@@ -628,7 +624,7 @@ fn a_type_hierarchy_walks_the_index_one_level_per_request() {
 /// applies where it applies the edit.
 #[test]
 fn an_edit_is_in_the_next_reference_list() {
-    let dir = TempDir::new("edit");
+    let dir = temp("edit");
     let main = dir.uri("main.nvs");
 
     served(|client| {

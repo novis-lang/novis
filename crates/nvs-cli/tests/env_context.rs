@@ -16,26 +16,20 @@
 //! `CARGO_TARGET_TMPDIR`, named for the case and the process, and is removed
 //! when the case ends.
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::process::{Command, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
+use nvs_test::serve::{self, POLL, Served};
 
 /// How long a served answer, a job or a connection has to arrive.
 const BOUND: Duration = Duration::from_secs(30);
 
 /// How long a scheduled fire has to arrive: its cron fires once a minute.
 const FIRE: Duration = Duration::from_secs(90);
-
-/// The time between two looks at standard error.
-const POLL: Duration = Duration::from_millis(50);
 
 /// A class that names a `Core\Env::Context` case, put at the top of every
 /// program below.
@@ -102,12 +96,17 @@ fn nvs(case: &str, files: &[(&str, &str)], args: &[&str]) -> Output {
 ///
 /// Dropping it stops the process and removes the directory.
 struct Server {
-    child: Child,
-    addr: SocketAddr,
-    dir: PathBuf,
+    served: Served,
     /// The private data folder the server is given.
     _data: nvs_repo::Scratch,
-    stderr: Arc<Mutex<String>>,
+}
+
+impl std::ops::Deref for Server {
+    type Target = Served;
+
+    fn deref(&self) -> &Served {
+        &self.served
+    }
 }
 
 impl Server {
@@ -118,80 +117,31 @@ impl Server {
     /// # Panics
     ///
     /// When the first command fails, or the server does not print its
-    /// `listening on` line within [`BOOT`].
+    /// `listening on` line within [`nvs_test::serve::BOOT`].
     fn start(case: &str, files: &[(&str, &str)], first: &[&str]) -> Self {
         let dir = directory(case, files);
         let data = nvs_repo::scratch_private("nvsdata");
         if !first.is_empty() {
-            let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
-                .arg("--data")
-                .arg(&*data)
-                .args(first)
-                .current_dir(&dir)
-                .stdin(Stdio::null())
-                .output()
-                .expect("the `nvs` binary this test was built beside starts");
-            assert!(
-                ran.status.success(),
-                "`nvs {}` failed: {}",
-                first.join(" "),
-                String::from_utf8_lossy(&ran.stderr)
+            serve::succeeds(
+                Command::new(env!("CARGO_BIN_EXE_nvs"))
+                    .arg("--data")
+                    .arg(&*data)
+                    .args(first)
+                    .current_dir(&dir),
             );
         }
 
-        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .arg("--data")
-            .arg(&*data)
-            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
-            .current_dir(&dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("the `nvs` binary this test was built beside starts");
-
-        // Both pipes are read to their end on a thread of their own, so a
-        // server that writes a lot never blocks on a full pipe.
-        let stderr = Arc::new(Mutex::new(String::new()));
-        let err_pipe = child.stderr.take().expect("standard error is piped");
-        let collected = Arc::clone(&stderr);
-        thread::spawn(move || {
-            for line in BufReader::new(err_pipe).lines().map_while(Result::ok) {
-                let mut all = collected.lock().expect("no reader panicked");
-                all.push_str(&line);
-                all.push('\n');
-            }
-        });
-        let out_pipe = child.stdout.take().expect("standard output is piped");
-        let (sent, bound) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
-                if let Some(rest) = line.strip_prefix("listening on http://") {
-                    let addr = rest
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned();
-                    let _ = sent.send(addr);
-                }
-            }
-        });
-
-        let Ok(addr) = bound.recv_timeout(BOOT) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            let said = stderr.lock().expect("no reader panicked").clone();
-            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
-        };
-        let addr = addr
-            .parse()
-            .unwrap_or_else(|error| panic!("`{addr}` is not an address: {error}"));
-        Self {
-            child,
-            addr,
+        let served = Served::spawn(
+            Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .arg("--data")
+                .arg(&*data)
+                .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+                .current_dir(&dir),
             dir,
+        );
+        Self {
+            served,
             _data: data,
-            stderr,
         }
     }
 
@@ -222,11 +172,6 @@ impl Server {
             self.said()
         );
         body.to_owned()
-    }
-
-    /// What the server has written to standard error so far.
-    fn said(&self) -> String {
-        self.stderr.lock().expect("no reader panicked").clone()
     }
 
     /// Waits until the server has written `text` to standard error.
@@ -304,14 +249,6 @@ impl Server {
             .read_exact(&mut body)
             .unwrap_or_else(|error| panic!("the answer was cut off: {error}"));
         String::from_utf8(body).expect("a text frame is UTF-8")
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
 

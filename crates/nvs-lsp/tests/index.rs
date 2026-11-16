@@ -20,32 +20,17 @@ use std::path::{Component, Path, PathBuf};
 
 use nvs_lsp::reach::{Reach, reach};
 use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, path_of, uri_of};
+use nvs_test::temp::TempDir;
 
-/// A scratch directory that cleans up after itself.
-struct TempDir {
-    path: nvs_repo::Scratch,
+/// A new scratch directory for the case `name`.
+fn temp(name: &str) -> TempDir {
+    TempDir::new(nvs_repo::scratch(&format!("lsp-index-{name}")))
 }
 
-impl TempDir {
-    fn new(name: &str) -> Self {
-        Self {
-            path: nvs_repo::scratch(&format!("lsp-index-{name}")),
-        }
-    }
-
-    fn write(&self, name: &str, text: &str) {
-        fs::write(self.path.join(name), text).expect("a writable scratch file");
-    }
-
-    fn at(&self, name: &str) -> PathBuf {
-        self.path.join(name)
-    }
-
-    /// Opens `name` as a buffer over the file already written there.
-    fn open(&self, documents: &mut Documents, name: &str, text: &str) {
-        let uri = uri_of(&self.at(name)).expect("a temp path is UTF-8");
-        documents.open(uri, 1, text.to_owned());
-    }
+/// Opens `name` as a buffer over the file already written there.
+fn open(dir: &TempDir, documents: &mut Documents, name: &str, text: &str) {
+    let uri = uri_of(&dir.at(name)).expect("a temp path is UTF-8");
+    documents.open(uri, 1, text.to_owned());
 }
 
 /// A class with a property and a method, so the index has a member declaration
@@ -340,12 +325,12 @@ fn every_reader_queries_the_one_index() {
 /// The declaration side and the occurrence side, from one walk.
 #[test]
 fn the_index_holds_every_declaration_and_every_resolved_use() {
-    let dir = TempDir::new("holds");
+    let dir = temp("holds");
     dir.write("lib.nvs", LIB);
     dir.write("main.nvs", MAIN);
 
     let mut documents = Documents::new();
-    dir.open(&mut documents, "main.nvs", MAIN);
+    open(&dir, &mut documents, "main.nvs", MAIN);
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
 
     // The required file is indexed although nobody opened it: an open
@@ -402,11 +387,11 @@ fn the_index_holds_every_declaration_and_every_resolved_use() {
 /// library's entire public surface.
 #[test]
 fn a_declaration_records_the_visibility_it_was_written_with() {
-    let dir = TempDir::new("visibility");
+    let dir = temp("visibility");
     dir.write("lib.nvs", MODIFIED);
 
     let mut documents = Documents::new();
-    dir.open(&mut documents, "lib.nvs", MODIFIED);
+    open(&dir, &mut documents, "lib.nvs", MODIFIED);
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
 
     let seen = |symbol: &str| {
@@ -437,15 +422,15 @@ fn a_declaration_records_the_visibility_it_was_written_with() {
 /// everything else exactly where it was.
 #[test]
 fn a_change_invalidates_the_file_and_its_readers_and_nothing_else() {
-    let dir = TempDir::new("invalidate");
+    let dir = temp("invalidate");
     dir.write("lib.nvs", LIB);
     dir.write("main.nvs", MAIN);
     dir.write("lone.nvs", LONE);
 
     let mut documents = Documents::new();
-    dir.open(&mut documents, "lib.nvs", LIB);
-    dir.open(&mut documents, "main.nvs", MAIN);
-    dir.open(&mut documents, "lone.nvs", LONE);
+    open(&dir, &mut documents, "lib.nvs", LIB);
+    open(&dir, &mut documents, "main.nvs", MAIN);
+    open(&dir, &mut documents, "lone.nvs", LONE);
 
     let mut index = SymbolIndex::build(&documents, CheckScope::Open, None);
     assert_eq!(index.len(), 3, "three files, three entries");
@@ -509,13 +494,13 @@ fn a_change_invalidates_the_file_and_its_readers_and_nothing_else() {
 /// while it waits. The open document is re-indexed at once.
 #[test]
 fn a_reader_that_is_not_open_waits_and_keeps_its_files() {
-    let dir = TempDir::new("pending");
+    let dir = temp("pending");
     dir.write("lib.nvs", LIB);
     dir.write("main.nvs", MAIN);
     let mut documents = Documents::new();
-    dir.open(&mut documents, "lib.nvs", LIB);
+    open(&dir, &mut documents, "lib.nvs", LIB);
 
-    let mut index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.path.path()));
+    let mut index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.root()));
     assert!(index.pending().is_empty(), "`build` settles every entry");
     let calls = |index: &SymbolIndex| {
         index
@@ -565,17 +550,17 @@ fn a_reader_that_is_not_open_waits_and_keeps_its_files() {
 /// how one is.
 #[test]
 fn check_scope_selects_the_tree_and_never_the_construction_site() {
-    let dir = TempDir::new("scope");
+    let dir = temp("scope");
     dir.write("lib.nvs", LIB);
     dir.write("main.nvs", MAIN);
     dir.write("lone.nvs", LONE);
 
     let mut documents = Documents::new();
-    dir.open(&mut documents, "main.nvs", MAIN);
+    open(&dir, &mut documents, "main.nvs", MAIN);
 
     // The same root either way, so the only difference is the setting.
-    let open = SymbolIndex::build(&documents, CheckScope::Open, Some(dir.path.path()));
-    let workspace = SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.path.path()));
+    let open = SymbolIndex::build(&documents, CheckScope::Open, Some(dir.root()));
+    let workspace = SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.root()));
 
     assert!(
         !open.holds(&dir.at("lone.nvs")),
@@ -682,7 +667,7 @@ final class ShopTest
 fn shop_index(dir: &TempDir) -> SymbolIndex {
     dir.write("shop.nvs", SHOP);
     let mut documents = Documents::new();
-    dir.open(&mut documents, "shop.nvs", SHOP);
+    open(dir, &mut documents, "shop.nvs", SHOP);
     SymbolIndex::build(&documents, CheckScope::Open, None)
 }
 
@@ -699,7 +684,7 @@ fn reached(routes: &[&str], tests: &[&str], at_least: bool) -> Reach {
 /// method records none.
 #[test]
 fn an_occurrence_records_the_method_it_is_written_in() {
-    let dir = TempDir::new("caller");
+    let dir = temp("caller");
     let index = shop_index(&dir);
 
     let callers: BTreeSet<Option<String>> = index
@@ -738,7 +723,7 @@ fn an_occurrence_records_the_method_it_is_written_in() {
 /// A route handler and a test that call the method themselves reach it.
 #[test]
 fn a_direct_caller_reaches_the_method() {
-    let dir = TempDir::new("direct");
+    let dir = temp("direct");
     let index = shop_index(&dir);
     assert_eq!(
         reach(&index, "Shop::price"),
@@ -751,7 +736,7 @@ fn a_direct_caller_reaches_the_method() {
 /// directly. The count is static, read off the call graph alone.
 #[test]
 fn a_chain_of_calls_reaches_the_method() {
-    let dir = TempDir::new("transitive");
+    let dir = temp("transitive");
     let index = shop_index(&dir);
     assert_eq!(
         reach(&index, "Shop::tax"),
@@ -766,7 +751,7 @@ fn a_chain_of_calls_reaches_the_method() {
 /// A method that calls itself is visited once, so the walk ends.
 #[test]
 fn a_recursive_chain_ends() {
-    let dir = TempDir::new("recursive");
+    let dir = temp("recursive");
     let index = shop_index(&dir);
     assert_eq!(
         reach(&index, "Shop::sum"),
@@ -778,7 +763,7 @@ fn a_recursive_chain_ends() {
 /// follows, and the answer says the count is at least that.
 #[test]
 fn a_callable_value_makes_the_count_at_least() {
-    let dir = TempDir::new("at-least");
+    let dir = temp("at-least");
     let index = shop_index(&dir);
     assert_eq!(reach(&index, "Shop::untouched"), reached(&[], &[], true));
 }
@@ -789,11 +774,11 @@ fn a_callable_value_makes_the_count_at_least() {
 /// upper-case letters, because the walk does not canonicalize each file.
 #[test]
 fn a_planned_entry_is_its_files_canonical_key() {
-    let dir = TempDir::new("canonical");
-    fs::create_dir_all(dir.path.join("Lib").join("Sub")).expect("a scratch directory");
+    let dir = temp("canonical");
+    fs::create_dir_all(dir.at("Lib").join("Sub")).expect("a scratch directory");
     dir.write("main.nvs", "<?nvs\nclass Main {}\n");
     dir.write("Lib/Sub/Item.nvs", "<?nvs\nclass Item {}\n");
-    let root = dir.path.join("Lib").join(Component::ParentDir);
+    let root = dir.at("Lib").join(Component::ParentDir);
     let index = SymbolIndex::planned(&Documents::new(), CheckScope::Workspace, Some(&root));
     let planned: Vec<&PathBuf> = index.pending().iter().collect();
     assert_eq!(planned.len(), 2, "both files are planned: {planned:?}");
@@ -818,7 +803,7 @@ mod work_per_file {
 
     /// A directory of [`FILES`] class files and an `nvs.toml` with `settings` in it.
     fn tree(name: &str, settings: &str) -> TempDir {
-        let dir = TempDir::new(name);
+        let dir = temp(name);
         dir.write("nvs.toml", settings);
         for n in 0..FILES {
             dir.write(
@@ -830,7 +815,7 @@ mod work_per_file {
     }
 
     fn workspace(documents: &Documents, dir: &TempDir) -> SymbolIndex {
-        SymbolIndex::build(documents, CheckScope::Workspace, Some(dir.path.path()))
+        SymbolIndex::build(documents, CheckScope::Workspace, Some(dir.root()))
     }
 
     /// Each analysis resolves its own file's path a fixed number of times, and
@@ -905,13 +890,13 @@ mod work_per_file {
     /// edit to `nvs.toml` types against the set the new text pins.
     #[test]
     fn an_edit_to_nvs_toml_reaches_the_next_analysis() {
-        let dir = TempDir::new("work-edit");
+        let dir = temp("work-edit");
         dir.write("nvs.toml", "");
         let pinned = ledger(&dir);
         let source = "<?nvs\nShop\\Ledger::echoInt(7);\n";
         dir.write("shop.nvs", source);
         let mut documents = Documents::new();
-        dir.open(&mut documents, "shop.nvs", source);
+        open(&dir, &mut documents, "shop.nvs", source);
         let uri = uri_of(&dir.at("shop.nvs")).expect("a temp path is UTF-8");
         let pins = |documents: &Documents| {
             nvs_lsp::analyse(documents, &uri)

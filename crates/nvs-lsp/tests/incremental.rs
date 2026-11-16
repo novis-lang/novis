@@ -29,34 +29,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use nvs_lsp::{Analysed, CheckScope, Documents, SymbolIndex, Work, surface, uri_of};
-
-/// A scratch directory that cleans up after itself.
-struct TempDir {
-    path: nvs_repo::Scratch,
-}
-
-impl TempDir {
-    fn new(name: &str) -> Self {
-        Self {
-            path: nvs_repo::scratch(&format!("lsp-incremental-{name}")),
-        }
-    }
-
-    fn write(&self, name: &str, text: &str) {
-        let path = self.path.join(name);
-        fs::create_dir_all(path.parent().expect("a fixture sits in a directory"))
-            .expect("a scratch directory");
-        fs::write(path, text).expect("a writable scratch file");
-    }
-
-    fn at(&self, name: &str) -> PathBuf {
-        self.path.join(name)
-    }
-
-    fn root(&self) -> &Path {
-        self.path.path()
-    }
-}
+use nvs_test::temp::TempDir;
 
 /// The name of the `n`th program: `Blog`, `Shop`, then `App3`, `App4` and on.
 fn program(n: usize) -> String {
@@ -111,7 +84,9 @@ fn tree(programs: usize, library: usize) -> TempDir {
         library >= 4,
         "the library's routes, command and link need four classes"
     );
-    let dir = TempDir::new(&format!("{programs}-{library}"));
+    let dir = TempDir::new(nvs_repo::scratch(&format!(
+        "lsp-incremental-{programs}-{library}"
+    )));
     for n in 0..library {
         dir.write(&part(n), &library_class(n, library));
     }

@@ -9,21 +9,18 @@
 //! writes `[http.headers] referrer_policy` into the linked folder, swaps the
 //! link, and polls until a response carries the new value.
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use nvs_test::serve::Served;
 
 /// How long a swapped link has to reach a request before the case fails. The
 /// configuration check runs every two seconds and waits one more pass.
 const BOUND: Duration = Duration::from_secs(30);
-
-/// How long `nvs serve` has to compile its program and bind its port.
-const BOOT: Duration = Duration::from_secs(60);
 
 /// The time between two requests of one poll.
 const POLL: Duration = Duration::from_millis(100);
@@ -33,11 +30,17 @@ const PLAIN: &str = "<?nvs\necho \"ok\";\n";
 
 /// A running `nvs --config <root> serve app.nvs`, killed when dropped.
 struct Server {
-    child: Child,
-    addr: SocketAddr,
-    stderr: Arc<Mutex<String>>,
+    served: Served,
     /// The private data folder, kept until the server is gone.
     _data: nvs_repo::Scratch,
+}
+
+impl std::ops::Deref for Server {
+    type Target = Served;
+
+    fn deref(&self) -> &Served {
+        &self.served
+    }
 }
 
 impl Server {
@@ -46,54 +49,22 @@ impl Server {
     ///
     /// # Panics
     ///
-    /// When the process cannot start or does not listen within [`BOOT`].
+    /// When the process cannot start or does not listen within [`nvs_test::serve::BOOT`].
     fn start(program: &Path, root: &Path) -> Self {
         let data = nvs_repo::scratch_private("follows-links-data");
-        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
-            .arg("--data")
-            .arg(&*data)
-            .arg("--config")
-            .arg(root)
-            .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
-            .current_dir(program)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("the `nvs` binary this test was built beside starts");
-        let stderr = Arc::new(Mutex::new(String::new()));
-        let err_pipe = child.stderr.take().expect("standard error is piped");
-        let collected = Arc::clone(&stderr);
-        thread::spawn(move || {
-            for line in BufReader::new(err_pipe).lines().map_while(Result::ok) {
-                let mut all = collected.lock().expect("no reader panicked");
-                all.push_str(&line);
-                all.push('\n');
-            }
-        });
-        let out_pipe = child.stdout.take().expect("standard output is piped");
-        let (sent, bound) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
-                if let Some(rest) = line.strip_prefix("listening on http://") {
-                    let addr = rest.split_whitespace().next().unwrap_or_default();
-                    let _ = sent.send(addr.to_owned());
-                }
-            }
-        });
-        let Ok(addr) = bound.recv_timeout(BOOT) else {
-            let _ = child.kill();
-            let _ = child.wait();
-            let said = stderr.lock().expect("no reader panicked").clone();
-            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
-        };
-        let addr = addr
-            .parse()
-            .unwrap_or_else(|error| panic!("`{addr}` is not an address: {error}"));
+        // The data folder is the one directory this server owns.
+        let served = Served::spawn(
+            Command::new(env!("CARGO_BIN_EXE_nvs"))
+                .arg("--data")
+                .arg(&*data)
+                .arg("--config")
+                .arg(root)
+                .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
+                .current_dir(program),
+            data.to_path_buf(),
+        );
         Self {
-            child,
-            addr,
-            stderr,
+            served,
             _data: data,
         }
     }
@@ -132,17 +103,10 @@ impl Server {
             assert!(
                 started.elapsed() <= BOUND,
                 "the policy was {seen:?}, not `{wanted}`, after {BOUND:?}; the server wrote: {}",
-                self.stderr.lock().expect("no reader panicked")
+                self.said()
             );
             thread::sleep(POLL);
         }
-    }
-}
-
-impl Drop for Server {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
     }
 }
 
@@ -263,6 +227,9 @@ fn a_swapped_current_link_is_read_by_the_next_check() {
 #[test]
 fn a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot() {
     use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+
+    use nvs_test::serve::BOOT;
 
     let base = nvs_repo::scratch_private("follows-links-shared");
     let program = program(&base);
@@ -285,16 +252,11 @@ fn a_link_in_a_group_writable_folder_is_refused_at_reload_and_at_boot() {
     std::fs::remove_file(&current).expect("`current` is unlinked");
     link_dir(&two, &current);
     let started = Instant::now();
-    while !server
-        .stderr
-        .lock()
-        .expect("no reader panicked")
-        .contains("E0607")
-    {
+    while !server.said().contains("E0607") {
         assert!(
             started.elapsed() <= BOUND,
             "no reload refusal after {BOUND:?}; the server wrote: {}",
-            server.stderr.lock().expect("no reader panicked")
+            server.said()
         );
         thread::sleep(POLL);
     }

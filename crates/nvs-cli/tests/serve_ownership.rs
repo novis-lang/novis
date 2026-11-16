@@ -16,8 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// How long `nvs serve` has to compile its program and bind its port, or to refuse.
-const BOOT: Duration = Duration::from_secs(60);
+use nvs_test::serve::BOOT;
 
 /// How long a reload has to notice a saved file: the check runs every two seconds, and a stamp
 /// that moved must hold for one more check.

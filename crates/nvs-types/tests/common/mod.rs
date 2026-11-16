@@ -14,6 +14,7 @@
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_hir::resolve_file;
 use nvs_syntax::parse_file;
+use nvs_test::temp::TempDir;
 use nvs_types::check::check_program;
 use nvs_types::expr_table::ExprTypeTable;
 use nvs_types::ty::TypeInterner;
@@ -353,13 +354,13 @@ pub(crate) fn check_program_table(files: &[(&str, &str)]) -> (Diagnostics, ExprT
 pub(crate) fn check_program_module(
     files: &[(&str, &str)],
 ) -> (Diagnostics, ExprTypeTable, nvs_hir::Module) {
-    let dir = TempDir::new(files[0].0);
+    let dir = temp(files[0].0);
     for (name, src) in files {
         dir.write(name, src);
     }
     let mut map = SourceMap::new();
     let entry = map
-        .load(dir.path.join(files[0].0))
+        .load(dir.at(files[0].0))
         .expect("load the entry fixture");
     let mut diags = Diagnostics::new();
     let stmts = nvs_syntax::parse_file(map.file(entry), &mut diags);
@@ -431,7 +432,7 @@ impl Program {
     /// Writes `files`, each `(name, source)`, into a new directory named
     /// after `name`.
     pub(crate) fn new(name: &str, files: &[(&str, &str)]) -> Self {
-        let dir = TempDir::new(name);
+        let dir = temp(name);
         for (file, src) in files {
             dir.write(file, src);
         }
@@ -459,7 +460,7 @@ impl Program {
     ) -> Checked {
         let mut map = SourceMap::pinned(std::mem::take(&mut self.pins));
         let entry = map
-            .load(self.dir.path.join(entry))
+            .load(self.dir.at(entry))
             .expect("load the entry fixture");
         let mut diags = Diagnostics::new();
         let stmts = nvs_syntax::parse_file(map.file(entry), &mut diags);
@@ -536,24 +537,10 @@ impl Program {
 }
 
 /// A directory of fixture files under `target/` that is deleted when it drops,
-/// the shape `nvs_hir::requires`' own tests use — copied rather than shared
-/// because that one lives inside a `#[cfg(test)]` module of another crate.
-struct TempDir {
-    path: nvs_repo::Scratch,
-}
-
-impl TempDir {
-    fn new(name: &str) -> Self {
-        Self {
-            path: nvs_repo::scratch(&format!("types-program-{}", name.replace('.', "-"))),
-        }
-    }
-
-    fn write(&self, name: &str, contents: &str) {
-        let path = self.path.join(name);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).expect("create the fixture's folder");
-        }
-        std::fs::write(path, contents).expect("write fixture");
-    }
+/// named after `name`.
+fn temp(name: &str) -> TempDir {
+    TempDir::new(nvs_repo::scratch(&format!(
+        "types-program-{}",
+        name.replace('.', "-")
+    )))
 }
