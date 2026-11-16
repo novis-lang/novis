@@ -1564,17 +1564,7 @@ impl Emitter<'_, '_> {
     /// coverage can be switched on for a request already running. `stmt` is the
     /// program-wide number `nvs_ir::Program::stmt_spans` indexes.
     fn emit_stmt_probe(&mut self, _cur: Block, stmt: u32) -> Result<Block, CodegenError> {
-        let offset = i32::try_from(DEBUG_FLAGS_OFFSET)
-            .map_err(|_| internal("the debug-flags word sits past a 2 GiB offset"))?;
-        let flags = self
-            .b
-            .ins()
-            .load(types::I64, ctx_word(), self.ctx_p, offset);
-
-        let slow = self.b.create_block();
-        let cont = self.b.create_block();
-        self.b.ins().brif(flags, slow, &[], cont, &[]);
-
+        let (slow, cont) = self.emit_probe_branch()?;
         self.b.switch_to_block(slow);
         let callee = self.runtime_ref("nvs_probe_stmt", RuntimeSig::Probe)?;
         let id = self.b.ins().iconst(types::I32, i64::from(stmt));
@@ -1773,18 +1763,25 @@ impl Emitter<'_, '_> {
     /// flags are loaded once per branch, not once per edge, and the path with
     /// every bit off gains no jump.
     fn emit_edge_probe_check(&mut self) -> Result<Block, CodegenError> {
+        let (probed, plain) = self.emit_probe_branch()?;
+        self.b.switch_to_block(plain);
+        Ok(probed)
+    }
+
+    /// One load of the debug-flags word and a branch on it: to the first block
+    /// returned when any bit is set, and to the second when none is. Every
+    /// probe starts with this, and the builder stays in the current block.
+    fn emit_probe_branch(&mut self) -> Result<(Block, Block), CodegenError> {
         let offset = i32::try_from(DEBUG_FLAGS_OFFSET)
             .map_err(|_| internal("the debug-flags word sits past a 2 GiB offset"))?;
         let flags = self
             .b
             .ins()
             .load(types::I64, ctx_word(), self.ctx_p, offset);
-
         let probed = self.b.create_block();
         let plain = self.b.create_block();
         self.b.ins().brif(flags, probed, &[], plain, &[]);
-        self.b.switch_to_block(plain);
-        Ok(probed)
+        Ok((probed, plain))
     }
 
     /// Calls [`nvs_runtime::nvs_probe_edge`] for `edge`, a function-local
@@ -4199,17 +4196,7 @@ impl Emitter<'_, '_> {
         label: (Value, Value),
         status: Option<Value>,
     ) -> Result<(), CodegenError> {
-        let offset = i32::try_from(DEBUG_FLAGS_OFFSET)
-            .map_err(|_| internal("the debug-flags word sits past a 2 GiB offset"))?;
-        let flags = self
-            .b
-            .ins()
-            .load(types::I64, ctx_word(), self.ctx_p, offset);
-
-        let slow = self.b.create_block();
-        let cont = self.b.create_block();
-        self.b.ins().brif(flags, slow, &[], cont, &[]);
-
+        let (slow, cont) = self.emit_probe_branch()?;
         self.b.switch_to_block(slow);
         let probe = self.runtime_ref(symbol, sig)?;
         let (address, len) = label;
