@@ -808,7 +808,10 @@ fn development_host_problem(entry: &str) -> Option<&'static str> {
         Some("is a wildcard")
     } else if entry.contains('/') {
         Some("has a path or a network range")
-    } else if entry.chars().any(|char| char.is_whitespace() || char.is_control()) {
+    } else if entry
+        .chars()
+        .any(|char| char.is_whitespace() || char.is_control())
+    {
         Some("has a space or a control character")
     } else if entry.contains(':') && !bracketed {
         Some("has a port, or is an IPv6 address without brackets")
@@ -1172,7 +1175,9 @@ mod tests {
         );
         assert_eq!(
             development_hosts(
-                &tree("[server]\ndevelopment_hosts = [\"App.Test.\", \"192.0.2.7\", \"[fd00::1]\"]\n"),
+                &tree(
+                    "[server]\ndevelopment_hosts = [\"App.Test.\", \"192.0.2.7\", \"[fd00::1]\"]\n"
+                ),
                 &origins
             )
             .expect("a list of hosts was refused"),

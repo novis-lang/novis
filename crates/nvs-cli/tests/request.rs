@@ -426,7 +426,10 @@ fn a_development_server_answers_an_unknown_host_from_this_machine_with_a_logged_
         answer.starts_with("HTTP/1.1 421 Misdirected Request\r\n"),
         "an unknown host: {answer}"
     );
-    assert!(answer.ends_with("\r\n\r\n"), "the 421 has no body: {answer}");
+    assert!(
+        answer.ends_with("\r\n\r\n"),
+        "the 421 has no body: {answer}"
+    );
     for host in ["proxy.test", "PROXY.test:8080", "localhost"] {
         assert_eq!(
             served.status_of(

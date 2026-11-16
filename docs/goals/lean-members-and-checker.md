@@ -296,7 +296,12 @@ chapter's slug bench output shows the counts the leaner `Core\Str::trim` gives. 
 stage 5: 1, stage 6: 1.
 
 The sweep's `env-secret-proofs` is still stale state in looper's service. Its log does not
-exist, and nothing in the tree defines it.
+exist, nothing in the tree defines it, and `looper check --name env-secret-proofs` finds no check.
+
+The second refused DONE's `ci-check` was red because of the server commit `5c0aad1f11`, made
+outside the loop. It left rustfmt drift in three files, a stale `website/public/llms-full.txt`,
+and stale search questions on `/reference/config/mode/` and `/reference/config/server/`. All
+three are fixed, and `looper check --name ci-check` is green.
 
 The refused DONE's `floor-debt` was red on two atoms of its 87-minute sweep:
 `tools/nv/test/fuzz.test.ts` and `tools/nv/test/mirror.test.ts`. The log names no failure. Both

@@ -376,8 +376,8 @@ impl Table {
         // A list `nvs_config::server::validate` refused at boot never reaches
         // here, so the only tree with one is one nothing validated, and it lets
         // in nothing beyond this machine's own names.
-        let listed = nvs_config::server::development_hosts(config, &BTreeMap::new())
-            .unwrap_or_default();
+        let listed =
+            nvs_config::server::development_hosts(config, &BTreeMap::new()).unwrap_or_default();
         Self::new(mounts, switches.dispatch, switches.serve_static)
             .with_health(health)
             .withholding(databases(config).map(Path::to_path_buf))

@@ -1730,13 +1730,14 @@
   },
   "/reference/config/mode/": {
     "feature": "tools:config/mode",
-    "hash": "f974984bbd8cfcca",
+    "hash": "7b55977cda3bf148",
     "questions": [
       "Run the server with safe settings for a live website",
       "How do I show full error details while developing?",
       "Stop an application from turning on development mode in production",
       "Check in my program whether it runs in production",
-      "Is there a staging mode?"
+      "Is there a staging mode?",
+      "Which host names does the development server accept?"
     ]
   },
   "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/": {
@@ -1822,13 +1823,13 @@
   },
   "/reference/config/server/": {
     "feature": "tools:server/the-server-block",
-    "hash": "1f12734b8fffb5f0",
+    "hash": "f05b38081cda183e",
     "questions": [
       "Change the port the web server listens on",
       "Listen on a Unix socket behind nginx",
       "Limit how many requests run at the same time",
-      "Close idle connections after a timeout",
       "Trust the client IP address sent by my reverse proxy",
+      "Why does my local proxy get a 421 error in development?",
       "Serve static files like images and CSS"
     ]
   },
