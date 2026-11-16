@@ -53,11 +53,13 @@
 //! `inout` marker writes one too, so all three are skipped rather than
 //! annotated twice.
 //!
-//! The document is walked whole and never bounded by a range, which is not a
-//! gap: `textDocument/inlayHint` is asked over the visible region and asked
-//! again for every region a reader scrolls onto, so a walk bounded by the range
-//! would repeat most of itself per frame to save a filter. `crate::server`'s
-//! `inlay_hints` is where the answer is narrowed.
+//! A request walks only the statements that reach the range it asked about
+//! ([`in_range`]). `textDocument/inlayHint` is asked over the visible region
+//! and asked again for every region a reader scrolls onto, so a whole walk
+//! would repeat the document per scroll. A statement is skipped only when its
+//! span ends before the range or starts after it, and every hint sits inside
+//! the statement that wrote it, so the skip loses none. `crate::server`'s
+//! `inlay_hints` still narrows the answer to the exact positions.
 //!
 //! # Decision: a call gets hints where its target names its parameters
 //!
@@ -90,6 +92,19 @@ use crate::position::position_at;
 /// precedes, so the order a walk produces is not the order a reader sees.
 #[must_use]
 pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<InlayHint> {
+    in_range(analysed, encoding, 0, BytePos::MAX)
+}
+
+/// [`for_document`], for the hints between byte `lo` and byte `hi`, both
+/// inclusive. A statement outside them is not walked, so a request costs
+/// what the range holds and not what the document holds.
+#[must_use]
+pub fn in_range(
+    analysed: &Analysed,
+    encoding: PositionEncoding,
+    lo: BytePos,
+    hi: BytePos,
+) -> Vec<InlayHint> {
     let Some(loaded) = analysed
         .loaded
         .iter()
@@ -100,6 +115,8 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Inla
     let mut hinting = Hinting {
         analysed,
         encoding,
+        lo,
+        hi,
         hints: Vec::new(),
     };
     hinting.stmts(&loaded.stmts);
@@ -115,6 +132,10 @@ struct Hinting<'a> {
     analysed: &'a Analysed,
     /// The encoding the client negotiated, which is what a position is in.
     encoding: PositionEncoding,
+    /// The first byte a hint may sit at.
+    lo: BytePos,
+    /// The last byte a hint may sit at.
+    hi: BytePos,
     /// What the walk has found, in the order it found it.
     hints: Vec<InlayHint>,
 }
@@ -123,7 +144,9 @@ impl Hinting<'_> {
     /// Walks a run of statements.
     fn stmts(&mut self, stmts: &[Stmt]) {
         for stmt in stmts {
-            self.stmt(stmt);
+            if stmt.span.end >= self.lo && stmt.span.start <= self.hi {
+                self.stmt(stmt);
+            }
         }
     }
 
@@ -488,6 +511,9 @@ impl Hinting<'_> {
     /// hint precedes the value and takes one after it, so `greet(name: "hi")`
     /// reads as the named argument it stands in for.
     fn push(&mut self, at: BytePos, label: String, kind: InlayHintKind, padded: bool) {
+        if at < self.lo || at > self.hi {
+            return;
+        }
         let file = self.analysed.map.file(self.analysed.entry);
         self.hints.push(InlayHint {
             position: position_at(file, at, self.encoding),

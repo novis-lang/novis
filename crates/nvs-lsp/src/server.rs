@@ -2877,21 +2877,13 @@ fn selection_range(
     )
 }
 
-/// `textDocument/documentLink` — every `require` in one open document.
-///
-/// Empty for a document this server has nothing open for, on
-/// [`document_symbol`]'s terms. A link whose target this process cannot spell
-/// as a URI is dropped rather than sent with none: `target: None` means "ask me
-/// again", and a second question would get the same answer.
-///
-/// No tooltip. LSP shows one in place of the target, and the target is the file
-/// path, which is the more useful of the two things there is to say.
 /// The hints inside the range the client asked about.
 ///
-/// **The document is walked whole and the answer narrowed here**, which is
-/// where [`crate::hints`] leaves it: the walk reads one analysis, and an editor
-/// asks this request again for every range it scrolls onto, so a walk bounded
-/// by the range would repeat most of itself per frame to save a filter.
+/// **The walk is bounded by the range, and the answer narrowed here.** An
+/// editor asks this request again for every range it scrolls onto, so
+/// [`hints::in_range`] walks the statements that reach the range alone. The
+/// range is turned into bytes once, and the filter below keeps the exact
+/// positions.
 ///
 /// The bounds are inclusive at both ends. A hint sits *between* two characters
 /// rather than on one, so a hint at the first position of the visible range is
@@ -2909,7 +2901,10 @@ fn inlay_hints(
     let Some(analysed) = documents.analysed(&params.text_document.uri) else {
         return Vec::new();
     };
-    hints::for_document(&analysed, encoding)
+    let file = analysed.map.file(analysed.entry);
+    let lo = offset_at(file, params.range.start, encoding);
+    let hi = offset_at(file, params.range.end, encoding);
+    hints::in_range(&analysed, encoding, lo, hi)
         .into_iter()
         .filter(|hint| settings.parameter_names || hint.kind != Some(InlayHintKind::PARAMETER))
         .filter(|hint| {
@@ -2926,6 +2921,14 @@ fn at_or_after(position: Position, limit: Position) -> bool {
 
 /// `textDocument/documentLink` — every written path [`links::for_document`]
 /// resolved, a file as its `file:` URI and a directory as one ending in `/`.
+///
+/// Empty for a document this server has nothing open for, on
+/// [`document_symbol`]'s terms. A link whose target this process cannot spell
+/// as a URI is dropped rather than sent with none: `target: None` means "ask me
+/// again", and a second question would get the same answer.
+///
+/// No tooltip. LSP shows one in place of the target, and the target is the file
+/// path, which is the more useful of the two things there is to say.
 fn document_link(
     documents: &Documents,
     encoding: PositionEncoding,
