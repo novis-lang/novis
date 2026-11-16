@@ -79,6 +79,8 @@ use crate::stubs::Stubs;
 pub struct Document {
     uri: Uri,
     path: Option<PathBuf>,
+    /// `path` under `canonical_key`, resolved once when the document opens.
+    key: Option<PathBuf>,
     version: i32,
     text: String,
 }
@@ -235,30 +237,33 @@ impl Documents {
     pub fn open(&mut self, uri: Uri, version: i32, text: String) {
         self.kept.get_mut().clear();
         let path = path_of(&uri);
-        if let Some(path) = &path {
-            self.survey_around(path);
+        let key = path.as_deref().map(canonical_key);
+        if let Some(key) = &key {
+            self.survey_around(key);
         }
         self.buffers.insert(
             uri.clone(),
             Document {
                 uri,
                 path,
+                key,
                 version,
                 text,
             },
         );
     }
 
-    /// Adds the programs in the folder the survey skipped on the way to
-    /// `path`, and in each folder skipped inside that one, to the lenders.
+    /// Adds the programs in the folder the survey skipped on the way to the
+    /// file under `key`, a `canonical_key`, and in each folder skipped inside
+    /// that one, to the lenders.
     ///
     /// Nothing is read when the survey walked no root, when nothing above
-    /// `path` was skipped, or when every file there was walked already.
-    fn survey_around(&mut self, path: &Path) {
+    /// the file was skipped, or when every file there was walked already.
+    fn survey_around(&mut self, key: &Path) {
         let Some(root) = self.walked.clone() else {
             return;
         };
-        let fresh: Vec<PathBuf> = nvs_hir::lenders::around(&root, &canonical_key(path))
+        let fresh: Vec<PathBuf> = nvs_hir::lenders::around(&root, key)
             .into_iter()
             .filter(|file| !self.around.contains(file))
             .collect();
@@ -342,8 +347,8 @@ impl Documents {
     /// another tab is exactly the one whose staleness would be visible.
     pub fn overlay(&self, map: &mut SourceMap) {
         for document in self.buffers.values() {
-            if let Some(path) = document.path() {
-                map.overlay(path, document.text.clone());
+            if let Some(key) = &document.key {
+                map.overlay_key(key.clone(), document.text.clone());
             }
         }
     }
@@ -381,7 +386,7 @@ impl Documents {
         let open: Vec<PathBuf> = self
             .buffers
             .values()
-            .filter_map(|document| document.path().map(Path::to_path_buf))
+            .filter_map(|document| document.key.clone())
             .collect();
         for path in open {
             self.survey_around(&path);
@@ -401,7 +406,7 @@ impl Documents {
     pub fn resurvey(&mut self, changed: &Path) {
         self.kept.get_mut().clear();
         let key = canonical_key(changed);
-        let requires = self.holds(changed, "require");
+        let requires = self.holds(&key, "require");
         let mut entries: Vec<PathBuf> = self
             .lenders
             .iter()
@@ -447,21 +452,31 @@ impl Documents {
         lender_among(&self.lenders, key, || self.text_of(key))
     }
 
-    /// Whether the text of `path` — the open buffer, or the file under it —
-    /// holds `keyword`.
-    fn holds(&self, path: &Path, keyword: &str) -> bool {
-        self.text_of(path)
-            .is_some_and(|text| text.contains(keyword))
+    /// Whether the text of the file under `key`, a `canonical_key` — the open
+    /// buffer, or the file under it — holds `keyword`.
+    fn holds(&self, key: &Path, keyword: &str) -> bool {
+        self.text_of(key).is_some_and(|text| text.contains(keyword))
     }
 
-    /// The text of `path`: the open buffer, or the file under it.
-    fn text_of(&self, path: &Path) -> Option<String> {
+    /// The text of the file under `key`, a `canonical_key`: the open buffer
+    /// for it, or the file on disk. Only that one buffer is copied.
+    fn text_of(&self, key: &Path) -> Option<String> {
+        if let Some(document) = self
+            .buffers
+            .values()
+            .find(|document| document.key.as_deref() == Some(key))
+        {
+            return Some(document.text.clone());
+        }
         let mut map = SourceMap::new();
-        self.overlay(&mut map);
-        map.load(path).ok().map(|id| map.file(id).text().to_owned())
+        map.load(key).ok().map(|id| map.file(id).text().to_owned())
     }
 
     /// Records every file `uri`'s last analysis read.
+    ///
+    /// The walk loads every file under its `canonical_key` but the entry,
+    /// which it loads by the document's path. So the entry takes the key the
+    /// document stored when it opened, and no path is resolved here.
     ///
     /// A document that is not open records nothing, so the index never holds a
     /// graph for something [`close`](Self::close) will not clear.
@@ -469,7 +484,14 @@ impl Documents {
         if !self.buffers.contains_key(uri) {
             return;
         }
-        let files = files.into_iter().map(|file| canonical_key(&file)).collect();
+        let document = &self.buffers[uri];
+        let files = files
+            .into_iter()
+            .map(|file| match (&document.path, &document.key) {
+                (Some(path), Some(key)) if file == *path => key.clone(),
+                _ => file,
+            })
+            .collect();
         self.graphs.insert(uri.clone(), files);
     }
 
@@ -550,7 +572,7 @@ impl Documents {
             .buffers
             .values()
             .filter(|document| {
-                document.path().map(canonical_key) == Some(changed.clone())
+                document.key.as_ref() == Some(&changed)
                     || self
                         .graphs
                         .get(&document.uri)
@@ -567,17 +589,16 @@ impl Documents {
     /// What one analysis reads from this store, copied so another thread can
     /// own it. The index takes one per entry it settles.
     ///
-    /// It costs one copy of every open buffer's text and one resolution of
-    /// each buffer's path. The lenders are shared, not copied.
+    /// It costs one copy of every open buffer's text and key, and resolves no
+    /// path. The lenders are shared, not copied.
     #[must_use]
     pub(crate) fn snapshot(&self) -> Snapshot {
         let buffers = self
             .buffers
             .values()
             .filter_map(|document| {
-                let path = document.path()?;
                 Some(Buffer {
-                    key: canonical_key(path),
+                    key: document.key.clone()?,
                     version: document.version,
                     text: document.text.clone(),
                 })
@@ -636,7 +657,7 @@ impl Reads for Documents {
     fn open_keys(&self) -> Vec<PathBuf> {
         self.buffers
             .values()
-            .filter_map(|document| document.path().map(canonical_key))
+            .filter_map(|document| document.key.clone())
             .collect()
     }
 }
