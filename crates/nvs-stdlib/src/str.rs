@@ -2596,8 +2596,24 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_trim(_ctx, args: [2]) {
         let subject = text(&args[0], "trim", "the subject")?;
         let characters = text(&args[1], "trim", "the `characters` option")?;
-        produced(trimmed(subject, characters, true, true, r"Core\Str::trim")?)
+        let kept = trimmed(subject, characters, true, true, r"Core\Str::trim")?;
+        // Trimming removes a prefix and a suffix, so the same length means the
+        // same text, and the argument itself is the result.
+        if kept.len() == subject.len() {
+            return unchanged(args[0]);
+        }
+        produced(kept)
     }
+}
+
+/// The `string` argument itself, as the result of a member that found nothing to
+/// change. It costs one retain and no allocation.
+///
+/// The argument and a copy of it are the same value to every reader: a `string`
+/// carries no taint or secret state at run time, only in its type, and the
+/// member's signature gives the result its type.
+pub(crate) fn unchanged(argument: Value) -> HelperResult {
+    Ok(crate::socket::retained(argument))
 }
 
 nvs_runtime::nvs_helper! {
