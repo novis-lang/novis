@@ -25,8 +25,8 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{AttributeGroup, ClassMemberKind, NamespaceDecl, Stmt, StmtKind};
-use rustc_hash::{FxHashMap, FxHashSet};
+use nvs_syntax::ast::{AttributeGroup, ClassMemberKind, StmtKind};
+use rustc_hash::FxHashSet;
 
 use crate::deprecated::Member;
 use crate::expr_table::ExprInfo;
@@ -55,61 +55,25 @@ impl TestCode {
     }
 }
 
-/// Collects [`TestCode`] over every file. The namespace and `use` walk is
-/// [`crate::deprecated::build_table`]'s, so a marker's name means here what it means to the
-/// `#[Test]` table.
+/// Collects [`TestCode`] over every file, through [`crate::deprecated::each_declaration`], so a
+/// marker's name means here what it means to the `#[Test]` table.
 pub(crate) fn build_table(files: &[ProgramFile<'_>]) -> TestCode {
     let mut table = TestCode::default();
-    for file in files {
-        collect(file.stmts, file.src, &[], &FxHashMap::default(), &mut table);
-    }
-    table
-}
-
-fn collect(
-    stmts: &[Stmt],
-    src: &nvs_diagnostics::SourceFile,
-    namespace: &[String],
-    imports: &FxHashMap<String, QName>,
-    table: &mut TestCode,
-) {
-    let mut current_ns = namespace.to_vec();
-    let mut current_imports = imports.clone();
-    for stmt in stmts {
+    crate::deprecated::each_declaration(files, |stmt, src, current_ns, current_imports| {
         let (name, members) = match &stmt.kind {
-            StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
-                let new_ns = name.as_ref().map_or_else(Vec::new, |n| {
-                    QName::parse(span_text(src, n.span)).segments().to_vec()
-                });
-                match body {
-                    Some(block) => {
-                        collect(&block.stmts, src, &new_ns, &FxHashMap::default(), table);
-                    }
-                    None => {
-                        current_ns = new_ns;
-                        current_imports.clear();
-                    }
-                }
-                continue;
-            }
-            StmtKind::UseDecl(use_decl) => {
-                let target = QName::parse(span_text(src, use_decl.path.span));
-                current_imports.insert(target.short_name().to_owned(), target);
-                continue;
-            }
             StmtKind::ClassDecl(d) => (&d.name, &d.members),
             StmtKind::InterfaceDecl(d) => (&d.name, &d.members),
-            _ => continue,
+            _ => return,
         };
-        let owner = QName::join(&current_ns, span_text(src, name.span));
+        let owner = QName::join(current_ns, span_text(src, name.span));
         let marked = |groups: &[AttributeGroup]| {
             groups.iter().flat_map(|g| &g.attributes).any(|attr| {
                 attr.member.is_none()
                     && attr.name.as_ref().is_some_and(|n| {
                         let written = nvs_hir::resolve_ref(
                             span_text(src, n.span),
-                            &current_ns,
-                            &current_imports,
+                            current_ns,
+                            current_imports,
                         );
                         MARKERS.iter().any(|marker| written == QName::parse(marker))
                     })
@@ -124,7 +88,8 @@ fn collect(
                     .insert((owner.clone(), span_text(src, m.name).to_owned()));
             }
         }
-    }
+    });
+    table
 }
 
 /// `E0889` at every call the entries recorded after `mark` make into test code, unless the body

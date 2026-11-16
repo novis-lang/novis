@@ -32,7 +32,7 @@ mod template;
 
 use std::fmt::Write as _;
 
-use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::SyntaxIndex;
 use nvs_syntax::ast::{
@@ -413,138 +413,165 @@ fn warn_uses(mark: usize, env: &mut Env<'_>) {
     }
 }
 
-/// Collects [`Deprecations`] over every file. The namespace and `use` walk is
-/// `crate::retrieval`'s, made for the same reason: what an attribute's name
-/// means is a property of the text it was written in.
-pub(crate) fn build_table(files: &[ProgramFile<'_>]) -> Deprecations {
-    let mut table = Deprecations::default();
+/// Calls `visit` with every statement of `files` that is not a `namespace` or
+/// a `use`, with its file, its namespace and the names imported above it.
+///
+/// A braced `namespace {}` starts with no imports, and an unbraced one
+/// replaces the namespace and clears them, as `crate::check::check_stmts`
+/// does. What an attribute's name means is a property of the text it was
+/// written in, so [`build_table`], `crate::retrieval` and `crate::test_code`
+/// read their declarations through this one walk, a whole pass before the
+/// check.
+pub(crate) fn each_declaration<'a>(
+    files: &[ProgramFile<'a>],
+    mut visit: impl FnMut(&'a Stmt, &'a SourceFile, &[String], &FxHashMap<String, QName>),
+) {
     for file in files {
-        collect(file.stmts, file.src, &[], &FxHashMap::default(), &mut table);
+        in_namespace(
+            file.stmts,
+            file.src,
+            Vec::new(),
+            FxHashMap::default(),
+            &mut visit,
+        );
     }
-    table
 }
 
-fn collect(
-    stmts: &[Stmt],
-    src: &nvs_diagnostics::SourceFile,
-    namespace: &[String],
-    imports: &FxHashMap<String, QName>,
-    table: &mut Deprecations,
-) {
-    let mut current_ns = namespace.to_vec();
-    let mut current_imports = imports.clone();
+fn in_namespace<'a, F>(
+    stmts: &'a [Stmt],
+    src: &'a SourceFile,
+    mut namespace: Vec<String>,
+    mut imports: FxHashMap<String, QName>,
+    visit: &mut F,
+) where
+    F: FnMut(&'a Stmt, &'a SourceFile, &[String], &FxHashMap<String, QName>),
+{
     for stmt in stmts {
-        let (name, attributes, members, cases) = match &stmt.kind {
+        match &stmt.kind {
             StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
                 let new_ns = name.as_ref().map_or_else(Vec::new, |n| {
                     QName::parse(span_text(src, n.span)).segments().to_vec()
                 });
                 match body {
                     Some(block) => {
-                        collect(&block.stmts, src, &new_ns, &FxHashMap::default(), table);
+                        in_namespace(&block.stmts, src, new_ns, FxHashMap::default(), visit);
                     }
                     None => {
-                        current_ns = new_ns;
-                        current_imports.clear();
+                        namespace = new_ns;
+                        imports.clear();
                     }
                 }
-                continue;
             }
             StmtKind::UseDecl(use_decl) => {
                 let target = QName::parse(span_text(src, use_decl.path.span));
-                current_imports.insert(target.short_name().to_owned(), target);
-                continue;
+                imports.insert(target.short_name().to_owned(), target);
             }
-            StmtKind::ClassDecl(d) => (&d.name, &d.attributes, &d.members, &[][..]),
-            StmtKind::InterfaceDecl(d) => (&d.name, &d.attributes, &d.members, &[][..]),
-            StmtKind::EnumDecl(d) => (&d.name, &d.attributes, &d.members, &d.cases[..]),
-            _ => continue,
-        };
-        let owner = QName::join(&current_ns, span_text(src, name.span));
-        let deprecated = |groups: &[AttributeGroup]| {
-            groups
-                .iter()
-                .flat_map(|g| &g.attributes)
-                .find(|attr| {
-                    attr.member.is_none()
-                        && attr.name.as_ref().is_some_and(|n| {
-                            nvs_hir::resolve_ref(
-                                span_text(src, n.span),
-                                &current_ns,
-                                &current_imports,
-                            ) == QName::parse(crate::derive::DEPRECATED)
-                        })
-                })
-                .map(|attr| {
-                    Deprecation::of(attr, src, fix::Scope::new(&current_ns, &current_imports))
-                })
-        };
-        let params = |params: &[Param]| params.iter().map(|p| fix::Param::of(p, src)).collect();
-        let mut found = Vec::new();
-        if let Some(mut d) = deprecated(attributes) {
-            let constructor = members.iter().find_map(|member| match &member.kind {
-                ClassMemberKind::Method(m) if span_text(src, m.name) == "constructor" => Some(m),
-                _ => None,
-            });
-            if let Some(constructor) = constructor {
-                d.params = params(&constructor.params);
-            }
-            found.push((Member::Type, d));
+            _ => visit(stmt, src, &namespace, &imports),
         }
-        for member in members {
-            match &member.kind {
-                ClassMemberKind::Property(p) => {
-                    if let Some(d) = deprecated(&p.attributes) {
-                        let name = strip_sigil(span_text(src, p.name)).to_owned();
-                        found.push((Member::Property(name), d));
-                    }
-                }
-                ClassMemberKind::Const(c) => {
-                    if let Some(d) = deprecated(&c.attributes) {
-                        found.push((Member::Const(span_text(src, c.name).to_owned()), d));
-                    }
-                }
-                ClassMemberKind::Method(m) => {
-                    let method = span_text(src, m.name).to_owned();
-                    for param in &m.params {
-                        if let Some(d) = deprecated(&param.attributes) {
-                            let name = strip_sigil(span_text(src, param.name)).to_owned();
-                            found.push((Member::Param(method.clone(), name), d));
-                        }
-                    }
-                    if let Some(mut d) = deprecated(&m.attributes) {
-                        d.params = params(&m.params);
-                        found.push((Member::Method(method), d));
-                    }
-                }
-                // An enum in a class body is a type of its own, under its
-                // own key (`rule:enums/class-scoped-enum`).
-                ClassMemberKind::Enum(decl) => {
-                    let key = QName::member(&owner, span_text(src, decl.name.span));
-                    if let Some(d) = deprecated(&decl.attributes) {
-                        table.sites.insert((key.clone(), Member::Type), d);
-                    }
-                    for case in &decl.cases {
-                        if let Some(d) = deprecated(&case.attributes) {
-                            let case = Member::Case(span_text(src, case.name.span).to_owned());
-                            table.sites.insert((key.clone(), case), d);
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        for case in cases {
-            if let Some(d) = deprecated(&case.attributes) {
-                found.push((Member::Case(span_text(src, case.name.span).to_owned()), d));
-            }
-        }
-        table.sites.extend(
-            found
-                .into_iter()
-                .map(|(member, d)| ((owner.clone(), member), d)),
-        );
     }
+}
+
+/// Collects [`Deprecations`] over every file.
+pub(crate) fn build_table(files: &[ProgramFile<'_>]) -> Deprecations {
+    let mut table = Deprecations::default();
+    each_declaration(files, |stmt, src, current_ns, current_imports| {
+        collect(stmt, src, current_ns, current_imports, &mut table);
+    });
+    table
+}
+
+fn collect(
+    stmt: &Stmt,
+    src: &SourceFile,
+    current_ns: &[String],
+    current_imports: &FxHashMap<String, QName>,
+    table: &mut Deprecations,
+) {
+    let (name, attributes, members, cases) = match &stmt.kind {
+        StmtKind::ClassDecl(d) => (&d.name, &d.attributes, &d.members, &[][..]),
+        StmtKind::InterfaceDecl(d) => (&d.name, &d.attributes, &d.members, &[][..]),
+        StmtKind::EnumDecl(d) => (&d.name, &d.attributes, &d.members, &d.cases[..]),
+        _ => return,
+    };
+    let owner = QName::join(current_ns, span_text(src, name.span));
+    let deprecated = |groups: &[AttributeGroup]| {
+        groups
+            .iter()
+            .flat_map(|g| &g.attributes)
+            .find(|attr| {
+                attr.member.is_none()
+                    && attr.name.as_ref().is_some_and(|n| {
+                        nvs_hir::resolve_ref(span_text(src, n.span), current_ns, current_imports)
+                            == QName::parse(crate::derive::DEPRECATED)
+                    })
+            })
+            .map(|attr| Deprecation::of(attr, src, fix::Scope::new(current_ns, current_imports)))
+    };
+    let params = |params: &[Param]| params.iter().map(|p| fix::Param::of(p, src)).collect();
+    let mut found = Vec::new();
+    if let Some(mut d) = deprecated(attributes) {
+        let constructor = members.iter().find_map(|member| match &member.kind {
+            ClassMemberKind::Method(m) if span_text(src, m.name) == "constructor" => Some(m),
+            _ => None,
+        });
+        if let Some(constructor) = constructor {
+            d.params = params(&constructor.params);
+        }
+        found.push((Member::Type, d));
+    }
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(p) => {
+                if let Some(d) = deprecated(&p.attributes) {
+                    let name = strip_sigil(span_text(src, p.name)).to_owned();
+                    found.push((Member::Property(name), d));
+                }
+            }
+            ClassMemberKind::Const(c) => {
+                if let Some(d) = deprecated(&c.attributes) {
+                    found.push((Member::Const(span_text(src, c.name).to_owned()), d));
+                }
+            }
+            ClassMemberKind::Method(m) => {
+                let method = span_text(src, m.name).to_owned();
+                for param in &m.params {
+                    if let Some(d) = deprecated(&param.attributes) {
+                        let name = strip_sigil(span_text(src, param.name)).to_owned();
+                        found.push((Member::Param(method.clone(), name), d));
+                    }
+                }
+                if let Some(mut d) = deprecated(&m.attributes) {
+                    d.params = params(&m.params);
+                    found.push((Member::Method(method), d));
+                }
+            }
+            // An enum in a class body is a type of its own, under its
+            // own key (`rule:enums/class-scoped-enum`).
+            ClassMemberKind::Enum(decl) => {
+                let key = QName::member(&owner, span_text(src, decl.name.span));
+                if let Some(d) = deprecated(&decl.attributes) {
+                    table.sites.insert((key.clone(), Member::Type), d);
+                }
+                for case in &decl.cases {
+                    if let Some(d) = deprecated(&case.attributes) {
+                        let case = Member::Case(span_text(src, case.name.span).to_owned());
+                        table.sites.insert((key.clone(), case), d);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    for case in cases {
+        if let Some(d) = deprecated(&case.attributes) {
+            found.push((Member::Case(span_text(src, case.name.span).to_owned()), d));
+        }
+    }
+    table.sites.extend(
+        found
+            .into_iter()
+            .map(|(member, d)| ((owner.clone(), member), d)),
+    );
 }
 
 /// Every `#[Core\Deprecated]` under one class, interface or enum body, held to

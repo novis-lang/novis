@@ -81,7 +81,7 @@ use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
     AnonObjectField, Attribute, AttributeGroup, CallArgs, ClassDecl, ClassMember, ClassMemberKind,
-    Expr, ExprKind, MemberName, NamespaceDecl, Stmt, StmtKind,
+    Expr, ExprKind, MemberName, StmtKind,
 };
 use rustc_hash::FxHashMap;
 
@@ -211,58 +211,20 @@ struct ClassAttrs<'a> {
     params: FxHashMap<(String, String), Vec<Site<'a>>>,
 }
 
-/// Collects every attach site in the program. See [`AttributeTable`].
+/// Collects every attach site in the program, through
+/// [`crate::deprecated::each_declaration`]. See [`AttributeTable`].
 pub(crate) fn build_attribute_table<'a>(files: &[crate::ProgramFile<'a>]) -> AttributeTable<'a> {
     let mut table = AttributeTable::default();
-    for file in files {
-        collect(file.stmts, file.src, &[], &FxHashMap::default(), &mut table);
-    }
-    table
-}
-
-/// The namespace and `use` walk `crate::check::check_stmts` makes, made a
-/// second time and a whole pass earlier — a braced `namespace {}` opens a fresh
-/// import set and an unbraced one clears it, exactly as it does there, because
-/// what a name meant is a property of the text it was written in.
-fn collect<'a>(
-    stmts: &'a [Stmt],
-    src: &'a SourceFile,
-    namespace: &[String],
-    imports: &FxHashMap<String, QName>,
-    table: &mut AttributeTable<'a>,
-) {
-    let mut current_ns = namespace.to_vec();
-    let mut current_imports = imports.clone();
-    for stmt in stmts {
+    crate::deprecated::each_declaration(files, |stmt, src, current_ns, current_imports| {
         let (name, attributes, members, class) = match &stmt.kind {
-            StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
-                let new_ns = name.as_ref().map_or_else(Vec::new, |n| {
-                    QName::parse(span_text(src, n.span)).segments().to_vec()
-                });
-                match body {
-                    Some(block) => {
-                        collect(&block.stmts, src, &new_ns, &FxHashMap::default(), table);
-                    }
-                    None => {
-                        current_ns = new_ns;
-                        current_imports.clear();
-                    }
-                }
-                continue;
-            }
-            StmtKind::UseDecl(use_decl) => {
-                let target = QName::parse(span_text(src, use_decl.path.span));
-                current_imports.insert(target.short_name().to_owned(), target);
-                continue;
-            }
             StmtKind::ClassDecl(decl) => (&decl.name, &decl.attributes, &decl.members, Some(decl)),
             StmtKind::InterfaceDecl(decl) => (&decl.name, &decl.attributes, &decl.members, None),
-            _ => continue,
+            _ => return,
         };
-        let qname = QName::join(&current_ns, span_text(src, name.span));
+        let qname = QName::join(current_ns, span_text(src, name.span));
         let scope = table.scopes.len();
         table.scopes.push(Scope {
-            namespace: current_ns.clone(),
+            namespace: current_ns.to_vec(),
             imports: current_imports.clone(),
             class: qname.clone(),
         });
@@ -272,7 +234,8 @@ fn collect<'a>(
         let entry = table.classes.entry(qname).or_default();
         push(&mut entry.own, attributes, src, scope);
         collect_members(entry, members, src, scope);
-    }
+    });
+    table
 }
 
 fn collect_members<'a>(
