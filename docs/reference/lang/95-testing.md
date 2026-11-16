@@ -2337,7 +2337,7 @@ final class SlugTest
 ```output
   SlugTest
     ✓ slugsOfOneHundredTitles
-      count: statements=302 calls=400 allocations=504 bytes=26658 gc=0
+      count: statements=302 calls=400 allocations=404 bytes=21068 gc=0
 
   0 failed, 1 passed, 0 skipped, 0 flaky
 ```
