@@ -825,7 +825,7 @@ fn uint_of(args: &[Value], index: usize, member: &str, position: &str) -> Result
 /// of [`compress_polled`].
 #[cfg(test)]
 pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
-    encode(codec, Polled::new(data, None), data.len() / 2)
+    encode(codec, Polled::new(data, None))
 }
 
 /// `data` compressed under `codec`, polling the request's deadline every
@@ -842,7 +842,7 @@ pub(crate) fn compress_polled(
     data: &[u8],
     member: &str,
 ) -> Result<Vec<u8>, Fault> {
-    let out = encode(codec, Polled::new(data, Some(ctx)), data.len() / 2)?;
+    let out = encode(codec, Polled::new(data, Some(ctx)))?;
     nvs_runtime::poll_deadline(ctx, member)?;
     Ok(out)
 }
@@ -886,18 +886,8 @@ impl<R: Read> Read for Polled<'_, R> {
 }
 
 /// The encoders behind [`compress_polled`], over `data`.
-///
-/// The output starts with room for `hint` octets. A caller that knows the
-/// input's length passes half of it, which holds most compressed text in one
-/// allocation. An input that does not compress costs one more growth. **What it
-/// spends:** at most half the input, for the length of the call. The zstd
-/// backend makes its own buffer, so it gets no room.
-fn encode<R: Read>(codec: Codec, data: R, hint: usize) -> Result<Vec<u8>, Fault> {
-    let mut out = if matches!(codec, Codec::Zstd) {
-        Vec::new()
-    } else {
-        Vec::with_capacity(hint)
-    };
+fn encode<R: Read>(codec: Codec, data: R) -> Result<Vec<u8>, Fault> {
+    let mut out = Vec::new();
     let wrote = match codec {
         Codec::Gzip => {
             flate2::read::GzEncoder::new(data, flate2::Compression::default()).read_to_end(&mut out)
@@ -1165,7 +1155,7 @@ fn encode_source(
     member: &'static str,
 ) -> Result<Vec<u8>, Fault> {
     let mut reader = crate::byte_source::Reader::open(ctx, source, member)?;
-    let out = encode(codec, &mut reader, 0);
+    let out = encode(codec, &mut reader);
     reader.close()?;
     nvs_runtime::poll_deadline(ctx, member)?;
     out
