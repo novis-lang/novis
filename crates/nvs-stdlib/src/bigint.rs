@@ -850,7 +850,10 @@ fn resigned(args: &[Value], sign: i64, member: &str) -> Result<Value, Fault> {
             "Core\\BigInt::{member} found a non-`bytes` magnitude slot"
         ))
     })?;
-    Ok(crate::instance::build(&CLASS, [Value::int(sign), Value::bytes(shared)]))
+    Ok(crate::instance::build(
+        &CLASS,
+        [Value::int(sign), Value::bytes(shared)],
+    ))
 }
 
 /// A `BigInt` as its stored sign and little-endian magnitude, ordered as the
@@ -864,9 +867,16 @@ struct Stored<'a> {
 
 impl<'a> Stored<'a> {
     fn of(sign: i64, magnitude: &'a [u8]) -> Self {
-        let used = magnitude.iter().rposition(|&octet| octet != 0).map_or(0, |at| at + 1);
+        let used = magnitude
+            .iter()
+            .rposition(|&octet| octet != 0)
+            .map_or(0, |at| at + 1);
         let magnitude = &magnitude[..used];
-        let sign = if magnitude.is_empty() { 0 } else { sign.signum() };
+        let sign = if magnitude.is_empty() {
+            0
+        } else {
+            sign.signum()
+        };
         Self { sign, magnitude }
     }
 
@@ -875,7 +885,12 @@ impl<'a> Stored<'a> {
             self.magnitude
                 .len()
                 .cmp(&other.magnitude.len())
-                .then_with(|| self.magnitude.iter().rev().cmp(other.magnitude.iter().rev()))
+                .then_with(|| {
+                    self.magnitude
+                        .iter()
+                        .rev()
+                        .cmp(other.magnitude.iter().rev())
+                })
         };
         self.sign.cmp(&other.sign).then_with(|| match self.sign {
             1 => by_size(),
@@ -2556,8 +2571,18 @@ mod tests {
     #[test]
     fn the_stored_order_is_the_numbers_order() {
         let values: Vec<BigInt> = [
-            "0", "1", "-1", "255", "256", "-255", "-256", "65535", "-65536",
-            "18446744073709551616", "-18446744073709551616", "340282366920938463463374607431768211455",
+            "0",
+            "1",
+            "-1",
+            "255",
+            "256",
+            "-255",
+            "-256",
+            "65535",
+            "-65536",
+            "18446744073709551616",
+            "-18446744073709551616",
+            "340282366920938463463374607431768211455",
         ]
         .iter()
         .map(|text| text.parse().expect("a test literal is an integer"))

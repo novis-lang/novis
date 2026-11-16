@@ -2211,7 +2211,11 @@ mod tests {
                     + parked.cell.len()
                     + parked.field.len()
                     + parked.record.iter().map(Vec::len).sum::<usize>()
-                    + parked.names.iter().map(|name| name.as_bytes().len()).sum::<usize>(),
+                    + parked
+                        .names
+                        .iter()
+                        .map(|name| name.as_bytes().len())
+                        .sum::<usize>(),
             );
         }
 
