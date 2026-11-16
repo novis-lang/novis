@@ -118,7 +118,8 @@
 //! the *name's* span, which that walk deliberately does not model, for the
 //! reasons its own module doc gives.
 //!
-//! So this is a second traversal, in another crate, over `#[non_exhaustive]`
+//! So this walks with `crate::walk`, a second traversal in another crate,
+//! shared with [`crate::hints`], over `#[non_exhaustive]`
 //! enums it must therefore match with a wildcard. The cost is named rather than
 //! hidden: a production landing in `nvs_syntax::ast` after this file was
 //! written emits no tokens and fails no build. What catches it is the coverage
@@ -139,10 +140,9 @@ use lsp_types::{SemanticToken, SemanticTokenModifier, SemanticTokenType};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
 use nvs_stdlib::registry;
 use nvs_syntax::ast::{
-    AttributeGroup, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, DocTagKind, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName,
-    Name, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart,
-    TestOperand, Type,
+    AttributeGroup, CallArgs, ClassMember, ClassMemberKind, DestructureElement, DestructureTarget,
+    DocTagKind, EnumDecl, Expr, ExprKind, MemberName, Name, NewTarget, Param, Stmt, StmtKind,
+    StringPart, Type,
 };
 use nvs_types::expr::quals::{is_secret, is_tainted};
 use nvs_types::{ExprInfo, TypeId};
@@ -150,6 +150,7 @@ use nvs_types::{ExprInfo, TypeId};
 use crate::definition::{Target, target_of};
 use crate::document::Analysed;
 use crate::position::range_at;
+use crate::walk::{self, Walk};
 use crate::{TOKEN_MODIFIERS, TOKEN_TYPES};
 
 /// The token types this walk can answer, out of the legend's eleven.
@@ -568,162 +569,6 @@ impl Named<'_> {
         }
     }
 
-    /// Walks a run of statements.
-    fn stmts(&mut self, stmts: &[Stmt]) {
-        for stmt in stmts {
-            self.stmt(stmt);
-        }
-    }
-
-    /// Walks a block's statements.
-    fn block(&mut self, block: &Block) {
-        self.stmts(&block.stmts);
-    }
-
-    /// Walks one statement, recording what it declares.
-    fn stmt(&mut self, stmt: &Stmt) {
-        match &stmt.kind {
-            StmtKind::Expr(expr) => self.expr(expr),
-            StmtKind::Return(value) => self.opt_expr(value.as_ref()),
-            StmtKind::Block(block) => self.block(block),
-            StmtKind::If { arms, else_ } => {
-                for arm in arms {
-                    self.expr(&arm.cond);
-                    self.stmt(&arm.then);
-                }
-                if let Some(otherwise) = else_ {
-                    self.stmt(otherwise);
-                }
-            }
-            StmtKind::While { cond, body } => {
-                self.expr(cond);
-                self.stmt(body);
-            }
-            StmtKind::DoWhile { body, cond } => {
-                self.stmt(body);
-                self.expr(cond);
-            }
-            StmtKind::For {
-                init,
-                cond,
-                step,
-                body,
-            } => {
-                match init {
-                    ForInit::Decl(decl) => self.stmt(decl),
-                    ForInit::Exprs(exprs) => self.exprs(exprs),
-                }
-                self.exprs(cond);
-                self.exprs(step);
-                self.stmt(body);
-            }
-            StmtKind::Foreach {
-                subject,
-                key,
-                value,
-                body,
-                ..
-            } => {
-                self.expr(subject);
-                if let Some(key) = key {
-                    self.push(key.name, Kind::Variable);
-                }
-                self.push(value.name, Kind::Variable);
-                self.stmt(body);
-            }
-            StmtKind::Switch { subject, cases } => {
-                self.expr(subject);
-                for case in cases {
-                    self.opt_expr(case.cond.as_ref());
-                    self.stmts(&case.body);
-                }
-            }
-            StmtKind::Break(level) | StmtKind::Continue(level) => self.opt_expr(level.as_ref()),
-            StmtKind::Try {
-                body,
-                catches,
-                finally,
-            } => {
-                self.block(body);
-                for catch in catches {
-                    if let Some(var) = catch.var {
-                        self.push(var, Kind::Variable);
-                    }
-                    self.block(&catch.body);
-                }
-                if let Some(finally) = finally {
-                    self.block(finally);
-                }
-            }
-            StmtKind::Echo(exprs) | StmtKind::Unset(exprs) => self.exprs(exprs),
-            StmtKind::LocalDecl { name, value, .. } => {
-                self.push(*name, Kind::Variable);
-                self.opt_expr(value.as_ref());
-            }
-            StmtKind::Destructure { target, value } => {
-                self.destructure(target);
-                self.expr(value);
-            }
-            StmtKind::Global(vars) => {
-                for var in vars {
-                    self.push(*var, Kind::Variable);
-                }
-            }
-            StmtKind::StaticLocal { vars, .. } => {
-                for var in vars {
-                    self.push(var.name, Kind::Variable);
-                    self.opt_expr(var.default.as_ref());
-                }
-            }
-            StmtKind::ClassDecl(decl) => {
-                self.attributes(&decl.attributes);
-                self.name(&decl.name, Kind::Class);
-                self.opt_name(decl.extends.as_ref(), Kind::Class);
-                for clause in &decl.implements {
-                    self.name(&clause.name, Kind::Interface);
-                    // `by $field` names a property of this class, which is the
-                    // one thing `rule:classes/delegation-by-property` writes that
-                    // is not the interface it delegates.
-                    if let Some(field) = clause.by_field {
-                        self.push(field, Kind::Property);
-                    }
-                }
-                self.members(&decl.members);
-            }
-            StmtKind::InterfaceDecl(decl) => {
-                self.attributes(&decl.attributes);
-                self.name(&decl.name, Kind::Interface);
-                for extended in &decl.extends {
-                    self.name(extended, Kind::Interface);
-                }
-                self.members(&decl.members);
-            }
-            StmtKind::EnumDecl(decl) => self.enum_decl(decl),
-            StmtKind::TypeAliasDecl(decl) => self.name(&decl.name, Kind::Type),
-            StmtKind::NamespaceDecl(decl) => {
-                self.opt_name(decl.name.as_ref(), Kind::Namespace);
-                if let Some(body) = &decl.body {
-                    self.block(body);
-                }
-            }
-            // Refused by `rule:classes/no-free-functions-or-constants`, so the
-            // name it declares is coloured as nothing — the module doc above
-            // says why the body is still walked.
-            StmtKind::TopLevelFunction(function) => {
-                self.params(&function.params);
-                if let Some(body) = &function.body {
-                    self.block(body);
-                }
-            }
-            StmtKind::TopLevelConst(declared) => {
-                for constant in declared {
-                    self.expr(&constant.value);
-                }
-            }
-            _ => {}
-        }
-    }
-
     /// Walks every attribute in `groups`: the name as the type it names,
     /// carrying `defaultLibrary` where the checker resolved it to one of
     /// `Core`'s, each field's name as a property and each value as the
@@ -748,107 +593,6 @@ impl Named<'_> {
         }
     }
 
-    /// Walks an enum declaration, at file scope or in the body that owns it.
-    fn enum_decl(&mut self, decl: &EnumDecl) {
-        self.attributes(&decl.attributes);
-        self.name(&decl.name, Kind::Enum);
-        for implemented in &decl.implements {
-            self.name(implemented, Kind::Interface);
-        }
-        for case in &decl.cases {
-            self.attributes(&case.attributes);
-            self.name(&case.name, Kind::EnumMember);
-            self.opt_expr(case.value.as_ref());
-        }
-        self.members(&decl.members);
-    }
-
-    /// Walks a class, interface or enum body.
-    fn members(&mut self, members: &[ClassMember]) {
-        for member in members {
-            match &member.kind {
-                ClassMemberKind::Property(property) => {
-                    // No qualifier: a property's annotation is lowered by the
-                    // signature pass, whose table `nvs_types::check` copies
-                    // types out of rather than spans, so `declared_ty` has no
-                    // entry at this span the way it has one for a parameter.
-                    // The word is written on the line either way; every
-                    // *access* to it carries the modifier.
-                    self.attributes(&property.attributes);
-                    self.push(property.name, Kind::Property);
-                    self.opt_expr(property.default.as_ref());
-                    for hook in property.hooks.iter().flatten() {
-                        self.hook(hook);
-                    }
-                }
-                // The legend names no kind for a class constant, so only its
-                // value is walked.
-                ClassMemberKind::Const(declared) => {
-                    self.attributes(&declared.attributes);
-                    self.expr(&declared.value);
-                }
-                // A `type` alias a body owns is a type, coloured as the
-                // file-scope form is: the two declaration sites declare one
-                // kind of name (`rule:types/type-alias`), and a reader telling
-                // `Owner::Meta` from `Owner::META` at a glance is what the
-                // colour is for.
-                ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
-                // An enum a body owns is coloured as the file-scope form is,
-                // for the alias's reason (`rule:enums/class-scoped-enum`).
-                ClassMemberKind::Enum(decl) => self.enum_decl(decl),
-                ClassMemberKind::Method(method) => {
-                    self.attributes(&method.attributes);
-                    // The `$name` after `@param` is a parameter position, as
-                    // the parameter list is.
-                    for tag in member.doc.iter().flat_map(|doc| &doc.tags) {
-                        if let (DocTagKind::Param, Some(target)) = (tag.kind, tag.target) {
-                            self.push(target, Kind::Parameter);
-                        }
-                    }
-                    self.push(method.name, Kind::Method);
-                    self.params(&method.params);
-                    if let Some(body) = &method.body {
-                        self.block(body);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    /// Walks one property hook's parameter and body.
-    fn hook(&mut self, hook: &PropertyHook) {
-        self.attributes(&hook.attributes);
-        if let Some(param) = &hook.param {
-            self.param(param);
-        }
-        match &hook.body {
-            Some(PropertyHookBody::Expr(expr)) => self.expr(expr),
-            Some(PropertyHookBody::Block(block)) => self.block(block),
-            _ => {}
-        }
-    }
-
-    /// Walks a parameter list.
-    fn params(&mut self, params: &[Param]) {
-        for param in params {
-            self.param(param);
-        }
-    }
-
-    /// Records a parameter's own name and walks its default.
-    ///
-    /// A promoted constructor parameter declares a property as well, and is
-    /// still recorded as the parameter it is written as: the token says what
-    /// the reader is looking at, and what they are looking at is a parameter
-    /// list.
-    fn param(&mut self, param: &Param) {
-        self.attributes(&param.attributes);
-        let quals = self.qualifiers_declared(param.ty.as_ref());
-        self.push_with(param.name, Kind::Parameter, quals);
-        self.opt_expr(param.default.as_ref());
-    }
-
     /// Records every name a destructuring target binds.
     fn destructure(&mut self, target: &DestructureTarget) {
         for element in &target.elements {
@@ -863,182 +607,6 @@ impl Named<'_> {
                 }
                 _ => {}
             }
-        }
-    }
-
-    /// Walks a run of expressions.
-    fn exprs(&mut self, exprs: &[Expr]) {
-        for expr in exprs {
-            self.expr(expr);
-        }
-    }
-
-    /// Walks an expression a production may have omitted.
-    fn opt_expr(&mut self, expr: Option<&Expr>) {
-        if let Some(expr) = expr {
-            self.expr(expr);
-        }
-    }
-
-    /// Walks one expression, recording every name it writes.
-    fn expr(&mut self, expr: &Expr) {
-        match &expr.kind {
-            ExprKind::Variable(span) => self.push(*span, Kind::Variable),
-            // An html template's holes are a string's, whichever of its two
-            // spellings opened them (`rule:core-classes/html-template`), so the
-            // same walk colours a `<?= App::VERSION ?>` as it does a `{$name}`.
-            ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
-                for part in parts {
-                    if let StringPart::Expr(expr) = part {
-                        self.expr(expr);
-                    }
-                }
-            }
-            ExprKind::ArrayLiteral(items) => {
-                for item in items {
-                    self.opt_expr(item.key.as_ref());
-                    self.expr(&item.value);
-                }
-            }
-            ExprKind::AnonObject(fields) => {
-                for field in fields {
-                    self.push(field.name, Kind::Property);
-                    self.expr(&field.value);
-                }
-            }
-            // PHP's `(T)expr` is refused (`rule:ide/rejected-syntax-gets-no-colour`),
-            // so nothing inside it is coloured, the operand included.
-            ExprKind::Conversion { legacy: true, .. } => {}
-            ExprKind::Unary { expr, .. }
-            | ExprKind::PreIncDec { expr, .. }
-            | ExprKind::PostIncDec { expr, .. }
-            | ExprKind::Conversion { expr, .. } => self.expr(expr),
-            ExprKind::TypeTest { expr, against } => {
-                self.expr(expr);
-                // Not a class position: the value arm's operand is an ordinary
-                // value holding a descriptor, and the type arm is a type the
-                // token walk has already coloured.
-                if let TestOperand::Value(operand) = against {
-                    self.expr(operand);
-                }
-            }
-            ExprKind::Binary { lhs, rhs, .. } => {
-                self.expr(lhs);
-                self.expr(rhs);
-            }
-            ExprKind::Assign { target, value, .. } => {
-                self.expr(target);
-                self.expr(value);
-            }
-            ExprKind::Ternary { cond, then, else_ } => {
-                self.expr(cond);
-                self.opt_expr(then.as_deref());
-                self.expr(else_);
-            }
-            ExprKind::Call { callee, args } => {
-                self.expr(callee);
-                self.args(args);
-            }
-            ExprKind::MethodCall {
-                object,
-                method,
-                args,
-                ..
-            } => {
-                self.expr(object);
-                self.member(method, Kind::Method);
-                self.args(args);
-            }
-            ExprKind::StaticCall {
-                class,
-                method,
-                args,
-                ..
-            } => {
-                let library = self.library_at(expr.span);
-                self.receiver(class, library);
-                self.member(method, Kind::Method);
-                self.args(args);
-            }
-            ExprKind::PropertyAccess {
-                object, property, ..
-            } => {
-                self.expr(object);
-                let quals = self.qualifiers_recorded(expr.span);
-                self.member_with(property, Kind::Property, quals);
-            }
-            ExprKind::StaticPropertyAccess { class, name } => {
-                let library = self.library_at(expr.span);
-                let quals = self.qualifiers_recorded(expr.span);
-                self.receiver(class, library);
-                self.push_with(*name, Kind::Property, quals);
-            }
-            // The member half is a token only where the checker's table said
-            // which of the two productions this is; the module doc above says
-            // why nothing here decides that for itself.
-            ExprKind::ClassConstAccess { class, name } => {
-                let library = self.library_at(expr.span);
-                if self.is_enum_case(expr.span) {
-                    self.receiver_as(class, Kind::Enum, library);
-                    self.push(*name, Kind::EnumMember);
-                } else {
-                    self.receiver(class, library);
-                }
-            }
-            // `Foo::class` names a class and yields a string; the `class`
-            // keyword is the grammar's, so the TextMate layer has it.
-            ExprKind::ClassNameConst { class } => {
-                self.expr(class);
-            }
-            ExprKind::Index { base, index } => {
-                self.expr(base);
-                self.opt_expr(index.as_deref());
-            }
-            ExprKind::New { target, args, .. } => {
-                let library = self.library_at(expr.span);
-                self.new_target(target, library);
-                self.args(args);
-            }
-            ExprKind::Match { subject, arms } => {
-                self.expr(subject);
-                for arm in arms {
-                    if let Some(conditions) = &arm.conditions {
-                        self.exprs(conditions);
-                    }
-                    self.expr(&arm.body);
-                }
-            }
-            ExprKind::Catch { guarded, arms } => {
-                self.expr(guarded);
-                for arm in arms {
-                    if let Some(var) = arm.var {
-                        self.push(var, Kind::Variable);
-                    }
-                    self.expr(&arm.body);
-                }
-            }
-            ExprKind::Yield { key, value } => {
-                self.opt_expr(key.as_deref());
-                self.opt_expr(value.as_deref());
-            }
-            ExprKind::Clone(inner)
-            | ExprKind::YieldFrom(inner)
-            | ExprKind::Print(inner)
-            | ExprKind::Throw(inner)
-            | ExprKind::Empty(inner)
-            | ExprKind::Await(inner)
-            | ExprKind::Paren(inner) => self.expr(inner),
-            ExprKind::Isset(exprs) => self.exprs(exprs),
-            ExprKind::Exit(status) => self.opt_expr(status.as_deref()),
-            ExprKind::Fn(anon_fn) => self.anon_fn(anon_fn),
-            ExprKind::SpawnScript { path, options } => {
-                self.expr(path);
-                for option in options {
-                    self.expr(&option.value);
-                }
-            }
-            ExprKind::Require { path, .. } => self.expr(path),
-            _ => {}
         }
     }
 
@@ -1093,27 +661,223 @@ impl Named<'_> {
         }
     }
 
-    /// A call's arguments, with a named argument's label recorded as the
-    /// parameter it names.
-    fn args(&mut self, args: &CallArgs) {
-        let CallArgs::List(list) = args else {
-            return;
-        };
-        for arg in list {
-            if let Some(name) = arg.name {
+    /// Records a named argument's label as the parameter it names.
+    fn arg_names(&mut self, args: &CallArgs) {
+        if let CallArgs::List(list) = args {
+            for name in list.iter().filter_map(|arg| arg.name) {
                 self.push(name, Kind::Parameter);
             }
-            self.expr(&arg.value);
         }
     }
+}
 
-    /// An anonymous function's parameters and body.
-    fn anon_fn(&mut self, anon_fn: &FnExpr) {
-        self.params(&anon_fn.params);
-        match &anon_fn.body {
-            FnBody::Expr(expr) => self.expr(expr),
-            FnBody::Block(block) => self.block(block),
+/// Each method records the names its node writes, then walks the node's
+/// children through [`crate::walk`].
+impl Walk for Named<'_> {
+    /// Records what one statement declares or binds.
+    fn stmt(&mut self, stmt: &Stmt) {
+        match &stmt.kind {
+            StmtKind::Foreach { key, value, .. } => {
+                for binding in key.iter().chain([value]) {
+                    self.push(binding.name, Kind::Variable);
+                }
+            }
+            StmtKind::Try { catches, .. } => {
+                for var in catches.iter().filter_map(|catch| catch.var) {
+                    self.push(var, Kind::Variable);
+                }
+            }
+            StmtKind::LocalDecl { name, .. } => self.push(*name, Kind::Variable),
+            StmtKind::Destructure { target, .. } => self.destructure(target),
+            StmtKind::Global(vars) => {
+                for var in vars {
+                    self.push(*var, Kind::Variable);
+                }
+            }
+            StmtKind::StaticLocal { vars, .. } => {
+                for var in vars {
+                    self.push(var.name, Kind::Variable);
+                }
+            }
+            StmtKind::ClassDecl(decl) => {
+                self.attributes(&decl.attributes);
+                self.name(&decl.name, Kind::Class);
+                self.opt_name(decl.extends.as_ref(), Kind::Class);
+                for clause in &decl.implements {
+                    self.name(&clause.name, Kind::Interface);
+                    // `by $field` names a property of this class, which is the
+                    // one thing `rule:classes/delegation-by-property` writes that
+                    // is not the interface it delegates.
+                    if let Some(field) = clause.by_field {
+                        self.push(field, Kind::Property);
+                    }
+                }
+            }
+            StmtKind::InterfaceDecl(decl) => {
+                self.attributes(&decl.attributes);
+                self.name(&decl.name, Kind::Interface);
+                for extended in &decl.extends {
+                    self.name(extended, Kind::Interface);
+                }
+            }
+            StmtKind::TypeAliasDecl(decl) => self.name(&decl.name, Kind::Type),
+            StmtKind::NamespaceDecl(decl) => {
+                self.opt_name(decl.name.as_ref(), Kind::Namespace);
+            }
+            // A free `function` declares a name that is coloured as nothing.
+            // The module doc above says why its body is still walked.
+            _ => {}
         }
+        walk::stmt_children(self, stmt);
+    }
+
+    /// Records an enum's name, what it implements and its cases.
+    fn enum_decl(&mut self, decl: &EnumDecl) {
+        self.attributes(&decl.attributes);
+        self.name(&decl.name, Kind::Enum);
+        for implemented in &decl.implements {
+            self.name(implemented, Kind::Interface);
+        }
+        for case in &decl.cases {
+            self.attributes(&case.attributes);
+            self.name(&case.name, Kind::EnumMember);
+            self.opt_expr(case.value.as_ref());
+        }
+        self.members(&decl.members);
+    }
+
+    /// Records what one member of a body declares.
+    fn class_member(&mut self, member: &ClassMember) {
+        match &member.kind {
+            ClassMemberKind::Property(property) => {
+                // No qualifier: a property's annotation is lowered by the
+                // signature pass, whose table `nvs_types::check` copies
+                // types out of rather than spans, so `declared_ty` has no
+                // entry at this span the way it has one for a parameter.
+                // The word is written on the line either way; every
+                // *access* to it carries the modifier.
+                self.attributes(&property.attributes);
+                self.push(property.name, Kind::Property);
+                for hook in property.hooks.iter().flatten() {
+                    self.attributes(&hook.attributes);
+                }
+            }
+            // The legend names no kind for a class constant, so only its
+            // value is walked.
+            ClassMemberKind::Const(declared) => self.attributes(&declared.attributes),
+            // A `type` alias a body owns is a type, coloured as the
+            // file-scope form is: the two declaration sites declare one
+            // kind of name (`rule:types/type-alias`), and a reader telling
+            // `Owner::Meta` from `Owner::META` at a glance is what the
+            // colour is for.
+            ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
+            ClassMemberKind::Method(method) => {
+                self.attributes(&method.attributes);
+                // The `$name` after `@param` is a parameter position, as
+                // the parameter list is.
+                for tag in member.doc.iter().flat_map(|doc| &doc.tags) {
+                    if let (DocTagKind::Param, Some(target)) = (tag.kind, tag.target) {
+                        self.push(target, Kind::Parameter);
+                    }
+                }
+                self.push(method.name, Kind::Method);
+            }
+            // An enum a body owns is coloured as the file-scope form is, for
+            // the alias's reason (`rule:enums/class-scoped-enum`).
+            _ => {}
+        }
+        walk::member_children(self, member);
+    }
+
+    /// Records a parameter's own name and walks its default.
+    ///
+    /// A promoted constructor parameter declares a property as well, and is
+    /// still recorded as the parameter it is written as: the token says what
+    /// the reader is looking at, and what they are looking at is a parameter
+    /// list.
+    fn param(&mut self, param: &Param) {
+        self.attributes(&param.attributes);
+        let quals = self.qualifiers_declared(param.ty.as_ref());
+        self.push_with(param.name, Kind::Parameter, quals);
+        self.opt_expr(param.default.as_ref());
+    }
+
+    /// Records every name one expression writes.
+    fn expr(&mut self, expr: &Expr) {
+        match &expr.kind {
+            ExprKind::Variable(span) => self.push(*span, Kind::Variable),
+            // An html template's holes are a string's, whichever of its two
+            // spellings opened them (`rule:core-classes/html-template`), so the
+            // same walk colours a `<?= App::VERSION ?>` as it does a `{$name}`.
+            ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
+                for part in parts {
+                    if let StringPart::Expr(expr) = part {
+                        self.expr(expr);
+                    }
+                }
+            }
+            ExprKind::AnonObject(fields) => {
+                for field in fields {
+                    self.push(field.name, Kind::Property);
+                }
+            }
+            // PHP's `(T)expr` is refused (`rule:ide/rejected-syntax-gets-no-colour`),
+            // so nothing inside it is coloured, the operand included.
+            ExprKind::Conversion { legacy: true, .. } => return,
+            ExprKind::Call { args, .. } => self.arg_names(args),
+            ExprKind::MethodCall { method, args, .. } => {
+                self.member(method, Kind::Method);
+                self.arg_names(args);
+            }
+            ExprKind::StaticCall {
+                class,
+                method,
+                args,
+                ..
+            } => {
+                let library = self.library_at(expr.span);
+                self.receiver(class, library);
+                self.member(method, Kind::Method);
+                self.arg_names(args);
+            }
+            ExprKind::PropertyAccess { property, .. } => {
+                let quals = self.qualifiers_recorded(expr.span);
+                self.member_with(property, Kind::Property, quals);
+            }
+            ExprKind::StaticPropertyAccess { class, name } => {
+                let library = self.library_at(expr.span);
+                let quals = self.qualifiers_recorded(expr.span);
+                self.receiver(class, library);
+                self.push_with(*name, Kind::Property, quals);
+            }
+            // The member half is a token only where the checker's table said
+            // which of the two productions this is; the module doc above says
+            // why nothing here decides that for itself.
+            ExprKind::ClassConstAccess { class, name } => {
+                let library = self.library_at(expr.span);
+                if self.is_enum_case(expr.span) {
+                    self.receiver_as(class, Kind::Enum, library);
+                    self.push(*name, Kind::EnumMember);
+                } else {
+                    self.receiver(class, library);
+                }
+            }
+            // `Foo::class` names a class and yields a string; the `class`
+            // keyword is the grammar's, so the TextMate layer has it.
+            ExprKind::ClassNameConst { class } => self.expr(class),
+            ExprKind::New { target, args, .. } => {
+                let library = self.library_at(expr.span);
+                self.new_target(target, library);
+                self.arg_names(args);
+            }
+            ExprKind::Catch { arms, .. } => {
+                for var in arms.iter().filter_map(|arm| arm.var) {
+                    self.push(var, Kind::Variable);
+                }
+            }
+            _ => {}
+        }
+        walk::expr_children(self, expr);
     }
 }
 

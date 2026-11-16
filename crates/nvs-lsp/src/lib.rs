@@ -148,6 +148,7 @@ pub mod surface;
 pub mod symbols;
 mod taint;
 mod tree_cache;
+mod walk;
 mod workers;
 
 pub use capabilities::{
