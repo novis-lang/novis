@@ -1,6 +1,6 @@
 <?nvs
 // Looks up a setting in a request, as a page does before it reads one.
-// bench: iterations 256
+// bench: iterations 4096
 // bench: allocations 0
 // bench: calls 1
 // bench: complexity constant
@@ -34,4 +34,4 @@ class Bench
     }
 }
 
-echo Bench::run(256), "\n";
+echo Bench::run(4096), "\n";

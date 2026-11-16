@@ -2,7 +2,7 @@
 // Writes a small XML document one node at a time, as a program does when it sends an order to another system.
 // bench: iterations 256
 // bench: complexity linear
-// bench: allocations 23
+// bench: allocations 22
 
 class Bench
 {
