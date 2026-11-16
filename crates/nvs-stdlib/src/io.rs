@@ -1433,8 +1433,8 @@ const FILE_MODE_SLOT: usize = 2;
 
 /// How much [`nvs_core_io_file_read_line`] reads ahead at a time, and the size
 /// its buffer stays at while lines are shorter than half of it. A longer line
-/// costs one more read per half of this and a larger buffer until it is
-/// returned.
+/// costs one more read per this many bytes, and a larger buffer for the rest
+/// of the handle's life.
 const LINE_CHUNK: usize = 8 * 1024;
 
 /// How much [`nvs_core_io_file_read`] reads before it asks the request whether
@@ -3019,22 +3019,29 @@ nvs_runtime::nvs_helper! {
 /// returns how many bytes it read. `0` is the end of the file.
 ///
 /// The unread bytes move to the front first, so the buffer keeps one
-/// allocation while lines are shorter than [`LINE_CHUNK`]. A longer line grows
-/// it, and the request's memory limit is checked before each growth. Once a
-/// long line is returned, the next read shrinks the buffer back.
+/// allocation while lines are shorter than half of [`LINE_CHUNK`]. Past that,
+/// each read takes a whole [`LINE_CHUNK`] more, so a long line costs one read
+/// per [`LINE_CHUNK`] of it. The request's memory limit is checked before each
+/// growth. The buffer keeps its size, so a file of long lines grows it once and
+/// not once per line.
 fn read_ahead(
     file: &mut nvs_runtime::capability::File,
     ahead: &mut nvs_runtime::ReadAhead,
     failed: &dyn Fn(&std::io::Error) -> Fault,
 ) -> Result<usize, Fault> {
     let pending = ahead.pending();
-    ahead.bytes.copy_within(ahead.at.., 0);
-    ahead.bytes.truncate(pending);
-    ahead.at = 0;
-    if pending == 0 && ahead.bytes.capacity() > 2 * LINE_CHUNK {
-        ahead.bytes.shrink_to(LINE_CHUNK);
+    // A line longer than one read is still at the front, and is not moved
+    // again, which keeps a long line's cost linear in its length.
+    if ahead.at > 0 {
+        ahead.bytes.copy_within(ahead.at.., 0);
+        ahead.bytes.truncate(pending);
+        ahead.at = 0;
     }
-    let room = (pending + LINE_CHUNK / 2).max(LINE_CHUNK);
+    let room = if pending <= LINE_CHUNK / 2 {
+        LINE_CHUNK
+    } else {
+        pending + LINE_CHUNK
+    };
     nvs_runtime::affordable(Some(room), "Core\\IO\\File::readLine")?;
     ahead.bytes.resize(room, 0);
     match file.read(&mut ahead.bytes[pending..]) {

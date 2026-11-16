@@ -67,8 +67,9 @@ pub(crate) struct OpenFile {
 /// program sees is always the end of the last line it read.
 ///
 /// **What it spends:** the buffer's capacity, usually 8 KiB, per open file that
-/// has read a line, for the life of the handle. A line longer than that grows
-/// it, under the request's memory limit, and the reader gives the growth back.
+/// has read a line, for the life of the handle. A longer line grows it to about
+/// that line's length, under the request's memory limit, and it stays that
+/// size until the handle is closed.
 #[derive(Debug, Default)]
 pub struct ReadAhead {
     /// What was read. Only `bytes[at..]` is still unread.
