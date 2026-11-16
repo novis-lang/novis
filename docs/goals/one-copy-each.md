@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/hints.rs, crates/nvs-lsp/src/semantic.rs, crates/nvs-lsp/src/case.rs, crates/nvs-test/src/case.rs, crates/nvs-types/src/deprecated.rs, crates/nvs-types/src/retrieval.rs, crates/nvs-types/src/test_code.rs]
   - id: 4
     title: "the small helpers are written once"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-stdlib/src/encoding.rs, crates/nvs-stdlib/src/random.rs, crates/nvs-codegen/src/emit.rs]
   - id: 5
     title: "the server tests of nvs-cli share their support"
@@ -99,6 +99,11 @@ Rust cannot splice one `const` slice into another, so each shared row is its own
 `TRANSACTION_ROW` already was, and both instance lists name the seven. `bun nv gaps` reads the
 class literals as text, so it follows a row named on its own line to every class that lists it.
 
+**An unreachable internal fatal is not a diagnostic, so its text may be joined.** The seven
+string accessors each wrote their own `Fault::fatal` text for a tag the checker already refuses
+with `E0401`. `crate::string_arg` writes one form, `<who> expected a `string`, got tag N`, and
+each caller still names its member and parameter. No test reads any of the seven texts.
+
 **The test support lives in `crates/nvs-test/`,** as a module the test files import. It is a helper
 crate, so no test binaries are merged.
 
@@ -154,16 +159,24 @@ namespace walk of three checker passes.
 **Does:** give the hex encoder, the string-argument accessor, the callable block and the probe
 branch one home each.
 
-- [ ] `crates/nvs-stdlib/src/encoding.rs:1617`: one hex encoder, used by `random.rs:769`,
+- [x] `crates/nvs-stdlib/src/encoding.rs:1617`: one hex encoder, used by `random.rs:769`,
   `server.rs:153`, `queue.rs:252` and `json.rs:1391` in `crates/nvs-stdlib/src/`
   (`rule:programs/memory-priority`).
-- [ ] `crates/nvs-stdlib/src/csrf.rs:306`: one string-argument accessor, used by
+  - [x] `encoding::hex_pair` and `encoding::HEX_DIGITS` hold the digits
+  - [x] the four copies call it, and build and clippy are green
+- [x] `crates/nvs-stdlib/src/csrf.rs:306`: one string-argument accessor, used by
   `signed_cookie.rs:292`, `session.rs:1061`, `ratelimit.rs:713`, `log.rs:297`, `html.rs:574` and
   `metrics.rs:413` in `crates/nvs-stdlib/src/` (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-runtime/src/callable.rs:771`: one function for the block at `:832` and `:1006`
+  - [x] `crate::string_arg` in `lib.rs` takes the member's name as a lazy `Display`
+  - [x] the seven private accessors are gone, and build and clippy are green
+- [x] `crates/nvs-runtime/src/callable.rs:771`: one function for the block at `:832` and `:1006`
   (`rule:errors/helper-abi`).
-- [ ] `crates/nvs-codegen/src/emit.rs:1556`: one function for the probe branch at `:1765` and
+  - [x] `callable_class` returns the object and its descriptor
+  - [x] its three callers use it, and build and clippy are green
+- [x] `crates/nvs-codegen/src/emit.rs:1556`: one function for the probe branch at `:1765` and
   `:3973` (`rule:errors/helper-abi`).
+  - [x] `emit_probe_branch` emits the load and the branch, creating blocks in the old order
+  - [x] the statement, edge and call probes use it, and build and clippy are green
 
 ### 5. the server tests of nvs-cli share their support
 
@@ -189,42 +202,39 @@ edit. Writing subagents then convert disjoint files side by side, and the sessio
 
 ### State
 
-Stages 1 to 3 are done, built and clippy-clean, with no test run. Lines over `crates/`: stage 1
-+156 -313, stage 2 +179 -254, stage 3 +698 -936. Sessions used: stage 1: 1, stage 2: 1,
-stage 3: 1, stage 4: 0, stage 5: 0.
+Stages 1 to 4 are done, built and clippy-clean, with no test run. Lines over `crates/`: stage 1
++156 -313, stage 2 +179 -254, stage 3 +698 -936, stage 4 +108 -251. Sessions used: stage 1: 1,
+stage 2: 1, stage 3: 1, stage 4: 1, stage 5: 0.
 
-- Stage 1: `Lowering::open_loop_header` and `close_foreach_body` in
-  `crates/nvs-ir/src/lower/control.rs`, and `Lowering::into_lowered` in `lower/mod.rs`.
-- Stage 2: the six statement rows of `crates/nvs-stdlib/src/db/registry.rs` are one `const` each,
-  listed by both classes, and `rowsOf` in `tools/nv/cmd/gaps.ts` follows them.
-- Stage 3: trait `Walk` in `crates/nvs-lsp/src/walk.rs` is the one statement and expression walk.
-  Its default walk is the old hints walk. Semantic tokens add what only they read (string holes,
-  receivers, member names, `new` targets) in their own overrides, so neither pass reaches a node
-  it did not reach before. `nvs_test::section::aux_path` is the one `--FILE <path>--` check, and
-  `nvs_types::deprecated::each_declaration` the one namespace and `use` walk.
+- Stages 1 and 2: `open_loop_header`, `close_foreach_body` and `into_lowered` in
+  `crates/nvs-ir/src/lower/`; one `const` per statement row in `nvs-stdlib/src/db/registry.rs`.
+- Stage 3: trait `Walk` in `crates/nvs-lsp/src/walk.rs`, `nvs_test::section::aux_path` and
+  `nvs_types::deprecated::each_declaration`.
+- Stage 4: `encoding::hex_pair` and `string_arg` in `nvs-stdlib`, `callable_class` in
+  `nvs-runtime/src/callable.rs`, and `emit_probe_branch` in `nvs-codegen/src/emit.rs`.
 
-The sweep's `env-secret-proofs` finding names a retired check: `looper check --name` finds no
-such check and no log exists. Nothing in the tree is changed for it.
+The sweep's `env-secret-proofs` finding names a retired check that `looper check` cannot find.
 
 Tests that could go red in stage 6: the `insta` snapshots under
 `crates/nvs-ir/src/lower/snapshots/`; `db::transaction`'s
 `a_transaction_is_a_callable_and_transaction_is_a_queryable`, which compares the two rosters;
 `nvs-lsp`'s `tests/hints.rs`, `semantic.rs`'s own unit tests and the `.lspt` corpus for the
-shared walk; `nvs-test`'s `case.rs` tests and `nvs-lsp`'s `case.rs` tests for the path check.
+shared walk; `nvs-test`'s `case.rs` tests and `nvs-lsp`'s `case.rs` tests for the path check;
+`random.rs`'s seeded-token test, `server.rs`'s trace-id test, `crates/nvs-stdlib/tests/queue_sqlite.rs`
+and the JSON `\u` escape tests for the hex encoder; the `html.rs` and `callable.rs` unit tests.
 
 ### Next
 
-Stage 4, in up to two sessions. Each item is its own slice and its own commit, and each anchor
-is from the scan, so read the code there before the first edit.
+Stage 5, in up to two sessions. Follow its `**Split:**` line: an `Explore` subagent lists every
+test file under `crates/` that declares `struct Server`, `struct TempDir`, `const BOOT` or
+`const POLL`, before the first edit.
 
-- [ ] `crates/nvs-stdlib/src/encoding.rs:1617`: one hex encoder, used by `random.rs:769`,
-  `server.rs:153`, `queue.rs:252` and `json.rs:1391` in `crates/nvs-stdlib/src/`.
-- [ ] `crates/nvs-stdlib/src/csrf.rs:306`: one string-argument accessor, used by
-  `signed_cookie.rs:292`, `session.rs:1061`, `ratelimit.rs:713`, `log.rs:297`, `html.rs:574` and
-  `metrics.rs:413`.
-- [ ] `crates/nvs-runtime/src/callable.rs:771`: one function for the block at `:832` and `:1006`.
-- [ ] `crates/nvs-codegen/src/emit.rs:1556`: one function for the probe branch at `:1765` and
-  `:3973`.
+- [ ] `crates/nvs-test/src/lib.rs:180`: add the support module beside `pub mod case`, written from
+  `crates/nvs-cli/tests/live_config.rs:29` (`BOOT`, `POLL`), `:80` (`struct Server`), `:89`
+  (its boot) and `:433` (its `Drop`).
+- [ ] `crates/nvs-cli/tests/live_config.rs:80`: this file uses the module first, then the other
+  files on the list, largest first, each by a writing subagent on disjoint files. The session
+  builds once they all end.
 
 ### Backlog
 
@@ -233,3 +243,5 @@ is from the scan, so read the code there before the first edit.
   differ.
 - Declined before the run: joining the repeated lists and set-up of `tools/nv/`. No block there
   reaches 14 identical lines, and goal `cheaper-pipeline` edits the same files.
+- Left by stage 4: `crates/nvs-stdlib/src/topic.rs:477` writes hex digits with its own table. It
+  was not on the stage's list, and the list is closed.
