@@ -57,7 +57,7 @@
 
 use crate::abi::{Fault, NvsFn, OK};
 use crate::ctx::Ctx;
-use crate::object::{ClassDesc, NvsObj};
+use crate::object::{ClassDesc, NvsObj, ObjHeader};
 use crate::value::{Tag, Value};
 
 /// The one method a callable's captured-environment class answers. Must agree
@@ -768,29 +768,8 @@ fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
 /// compiler or embedder bug rather than a program's: this lowering writes a
 /// `ConstStr` into that slot or writes no field at all.
 pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Fault> {
-    let ptr = callable.obj_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
-            "internal error: a `callable` argument carried tag {} rather than an object",
-            callable.tag_byte()
-        ))
-    })?;
-    #[expect(
-        unsafe_code,
-        reason = "the caller owns a reference to this object, so the \
-                  allocation and its descriptor are both live for this read"
-    )]
-    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
-    if desc.is_null() {
-        return Err(Fault::fatal(
-            "internal error: a `callable` argument's object has no class descriptor".to_owned(),
-        ));
-    }
-    #[expect(
-        unsafe_code,
-        reason = "just checked the descriptor is non-null, and it is owned by \
-                  the compiled unit's class table for that unit's whole life"
-    )]
-    let found = unsafe { &*desc }.field_slot(CALLABLE_PARAM_NAMES, CALLABLE_PARAM_NAMES_SLOT);
+    let (ptr, class) = callable_class(callable)?;
+    let found = class.field_slot(CALLABLE_PARAM_NAMES, CALLABLE_PARAM_NAMES_SLOT);
     let Some(slot) = found else {
         return Ok(None);
     };
@@ -829,29 +808,7 @@ pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Faul
 /// A fatal fault when `callable` is not an object or its object has no class
 /// descriptor — [`callable_param_names`]' two compiler bugs.
 pub fn callable_target(callable: Value) -> Result<Option<String>, Fault> {
-    let ptr = callable.obj_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
-            "internal error: a `callable` argument carried tag {} rather than an object",
-            callable.tag_byte()
-        ))
-    })?;
-    #[expect(
-        unsafe_code,
-        reason = "the caller owns a reference to this object, so the \
-                  allocation and its descriptor are both live for this read"
-    )]
-    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
-    if desc.is_null() {
-        return Err(Fault::fatal(
-            "internal error: a `callable` argument's object has no class descriptor".to_owned(),
-        ));
-    }
-    #[expect(
-        unsafe_code,
-        reason = "just checked the descriptor is non-null, and it is owned by \
-                  the compiled unit's class table for that unit's whole life"
-    )]
-    let found = unsafe { &*desc }.constant(CALLABLE_TARGET);
+    let found = callable_class(callable)?.1.constant(CALLABLE_TARGET);
     Ok(found.and_then(|constant| match &constant.value {
         crate::object::ConstantValue::Str(target) => Some(target.clone()),
         _ => None,
@@ -991,18 +948,13 @@ pub(crate) fn check_param_tags(
     Ok(())
 }
 
-/// The method row of `callable`'s [`CALLABLE_INVOKE`], or a [`Fault`] naming
-/// what was passed instead. The row has the compiled address and each
-/// parameter's check.
+/// `callable`'s object and its class descriptor.
 ///
-/// What makes a value a callable is its class's
-/// [`ClassDesc::is_callable()`] bit, not the `invoke` in its method table: an
-/// ordinary class may declare that name, and calling into one would jump
-/// through a method the caller never type-checked against
-/// `rule:types/callable-values`'s anonymous function. The method lookup that
-/// follows the bit can therefore only fail on a descriptor built wrong, which
-/// is why it reports an internal error rather than a mismatch.
-fn invoke_row<'a>(callable: Value) -> Result<&'a crate::MethodRow, Fault> {
+/// # Errors
+///
+/// [`Fault::Fatal`] when `callable` is not an object or its object has no class descriptor. Both
+/// are compiler bugs: the checker admits only a callable object where a `callable` is declared.
+fn callable_class<'a>(callable: Value) -> Result<(*mut ObjHeader, &'a ClassDesc), Fault> {
     let ptr = callable.obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: a `callable` argument carried tag {} rather than an object",
@@ -1026,6 +978,22 @@ fn invoke_row<'a>(callable: Value) -> Result<&'a crate::MethodRow, Fault> {
                   the compiled unit's class table for that unit's whole life"
     )]
     let class = unsafe { &*desc };
+    Ok((ptr, class))
+}
+
+/// The method row of `callable`'s [`CALLABLE_INVOKE`], or a [`Fault`] naming
+/// what was passed instead. The row has the compiled address and each
+/// parameter's check.
+///
+/// What makes a value a callable is its class's
+/// [`ClassDesc::is_callable()`] bit, not the `invoke` in its method table: an
+/// ordinary class may declare that name, and calling into one would jump
+/// through a method the caller never type-checked against
+/// `rule:types/callable-values`'s anonymous function. The method lookup that
+/// follows the bit can therefore only fail on a descriptor built wrong, which
+/// is why it reports an internal error rather than a mismatch.
+fn invoke_row<'a>(callable: Value) -> Result<&'a crate::MethodRow, Fault> {
+    let class = callable_class(callable)?.1;
     if !class.is_callable() {
         return Err(Fault::fatal(format!(
             "internal error: `{}` was passed where a `callable` was expected, and is not a callable",
