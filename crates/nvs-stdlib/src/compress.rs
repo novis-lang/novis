@@ -825,7 +825,7 @@ fn uint_of(args: &[Value], index: usize, member: &str, position: &str) -> Result
 /// of [`compress_polled`].
 #[cfg(test)]
 pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
-    encode(codec, Polled::new(data, None))
+    encode(codec, Polled::new(data, None), data.len() / 2)
 }
 
 /// `data` compressed under `codec`, polling the request's deadline every
@@ -842,7 +842,7 @@ pub(crate) fn compress_polled(
     data: &[u8],
     member: &str,
 ) -> Result<Vec<u8>, Fault> {
-    let out = encode(codec, Polled::new(data, Some(ctx)))?;
+    let out = encode(codec, Polled::new(data, Some(ctx)), data.len() / 2)?;
     nvs_runtime::poll_deadline(ctx, member)?;
     Ok(out)
 }
@@ -886,8 +886,18 @@ impl<R: Read> Read for Polled<'_, R> {
 }
 
 /// The encoders behind [`compress_polled`], over `data`.
-fn encode<R: Read>(codec: Codec, data: R) -> Result<Vec<u8>, Fault> {
-    let mut out = Vec::new();
+///
+/// The output starts with room for `hint` octets. A caller that knows the
+/// input's length passes half of it, which holds most compressed text in one
+/// allocation. An input that does not compress costs one more growth. **What it
+/// spends:** at most half the input, for the length of the call. The zstd
+/// backend makes its own buffer, so it gets no room.
+fn encode<R: Read>(codec: Codec, data: R, hint: usize) -> Result<Vec<u8>, Fault> {
+    let mut out = if matches!(codec, Codec::Zstd) {
+        Vec::new()
+    } else {
+        Vec::with_capacity(hint)
+    };
     let wrote = match codec {
         Codec::Gzip => {
             flate2::read::GzEncoder::new(data, flate2::Compression::default()).read_to_end(&mut out)
@@ -984,7 +994,14 @@ fn decode(
 ) -> Result<Vec<u8>, Fault> {
     let ceiling = bound.output_ceiling(data.len());
     let stop = usize::try_from(ceiling.saturating_add(1)).unwrap_or(usize::MAX);
-    let mut out = Vec::new();
+    // Room for four times the input, which holds most decoded text in one
+    // allocation. The ceiling caps it, so a frame never gets more room than the
+    // bound allows it to fill. **What it spends:** at most that room, unused,
+    // for the length of the call.
+    let hint = usize::try_from(ceiling)
+        .unwrap_or(usize::MAX)
+        .min(data.len().saturating_mul(4));
+    let mut out = Vec::with_capacity(hint);
     let read = match codec {
         Codec::Gzip => Polled::new(flate2::read::GzDecoder::new(data), ctx)
             .take(stop as u64)
@@ -1148,7 +1165,7 @@ fn encode_source(
     member: &'static str,
 ) -> Result<Vec<u8>, Fault> {
     let mut reader = crate::byte_source::Reader::open(ctx, source, member)?;
-    let out = encode(codec, &mut reader);
+    let out = encode(codec, &mut reader, 0);
     reader.close()?;
     nvs_runtime::poll_deadline(ctx, member)?;
     out
