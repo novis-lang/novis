@@ -2291,7 +2291,7 @@ nvs_runtime::nvs_helper! {
         let replacement = text(&args[2], "replace", "the replacement")?;
         let limit = unsigned(&args[3], "replace", "the `limit` option")?;
         if limit == 0 {
-            return produced(subject);
+            return crate::str::unchanged(args[0]);
         }
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
 
@@ -2301,12 +2301,16 @@ nvs_runtime::nvs_helper! {
         let reads_groups = pieces
             .iter()
             .any(|piece| matches!(piece, Piece::Group(number) if *number > 0));
+        // The result is reserved at the subject's length at the first match,
+        // and a subject with no match is returned as it is.
         let mut out = String::new();
+        let mut matched = false;
         let mut cursor = 0;
         match &*compiled {
             Compiled::Linear(re) if !reads_groups => {
                 for whole in re.find_iter(subject).take(count) {
                     polled(ctx, "replace")?;
+                    first_match(&mut out, &mut matched, subject.len(), "Core\\Regex::replace")?;
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
                         (number == 0).then(|| whole.as_str())
@@ -2318,6 +2322,7 @@ nvs_runtime::nvs_helper! {
                 for caps in re.captures_iter(subject).take(count) {
                     polled(ctx, "replace")?;
                     let Some(whole) = caps.get(0) else { continue };
+                    first_match(&mut out, &mut matched, subject.len(), "Core\\Regex::replace")?;
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
                         caps.get(number).map(|group| group.as_str())
@@ -2331,6 +2336,7 @@ nvs_runtime::nvs_helper! {
                         budget_exhausted(ctx, "replace", pattern, budget.steps(), &err)
                     })?;
                     let Some(whole) = caps.get(0) else { continue };
+                    first_match(&mut out, &mut matched, subject.len(), "Core\\Regex::replace")?;
                     let gap = &subject[cursor..whole.start()];
                     expand(&mut out, gap, &pieces, |number| {
                         caps.get(number).map(|group| group.as_str())
@@ -2340,10 +2346,28 @@ nvs_runtime::nvs_helper! {
                 Ok::<(), Fault>(())
             })?,
         }
+        if !matched {
+            return crate::str::unchanged(args[0]);
+        }
         grow(&mut out, subject.len() - cursor, "Core\\Regex::replace")?;
         out.push_str(&subject[cursor..]);
         produced(&out)
     }
+}
+
+/// Reserves `out` at the subject's length the first time a match is found,
+/// and records that one was. The memory limit is asked through [`grow`].
+fn first_match(
+    out: &mut String,
+    matched: &mut bool,
+    subject_len: usize,
+    member: &str,
+) -> Result<(), Fault> {
+    if !*matched {
+        *matched = true;
+        grow(out, subject_len, member)?;
+    }
+    Ok(())
 }
 
 /// What the callback answers for one match, as text this frame owns.
@@ -2415,7 +2439,7 @@ nvs_runtime::nvs_helper! {
         let pattern = text(&given.text, "replaceWith", "the pattern")?;
         let limit = unsigned(&args[3], "replaceWith", "the `limit` option")?;
         if limit == 0 {
-            return produced(subject);
+            return crate::str::unchanged(args[0]);
         }
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
 
@@ -2442,8 +2466,13 @@ nvs_runtime::nvs_helper! {
         }
 
         // Every piece of the result is asked for by `grow` before it is
-        // allocated, as `Core\Regex::replace`'s is.
+        // allocated, as `Core\Regex::replace`'s is. A subject with no match is
+        // returned as it is, and any other starts at the subject's length.
+        if found.is_empty() {
+            return crate::str::unchanged(args[0]);
+        }
         let mut out = String::new();
+        grow(&mut out, subject.len(), "Core\\Regex::replaceWith")?;
         let mut offsets = DEFAULT.cursor(subject);
         let mut cursor = 0;
         for captured in &found {
