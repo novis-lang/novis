@@ -298,6 +298,12 @@ stage 5: 1, stage 6: 1.
 The sweep's `env-secret-proofs` is still stale state in looper's service. Its log does not
 exist, and nothing in the tree defines it.
 
+The refused DONE's `floor-debt` was red on two atoms of its 87-minute sweep:
+`tools/nv/test/fuzz.test.ts` and `tools/nv/test/mirror.test.ts`. The log names no failure. Both
+files pass alone (15 tests), nothing changed them since 2026-11-09, and `looper check --name
+floor-debt` is green again. Both spawn `bash`, so a spawn that failed under the sweep's load is
+the likely cause. If either goes red under load again, its spawn result is the place to read.
+
 ### Next
 
 - `docs/goals/README.md:1`: retire the goal, then `one-copy-each` is the live goal.
