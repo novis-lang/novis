@@ -162,11 +162,17 @@ pub(crate) fn infer_method_call(
             false => sig,
         }
     });
-    let label = resolved.as_ref().map(|(owner, name, _)| (owner, name.as_str()));
+    let label = resolved
+        .as_ref()
+        .map(|(owner, name, _)| (owner, name.as_str()));
     let (sig, written) = check_written_type_args(type_args, sig, label, expr.span, ctx, env);
     // `Core\Router\Match::is(Shop::show)` names a route as a link does, so its
     // written target is marked and folded the same way.
-    note_link_target(resolved.as_ref().map(|(o, n, _)| (o, n.as_str())), args, env);
+    note_link_target(
+        resolved.as_ref().map(|(o, n, _)| (o, n.as_str())),
+        args,
+        env,
+    );
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     if let Some((qname, name, _)) = &resolved {
         note_plain_binds(qname, name, expr.span, env);
@@ -716,7 +722,9 @@ pub(crate) fn infer_static_call(
         }
         None => sig.clone(),
     });
-    let label = resolved.as_ref().map(|(owner, name, _)| (owner, name.as_str()));
+    let label = resolved
+        .as_ref()
+        .map(|(owner, name, _)| (owner, name.as_str()));
     let (sig, written) = check_written_type_args(type_args, sig, label, expr.span, ctx, env);
     // `rule:testing/interaction-after-the-fact`'s method reference, marked
     // before the argument list is walked rather than judged after it: the
@@ -725,7 +733,11 @@ pub(crate) fn infer_static_call(
     // [`note_method_ref_args`].
     note_method_ref_args(resolved.as_ref(), args, env);
     note_retrieval_target(resolved.as_ref(), args, env);
-    note_link_target(resolved.as_ref().map(|(o, n, _)| (o, n.as_str())), args, env);
+    note_link_target(
+        resolved.as_ref().map(|(o, n, _)| (o, n.as_str())),
+        args,
+        env,
+    );
     // `rule:core-classes/html-later`'s closed head, armed over a `later`
     // call's own arguments — see [`crate::response::is_later`] — and
     // `rule:concurrency/deferred-work-cannot-write-the-response`'s, armed over

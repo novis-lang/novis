@@ -3046,7 +3046,9 @@ fn read_ahead(
         nvs_runtime::affordable(Some(room), "Core\\IO\\File::readLine")?;
         ahead.bytes.resize(room, 0);
     }
-    let read = file.read(&mut ahead.bytes[pending..]).map_err(|err| failed(&err))?;
+    let read = file
+        .read(&mut ahead.bytes[pending..])
+        .map_err(|err| failed(&err))?;
     ahead.end = pending + read;
     Ok(read)
 }

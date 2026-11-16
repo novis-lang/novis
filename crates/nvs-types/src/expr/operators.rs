@@ -943,8 +943,13 @@ pub(crate) fn object_comparison_result(
         // One argument, at the one parameter: the operator writes the call
         // itself, so its mapping is fixed rather than resolved.
         let slots = vec![ArgSlot::Param(0)];
-        let call =
-            resolved_call(owner.clone(), "compareTo".to_owned(), sig, slots, env.signatures);
+        let call = resolved_call(
+            owner.clone(),
+            "compareTo".to_owned(),
+            sig,
+            slots,
+            env.signatures,
+        );
         env.exprs.record(span, ExprInfo::Call(call));
     }
     Some(match op {

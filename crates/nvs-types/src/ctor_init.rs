@@ -695,10 +695,9 @@ fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
     let Some(links) = env.graph.get(qname) else {
         return false;
     };
-    links
-        .extends
-        .iter()
-        .any(|parent| resolve_method_ref(parent, "constructor", env.signatures, env.graph).is_some())
+    links.extends.iter().any(|parent| {
+        resolve_method_ref(parent, "constructor", env.signatures, env.graph).is_some()
+    })
 }
 
 /// The required properties of every class `qname` extends, nearest first.

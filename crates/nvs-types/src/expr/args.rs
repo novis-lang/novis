@@ -2129,8 +2129,7 @@ pub(crate) fn check_written_type_args(
     if written.len() != sig.type_params.len() {
         report_type_arg_count(&sig, &member(), span, env);
     }
-    let bindings
-: crate::generics::Bindings = sig
+    let bindings: crate::generics::Bindings = sig
         .type_params
         .iter()
         .cloned()

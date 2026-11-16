@@ -34,7 +34,8 @@ use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::lower::lower_optional_type;
 use crate::signatures::{
-    property_visibility, resolve_const_owned, resolve_method, resolve_method_ref, resolve_property_owned,
+    property_visibility, resolve_const_owned, resolve_method, resolve_method_ref,
+    resolve_property_owned,
 };
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
