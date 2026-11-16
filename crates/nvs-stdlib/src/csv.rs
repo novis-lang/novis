@@ -832,7 +832,7 @@ nvs_runtime::nvs_helper! {
         let mut cell = vec![0_u8; text.len().max(1)];
         let mut field: Vec<u8> = Vec::new();
         let mut record: Vec<Vec<u8>> = Vec::new();
-        let mut names: Vec<Vec<u8>> = Vec::new();
+        let mut names: Vec<NvsStr> = Vec::new();
         let mut rows = NvsArray::new();
         let mut read = 0;
         let mut deadline = nvs_runtime::DeadlineBatch::new(ctx);
@@ -859,7 +859,7 @@ nvs_runtime::nvs_helper! {
                     record.push(std::mem::take(&mut field));
                     if record_end {
                         if header && names.is_empty() {
-                            names = std::mem::take(&mut record);
+                            names = header_names(&mut record);
                         } else {
                             let built = row(&record, &names).ok_or_else(|| over_memory("parse"))?;
                             if !nvs_runtime::budget::affords(size_of::<Value>())
@@ -954,7 +954,10 @@ fn affords_field(record: &Vec<Vec<u8>>) -> bool {
 /// that is answered rather than thrown. A `None` has already recorded the
 /// breach, and the part of the row built so far is freed. Each field asks for
 /// its entry and its string's bytes, then for the row's growth.
-fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> Option<NvsArray> {
+///
+/// A key from `names` is that name's string, retained, so a keyed row
+/// allocates no key of its own.
+fn row(record: &[Vec<u8>], names: &[NvsStr]) -> Option<NvsArray> {
     let mut out = NvsArray::new();
     for (column, field) in record.iter().enumerate() {
         if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(field.len()))
@@ -968,12 +971,18 @@ fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> Option<NvsArray> {
         )]
         let value = Value::str(NvsStr::new(field));
         match names.get(column) {
-            Some(name) => out.set(NvsStr::new(name), value),
+            Some(name) => out.set(name.clone(), value),
             None if names.is_empty() => out.append(value),
             None => out.set(NvsStr::new(column.to_string().as_bytes()), value),
         }
     }
     Some(out)
+}
+
+/// The header record's fields as the strings every keyed row shares, built
+/// once. `record` is left empty, ready for the next record.
+fn header_names(record: &mut Vec<Vec<u8>>) -> Vec<NvsStr> {
+    record.drain(..).map(|name| NvsStr::new(&name)).collect()
 }
 
 nvs_runtime::nvs_helper! {
@@ -1181,7 +1190,7 @@ struct RowReader {
     /// The record being assembled, one field per column read so far.
     record: Vec<Vec<u8>>,
     /// The header's names, where `{ header: true }` asked for them.
-    names: Vec<Vec<u8>>,
+    names: Vec<NvsStr>,
     /// Whether the first record is the header rather than a row.
     header: bool,
     /// Whether the source has reached its end.
@@ -1279,7 +1288,7 @@ impl RowReader {
                     self.record.push(std::mem::take(&mut self.field));
                     if record_end {
                         if self.header && self.names.is_empty() {
-                            self.names = std::mem::take(&mut self.record);
+                            self.names = header_names(&mut self.record);
                         } else {
                             let Some(built) = row(&self.record, &self.names) else {
                                 self.finish();
@@ -2202,7 +2211,7 @@ mod tests {
                     + parked.cell.len()
                     + parked.field.len()
                     + parked.record.iter().map(Vec::len).sum::<usize>()
-                    + parked.names.iter().map(Vec::len).sum::<usize>(),
+                    + parked.names.iter().map(|name| name.as_bytes().len()).sum::<usize>(),
             );
         }
 
