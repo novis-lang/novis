@@ -1431,10 +1431,10 @@ const FILE_PATH_SLOT: usize = 1;
 /// [`file_handle`] writes it.
 const FILE_MODE_SLOT: usize = 2;
 
-/// How much [`nvs_core_io_file_read_line`] reads at a time before it looks for
-/// a terminator. A line longer than this costs one more read and nothing else;
-/// the buffer is on the stack, so the number is a syscall-count choice and not
-/// a footprint one.
+/// How much [`nvs_core_io_file_read_line`] reads ahead at a time, and the size
+/// its buffer stays at while lines are shorter than half of it. A longer line
+/// costs one more read per half of this and a larger buffer until it is
+/// returned.
 const LINE_CHUNK: usize = 8 * 1024;
 
 /// How much [`nvs_core_io_file_read`] reads before it asks the request whether
@@ -2810,7 +2810,10 @@ nvs_runtime::nvs_helper! {
                 err,
             )
         };
-        let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("read", &path))?;
+        let file = ctx
+            .open_file_mut(key)
+            .ok_or_else(|| already_closed("read", &path))?
+            .map_err(|err| failed(&err))?;
         let mut octets = Vec::new();
         loop {
             let chunk = (max - octets.len() as u64).min(READ_CHUNK);
@@ -2881,7 +2884,16 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("readBytes", &path))?;
+        let file = ctx
+            .open_file_mut(key)
+            .ok_or_else(|| already_closed("readBytes", &path))?
+            .map_err(|err| {
+                nvs_runtime::capability::io_failure(
+                    MEMBER,
+                    Path::new(path.as_text().unwrap_or("?")),
+                    &err,
+                )
+            })?;
         let mut octets = Vec::new();
         loop {
             let chunk = (max - octets.len() as u64).min(READ_CHUNK);
@@ -2908,20 +2920,20 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\IO\File::readLine(): ?string` — replacing `fgets`.
     ///
-    /// # Decision: a chunk is read and the tail is given back, and what a line
-    /// is comes from one place
+    /// # Decision: a block is read ahead and kept, and what a line is comes
+    /// from one place
     ///
     /// The descriptor lives in the request's table
-    /// ([`nvs_runtime::Ctx::hold_open_file`]) and nothing wraps it, so there is
-    /// no `BufReader` to hold a line's worth of look-ahead between two calls.
-    /// The two ways to read a line off a bare descriptor are a byte at a time —
-    /// a syscall per byte, which prices a member the whole point of which is
-    /// walking a file — or a chunk at a time with the bytes past the terminator
-    /// handed back by seeking. This does the second: two syscalls a line rather
-    /// than one a byte, and the position afterwards is exactly where a caller
-    /// interleaving [`nvs_core_io_file_read`] would need it to be. **What it
-    /// spends:** one [`LINE_CHUNK`]-byte stack buffer for the length of the
-    /// call, plus the line itself, charged to the request that asked.
+    /// ([`nvs_runtime::Ctx::hold_open_file`]) beside a
+    /// [`nvs_runtime::ReadAhead`]: the bytes the last call read past its line.
+    /// A line is found in that buffer and copied once, into its result, and
+    /// the descriptor is read once per [`LINE_CHUNK`] rather than read and
+    /// seeked back once per line. Every other member borrows the descriptor
+    /// through [`nvs_runtime::Ctx::open_file_mut`], which seeks back over the
+    /// unread bytes first, so the position a caller interleaving
+    /// [`nvs_core_io_file_read`] sees is the end of the line. **What it
+    /// spends:** the buffer, usually [`LINE_CHUNK`] bytes, for the life of the
+    /// handle, plus the line itself, charged to the request that asked.
     ///
     /// The terminator is **not** returned, which is where this parts company
     /// with `fgets` and joins [`crate::str::line_pieces`] — the one place that
@@ -2940,10 +2952,9 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_runtime::affordable`] for the line so far before it is added: a
     /// line past the memory limit ends the request as that limit's `FATAL`
     /// while the buffer is still within it, not after it has grown to the size
-    /// of the file. A line that is not UTF-8 throws, and every byte this call
-    /// took — terminator included — is given back first, the same promise
-    /// [`nvs_core_io_file_read`] makes, so a caller that recovers is where it
-    /// was.
+    /// of the file. A line that is not UTF-8 throws and stays unread in the
+    /// buffer, the same promise [`nvs_core_io_file_read`] makes, so a caller
+    /// that recovers is where it was.
     fn nvs_core_io_file_read_line(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "readLine")?;
         let failed = |err: &std::io::Error| {
@@ -2953,71 +2964,88 @@ nvs_runtime::nvs_helper! {
                 err,
             )
         };
-        let file = ctx
-            .open_file_mut(key)
+        let (file, ahead) = ctx
+            .open_file_ahead(key)
             .ok_or_else(|| already_closed("readLine", &path))?;
 
-        let mut line = Vec::new();
-        let mut buffer = [0u8; LINE_CHUNK];
-        // Every byte this call has taken off the handle, terminator included,
-        // so a line that is not text can be given back whole.
-        let mut taken = 0usize;
+        // How many unread bytes have been searched for a terminator already.
+        // It counts from `ahead.at`, so a read that moves the bytes keeps it.
+        let mut scanned = 0usize;
         loop {
-            let read = file.read(&mut buffer).map_err(|err| failed(&err))?;
-            if read == 0 {
-                // The end of the file. A last line with no terminator is still
-                // a line; nothing at all is the absence R5 spells `null`.
-                if line.is_empty() {
-                    return Ok(Value::null());
+            let start = ahead.at + scanned;
+            let found = ahead.bytes[start..]
+                .iter()
+                .position(|byte| *byte == b'\n' || *byte == b'\r');
+            let Some(offset) = found else {
+                scanned = ahead.pending();
+                if read_ahead(file, ahead, &failed)? == 0 {
+                    // The end of the file. A last line with no terminator is
+                    // still a line; nothing at all is the absence R5 spells
+                    // `null`.
+                    if ahead.pending() == 0 {
+                        return Ok(Value::null());
+                    }
+                    let line = text_of(&ahead.bytes[ahead.at..], "Core\\IO\\File::readLine", FILE_HINT)?;
+                    ahead.at = ahead.bytes.len();
+                    return Ok(line);
                 }
-                break;
-            }
-            nvs_runtime::affordable(Some(line.len() + read), "Core\\IO\\File::readLine")?;
-            let chunk = &buffer[..read];
-            let Some(at) = chunk.iter().position(|byte| *byte == b'\n' || *byte == b'\r') else {
-                line.extend_from_slice(chunk);
-                taken += read;
                 continue;
             };
-            line.extend_from_slice(&chunk[..at]);
-            let mut consumed = at + 1;
-            if chunk[at] == b'\r' {
-                if at + 1 < read {
-                    consumed += usize::from(chunk[at + 1] == b'\n');
-                } else {
-                    // A `\r` that ended the buffer: one more byte decides
-                    // whether this is a `\r\n` cluster or a lone `\r`, and the
-                    // byte is given back when it is neither.
-                    let mut next = [0u8; 1];
-                    if file.read(&mut next).map_err(|err| failed(&err))? == 1 {
-                        if next[0] == b'\n' {
-                            taken += 1;
-                        } else {
-                            file.seek(std::io::SeekFrom::Current(-1))
-                                .map_err(|err| failed(&err))?;
-                        }
+            let mut end = start + offset;
+            let mut next = end + 1;
+            if ahead.bytes[end] == b'\r' {
+                if next == ahead.bytes.len() {
+                    // A `\r` that ends what was read: one more byte decides
+                    // whether this is a `\r\n` cluster or a lone `\r`. The read
+                    // moves the unread bytes, so the `\r` is found again.
+                    scanned = end - ahead.at;
+                    if read_ahead(file, ahead, &failed)? > 0 {
+                        continue;
                     }
+                    end = ahead.at + scanned;
+                    next = end + 1;
+                } else if ahead.bytes[next] == b'\n' {
+                    next += 1;
                 }
             }
-            taken += consumed;
-            // What of the chunk lies past the terminator, given back so that the
-            // handle ends this call exactly where the line ended. It is at most
-            // `LINE_CHUNK`, which is why the conversion cannot fail.
-            let tail = i64::try_from(read - consumed)
-                .expect("a chunk is `LINE_CHUNK` bytes, which fits an `i64` on every target");
-            if tail > 0 {
-                file.seek(std::io::SeekFrom::Current(-tail))
-                    .map_err(|err| failed(&err))?;
-            }
-            break;
+            let line = text_of(&ahead.bytes[ahead.at..end], "Core\\IO\\File::readLine", FILE_HINT)?;
+            ahead.at = next;
+            return Ok(line);
         }
-        text_of(&line, "Core\\IO\\File::readLine", FILE_HINT).or_else(|refused| {
-            let back = i64::try_from(taken)
-                .expect("a line the request's memory held fits an `i64`");
-            file.seek(std::io::SeekFrom::Current(-back))
-                .map_err(|err| failed(&err))?;
-            Err(refused)
-        })
+    }
+}
+
+/// Reads the next block of `file` into `ahead`, after its unread bytes, and
+/// returns how many bytes it read. `0` is the end of the file.
+///
+/// The unread bytes move to the front first, so the buffer keeps one
+/// allocation while lines are shorter than [`LINE_CHUNK`]. A longer line grows
+/// it, and the request's memory limit is checked before each growth. Once a
+/// long line is returned, the next read shrinks the buffer back.
+fn read_ahead(
+    file: &mut nvs_runtime::capability::File,
+    ahead: &mut nvs_runtime::ReadAhead,
+    failed: &dyn Fn(&std::io::Error) -> Fault,
+) -> Result<usize, Fault> {
+    let pending = ahead.pending();
+    ahead.bytes.copy_within(ahead.at.., 0);
+    ahead.bytes.truncate(pending);
+    ahead.at = 0;
+    if pending == 0 && ahead.bytes.capacity() > 2 * LINE_CHUNK {
+        ahead.bytes.shrink_to(LINE_CHUNK);
+    }
+    let room = (pending + LINE_CHUNK / 2).max(LINE_CHUNK);
+    nvs_runtime::affordable(Some(room), "Core\\IO\\File::readLine")?;
+    ahead.bytes.resize(room, 0);
+    match file.read(&mut ahead.bytes[pending..]) {
+        Ok(read) => {
+            ahead.bytes.truncate(pending + read);
+            Ok(read)
+        }
+        Err(err) => {
+            ahead.bytes.truncate(pending);
+            Err(failed(&err))
+        }
     }
 }
 
@@ -3044,8 +3072,9 @@ nvs_runtime::nvs_helper! {
                 ))
             })?;
         {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("write", &path))?;
-            file.write_all(data)
+            ctx.open_file_mut(key)
+                .ok_or_else(|| already_closed("write", &path))?
+                .and_then(|file| file.write_all(data))
         }
         .map_err(|err| {
             nvs_runtime::capability::io_failure(
@@ -3088,8 +3117,9 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("seek", &path))?;
-            file.seek(std::io::SeekFrom::Start(offset))
+            ctx.open_file_mut(key)
+                .ok_or_else(|| already_closed("seek", &path))?
+                .and_then(|file| file.seek(std::io::SeekFrom::Start(offset)))
         }
         .map_err(|err| {
             nvs_runtime::capability::io_failure(
@@ -3115,8 +3145,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_file_tell(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "tell")?;
         let at = {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("tell", &path))?;
-            file.stream_position()
+            ctx.open_file_mut(key)
+                .ok_or_else(|| already_closed("tell", &path))?
+                .and_then(|file| file.stream_position())
         }
         .map_err(|err| {
             nvs_runtime::capability::io_failure(
@@ -3170,8 +3201,9 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("truncate", &path))?;
-            file.set_len(size)
+            ctx.open_file_mut(key)
+                .ok_or_else(|| already_closed("truncate", &path))?
+                .and_then(|file| file.set_len(size))
         }
         .map_err(|err| {
             nvs_runtime::capability::io_failure(
@@ -3203,8 +3235,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_file_flush(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "flush")?;
         {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("flush", &path))?;
-            file.flush()
+            ctx.open_file_mut(key)
+                .ok_or_else(|| already_closed("flush", &path))?
+                .and_then(|file| file.flush())
         }
         .map_err(|err| {
             nvs_runtime::capability::io_failure(
@@ -3266,7 +3299,16 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_file_lock(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "lock")?;
         let taken = {
-            let file = ctx.open_file_mut(key).ok_or_else(|| already_closed("lock", &path))?;
+            let file = ctx
+                .open_file_mut(key)
+                .ok_or_else(|| already_closed("lock", &path))?
+                .map_err(|err| {
+                    nvs_runtime::capability::io_failure(
+                        "Core\\IO\\File::lock",
+                        Path::new(path.as_text().unwrap_or("?")),
+                        &err,
+                    )
+                })?;
             file.try_lock()
         };
         // Through `io::Error` rather than matching the two arms of the lock's
@@ -6349,6 +6391,7 @@ mod tests {
         let at = ctx
             .open_file_mut(key)
             .expect("the handle is still open")
+            .expect("nothing was read ahead")
             .stream_position()
             .expect("an open file has a position");
         assert!(
@@ -6433,13 +6476,15 @@ mod tests {
         ctx.set_memory_limit(1 << 20);
         let over = read_line_on(&mut ctx, file).expect_err("the line is past the limit");
         assert!(over.contains("exceeded its memory limit"), "{over}");
-        // The buffer is not on the balance, so where the handle stopped is what shows the
+        // The buffer is not on the balance, so where the descriptor stopped is what shows the
         // member asked in time: a member that read the whole line first stands at its end.
-        // `tell` is itself refused past the limit, so the descriptor is asked directly.
+        // `tell` is itself refused past the limit, and it would give the unread bytes back,
+        // so the descriptor is asked directly.
         let (key, _) = handle_of(file, "tell").expect("a handle `open` built");
         let at = ctx
-            .open_file_mut(key)
+            .open_file_ahead(key)
             .expect("the handle is still open")
+            .0
             .stream_position()
             .expect("an open file has a position");
         assert!(
@@ -6451,6 +6496,58 @@ mod tests {
         let_go(file);
         drop(ctx);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// `Core\IO\File::readLine` reads past its line into the handle's buffer, and every other
+    /// member still sees the position at the end of that line: `tell` reports it, `read` and
+    /// `write` start there, and a `seek` back reads the line again.
+    // covers: Core\IO\File::readLine
+    #[cfg_attr(
+        miri,
+        ignore = "opens a file with `openat`, which Miri does not emulate"
+    )]
+    #[test]
+    fn a_line_read_ahead_leaves_every_other_member_at_the_line_end() {
+        let (_dir, path) = scratch("file-read-ahead.txt");
+        std::fs::write(&path, "one\r\ntwo\nthree\nfour").expect("a scratch file");
+        let mut ctx = handling();
+        let file = handle_on(&mut ctx, &path);
+        let tell = |ctx: &mut nvs_runtime::Ctx| {
+            nvs_runtime::call(nvs_core_io_file_tell, ctx, &[file])
+                .expect("an open handle has a position")
+                .as_uint()
+        };
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some("one".to_owned())));
+        let (key, _) = handle_of(file, "readLine").expect("a handle `open` built");
+        let (_, ahead) = ctx.open_file_ahead(key).expect("the handle is open");
+        assert_eq!(
+            ahead.pending(),
+            "two\nthree\nfour".len(),
+            "the rest was read ahead"
+        );
+        assert_eq!(tell(&mut ctx), Some(5));
+        assert_eq!(read_on(&mut ctx, file, 3).as_deref(), Ok("two"));
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some(String::new())));
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some("three".to_owned())));
+        on_handle(
+            &mut ctx,
+            nvs_core_io_file_write,
+            file,
+            &[Value::text("FOUR")],
+        )
+        .expect("the handle writes");
+        assert_eq!(read_line_on(&mut ctx, file), Ok(None));
+        on_handle(&mut ctx, nvs_core_io_file_seek, file, &[Value::uint(0)])
+            .expect("a position inside the file");
+        assert_eq!(read_line_on(&mut ctx, file), Ok(Some("one".to_owned())));
+        on_handle(&mut ctx, nvs_core_io_file_close, file, &[]).expect("an open handle closes");
+        let_go(file);
+        drop(ctx);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the scratch file reads"),
+            "one\r\ntwo\nthree\nFOUR",
+            "the write landed where the last line ended"
+        );
     }
 
     /// `Core\IO\File::write($data)` on `handle`: the count it returned, or the message its

@@ -1008,6 +1008,7 @@ mod tests {
         assert_eq!(
             ctx.open_file_mut(key)
                 .expect("the handle is open")
+                .expect("nothing was read ahead")
                 .stream_position()
                 .expect("a regular file has a position"),
             9,

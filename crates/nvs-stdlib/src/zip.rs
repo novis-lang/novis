@@ -2858,6 +2858,7 @@ mod tests {
         let (key, handle) = open_file(&mut ctx, &path);
         ctx.open_file_mut(key)
             .expect("the case's file is open")
+            .expect("nothing was read ahead")
             .seek(SeekFrom::Start(7))
             .expect("the case moves its position");
 
@@ -2876,6 +2877,7 @@ mod tests {
         let position = ctx
             .open_file_mut(key)
             .expect("the case's file is open")
+            .expect("nothing was read ahead")
             .stream_position()
             .expect("the position reads");
         assert_eq!(position, 7, "the read puts the position back");

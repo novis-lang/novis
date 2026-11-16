@@ -49,6 +49,64 @@ fn filed_at<T>(table: &[(u64, T)], key: u64) -> Option<usize> {
     table.binary_search_by_key(&key, |(filed, _)| *filed).ok()
 }
 
+/// A `Core\IO\File`'s descriptor and the bytes read ahead of its position —
+/// one entry of [`Ctx::hold_open_file`]'s table.
+#[derive(Debug)]
+pub(crate) struct OpenFile {
+    file: std::fs::File,
+    ahead: ReadAhead,
+}
+
+/// The bytes `Core\IO\File::readLine` read from a descriptor and has not yet
+/// returned: `bytes[at..]`, which lie before the descriptor's own position.
+///
+/// A line is found in the buffer and copied once into its result, and the
+/// descriptor is read once per buffer rather than read and seeked back once
+/// per line. [`Ctx::open_file_mut`] gives the unread bytes back with one seek
+/// before it lends the descriptor to any other member, so the position a
+/// program sees is always the end of the last line it read.
+///
+/// **What it spends:** the buffer's capacity, usually 8 KiB, per open file that
+/// has read a line, for the life of the handle. A line longer than that grows
+/// it, under the request's memory limit, and the reader gives the growth back.
+#[derive(Debug, Default)]
+pub struct ReadAhead {
+    /// What was read. Only `bytes[at..]` is still unread.
+    pub bytes: Vec<u8>,
+    /// Where the unread bytes start.
+    pub at: usize,
+}
+
+impl ReadAhead {
+    /// How many bytes were read and not yet returned.
+    #[must_use]
+    pub fn pending(&self) -> usize {
+        self.bytes.len() - self.at
+    }
+
+    /// Moves `file` back over the unread bytes and empties the buffer, keeping
+    /// its capacity. A descriptor that cannot seek cannot take bytes back, so
+    /// with unread bytes it fails and the bytes stay where they are.
+    fn give_back(&mut self, file: &mut std::fs::File) -> std::io::Result<()> {
+        use std::io::Seek as _;
+        let pending = self.pending();
+        if pending > 0 {
+            if !crate::os::can_seek(file) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "`readLine` read past its line, and this file cannot seek back to the end \
+                     of the line. Read it with `readLine` alone",
+                ));
+            }
+            let back = i64::try_from(pending).map_err(std::io::Error::other)?;
+            file.seek(std::io::SeekFrom::Current(-back))?;
+        }
+        self.bytes.clear();
+        self.at = 0;
+        Ok(())
+    }
+}
+
 /// A database connection a request is holding open — `nvs_db`'s `Connection`,
 /// and the seam that lets a [`Ctx`] hold one without naming it.
 ///
@@ -386,7 +444,8 @@ impl Ctx {
     /// `Core\IO\File::close` takes the handle out and drops it, and a request
     /// that forgets closes everything it opened when its `Ctx` goes.
     ///
-    /// **What it spends:** one `Option<File>` — a descriptor and a niche — and
+    /// **What it spends:** one `Option<OpenFile>` — a descriptor and an empty
+    /// [`ReadAhead`] — and
     /// its eight-byte key per `open` this request performed, *including* the ones it has since closed,
     /// because a key is never reused. That is O(opens by one request), released
     /// with the request and charged to its memory limit, and it is the price of
@@ -399,24 +458,54 @@ impl Ctx {
     /// another.
     pub fn hold_open_file(&mut self, file: std::fs::File) -> u64 {
         let key = next_handle_key();
-        self.open_files.push((key, Some(file)));
+        self.open_files.push((
+            key,
+            Some(OpenFile {
+                file,
+                ahead: ReadAhead::default(),
+            }),
+        ));
         key
     }
 
     /// The file `key` names, borrowed for one read or write, or `None` once it
     /// has been closed or if it was never this request's.
-    pub fn open_file_mut(&mut self, key: u64) -> Option<&mut std::fs::File> {
+    ///
+    /// **The descriptor is lent at the position the program sees.** Bytes
+    /// `Core\IO\File::readLine` read past its line are given back first
+    /// ([`ReadAhead`]), so no member that reads, writes, seeks or tells through
+    /// here has to know the read-ahead exists. The inner error is that give-back
+    /// failing, which only a descriptor that cannot seek does.
+    pub fn open_file_mut(&mut self, key: u64) -> Option<std::io::Result<&mut std::fs::File>> {
         let index = filed_at(&self.open_files, key)?;
-        self.open_files.get_mut(index)?.1.as_mut()
+        let open = self.open_files.get_mut(index)?.1.as_mut()?;
+        Some(
+            open.ahead
+                .give_back(&mut open.file)
+                .map(|()| &mut open.file),
+        )
+    }
+
+    /// The file `key` names and the bytes read ahead of its position, for
+    /// `Core\IO\File::readLine` alone. The descriptor's own position is past
+    /// those bytes, so a reader through here serves them first.
+    pub fn open_file_ahead(&mut self, key: u64) -> Option<(&mut std::fs::File, &mut ReadAhead)> {
+        let index = filed_at(&self.open_files, key)?;
+        let open = self.open_files.get_mut(index)?.1.as_mut()?;
+        Some((&mut open.file, &mut open.ahead))
     }
 
     /// Takes the file `key` names back out, or `None` when it has already been
     /// taken — a `close` of a handle a previous `close` consumed — and for a key
-    /// another task filed.
+    /// another task filed. The bytes read ahead go with it.
     #[must_use]
     pub fn take_open_file(&mut self, key: u64) -> Option<std::fs::File> {
         let index = filed_at(&self.open_files, key)?;
-        self.open_files.get_mut(index)?.1.take()
+        self.open_files
+            .get_mut(index)?
+            .1
+            .take()
+            .map(|open| open.file)
     }
 
     /// Files a spawned child against this task and answers the key that reads

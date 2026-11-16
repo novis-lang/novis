@@ -216,7 +216,8 @@ impl ByteSource {
             }
             let open = ctx
                 .open_file_mut(key)
-                .ok_or_else(|| closed(member, &path))?;
+                .ok_or_else(|| closed(member, &path))?
+                .map_err(|err| failed(member, &path, &err))?;
             let file = open
                 .try_clone()
                 .map_err(|err| failed(member, &path, &err))?;
@@ -1012,6 +1013,7 @@ mod tests {
     fn position(ctx: &mut Ctx, key: u64) -> u64 {
         ctx.open_file_mut(key)
             .expect("the handle is open")
+            .expect("nothing was read ahead")
             .stream_position()
             .expect("a regular file has a position")
     }

@@ -1616,7 +1616,7 @@ pub struct Ctx {
     started_scripts: Vec<(u64, Option<Box<dyn crate::host::Running>>)>,
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
-    open_files: Vec<(u64, Option<std::fs::File>)>,
+    open_files: Vec<(u64, Option<OpenFile>)>,
     /// The children this task has spawned, by the key its `Core\Process\Handle`
     /// carries — see [`Ctx::hold_spawned_child`], and [`HeldChild`] for the
     /// kill that makes none of them outlive this context.
