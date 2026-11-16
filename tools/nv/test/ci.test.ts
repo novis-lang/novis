@@ -532,11 +532,48 @@ describe("bun nv ci --push", () => {
     expect(runAsked(w)).toEqual([["run", "cancel", "50"]]);
   });
 
-  test("a refused push exits 1, and starts or cancels no run", async () => {
+  test("a push git rejects exits 1, starts or cancels no run, and leaves git's whole answer in the refused file", async () => {
     const w = seams("refused", () => ({ runs: [runOf(42, "CI", "in_progress", null, "push", "old")], jobs: {} }), (args) =>
-      args[0] === "push" ? { code: 1, stdout: "", stderr: "! [rejected] main -> main (fetch first)" } : heads("new", "old")(args));
+      args[0] === "push"
+        ? { code: 1, stdout: "", stderr: "To https://example.com/repo.git\n ! [rejected] main -> main (fetch first)" }
+        : heads("new", "old")(args));
     expect(await ci(["--push"], w.s)).toBe(1);
     expect(runAsked(w)).toEqual([]);
+    expect(readFileSync(join(w.s.root, REFUSED), "utf8")).toContain("! [rejected] main -> main (fetch first)");
+    expect(await ci(["--status"], w.s)).toBe(1);
+  });
+
+  test("commits only origin has are merged into main before the checks and the push", async () => {
+    const w = seams("behind", () => ({ runs: [], jobs: {} }), (args) =>
+      args[0] === "merge-base" ? { code: 1, stdout: "", stderr: "" } : args[0] === "rev-parse" && args[1] === "--abbrev-ref" ? ok("main\n") : heads("merged", "old")(args));
+    expect(await ci(["--push"], w.s)).toBe(0);
+    const merge = w.asked.findIndex((a) => a[1] === "merge");
+    expect(w.asked[merge]).toEqual(["git", "merge", "--no-edit", "origin/main"]);
+    expect(merge).toBeLessThan(w.asked.findIndex((a) => a[1] === "push"));
+    expect(w.checked).toEqual(PRE_PUSH.map((c) => c.name));
+  });
+
+  test("a merge of origin's commits that stops is aborted, and refuses the push", async () => {
+    const w = seams("behind-conflict", () => ({ runs: [], jobs: {} }), (args) =>
+      args[0] === "merge-base"
+        ? { code: 1, stdout: "", stderr: "" }
+        : args[0] === "rev-parse" && args[1] === "--abbrev-ref"
+          ? ok("main\n")
+          : args[0] === "merge" && args[1] === "--no-edit"
+            ? { code: 1, stdout: "CONFLICT (content): Merge conflict in Cargo.lock", stderr: "" }
+            : heads("new", "old")(args));
+    expect(await ci(["--push"], w.s)).toBe(1);
+    expect(w.asked).toContainEqual(["git", "merge", "--abort"]);
+    expect(w.asked.some((a) => a[1] === "push")).toBe(false);
+    expect(w.checked).toEqual([]);
+    expect(readFileSync(join(w.s.root, REFUSED), "utf8")).toContain("Merge conflict in Cargo.lock");
+  });
+
+  test("with origin ahead and another branch checked out, nothing is merged and the push is refused", async () => {
+    const w = seams("behind-elsewhere", () => ({ runs: [], jobs: {} }), (args) =>
+      args[0] === "merge-base" ? { code: 1, stdout: "", stderr: "" } : args[0] === "rev-parse" && args[1] === "--abbrev-ref" ? ok("topic\n") : heads("new", "old")(args));
+    expect(await ci(["--push"], w.s)).toBe(1);
+    expect(w.asked.some((a) => a[1] === "merge" || a[1] === "push")).toBe(false);
   });
 
   test("with nothing to push it runs no pre-push check", async () => {

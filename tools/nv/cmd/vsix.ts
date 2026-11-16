@@ -7,7 +7,7 @@
 // **Every goal end that changed the extension rebuilds the `.vsix`.** The user installs the extension
 // from that file, and nothing else keeps it current: verify compiles the extension into `out/` and never
 // packages it, and CI's copy is an artifact of a run. So looper's `after_retire` hook runs `--hook` after
-// `bun nv relink --build --hook`, and a goal ended outside the loop runs `bun nv vsix` once its file is
+// `bun nv relink --build --hook` and before `bun nv ci --push`, and a goal ended outside the loop runs `bun nv vsix` once its file is
 // deleted.
 //
 // "Changed" is the git tree `HEAD` holds at `editors/vscode`, compared with the tree the last build

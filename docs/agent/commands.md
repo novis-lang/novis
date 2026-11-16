@@ -665,11 +665,12 @@ looper makes its lane, the worktree `.agent-tmp/worktrees/lane-<n>` on branch `s
 keeps that worktree. Once its goal is reached and its file deleted, the loop lands its branch: it
 merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. It never pushes.
 
-**`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs it at
-every goal end, and then `bun nv relink --build --hook`, which rebuilds `target/release/nvs` in the root
-and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Last comes `bun nv vsix --hook`,
-which rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
-side-lane rule (`tools/nv/cmd/vsix.ts`). The goal `release-green` is the one side goal that runs in the
+**`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs
+`bun nv relink --build --hook` at every goal end, which rebuilds `target/release/nvs` in the root and
+builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Then comes `bun nv vsix --hook`, which
+rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
+side-lane rule (`tools/nv/cmd/vsix.ts`). Last comes `bun nv ci --push`. It first merges in the commits
+only `origin/main` has, such as CI's release commit, and a push it cannot make pauses the loop. The goal `release-green` is the one side goal that runs in the
 root, added with `looper loop add --side release-green --in-root`. It is never reached: a person starts
 its loop, which runs every CI job this machine can run, fixes what fails, pushes, and fixes and pushes
 again until that push's CI run is green. Then it stops itself. It is the

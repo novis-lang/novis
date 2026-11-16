@@ -31,11 +31,14 @@
 // `git fetch`, a few `git` calls, and one `gh api` call per required workflow and per red run.
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
+// When `origin/main` has commits `main` lacks, such as the version commit CI's release job pushes, it
+// first merges them into the checked-out `main`; a merge that stops is aborted, and refuses the push.
 // Before it pushes, it runs `PRE_PUSH`: each check a CI job runs that judges files rather than running
 // the suites, on the tree as it stands. Together they take about two minutes once `cargo build` is warm,
 // and they cover about half of the failures CI finds, which CI reports an hour or two after the push. A red
 // check refuses the push: the command exits 1, prints each red check and its command, and writes them to
-// `REFUSED`, which `--watch` and `--status` report as red until a push goes out. **`--check`** runs
+// `REFUSED`, which `--watch` and `--status` report as red until a push goes out. A push git rejects
+// writes git's whole answer there too, and exits 1. **`--check`** runs
 // the same checks and pushes nothing, for a session before it claims a goal done and for looper as the
 // floor check `ci-check` of `docs/goals/README.md`.
 //
@@ -931,12 +934,45 @@ export async function prePush(s: CiSeams, pushing?: string): Promise<string[]> {
   return reds;
 }
 
+/** Writes `text` to `REFUSED`, says it, and returns the exit code of a refused push. */
+function refuse(s: CiSeams, text: string): number {
+  mkdirSync(join(s.root, ".agent-tmp", "ci"), { recursive: true });
+  writeFileSync(join(s.root, REFUSED), `${text.trimEnd()}\n`);
+  s.say(text.trimEnd());
+  return 1;
+}
+
+/**
+ * Merges `origin/main` into the checked-out `main` when `origin` has commits `main` lacks, such as the
+ * version commit CI's release job pushes. Without it every later push is rejected as not a fast-forward.
+ * Returns null when `main` holds all of `origin/main` afterwards, and otherwise why it does not: `main`
+ * is not checked out, or the merge stopped, and was then aborted so the tree is as it was.
+ */
+async function takeOrigin(s: CiSeams): Promise<string | null> {
+  const has = await s.git(["merge-base", "--is-ancestor", `origin/${BRANCH}`, BRANCH]);
+  if (has.code === 0) return null;
+  if (has.code > 1) return `\`git merge-base --is-ancestor\` exited ${has.code}: ${firstLine(has)}`;
+  const at = await gitOut(s, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (at !== BRANCH) return `origin/${BRANCH} has commits ${BRANCH} lacks, and ${at} is checked out, not ${BRANCH}: merge origin/${BRANCH} into ${BRANCH}`;
+  const merged = await s.git(["merge", "--no-edit", `origin/${BRANCH}`]);
+  if (merged.code === 0) {
+    s.say(`merged origin/${BRANCH}'s new commits into ${BRANCH}`);
+    return null;
+  }
+  await s.git(["merge", "--abort"]);
+  return `origin/${BRANCH} has commits ${BRANCH} lacks, and the merge stopped, so it was aborted: merge origin/${BRANCH} into ${BRANCH} by hand.\n\n${`${merged.stdout}\n${merged.stderr}`.trim()}`;
+}
+
 /**
  * Pushes `main` when `origin` does not have it yet and every `PRE_PUSH` check is green, then cancels
- * each run still going on an older commit. The push starts its own runs.
+ * each run still going on an older commit. The push starts its own runs. Commits only `origin` has are
+ * merged in first (`takeOrigin`). A merge that stops, a red check and a push git rejects each write
+ * `REFUSED` and exit 1.
  */
 export async function push(s: CiSeams): Promise<number> {
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
+  const stopped = await takeOrigin(s);
+  if (stopped !== null) return refuse(s, `the push of ${BRANCH} was refused: ${stopped}`);
   const head = await gitOut(s, ["rev-parse", BRANCH]);
   const remote = await gitOut(s, ["rev-parse", `origin/${BRANCH}`]);
   const refused = join(s.root, REFUSED);
@@ -944,16 +980,11 @@ export async function push(s: CiSeams): Promise<number> {
   else {
     const reds = await prePush(s, head);
     if (reds.length > 0) {
-      const text = `the push of ${BRANCH} at ${short(head)} was refused: ${reds.length} pre-push check(s) are red. Fix each, commit, and run \`bun nv ci --push\` again.\n\n${reds.join("\n\n")}\n`;
-      mkdirSync(join(s.root, ".agent-tmp", "ci"), { recursive: true });
-      writeFileSync(refused, text);
-      s.say(text.trimEnd());
-      return 1;
+      return refuse(s, `the push of ${BRANCH} at ${short(head)} was refused: ${reds.length} pre-push check(s) are red. Fix each, commit, and run \`bun nv ci --push\` again.\n\n${reds.join("\n\n")}`);
     }
     const pushed = await s.git(["push", "origin", `${BRANCH}:${BRANCH}`]);
     if (pushed.code !== 0) {
-      s.say(`the push failed: ${firstLine(pushed)}`);
-      return 1;
+      return refuse(s, `the push of ${BRANCH} at ${short(head)} failed: git exited ${pushed.code}. Fix the cause and run \`bun nv ci --push\` again.\n\n${`${pushed.stdout}\n${pushed.stderr}`.trim()}`);
     }
     s.say(`pushed ${BRANCH} at ${short(head)}: the push starts its CI and Website runs`);
   }
@@ -1079,7 +1110,7 @@ async function needOf(s: CiSeams, file: string, workflow: string, built: string)
  */
 async function green(s: CiSeams): Promise<number> {
   const lines: string[] = [];
-  if (existsSync(join(s.root, REFUSED))) lines.push(`a push was refused, and ${REFUSED} names its red checks: fix each, then run \`bun nv ci --push\``);
+  if (existsSync(join(s.root, REFUSED))) lines.push(`a push was refused, and ${REFUSED} says why: fix it, then run \`bun nv ci --push\``);
   await gitOut(s, ["fetch", "-q", "origin", BRANCH]);
   const built = await builtCommit(s);
   if (built === "") throw new GhFailed(`none of the newest ${BUILT_SEARCHED} commits of ${BRANCH} changes a file outside NOTES_ONLY`);
