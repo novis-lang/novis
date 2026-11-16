@@ -957,6 +957,9 @@ fn frame(ctx: &mut Ctx, archive: &mut Archive<'_>, entry: &Entry) -> Result<u64,
 /// Every decompression this module does goes through [`Budget::read`] or
 /// [`Budget::stream`], so there is no route by which an entry is read without
 /// being bounded.
+///
+/// It also keeps the one [`BLOCK`] every entry it reads is decompressed into,
+/// so an extraction allocates that block once and not once per entry.
 pub(crate) struct Budget {
     /// The bound the call runs under: what it asked for, lowered to the
     /// operator's `[limits]`.
@@ -964,6 +967,8 @@ pub(crate) struct Budget {
     /// What is left of `bound.bytes` once the entries already read are paid
     /// for.
     left: u64,
+    /// The block [`pump`] decompresses into, empty until the first entry.
+    block: Vec<u8>,
 }
 
 impl Budget {
@@ -972,6 +977,7 @@ impl Budget {
         Self {
             bound,
             left: bound.bytes,
+            block: Vec::new(),
         }
     }
 
@@ -996,7 +1002,7 @@ impl Budget {
             Ok(())
         };
         let mut input = Window::new(ctx, archive, entry, from);
-        let Some(size) = inflate(&mut input, entry, ceiling, sink)? else {
+        let Some(size) = inflate(&mut input, entry, ceiling, &mut self.block, sink)? else {
             return Err(over_bound(
                 &entry.name,
                 entry.compressed,
@@ -1039,7 +1045,7 @@ impl Budget {
         }
         .output_ceiling(entry.compressed);
         let mut input = Window::new(ctx, archive, entry, from);
-        inflate(&mut input, entry, ceiling, sink)?
+        inflate(&mut input, entry, ceiling, &mut Vec::new(), sink)?
             .ok_or_else(|| over_bound(&entry.name, entry.compressed, self, ceiling, true))
     }
 }
@@ -1128,9 +1134,10 @@ fn inflate(
     input: &mut Window<'_, '_>,
     entry: &Entry,
     ceiling: u64,
+    block: &mut Vec<u8>,
     sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
 ) -> Result<Option<u64>, Fault> {
-    let pumped = pump(input, entry, ceiling, sink);
+    let pumped = pump(input, entry, ceiling, block, sink);
     // A range that failed or came back short wins over what the decoder made
     // of it: the archive's source is the cause, not the deflate stream.
     if let Some(fault) = input.fault.take() {
@@ -1177,7 +1184,8 @@ fn spent(deadline: &mut nvs_runtime::DeadlineBatch, octets: usize) -> bool {
 }
 
 /// [`inflate`]'s loop: the octets the entry came to and their CRC-32, or
-/// `None` once they pass `ceiling`.
+/// `None` once they pass `ceiling`. It decompresses into `block`, which it
+/// grows to [`BLOCK`] the first time.
 ///
 /// # Errors
 ///
@@ -1188,6 +1196,7 @@ fn pump(
     input: &mut Window<'_, '_>,
     entry: &Entry,
     ceiling: u64,
+    block: &mut Vec<u8>,
     sink: &mut dyn FnMut(&[u8]) -> Result<(), Fault>,
 ) -> Result<Option<(u64, u32)>, Fault> {
     let mut deadline = nvs_runtime::DeadlineBatch::new(input.ctx);
@@ -1203,12 +1212,14 @@ fn pump(
             ));
         }
     };
-    let mut block = vec![0_u8; BLOCK];
+    if block.len() < BLOCK {
+        block.resize(BLOCK, 0);
+    }
     let mut size = 0_u64;
     let mut sum = crc32fast::Hasher::new();
     loop {
         let read = decoder
-            .read(&mut block)
+            .read(block)
             .map_err(|_| malformed_entry(&entry.name))?;
         if read == 0 {
             break;
