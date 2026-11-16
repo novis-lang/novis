@@ -29,14 +29,18 @@
 //!
 //! Cost: wrapping shapes a line again for each word it tries, so a paragraph of `n` words under
 //! `max_width` is shaped about `n` times its line length. Memory: the layout holds one glyph per
-//! shaped glyph and the font's shaping tables, and the step holds one RGBA8 frame of the box
-//! beside the frame it draws on. All are freed when the step returns.
+//! shaped glyph, the font's shaping tables and one shaping plan per direction and script, and the
+//! step holds one RGBA8 frame of the box beside the frame it draws on. All are freed when the step
+//! returns.
 
+use std::cell::RefCell;
 use std::ops::Range;
 
 use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, ScaleFont as _, point};
-use harfrust::{Direction, ShapeOptions, Shaper, ShaperData, UnicodeBuffer};
-use unicode_bidi::BidiInfo;
+use harfrust::{
+    Direction, GlyphBuffer, ShapeOptions, ShapePlan, Shaper, ShaperData, UnicodeBuffer,
+};
+use unicode_bidi::{BidiInfo, ParagraphInfo};
 
 use crate::decode::check as within_cap;
 use crate::ops::{self, Blend, Composite, Gravity};
@@ -99,13 +103,44 @@ struct Set {
     height: f32,
 }
 
-/// The shaper and the pixels one of its font units is.
+/// The shaper, the pixels one of its font units is, and the shaping plans compiled so far.
 struct Pen<'f> {
     shaper: Shaper<'f>,
     per_unit: f32,
+    /// One plan per direction, script and language a run has had. `Shaper::shape` without a plan
+    /// compiles one for every call, which costs more than shaping a short run, and a wrapped
+    /// paragraph shapes every line at least once.
+    plans: RefCell<Vec<ShapePlan>>,
 }
 
 impl Pen<'_> {
+    /// `buffer`, its segment properties set, shaped with the plan for those properties.
+    fn shape(&self, buffer: UnicodeBuffer) -> GlyphBuffer {
+        let direction = buffer.direction();
+        // The buffer reports a script it has none of as `UNKNOWN`, and `shape` compiles that
+        // buffer's plan with no script.
+        let script = Some(buffer.script()).filter(|&script| script != harfrust::script::UNKNOWN);
+        let language = buffer.language();
+        let mut plans = self.plans.borrow_mut();
+        let found = plans.iter().position(|plan| {
+            plan.direction() == direction
+                && plan.script() == script
+                && plan.language() == language.as_ref()
+        });
+        let index = found.unwrap_or_else(|| {
+            plans.push(ShapePlan::new(
+                &self.shaper,
+                direction,
+                script,
+                language.as_ref(),
+                &[],
+            ));
+            plans.len() - 1
+        });
+        self.shaper
+            .shape(buffer, ShapeOptions::new().plan(Some(&plans[index])))
+    }
+
     /// `text[range]` shaped into one line, its runs in the order `bidi` draws them.
     fn line(&self, bidi: &BidiInfo<'_>, range: Range<usize>) -> Line {
         let mut glyphs = Vec::new();
@@ -113,17 +148,18 @@ impl Pen<'_> {
         if range.is_empty() {
             return Line { glyphs, width: pen };
         }
-        let (levels, runs) = bidi.visual_runs(&bidi.paragraphs[0], range);
+        let line = line_of(bidi, range);
+        let (levels, runs) = line.visual_runs(&line.paragraphs[0], 0..line.text.len());
         for run in runs {
             let mut buffer = UnicodeBuffer::new();
-            buffer.push_str(&bidi.text[run.clone()]);
+            buffer.push_str(&line.text[run.clone()]);
             buffer.set_direction(if levels[run.start].is_rtl() {
                 Direction::RightToLeft
             } else {
                 Direction::LeftToRight
             });
             buffer.guess_segment_properties();
-            let shaped = self.shaper.shape(buffer, ShapeOptions::new());
+            let shaped = self.shape(buffer);
             for (info, at) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
                 glyphs.push(Glyph {
                     id: GlyphId(u16::try_from(info.glyph_id).unwrap_or(0)),
@@ -134,6 +170,24 @@ impl Pen<'_> {
             }
         }
         Line { glyphs, width: pen }
+    }
+}
+
+/// `range` of the paragraph `bidi` as a paragraph of its own: the line's text, its classes, the
+/// levels the whole paragraph resolved, and the paragraph's level.
+///
+/// Rules L1 and L2, which order a line's runs, read nothing outside the line, so the runs are the
+/// ones `bidi.visual_runs` gives for `range`. That call copies every level of the paragraph, so a
+/// paragraph wrapped into `n` lines would cost `n` times its length. This copies the line alone.
+fn line_of<'t>(bidi: &BidiInfo<'t>, range: Range<usize>) -> BidiInfo<'t> {
+    BidiInfo {
+        text: &bidi.text[range.clone()],
+        original_classes: bidi.original_classes[range.clone()].to_vec(),
+        levels: bidi.levels[range.clone()].to_vec(),
+        paragraphs: vec![ParagraphInfo {
+            range: 0..range.len(),
+            level: bidi.paragraphs[0].level,
+        }],
     }
 }
 
@@ -196,7 +250,11 @@ fn set(font: &FontRef<'_>, layout: &Layout<'_>) -> Result<Set, Error> {
     let data = ShaperData::new(&shaping);
     let shaper = data.shaper(&shaping).build();
     let per_unit = layout.size as f32 / shaper.units_per_em() as f32;
-    let pen = Pen { shaper, per_unit };
+    let pen = Pen {
+        shaper,
+        per_unit,
+        plans: RefCell::default(),
+    };
     let em = font.units_per_em().unwrap_or(1000.0);
     let scale = PxScale::from(layout.size as f32 * font.height_unscaled() / em);
     let mut lines = Vec::new();
@@ -385,6 +443,100 @@ mod tests {
             ..layout("Shop")
         };
         assert_eq!(measure(&narrow).unwrap(), one);
+    }
+
+    /// A line taken out of its paragraph orders its runs as the paragraph orders them, for every
+    /// line of a text that mixes both directions, an embedding and trailing spaces.
+    #[test]
+    fn a_line_of_its_own_has_the_paragraphs_runs() {
+        let text = "Shop \u{5e9}\u{5dc}\u{5d5}\u{5dd} 42 \u{202b}Blog \u{627}\u{644}\u{639}\u{631}\u{628}\u{64a}\u{629}\u{202c} end ";
+        let bidi = BidiInfo::new(text, None);
+        let para = &bidi.paragraphs[0];
+        // Each word with the space after it, and the whole text.
+        let mut lines = Vec::new();
+        let mut at = 0;
+        for (index, char) in text.char_indices() {
+            if char == ' ' {
+                lines.push(at..index + 1);
+                at = index + 1;
+            }
+        }
+        lines.push(0..text.len());
+        assert!(lines.len() > 5, "{lines:?}");
+        for range in lines {
+            let (whole_levels, whole_runs) = bidi.visual_runs(para, range.clone());
+            let line = line_of(&bidi, range.clone());
+            let (levels, runs) = line.visual_runs(&line.paragraphs[0], 0..line.text.len());
+            let shifted: Vec<_> = runs
+                .iter()
+                .map(|run| run.start + range.start..run.end + range.start)
+                .collect();
+            assert_eq!(shifted, whole_runs, "the runs of {range:?}");
+            assert_eq!(
+                levels[..],
+                whole_levels[range.clone()],
+                "the levels of {range:?}"
+            );
+        }
+    }
+
+    /// A run shaped with a kept plan has the glyphs and positions of one shaped with a plan of its
+    /// own, for runs of several scripts, both directions and none, shaped in turn and again.
+    #[test]
+    fn a_kept_plan_shapes_as_a_fresh_one() {
+        let shaping = harfrust::FontRef::new(FONT).unwrap();
+        let data = ShaperData::new(&shaping);
+        let pen = Pen {
+            shaper: data.shaper(&shaping).build(),
+            per_unit: 1.0,
+            plans: RefCell::default(),
+        };
+        let runs = [
+            ("Shop AV", Direction::LeftToRight),
+            ("\u{5e9}\u{5dc}\u{5d5}\u{5dd}", Direction::RightToLeft),
+            ("42 ", Direction::LeftToRight),
+            (
+                "\u{627}\u{644}\u{639}\u{631}\u{628}",
+                Direction::RightToLeft,
+            ),
+            ("Blog", Direction::LeftToRight),
+        ];
+        let buffer = |text: &str, direction| {
+            let mut buffer = UnicodeBuffer::new();
+            buffer.push_str(text);
+            buffer.set_direction(direction);
+            buffer.guess_segment_properties();
+            buffer
+        };
+        for (text, direction) in runs.iter().chain(&runs) {
+            let kept = pen.shape(buffer(text, *direction));
+            let fresh = pen
+                .shaper
+                .shape(buffer(text, *direction), ShapeOptions::new());
+            let glyphs = |shaped: &GlyphBuffer| {
+                shaped
+                    .glyph_infos()
+                    .iter()
+                    .zip(shaped.glyph_positions())
+                    .map(|(info, at)| {
+                        (
+                            info.glyph_id,
+                            info.cluster,
+                            at.x_advance,
+                            at.x_offset,
+                            at.y_offset,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(glyphs(&kept), glyphs(&fresh), "{text:?}");
+        }
+        // Latin, Hebrew, no script and Arabic: `Blog` and the second pass reuse a plan.
+        assert_eq!(
+            pen.plans.borrow().len(),
+            4,
+            "one plan per direction and script"
+        );
     }
 
     #[test]
