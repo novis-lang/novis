@@ -36,7 +36,7 @@ The chain holds 2 goal(s). `lean-members-and-checker` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`lean-members-and-checker`](lean-members-and-checker.md) **live** | Reached when the listed members allocate only their result, the checker's walks clone no names, and an editor request resolves no path it already resolved. | 1 ✓ the array members allocate per result, not per element · 2 ✓ the text and byte members scan once and copy once · **3 a stream reads in large steps into one buffer** · 4 the checker's walks borrow their names · 5 an editor request resolves a path once · 6 the goal is verified once, and every failure is fixed |
+| 1 | [`lean-members-and-checker`](lean-members-and-checker.md) **live** | Reached when the listed members allocate only their result, the checker's walks clone no names, and an editor request resolves no path it already resolved. | 1 ✓ the array members allocate per result, not per element · 2 ✓ the text and byte members scan once and copy once · 3 ✓ a stream reads in large steps into one buffer · **4 the checker's walks borrow their names** · 5 an editor request resolves a path once · 6 the goal is verified once, and every failure is fixed |
 | 2 | [`one-copy-each`](one-copy-each.md) | Reached when each listed block of repeated code has one home, with no change in behaviour and fewer lines than before. | **1 the loop forms share one preamble** · 2 a connection's and a transaction's members are declared once · 3 the tree walks and the case parser have one home each · 4 the small helpers are written once · 5 the server tests of nvs-cli share their support · 6 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md).

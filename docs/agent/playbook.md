@@ -175,6 +175,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A buffer filled by `resize` then `read` zeroes a whole block per fill, and a scale bench sees
+  it as growth.** `readLine`'s read-ahead resized to 8 KiB before every read, so a short line paid
+  for 8 KiB of zeroing and the slope read 1.26. Keep the buffer's length and track where the read
+  bytes end. See `crates/nvs-runtime/src/ctx/held.rs`'s `ReadAhead`.
 - **A test verify calls "failed alone as well" can pass under `cargo test`.** Verify reruns it
   with its own recording environment, `NVS_FOOTPRINT_LOG` and `LLVM_PROFILE_FILE` among them, and
   `cargo test` sets neither. Reproduce with the `covws` test executable and those variables set

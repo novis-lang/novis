@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/bytes.rs, crates/nvs-stdlib/src/regex.rs, crates/nvs-stdlib/src/csv.rs, crates/nvs-stdlib/src/encoding.rs, crates/nvs-stdlib/src/bigint.rs]
   - id: 3
     title: a stream reads in large steps into one buffer
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/http/transport.rs, crates/nvs-stdlib/src/net.rs, crates/nvs-stdlib/src/zip.rs, crates/nvs-stdlib/src/compress.rs]
   - id: 4
     title: "the checker's walks borrow their names"
@@ -195,13 +195,14 @@ result that is the argument or is built twice.
 **Does:** buffer `readLine`, read reply bodies in larger steps, and reuse the read buffers of
 sockets and archives.
 
-- [ ] `crates/nvs-stdlib/src/io.rs:2961`: the read-ahead buffer, dropped by every other member of
+- [x] `crates/nvs-stdlib/src/io.rs:2961`: the read-ahead buffer, dropped by every other member of
   the handle (`rule:programs/memory-priority`). This item has one session. If a member of the
   handle cannot keep its position promise, it is declined.
   - [x] The buffer lives beside the file in the runtime's table, and `open_file_mut` gives it back.
   - [x] The test `a_line_read_ahead_leaves_every_other_member_at_the_line_end` passes.
   - [x] Allocations 2 → 1, bytes 76 → 58.
-  - [ ] `readLine.scale.nvs` passes: instructions slope 1.26 against the bound 1.15.
+  - [x] `readLine.scale.nvs` passes: `growth: flat`. The buffer keeps its length and an `end`, so
+    a fill no longer zeroes a whole block.
 - [x] `crates/nvs-stdlib/src/http/transport.rs:557`: 64 KiB steps into a reused buffer, read
   straight into the held body where no framing stands between (`rule:programs/memory-priority`).
   Kept without a figure: every `Core\Http\Client` bench goes through the answer table and never
@@ -266,30 +267,20 @@ through the session's cache.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 is committed except for one open checkpoint: the
-`readLine` scale bench. `Ctx::open_file_mut` now returns `Option<io::Result<&mut File>>`, and
-every caller handles the give-back seek's error. The records for `Net\Stream::read`,
-`Net\Datagram::receive`, `Zip::extract`, `Zip::read`, `Compress::compress` and
-`Compress::decompress` are taken against their final files. `readLine`'s main bench record is
-stale. Its scale bench fails: `instructions grows with slope 1.26, 5594 per op at 4096 and 8009 at
-16384`. The old code passed it. Ruled out: the shrink after a long line (removed), 4 KiB growth
-reads (now a whole block), the `copy_within` of a buffer already at the front (now guarded), and
-`affordable` (O(1)). Left to check: the `resize` zeroing per fill, and the byte-by-byte
-`position` scan. Untouched members of the changed files still read `perf: stale`; stage 6
-records them. Expected red: nothing but that scale bench. Sessions used: stage 1: 1, stage 2: 1,
-stage 3: 1, stage 4: 0, stage 5: 0.
+Stages 1, 2 and 3 are done. The cause of the `readLine` scale failure was the `resize` zeroing
+a whole 8 KiB block per fill, which a short line paid for in full. `ReadAhead` now keeps its
+length and an `end` field, so the buffer is zeroed only where it grows. `readLine`'s record is
+taken against its final file: 1 allocation, 58 bytes, `growth: flat`. Untouched members of the
+changed files still read `perf: stale`, and stage 6 records them. Expected red: those stale perf
+records alone. Sessions used: stage 1: 1, stage 2: 1, stage 3: 2, stage 4: 0, stage 5: 0.
 
-The sweep's `env-secret-proofs` is still stale state in looper's service: `looper check --name`
+The sweep's `env-secret-proofs` is still stale state in looper's service. `looper check --name`
 finds no such check, and it has no log and no definition in the tree.
 
 ### Next
 
-- `crates/nvs-stdlib/src/io.rs:3027`: make `readLine.scale.nvs` pass. `read_ahead` is the fill.
-  Rebuild with `bun nv relink --build`, then run `bun nv proofs --record-perf --force --nvs
-  target/release/nvs.exe --only 'Core\IO\File::readLine'`. This is stage 3's second and last
-  session. If it still fails, restore `readLine` and `ReadAhead` from `d8e98e00ec^` and decline the item with both
-  figures. Then set stage 3 to done.
-- `crates/nvs-types/src/signatures.rs:1`: stage 4, by its own item list.
+- `crates/nvs-types/src/signatures.rs:2485`: stage 4, by its own item list. Start with the one
+  ancestor walk over borrowed names, then `crates/nvs-types/src/expr/calls.rs:755`.
 
 ### Backlog
 
