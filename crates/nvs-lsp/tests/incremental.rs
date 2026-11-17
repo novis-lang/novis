@@ -1120,3 +1120,92 @@ fn a_settled_parallel_index_leaves_no_worker_running() {
     assert!(index.pending().is_empty(), "the index settled");
     assert_eq!(index.workers_running(), 0, "a worker is still running");
 }
+
+/// The programs of the tree the count tests below settle. Each program reads
+/// the whole library, so every library file has this many readers.
+const PROGRAMS: usize = 12;
+
+/// The library classes of that tree.
+const LIBRARY: usize = 8;
+
+/// The distinct files of that tree: the library, and three files a program.
+const FILES: usize = LIBRARY + 3 * PROGRAMS;
+
+/// The work a cold settle of the count tree does on `workers` threads, or on
+/// this one when it is zero.
+fn cold_work(workers: usize) -> Work {
+    let dir = tree(PROGRAMS, LIBRARY);
+    let (documents, mut index) = planned(&dir, workers);
+    index.take_work();
+    index.settle(&documents);
+    assert!(index.pending().is_empty(), "the index settled");
+    index.take_work()
+}
+
+/// A cold settle checks the bodies of each file once, however many programs
+/// read the file and however many workers run.
+#[test]
+fn a_cold_settle_checks_each_file_once_on_any_number_of_workers() {
+    for workers in [0, 4] {
+        let work = cold_work(workers);
+        assert_eq!(
+            work.checked, FILES,
+            "a cold settle on {workers} workers checked {} files' bodies, not {FILES}",
+            work.checked
+        );
+    }
+}
+
+/// A cold settle parses each file once, however many programs read the file
+/// and however many workers run.
+#[test]
+fn a_cold_settle_parses_each_file_once_on_any_number_of_workers() {
+    for workers in [0, 4] {
+        let work = cold_work(workers);
+        assert_eq!(
+            work.parsed, FILES,
+            "a cold settle on {workers} workers parsed {} files, not {FILES}",
+            work.parsed
+        );
+    }
+}
+
+/// A signature edit in a library class that every program reads checks the
+/// bodies of each file once, not once for each program that reads it.
+#[test]
+fn a_surface_edit_read_by_every_program_checks_each_file_once() {
+    for workers in [0, 4] {
+        let dir = tree(PROGRAMS, LIBRARY);
+        let (mut documents, mut index) = planned(&dir, workers);
+        index.settle(&documents);
+        let path = dir.at(&part(5));
+        open(&mut index, &mut documents, &path);
+        let work = keystroke(&mut index, &mut documents, &path, |text| {
+            text.replacen("value(int $n): int", "value(int $n, int $m = 0): int", 1)
+        });
+        assert_eq!(
+            work.checked, FILES,
+            "a surface edit on {workers} workers checked {} files' bodies, not {FILES}",
+            work.checked
+        );
+    }
+}
+
+/// A body edit in an open library file checks that file's bodies alone, once
+/// the tree is settled, however many workers run.
+#[test]
+fn a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone() {
+    for workers in [0, 4] {
+        let dir = tree(PROGRAMS, LIBRARY);
+        let (mut documents, mut index) = planned(&dir, workers);
+        index.settle(&documents);
+        let path = dir.at(&part(5));
+        open(&mut index, &mut documents, &path);
+        let work = keystroke(&mut index, &mut documents, &path, body_edit(5, 1));
+        assert_eq!(
+            work.checked, 1,
+            "a body edit on {workers} workers checked {} files' bodies",
+            work.checked
+        );
+    }
+}

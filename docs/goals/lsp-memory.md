@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/workers.rs, crates/nvs
 stages:
   - id: 1
     title: bun nv lsp-start measures memory on a generated tree, and the count tests are written red
-    status: open
+    status: done
     context: [tools/nv/cmd/lsp-start.ts, crates/nvs-lsp/tests/incremental.rs]
   - id: 2
     title: an analysis checks the bodies of the files it will own and no others
@@ -151,6 +151,13 @@ the checked output. A plan job is one extra resolve of a graph nobody indexed ye
 **Lanes.** Stages 2 to 4 change `index.rs` and `workers.rs` and run in order. Stage 1's
 `tools/nv/cmd/lsp-start.ts` work is disjoint and may run as a side goal. Stage 5 needs stage 4.
 
+**An edit's re-index shows a progress run (my call, stage 1).** `bun nv lsp-start --edits` waits for the
+`index work:` line, which the server logged only at the end of the start's run. Now an edit that queues
+entries after that run ended begins a run of its own (`crates/nvs-lsp/src/progress.rs` `track`), and
+its `end` logs the line. A client sees the index catch up after a surface edit, which it did not before.
+It costs one token per such edit, and is pinned by
+`an_edit_that_queues_entries_after_the_start_begins_a_run_of_its_own` in `tests/progress.rs`.
+
 **What stops the goal.** One attempt per item, two sessions per stage. An item still red after its
 attempt goes into the handoff with its cause, and the stage moves on to its other items. A stage still
 open after two sessions stops the loop with `BLOCKED` naming the item.
@@ -162,18 +169,18 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** makes the measurement of § *Why* one command, and writes the count tests the checks name.
 Nothing in the server changes yet.
 
-- [ ] `tools/nv/cmd/lsp-start.ts:1`: `--copies <n>` writes a tree of `n` copies of
+- [x] `tools/nv/cmd/lsp-start.ts:1`: `--copies <n>` writes a tree of `n` copies of
   `apps/registry/src` under `.agent-tmp/lsp-start/tree/`, each under `src/C<k>/` in namespace `App\C<k>`,
   with one entry `public/c<k>.nvs` per copy that autoloads `App` from `../src`, and `apps/registry/nvs.toml`.
   Without a root, it measures that tree.
-- [ ] The same file: after the indexing end, it prints the process's private bytes now and at their
+- [x] The same file: after the indexing end, it prints the process's private bytes now and at their
   peak. On Windows that is `Get-Process`'s `PrivateMemorySize64` and `PeakPagedMemorySize64`, on Linux
   `/proc/<pid>/status`'s `VmRSS` and `VmHWM`. `--edits <n>` then opens the first entry's graph's
   `Publish.nvs`, adds one method per edit, waits for each `documentSymbol` answer, waits until the
   server logs its next `index work:` line, and prints both figures again. The header comment says so.
-- [ ] Run `bun nv lsp-start --copies 12 --cold --edits 5` once on the release binary, and write its
+- [x] Run `bun nv lsp-start --copies 12 --cold --edits 5` once on the release binary, and write its
   figures into the handoff as the baseline.
-- [ ] `crates/nvs-lsp/tests/incremental.rs:1025`: beside `planned`, the four tests the `once` and
+- [x] `crates/nvs-lsp/tests/incremental.rs:1025`: beside `planned`, the four tests the `once` and
   `parsed-once` checks name that do not exist yet, on `tree(12, 8)`. Each settles with `planned(dir, 0)`
   and `planned(dir, 4)` and reads `take_work`. The cold tests expect `checked` and `parsed` to equal
   the number of distinct files. The surface-edit test edits a library class's signature and expects
@@ -245,15 +252,38 @@ Nothing in the server changes yet.
 
 ### State
 
-Written on 2026-11-17 from the measurement in § *Why*, taken with a probe that stage 1 turns into
-`bun nv lsp-start --copies`. Nothing is built yet. The person decided that the server checks each file
-once and keeps no copy per worker. Every other choice in § *Standing decisions* is the authoring
-session's call under the priority ordering, and stands until the person picks another.
+Stage 1 is done. `bun nv lsp-start --copies <n> --edits <m>` measures memory after indexing and edits.
+Waiting for an edit's `index work:` line needed the progress change in § *Standing decisions*.
+
+The baseline, `bun nv lsp-start --copies 12 --cold --edits 5` on the release binary, Windows, 16 cores
+(the work counts are summed since the start):
+
+| Moment | Memory | Work |
+|---|---|---|
+| cold index, 15.6 s | private 467 MB, **peak paged 5752 MB** | `parsed=11630 checked=11630` |
+| after 5 edits that each add a method to `src/C1/Publish.nvs`, 98.5 s | private 1586 MB, peak 5752 MB | `parsed=69326 checked=69476` |
+
+So each edit parsed and checked about 11.5k files, nearly a cold index's worth, for one file of 972.
+The four count tests are at the end of `crates/nvs-lsp/tests/incremental.rs`, on `tree(12, 8)`, 44
+files. Expected red until their stage:
+
+- `a_cold_settle_checks_each_file_once_on_any_number_of_workers`: 132 checked on the server thread.
+- `a_cold_settle_parses_each_file_once_on_any_number_of_workers`: 44 on the server thread, 116 on four
+  workers.
+- `a_surface_edit_read_by_every_program_checks_each_file_once`: 142 checked on the server thread.
+- `a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone` passes already, on both. It stays
+  as the guard that stages 2 to 4 keep a keystroke at one file.
+
+The sweep's reds need no change: `env-secret-proofs` is stale, and `0fe2fdef25` removed the `chrono`
+that failed the nightly `supply chain`.
 
 ### Next
 
-Stage 1 from its first item: `tools/nv/cmd/lsp-start.ts` `--copies` and the memory figures, then the
-four tests in `crates/nvs-lsp/tests/incremental.rs`, which are expected to fail until stages 2 to 4.
+Stage 2 from its first item: `analyse_entry` (`crates/nvs-lsp/src/index.rs:1517`) passes `indexed` to
+`analyse_through` (`crates/nvs-lsp/src/document.rs:1046`), which drops indexed files but the entry
+from `keys.bodies` before `check_program_partial` (`document.rs:1212`). Then `analyse`
+(`document.rs:972`) and the record loop (`index.rs:1539`). Rerun the cold-check test once by name: it
+should reach 44 on the server thread after stage 2.
 
 ### Backlog
 
