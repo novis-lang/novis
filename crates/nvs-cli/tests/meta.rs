@@ -820,7 +820,7 @@ fn a_user_method_card_has_the_core_card_shape() {
         serde_json::json!({
             "short": "Charges an amount to a card.",
             "params": [
-                { "name": "cents", "desc": "the amount, in cents. A negative amount is a refund." },
+                { "name": "cents", "desc": "the amount, in cents.\nA negative amount is a refund." },
                 { "name": "card", "desc": "the card to charge" },
             ],
             "return": "the total this till has taken",

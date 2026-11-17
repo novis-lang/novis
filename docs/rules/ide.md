@@ -467,9 +467,14 @@ render and again when a file is missing; nothing repairs a file in place.
 
 A stub is a declaration with its real signature and an empty body: a class with each method, constant,
 constructor and owned enum, an enum with its cases, an attribute as the shape-typed `type` alias a userland
-attribute already is, each under the same reference card hover shows ([`core-api/reference-card`](core-api.md#core-api-reference-card)),
-and a header saying the file is generated and edits are lost. Registry prose is rendered as it is
-written. Every file is made read-only on disk, and the server publishes no diagnostics for a document
+attribute already is, each under its reference card ([`core-api/reference-card`](core-api.md#core-api-reference-card)), and a header
+saying the file is generated and edits are lost. Registry prose is rendered as it is written. A
+member's card is the doc comment a program writes for its own method, in the layout `nvs fmt` writes
+([`tooling/fmt-orders-the-doc-tags`](tooling.md#tooling-fmt-orders-the-doc-tags)): the prose, an empty line, `@param` in signature order,
+`@return` and `@throws`. A shape parameter's keys, and a trailing bag's options under
+`@param $options`, are `- ` lines of that `@param`, without the type the signature already states.
+One error class is one `@throws`. So a stub never shows a reader a form of documentation their own
+code cannot write. Every file is made read-only on disk, and the server publishes no diagnostics for a document
 under the tree: the bodies are empty and do not type-check, the `namespace Core` line is one user
 source may not write ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), and nothing in a stub is the reader's to
 fix. Hover, definition and semantic tokens inside a stub answer as in any document.
@@ -3315,6 +3320,18 @@ fills the tree, and `nvs test --format=json --filter` runs a selection. A record
 `TestItem` by its `class` and `method`, and the file each item opens at is the `file`, `line` and
 `column` the record carries — the client derives none of it.
 
+**A project is listed and run as one program, the way `nvs test .` runs it.** Each `.nvs` file
+belongs to the deepest workspace folder, or folder holding `nvs.toml` or `package.toml`, at or above
+it, the project bound `nvs check` uses ([`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map)). That
+folder is the path `nvs test` is given and the folder it runs in, so its `nvs.toml` is read, a test
+file gets its bootstrap's `autoload` map, and a test request runs the folder's `public/index.nvs`
+([`testing/a-directory-of-programs-is-one-test-program`](testing.md#testing-a-directory-of-programs-is-one-test-program)). The tree shows the folder, then each
+file that holds tests. A folder program also compiles the files of a project nested in it, so its
+tree keeps only the tests of files it owns. A folder whose listing is a case tree, or whose files do
+not compile as one program, such as a folder of separate examples, lists each of its files alone, as
+its own program run in that folder. Cost: one compile per project folder, and one per file only in a
+folder that does not compile as one program.
+
 Discovery must not run anything, which is why it is a flag on the runner rather than a run with every
 test skipped: `--list` answers from the table the compile already built, so a workspace whose tests
 fail, hang or `exit` populates a tree exactly as a passing one does. The `.nvst` corpus is the same
@@ -3324,7 +3341,7 @@ program for that listing, and the client reads none of its records.
 
 Coverage is a third document from the same run. A run profile of kind `Coverage` beside the Run one
 adds `--coverage-lcov` with a scratch file in the extension's storage directory and starts the run in
-the program's workspace folder, which is what the tracefile's names are relative to
+the program's project folder, which is what the tracefile's names are relative to
 ([`testing/coverage-report`](testing.md#testing-coverage-report)). Every `SF` record becomes one `FileCoverage` built from its `DA`
 lines as statements, its `BRDA` sides as branches on the line they start on, and its `FN`/`FNDA` pairs
 as declarations, so the totals VS Code shows are its own count of the runner's details. The extension
@@ -3337,6 +3354,11 @@ classes itself would be a second implementation of the `#[Test]` table, free to 
 that runs.
 
 **Declined:**
+- **Listing and running each `.nvs` file as a program of its own.** A test file that uses its
+  project's classes does not compile alone and drops out of the tree, and a test request runs the
+  test file's own empty script, so a page test fails in under a millisecond with an empty body.
+- **Showing a folder's compile error as the folder's item.** A folder of separate examples does not
+  compile as one program and is not wrong, so every such folder would show an error.
 - **Asking the language server where a test is declared.** It is the client reconstructing what the
   CLI's document should carry, and a client feature whose CLI surface is missing is the CLI's to fix
   ([`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency)).

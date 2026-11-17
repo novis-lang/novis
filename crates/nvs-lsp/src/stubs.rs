@@ -5,8 +5,10 @@
 //! data, and `nvs_hir` resolves every `Core\…` without a symbol — so until this
 //! module existed nothing under `Core` was a place an editor could go. A
 //! stub is that place: a declaration with an empty body and its real
-//! signature, carrying the same reference card hover renders
-//! (`rule:core-api/reference-card`), written to disk once per server version.
+//! signature, carrying the reference card hover renders
+//! (`rule:core-api/reference-card`) as the `@param`, `@return` and `@throws`
+//! tags a program writes for its own methods, written to disk once per server
+//! version.
 //! Written rather than served as a virtual document because a `file:` location
 //! works unchanged in every client and a cursor *inside* a stub keeps every
 //! answer this server gives (`rule:ide/one-server-two-thin-clients`,
@@ -49,11 +51,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use nvs_stdlib::registry::{self, Const, CoreClass, CoreEnum, CoreMethod, CoreTy};
+use nvs_stdlib::registry::{self, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, MethodDoc};
 use nvs_syntax::Keyword;
 use nvs_types::derive::{self, AttributeDoc};
-
-use crate::hover::reference_card;
 
 /// The name of the file that records which render a directory holds.
 const STAMP: &str = ".stamp";
@@ -475,7 +475,7 @@ fn separate(writer: &mut Writer, first: &mut bool) {
 /// and where its name landed.
 fn method(writer: &mut Writer, member: &CoreMethod, keyword: &str) -> Line {
     if let Some(doc) = member.doc {
-        writer.doc("    ", &reference_card(member, doc));
+        writer.doc("    ", &doc_comment(member, doc));
     }
     writer.push(&format!("    {keyword}"));
     let line = writer.name(member.name);
@@ -486,6 +486,75 @@ fn method(writer: &mut Writer, member: &CoreMethod, keyword: &str) -> Line {
     };
     writer.push(&format!("({}){ret} {{}}\n", params(member)));
     line
+}
+
+/// The sentence under a trailing options bag's `@param`. The registry
+/// documents each option and not the bag, and the tag needs text of its own.
+const OPTIONS_SENTENCE: &str = "The options. Each one is optional.";
+
+/// A member's reference card as the doc comment a program writes for its own
+/// method, so a stub reads like the code a reader writes: the prose, one empty
+/// line, then `@param` in signature order, `@return` and `@throws`, the layout
+/// `nvs fmt` writes (`rule:tooling/fmt-orders-the-doc-tags`).
+///
+/// A shape parameter's keys, and a trailing bag's options under
+/// `@param $options`, are `- ` continuation lines of that `@param`, without a
+/// type: the signature states each key's type, and a tag never repeats one
+/// (`rule:tooling/doc-comment-tags-are-closed-and-checked`). A parameter or
+/// option with no sentence yet gets no line, because a tag's text is required.
+/// One error class is one `@throws`, its sentences joined, because a class
+/// written twice is an error in a program's comment.
+fn doc_comment(member: &CoreMethod, doc: &MethodDoc) -> String {
+    let positional = member.positional().len();
+    let mut tags = Vec::new();
+    for param in doc.params.iter().take(positional) {
+        if param.desc.is_empty() {
+            continue;
+        }
+        tags.push(format!("@param ${} {}", param.name, param.desc));
+        for key in param.shape {
+            tags.push(format!("- `{}` — {}", key.key, key.desc));
+        }
+    }
+    let options: Vec<_> = doc
+        .params
+        .iter()
+        .skip(positional)
+        .filter(|option| !option.desc.is_empty())
+        .collect();
+    if !options.is_empty() {
+        tags.push(format!(
+            "@param ${} {OPTIONS_SENTENCE}",
+            registry::OPTIONS_NAME
+        ));
+        for option in options {
+            tags.push(format!("- `{}` — {}", option.name, option.desc));
+        }
+    }
+    if !doc.ret.is_empty() && member.name != "constructor" {
+        tags.push(format!("@return {}", doc.ret));
+    }
+    let mut errors: Vec<(&str, String)> = Vec::new();
+    for error in doc.errors {
+        match errors.iter_mut().find(|(name, _)| *name == error.error) {
+            Some((_, desc)) => {
+                desc.push(' ');
+                desc.push_str(error.desc);
+            }
+            None => errors.push((error.error, error.desc.to_owned())),
+        }
+    }
+    for (error, desc) in errors {
+        tags.push(format!("@throws {error} {desc}"));
+    }
+    let mut out = doc.short.trim().to_owned();
+    if !tags.is_empty() {
+        if !out.is_empty() {
+            out.push_str("\n\n");
+        }
+        out.push_str(&tags.join("\n"));
+    }
+    out
 }
 
 /// A member's parameter list as a declaration writes it: each positional
@@ -743,6 +812,55 @@ mod tests {
             failed.is_empty(),
             "stubs that do not parse:\n{}",
             failed.join("\n")
+        );
+    }
+
+    /// A member's card is written as the tags a program writes, never as the
+    /// Markdown sections hover renders: a shape parameter's keys are `- `
+    /// lines of its `@param` with no type, and one error class is one
+    /// `@throws`.
+    #[test]
+    fn a_stub_card_is_written_as_doc_tags() {
+        let tree = tree();
+        let sections = ["**Parameters**", "**Returns**", "**Throws**"];
+        let written: Vec<&str> = tree
+            .files
+            .iter()
+            .filter(|file| sections.iter().any(|section| file.text.contains(section)))
+            .map(|file| file.path.as_str())
+            .collect();
+        assert!(
+            written.is_empty(),
+            "stubs with a Markdown section: {written:?}"
+        );
+
+        let router = tree
+            .files
+            .iter()
+            .find(|file| file.path == "Core/Router.nvs")
+            .expect("Core\\Router has a stub");
+        let declared = router
+            .text
+            .find("function urlSigned(")
+            .expect("urlSigned is declared");
+        let start = router.text[..declared].rfind("\n\n").map_or(0, |at| at + 2);
+        let comment = &router.text[start..declared];
+        for line in [
+            "    /// @param $route ",
+            "    /// @param $settings ",
+            "    /// - `keys` — ",
+            "    /// - `until` — ",
+            "    /// @return ",
+            "    /// @throws RuntimeError ",
+            "    /// @throws LogicError ",
+        ] {
+            assert!(comment.contains(line), "no `{line}` in:\n{comment}");
+        }
+        assert!(!comment.contains("array<secret bytes>"), "{comment}");
+        assert_eq!(
+            comment.matches("@throws RuntimeError").count(),
+            1,
+            "{comment}"
         );
     }
 

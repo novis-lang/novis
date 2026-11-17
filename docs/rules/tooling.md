@@ -1771,7 +1771,9 @@ a comment of its own inherits one ([`tooling/strict-docs`](tooling.md#tooling-st
 
 The text of `@param`, `@return` and `@throws` is Markdown and runs to the end of the line. A following
 `///` line that is not a tag and is not blank continues the text of the tag above it, so a long sentence
-can wrap. The text is required: a tag with no text is an error that says to write what the parameter means.
+can wrap. Each continuation line stays a line of the text, so a `- ` line is a list item: that is how a
+shape parameter's keys are listed under its `@param`, and hover and `nvs doc` show the list inside the
+parameter's own item. The text is required: a tag with no text is an error that says to write what the parameter means.
 That is the error a newly inserted `@param` line shows until its author writes the sentence.
 
 **A tag never carries a type.** The signature is the one place a type is written, and a second copy drifts.
@@ -1806,8 +1808,7 @@ a translation ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`]
 and `@throws` lines as it needs. `@see` and `@example` are read back in the order they are written, as lists
 in `nvs meta --json` ([`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program)). `@param` is read by parameter: `nvs doc`,
 `nvs meta --json`, hover and signature help show signature order whatever order the lines are in, and
-`nvs fmt` does not reorder them, because a format pass never reads the signature
-([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)). A user member's card has the `Core` card's shape
+`nvs fmt` writes the lines in that order ([`tooling/fmt-orders-the-doc-tags`](tooling.md#tooling-fmt-orders-the-doc-tags)). A user member's card has the `Core` card's shape
 ([`core-api/reference-card`](core-api.md#core-api-reference-card)): `short`, `params` as `{name, desc}` in signature order, `return`,
 `errors` as `{name, desc}`, `see` and `example`.
 
@@ -1830,8 +1831,6 @@ shows only its own tags. A promoted constructor parameter's `@param` is its prop
   ordinary one.
 - **Dart's checked references in prose only.** They buy a check, but signature help still has no sentence
   per parameter.
-- **`nvs fmt` sorting the tag lines.** A format pass would need the signature, and the readers already show
-  signature order.
 
 <sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/strict-docs`](tooling.md#tooling-strict-docs), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 

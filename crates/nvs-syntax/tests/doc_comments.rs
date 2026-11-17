@@ -240,7 +240,8 @@ fn reported(diags: &Diagnostics, code: Code) -> Vec<(String, Option<String>)> {
 
 /// `@param`, `@return` and `@throws` parse with the `$name` or class they
 /// target and the sentence after it. A following line that is neither a tag
-/// nor blank continues the sentence, and a blank line ends it.
+/// nor blank continues the sentence on a line of its own, with its marker and
+/// indentation off, and a blank line ends it.
 #[test]
 fn param_return_and_throws_parse_with_their_text() {
     let (map, doc, diags) = doc_above_a_class(concat!(
@@ -265,7 +266,7 @@ fn param_return_and_throws_parse_with_their_text() {
             (
                 DocTagKind::Param,
                 Some("$card".into()),
-                "the card to charge; it must not be expired".into()
+                "the card to charge;\nit must not be expired".into()
             ),
             (DocTagKind::Return, None, "the ledger id".into()),
             (
@@ -412,7 +413,7 @@ fn a_todo_line_in_a_doc_comment_is_kept_apart_from_the_prose_and_the_tags() {
         vec![(
             DocTagKind::Return,
             None,
-            "The page, with its title.".to_owned()
+            "The page,\nwith its title.".to_owned()
         )]
     );
     assert!(doc.tag_of_line(doc.lines[4]).is_none());

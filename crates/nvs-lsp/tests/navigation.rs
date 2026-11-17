@@ -247,6 +247,35 @@ fn a_path_argument_hovers_as_the_path_it_names_and_whether_it_exists() {
     assert!(value.is_none_or(|value| !value.contains("exists")));
 }
 
+/// A `- ` line under an `@param` is a list in that parameter's item, the way a
+/// `Core` card lists a shape parameter's keys, and a wrapped sentence stays in
+/// its item too (`rule:tooling/doc-comment-tags-are-closed-and-checked`).
+#[test]
+fn a_list_under_a_param_is_nested_in_its_item() {
+    let (_, value) = hovered(
+        "<?nvs\nclass Mailer {\n    \
+         /// Sends one mail.\n    \
+         ///\n    \
+         /// @param $to who gets the mail,\n    \
+         ///   as an address\n    \
+         /// @param $settings how the mail is sent.\n    \
+         /// - `retries` — how often to try again\n    \
+         /// - `timeout` — how long one try may take\n    \
+         public function send(string $to, { retries: int, timeout: int } $settings): void {}\n}\n\
+         var $m = new Mailer();\n$m->se<|>nd('a@example.com', { retries: 1, timeout: 5 });\n",
+    );
+    let value = value.expect("`send` hovers");
+    assert!(
+        value.contains(
+            "- `$to` — who gets the mail,\n  as an address\n\
+             - `$settings` — how the mail is sent.\n  \
+             - `retries` — how often to try again\n  \
+             - `timeout` — how long one try may take"
+        ),
+        "{value}"
+    );
+}
+
 /// A `/// TODO:` line is a note for the author, so a hover on the method shows
 /// its prose and its `@return` without either todo
 /// (`rule:tooling/a-todo-is-a-comment-the-tools-list`).

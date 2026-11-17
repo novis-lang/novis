@@ -1022,7 +1022,7 @@ pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> Strin
     if !params.is_empty() {
         card.push_str("\n\n**Parameters**\n");
         for (name, desc) in &params {
-            card.push_str(&format!("\n- `${name}` — {desc}"));
+            card.push_str(&format!("\n- `${name}` — {}", in_item(desc)));
         }
     }
     if let Some(ret) = doc.returns(text) {
@@ -1032,7 +1032,7 @@ pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> Strin
     if !errors.is_empty() {
         card.push_str("\n\n**Throws**\n");
         for (error, desc) in &errors {
-            card.push_str(&format!("\n- `{error}` — {desc}"));
+            card.push_str(&format!("\n- `{error}` — {}", in_item(desc)));
         }
     }
     // The prose loses its trailing blank lines only where a section follows, so
@@ -1042,6 +1042,12 @@ pub(crate) fn markdown_in(text: &str, doc: &DocComment, order: &[&str]) -> Strin
         out.push_str(&card);
     }
     out
+}
+
+/// A tag's text as the body of a list item: every line after the first is
+/// indented under the item, so a `- ` line in it is a nested list.
+fn in_item(desc: &str) -> String {
+    desc.replace('\n', "\n  ")
 }
 
 /// One line with its marker off, and the one space after it that a writer

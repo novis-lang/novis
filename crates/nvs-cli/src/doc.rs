@@ -354,7 +354,12 @@ fn list(out: &mut String, doc: &Value, key: &str, name_key: &str, title: &str, s
     out.push_str(&format!("\n**{title}**\n\n"));
     for item in items {
         let name = item[name_key].as_str().unwrap_or_default();
-        let desc = item["desc"].as_str().unwrap_or_default();
+        // A description of more than one line is indented under its item, so
+        // a `- ` line in it is a nested list.
+        let desc = item["desc"]
+            .as_str()
+            .unwrap_or_default()
+            .replace('\n', "\n  ");
         out.push_str(&format!("- `{sigil}{name}` — {desc}\n"));
     }
 }

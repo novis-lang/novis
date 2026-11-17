@@ -1676,7 +1676,11 @@ pub struct DocTag {
 
 impl DocTag {
     /// The tag's text with each continuation line's `///` and indentation off,
-    /// the lines joined by one space.
+    /// one line per line written. The text is Markdown, so a wrapped sentence
+    /// still reads as one sentence, and a continuation line that starts with
+    /// `- ` is a list item: that is how a shape parameter's keys are listed
+    /// under its `@param`. A renderer that puts the text inside a list item
+    /// indents every line after the first.
     #[must_use]
     pub fn text_in(&self, source: &str) -> String {
         source
@@ -1689,7 +1693,7 @@ impl DocTag {
             })
             .filter(|line| !line.is_empty())
             .collect::<Vec<_>>()
-            .join(" ")
+            .join("\n")
     }
 
     /// The tag's target as written, without an `@param`'s `$`.

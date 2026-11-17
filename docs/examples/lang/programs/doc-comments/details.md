@@ -7,8 +7,10 @@ program does not compile (`E0323`). `@example` must name a file under `examples/
 and the fix rewrites it to `@return`.
 
 `@param`, `@return` and `@throws` need a sentence after them (`E0139`). The sentence runs to the end
-of the line. The next `///` line continues it, unless that line is blank or starts with a tag. The
-compiler checks each tag against the method under it:
+of the line. The next `///` line continues it, unless that line is blank or starts with a tag. A
+continuation line that starts with `- ` is a list item. Use it to describe each key of a shape
+parameter. The editor and `nvs doc` show the list under that parameter. The compiler checks each tag
+against the method under it:
 
 - `@param $name`: `$name` is a parameter of this method (`E0335`). Only one `@param` describes it
   (`E0331`). Write `$name` without a type (`E0138`).
