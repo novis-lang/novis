@@ -10,6 +10,8 @@
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
 //     bun nv bench-compare --profile json-api                    # perf and strace on Novis serving one case
+//     bun nv bench-compare --direct                              # every HTTP peer with no proxy, CPU per request
+//     bun nv bench-compare --direct --smoke                      # the same, a few hundred requests
 //
 // `benches/compare/README.md` is why the comparison is built the way it is, and this file owns only how a
 // run is carried out. The Docker half is `tools/nv/cmd/bench-docker.ts`'s, shared with `bench-proxied`.
@@ -34,18 +36,25 @@
 // from `strace -c`. The `wait` case first prints the server cgroup's
 // `memory.peak` minus its idle `memory.current`, per request in flight, over two loads of 1000. When
 // `perf` cannot record in a container on this machine it exits 1, and `profile.sh` is the recipe by hand.
+//
+// `--direct` measures the peers that listen on HTTP, with no nginx and no TLS. Per case, each backend
+// runs alone in a container with one cpu on its own core (`directBackendArgs`), and `oha` runs in that
+// container's network on other cores (`directOhaArgs`). Each is warmed, then the peers take turns over
+// five 10 s passes, and each pass reads the backend's `cpu.stat` before and after. A line gives the
+// median requests/s, the CPU microseconds per request split into user and system, and the throttled
+// periods. It is never a gate and records nothing. PHP-FPM is absent, since it speaks only FastCGI.
 
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
-import { Fail, grouped, host, stamp, version } from "./bench.ts";
+import { Fail, grouped, host, median, round, stamp, version } from "./bench.ts";
 import { type Arm, compose, down, type Load, logsOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
 import { effectivePhp, PHP_INI } from "./bench-proxied.ts";
 import { messageOf } from "../lib/proc.ts";
 
-export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH] [--profile CASE]";
+export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH] [--profile CASE] [--direct]";
 
 export const COMPARE_DIR = join(ROOT, "benches", "compare");
 const GENERATED = join(COMPARE_DIR, "generated");
@@ -1892,13 +1901,301 @@ async function composeAsync(stack: string, args: string[], env: Record<string, s
 }
 
 // ---------------------------------------------------------------------------------------------------
+// `--direct`: every HTTP peer with no proxy.
+// ---------------------------------------------------------------------------------------------------
+
+/** The cases `--direct` measures. `wait` is left out: its cost is the wait, not the server's work. */
+export const DIRECT_CASES = ["hello", "json-api", "html-page"] as const;
+/** The CPU quota of each backend, and its worker count. */
+export const DIRECT_CPUS = 1;
+export const DIRECT_CONCURRENCY = 64;
+export const DIRECT_WARM_REQUESTS = 20_000;
+export const DIRECT_PASSES = 5;
+export const DIRECT_PASS_SECONDS = 10;
+export const DIRECT_SMOKE_REQUESTS = 300;
+/** The port every peer's program listens on inside its container. */
+const DIRECT_PORT = 8080;
+/** The cgroup file each pass reads before and after. A private cgroup namespace puts it at the root. */
+export const CPU_STAT = "/sys/fs/cgroup/cpu.stat";
+
+/** How one peer's backend is started on its own: the same image, program and settings as its compose file. */
+interface DirectRun {
+  image: string;
+  /** Bind mounts, as `[host path, container path]`, each read-only. */
+  mounts(c: string): [string, string][];
+  env: Record<string, string>;
+  /** The arguments after the image: the image's entrypoint for Novis, the whole command for the others. */
+  command(c: string): string[];
+}
+
+/** Each peer that listens on HTTP. PHP-FPM speaks only FastCGI, so it has no entry. */
+export const DIRECT_RUNS: Record<string, DirectRun> = {
+  nvs: {
+    image: NVS_IMAGE,
+    mounts: (c) => [[join(COMPARE_DIR, "cases", c), "/app"]],
+    env: {},
+    command: () => ["serve", "/app/main.nvs", "--listen", `0.0.0.0:${DIRECT_PORT}`],
+  },
+  go: {
+    image: "nvs-compare-go:local",
+    mounts: () => [],
+    env: { GOMAXPROCS: String(DIRECT_CPUS) },
+    command: (c) => [`/srv/cases/${c}`],
+  },
+  bun: {
+    image: "oven/bun:1.4.4-slim",
+    mounts: (c) => [[join(COMPARE_DIR, "cases", c), "/app"], [join(COMPARE_DIR, "bun", "serve.ts"), "/srv/serve.ts"]],
+    env: { WORKERS: String(DIRECT_CPUS), APP_DIR: "/app" },
+    command: () => ["bun", "/srv/serve.ts"],
+  },
+};
+
+/** The peers `--direct` runs, in the table's order. */
+export const directPeers = (): Peer[] => PEERS.filter((p) => DIRECT_RUNS[p.id] !== undefined);
+
+/** The container `--direct` names for a peer, so a run left behind names itself and the next run removes it. */
+export const directName = (peer: Peer) => `nvs-compare-direct-${peer.id}`;
+
+/**
+ * The cores each side gets, from the cores Docker sees. The backend gets core 1, since core 0 takes
+ * most of the host's interrupts. `oha` gets up to four of the cores after it, and never the backend's.
+ */
+export function directCpusets(ncpu: number): { backend: string; oha: string } {
+  if (ncpu < 3) throw new Fail(`--direct needs at least three cores, one for the backend and two for oha; docker sees ${ncpu}`);
+  return { backend: "1", oha: `2-${Math.min(ncpu - 1, 5)}` };
+}
+
+/** `docker run`'s arguments for one peer's backend in case `c`: detached, one cpu, its own cores, no proxy. */
+export function directBackendArgs(peer: Peer, c: string, cpuset: string): string[] {
+  const d = DIRECT_RUNS[peer.id];
+  if (d === undefined) throw new Error(`${peer.label} does not listen on HTTP`);
+  return [
+    "run", "-d", "--name", directName(peer),
+    "--cpus", String(DIRECT_CPUS), "--cpuset-cpus", cpuset, "--cgroupns", "private",
+    ...d.mounts(c).flatMap(([src, dst]) => ["--mount", `type=bind,src=${src},dst=${dst},readonly`]),
+    ...Object.entries(d.env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+    d.image,
+    ...d.command(c),
+  ];
+}
+
+/** How long an `oha` run lasts: a request count, or seconds at the given connections. */
+export type DirectLoad = { requests: number } | { seconds: number };
+
+export const DIRECT_WARM: DirectLoad = { requests: DIRECT_WARM_REQUESTS };
+export const DIRECT_PASS: DirectLoad = { seconds: DIRECT_PASS_SECONDS };
+export const DIRECT_SMOKE: DirectLoad = { requests: DIRECT_SMOKE_REQUESTS };
+
+/** `docker run`'s arguments for one `oha` run in the backend's own network namespace, on cores the backend never uses. */
+export function directOhaArgs(peer: Peer, c: Case, load: DirectLoad, cpuset: string, connections = DIRECT_CONCURRENCY): string[] {
+  const length = "requests" in load ? ["-n", String(load.requests)] : ["-z", `${load.seconds}s`];
+  const flags = ["-m", c.timed.method];
+  if (c.timed.body !== undefined) flags.push("-d", c.timed.body);
+  if (c.timed.contentType !== undefined) flags.push("-T", c.timed.contentType);
+  return [
+    "run", "--rm", "--network", `container:${directName(peer)}`, "--cpuset-cpus", cpuset, "--entrypoint", "/bin/oha",
+    OHA_IMAGE,
+    ...length, "-c", String(connections), "--no-tui", "--output-format", "json", ...flags,
+    `http://127.0.0.1:${DIRECT_PORT}${c.timed.path}`,
+  ];
+}
+
+/** `docker exec`'s arguments that print the backend's `cpu.stat`. Every HTTP peer's image has `cat`. */
+export const cpuStatArgs = (peer: Peer) => ["exec", directName(peer), "cat", CPU_STAT];
+
+/** `cpu.stat`'s lines, `key value`, as numbers. A line that is not a key and an integer is skipped. */
+export function parseCpuStat(text: string): Record<string, number> {
+  const stat: Record<string, number> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^(\w+)\s+(\d+)$/.exec(line.trim());
+    if (m !== null) stat[m[1]!] = Number(m[2]);
+  }
+  return stat;
+}
+
+/** What the backend's cgroup spent between two reads of `cpu.stat`. */
+export interface CpuDelta {
+  usage_usec: number;
+  user_usec: number;
+  system_usec: number;
+  nr_throttled: number;
+}
+
+const CPU_KEYS = ["usage_usec", "user_usec", "system_usec", "nr_throttled"] as const;
+
+/** The difference of two `cpu.stat` texts. A missing key or a counter that went down throws. */
+export function cpuDelta(before: string, after: string): CpuDelta {
+  const [a, b] = [parseCpuStat(before), parseCpuStat(after)];
+  const delta = {} as CpuDelta;
+  for (const k of CPU_KEYS) {
+    if (a[k] === undefined || b[k] === undefined) throw new Error(`cpu.stat has no ${k}`);
+    if (b[k]! < a[k]!) throw new Error(`cpu.stat's ${k} went down from ${a[k]} to ${b[k]}: the container restarted`);
+    delta[k] = b[k]! - a[k]!;
+  }
+  return delta;
+}
+
+/** CPU time per request, in microseconds, and the periods the quota throttled. */
+export interface CpuPerRequest {
+  usage_us: number;
+  user_us: number;
+  system_us: number;
+  throttled: number;
+}
+
+/** Divides a delta by the requests answered in it. No requests gives no per-request figure. */
+export function perRequest(d: CpuDelta, requests: number): CpuPerRequest {
+  if (requests < 1) throw new Error("no request was answered, so no CPU time per request");
+  return {
+    usage_us: round(d.usage_usec / requests, 2),
+    user_us: round(d.user_usec / requests, 2),
+    system_us: round(d.system_usec / requests, 2),
+    throttled: d.nr_throttled,
+  };
+}
+
+/** Two `cpu.stat` texts and the requests answered between them, as CPU microseconds per request. */
+export const cpuPerRequest = (before: string, after: string, requests: number): CpuPerRequest => perRequest(cpuDelta(before, after), requests);
+
+/** One timed pass of one peer. */
+export interface DirectPass {
+  requests_per_sec: number;
+  /** Requests answered 2xx. */
+  requests: number;
+  /** Requests answered otherwise, and transport errors, except those `-z` cut at its deadline. */
+  failed: number;
+  cpu: CpuDelta;
+}
+
+/** One pass from `oha`'s JSON and the two `cpu.stat` texts around it. */
+export function directPass(json: { summary?: { requestsPerSec?: number }; statusCodeDistribution?: Record<string, number>; errorDistribution?: Record<string, number> }, before: string, after: string): DirectPass {
+  const statuses = Object.entries(json.statusCodeDistribution ?? {});
+  const ok = statuses.filter(([s]) => s.startsWith("2")).reduce((n, [, k]) => n + k, 0);
+  const bad = statuses.filter(([s]) => !s.startsWith("2")).reduce((n, [, k]) => n + k, 0);
+  const errors = Object.entries(json.errorDistribution ?? {}).filter(([e]) => e !== DEADLINE).reduce((n, [, k]) => n + k, 0);
+  return { requests_per_sec: json.summary?.requestsPerSec ?? 0, requests: ok, failed: bad + errors, cpu: cpuDelta(before, after) };
+}
+
+/** A peer's passes as one line's figures: the median throughput, and the CPU of all passes over all their requests. */
+export function directSummary(passes: DirectPass[]): { requests_per_sec: number; failed: number; cpu: CpuPerRequest } {
+  const sum = (f: (p: DirectPass) => number) => passes.reduce((n, p) => n + f(p), 0);
+  const total: CpuDelta = {
+    usage_usec: sum((p) => p.cpu.usage_usec),
+    user_usec: sum((p) => p.cpu.user_usec),
+    system_usec: sum((p) => p.cpu.system_usec),
+    nr_throttled: sum((p) => p.cpu.nr_throttled),
+  };
+  return { requests_per_sec: round(median(passes.map((p) => p.requests_per_sec)), 1), failed: sum((p) => p.failed), cpu: perRequest(total, sum((p) => p.requests)) };
+}
+
+/** One `docker` call with its output captured. A failure throws with what docker said. */
+function dockerOut(args: string[], timeout = 600_000): string {
+  const out = Bun.spawnSync(["docker", ...args], { stdout: "pipe", stderr: "pipe", timeout });
+  if (out.exitCode !== 0) throw new Fail(`docker ${args.slice(0, 2).join(" ")} failed: ${out.stderr.toString().trim()}`);
+  return out.stdout.toString().trim();
+}
+
+/** Removes a peer's direct container. Never throws: this runs in a `finally`, and the container may be gone. */
+function directRemove(peer: Peer): void {
+  Bun.spawnSync(["docker", "rm", "-f", directName(peer)], { stdout: "pipe", stderr: "pipe" });
+}
+
+function ohaJson(args: string[]): any {
+  const text = dockerOut(args);
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Fail(`oha's output is not JSON (${messageOf(e)}): ${text.slice(0, 400)}`);
+  }
+}
+
+/**
+ * Waits until the backend answers one request, for up to a minute. The containers carry no healthcheck,
+ * because a check runs in the container's cgroup and would be counted in its `cpu.stat`.
+ */
+async function directReady(peer: Peer, c: Case, cpuset: string): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    const json = ohaJson(directOhaArgs(peer, c, { requests: 1 }, cpuset, 1));
+    if (Object.keys(json.statusCodeDistribution ?? {}).length > 0) return;
+    if (Date.now() > deadline) throw new Fail(`${peer.label} did not answer within a minute:\n${dockerOut(["logs", "--tail", "40", directName(peer)])}`);
+    await Bun.sleep(500);
+  }
+}
+
+/**
+ * `--direct`: per case, starts every HTTP peer's backend alone, warms each, then takes the passes with
+ * the peers taking turns, and prints one line per peer. With `smoke`, sends a few hundred requests once
+ * per peer and checks that each is answered 2xx. Records nothing.
+ */
+async function direct(smoke: boolean, commit: string): Promise<number> {
+  const peers = directPeers();
+  const sets = directCpusets(pyInt(dockerOut(["info", "--format", "{{.NCPU}}"])) ?? 0);
+  for (const id of ["nvs", "go"]) {
+    const peer = PEERS.find((p) => p.id === id)!;
+    const env = stackEnv(peer, { cpus: DIRECT_CPUS, concurrency: DIRECT_CONCURRENCY, tree: "cases", case: DIRECT_CASES[0], commit });
+    if (compose(stackPath(peer), ["build", "app"], env, false).code !== 0) throw new Fail(`building ${DIRECT_RUNS[id]!.image} failed`);
+  }
+  console.log(`backend on core ${sets.backend} with ${DIRECT_CPUS} cpu, oha on cores ${sets.oha}, ${DIRECT_CONCURRENCY} connections, no proxy`);
+  for (const id of DIRECT_CASES) {
+    const c = CASES.find((k) => k.id === id)!;
+    try {
+      for (const peer of peers) {
+        directRemove(peer);
+        dockerOut(directBackendArgs(peer, c.id, sets.backend));
+        await directReady(peer, c, sets.oha);
+      }
+      const passes = new Map<string, DirectPass[]>(peers.map((p) => [p.id, []]));
+      const timed = async (peer: Peer, load: DirectLoad) => {
+        const before = dockerOut(cpuStatArgs(peer));
+        const json = ohaJson(directOhaArgs(peer, c, load, sets.oha));
+        return directPass(json, before, dockerOut(cpuStatArgs(peer)));
+      };
+      if (smoke) {
+        for (const peer of peers) {
+          const p = await timed(peer, DIRECT_SMOKE);
+          if (p.failed > 0 || p.requests !== DIRECT_SMOKE_REQUESTS) {
+            throw new Fail(`${c.id}: ${peer.label} answered ${p.requests} of ${DIRECT_SMOKE_REQUESTS} requests 2xx, and ${p.failed} failed`);
+          }
+          passes.get(peer.id)!.push(p);
+        }
+      } else {
+        for (const peer of peers) {
+          console.log(`  ${c.id}: warming ${peer.label} with ${DIRECT_WARM_REQUESTS} requests ...`);
+          ohaJson(directOhaArgs(peer, c, DIRECT_WARM, sets.oha));
+        }
+        // Pass 1 of every peer, then pass 2, so a slow stretch of the shared host lands on every peer.
+        for (let pass = 1; pass <= DIRECT_PASSES; pass++) {
+          for (const peer of peers) {
+            console.log(`  ${c.id}: ${peer.label}, pass ${pass} of ${DIRECT_PASSES}, ${DIRECT_PASS_SECONDS} s ...`);
+            passes.get(peer.id)!.push(await timed(peer, DIRECT_PASS));
+          }
+        }
+      }
+      console.log(`${c.id}, direct, ${DIRECT_CPUS} cpu per backend${smoke ? ", smoke" : ""}:`);
+      for (const peer of peers) {
+        const s = directSummary(passes.get(peer.id)!);
+        console.log(
+          `  ${peer.label.padEnd(6)} ${grouped(s.requests_per_sec, 0).padStart(10)} requests/sec  ` +
+            `cpu ${fixed(s.cpu.usage_us, 1).padStart(6)} us/request (user ${fixed(s.cpu.user_us, 1)}, system ${fixed(s.cpu.system_us, 1)})  ` +
+            `throttled ${s.cpu.throttled}  failed ${s.failed}`,
+        );
+      }
+    } finally {
+      for (const peer of peers) directRemove(peer);
+    }
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------------------------------
 // The command.
 // ---------------------------------------------------------------------------------------------------
 
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
   "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
-  "                        [--record PATH] [--down] [--profile CASE]";
+  "                        [--record PATH] [--down] [--profile CASE] [--direct]";
 
 interface Options {
   smoke: boolean;
@@ -1912,6 +2209,7 @@ interface Options {
   row: string | null;
   expect: Map<string, Verdict> | null;
   profile: Case | null;
+  direct: boolean;
 }
 
 /** `--expect nvs=on-by-default,php=no`: the result each named peer must get in every row run. */
@@ -1941,7 +2239,7 @@ export function unmetExpectations(expect: Map<string, Verdict>, results: Map<str
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile"] });
+  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down", "--direct"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile"] });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -1960,6 +2258,12 @@ function options(args: string[]): Options | null {
   if (profiled !== null && (p.flags.has("--smoke") || p.flags.has("--scenarios") || p.flags.has("--down") || p.values.has("--record"))) {
     throw new ArgError("argument --profile: not with --smoke, --scenarios, --down or --record");
   }
+  const direct = p.flags.has("--direct");
+  const others = [
+    ...["--scenarios", "--down"].filter((f) => p.flags.has(f)),
+    ...["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--profile"].filter((v) => p.values.has(v)),
+  ];
+  if (direct && others.length > 0) throw new ArgError(`argument --direct: not with ${others.join(", ")}; only --smoke goes with it`);
   return {
     smoke: p.flags.has("--smoke"),
     scenarios: p.flags.has("--scenarios"),
@@ -1972,6 +2276,7 @@ function options(args: string[]): Options | null {
     row: p.values.get("--row") ?? null,
     expect: expect === undefined ? null : parseExpect(expect),
     profile: profiled,
+    direct,
   };
 }
 
@@ -2004,6 +2309,10 @@ function help(): string {
     "  --profile CASE        profile Novis alone serving CASE: the top symbols under perf, the system",
     "                        calls per request under strace, and for wait the memory per request in",
     "                        flight. Needs a privileged container",
+    "  --direct              Novis, Bun and Go with no nginx. Each backend runs alone on one cpu, and oha",
+    "                        runs on other cores. Prints requests/sec, CPU microseconds per request",
+    "                        (user and system) and throttled periods. With --smoke, a few hundred",
+    "                        requests per peer. Records nothing",
     "",
     "benches/compare/README.md is the design; this tool is only how it is run. It needs bun and Docker.",
   ].join("\n");
@@ -2115,6 +2424,7 @@ async function main(o: Options): Promise<number> {
   requireDocker();
   const commit = version("git", ["rev-parse", "--short", "HEAD"]);
   if (o.profile !== null) return profile(o.profile, commit);
+  if (o.direct) return await direct(o.smoke, commit);
 
   if (o.down) {
     for (const peer of PEERS) down(stackPath(peer), stackEnv(peer, { cpus: 1, concurrency: 1, tree: "cases", case: CASES[0]!.id, commit }));

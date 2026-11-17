@@ -271,6 +271,29 @@ their passes too, one peer after another, because a row asks for its passes one 
 **The numbers are relations.** The absolute figures depend on the machine. The record names the machine
 so the page can say which, and the page shows each peer against the best in each case.
 
+## The direct measure: every HTTP peer with no proxy
+
+`--direct` answers what a request costs each server in CPU time, which the proxied figures hide behind
+nginx and TLS. It runs Novis, Bun and Go on the `hello`, `json-api` and `html-page` cases.
+
+- **No nginx and no TLS.** Each backend runs alone in its own container, from the image and program its
+  compose file names, with one worker. `oha` sends plain HTTP inside that container's network.
+- **One cpu on its own core, and `oha` on other cores.** The backend gets `--cpus 1` on one core, and
+  `oha` gets up to four cores the backend never uses. A backend that shares a core with the generator
+  measures the generator too.
+- **CPU time per request, from the cgroup.** Each pass reads the backend's `cpu.stat` before and after,
+  and divides what it spent by the requests answered 2xx. The line gives the median requests per second
+  over the passes, the microseconds per request split into user and system time, and the periods the
+  quota throttled. The containers have no healthcheck, because a check runs in the backend's cgroup and
+  its CPU time would be counted.
+- **Warmed, then interleaved.** Each backend first gets 20,000 requests that are not counted. Then five
+  passes of 10 s at 64 connections run with the peers taking turns: pass 1 of every peer, then pass 2.
+- **PHP is absent.** PHP-FPM speaks only FastCGI and has no HTTP listener, so it cannot run without a
+  proxy in front of it.
+- **Nothing is recorded, and it is never a gate.** The figures depend on the machine and are read by a
+  person. `--direct --smoke` sends a few hundred requests to each peer in each case once, and checks
+  that every one is answered 2xx.
+
 ## The profile: Novis alone, on one pinned core
 
 `--profile CASE` answers where Novis spends a request, which no record says. It runs `profile.sh` in one
@@ -302,6 +325,8 @@ bun nv bench-compare --scenarios --record benches/compare.json   # the feature r
 bun nv bench-compare --arm deployed --record PATH     # four cpus per backend
 bun nv bench-compare --down                           # tear every stack down
 bun nv bench-compare --profile json-api               # perf and strace on Novis serving one case
+bun nv bench-compare --direct                         # Novis, Bun and Go with no proxy: CPU per request
+bun nv bench-compare --direct --smoke                 # the same, a few hundred requests per peer
 ```
 
 It needs `bun` and Docker, and nothing else. The first run builds `nvs` for Linux inside the image,

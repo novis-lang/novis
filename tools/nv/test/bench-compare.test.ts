@@ -10,6 +10,27 @@ import {
   CASES,
   COMPARE_DIR,
   CONFIG_CHANGES,
+  CPU_STAT,
+  cpuDelta,
+  cpuPerRequest,
+  cpuStatArgs,
+  DIRECT_CASES,
+  DIRECT_PASS,
+  DIRECT_PASS_SECONDS,
+  DIRECT_RUNS,
+  DIRECT_SMOKE,
+  DIRECT_SMOKE_REQUESTS,
+  DIRECT_WARM,
+  DIRECT_WARM_REQUESTS,
+  directBackendArgs,
+  directCpusets,
+  directName,
+  directOhaArgs,
+  directPass,
+  directPeers,
+  directSummary,
+  OHA_IMAGE,
+  parseCpuStat,
   FLOOD_AFTER,
   FLOOD_SETTING,
   floodResult,
@@ -774,6 +795,135 @@ describe("--profile", () => {
     expect(await run(["--profile", "hello", "--smoke"])).toBe(2);
     expect(await run(["--profile", "hello", "--scenarios"])).toBe(2);
     expect(await run(["--profile", "hello", "--record", "x.json"])).toBe(2);
+  });
+});
+
+describe("--direct", () => {
+  const caseOf = (id: string) => CASES.find((c) => c.id === id)!;
+  const peerOf = (id: string) => PEERS.find((p) => p.id === id)!;
+  const stat = (usage: number, user: number, system: number, throttled: number) =>
+    `usage_usec ${usage}\nuser_usec ${user}\nsystem_usec ${system}\nnr_periods 10\nnr_throttled ${throttled}\nthrottled_usec 0\n`;
+
+  test("runs every peer behind the HTTP config, in the table's order, and not PHP", () => {
+    expect(directPeers().map((p) => p.id)).toEqual(PEERS.filter((p) => p.nginx === "http.conf").map((p) => p.id));
+    expect(directPeers().map((p) => p.id)).toEqual(["nvs", "bun", "go"]);
+    expect(DIRECT_RUNS.php).toBeUndefined();
+    expect([...DIRECT_CASES]).toEqual(["hello", "json-api", "html-page"]);
+  });
+
+  test("starts each backend alone, detached, with one cpu on its own cores and a private cgroup namespace", () => {
+    for (const peer of directPeers()) {
+      const args = directBackendArgs(peer, "hello", "1");
+      expect(args.slice(0, 4)).toEqual(["run", "-d", "--name", directName(peer)]);
+      expect(args.slice(args.indexOf("--cpus"), args.indexOf("--cpus") + 2)).toEqual(["--cpus", "1"]);
+      expect(args.slice(args.indexOf("--cpuset-cpus"), args.indexOf("--cpuset-cpus") + 2)).toEqual(["--cpuset-cpus", "1"]);
+      expect(args.slice(args.indexOf("--cgroupns"), args.indexOf("--cgroupns") + 2)).toEqual(["--cgroupns", "private"]);
+      expect(args).toContain(DIRECT_RUNS[peer.id]!.image);
+      expect(args.join(" ")).not.toContain("nginx");
+    }
+    expect(() => directBackendArgs(peerOf("php"), "hello", "1")).toThrow();
+  });
+
+  test("each backend serves the case's program with the settings of its compose file at one cpu", () => {
+    expect(directBackendArgs(peerOf("nvs"), "json-api", "1")).toContain(`type=bind,src=${join(COMPARE_DIR, "cases", "json-api")},dst=/app,readonly`);
+    expect(directBackendArgs(peerOf("nvs"), "json-api", "1").slice(-4)).toEqual(["serve", "/app/main.nvs", "--listen", "0.0.0.0:8080"]);
+    expect(directBackendArgs(peerOf("go"), "html-page", "1").slice(-1)).toEqual(["/srv/cases/html-page"]);
+    expect(directBackendArgs(peerOf("go"), "hello", "1")).toContain("GOMAXPROCS=1");
+    const bun = directBackendArgs(peerOf("bun"), "hello", "1");
+    expect(bun).toContain("WORKERS=1");
+    expect(bun).toContain(`type=bind,src=${join(COMPARE_DIR, "bun", "serve.ts")},dst=/srv/serve.ts,readonly`);
+    expect(bun.slice(-2)).toEqual(["bun", "/srv/serve.ts"]);
+    for (const c of DIRECT_CASES) for (const peer of directPeers()) {
+      for (const [src] of DIRECT_RUNS[peer.id]!.mounts(c)) expect(existsSync(src)).toBe(true);
+    }
+  });
+
+  test("runs oha in the backend's network on the other cores, at 64 connections", () => {
+    const args = directOhaArgs(peerOf("go"), caseOf("hello"), DIRECT_PASS, "2-5");
+    expect(args.slice(0, 5)).toEqual(["run", "--rm", "--network", `container:${directName(peerOf("go"))}`, "--cpuset-cpus"]);
+    expect(args[5]).toBe("2-5");
+    expect(args).toContain(OHA_IMAGE);
+    expect(args.slice(args.indexOf("-c"), args.indexOf("-c") + 2)).toEqual(["-c", "64"]);
+    expect(args.at(-1)).toBe("http://127.0.0.1:8080/");
+  });
+
+  test("warms with 20,000 requests, times passes of ten seconds, and smokes with a few hundred", () => {
+    const hello = caseOf("hello");
+    const nvs = peerOf("nvs");
+    const length = (args: string[]) => args.slice(args.indexOf(OHA_IMAGE) + 1, args.indexOf(OHA_IMAGE) + 3);
+    expect(length(directOhaArgs(nvs, hello, DIRECT_WARM, "2-5"))).toEqual(["-n", String(DIRECT_WARM_REQUESTS)]);
+    expect(DIRECT_WARM_REQUESTS).toBe(20_000);
+    expect(length(directOhaArgs(nvs, hello, DIRECT_PASS, "2-5"))).toEqual(["-z", `${DIRECT_PASS_SECONDS}s`]);
+    expect(DIRECT_PASS_SECONDS).toBe(10);
+    expect(length(directOhaArgs(nvs, hello, DIRECT_SMOKE, "2-5"))).toEqual(["-n", String(DIRECT_SMOKE_REQUESTS)]);
+    expect(DIRECT_SMOKE_REQUESTS).toBeLessThan(1000);
+  });
+
+  test("sends the case's method, body and content type", () => {
+    const c = caseOf("json-api");
+    const args = directOhaArgs(peerOf("bun"), c, DIRECT_PASS, "2-5");
+    expect(args.slice(args.indexOf("-m"), args.indexOf("-m") + 2)).toEqual(["-m", "POST"]);
+    expect(args[args.indexOf("-d") + 1]).toBe(c.timed.body!);
+    expect(args[args.indexOf("-T") + 1]).toBe("application/json");
+    expect(args.at(-1)).toBe("http://127.0.0.1:8080/orders");
+    expect(directOhaArgs(peerOf("bun"), caseOf("html-page"), DIRECT_PASS, "2-5").at(-1)).toBe(`http://127.0.0.1:8080${caseOf("html-page").timed.path}`);
+  });
+
+  test("gives the backend core 1 and oha up to four cores after it, never sharing one", () => {
+    expect(directCpusets(16)).toEqual({ backend: "1", oha: "2-5" });
+    expect(directCpusets(4)).toEqual({ backend: "1", oha: "2-3" });
+    expect(directCpusets(3)).toEqual({ backend: "1", oha: "2-2" });
+    expect(() => directCpusets(2)).toThrow("three cores");
+  });
+
+  test("reads cpu.stat in the backend container", () => {
+    expect(cpuStatArgs(peerOf("go"))).toEqual(["exec", directName(peerOf("go")), "cat", CPU_STAT]);
+    expect(CPU_STAT).toBe("/sys/fs/cgroup/cpu.stat");
+  });
+
+  test("reads two cpu.stat texts into microseconds per request, user and system apart, and the throttled periods", () => {
+    expect(parseCpuStat("usage_usec 5\r\nnr_throttled 2\nnot a line\n")).toEqual({ usage_usec: 5, nr_throttled: 2 });
+    const before = stat(1_000_000, 600_000, 400_000, 3);
+    const after = stat(1_500_000, 900_000, 600_000, 7);
+    expect(cpuDelta(before, after)).toEqual({ usage_usec: 500_000, user_usec: 300_000, system_usec: 200_000, nr_throttled: 4 });
+    expect(cpuPerRequest(before, after, 10_000)).toEqual({ usage_us: 50, user_us: 30, system_us: 20, throttled: 4 });
+    expect(cpuPerRequest(before, after, 3).user_us).toBe(100_000);
+  });
+
+  test("a missing counter, a counter that went down, or no request answered throws", () => {
+    expect(() => cpuDelta("usage_usec 1", "usage_usec 2")).toThrow("no user_usec");
+    expect(() => cpuDelta(stat(2, 1, 1, 0), stat(1, 1, 1, 0))).toThrow("went down");
+    expect(() => cpuPerRequest(stat(1, 1, 1, 0), stat(2, 2, 2, 0), 0)).toThrow("no request");
+  });
+
+  test("a pass counts 2xx answers, and every other status and error but the deadline as failed", () => {
+    const p = directPass(
+      { summary: { requestsPerSec: 4000 }, statusCodeDistribution: { "200": 40_000, "502": 2 }, errorDistribution: { "aborted due to deadline": 64, "connection reset": 1 } },
+      stat(0, 0, 0, 0),
+      stat(400_000, 300_000, 100_000, 0),
+    );
+    expect(p).toEqual({ requests_per_sec: 4000, requests: 40_000, failed: 3, cpu: { usage_usec: 400_000, user_usec: 300_000, system_usec: 100_000, nr_throttled: 0 } });
+  });
+
+  test("a peer's passes give the median throughput and the CPU of all passes over all their requests", () => {
+    const pass = (rps: number, requests: number, usage: number, throttled: number) => ({
+      requests_per_sec: rps,
+      requests,
+      failed: 0,
+      cpu: { usage_usec: usage, user_usec: usage / 2, system_usec: usage / 2, nr_throttled: throttled },
+    });
+    const s = directSummary([pass(1000, 10_000, 100_000, 1), pass(3000, 30_000, 900_000, 0), pass(2000, 20_000, 200_000, 2)]);
+    expect(s.requests_per_sec).toBe(2000);
+    expect(s.cpu).toEqual({ usage_us: 20, user_us: 10, system_us: 10, throttled: 3 });
+    expect(s.failed).toBe(0);
+  });
+
+  test("is a usage error beside a flag that measures another way, before Docker is needed", async () => {
+    expect(await run(["--direct", "--scenarios"])).toBe(2);
+    expect(await run(["--direct", "--record", "x.json"])).toBe(2);
+    expect(await run(["--direct", "--profile", "hello"])).toBe(2);
+    expect(await run(["--direct", "--arm", "deployed"])).toBe(2);
+    expect(await run(["--direct", "--down"])).toBe(2);
   });
 });
 
