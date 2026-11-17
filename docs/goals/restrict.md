@@ -30,7 +30,7 @@ stages:
     context: [docs/reference/tools/35-packages.md, docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md, website/src/content/docs/guides/how-to-use/modules.mdx, docs/agent/prose.md, tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs, benches/members/tools/packages/grants-what-each-namespace-may-do.nvs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: table-read
@@ -495,51 +495,40 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, and the `feature-proofs` check passes: `bun nv proofs --id
-tools:packages/restrictions-where-a-class-or-method-may-be-used` owes nothing. Only stage 7, the gate, is
-left.
+Every stage is done, and the gate is green: `looper verify` passed on its third run (798 s).
+`bun nv verify --doc` is green, `bun nv owners --closes restrict` is clear, and the rule
+`packaging/a-restriction-limits-where-a-declaration-is-used` is `shipped` in its record.
 
-Stage 6 wrote `about.md`, `details.md`, three examples with `.out`
-(`docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/`), nine attacks
-(`tests/hostile/tools/packages/restrictions-where-a-class-or-method-may-be-used/`, `07` with its own
-broken package `vendor/acme/hooks`), the bench (its table is in the shared
-`benches/members/tools/packages/package.toml` and restricts `Core\Str::length` to `Shop\Text`), the
-section *A framework shared by every module* in `website/src/content/docs/guides/how-to-use/modules.mdx`,
-and the `package-toml/about.md` line on what the compiler reads. `bun nv proofs --run --id` is green: 3
-examples and 9 attacks. `bun nv proofs --comments` passes on all 29 files, and `bun nv site --check code`
-and `--check guides` pass.
+The gate landed: the CLI names the manifest relative to `Restrictions::home` (the application
+file's directory, else the walk's start) through `nvs_types::restrict::source_text`, which the hover
+shares. The key hashes each entry's file and line and `home`, since a thrown text names them
+(`rule:packaging/package-toml-is-a-tool-input`). `W1031` has a test in `package_restrict.rs`. The
+rules render, attack formatting, `Core\Reflect` perf records, guide link, page questions,
+`llms-full.txt` and roadmap themes were fixed.
 
-The attacks found a bypass, now fixed (`981359cfb4`): `$object->$key` with a `property<T>` key read and
-wrote a restricted property. `restrict::check_uses` now treats an `ExprInfo::KeyedProperty` as a use of
-every public property of `T`, at compile time. Case
-`restrict-a-keyed-property-access-is-a-use-of-every-key.nvst` is green, run once. Attack `09` is now
-`expect-refusal`, and the keyed step left `08`.
-
-Sweep reds: `env-secret-proofs` is stale service state (no log, no definition in the tree);
-nightly 43849315979's reds were fixed after it (`2934ebe1ae`, `9efc45b6fd`).
+**One red is left in `bun nv ci --check`: `advisories`.** RUSTSEC-2026-0543 (`chrono` unmaintained)
+is new. `chrono` is a required dependency of `rxing`, and `rxing` is only a dev-dependency of
+`nvs-ext` (`Cargo.toml:92`), so nothing that ships links it. The fix is one `ignore` entry in
+`deny.toml` in that file's style. The permission check refused the edit to `deny.toml`, so it is
+filed as a parked decision.
 
 ### Next
 
-Stage 7. First, before the gate, make the CLI name the manifest relative to the program's directory,
-as the editor's hover does (`crates/nvs-lsp` `hover.rs` `relative_to`). The change is in
-`crates/nvs-types/src/restrict.rs` `source_text` and the reflective `refusal_text`. Decided here: an
-absolute path depends on the machine and is noise in an error the user reads. Re-freeze every `.nvst`
-case that matched the path with `%s`, if any. Then run `looper verify` with `run_in_background`, fix every
-failure in one pass, and run it once more. Then the goal-end gates in AGENTS.md § *In the loop*.
+Once the user allows it, add the `deny.toml` entry: `{ id = "RUSTSEC-2026-0543", reason = "reached
+only through rxing, a test-only dependency of nvs-ext; not shipped" }`, with a comment that says why
+and "Revisit 2027-04-01". Then `bun nv ci --check` is green, and the goal is `DONE`. Move each decision
+only this file's prose has to the rule. The *Standing decisions* are already in
+`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`; check before deleting.
 
-Expected reds at the gate: an existing `.lspt` diagnostics case whose diagnostic has a secondary label in
-another file, which now renders a `related` line, so re-freeze it. Also any test whose program does a
-keyed access on a class with a restricted property. None is known. The new bench has no share in
-`data/perf/bench-budget.json` (`bun nv scaling --budget --write`) and no perf record. If the gate or
-`bun nv ci --check` asks for either, record it on the release binary.
+No test is expected to go red.
 
 ### Backlog
 
