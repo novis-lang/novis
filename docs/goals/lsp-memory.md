@@ -26,7 +26,7 @@ stages:
     context: [docs/rules/ide/the-server-is-synchronous.md, crates/nvs-lsp/src/workers.rs, crates/nvs-lsp/src/session.rs, crates/nvs-lsp/src/parse_cache.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: once
@@ -297,43 +297,35 @@ Nothing in the server changes yet.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 5 is done. Release, 16 cores, 15 workers, 972 files (`lsp-start --copies 12 --cold`):
-baseline cold peak 5752 MB paged; now cold peak 786 to 848 MB, 443 to 474 MB private. After 5, 10
-and 20 surface edits (972 files checked each): private 953, 900 and 913 MB, peak 1032, 966 and
-993 MB paged. The figures vary about 50 MB between runs.
+Every stage is done. The second `looper verify` is green, and so are `bun nv verify --doc`, `bun nv
+owners --closes lsp-memory`, `bun nv ci --check`, `once` and `parsed-once`.
 
-Attributed with a scratch process-wide live-byte counter in `budget::add`, since removed: live
-bytes are 227 MB settled and 228 MB after 10 and 20 edits. The private bytes are the platform heap
-keeping the freed pages of an edit's run, and they stop growing after about 5 edits. The pooled
-allocator kept each exited worker's cached blocks for ever; a worker now calls
-`nvs_runtime::budget::release_pooled_blocks` before it ends (`workers.rs` `work`). The rule, the
-`crate::workers`, `crate::session` and `crate::alloc` docs say so. Build, clippy, `bun nv rules
---check` and the new `a_released_cache_keeps_no_block` are green.
+The first `looper verify` failed on two `nvs-lsp` tests, fixed in `b78c7b2151`. One pins
+`checked: 1` for a cold start's open document, which is stage 2's claim. The other showed a bug:
+`graph_key` (`document.rs`) hashed each file's loaded name. On Windows the index names an entry
+`E:\…` and a URI gives `E:/…`, so an open document never read the output the index stored. The key
+now hashes `ParseCache::key_of`, the canonical path, and the test pins it.
 
-May go red at the gate: a test pinning `errors` from a link or route error (`index.rs:595`), the
-other parallel tests of `tests/incremental.rs`, `document.rs` tests near `:1575` to `:2008`,
-`definition.rs:1730`, any test that reads the ids of a map (the whole tree is pinned before workers
-run), and a runtime test that reads `pooled_blocks` if it runs on a thread that released its cache.
+On 972 files and 15 workers, a cold index peaks at about 800 MB paged, where it peaked at 5752 MB.
+The module docs of `crate::workers` and `crate::session` give the figures.
 
 The sweep's reds are stale: `env-secret-proofs` has no log, and the nightly `supply chain` built
 `2934ebe1ae`, before `0fe2fdef25` removed `chrono`.
 
 ### Next
 
-Stage 6, the gate. Start `looper verify` with `run_in_background`, then end the turn. Fix every
-failure it names in one pass with `bun nv verify --fast -p <crate>`, and run it once more. Then the
-goal-end gates of AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
-lsp-memory`, `bun nv ci --check`, and the acceptance checks `once` and `parsed-once`.
+The goal is reached. The driver retires it. Its decisions live in the rule and in the module docs
+of `crate::workers`, `crate::session`, `crate::parse_cache` and `crate::index`.
 
 ### Backlog
 
-- The per-file cost of a parse and a check, about 55 times the source text on the tree above, for a
-  later goal.
+- The per-file cost of a parse and a check, about 55 times the source text on the 972-file tree of
+  `bun nv lsp-start --copies 12`, for a later goal.
