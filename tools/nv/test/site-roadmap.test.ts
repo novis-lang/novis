@@ -73,7 +73,15 @@ describe("site roadmap", () => {
 
   test("themes out of the chain order of their first goal are named", () => {
     const map = { ...GOOD, themes: [GOOD.themes[1]!, GOOD.themes[0]!, GOOD.themes[2]!] };
-    expect(roadmapProblems(tree(map))).toEqual([`${ROADMAP}: "Command line" comes after "Editor", but its first goal is earlier on the chain`]);
+    expect(roadmapProblems(tree(map))).toEqual([`${ROADMAP}: "Command line" comes after "Editor", but its first goal is earlier on the chain; run \`bun nv site --roadmap\``]);
+  });
+
+  test("--roadmap puts the themes in the chain order of their first goal", () => {
+    const root = tree({ ...GOOD, themes: [GOOD.themes[2]!, GOOD.themes[1]!, GOOD.themes[0]!] });
+    expect(writeRoadmap(root)).toBeNull();
+    expect(roadmapProblems(root)).toEqual([]);
+    const map = JSON.parse(readFileSync(join(root, ROADMAP), "utf8")) as Roadmap;
+    expect(map.themes.map((t) => t.title)).toEqual(["Command line", "Editor", "Packages"]);
   });
 
   test("a README whose copy differs is named, and --roadmap writes it", () => {
@@ -106,13 +114,29 @@ describe("site roadmap", () => {
     expect(map.internal).toEqual([]);
     expect(map.themes.map((t) => t.title)).toEqual(["Command line", "Packages"]);
     expect(git("log", "-1", "--format=%s").stdout.toString().trim()).toBe("chore(site): the roadmap drops live, editor, retired from the chain");
-    expect(pruneRetired(root)).toEqual({ said: "the roadmap names no retired goal", ok: true });
+    expect(pruneRetired(root)).toEqual({ said: "the roadmap names no retired goal, and its themes are in chain order", ok: true });
+  });
+
+  test("--retired that empties the head of a theme moves the theme behind the ones now ahead of it", () => {
+    // `editor` and `pkg` moved ahead of `cli` while `fmt` led the chain; `fmt` retiring leaves
+    // "Command line" starting at `cli`, behind both.
+    const root = tree(GOOD, ["live", "fmt", "editor", "pkg", "cli"]);
+    const git = (...args: string[]) => Bun.spawnSync(["git", ...args], { cwd: root, stdout: "pipe", stderr: "pipe" });
+    for (const args of [["init", "-q"], ["config", "user.name", "t"], ["config", "user.email", "t@example.com"], ["config", "core.hooksPath", ".none"], ["add", "-A"], ["commit", "-q", "-m", "start"]]) {
+      expect(git(...args).exitCode).toBe(0);
+    }
+    tmp.put("docs/goals/README.md", "---\nlooper: 1\nchain: [live, editor, pkg, cli]\n---\n# Goals\n");
+    expect(pruneRetired(root)).toEqual({ said: "dropped fmt and 0 theme(s), put the themes in chain order, and committed", ok: true });
+    expect(roadmapProblems(root)).toEqual([]);
+    const map = JSON.parse(readFileSync(join(root, ROADMAP), "utf8")) as Roadmap;
+    expect(map.themes.map((t) => t.title)).toEqual(["Editor", "Packages", "Command line"]);
+    expect(git("log", "-1", "--format=%s").stdout.toString().trim()).toBe("chore(site): the roadmap drops fmt, retired from the chain, and its themes follow the chain's order");
   });
 
   test("--retired keeps a goal off the chain whose file is still there", () => {
     const root = tree(GOOD, ["fmt", "cli", "editor", "pkg"]);
     tmp.put("docs/goals/live.md", "# live\n");
-    expect(pruneRetired(root)).toEqual({ said: "the roadmap names no retired goal", ok: true });
+    expect(pruneRetired(root)).toEqual({ said: "the roadmap names no retired goal, and its themes are in chain order", ok: true });
     expect(roadmapProblems(root)).toEqual([`${ROADMAP}: \`internal\` names live, which is not on the chain`]);
   });
 });
