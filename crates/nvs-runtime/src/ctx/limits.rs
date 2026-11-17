@@ -388,9 +388,14 @@ impl Ctx {
     /// switches*). Off the tree's root core the thread's balance is the
     /// reading already, so the context is simply dropped.
     ///
+    /// **The box is freed in the turn too.** The spawning turn allocated it and
+    /// was charged for it. Freed after this call, it left the thread's balance
+    /// and no tree's, so a keep-alive connection's tree kept one context's size
+    /// per request it served, until its requests stopped at `[limits] memory`.
+    ///
     /// **Cost:** one [`crate::budget::ArmedStack`] take and restore per child
     /// that ends, nothing per turn.
-    pub fn end_in_its_turn(self) {
+    pub fn end_in_its_turn(self: Box<Self>) {
         if !self.on_root_core {
             drop(self);
             return;

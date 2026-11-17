@@ -9,6 +9,11 @@
 //! themselves: the next edit is written once an answer shows the last one, and
 //! [`BOUND`] is how long one edit may take to arrive.
 //!
+//! After the last edit the connection sends [`MORE`] requests, under a
+//! `[limits] memory` of 2 MB. Each request is charged what the connection's
+//! tree holds, so a tree that kept a few bytes per request it served stops
+//! every later request on the connection before the end.
+//!
 //! The program lives under `CARGO_TARGET_TMPDIR` and is removed when the
 //! server is dropped.
 
@@ -26,10 +31,16 @@ const BOUND: Duration = Duration::from_secs(30);
 /// How many times the entry is rewritten.
 const EDITS: u32 = 60;
 
+/// How many requests the connection sends after the last edit. A tree that
+/// kept one context's size, about 2 KB, per request crosses [`CONFIG`]'s 2 MB
+/// within them.
+const MORE: u32 = 2_000;
+
 /// A check every 100 milliseconds, by content, with no wait for the program to
-/// be quiet, so each edit is compiled as soon as the check sees it.
-const CONFIG: &str =
-    "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"100ms\"\nsettle = \"0s\"\n";
+/// be quiet, so each edit is compiled as soon as the check sees it. The memory
+/// limit is small, so a reading that grows with the requests served stops one.
+const CONFIG: &str = "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"100ms\"\nsettle = \"0s\"\n\n\
+     [limits]\nmemory = \"2M\"\n";
 
 /// The entry at version `n`: a class with one method per version, so each
 /// edit makes a unit that differs from the last, and a page that prints `vN;`.
@@ -168,5 +179,19 @@ fn a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads() {
                 server.said()
             );
         }
+    }
+    for more in 1..=MORE {
+        let (status, body) = ask();
+        assert_eq!(
+            status,
+            200,
+            "request {more} after the last edit was not a 200: {body:?}\n{}",
+            server.said()
+        );
+        assert_eq!(
+            version(&body),
+            Some(EDITS),
+            "request {more} after the last edit"
+        );
     }
 }

@@ -1227,8 +1227,8 @@ impl Scheduler {
                         // A child's `Ctx` is dropped right here, on the
                         // scheduler's own stack, because nothing was ever going
                         // to read it back — [`Finished`] is the home of why.
-                        // It is dropped as a turn of its own tree, so the bytes
-                        // it frees leave that tree's balance.
+                        // It is dropped with its box as a turn of its own tree,
+                        // so the bytes it frees leave that tree's balance.
                         // The coroutine is done, so its stack holds nothing and
                         // `into_stack` can take it — this is the one moment a
                         // stack is recyclable, and letting `task` drop here
