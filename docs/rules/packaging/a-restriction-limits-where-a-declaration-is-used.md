@@ -94,6 +94,12 @@ inherited one is held under each class that inherits it, by the entries a use of
 A callable reference to one of these members, `$info->call(...)`, runs wherever it is later called,
 so its list names every restricted act, allowed anywhere or not.
 
+**A call or property access through a `mixed` or `object` receiver is held the same way.** Its
+class is known only when it runs, so the checker lists, for that one name and that kind of act, every
+restricted member its place does not allow. The compiler emits a check of the receiver's class
+before the access (`Helper::RestrictedErasedAct`), and it throws the same `LogicError`. A name no
+entry restricts gets no list and no check. A keyed access, `$object->$key`, is not held yet.
+
 **The error** says first what is not allowed, then where it is allowed, then the note, then the
 source: "`Core\Router::urlSigned` cannot be used here. It is allowed only in
 `Framework\Core\Signing`. Use `Framework\Core\Url::signed`. It adds the framework's key rotation.
@@ -114,7 +120,8 @@ scans that site's list only in a program with a table. At compile time, one read
 one hash-set lookup per resolved use when a table exists, and, on the first reflective call, one walk
 of the classes an entry names. **Memory:** the tables are compile-time input, held once per compiled
 program, and nothing of them is held per request. Each reflective call site in a program with a
-table carries its list in the unit's data. `crates/nvs-config/src/restrict.rs` reads the tables.
+table carries its list in the unit's data, and so does each erased access to a restricted name, which
+pays one helper call and one scan of that list each time it runs. `crates/nvs-config/src/restrict.rs` reads the tables.
 
 **Declined:**
 - **A map form, like `[grants]`** (`'Core\Router::urlSigned' = [...]`). It has no room for `note`

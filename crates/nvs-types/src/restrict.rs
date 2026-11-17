@@ -47,6 +47,13 @@
 //! reference to such a member is invoked somewhere not known here, so its list names every act an
 //! entry restricts, allowed anywhere or not.
 //!
+//! **A call or property access through a `mixed` or `object` receiver is held the same way.**
+//! Its class is known only at run time, so [`record_acts`] lists the acts of its kind on every
+//! restricted member of its name that the place does not allow, and `nvs_ir` emits
+//! `Helper::RestrictedErasedAct` before the access, which throws when the receiver's class is on
+//! the list. A site whose name no entry restricts records nothing and emits nothing. A keyed
+//! access, `$object->$key`, names its member only at run time and is not held yet.
+//!
 //! Cost: one pass over each body's new table entries, and a few hash lookups per entry, only when
 //! a table exists, and one inference of each `replace` per check. Memory: one index of the
 //! program's entries per check, and one copy of a `package.toml` per `replace` while it is
@@ -274,23 +281,40 @@ pub(crate) fn check_uses(place: Place<'_>, mark: usize, env: &mut Env<'_>) {
     record_acts(restricted, &place, mark, env);
 }
 
+/// Which acts one site's restricted-act list names.
+enum ActSite {
+    /// A `Core\Reflect\ClassInfo` acting call: every act the place does not allow.
+    Reflective,
+    /// A callable reference to one: every act an entry holds, allowed here or not.
+    Anywhere,
+    /// A call or property access through a `mixed` or `object` receiver: the acts of its one
+    /// kind on members of its one name that the place does not allow.
+    Erased(Act, String),
+}
+
 /// Records, for each `Core\Reflect\ClassInfo` acting call after `mark`, the list of acts on a
-/// restricted member that `place` does not allow, and for each callable reference to one, every
-/// act an entry holds. A call with nothing to refuse records nothing.
+/// restricted member that `place` does not allow, for each callable reference to one, every act
+/// an entry holds, and for each call or property access through a `mixed` or `object` receiver,
+/// the acts on a member of its name that `place` does not allow. A site with nothing to refuse
+/// records nothing.
 fn record_acts(restricted: &Restricted<'_>, place: &Place<'_>, mark: usize, env: &mut Env<'_>) {
-    let sites: Vec<(Span, bool)> = env
+    let sites: Vec<(Span, ActSite)> = env
         .exprs
         .since_at(mark)
         .filter_map(|(span, info)| match info {
             ExprInfo::Call(call) | ExprInfo::ClassRefCall(call)
                 if crate::core_takes_call_site(&call.class.to_string(), &call.method) =>
             {
-                Some((span, false))
+                Some((span, ActSite::Reflective))
             }
             ExprInfo::CallableRef(call)
                 if crate::core_takes_call_site(&call.class.to_string(), &call.method) =>
             {
-                Some((span, true))
+                Some((span, ActSite::Anywhere))
+            }
+            ExprInfo::ErasedCall { name } => Some((span, ActSite::Erased(Act::Call, name.clone()))),
+            ExprInfo::ShapeProperty { name, .. } => {
+                Some((span, ActSite::Erased(Act::Property, name.clone())))
             }
             _ => None,
         })
@@ -299,10 +323,16 @@ fn record_acts(restricted: &Restricted<'_>, place: &Place<'_>, mark: usize, env:
         return;
     }
     let held = restricted.acts.get_or_init(|| restricted.held_acts(env));
-    for (span, anywhere) in sites {
+    for (span, site) in sites {
         let refused: Vec<(Act, &str, &str, String)> =
             held.iter()
                 .filter_map(|held| {
+                    if let ActSite::Erased(act, name) = &site
+                        && (held.act != *act || held.member != *name)
+                    {
+                        return None;
+                    }
+                    let anywhere = matches!(site, ActSite::Anywhere);
                     let at =
                         held.entries.iter().copied().find(|&at| {
                             anywhere || !restricted.allows(at, place, span.file, env)

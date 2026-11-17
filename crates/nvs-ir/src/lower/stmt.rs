@@ -1861,6 +1861,7 @@ impl<'a> Lowering<'a> {
                         slot: *slot,
                         ty: *ty,
                         erased: *erased,
+                        span: target.span,
                     };
                     return self.lower_shape_property_assign(
                         object,

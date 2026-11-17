@@ -5334,6 +5334,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::TypeCheckFailed => "nvs_type_check_failed",
         Helper::CovariantRejected => "nvs_covariant_rejected",
         Helper::CovariantPropertyChecked => "nvs_covariant_property_checked",
+        Helper::RestrictedErasedAct => "nvs_restricted_erased_act",
         Helper::LateInitRunning => "nvs_late_init_running",
         Helper::IntTruthy => "nvs_int_truthy",
         Helper::UintTruthy => "nvs_uint_truthy",

@@ -3210,6 +3210,46 @@ impl<'a> Lowering<'a> {
         .0
     }
 
+    /// [`Helper::RestrictedErasedAct`] on `receiver`, before the call or
+    /// property access through a `mixed` or `object` receiver at `span` acts
+    /// on its member `name` (`act` is `nvs_runtime::source::Act`'s byte).
+    /// Emits nothing where the checker recorded no list for `span`, so a
+    /// program with no `[[restrict]]` table pays nothing
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    pub(crate) fn restricted_erased_act(
+        &mut self,
+        b: BlockId,
+        span: nvs_diagnostics::Span,
+        receiver: ValueId,
+        name: &str,
+        act: u8,
+        env: &mut Env,
+    ) {
+        let Some(restricted) = self.exprs.restricted_acts(span).cloned() else {
+            return;
+        };
+        let source = Some(self.source());
+        let (site, _) = self.emit(
+            b,
+            Ty::ClassDesc,
+            InstKind::SourceConst {
+                source,
+                restricted: Some(restricted),
+            },
+        );
+        let (member, _) = self.emit(b, Ty::Str, InstKind::ConstStr(name.to_owned()));
+        let (act, _) = self.emit(b, Ty::Int, InstKind::ConstInt(i64::from(act)));
+        self.emit_fallible(
+            b,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper: Helper::RestrictedErasedAct,
+                args: vec![receiver, member, act, site],
+            },
+            env,
+        );
+    }
+
     /// The id a member on `nvs_stdlib::registry::QUERY_SITE_MEMBERS` takes as
     /// its **last** argument: the call at `span`, as
     /// [`InstKind::QuerySiteConst`] carries it.

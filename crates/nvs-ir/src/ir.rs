@@ -2642,6 +2642,17 @@ pub enum Helper {
     /// `LogicError` that names the class, the property, its type and what the
     /// value is.
     CovariantPropertyChecked,
+    /// Throws a `LogicError` when a call or property access through a
+    /// `mixed` or `object` receiver acts on a member that a `[[restrict]]`
+    /// entry does not allow here
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    /// Four operands, each borrowed: the receiver as it was lowered, the
+    /// member's name as a `Ty::Str`, the act as a `Ty::Int`
+    /// (`nvs_runtime::source::Act`'s byte) and the call site from
+    /// [`InstKind::SourceConst`], which carries the checker's list. Emitted
+    /// before the access, and only where the checker recorded a list, so a
+    /// program with no table never has one. It gives `null`.
+    RestrictedErasedAct,
     /// Whether an `initProperty` call is running in this context, as a
     /// [`Ty::Bool`] (`rule:classes/late-init-initializes-on-the-first-read`).
     /// No arguments. Only a write to a `lateinit` property that was unset, in

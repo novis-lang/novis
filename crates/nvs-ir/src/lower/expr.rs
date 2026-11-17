@@ -30,6 +30,9 @@ pub(crate) struct ShapeField {
     /// Whether the receiver's static type does not list the field, which
     /// `nvs_types::expr_table::ExprInfo::ShapeProperty::erased` owns.
     pub(crate) erased: bool,
+    /// The access's own span, under which the checker records the
+    /// restricted-act list a `[[restrict]]` table gives it.
+    pub(crate) span: Span,
 }
 
 impl<'a> Lowering<'a> {
@@ -4792,7 +4795,14 @@ impl<'a> Lowering<'a> {
         // resolution that selects it.
         if let Some(ExprInfo::ErasedCall { name }) = self.exprs.lookup(expr.span) {
             let name = name.clone();
-            return self.lower_erased_method_call(object, nullsafe, &name, args, env, cur);
+            return self.lower_erased_method_call(
+                object,
+                nullsafe,
+                (&name, expr.span),
+                args,
+                env,
+                cur,
+            );
         }
         // `rule:types/callable-is-the-only-function-type`'s `bind`, `bindTo` and `call`,
         // which no class declares, so no `ExprInfo::Call` names them.
@@ -6009,6 +6019,7 @@ impl<'a> Lowering<'a> {
                 slot: *slot,
                 ty: *ty,
                 erased: *erased,
+                span: expr.span,
             };
             return self.lower_shape_property_access(object, &field, absent, nullsafe, env, cur);
         }
@@ -6570,6 +6581,7 @@ impl<'a> Lowering<'a> {
         if base_is_temporary {
             self.own_temporary(object_v);
         }
+        self.restricted_erased_act(*cur, field.span, object_v, &field.name, 1, env);
         let (v, ty) = self.emit_fallible(
             *cur,
             field_ty,
@@ -6807,6 +6819,7 @@ impl<'a> Lowering<'a> {
         if receiver_ty.is_refcounted() && owner != OperandOwner::Slot {
             self.own_temporary(object_v);
         }
+        self.restricted_erased_act(*cur, field.span, object_v, &field.name, 1, env);
         let (v, vty, aliasing) = self.lower_stored(value, Some(field_ty), env, cur);
         let v = self.coerce(*cur, v, vty, field_ty, env);
         if field_ty.is_refcounted() && !aliasing {

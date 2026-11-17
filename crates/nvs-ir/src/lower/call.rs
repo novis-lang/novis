@@ -1053,15 +1053,19 @@ impl<'a> Lowering<'a> {
     /// because a callable carries its callee and the deferral has none to
     /// carry. No program constructs any of the three, so each is an engine
     /// invariant rather than a shape the language still refuses.
+    ///
+    /// `member` is the method's name and the call's span, under which the
+    /// checker records the call's restricted-act list.
     pub(crate) fn lower_erased_method_call(
         &mut self,
         object: &Expr,
         nullsafe: bool,
-        name: &str,
+        member: (&str, nvs_diagnostics::Span),
         args: &CallArgs,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let (name, span) = member;
         let CallArgs::List(list) = args else {
             panic!(
                 "nvs-ir: a call through a `mixed` receiver reached lowering with \
@@ -1097,6 +1101,10 @@ impl<'a> Lowering<'a> {
             *cur,
         );
         self.account_for_arg(object_v, receiver_ty, borrowed, aliasing, *cur);
+        // Once the receiver is this frame's to release, and before the
+        // arguments run: a call through a typed receiver does not compile at
+        // all, so no argument runs there either.
+        self.restricted_erased_act(*cur, span, object_v, name, 0, env);
         let (member, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.to_owned()));
         let rest: Vec<&nvs_syntax::ast::Arg> = list.iter().collect();
         let array = self.lower_args_as_array(&rest, None, env, cur);

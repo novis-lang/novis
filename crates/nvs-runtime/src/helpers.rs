@@ -250,6 +250,46 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::RestrictedErasedAct`: throws a `LogicError` when a
+    /// call or property access through a `mixed` or `object` receiver acts on
+    /// a member a `[[restrict]]` entry does not allow at this call site
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    /// Four operands, each borrowed: the receiver, the member's name as a
+    /// `Ty::Str`, the act as a `Ty::Int` (`crate::source::Act`'s byte) and the
+    /// call site, whose restricted-act list the checker wrote. Gives `null`. A
+    /// receiver that is not an object passes: the access that follows throws
+    /// its own error. Cost: one scan of the site's list, which the compiler
+    /// emits only in a program with a table and only for a name it restricts.
+    fn nvs_restricted_erased_act(_ctx, args: [4]) {
+        let Some(ptr) = args[0].obj_ptr().filter(|ptr| !ptr.is_null()) else {
+            return Ok(Value::null());
+        };
+        let name = args[1]
+            .as_text()
+            .ok_or_else(|| wrong_tag("nvs_restricted_erased_act", Tag::Str, args[1]))?;
+        let act = match expect_tag!("nvs_restricted_erased_act", args[2], as_int, Tag::Int) {
+            0 => crate::source::Act::Call,
+            1 => crate::source::Act::Property,
+            _ => return Err(wrong_tag("nvs_restricted_erased_act", Tag::Int, args[2])),
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns a reference to this object, so the allocation and its \
+                      descriptor are live for this read, and the site is a `SourceConst` the \
+                      compiled unit baked into its own data section, which outlives the call"
+        )]
+        let refused = unsafe {
+            let class = (*crate::object::NvsObj::class_of(ptr)).name();
+            crate::source::restricted(args[3], act, class, name)
+        };
+        match refused {
+            Some(message) => Err(Fault::thrown_as(crate::ThrownClass::Logic, message.to_owned())),
+            None => Ok(Value::null()),
+        }
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::LateInitRunning`: whether an `initProperty` call is
     /// running in this context, as a `bool`.
     fn nvs_late_init_running(ctx, args: [0]) {
@@ -3617,6 +3657,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "nvs_covariant_property_checked",
             address(nvs_covariant_property_checked),
+        ),
+        (
+            "nvs_restricted_erased_act",
+            address(nvs_restricted_erased_act),
         ),
         ("nvs_late_init_running", address(nvs_late_init_running)),
         ("nvs_int_truthy", address(nvs_int_truthy)),

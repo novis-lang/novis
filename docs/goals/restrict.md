@@ -87,12 +87,13 @@ checks:
       - the_fix_fills_in_the_replacement_at_the_use
   - id: reflective-act
     stage: 3
-    name: "a reflective call of a restricted method outside the allowed places throws, and inside them runs"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/cap/restrict-a-reflective-call-outside-the-allowed-places-throws.nvst, --case, tests/conformance/cap/restrict-a-reflective-call-inside-the-allowed-places-runs.nvst]
+    name: "a reflective call of a restricted method, or a call or property access through mixed, outside the allowed places throws, and inside them runs"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/cap/restrict-a-reflective-call-outside-the-allowed-places-throws.nvst, --case, tests/conformance/cap/restrict-a-reflective-call-inside-the-allowed-places-runs.nvst, --case, tests/conformance/cap/restrict-a-call-through-mixed-outside-the-allowed-places-throws.nvst]
     timeout: 1800
     tests:
       - tests/conformance/cap/restrict-a-reflective-call-outside-the-allowed-places-throws.nvst
       - tests/conformance/cap/restrict-a-reflective-call-inside-the-allowed-places-runs.nvst
+      - tests/conformance/cap/restrict-a-call-through-mixed-outside-the-allowed-places-throws.nvst
   - id: editor
     stage: 4
     name: "the editor shows a restricted use as an error linked to its package.toml line, offers the replacement as a fix, shows where a method is allowed on hover, sorts a restricted completion last with its reason, and re-checks open files when package.toml changes"
@@ -455,7 +456,7 @@ one the bench. Each is told the reference section's path and the error text from
 writes the reference section, `about.md`, `details.md` and the website page, and runs the
 `feature-proofs` check once.
 
-- [ ] First, before the pages: a call, property read or write through a `mixed` receiver is held
+- [x] First, before the pages: a call, property read or write through a `mixed` receiver is held
   too. Today `mixed $v = new App\Secret\Vault(); $v->open();` runs a restricted method with no
   error (probed by stage 3's session). The fix reuses stage 3's mechanism: an erased call or
   property access in a body of a program with a table gets a call-site constant carrying
