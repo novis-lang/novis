@@ -30,6 +30,8 @@
 mod fix;
 mod template;
 
+pub(crate) use template::resolved;
+
 use std::fmt::Write as _;
 
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
@@ -209,8 +211,11 @@ pub(crate) struct Uses(FxHashSet<(Span, QName, Member)>);
 /// Checks one body with `W1003` switched on, unless `owner` is deprecated or
 /// `member` of it is: then nothing inside it warns. The table entries the body
 /// recorded are warned about when it is done. The same entries are where
-/// [`crate::test_code::refuse_calls`] finds a call into test code.
+/// [`crate::test_code::refuse_calls`] finds a call into test code, and where
+/// [`crate::restrict::check_uses`] finds a restricted use. `namespace` is the
+/// namespace the body is written in.
 pub(crate) fn window<'e, R>(
+    namespace: &[String],
     owner: Option<&QName>,
     member: Option<Member>,
     env: &mut Env<'e>,
@@ -229,6 +234,12 @@ pub(crate) fn window<'e, R>(
         warn_uses(mark, env);
     }
     crate::test_code::refuse_calls(owner, member.as_ref(), mark, env);
+    let place = crate::restrict::Place {
+        namespace,
+        class: owner,
+        member: member.as_ref(),
+    };
+    crate::restrict::check_uses(place, mark, env);
     env.deprecated_uses = outer;
     out
 }

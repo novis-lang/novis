@@ -273,6 +273,15 @@ fn check_files(
     // annotation, and one of them may be a `Foo::CONST` type.
     let consts = crate::consts::build_const_table(files);
     let signatures = build_signatures(files, module, &enums, &consts, extensions, interner, diags);
+    // `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s index, built once the
+    // signatures are known, since an entry's target is checked against them. `None` when the
+    // program has no `[[restrict]]` entry, and then no body checks a restriction.
+    let restricted = crate::restrict::build(
+        namespace_grants.restrictions(),
+        &signatures,
+        &module.graph,
+        diags,
+    );
     // `rule:attributes/structural-retrieval`'s retrieval reads this. Built whole, ahead of the walk, for
     // `build_const_table`'s reason: a retrieval may be written above the
     // declaration it asks about, so a table filled as the walk descends would
@@ -348,6 +357,7 @@ fn check_files(
                         backtracking,
                         namespace_grants,
                         packages,
+                        restricted: restricted.as_ref(),
                         files,
                     },
                     &mut output,
@@ -413,6 +423,7 @@ struct Shared<'s, 'f> {
     backtracking: nvs_config::regex::Backtracking,
     namespace_grants: &'s nvs_config::grants::Grants,
     packages: Option<&'s crate::package::Packages>,
+    restricted: Option<&'s crate::restrict::Restricted<'s>>,
     files: &'s [crate::ProgramFile<'f>],
 }
 
@@ -449,6 +460,7 @@ fn walk_file(
         backtracking: shared.backtracking,
         namespace_grants: shared.namespace_grants,
         packages: shared.packages,
+        restricted: shared.restricted,
         src: file.src,
         stmts: file.stmts,
         files: shared.files,
@@ -843,7 +855,7 @@ pub(crate) fn check_stmts(
                     in_anon_fn: false,
                     in_test_code: false,
                 };
-                crate::deprecated::window(None, None, env, |env| {
+                crate::deprecated::window(&current_ns, None, None, env, |env| {
                     check_stmt(
                         stmt,
                         &mut frame.live,
@@ -1063,7 +1075,7 @@ fn warn_deprecated_parents<'n>(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    crate::deprecated::window(Some(class), None, env, |env| {
+    crate::deprecated::window(ctx.namespace, Some(class), None, env, |env| {
         for name in parents {
             let text = span_text(env.src, name.span);
             let parent = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
@@ -1105,7 +1117,7 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
             ClassMemberKind::Method(m) => {
                 let name = span_text(env.src, m.name).to_owned();
                 let member = Some(Member::Method(name.clone()));
-                window(ctx.current_class, member, env, |env| {
+                window(ctx.namespace, ctx.current_class, member, env, |env| {
                     if let Some(class) = ctx.current_class {
                         crate::deprecated::warn_override(class, &name, m.name, env);
                     }
@@ -1115,6 +1127,7 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
             ClassMemberKind::Property(p) => {
                 let name = strip_sigil(span_text(env.src, p.name)).to_owned();
                 window(
+                    ctx.namespace,
                     ctx.current_class,
                     Some(Member::Property(name)),
                     env,

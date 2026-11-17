@@ -562,7 +562,7 @@ fn named(mark: usize, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {
 /// declares it and its visibility. A static access names its class as well
 /// as its member. A parameter is never in it: which arguments a call passed
 /// is [`super::warn_uses`]' question alone.
-pub(super) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {
+pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {
     let mut out = Vec::new();
     let method = |class: &QName, name: &str, out: &mut Vec<_>| {
         if let Some((owner, sig)) = resolve_method(class, name, env.signatures, env.graph) {

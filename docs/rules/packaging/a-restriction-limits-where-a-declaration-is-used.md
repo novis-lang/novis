@@ -11,15 +11,16 @@ replace = 'Framework\Core\Url::signed($route, $params)'
 ```
 
 **The entry.** `use` is required and names a class, interface or enum (`'Ns\Name'`), a method,
-property or class constant (`'Ns\Name::member'`), a function, or a namespace: `'Ns'` for its own
+property, class constant or enum case (`'Ns\Name::member'`), or a namespace: `'Ns'` for its own
 declarations and `'Ns\*'` for every depth below, as `rule:security/longest-prefix-wins` writes a
-subtree. `allow` is required and lists the places that may use it. An entry matches a use when it
-names the use's enclosing namespace (exact, or a `\*` subtree), its enclosing class, or its enclosing
+subtree. Novis has no top-level function, so a method is the only callable a `use` names. `allow`
+is required and lists the places that may use it. An entry matches a use when it names the use's
+enclosing namespace (exact, or a `\*` subtree), its enclosing class, or its enclosing
 `Class::method`. `allow = []` allows no place. `note` is optional Markdown, shown in the error and on
 hover, and is text an end user reads. `replace` is optional, one Novis expression with the target's
 parameters and `$this` as its placeholders, exactly as `#[Core\Deprecated]`'s `replace` is
-(`rule:attributes/a-deprecation-names-its-replacement-as-code`), and only on a method or function
-target. An unknown field is an error
+(`rule:attributes/a-deprecation-names-its-replacement-as-code`), and only on a method target. An
+unknown field is an error
 (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
 
 **Where it is read.** The application's `package.toml`, the one the grant table is read from, and
@@ -42,7 +43,11 @@ is `E0665` with the help "restrict `Parent::method` instead". A `replace` that d
 reflective act on the member. A type position, `instanceof` and `catch` are not uses, so allowed
 code can pass a restricted object through typed signatures. A restriction on a method holds for
 every override and implementation of it, so a call through a subclass or an interface meets the same
-check. A use outside every allowed place is `E0664`.
+check. An entry on a class holds every use of its members too, and an entry on a namespace every
+use of its classes and their members, so `$object->method()` on a restricted class is refused
+outside the allowed places. A use inside the restricted declaration itself, its own class or its own
+namespace, is always allowed, so restricted code can call itself. A use outside every allowed place
+is `E0664`.
 
 **It only narrows.** A use must pass every restriction on the declaration, from the application's
 file and from every loaded package. Nothing lifts one: the application cannot remove, widen or
@@ -53,8 +58,12 @@ is still refused. The application's own entries match by namespace alone, since 
 no package folder. A package that adds a restriction, or allows fewer places, makes a breaking change
 (`rule:packaging/only-a-major-may-break-the-api`).
 
-**When it runs.** A pass after type checking, over each resolved use, looks up a hash set of
-restricted declarations. With no `[[restrict]]` anywhere the pass is skipped. The tables fold into
+**When it runs.** Each body's check ends with a pass over the expression table entries the body
+recorded, the typed tree's record of what each call, `new`, property, constant and case resolved
+to. It is the same pass that warns about a deprecated use (`crates/nvs-types/src/restrict.rs`), so
+no side list is kept and every use kind the deprecation warning sees is held here too. Each entry
+looks up a hash map of restricted declarations, and a method use also walks its ancestors. With no
+`[[restrict]]` anywhere the index is `None` and the pass returns at once. The tables fold into
 every unit's cache key beside the grants (`rule:config/the-extension-set-is-in-every-unit-key`), so an
 edited entry is an ordinary cache miss, and a program with no table keeps the key it had.
 

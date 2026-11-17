@@ -1059,6 +1059,7 @@ pub fn build_signatures(
             backtracking: nvs_config::regex::Backtracking::Allow,
             namespace_grants: &nvs_config::grants::EMPTY,
             packages: None,
+            restricted: None,
             src: file.src,
             stmts: file.stmts,
             files,

@@ -1219,6 +1219,7 @@ mod tests {
             backtracking: nvs_config::regex::Backtracking::Allow,
             namespace_grants: &nvs_config::grants::EMPTY,
             packages: None,
+            restricted: None,
             src: map.file(file),
             stmts: &stmts,
             files: &files,

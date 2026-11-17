@@ -202,6 +202,7 @@ pub mod provenance;
 pub(crate) mod reasons;
 pub mod redaction;
 pub(crate) mod response;
+pub(crate) mod restrict;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod routes;
@@ -494,6 +495,10 @@ pub(crate) struct Env<'a> {
     /// package lists as `optional` compiles to a guard where its grant line
     /// does not list it ([`crate::capability::reject_ungranted_call`]).
     pub packages: Option<&'a crate::package::Packages>,
+    /// The program's `[[restrict]]` entries, indexed, or `None` when it has none
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    /// [`crate::deprecated::window`] checks each body's uses against it.
+    pub restricted: Option<&'a crate::restrict::Restricted<'a>>,
     pub src: &'a SourceFile,
     /// The file's top-level statements, which is where the `use` line an
     /// undeclared name's fix inserts would go (`nvs_hir::import_site`) — the
