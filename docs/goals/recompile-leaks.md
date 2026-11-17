@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/script.rs, docs/rules/config/a-broken-edit-fails-the-requests-that-resolve-it.md]
   - id: 4
     title: a busy keep-alive connection keeps serving through many reloads
-    status: open
+    status: done
     context: [crates/nvs-server/src/serve.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-runtime/src/budget.rs]
   - id: 5
     title: what a successful recompile keeps is measured, bounded and written down
@@ -158,7 +158,11 @@ memory check stops every request at once. Stage 4 first proves or rules this out
 reproduction with `[limits] memory` raised, and reads the stop reason the server logs. The fix follows
 the cause. If the cause is the counter, a unit's bytes are counted as detached (`budget.rs`
 `detached_bytes`), because a unit belongs to the process and not to a request. Raising the limit is
-never the fix.
+never the fix. **Found (stage 4):** the cause was not the units, and the `500`s come with no reload
+at all. The scheduler ended a child as `Box<Ctx>` through `end_in_its_turn(self)`, which freed the box
+after the turn had ended. The spawning turn was charged for it, so a keep-alive connection's tree kept
+about 2 KB per request, and every request on it stopped at `[limits] memory` after about 60,000. The
+box is now freed inside the turn. It costs nothing new.
 
 **The bound on kept units stays, and is written down (my call).** Each core's mount slot holds an
 `Rc<Entry>` (`crates/nvs-cli/src/serve/mounts.rs:172`) until that core serves a request. So the units
@@ -242,11 +246,18 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 ### 4. a busy keep-alive connection keeps serving through many reloads
 
-- [ ] Rerun `bun nv serve-mem --app html --load 64 --edits 70` with `[limits] memory` raised in the
+- [x] Rerun `bun nv serve-mem --app html --load 64 --edits 70` with `[limits] memory` raised in the
   copy, and read the stop reason the server logs for each `500`. Write in the handoff which path
   answers `500` (`failed`, `crates/nvs-server/src/serve.rs:3499`, and its callers), and why.
-- [ ] Fix that cause as § *Standing decisions* says. Name the file and line in the handoff.
-- [ ] The `keep-alive` check runs once, and `serve-mem --load` shows no `500`.
+  - [x] `serve-mem --memory <size>` writes `[limits] memory` into the copy, and the server's log is
+    kept as `.agent-tmp/serve-mem/<app>.log`.
+  - [x] With `4G` no `500`; with the default, `500`s with no edit at all.
+  - [x] The cause, measured on one connection, is in the handoff.
+- [x] Fix that cause as § *Standing decisions* says. Name the file and line in the handoff.
+  - [x] `Ctx::end_in_its_turn` takes `Box<Self>`, so the box is freed inside the turn.
+  - [x] The `keep-alive` test sends 2,000 more requests under `[limits] memory = "2M"`, and is red
+    without the fix (answer 717 was a `500`).
+- [x] The `keep-alive` check runs once, and `serve-mem --load` shows no `500`.
 
 ### 5. what a successful recompile keeps is measured, bounded and written down
 
@@ -304,41 +315,35 @@ because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
 ### State
 
-Stage 1 is done: `bun nv serve-mem` replaces the scratch scripts, which are deleted. The server prints
-no `jit_units=` line yet, so that column shows `-`. The baseline, on Windows with the release binary:
+Stages 1 to 4 are done, and the `pages`, `no-retry` and `keep-alive` checks are green. The
+memory baseline (Windows, release, `--app registry --fails 10 --oks 10`): 33.4 MB private at the
+start, failures level off at +26.6 MB, and each success adds 9 to 20 MB with no plateau.
 
-- `--app registry --fails 10 --oks 10`: 33.4 MB private at the start. The failures level off at
-  +26.6 MB from the fourth on. Each success adds 9 to 20 MB with no plateau: +153.6 MB once restored.
-- `--app html --load 64 --edits 70`: only `200`s up to round 26. From round 27 the `500`s grow, and
-  from round 60 every answer is a `500` with an empty body. `--load 4 --edits 8` fails at round 6.
-
-Stages 2 and 3 are done, and the `pages` and `no-retry` checks are green.
-
-- Stage 2: `UnitBuilder<M>` is now generic over a `Backend` trait (`crates/nvs-codegen/src/lib.rs`,
-  beside `JitPages`). `UnitBuilder<JitPages>::new` wraps the `JITModule` at once, and every use goes
-  through `self.module.module()`. `finish` moves the `JitPages` into the class table. The tests that
-  read the module (`assert_relocated`) now take `&mut`.
-- Stage 3: `Compiler::compile` (`crates/nvs-cli/src/script.rs`, about `:1481`) runs the front end
-  and the backend each under `catch_unwind`. A panic goes to `stopped`, beside it, which prints one
-  `E_INTERNAL` line and returns the failure. The panic test failpoint moved inside the front-end
-  closure. Why it is inside `compile` and not at its call site is in § *Standing decisions*.
+Stage 4 found the `500`s were not about reloads. Each was `answer`'s `failed()`
+(`crates/nvs-server/src/serve.rs`): a memory `FATAL` under a ceiling of a few KB, because a
+request's ceiling is what remains of its connection's, and that reading grew about 2,100 bytes per
+request served. `crates/nvs-host/src/scheduler.rs` (about `:1225`) ended a child as a `Box<Ctx>`
+and the box was freed after the turn. The fix is `Ctx::end_in_its_turn(self: Box<Self>)`
+(`crates/nvs-runtime/src/ctx/limits.rs`, about `:400`): one connection reads 24,182 bytes after
+each of 10,000 requests. The `keep-alive` test now sends 2,000 more requests under a 2 MB limit, and
+fails at answer 717 without the fix. `serve-mem --load 64 --edits 70`: 6,556,689 answers, all
+`200`. `serve-mem` gained `--memory <size>` and keeps the server's log. The nightly soak missed it
+because it closes each connection after 50 requests.
 
 The sweep's two reds are stale: `env-secret-proofs` is defined nowhere, and nightly 44073672172 ran
 before `0fe2fdef25`, which is on `origin/main`.
 
 ### Next
 
-Stage 4, the keep-alive `500`s, which needs a release binary: run `bun nv relink --build` first.
+Stage 5, what a successful recompile keeps (needs `bun nv relink --build` first).
 
-- Rerun `bun nv serve-mem --app html --load 64 --edits 70` with `[limits] memory` raised in the
-  copy, and read the stop reason for each `500` (`crates/nvs-server/src/serve.rs:3499` `failed`).
-  The lead is the per-thread byte counter, `crates/nvs-runtime/src/budget.rs:164-189`.
-- Once the cause is found, add background connections to the `keep-alive` test
-  (`a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads`) so it fails on the
-  cause, if one connection still does not reproduce it.
-- Stage 6 may now run as a side goal: stage 2 is done.
+- Run `bun nv serve-mem --app registry --oks 30` with no requests, and read the live bytes of the
+  compile thread and of each core with the runtime's counters. Each success added 9 to 20 MB in the
+  baseline. The first lead is `crates/nvs-cli/src/serve/mounts.rs:172`'s slots and the cache's three
+  units in `crates/nvs-cli/src/script.rs`.
+- Stage 6 may run as a side goal: stage 2 is done.
 
-No test is expected red now. The `keep-alive` test stays green until stage 4 makes it reproduce.
+No test is expected red now.
 
 ### Backlog
 
