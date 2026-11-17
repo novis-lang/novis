@@ -1489,6 +1489,8 @@ impl Compiler {
         // this cache paid for, and the claim being counted is about how many
         // times the file was put through the front end at all.
         self.compiles.fetch_add(1, Ordering::Relaxed);
+        #[cfg(test)]
+        panic_failpoint::hit(written);
         // Resolved once, and the whole program is read below it: a link
         // switched while the front end runs cannot hand it one file from each
         // release. [`Self::moved`] resolves it again afterwards.
@@ -2410,6 +2412,36 @@ pub(crate) fn granting_snapshot() -> nvs_config::Snapshot {
         ..nvs_config::tree::Capabilities::default()
     });
     snapshot
+}
+
+/// A test's way to make [`Compiler::compile`] panic for one content: it panics
+/// for a file whose text has a marker the test registered. A marker is
+/// registered for the whole process, so each test registers one of its own.
+#[cfg(test)]
+mod panic_failpoint {
+    use std::sync::{Mutex, PoisonError};
+
+    static MARKERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    /// Makes every later compile of a file with `marker` in its text panic.
+    pub(crate) fn arm(marker: &str) {
+        MARKERS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(marker.to_owned());
+    }
+
+    pub(crate) fn hit(written: &std::path::Path) {
+        let Ok(text) = std::fs::read_to_string(written) else {
+            return;
+        };
+        let armed = MARKERS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .any(|marker| text.contains(marker.as_str()));
+        assert!(!armed, "the test failpoint stopped this compile");
+    }
 }
 
 #[cfg(test)]
@@ -3607,6 +3639,46 @@ mod tests {
             shared(&compiler.paths)[&*entry].unit.content,
             good,
             "the storm moved the pointer off the content that compiled"
+        );
+    }
+
+    #[test]
+    fn a_compile_that_panics_is_not_compiled_again_until_its_content_changes() {
+        const MARKER: &str = "panics-in-the-compiler-for-this-test";
+        super::panic_failpoint::arm(MARKER);
+        let entry = a_file_saying("compile-panics", "served");
+        let path = entry.to_string_lossy().into_owned();
+        let compiler = revalidating();
+        let (warm, _routes) = compiler.compiled(&path).expect("the entry compiles");
+        drop(warm);
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
+
+        entry.say(MARKER);
+        for pass in 1..=3 {
+            compiler.revalidate();
+            let failed = compiler
+                .compiled(&path)
+                .err()
+                .unwrap_or_else(|| panic!("pass {pass}: the content that panics was served"));
+            assert!(
+                failed.contains("internal error"),
+                "pass {pass}: the failure does not say the compiler stopped: {failed}"
+            );
+        }
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the content that panics was compiled again"
+        );
+
+        entry.say("fixed");
+        compiler.revalidate();
+        let (fixed, _routes) = compiler.compiled(&path).expect("the fixed entry compiles");
+        drop(fixed);
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            3,
+            "the fixed content was not compiled once"
         );
     }
 
