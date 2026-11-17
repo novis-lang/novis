@@ -523,8 +523,15 @@ rules render, attack formatting, `Core\Reflect` perf records, guide link, page q
 The `chrono` advisory is gone: `rxing` is replaced as d13 decided (*Standing decisions*), and
 `image_barcode`'s four tests pass with the new reader. `bun nv ci --check` is green in every
 check, `bun nv verify --doc` is green and `bun nv owners --closes restrict` is clear. The sweep's
-`env-secret-proofs` red has no definition in the tree, and nightly 43849315979's reds were fixed
-after it (`2934ebe1ae`, `9efc45b6fd`).
+`env-secret-proofs` red has no definition in the tree (`looper check --name env-secret-proofs`
+says no check matches), and nightly 43849315979's reds were fixed after it (`2934ebe1ae`,
+`9efc45b6fd`). Nightly 44073672172's `supply chain` red is the `chrono` advisory on `2934ebe1ae`,
+before `0fe2fdef25` removed `rxing`; `Cargo.lock` has no `chrono` now.
+
+The refused DONE's `floor-debt` red was two tools test files, `tools/nv/test/fuzz.test.ts` and
+`tools/nv/test/mirror.test.ts`, red once in the 40-minute debt run. Both pass alone and under the
+debt run's preload, and `looper check --name floor-debt` reran them green. Both start `bash`, so
+a fork failure of Git Bash under that load is the likely cause; it did not reproduce.
 
 ### Next
 
