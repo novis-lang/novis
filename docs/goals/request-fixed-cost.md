@@ -6,7 +6,7 @@ context: [benches/compare/README.md, crates/nvs-server/src/serve.rs, crates/nvs-
 stages:
   - id: 1
     title: the direct measure, and the counts of one request
-    status: open
+    status: done
     context: [tools/nv/cmd/bench-compare.ts, benches/compare/profile.sh]
   - id: 2
     title: a request body that has arrived whole reaches the program with no wait
@@ -153,7 +153,7 @@ later stages lower a number a test holds.
 **Split:** one writing subagent writes `--direct` and its tests in `tools/nv/`. The session writes the
 Rust count tests. The two touch disjoint files and run side by side.
 
-- [ ] `tools/nv/cmd/bench-compare.ts:1903` the options, `:1944` `parseArgs`, `:1978` `help()`,
+- [x] `tools/nv/cmd/bench-compare.ts:1903` the options, `:1944` `parseArgs`, `:1978` `help()`,
   `:2114` `main`: `--direct` beside `--profile`. For each of `hello`, `json-api` and `html-page` and
   each peer that listens on HTTP (`nvs`, `go`, `bun` in `PEERS`, `:117`): the backend container alone
   with `--cpus 1`, `oha` in the container's network on other cores, 20,000 requests to warm it, then
@@ -162,22 +162,22 @@ Rust count tests. The two touch disjoint files and run side by side.
   CPU microseconds per request split into user and system, and the times the quota stopped the
   container. PHP is left out, because FPM has no HTTP listener. `--smoke` sends a few hundred requests
   once. It records nothing, as `--profile` does.
-- [ ] `tools/nv/test/bench-compare.test.ts:1`: tests for the `docker` arguments `--direct` builds and
+- [x] `tools/nv/test/bench-compare.test.ts:1`: tests for the `docker` arguments `--direct` builds and
   for reading two `cpu.stat` texts into microseconds per request.
-- [ ] `benches/compare/README.md:274`: a section before it, `## The direct measure: every HTTP peer
+- [x] `benches/compare/README.md:274`: a section before it, `## The direct measure: every HTTP peer
   with no proxy`, that says what the command measures, why PHP is absent, and that it is never a gate.
   `:295` *Running it* gains the command.
-- [ ] An `Explore` subagent first finds where a test can serve requests in process and count
+- [x] An `Explore` subagent first finds where a test can serve requests in process and count
   allocations: `TestServer` in `crates/nvs-cli/src/runner.rs`, and the counter in
   `crates/nvs-runtime/src/counting_alloc.rs:71`. The count tests go there. If that place is not the
   `nvs` binary's tests, edit the `body-no-wait` and `request-counts` checks with `looper goal check`.
-- [ ] `a_served_request_allocates_its_recorded_count`: one keep-alive connection, 50 `hello` requests to
+- [x] `a_served_request_allocates_its_recorded_count`: one keep-alive connection, 50 `hello` requests to
   warm it, then 200 counted. It asserts the allocations per request equal a constant written beside
   it, which is today's count. Run once by name.
-- [ ] A test-only counter of clock readings beside `crates/nvs-host/src/cpuclock.rs:386`, and
+- [x] A test-only counter of clock readings beside `crates/nvs-host/src/cpuclock.rs:386`, and
   `a_request_with_a_body_reads_the_core_clock_once` written with today's count as its bound and a
   comment that stage 2 makes it one. Run once by name.
-- [ ] `bun nv bench-compare --direct` once and `--profile hello` once. Write the three peers' CPU per
+- [x] `bun nv bench-compare --direct` once and `--profile hello` once. Write the three peers' CPU per
   request and Novis's system calls per request into `### State`.
 
 ### 2. a request body that has arrived whole reaches the program with no wait
@@ -238,17 +238,43 @@ the head scan step through framing lines only.
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person, who asked why Novis is third on `hello` and
-`json-api` in the comparison. Their calls: write goals for it, and give up nothing else for these
-cases. Every other choice in § *Standing decisions* is the authoring session's call. Nothing is built
-yet.
+Stage 1 is done in one session. `bun nv bench-compare --direct` exists and its smoke is green.
+`crates/nvs-cli/src/serve.rs`'s keep-alive harness `one_connection_through_the_slot` gained
+`Way::served(body)`, which registers a watchdog, watches the isolate and passes the entry's config as
+`nvs serve`'s handler does. Each `Reading` holds the core thread's allocations and its clock reads
+(`nvs_host::cpuclock::reads_on_this_thread`, debug builds only). The two count tests sit beside it:
 
-The measurements in § *Why* were taken by hand that day, on a machine with the loops running, so each
-figure moves by about a tenth between passes.
+- `a_served_request_allocates_its_recorded_count`: `HELLO_ALLOCATIONS` is **30** per served `hello`
+  request in a debug build. It is the same on Windows and in WSL. macOS has not run it.
+- `a_request_with_a_body_reads_the_core_clock_once`: `BODY_CLOCK_READS` is already **1** today, with
+  the body sent in the head's write. So stage 2's clock half holds now. What stage 2 still owes is
+  the park, which `a_body_that_arrived_with_its_head_reaches_the_program_with_no_park` measures.
+
+`--direct`, five passes of 10 s, one cpu per backend, this workstation with the loops running, CPU
+µs per request (user + system) and requests/s:
+
+| case | Novis | Bun | Go |
+|---|---|---|---|
+| `hello` | 15.0 (6.0 + 9.0), 67,954/s | 9.3 (1.9 + 7.3), 107,958/s | 17.1 (5.8 + 11.3), 60,502/s |
+| `json-api` | 40.2 (27.8 + 12.4), 24,720/s | 16.7 (7.3 + 9.4), 59,059/s | 39.0 (24.5 + 14.4), 25,706/s |
+| `html-page` | 58.1 (47.0 + 11.1), 19,176/s | 36.8 (23.1 + 13.8), 28,008/s | 270.8 (233.0 + 37.8), 4,048/s |
+
+`--profile hello`: 3.19 system calls per request (`sendto`, `recvfrom`, `clock_gettime` 1.00 each).
+
+The sweep's reds are stale: nightly 44073672172 ran before `0fe2fdef25` dropped `chrono`, and
+`env-secret-proofs` is defined nowhere, in the tree or under `~/.looper`.
 
 ### Next
 
-Stage 1. Its tool half and its test half run side by side.
+Stage 2, from its first item: `crates/nvs-server/src/body.rs` `Supply::pump` and `Pull::next_chunk`,
+then `body::of` and its caller in `crates/nvs-server/src/serve.rs`. The no-park test can be built on
+`one_connection_through_the_slot` with `Way::served(body)` in `crates/nvs-cli/src/serve.rs`, which
+already sends the body in the head's write. A park count needs a counter of its own, or a reading
+`nvs_host` already has. No test is expected red. A macOS runner may count other than 30 allocations
+in `a_served_request_allocates_its_recorded_count`; if it does, the constant is per platform.
 
 ### Backlog
+
+- The three `--direct` backends of a case share core 1, and two are idle while the third is measured.
+  A fresh backend per pass would keep a busy host from moving a figure.
 
