@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-server/src/trace.rs, crates/nvs-server/src/heads.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: direct-tool
@@ -230,16 +230,18 @@ the head scan step through framing lines only.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done, stage 3 in one session; `request-counts` and `head-scan` ran green by
-name. The allocation table is `HELLO_ROWS` in `crates/nvs-cli/src/serve.rs`: 25 kept, 5 removed, each
+Every stage is done. `looper verify`, `bun nv verify --doc`, `bun nv owners --closes` and
+`bun nv ci --check` are green; the last was red only on `recompile-leaks` having no roadmap theme,
+which it now has. Each standing decision has its home: the `body.rs` and `heads.rs` module docs,
+`benches/compare/README.md`, `cpuclock.rs` and `HELLO_ROWS`. The allocation table is `HELLO_ROWS` in `crates/nvs-cli/src/serve.rs`: 25 kept, 5 removed, each
 with its reason. `every_allocation_of_a_served_request_has_a_row` reads backtraces through the
 debug-only `nvs_runtime::budget::watch_allocations` hook, and failed with a kept row marked removed.
 The largest kept rows are hyper's: 8,192 B read ahead for a client that hangs up (only `half_close`
@@ -255,16 +257,9 @@ Novis at 15.0, 40.2 and 58.1:
 | `hello` | 14.8 (6.0 + 8.8), 69,274/s | 9.5 (2.1 + 7.4), 106,560/s | 16.6 (5.8 + 10.8), 66,766/s |
 | `json-api` | 36.8 (27.0 + 9.8), 28,572/s | 17.8 (8.0 + 9.8), 57,886/s | 42.3 (26.2 + 16.1), 26,085/s |
 | `html-page` | 55.5 (44.5 + 11.0), 18,667/s | 34.1 (21.5 + 12.6), 30,817/s | 275.6 (236.7 + 39.0), 4,056/s |
-
-The sweep's reds are stale, checked again this session: nightly 44073672172 ran on `2934ebe1ae`,
-an ancestor of `0fe2fdef25` (which dropped `chrono` and is on `origin/main`), and
-`env-secret-proofs` is defined nowhere in the tree.
-
 ### Next
 
-Stage 4, the gate: `looper verify` over the whole goal, then the goal-end gates AGENTS.md names
-(`bun nv verify --doc`, `bun nv owners --closes request-fixed-cost`, `bun nv ci --check`). Tests that
-may go red: `every_allocation_of_a_served_request_has_a_row` on Linux or macOS if a frame name differs
+Nothing: the goal is reached, and the driver retires it. CI may go red on other runners: `every_allocation_of_a_served_request_has_a_row` on Linux or macOS if a frame name differs
 there (its sites are platform-neutral names, and a generic dependency function is named without its
 path); `a_served_request_allocates_its_recorded_count` if a platform counts other than 25, in which
 case the rows, not the constant, are per platform. `nvs-host`'s `take_ended` now returns a `Drain`.
