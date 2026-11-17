@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/lsp-start.ts, crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/script.rs]
   - id: 2
     title: a unit frees its compiled code on every way out of compile
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs]
   - id: 3
     title: a compile that panics is recorded as failed until its content changes
@@ -217,11 +217,11 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 ### 2. a unit frees its compiled code on every way out of compile
 
-- [ ] `crates/nvs-codegen/src/lib.rs:2500`: `UnitBuilder::new` wraps the module in `JitPages` at once,
+- [x] `crates/nvs-codegen/src/lib.rs:2500`: `UnitBuilder::new` wraps the module in `JitPages` at once,
   and every use of `self.module` (`:2826`, `:2836`) goes through it. `finish` (`:2825`) moves the
   pages into the class table as now. The `SAFETY` comment at `:520` says why freeing a builder that
   never finished is sound.
-- [ ] The `pages` check runs once.
+- [x] The `pages` check runs once.
 
 ### 3. a compile that panics is recorded as failed until its content changes
 

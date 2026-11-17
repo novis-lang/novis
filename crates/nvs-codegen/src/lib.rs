@@ -477,13 +477,45 @@ fn extension_classes(program: &Program) -> Box<[String]> {
 /// handle, so both unmap at the same moment. A loader's mapping unmaps by its
 /// own `Drop`. A `JITModule`'s does not, which is why this type exists.
 ///
+/// **It owns the module from the moment the module exists.** [`UnitBuilder::new`]
+/// wraps the `JITModule` in this before any function is declared, and the
+/// builder compiles through [`Backend::module`]. So a compile that ends early,
+/// with an error or a panic, drops the builder and frees whatever pages it had
+/// mapped. Only [`UnitBuilder::finish`] moves this on, into the class table.
+///
 /// The `Mutex` is never locked. It is there because a `JITModule` is `Send` and
-/// not `Sync`, and the table's owner must be both. `Drop` reaches the module
-/// through `get_mut`, which takes no lock.
+/// not `Sync`, and the table's owner must be both. The builder and `Drop` reach
+/// the module through `get_mut`, which takes no lock.
 ///
 /// **What it spends:** one atomic increment per compile and one decrement per
 /// free, for [`mapped_jit_units`].
 struct JitPages(Mutex<Option<JITModule>>);
+
+/// What a [`UnitBuilder`] compiles into: the module itself for an object file,
+/// and [`JitPages`] around it for the JIT, so the JIT's pages have an owner
+/// that frees them on every way out of a compile.
+trait Backend {
+    type Module: Module;
+    fn module(&mut self) -> &mut Self::Module;
+}
+
+impl Backend for ObjectModule {
+    type Module = Self;
+    fn module(&mut self) -> &mut Self {
+        self
+    }
+}
+
+impl Backend for JitPages {
+    type Module = JITModule;
+    fn module(&mut self) -> &mut JITModule {
+        self.0
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+            .expect("only `Drop` takes the module out of its pages")
+    }
+}
 
 /// How many units this process compiled whose pages are still mapped.
 static MAPPED_JIT_UNITS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -558,14 +590,18 @@ impl Drop for JitPages {
             #[expect(
                 unsafe_code,
                 reason = "unmapping a JIT module's pages invalidates every address taken from it; \
-                          the owner is dropped only with the last handle to the class table, which \
-                          every unit, error class and running frame of this code holds"
+                          the owner is dropped either by a builder that never handed out an \
+                          address, or with the last handle to the class table, which every unit, \
+                          error class and running frame of this code holds"
             )]
-            // SAFETY: this owner lives inside the unit's `ClassTable`, which
-            // the `Unit` and every `ErrorClass` handed to a context share. A
-            // frame of this code runs only while its `Unit` is held, and a
-            // method row is reached only through the table, so no frame is
-            // executing and no address is called once the last handle drops.
+            // SAFETY: this owner is held by one of two things. Inside a
+            // `UnitBuilder` that never reached `finish`, no function of the
+            // unit was ever called and no address was taken from it, so nothing
+            // can reach the pages. Inside the unit's `ClassTable`, the `Unit`
+            // and every `ErrorClass` handed to a context share it. A frame of
+            // this code runs only while its `Unit` is held, and a method row is
+            // reached only through the table, so no frame is executing and no
+            // address is called once the last handle drops.
             unsafe {
                 module.free_memory();
             }
@@ -1496,13 +1532,13 @@ impl Descriptors {
 /// The compilation unit under construction: whichever [`Module`] will finalize
 /// it, plus the tables every emitted function shares.
 ///
-/// `M` is a [`JITModule`] for [`compile`] and an [`ObjectModule`] for
-/// [`compile_object`], and the whole of the difference between the two products
+/// `M` is a [`JITModule`] inside its [`JitPages`] for [`compile`] and an
+/// [`ObjectModule`] for [`compile_object`] ([`Backend`]), and the whole of the difference between the two products
 /// is in that one parameter — [`Self::compile_all`], [`Self::compile_function`]
 /// and all of `emit.rs` are the same code either way, which is the standing
 /// decision that an object backend is a second `Module` and never a second
 /// lowering. What each backend *finishes* with is its own: only
-/// `UnitBuilder<JITModule>` has a `finish`, because only a JIT has an address
+/// `UnitBuilder<JitPages>` has a `finish`, because only a JIT has an address
 /// to hand back.
 struct UnitBuilder<M> {
     module: M,
@@ -2501,7 +2537,7 @@ fn host_isa(is_pic: bool, level: OptLevel) -> Result<codegen::isa::OwnedTargetIs
         .map_err(|e| CodegenError::UnsupportedHost(e.to_string()))
 }
 
-impl UnitBuilder<JITModule> {
+impl UnitBuilder<JitPages> {
     /// The in-process backend: code compiled into pages this process owns, with
     /// every symbol it names resolved to an address before it is ever called.
     fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
@@ -2543,7 +2579,12 @@ impl UnitBuilder<JITModule> {
                 .map(|address| std::ptr::with_exposed_provenance(*address))
         }));
 
-        Ok(Self::around(JITModule::new(builder), desc_symbols, disasm))
+        // The pages are owned from here on, so a compile that stops early frees them.
+        Ok(Self::around(
+            JitPages::new(JITModule::new(builder)),
+            desc_symbols,
+            disasm,
+        ))
     }
 }
 
@@ -2589,17 +2630,17 @@ impl UnitBuilder<ObjectModule> {
     }
 }
 
-impl<M: Module> UnitBuilder<M> {
+impl<M: Backend> UnitBuilder<M> {
     /// The tables every backend shares, around a module only that backend's
     /// own constructor knows how to build.
     fn around(
-        module: M,
+        mut module: M,
         desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
         disasm: Option<String>,
     ) -> Self {
-        let sigs = Signatures::new(&module);
+        let sigs = Signatures::new(module.module());
         Self {
-            ctx: module.make_context(),
+            ctx: module.module().make_context(),
             fn_ctx: FunctionBuilderContext::new(),
             module,
             sigs,
@@ -2667,6 +2708,7 @@ impl<M: Module> UnitBuilder<M> {
             let symbol = function_symbol(index, &function.name);
             let id = self
                 .module
+                .module()
                 .declare_function(&symbol, Linkage::Local, &self.sigs.helper)
                 .map_err(|source| CodegenError::Cranelift {
                     function: function.name.clone(),
@@ -2758,7 +2800,7 @@ impl<M: Module> UnitBuilder<M> {
         // with the rest of the context.
         self.ctx.set_disasm(self.disasm.is_some());
         let result = emit::emit_function(
-            &mut self.module,
+            self.module.module(),
             &mut self.ctx,
             &mut self.fn_ctx,
             emit::UnitTables {
@@ -2775,19 +2817,20 @@ impl<M: Module> UnitBuilder<M> {
             function,
         );
         if let Err(error) = result {
-            self.module.clear_context(&mut self.ctx);
+            self.module.module().clear_context(&mut self.ctx);
             return Err(error);
         }
 
         self.collect_clif(&function.name);
         self.module
+            .module()
             .define_function(id, &mut self.ctx)
             .map_err(|source| CodegenError::Cranelift {
                 function: function.name.clone(),
                 source: Box::new(source),
             })?;
         self.collect_disasm(&function.name);
-        self.module.clear_context(&mut self.ctx);
+        self.module.module().clear_context(&mut self.ctx);
         self.entries.push((function.name.clone(), id));
         Ok(())
     }
@@ -2823,7 +2866,8 @@ impl<M: Module> UnitBuilder<M> {
                 continue;
             }
             let id = cranelift_module::FuncId::from_u32(target.index);
-            let decl = self.module.declarations().get_function_decl(id);
+            let module = self.module.module();
+            let decl = module.declarations().get_function_decl(id);
             buffer.push_str(";; ");
             buffer.push_str(&fref.to_string());
             buffer.push_str(" = ");
@@ -2862,7 +2906,7 @@ impl<M: Module> UnitBuilder<M> {
     }
 }
 
-impl UnitBuilder<JITModule> {
+impl UnitBuilder<JitPages> {
     /// Finalizes the unit into callable code — the JIT's own ending, and the
     /// reason it is not on the shared impl: `finalize_definitions` resolves
     /// every relocation against an address in *this* process, which is exactly
@@ -2874,6 +2918,7 @@ impl UnitBuilder<JITModule> {
     /// is where it is stated.
     fn finish(mut self) -> Result<Unit, CodegenError> {
         self.module
+            .module()
             .finalize_definitions()
             .map_err(|source| CodegenError::Cranelift {
                 function: "<unit>".to_owned(),
@@ -2883,13 +2928,17 @@ impl UnitBuilder<JITModule> {
         let entries = self
             .entries
             .iter()
-            .map(|(name, id)| (name.clone(), self.module.get_finalized_function(*id)))
+            .map(|(name, id)| {
+                (
+                    name.clone(),
+                    self.module.module().get_finalized_function(*id),
+                )
+            })
             .collect();
         // The stop-site table lives as long as the pages whose code reads it.
-        self.classes.table.keep_code(Arc::new((
-            JitPages::new(self.module),
-            self.debug_sites.clone(),
-        )));
+        self.classes
+            .table
+            .keep_code(Arc::new((self.module, self.debug_sites.clone())));
         Ok(Unit {
             classes: std::sync::Arc::new(self.classes.table),
             entries,
@@ -2928,7 +2977,7 @@ impl UnitBuilder<JITModule> {
                         let shape = self.shapes.get(&label).cloned().unwrap_or_default();
                         Some(nvs_runtime::MethodRow {
                             name: method.clone(),
-                            code: self.module.get_finalized_function(*id),
+                            code: self.module.module().get_finalized_function(*id),
                             arity: shape.arity,
                             param_tags: shape.param_tags,
                             // The AOT binder's join exactly, off the same roster.
@@ -2960,7 +3009,7 @@ impl UnitBuilder<JITModule> {
                     Some(nvs_runtime::HookRow {
                         property: property.clone(),
                         set: *set,
-                        code: self.module.get_finalized_function(*id),
+                        code: self.module.module().get_finalized_function(*id),
                     })
                 })
                 .collect();
@@ -3469,7 +3518,7 @@ echo Holder::take(\"a\");
 
     /// Compiles `source` and hands back the JIT with its tables intact —
     /// stopping short of [`UnitBuilder::finish`], which consumes them.
-    fn compiled(source: &str) -> UnitBuilder<JITModule> {
+    fn compiled(source: &str) -> UnitBuilder<JitPages> {
         let program = lower(source);
         let mut jit = UnitBuilder::new(None).expect("this host has a Cranelift backend");
         jit.compile_all(&program).expect("the fixture compiles");
@@ -3486,13 +3535,15 @@ echo Holder::take(\"a\");
     /// promise that comes with it: under `JITModule` the record resolves to
     /// the very address the table holds, so nothing on the hot path pays for
     /// the indirection.
-    fn assert_relocated(jit: &UnitBuilder<JITModule>, label: &str) {
+    fn assert_relocated(jit: &mut UnitBuilder<JitPages>, label: &str) {
         let name = class_desc_symbol(label);
-        let Some(FuncOrDataId::Data(id)) = jit.module.declarations().get_name(&name) else {
+        let module = jit.module.module();
+        let declarations = module.declarations();
+        let Some(FuncOrDataId::Data(id)) = declarations.get_name(&name) else {
             panic!("no code relocated against `{name}`, so `{label}`'s address was baked in");
         };
         assert_eq!(
-            jit.module.declarations().get_data_decl(id).linkage,
+            declarations.get_data_decl(id).linkage,
             Linkage::Import,
             "`{name}` is defined by this unit, so its uses carry no relocation"
         );
@@ -3548,7 +3599,7 @@ echo Holder::take(\"a\");
 
     #[test]
     fn a_class_descriptor_address_is_a_relocation_not_an_immediate() {
-        let jit = compiled(
+        let mut jit = compiled(
             "<?nvs
 class Point {
     public int $x = 1;
@@ -3558,7 +3609,7 @@ var $p = new Point();
 echo $p->x;
 ",
         );
-        assert_relocated(&jit, "Point");
+        assert_relocated(&mut jit, "Point");
     }
 
     #[test]
@@ -3566,7 +3617,7 @@ echo $p->x;
         // `Circle` is never constructed here, so the class test is the only
         // lowering that could have asked for its descriptor: the import below
         // is that site's relocation and no other's.
-        let jit = compiled(
+        let mut jit = compiled(
             "<?nvs
 class Shape {
     public int $sides = 0;
@@ -3579,7 +3630,7 @@ var $s = new Shape();
 if ($s is Circle) { echo \"circle\"; }
 ",
         );
-        assert_relocated(&jit, "Circle");
+        assert_relocated(&mut jit, "Circle");
     }
 
     /// The programs both backends are asked for, one per lowering family a
@@ -3715,7 +3766,7 @@ echo $total;
                 .expect("the object module emits the fixture");
 
             assert_eq!(
-                declared(&jit.module),
+                declared(jit.module.module()),
                 declared(&object.module),
                 "the two modules were handed different declarations for {what}, so one walk \
                  has become two"
