@@ -70,6 +70,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   rules: () => import("./cmd/rules.ts"),
   scaling: () => import("./cmd/scaling.ts"),
   select: () => import("./cmd/select.ts"),
+  "serve-mem": () => import("./cmd/serve-mem.ts"),
   selftest: () => import("./cmd/selftest.ts"),
   side: () => import("./cmd/side.ts"),
   site: () => import("./cmd/site.ts"),
