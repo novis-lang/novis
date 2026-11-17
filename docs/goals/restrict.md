@@ -464,7 +464,7 @@ writes the reference section, `about.md`, `details.md` and the website page, and
   `read_erased_property_owned` and `write_erased_property` check it through
   `nvs_runtime::source::restricted`. With no table nothing is emitted. Add attack
   `08-call-through-mixed` below, and one `.nvst` case beside the two `reflective-act` cases.
-- [ ] `docs/reference/tools/35-packages.md:113`: a `#` section *Restrictions: where a class or method
+- [x] `docs/reference/tools/35-packages.md:113`: a `#` section *Restrictions: where a class or method
   may be used* after *The rules for a package's files*, which makes the feature and its help (`nvs
   agent find restrict` reaches it). The `[[restrict]]` keys join the `package.toml` key list at
   `:125`, the page's `keywords` gain `[[restrict]]`, `restrict`, `allow`, `E0664`, `E0665`, `E0666`,
@@ -503,20 +503,21 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Stages 1 to 3 are done and their checks green; `nvs-types` `restrict.rs` holds the check. A call
-through a `mixed` receiver is not held yet: stage 6's first item, a security gap stage 7 needs.
+Stages 1 to 3 are done and their checks green; `nvs-types` `restrict.rs` holds the check.
 
-Stage 4 is done; `editor` is green. The language server reads `[[restrict]]` in
-`crates/nvs-lsp/src/document.rs` `analyse_through`; hover, completion, `relatedInformation` and
-the `**/package.toml` watcher sit in `hover.rs`, `completion.rs`, `diagnostics.rs`, `server.rs`.
+Stage 6's first two items are done. A call, property read or write through a `mixed` or `object`
+receiver is held: `restrict::record_acts` lists, per erased site (`ActSite::Erased`), the acts of
+its one kind on restricted members of its one name the place does not allow, and `nvs_ir`
+`Lowering::restricted_erased_act` (`lower/mod.rs`) emits `Helper::RestrictedErasedAct`
+(`nvs_runtime` `helpers.rs` `nvs_restricted_erased_act`) before the access, only where a list was
+recorded. The new case `restrict-a-call-through-mixed-outside-the-allowed-places-throws.nvst` is
+green, run once, and joins the `reflective-act` check. The reference section is
+`docs/reference/tools/35-packages.md` `# Restrictions: where a class or method may be used`; the
+feature exists, and its 13 cases and 22 Rust tests carry `covers:` (at the end of each case's main
+file, so no quoted line number moved). `bun nv proofs --id` now owes `about.md`, an example and an
+attack.
 
-Stage 5 is done; `api-diff` is green, run once. `api.rs` `restrictions` reads the package's
-entries through `nvs_config::package::read` and writes `restrict` (each `use`, sorted `allow`),
-left out when empty so every pinned document keeps its bytes; no schema bump, since an older
-`diff` already calls an unknown differing key a break. `diff.rs` `restrict`: a new entry is
-additive only when an old entry's `use` covers its `use` and its `allow` plus its own
-declaration covers the old one's (`Pattern::covers`, doubt is a break). Fixtures:
-`crates/nvs-cli/tests/fixtures/package-api/restrict/{none,wide,narrow}`.
+Stages 4 (`crates/nvs-lsp`) and 5 (`crates/nvs-cli/src/package` `api.rs`, `diff.rs`) are done.
 
 Sweep reds: `env-secret-proofs` is stale service state (no log, no definition in the tree);
 nightly 43849315979's reds were fixed after it (`2934ebe1ae`, `9efc45b6fd`).
@@ -527,18 +528,19 @@ secondary label in another file, which now renders a `related` line; re-freeze i
 
 ### Next
 
-Stage 6, first the security gap: a call or property access through a `mixed` receiver is held
-(the stage's first item names the runtime entry points, `nvs_runtime::call_erased_method_from`,
-`read_erased_property_owned`, `write_erased_property`). Then the reference section at
-`docs/reference/tools/35-packages.md:113`, `about.md` and `details.md`, and the three writing
-subagents the stage's **Split:** names. The new `package_api` tests gain their `covers:` line
-with the feature id.
+Stage 6's rest: `about.md` and `details.md` in
+`docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/`, then the three
+writing subagents the stage's **Split:** names (examples, attacks with `08-call-through-mixed`,
+bench), each told the reference section's path and the error text (`restrict.rs` `refusal`,
+`allowed_text`, `source_text`). Then the website section in `modules.mdx:43`, and the
+`feature-proofs` check once. The pages name the rule's file and line without quoting a path,
+because the CLI still prints the absolute path (see *Backlog*).
 
 ### Backlog
 
-- The erased-call gap above is stage 6's first item. `nvs_runtime::dispatch::call_erased_method`
-  gets no site today, so the erased lowering needs a trailing constant for it, only where the
-  checker recorded a list (`ExprTypeTable::restricted_acts`).
+- A keyed access, `$object->$key` (`ExprInfo::KeyedProperty`, `InstKind::KeyGet`), names its
+  member only at run time and is not held. It needs every property act the place does not allow
+  in its list, and the check after the key is lowered. Stage 7 or a follow-up; the rule says so.
 - `held_acts` lists an inherited member under the class that inherits it, held by the entries on
   its declaring class, as the static check holds a use. An entry on a subclass does not hold an
   inherited member's reflective act, matching `$child->inherited()` statically.
