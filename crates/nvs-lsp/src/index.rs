@@ -1512,6 +1512,11 @@ pub(crate) struct Analysis {
 /// `indexed` does not name. It reads the store only through `reads`, and
 /// keeps its parses and checked outputs in `session`.
 ///
+/// It checks the bodies of the entry and of the files it will build a record
+/// of, and no others: a file `indexed` names was checked by the analysis that
+/// indexed it ([`analyse_through`]). So a cold settle checks each file once
+/// however many entries read it.
+///
 /// Each path the graph loaded is a `canonical_key` already, because the walk
 /// resolves every file it loads, so only the entry is resolved, by the caller.
 pub(crate) fn analyse_entry(
@@ -1524,7 +1529,7 @@ pub(crate) fn analyse_entry(
 ) -> Option<(Analysed, Analysis)> {
     let before = nvs_diagnostics::work::so_far();
     let started = SystemTime::now();
-    let analysed = analyse_through(reads, session, trees, entry, version, None)?;
+    let analysed = analyse_through(reads, session, trees, entry, version, None, &indexed)?;
     let open = reads.open_keys();
     // The entry was loaded by the path the caller gave, and every other file
     // by the key the walk resolved.

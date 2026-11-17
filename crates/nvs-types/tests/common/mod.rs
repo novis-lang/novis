@@ -518,6 +518,7 @@ impl Program {
                     None,
                     &[],
                     &bodies,
+                    &rustc_hash::FxHashSet::default(),
                     cache,
                     interner,
                     &mut exprs,

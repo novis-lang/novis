@@ -968,10 +968,30 @@ impl Analysed {
 /// paid for having one tree instead of a `rowan`-shaped second one.
 /// `tests/latency.rs` names the bound a ~1,000-line document's analysis stays
 /// under, what it was measured on, and what to do first if it ever goes red.
+///
+/// The bodies of the document alone are checked. Every other file of the
+/// graph is taken from the session where its checked output is current, and
+/// is left out where it is not: the index's analyses check it. So a keystroke
+/// checks one file's bodies, and the result has the expressions, diagnostics
+/// and rows of the document and of every file whose output is current.
 #[must_use]
 pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let document = documents.get(uri)?;
-    analyse_file(documents, document.path()?, document.version)
+    let path = document.path()?;
+    let (mut session, mut trees) = documents.caches();
+    let entry = Entry {
+        path,
+        key: &canonical_key(path),
+    };
+    analyse_through(
+        documents,
+        &mut session,
+        &mut trees,
+        entry,
+        document.version,
+        None,
+        &|_| true,
+    )
 }
 
 /// [`analyse`], for a file that need not be open.
@@ -1028,6 +1048,7 @@ fn analyse_over(
         entry,
         version,
         entry_text,
+        &|_| false,
     )
 }
 
@@ -1043,6 +1064,13 @@ pub(crate) struct Entry<'a> {
 
 /// The walk itself, reading the open buffers and the lenders through `reads`
 /// and keeping its parses and checked outputs in `session`.
+///
+/// `absent` names, by `canonical_key`, the files whose bodies another
+/// analysis checks. Such a file other than the entry is not checked here. Its
+/// checked output is used where it is current, and otherwise the file is left
+/// out of the result's expressions, diagnostics and rows, and no key is
+/// stored for it, so the next analysis that needs it checks it
+/// (`crate::session`).
 pub(crate) fn analyse_through(
     reads: &impl Reads,
     session: &mut Session,
@@ -1050,6 +1078,7 @@ pub(crate) fn analyse_through(
     entry_at: Entry<'_>,
     version: i32,
     entry_text: Option<String>,
+    absent: &dyn Fn(&Path) -> bool,
 ) -> Option<Analysed> {
     let Entry { path, key } = entry_at;
     let before = nvs_diagnostics::work::so_far();
@@ -1204,6 +1233,12 @@ pub(crate) fn analyse_through(
                 })
                 .collect::<Vec<_>>(),
         );
+        let left_out: rustc_hash::FxHashSet<SourceId> = files
+            .iter()
+            .map(|file| file.src)
+            .filter(|src| src.id() != entry && src.path().is_some_and(absent))
+            .map(|src| src.id())
+            .collect();
         let walked = session.checks.walked();
         // The enum table is dropped and the expression table is not: nothing
         // here lowers, so a case's constant value has no reader, while what
@@ -1223,13 +1258,14 @@ pub(crate) fn analyse_through(
             Some(&packages),
             &extensions.manifests,
             &keys.bodies,
+            &left_out,
             checks,
             interner,
             &mut exprs,
             &mut diags,
         );
         work.checked = session.checks.walked() - walked;
-        session.store(keys);
+        session.store(keys, &left_out);
         deprecated = nvs_types::deprecated::notices(&files);
     }
     let interner = session.shared_interner();

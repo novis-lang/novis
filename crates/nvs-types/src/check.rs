@@ -188,6 +188,13 @@ pub fn check_program_loaded(
 /// where `cache` has no output for it, or where the count of anonymous
 /// functions before it moved.
 ///
+/// A file in `absent` is never walked. Its cached output is folded where a
+/// file outside `bodies` would take it, and otherwise the file is left out of
+/// the fold: its expressions, diagnostics and rows are missing from the
+/// result. It still counts the anonymous functions its last cached output
+/// counted, so the files after it start where a whole check starts them. The
+/// language server puts here the files another analysis checks.
+///
 /// Every file walked is stored in `cache`, before any pass after the walk
 /// runs. `cache` keeps the output of a file that is not in `files`, and the
 /// caller removes it.
@@ -213,6 +220,7 @@ pub fn check_program_partial(
     packages: Option<&crate::package::Packages>,
     extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
     bodies: &FxHashSet<nvs_diagnostics::SourceId>,
+    absent: &FxHashSet<nvs_diagnostics::SourceId>,
     cache: &mut crate::CheckCache,
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
@@ -227,7 +235,7 @@ pub fn check_program_partial(
         packages,
         extensions,
     };
-    check_files(&inputs, Some((bodies, cache)), interner, exprs, diags)
+    check_files(&inputs, Some((bodies, absent, cache)), interner, exprs, diags)
 }
 
 /// The inputs [`check_program_loaded`] and [`check_program_partial`] share,
@@ -248,6 +256,7 @@ struct Inputs<'i, 'f> {
 fn check_files(
     inputs: &Inputs<'_, '_>,
     mut partial: Option<(
+        &FxHashSet<nvs_diagnostics::SourceId>,
         &FxHashSet<nvs_diagnostics::SourceId>,
         &mut crate::CheckCache,
     )>,
@@ -366,7 +375,7 @@ fn check_files(
         let id = file.src.id();
         // A file outside the body set takes its cached output where the
         // output starts at the same anonymous-function count.
-        let cached = partial.as_ref().and_then(|(bodies, cache)| {
+        let cached = partial.as_ref().and_then(|(bodies, _, cache)| {
             (!bodies.contains(&id))
                 .then(|| cache.outputs.get(&id))
                 .flatten()
@@ -375,13 +384,25 @@ fn check_files(
         });
         let output = match cached {
             Some(output) => output,
+            None if partial
+                .as_ref()
+                .is_some_and(|(_, absent, _)| absent.contains(&id)) =>
+            {
+                // Left out of the fold. It counts the anonymous functions it
+                // had the last time it was walked, and none if it never was.
+                anon_fn_seq += partial
+                    .as_ref()
+                    .and_then(|(_, _, cache)| cache.outputs.get(&id))
+                    .map_or(0, |output| output.end_seq - output.start_seq);
+                continue;
+            }
             None => {
                 let mut output = crate::FileOutput::empty(anon_fn_seq, exprs.part());
                 let mut file_diags = Diagnostics::new();
                 let end_seq = walk_file(file, &shared, &mut output, interner, &mut file_diags);
                 output.end_seq = end_seq;
                 output.diags = file_diags.take();
-                if let Some((_, cache)) = partial.as_mut() {
+                if let Some((_, _, cache)) = partial.as_mut() {
                     cache.walked += 1;
                     cache.outputs.insert(id, output.clone());
                 }

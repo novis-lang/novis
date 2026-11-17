@@ -4,8 +4,8 @@
 //!
 //! [`Session`] lives in the document store for as long as the server runs, and
 //! every analysis borrows it. A keystroke then parses the file it changed and
-//! checks the bodies of the files whose inputs changed. Every other file is
-//! taken from the session.
+//! checks the bodies of that file alone. Every other file is taken from the
+//! session, or checked by the index's analysis that owns it.
 //!
 //! # Decision: a checked output is valid for one key
 //!
@@ -16,16 +16,27 @@
 //! declaration surface (`crate::surface`) of every file of the graph, in the
 //! order the graph has them. A body-only edit keeps every surface, so it
 //! checks the edited file's bodies alone. A surface edit, a file added to the
-//! graph or a file that left it checks every file. A finer key, the surfaces
+//! graph or a file that left it moves every file's key, and the settle after
+//! it checks each file once. A finer key, the surfaces
 //! a body actually reads, is not built: a surface edit is much rarer than a
 //! body edit, and one combined hash is simpler to trust. The count of
 //! anonymous functions before a file is the one input `nvs_types` checks
 //! itself.
 //!
-//! Two entries whose graphs differ have different graph keys, so an analysis
-//! of one entry after the other checks every file of its graph again. A
-//! keystroke analyses the open document again, and its graph's key is the one
-//! it stored.
+//! Two entries whose graphs differ have different graph keys. So an analysis
+//! checks only the bodies of the files it will own: the index's analysis of
+//! an entry leaves out every file another entry indexed, and an open
+//! document's analysis leaves out every file but the document
+//! (`crate::document::analyse_through`). A file left out whose key moved is
+//! not checked and keeps the key it had, so the next analysis that owns it
+//! checks it. A cold settle therefore checks each file once, whatever the
+//! number of entries that read it, and a keystroke checks the document's
+//! bodies alone.
+//!
+//! A file left out without a current output is missing from the analysis's
+//! expressions, diagnostics and rows. The open document's diagnostics that
+//! compare the rows of several files, such as two routes on one path, see
+//! only the files whose output is current. `nvs check` reports them whole.
 //!
 //! # Decision: one interner, shared and copied on write
 //!
@@ -144,9 +155,14 @@ impl Session {
     }
 
     /// Stores the keys of a check that ran, so the next check of the same
-    /// inputs takes every output.
-    pub(crate) fn store(&mut self, keys: Keys) {
-        self.keys.extend(keys.keys);
+    /// inputs takes every output. A file in `left_out` whose key moved was
+    /// not checked, so its key is not stored.
+    pub(crate) fn store(&mut self, keys: Keys, left_out: &FxHashSet<SourceId>) {
+        let Keys { keys, bodies } = keys;
+        self.keys.extend(
+            keys.into_iter()
+                .filter(|(id, _)| !(bodies.contains(id) && left_out.contains(id))),
+        );
     }
 
     /// Frees the parse and the checked output of every file `keep` says has
