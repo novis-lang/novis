@@ -132,8 +132,31 @@ impl ThreadClock {
     /// core is not one a CPU ceiling can be enforced on.
     #[must_use]
     pub fn burned(&self) -> Option<Duration> {
+        #[cfg(debug_assertions)]
+        READS.with(|reads| reads.set(reads.get().wrapping_add(1)));
         burned(self.0)
     }
+}
+
+#[cfg(debug_assertions)]
+thread_local! {
+    /// How many times this thread has read a [`ThreadClock`], any thread's.
+    /// Const-initialized and holding no `Drop` type, so it never allocates.
+    static READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times the calling thread has read a [`ThreadClock`], counted from
+/// the thread's start and never decreasing.
+///
+/// A serving core reads its own clock at each switch between request trees,
+/// so the difference over a span of requests is the readings those requests
+/// cost. `nvs-cli`'s served-request tests hold that count. Debug builds only,
+/// as `nvs_diagnostics::shared`'s counter is: an optimized build has no
+/// counter and pays nothing for one.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn reads_on_this_thread() -> u64 {
+    READS.with(std::cell::Cell::get)
 }
 
 /// Spin on the calling thread until its own clock has charged it `at_least`

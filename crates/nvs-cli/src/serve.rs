@@ -5598,17 +5598,21 @@ mod tests {
     /// `serve_on_worker` builds it, so a unit `compiler` already holds fills
     /// the slot then. `between` runs on the client after the response to each
     /// request and before the next one is sent, with the request's number,
-    /// counted from 1. Answers the count read as each request arrived, and the
-    /// body of each response.
+    /// counted from 1. Answers the [`Reading`] taken as each request arrived,
+    /// and the body of each response.
+    ///
+    /// `way` says what each request sends and how the core runs it:
+    /// [`Way::BARE`] is a `GET` to an isolate nothing watches, and
+    /// [`Way::served`] is what `nvs serve`'s own handler does, with a body if
+    /// one is given.
     #[cfg(debug_assertions)]
     fn one_connection_through_the_slot(
         entry: &std::path::Path,
         compiler: &Arc<Compiler>,
         asked: usize,
+        way: Way,
         mut between: impl FnMut(usize) + Send + 'static,
-    ) -> (Vec<nvs_diagnostics::shared::Shared>, Vec<String>) {
-        use nvs_diagnostics::shared::Shared;
-
+    ) -> (Vec<Reading>, Vec<String>) {
         let mut listener =
             nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
         let addr = listener
@@ -5630,10 +5634,20 @@ mod tests {
                 } else {
                     ""
                 };
-                socket
-                    .write_all(
-                        format!("GET / HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n").as_bytes(),
+                let sent = if way.body.is_empty() {
+                    format!("GET / HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n")
+                } else {
+                    // The head and the body in one write, so the body has
+                    // arrived by the time the head is read.
+                    format!(
+                        "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\n\
+                         Content-Length: {}\r\n{closing}\r\n{}",
+                        way.body.len(),
+                        way.body
                     )
+                };
+                socket
+                    .write_all(sent.as_bytes())
                     .expect("a request could not be written");
                 let head = head_from(&mut socket);
                 assert!(
@@ -5704,32 +5718,65 @@ mod tests {
         let mut sched = nvs_host::Scheduler::new();
         let installed =
             nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        // The process's watchdog in `nvs serve`, with a margin no test reaches.
+        let watchdog = nvs_host::Watchdog::with(
+            Duration::from_secs(3600),
+            Duration::from_secs(3600),
+            |_stall| {},
+        );
+        let watched = way.served.then(|| {
+            Rc::new(
+                nvs_host::cpus()
+                    .first()
+                    .copied()
+                    .zip(nvs_host::reactor::with_current(|reactor| {
+                        reactor.deadline_view()
+                    }))
+                    .map_or_else(
+                        || watchdog.register_requests(),
+                        |(cpu, view)| watchdog.register(cpu, view),
+                    ),
+            )
+        });
         // Sized for every reading up front.
-        let readings = Rc::new(std::cell::RefCell::new(Vec::<Shared>::with_capacity(asked)));
+        let readings = Rc::new(std::cell::RefCell::new(Vec::<Reading>::with_capacity(asked)));
         let handler = Rc::new({
             let compiler = Arc::clone(compiler);
             let readings = Rc::clone(&readings);
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   _origin: nvs_server::Origin,
                   record: &nvs_server::Record| {
-                readings.borrow_mut().push(Shared::now());
+                readings.borrow_mut().push(Reading::now());
                 let table = tables.table(record.generation(), record.published());
                 let mount = &table.mounts()[0];
                 let chosen =
                     super::entry_for(&tables, &table, &compiler, mount, &mount.entry, record);
-                let _config = chosen.config();
+                let config = chosen.config();
                 let program = match &chosen.unit {
                     Ok(unit) => unit.program(),
                     Err(message) => super::failing(message.clone()),
                 };
-                let inbound = Inbound::new(request.method().as_str(), request.uri().path(), "");
-                nvs_server::Reply::Run(
-                    Isolate::new(program, Value::null(), Output::Capture)
-                        .answering(inbound)
-                        .in_folder(Arc::clone(&chosen.folder)),
-                    None,
-                    None,
-                )
+                let (head, incoming) = request.into_parts();
+                let mut inbound = Inbound::new(head.method.as_str(), head.uri.path(), "");
+                let supply = match nvs_server::body::of(&head.headers, incoming, u64::MAX) {
+                    nvs_server::body::Arrived::Streaming(supply, pull) => {
+                        inbound.set_body(pull);
+                        Some(supply)
+                    }
+                    _ => None,
+                };
+                drop(head);
+                let isolate = Isolate::new(program, Value::null(), Output::Capture)
+                    .answering(inbound)
+                    .in_folder(Arc::clone(&chosen.folder));
+                match &watched {
+                    Some(watched) => nvs_server::Reply::Run(
+                        isolate.watched_by(Rc::clone(watched)),
+                        supply,
+                        config,
+                    ),
+                    None => nvs_server::Reply::Run(isolate, supply, None),
+                }
             }
         });
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
@@ -5775,14 +5822,161 @@ mod tests {
         said: &str,
         compiler: &Compiler,
     ) -> (nvs_repo::Scratch, PathBuf) {
+        a_compiled_program(name, &format!("<?nvs\necho \"{said}\";\n"), compiler)
+    }
+
+    /// A scratch entry file of `source`, in a folder named `name`, compiled
+    /// once into `compiler`. The folder is deleted when the
+    /// [`nvs_repo::Scratch`] is dropped.
+    #[cfg(debug_assertions)]
+    fn a_compiled_program(
+        name: &str,
+        source: &str,
+        compiler: &Compiler,
+    ) -> (nvs_repo::Scratch, PathBuf) {
         let dir = nvs_repo::scratch(name);
         let entry = dir.join("entry.nvs");
-        std::fs::write(&entry, format!("<?nvs\necho \"{said}\";\n"))
-            .expect("the entry is writable");
+        std::fs::write(&entry, source).expect("the entry is writable");
         compiler
             .unit(&entry.to_string_lossy())
             .expect("the entry compiles");
         (dir, entry)
+    }
+
+    /// What each request of [`one_connection_through_the_slot`] sends, and
+    /// how the core runs it.
+    #[cfg(debug_assertions)]
+    #[derive(Clone, Copy)]
+    struct Way {
+        /// The request's body, sent with its head in one write; empty for a
+        /// `GET` with no body.
+        body: &'static str,
+        /// Whether the core runs the request as `nvs serve`'s handler does:
+        /// registered with a watchdog, the isolate watched by it, and the
+        /// entry's configuration handed to the request.
+        served: bool,
+    }
+
+    #[cfg(debug_assertions)]
+    impl Way {
+        /// A `GET` to an isolate nothing watches.
+        const BARE: Self = Self {
+            body: "",
+            served: false,
+        };
+
+        /// A request run as `nvs serve` runs it, carrying `body`.
+        const fn served(body: &'static str) -> Self {
+            Self { body, served: true }
+        }
+    }
+
+    /// The serving thread's counters, read as a request reaches the handler.
+    #[cfg(debug_assertions)]
+    #[derive(Clone, Copy)]
+    struct Reading {
+        /// The writes to cache lines every core shares.
+        shared: nvs_diagnostics::shared::Shared,
+        /// The allocations this thread has made.
+        allocations: usize,
+        /// The readings of a CPU clock this thread has made.
+        clock_reads: u64,
+    }
+
+    #[cfg(debug_assertions)]
+    impl Reading {
+        fn now() -> Self {
+            Self {
+                shared: nvs_diagnostics::shared::Shared::now(),
+                allocations: nvs_runtime::budget::allocations(),
+                clock_reads: nvs_host::cpuclock::reads_on_this_thread(),
+            }
+        }
+    }
+
+    /// The `hello` case of `benches/compare/cases/hello/main.nvs`.
+    #[cfg(debug_assertions)]
+    const HELLO: &str = "<?nvs\necho \"hello, world\\n\";\n";
+
+    /// How many requests warm the connection before [`HELLO_COUNTED`] are
+    /// counted.
+    #[cfg(debug_assertions)]
+    const HELLO_WARM: usize = 50;
+
+    /// How many `hello` requests the allocation count is taken over.
+    #[cfg(debug_assertions)]
+    const HELLO_COUNTED: usize = 200;
+
+    /// How many allocations one served `hello` request makes on its core, in
+    /// a debug build: the request's head, its isolate and its answer. A change
+    /// that removes an allocation lowers it here.
+    #[cfg(debug_assertions)]
+    const HELLO_ALLOCATIONS: usize = 30;
+
+    /// How many times a served request with a body reads its core's CPU
+    /// clock, in a debug build, when the body is sent in the same write as
+    /// its head.
+    #[cfg(debug_assertions)]
+    const BODY_CLOCK_READS: u64 = 1;
+
+    /// One `hello` request, served on one keep-alive connection as `nvs serve`
+    /// serves it, makes [`HELLO_ALLOCATIONS`] allocations on its core.
+    ///
+    /// [`HELLO_WARM`] requests go first, so a buffer that grows once is not
+    /// counted. The count over the next [`HELLO_COUNTED`] is exactly that many
+    /// times the constant, so nothing in it grows with the requests served.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_served_request_allocates_its_recorded_count() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_program("serve-hello-allocations", HELLO, &compiler);
+        let asked = HELLO_WARM + HELLO_COUNTED + 1;
+        let (readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, asked, Way::served(""), |_| {});
+        assert!(
+            bodies.iter().all(|body| body == "hello, world\n"),
+            "{:?}",
+            bodies.first()
+        );
+        let over = readings[HELLO_WARM + HELLO_COUNTED].allocations
+            - readings[HELLO_WARM].allocations;
+        println!(
+            "allocations per served hello request: {} (and {} over)",
+            over / HELLO_COUNTED,
+            over % HELLO_COUNTED
+        );
+        assert_eq!(
+            over,
+            HELLO_ALLOCATIONS * HELLO_COUNTED,
+            "{HELLO_COUNTED} served hello requests made {over} allocations, and each is held to \
+             {HELLO_ALLOCATIONS}"
+        );
+    }
+
+    /// A served request whose body arrived with its head reads its core's CPU
+    /// clock [`BODY_CLOCK_READS`] times.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_request_with_a_body_reads_the_core_clock_once() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_program(
+            "serve-body-clock",
+            "<?nvs\necho Core\\Str::length(Core\\Request::body());\n",
+            &compiler,
+        );
+        let way = Way::served("a body that arrived with its head");
+        let (readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, 2 + 20 + 1, way, |_| {});
+        let length = way.body.len().to_string();
+        assert!(bodies.iter().all(|body| *body == length), "{bodies:?}");
+        let over = readings[2 + 20].clock_reads - readings[2].clock_reads;
+        println!("core clock readings per request with a body: {over} over 20");
+        assert_eq!(
+            over,
+            BODY_CLOCK_READS * 20,
+            "20 requests with a body read the core's clock {over} times, and each is held to \
+             {BODY_CLOCK_READS}"
+        );
     }
 
     /// The writes one keep-alive request makes to cache lines every core
@@ -5801,10 +5995,11 @@ mod tests {
         let compiler = Arc::new(Compiler::default());
         let (_dir, entry) = a_compiled_entry("serve-shared-writes", "counted", &compiler);
         let asked = 2 + SHARED_FIRST + SHARED_SECOND + 1;
-        let (readings, _bodies) = one_connection_through_the_slot(&entry, &compiler, asked, |_| {});
-        let warm = readings[2];
-        let first = readings[2 + SHARED_FIRST];
-        let second = readings[2 + SHARED_FIRST + SHARED_SECOND];
+        let (readings, _bodies) =
+            one_connection_through_the_slot(&entry, &compiler, asked, Way::BARE, |_| {});
+        let warm = readings[2].shared;
+        let first = readings[2 + SHARED_FIRST].shared;
+        let second = readings[2 + SHARED_FIRST + SHARED_SECOND].shared;
         let over_first = first.since(warm);
         let over_second = second.since(first);
         let per_request = over_first.per(SHARED_FIRST as u64);
@@ -5834,9 +6029,9 @@ mod tests {
         let compiler = Arc::new(Compiler::default());
         let (_dir, entry) = a_compiled_entry("serve-slot-no-lock", "slot", &compiler);
         let (readings, bodies) =
-            one_connection_through_the_slot(&entry, &compiler, 2 + 20 + 1, |_| {});
+            one_connection_through_the_slot(&entry, &compiler, 2 + 20 + 1, Way::BARE, |_| {});
         assert!(bodies.iter().all(|body| body == "slot"), "{bodies:?}");
-        let over = readings[2 + 20].since(readings[2]);
+        let over = readings[2 + 20].shared.since(readings[2].shared);
         for line in [
             Line::CurrentLock,
             Line::PublishLock,
@@ -5872,7 +6067,8 @@ mod tests {
                 compiler.revalidate();
             }
         };
-        let (_readings, bodies) = one_connection_through_the_slot(&entry, &compiler, 2, rewrite);
+        let (_readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, 2, Way::BARE, rewrite);
         assert_eq!(
             bodies,
             ["old", "new"],
