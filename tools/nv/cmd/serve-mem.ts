@@ -3,7 +3,8 @@
 //
 //     bun nv serve-mem [--app html|registry]      the app to serve, `html` by default
 //                      [--fails <n>] [--oks <n>]  write n broken edits, restore, then n good edits, restore
-//                      [--wait <s>]               the pause after each edit before a sample, 6 s by default
+//                      [--panics <n>]             write n edits that make the compiler panic, then restore
+//                      [--wait <s>]             the pause after each edit before a sample, 6 s by default
 //                      [--load <conns>]           keep-alive load from <conns> connections while it edits
 //                      [--edits <n>]              how many edits the load phase writes, 20 by default
 //                      [--every <ms>]             the pause between two edits of the load phase, 1500 ms
@@ -14,10 +15,12 @@
 // ignored folders), starts `target/release/nvs serve` on the copy, and edits one source file the entry
 // uses. The copy is deleted when the command ends, and the tree is never edited.
 //
-// The memory phase runs with `--fails` or `--oks`. After each step it prints the server's private bytes
-// (`PrivateMemorySize64` on Windows, `RssAnon` on Linux), the change since the step before, and
-// `MAPPED_JIT_UNITS` when the server's log prints a `jit_units=<n>` line. A broken edit adds a method
-// that does not compile, and a good edit adds a method that returns a number.
+// The memory phase runs with `--fails`, `--oks` or `--panics`. After each step it prints the server's
+// private bytes (`PrivateMemorySize64` on Windows, `RssAnon` on Linux), the change since the step
+// before, its thread count, and `MAPPED_JIT_UNITS` when the server's log prints a `jit_units=<n>` line.
+// A broken edit adds a method that does not compile, a good edit adds a method that returns a number,
+// and a panic edit adds a static generator that yields a `self::` call, a shape that has made the
+// compiler panic.
 //
 // The load phase runs with `--load`. One raw keep-alive connection sends a request without a pause and
 // reads the version each answer prints, and <conns> more connections send requests beside it. Each
@@ -37,7 +40,7 @@ import { ROOT, rel } from "../lib/paths.ts";
 import { releaseCli } from "../lib/relink.ts";
 
 export const summary =
-  "measure nvs serve's memory per recompile and its answers under edits: nv serve-mem [--app html|registry] [--fails n] [--oks n] [--load conns] [--edits n] [--memory size]";
+  "measure nvs serve's memory per recompile and its answers under edits: nv serve-mem [--app html|registry] [--fails n] [--oks n] [--panics n] [--load conns] [--edits n] [--memory size]";
 
 const WORK = join(ROOT, ".agent-tmp", "serve-mem");
 
@@ -99,6 +102,7 @@ interface Args {
   app: string;
   fails: number;
   oks: number;
+  panics: number;
   wait: number;
   load: number;
   edits: number;
@@ -107,7 +111,7 @@ interface Args {
 }
 
 function parse(args: string[]): Args | string {
-  const out: Args = { app: "html", fails: 0, oks: 0, wait: 6, load: 0, edits: 20, every: 1500, memory: "" };
+  const out: Args = { app: "html", fails: 0, oks: 0, panics: 0, wait: 6, load: 0, edits: 20, every: 1500, memory: "" };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     const key = arg.replace(/^--/, "");
@@ -126,7 +130,9 @@ function parse(args: string[]): Args | string {
       (out as unknown as Record<string, number>)[key] = n;
     }
   }
-  if (out.fails === 0 && out.oks === 0 && out.load === 0) return "nothing to do: give --fails, --oks or --load";
+  if (out.fails === 0 && out.oks === 0 && out.panics === 0 && out.load === 0) {
+    return "nothing to do: give --fails, --oks, --panics or --load";
+  }
   if (out.memory && APPS[out.app]!.config) return "--memory needs an app with no configuration file of its own";
   return out;
 }
@@ -153,6 +159,19 @@ function privateBytes(pid: number): number {
   if (process.platform === "linux") {
     const status = readFileSync(`/proc/${pid}/status`, "utf8");
     return Number(status.match(/RssAnon:\s+(\d+)/)?.[1] ?? NaN) * 1024;
+  }
+  return NaN;
+}
+
+/** The server's thread count, which falls when a thread ends. */
+function threads(pid: number): number {
+  if (process.platform === "win32") {
+    const r = spawnSync("powershell.exe", ["-NoProfile", "-Command", `(Get-Process -Id ${pid}).Threads.Count`], { encoding: "utf8" });
+    return Number(r.stdout.trim());
+  }
+  if (process.platform === "linux") {
+    const status = readFileSync(`/proc/${pid}/status`, "utf8");
+    return Number(status.match(/Threads:\s+(\d+)/)?.[1] ?? NaN);
   }
   return NaN;
 }
@@ -214,7 +233,7 @@ async function memoryPhase(server: Server, app: App, file: string, original: str
   let prev = NaN;
   let n = 0;
   const pid = server.child.pid!;
-  console.log(`step        answer        private MB   change   since start  jit units`);
+  console.log(`step        answer        private MB   change   since start  threads  jit units`);
   const step = async (label: string) => {
     await Bun.sleep(a.wait * 1000);
     const priv = privateBytes(pid);
@@ -223,7 +242,7 @@ async function memoryPhase(server: Server, app: App, file: string, original: str
     const change = Number.isNaN(prev) ? 0 : priv - prev;
     console.log(
       `${label.padEnd(12)}${served.padEnd(14)}${mb(priv).padStart(10)}${(change >= 0 ? "+" : "") + mb(change)}`.padEnd(45) +
-        `${mb(priv - first).padStart(10)}  ${server.jitUnits}`,
+        `${mb(priv - first).padStart(10)}  ${String(threads(pid)).padStart(7)}  ${server.jitUnits}`,
     );
     prev = priv;
   };
@@ -243,6 +262,18 @@ async function memoryPhase(server: Server, app: App, file: string, original: str
     await step(`ok ${i + 1}`);
   }
   if (a.oks > 0) {
+    writeFileSync(file, original);
+    await step("restored");
+  }
+  for (let i = 0; i < a.panics; i++) {
+    n++;
+    const gen = `public static function one${n}(): int { return ${n}; }\n    private static function pages${n}(): Iterator<int> { yield self::one${n}(); }`;
+    // A namespaced file imports `Iterator` before it can name it.
+    const imported = original.replace(/^(namespace [^;]+;)/m, "$1\n\nuse Iterator;");
+    writeFileSync(file, imported.replace(app.cls, `$1\n    ${gen}\n`));
+    await step(`panic ${i + 1}`);
+  }
+  if (a.panics > 0) {
     writeFileSync(file, original);
     await step("restored");
   }
@@ -386,7 +417,7 @@ export async function run(args: string[]): Promise<number> {
       return 1;
     }
     for (let i = 0; i < 20; i++) await server.probe(app.ready);
-    if (a.fails > 0 || a.oks > 0) await memoryPhase(server, app, file, original, a);
+    if (a.fails > 0 || a.oks > 0 || a.panics > 0) await memoryPhase(server, app, file, original, a);
     if (a.load > 0) {
       writeFileSync(file, original);
       if (!(await loadPhase(server, app, file, original, port, a))) code = 1;

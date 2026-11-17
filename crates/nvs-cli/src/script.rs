@@ -51,6 +51,14 @@
 //! one per core (`crate::serve::mounts`), and none is kept per edit or per
 //! request: 30 edits in a row kept 15 units on 16 cores.
 //!
+//! A compile that fails keeps about 22 KB on that app: its message and its
+//! [`Trace`], which the next failure of the path replaces. A compile that
+//! panics keeps the same 22 KB and ends no thread (`--panics 10`, measured
+//! with the compile thread's live-byte counter). The private bytes of 25
+//! panics in a row still rise by about 8 MB more than 25 failures. A panic
+//! stops in the lowering, after the whole front end ran, so its peak is
+//! larger, and the heap keeps the freed pages. No byte stays live.
+//!
 //! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and the shared cache they make
 //!
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
