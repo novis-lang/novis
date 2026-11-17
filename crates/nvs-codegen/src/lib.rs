@@ -276,7 +276,7 @@ mod ty;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use cranelift::prelude::*;
-use cranelift_jit::{JITBuilder, JITModule};
+use cranelift_jit::{JITBuilder, JITMemoryProvider, JITModule, SystemMemoryProvider};
 use cranelift_module::{Linkage, Module, ModuleError};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use memmap2::{Mmap, MmapMut};
@@ -483,13 +483,70 @@ fn extension_classes(program: &Program) -> Box<[String]> {
 /// with an error or a panic, drops the builder and frees whatever pages it had
 /// mapped. Only [`UnitBuilder::finish`] moves this on, into the class table.
 ///
-/// The `Mutex` is never locked. It is there because a `JITModule` is `Send` and
-/// not `Sync`, and the table's owner must be both. The builder and `Drop` reach
-/// the module through `get_mut`, which takes no lock.
+/// **The pages and the module are owned apart.** The module maps its pages
+/// through a [`SharedPages`] provider, and this holds the provider too. Once
+/// `finish` has read every address it needs, it frees the module with
+/// [`JitPages::shed`] and keeps the pages. The module's own heap is its
+/// declarations, its compiled blobs with their relocations and its copy of every
+/// helper's name, and the code never reads any of it. On the registry app that is
+/// 5.9 MB per unit. A finished unit keeps only its pages, so every unit the
+/// compile cache and the cores' mount slots keep alive costs that much less.
+///
+/// Each `Mutex` is never locked. It is there because a `JITModule` and the
+/// provider are `Send` and not `Sync`, and the table's owner must be both. The
+/// builder and `Drop` reach both through `get_mut`, which takes no lock.
 ///
 /// **What it spends:** one atomic increment per compile and one decrement per
-/// free, for [`mapped_jit_units`].
-struct JitPages(Mutex<Option<JITModule>>);
+/// free, for [`mapped_jit_units`], and one `Arc` per unit for the provider.
+struct JitPages {
+    module: Mutex<Option<JITModule>>,
+    pages: Arc<Mutex<SystemMemoryProvider>>,
+}
+
+/// `cranelift-jit`'s own page provider, behind a handle the module and its
+/// [`JitPages`] share, so the pages outlive the module.
+///
+/// A `SystemMemoryProvider` frees nothing when it drops, and the module's drop
+/// frees nothing either. So dropping the module leaves the pages mapped, and only
+/// [`JitPages`]'s `Drop` unmaps them.
+struct SharedPages(Arc<Mutex<SystemMemoryProvider>>);
+
+impl SharedPages {
+    fn provider(&mut self) -> std::sync::MutexGuard<'_, SystemMemoryProvider> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl JITMemoryProvider for SharedPages {
+    fn allocate(
+        &mut self,
+        size: usize,
+        align: u64,
+        kind: cranelift_jit::JITMemoryKind,
+    ) -> std::io::Result<*mut u8> {
+        self.provider().allocate(size, align, kind)
+    }
+
+    #[expect(
+        unsafe_code,
+        reason = "the trait's method is unsafe; this forwards the caller's own \
+                  contract to the provider it wraps"
+    )]
+    unsafe fn free_memory(&mut self) {
+        #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
+        // SAFETY: the caller promises what the wrapped provider's method needs.
+        unsafe {
+            self.provider().free_memory();
+        }
+    }
+
+    fn finalize(
+        &mut self,
+        branch_protection: cranelift_jit::BranchProtection,
+    ) -> cranelift_module::ModuleResult<()> {
+        self.provider().finalize(branch_protection)
+    }
+}
 
 /// What a [`UnitBuilder`] compiles into: the module itself for an object file,
 /// and [`JitPages`] around it for the JIT, so the JIT's pages have an owner
@@ -509,11 +566,11 @@ impl Backend for ObjectModule {
 impl Backend for JitPages {
     type Module = JITModule;
     fn module(&mut self) -> &mut JITModule {
-        self.0
+        self.module
             .get_mut()
             .unwrap_or_else(PoisonError::into_inner)
             .as_mut()
-            .expect("only `Drop` takes the module out of its pages")
+            .expect("only `shed` and `Drop` take the module out of its pages")
     }
 }
 
@@ -529,11 +586,30 @@ pub fn mapped_jit_units() -> usize {
 }
 
 impl JitPages {
-    fn new(module: JITModule) -> Self {
+    /// The module `builder` makes, mapping its pages through a provider this
+    /// keeps a handle to.
+    fn new(mut builder: JITBuilder) -> Self {
+        let pages = Arc::new(Mutex::new(SystemMemoryProvider::new()));
+        builder.memory_provider(Box::new(SharedPages(Arc::clone(&pages))));
+        let module = JITModule::new(builder);
         MAPPED_JIT_UNITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         #[cfg(test)]
         failpoint::MAPPED_HERE.with(|n| n.set(n.get() + 1));
-        Self(Mutex::new(Some(module)))
+        Self {
+            module: Mutex::new(Some(module)),
+            pages,
+        }
+    }
+
+    /// Frees the module and keeps its pages mapped. `finish` calls this once it
+    /// has read every address, because the code never reads the module's heap.
+    fn shed(&mut self) {
+        drop(
+            self.module
+                .get_mut()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take(),
+        );
     }
 }
 
@@ -581,34 +657,34 @@ mod failpoint {
 
 impl Drop for JitPages {
     fn drop(&mut self) {
-        let module = self
-            .0
-            .get_mut()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
-        if let Some(module) = module {
-            #[expect(
-                unsafe_code,
-                reason = "unmapping a JIT module's pages invalidates every address taken from it; \
-                          the owner is dropped either by a builder that never handed out an \
-                          address, or with the last handle to the class table, which every unit, \
-                          error class and running frame of this code holds"
-            )]
-            // SAFETY: this owner is held by one of two things. Inside a
-            // `UnitBuilder` that never reached `finish`, no function of the
-            // unit was ever called and no address was taken from it, so nothing
-            // can reach the pages. Inside the unit's `ClassTable`, the `Unit`
-            // and every `ErrorClass` handed to a context share it. A frame of
-            // this code runs only while its `Unit` is held, and a method row is
-            // reached only through the table, so no frame is executing and no
-            // address is called once the last handle drops.
-            unsafe {
-                module.free_memory();
-            }
-            MAPPED_JIT_UNITS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-            #[cfg(test)]
-            failpoint::MAPPED_HERE.with(|n| n.set(n.get() - 1));
+        // A builder that never reached `finish` still has its module. Its drop
+        // leaves the pages mapped, and they are unmapped below.
+        self.shed();
+        #[expect(
+            unsafe_code,
+            reason = "unmapping a JIT module's pages invalidates every address taken from it; \
+                      the owner is dropped either by a builder that never handed out an \
+                      address, or with the last handle to the class table, which every unit, \
+                      error class and running frame of this code holds"
+        )]
+        // SAFETY: this owner is held by one of two things. Inside a
+        // `UnitBuilder` that never reached `finish`, no function of the
+        // unit was ever called and no address was taken from it, so nothing
+        // can reach the pages. Inside the unit's `ClassTable`, the `Unit`
+        // and every `ErrorClass` handed to a context share it. A frame of
+        // this code runs only while its `Unit` is held, and a method row is
+        // reached only through the table, so no frame is executing and no
+        // address is called once the last handle drops. The module is gone,
+        // so this is the last handle to the provider.
+        unsafe {
+            self.pages
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .free_memory();
         }
+        MAPPED_JIT_UNITS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        #[cfg(test)]
+        failpoint::MAPPED_HERE.with(|n| n.set(n.get() - 1));
     }
 }
 
@@ -2581,7 +2657,7 @@ impl UnitBuilder<JitPages> {
 
         // The pages are owned from here on, so a compile that stops early frees them.
         Ok(Self::around(
-            JitPages::new(JITModule::new(builder)),
+            JitPages::new(builder),
             desc_symbols,
             disasm,
         ))
@@ -2935,6 +3011,8 @@ impl UnitBuilder<JitPages> {
                 )
             })
             .collect();
+        // Every address is read, so the module's heap goes and its pages stay.
+        self.module.shed();
         // The stop-site table lives as long as the pages whose code reads it.
         self.classes
             .table

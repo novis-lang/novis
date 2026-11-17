@@ -79,6 +79,16 @@
 //! swap, and each core rebuilds its table once per swap. Each core keeps one
 //! slot per row: three references and a copy of the folder path, so
 //! O(cores × rows) for the life of the rows.
+//!
+//! **A slot keeps its unit until its core serves again.** A recompile does not
+//! empty the slots: a core reads its slot again only on its next request for the
+//! row. So after an edit, a core that serves nothing still holds the unit it
+//! last ran. The units alive for one row are at most the compile cache's three
+//! plus one per core, and every edit after that replaces one and frees another.
+//! On `apps/registry` a unit is about 10 MB of private memory, so 16 cores can
+//! keep about 190 MB. Clearing every slot on a swap was declined: a core would
+//! then pay a locked lookup on the first request after each edit, on the
+//! request path, to free memory the next request needs again.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};

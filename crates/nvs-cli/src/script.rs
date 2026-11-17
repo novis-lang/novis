@@ -41,6 +41,16 @@
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 //!
+//! **What a unit costs, measured.** On `apps/registry` (Windows, release,
+//! `bun nv serve-mem --app registry --oks 30`), a finished unit keeps about
+//! 10 MB of private memory: its code pages, its class tables, and about 143 KB
+//! of heap the compile thread allocated for it. The JIT module's own heap, 5.9 MB
+//! on that app, is freed when the unit is finished (`nvs_codegen`'s `JitPages`).
+//! A compile also allocates about 22 MB for the front end and frees it when the
+//! compile ends. Under `nvs serve` the units alive are at most these three plus
+//! one per core (`crate::serve::mounts`), and none is kept per edit or per
+//! request: 30 edits in a row kept 15 units on 16 cores.
+//!
 //! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and the shared cache they make
 //!
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
