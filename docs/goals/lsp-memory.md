@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/parse_cache.rs, crates/nvs-lsp/src/workers.rs, crates/nvs-lsp/src/session.rs]
   - id: 5
     title: the rule and the module docs say what the index spends, with the measured figures
-    status: open
+    status: done
     context: [docs/rules/ide/the-server-is-synchronous.md, crates/nvs-lsp/src/workers.rs, crates/nvs-lsp/src/session.rs, crates/nvs-lsp/src/parse_cache.rs]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -274,24 +274,25 @@ Nothing in the server changes yet.
   with the reason above. `bun nv rules --render`, then `bun nv rules --check` is green.
 - [x] `crates/nvs-lsp/src/workers.rs:1` and `crates/nvs-lsp/src/session.rs:1` module docs say the same,
   with the numbers.
-- [ ] Rebuild the release binary with `bun nv relink --build` and run
+- [x] Rebuild the release binary with `bun nv relink --build` and run
   `bun nv lsp-start --copies 12 --cold --edits 5` once. Write the figures beside the baseline in the
   handoff. The cold peak and the edit peak are each expected under 1 GB. A figure above that names in
   the handoff what holds the memory, measured.
   - [x] The release binary is rebuilt, and the run's figures are in the handoff.
   - [x] The cold peak is under 1 GB: 786 MB paged.
-  - [ ] The edit peak is over 1 GB, and the private bytes grow about 70 MB per surface edit. What holds
-    them is measured, by the next item.
-- [ ] Attribute the memory an edit keeps, and fix the cause if it grows with the edits.
-  - [ ] Measure what the process keeps live after each edit, summed over every thread, with a
+  - [x] The edit peak is about 1 GB (966 to 1032 MB paged), and does not grow with the edits. What
+    holds it is measured, by the next item: the platform heap keeps an edit run's freed pages.
+- [x] Attribute the memory an edit keeps, and fix the cause if it grows with the edits.
+  - [x] Measure what the process keeps live after each edit, summed over every thread, with a
     temporary log line beside `index work:` (`crates/nvs-lsp/src/progress.rs:204`), so live bytes
     are told apart from heap the allocator keeps.
-  - [ ] If live bytes grow per edit, name the holder (the interner, a session, the parse map) by
-    dropping each one in turn on a scratch build.
-  - [ ] If live bytes stay flat, the growth is heap the allocator keeps: the pooled cache of each
+  - [x] If live bytes grow per edit, name the holder (the interner, a session, the parse map) by
+    dropping each one in turn on a scratch build. They do not: 227 MB settled, 228 MB after 10 and 20.
+  - [x] If live bytes stay flat, the growth is heap the allocator keeps: the pooled cache of each
     worker thread that exits (`crates/nvs-runtime/src/alloc.rs:24`) and the platform heap's
-    retention. Then keep the workers alive between the runs of a session, or say the cost.
-  - [ ] The fix, or the measured holder with its bound, goes into the rule's cost sentence and the
+    retention. Then keep the workers alive between the runs of a session, or say the cost. A worker
+    now frees its pooled cache before it ends, and the platform heap's retention is bounded.
+  - [x] The fix, or the measured holder with its bound, goes into the rule's cost sentence and the
     `crate::workers` module doc.
 
 ### 6. the goal is verified once, and every failure is fixed
@@ -304,39 +305,33 @@ Nothing in the server changes yet.
 
 ### State
 
-Baseline (`lsp-start --copies 12 --cold --edits 5`, release, 16 cores): a cold index peaked at
-5752 MB paged. Stages 2 and 3 split each graph's bodies between the workers (`workers.rs` module doc).
+Stage 5 is done. Release, 16 cores, 15 workers, 972 files (`lsp-start --copies 12 --cold`):
+baseline cold peak 5752 MB paged; now cold peak 786 to 848 MB, 443 to 474 MB private. After 5, 10
+and 20 surface edits (972 files checked each): private 953, 900 and 913 MB, peak 1032, 966 and
+993 MB paged. The figures vary about 50 MB between runs.
 
-Stage 5's doc items are done: the rule, `crate::workers` and `crate::session` give the figures, and
-a worker cap is declined. Release, 15 workers, 972 files (`lsp-start --copies 12 --cold`): baseline
-cold peak 5752 MB paged; now cold 786 MB peak, 463 MB private; after 1, 5 and 10 surface edits
-(972 files checked each) private 521, 866 and 1120 MB, peak 1020, 1132 and 1210 MB.
+Attributed with a scratch process-wide live-byte counter in `budget::add`, since removed: live
+bytes are 227 MB settled and 228 MB after 10 and 20 edits. The private bytes are the platform heap
+keeping the freed pages of an edit's run, and they stop growing after about 5 edits. The pooled
+allocator kept each exited worker's cached blocks for ever; a worker now calls
+`nvs_runtime::budget::release_pooled_blocks` before it ends (`workers.rs` `work`). The rule, the
+`crate::workers`, `crate::session` and `crate::alloc` docs say so. Build, clippy, `bun nv rules
+--check` and the new `a_released_cache_keeps_no_block` are green.
 
-The edit peak is over 1 GB, and private bytes grow about 70 MB per edit. Not attributed yet: the
-runtime counts live bytes per thread only. Known part: the pooled allocator keeps an exited thread's
-cached blocks (`crates/nvs-runtime/src/alloc.rs:24`), and the workers stop after every edit's run, so
-at most about 17 MB per edit. The rest may be the interner, the platform heap, or an old index or
-session held. Build, clippy and `bun nv rules --check` are green. May go red at the gate: a
-test pinning `errors` from a link or route error (`index.rs:595`), the other parallel tests of
-`tests/incremental.rs`, `document.rs` tests near `:1575` to `:2008`, `definition.rs:1730`, and any
-test that reads the ids of a map, since the whole tree is now pinned before workers run.
+May go red at the gate: a test pinning `errors` from a link or route error (`index.rs:595`), the
+other parallel tests of `tests/incremental.rs`, `document.rs` tests near `:1575` to `:2008`,
+`definition.rs:1730`, any test that reads the ids of a map (the whole tree is pinned before workers
+run), and a runtime test that reads `pooled_blocks` if it runs on a thread that released its cache.
 
 The sweep's reds are stale: `env-secret-proofs` has no log, and the nightly `supply chain` built
 `2934ebe1ae`, before `0fe2fdef25` removed `chrono`.
 
 ### Next
 
-Stage 5's last item, "Attribute the memory an edit keeps", from its first checkpoint. This is the
-stage's second and last session. A sum of live bytes over every thread needs a process-wide counter:
-`crates/nvs-runtime/src/budget.rs:1174` counts per thread, and a block freed on another thread moves
-the count of the thread that frees it. So sum the counter over the server thread and each worker
-before it exits, or count in `counting_alloc` globally on a scratch build. Run
-`bun nv lsp-start --copies 12 --cold --edits 5` and `--edits 10` after each change (each takes about
-a minute). Then put the result in the rule's cost sentence
-(`docs/rules/ide/the-server-is-synchronous.md:39`) and the `crate::workers` module doc
-(`crates/nvs-lsp/src/workers.rs:47`), and tick the open item above it. If a fix lands, it is a new
-slice with its own commit. If the cause is still unknown at the end of that session, write the
-measured state in the handoff and move to stage 6.
+Stage 6, the gate. Start `looper verify` with `run_in_background`, then end the turn. Fix every
+failure it names in one pass with `bun nv verify --fast -p <crate>`, and run it once more. Then the
+goal-end gates of AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
+lsp-memory`, `bun nv ci --check`, and the acceptance checks `once` and `parsed-once`.
 
 ### Backlog
 
