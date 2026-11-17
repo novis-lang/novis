@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-server/src/serve.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-runtime/src/budget.rs]
   - id: 5
     title: what a successful recompile keeps is measured, bounded and written down
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs]
   - id: 6
     title: no source text makes the compiler panic, from the parser to code generation
@@ -273,13 +273,15 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 - [x] Run `bun nv serve-mem --app registry --oks 30` with no requests, and read the live bytes of the
   compile thread and of each core with the runtime's counters. Write in the handoff what grows per
   success, and what holds it.
-- [ ] Before stage 6 fixes the panic, write a `yield self::…` call into a generator of the registry
+- [x] Before stage 6 fixes the panic, write a `yield self::…` call into a generator of the registry
   copy, and let it panic ten times with no requests. Write in the handoff what each panic adds, and
   which threads end (24 became 21 on the small file).
-- [ ] Fix what grows with the number of recompiles or panics. A bound of three cached units plus one
+  - [x] `serve-mem --panics <n>` writes the generator and prints the thread count with each sample.
+  - [x] Ten and 25 panics measured beside 25 failures, with the compile thread's live bytes.
+- [x] Fix what grows with the number of recompiles or panics. A bound of three cached units plus one
   per core stays as it is.
   - [x] A success: nothing grows past the bound. Each unit's 5.9 MB module heap is freed at `finish`.
-  - [ ] A panic: waits on the item above it.
+  - [x] A panic: keeps the 22 KB a failure keeps and ends no thread, so there is nothing to fix.
 - [x] The module doc of `crates/nvs-cli/src/serve/mounts.rs` and of `crates/nvs-cli/src/script.rs`
   say what a recompile keeps, per unit and per core, with the measured figures.
 - [x] Rebuild with `bun nv relink --build`, run `bun nv serve-mem --app registry --fails 10 --oks 30`
@@ -326,43 +328,35 @@ because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
 ### State
 
-Stages 1 to 4 are done, and the `pages`, `no-retry` and `keep-alive` checks are green (`pages`
-rerun green after this session's change to `JitPages`). Stage 5 has every item done but the panic
-measurement and its fix.
+Stages 1 to 5 are done, and the `pages`, `no-retry` and `keep-alive` checks are green. Stage 6 has
+not started.
 
-**What a success keeps, measured (stage 5).** Temporary trace lines, since removed, read
-`thread_live_bytes` per pass and per request. A JIT compile allocates 5.9 MB of heap on the compile
-thread, and the front end about 22 MB, which it frees. The units alive follow `mapped_jit_units`: 15
-after 30 edits on 16 cores, so the bound of three cached units plus one per core holds, and nothing
-grows per edit beyond it. What held the bytes was each unit's whole `JITModule` (declarations, blobs,
-relocations, helper-name copies), kept until the unit dropped. The fix (`f05b7b4472`): `JitPages`
-maps through `SharedPages` and `finish` frees the module (`JitPages::shed`,
-`crates/nvs-codegen/src/lib.rs` about `:540`). A unit now costs about 10 MB private on the registry
-app. `--oks 30` alone: 259 MB before, 175 MB after, with 15 units alive.
-
-**Beside the baseline** (`--fails 10 --oks 30`, Windows, release): 26.8 MB at the start (33.4 before),
-failures level off at +17.8 MB (+26.6 before), and successes reach +157 MB after 30 (the old run
-reached about +225 MB at 30 on `--oks 30`). The later samples swing by ±30 MB because a sample can
-land while a compile's front end is alive. The growth is the units on idle cores' slots, which the
-`mounts.rs` doc now states with a decline of clearing them on a swap.
+**A panic keeps what a failure keeps (stage 5).** `bun nv serve-mem --app registry --panics <n>`
+writes a static generator that yields `self::one<n>()`, which panics in `nvs-ir` and is caught
+(`E0901`, once per content). A temporary live-byte line around `self.compile`
+(`crates/nvs-cli/src/script.rs:1012`) read 22 KB kept per panic and per failure alike: the message
+and the `Trace`, which the next failure replaces. No thread ends. 25 failures level at +15 MB private;
+25 panics reach +23.5 MB, which is heap the larger peak left, not live bytes. A success keeps one
+unit of about 10 MB, within the bound of three plus one per core. `script.rs` and `mounts.rs` state
+the figures.
 
 The sweep's two reds are stale: `env-secret-proofs` is defined nowhere (`git log -S` ends at a
-retired goal), and nightly 44073672172 ran before `0fe2fdef25`, which is on `origin/main`.
+retired goal), and nightly 44073672172 ran on `2934ebe1ae`, which predates `0fe2fdef25`.
 
 ### Next
 
-Stage 5's last item, then stage 6.
+Stage 6, item 1 first: the reported panic.
 
-- Item 2: write `yield self::one();` into a static generator of the registry copy's
-  `src/App.nvs` (by hand under `.agent-tmp/serve-mem/registry/` while `serve-mem` waits, or give
-  `serve-mem` a `--panics <n>` mode beside `BROKEN` in `tools/nv/cmd/serve-mem.ts:212`). Count the
-  private bytes and the threads (`Get-Process -Id <pid>`'s `Threads.Count`) after each of ten panics.
-  If a panic adds memory or ends a thread, fix it at the cause, then tick item 3's panic checkpoint.
-- To read per-thread bytes again, put an `eprintln!` of `thread_live_bytes()` around the step itself
-  (see the playbook bullet on `compile_beside_object`), never a thread's running balance.
-- Stage 6 may run as a side goal: stage 2 is done.
+- `crates/nvs-ir/src/lower/mod.rs:2982` panics because a generator's `advance` has neither a receiver
+  nor a called class. Give the generator's state the called class at creation, and read `self` and
+  `static` from it in `advance`. Find where a generator's state is built with
+  `bun nv peek --locate` on `$gen`. Reproduce with the class in § *Why*, or with
+  `bun nv serve-mem --app registry --panics 1`, whose log then shows no `E0901`.
+- Then item 2 (`crates/nvs-fuzz-checks/src/compile.rs`) and item 3, the matrix. Each failing cell
+  of the matrix is one item, as the stage's `**Split:**` line says.
 
-No test is expected red now.
+`compile_seeds_never_panic` and `every_construct_compiles_in_every_body` do not exist yet. No test
+is expected red now.
 
 ### Backlog
 
