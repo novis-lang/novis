@@ -15,7 +15,10 @@ toolchain's own scheme.
 - a new method on a public interface, or a new abstract method;
 - a new enum case, because it breaks an exhaustive `match`;
 - a parameter type that narrows, or a return type that widens;
-- a new required parameter.
+- a new required parameter;
+- a new `[[restrict]]` entry, one whose `use` names more, or one whose `allow` names fewer places
+  (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`), because code that compiled
+  stops compiling.
 
 A change the comparison cannot classify is a break, and there is no way to suppress one.
 

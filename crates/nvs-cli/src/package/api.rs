@@ -27,6 +27,12 @@
 //! API's shape is left out: a doc comment, a default's value, a constant's value and an enum case's
 //! value. Behaviour may change in any release, and only shape is promised.
 //!
+//! **A package's `[[restrict]]` entries are its API too**
+//! (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`): a new one stops code that
+//! compiled before. The document lists them under `restrict`, each `use` with its sorted `allow`,
+//! and leaves the key out when the package has none. `note` and `replace` are left out, since a
+//! change to them breaks no caller.
+//!
 //! ## Deterministic
 //!
 //! Every list is sorted by name, except a method's parameters, whose order is the API. The keys are
@@ -196,11 +202,46 @@ pub(crate) fn extract_counted(
         None,
         None,
     )?;
-    Ok(document(&checked))
+    let restrict = restrictions(dir)?;
+    Ok(document(&checked, restrict))
 }
 
-/// The document over a checked program: every declaration but the entry's, which has none.
-fn document(checked: &crate::Checked) -> (Value, Docs) {
+/// The package's `[[restrict]]` entries as the document lists them: each `use` with its sorted
+/// `allow`, sorted and without twins. A folder with no `package.toml`, or an application's, has
+/// none. `note` and `replace` are left out, because a change to either breaks no caller.
+fn restrictions(dir: &Path) -> Result<Vec<Value>, ExitCode> {
+    if !dir.join(nvs_config::grants::FILE).is_file() {
+        return Ok(Vec::new());
+    }
+    let mut sources = SourceMap::new();
+    let package = nvs_config::package::read(dir, &mut sources).map_err(|diagnostic| {
+        let mut err = std::io::stderr().lock();
+        // Standard error that cannot be written to has nobody to tell.
+        let _ = nvs_diagnostics::Renderer::new().render(&diagnostic, &sources, &mut err);
+        ExitCode::FAILURE
+    })?;
+    let entries: BTreeSet<(String, Vec<String>)> = package
+        .iter()
+        .flat_map(|package| package.restrictions())
+        .map(|entry| {
+            let allow: BTreeSet<String> = entry.allow().iter().map(ToString::to_string).collect();
+            (entry.target().to_string(), allow.into_iter().collect())
+        })
+        .collect();
+    Ok(entries
+        .into_iter()
+        .map(|(target, allow)| {
+            let mut out = Map::new();
+            out.insert("use".into(), Value::from(target));
+            out.insert("allow".into(), Value::from(allow));
+            Value::Object(out)
+        })
+        .collect())
+}
+
+/// The document over a checked program: every declaration but the entry's, which has none, and
+/// the package's `restrict` entries when it has any.
+fn document(checked: &crate::Checked, restrict: Vec<Value>) -> (Value, Docs) {
     let mut decls = Vec::new();
     for file in checked.files.iter().filter(|file| file.id != checked.id) {
         collect(&file.stmts, checked.map.file(file.id), "", &mut decls);
@@ -221,6 +262,10 @@ fn document(checked: &crate::Checked) -> (Value, Docs) {
         "declarations".into(),
         Value::Array(decls.iter().map(|decl| api.decl_json(decl)).collect()),
     );
+    // Left out when empty, so a package with no restriction prints the document it always did.
+    if !restrict.is_empty() {
+        out.insert("restrict".into(), Value::Array(restrict));
+    }
     (Value::Object(out), docs(&decls))
 }
 

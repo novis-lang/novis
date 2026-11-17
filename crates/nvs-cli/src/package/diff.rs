@@ -14,9 +14,16 @@
 //!   property on an interface, a new abstract method, a new parent interface, a new enum case
 //!   (an exhaustive `match` no longer covers it), a new required parameter; a new restriction:
 //!   `abstract`, `final` or `readonly` set, a parameter that is no longer optional; a flip either
-//!   way of `static`, `variadic` or `inout`; a renamed parameter, since a call may name it.
+//!   way of `static`, `variadic` or `inout`; a renamed parameter, since a call may name it; a new
+//!   `[[restrict]]` entry, one whose `use` names more, or one whose `allow` names fewer places.
 //! * **Additive** — a new declaration, a new concrete method, constant or property on a class, a new
-//!   optional parameter, a new implemented interface, a raised visibility, a dropped restriction.
+//!   optional parameter, a new implemented interface, a raised visibility, a dropped restriction;
+//!   a removed `[[restrict]]` entry, or one whose `allow` names more places.
+//!
+//! A `[[restrict]]` entry of the new side breaks no caller when one entry of the old side already
+//! held every use it holds: the old `use` names all the new one names, and the new entry allows
+//! every place the old one allowed. A name that may be a namespace or a class is matched only
+//! where both readings agree, so a doubt is a break.
 //!
 //! **It errs towards breaking**, as [`crate::api_diff`] does, and there is no way to suppress a
 //! break. A new optional parameter is a break on
@@ -330,11 +337,15 @@ pub(crate) fn diff(old: &Value, new: &Value) -> Vec<Change> {
         ),
         _ => out.push(unreadable("", "declarations")),
     }
+    match (restrictions(old), restrictions(new)) {
+        (Some(old), Some(new)) => restrict(&old, &new, &mut out),
+        _ => out.push(unreadable("", "restrict")),
+    }
     rest(
         "",
         obj(old),
         obj(new),
-        &["schema", "declarations"],
+        &["schema", "declarations", "restrict"],
         &mut out,
     );
     out.sort_by(|a, b| (a.class, &a.at, &a.what).cmp(&(b.class, &b.at, &b.what)));
@@ -1054,6 +1065,172 @@ fn rest(at: &str, old: Option<&Obj>, new: Option<&Obj>, known: &[&str], out: &mu
         .filter(|key| !known.contains(&key.as_str()))
     {
         same(at, key, old, new, out);
+    }
+}
+
+/// One `restrict` entry of a document: what it restricts and the places it allows.
+struct Entry<'a> {
+    target: &'a str,
+    allow: Vec<&'a str>,
+}
+
+/// A document's `restrict` entries, none when the key is missing, or `None` when it is not a list
+/// of entries.
+fn restrictions(document: &Value) -> Option<Vec<Entry<'_>>> {
+    let Some(list) = document.get("restrict") else {
+        return Some(Vec::new());
+    };
+    objects(Some(list))?
+        .into_iter()
+        .map(|entry| {
+            Some(Entry {
+                target: entry.get("use")?.as_str()?,
+                allow: strings(entry.get("allow"))?,
+            })
+        })
+        .collect()
+}
+
+/// The changes between two lists of restrictions. A new entry breaks no caller when an old entry
+/// already held every use it holds: the old entry restricts all it restricts, and the new one
+/// allows every place the old one did, its own declaration's place included. Every other new
+/// entry is a break. An old entry whose `use` no new entry names is dropped, which is additive.
+fn restrict(old: &[Entry<'_>], new: &[Entry<'_>], out: &mut Vec<Change>) {
+    let same = |a: &Entry<'_>, b: &Entry<'_>| a.target == b.target && a.allow == b.allow;
+    for entry in new.iter().filter(|n| !old.iter().any(|o| same(o, n))) {
+        let at = entry.target;
+        let fresh = !old.iter().any(|o| o.target == at);
+        let allowed = places(&entry.allow);
+        if old.iter().any(|o| held_by(o, entry)) {
+            out.push(additive(at, "restriction now allows more places"));
+        } else if fresh {
+            out.push(breaking(at, &format!("new restriction, {allowed}")));
+        } else {
+            out.push(breaking(
+                at,
+                &format!("restriction allows fewer places, {allowed}"),
+            ));
+        }
+    }
+    for entry in old
+        .iter()
+        .filter(|o| !new.iter().any(|n| n.target == o.target))
+    {
+        out.push(additive(entry.target, "restriction removed"));
+    }
+}
+
+/// The places an entry allows, as the report writes them.
+fn places(allow: &[&str]) -> String {
+    if allow.is_empty() {
+        return "now allowed only in its own declaration".to_owned();
+    }
+    let list: Vec<String> = allow.iter().map(|place| format!("`{place}`")).collect();
+    format!("now allowed only in {}", list.join(", "))
+}
+
+/// Whether `old` already held every use `new` holds.
+fn held_by(old: &Entry<'_>, new: &Entry<'_>) -> bool {
+    let (Some(old_target), Some(new_target)) =
+        (Pattern::read(old.target), Pattern::read(new.target))
+    else {
+        return false;
+    };
+    let Some(widest) = new
+        .allow
+        .iter()
+        .map(|place| Pattern::read(place))
+        .chain([Some(new_target.own())])
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    let Some(mut before) = old
+        .allow
+        .iter()
+        .map(|place| Pattern::read(place))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    before.push(old_target.own());
+    old_target.covers(&new_target)
+        && before
+            .iter()
+            .all(|place| widest.iter().any(|wide| wide.covers(place)))
+}
+
+/// A `use` or `allow` value, read for [`Pattern::covers`].
+#[derive(Clone, Copy)]
+enum Pattern<'a> {
+    /// `Ns\Name`: a namespace's own declarations, or a class or function of that name.
+    Name(&'a str),
+    /// `Ns\*`: the namespace and every one below it.
+    Subtree(&'a str),
+    /// `Ns\Class::member`.
+    Member(&'a str),
+    /// The inside of one class: the place a restriction on that class or its member allows
+    /// itself.
+    Class(&'a str),
+}
+
+impl<'a> Pattern<'a> {
+    /// The pattern `written` is, or `None` when it has none of the shapes.
+    fn read(written: &'a str) -> Option<Self> {
+        if let Some((class, member)) = written.split_once("::") {
+            return (!class.is_empty() && !member.is_empty()).then_some(Self::Member(written));
+        }
+        if let Some(root) = written.strip_suffix("\\*") {
+            return (!root.is_empty()).then_some(Self::Subtree(root));
+        }
+        (!written.is_empty()).then_some(Self::Name(written))
+    }
+
+    /// The place a restriction with this target allows without naming it: its own declaration.
+    fn own(self) -> Self {
+        match self {
+            Self::Member(written) => Self::Class(class_of(written)),
+            other => other,
+        }
+    }
+
+    /// The class or name a pattern is about, the namespace's root for a subtree.
+    fn root(self) -> &'a str {
+        match self {
+            Self::Name(name) | Self::Subtree(name) | Self::Class(name) => name,
+            Self::Member(written) => class_of(written),
+        }
+    }
+
+    /// Whether everything `narrow` matches, `self` matches too. A name that may be a namespace or
+    /// a class is under a subtree only when it lies strictly below its root, since a class is in
+    /// its parent namespace. Anything this cannot tell is `false`, so a doubt is a break.
+    fn covers(self, narrow: &Self) -> bool {
+        match (self, *narrow) {
+            (Self::Name(a), Self::Name(b))
+            | (Self::Member(a), Self::Member(b))
+            | (Self::Class(a), Self::Class(b)) => a == b,
+            (Self::Subtree(root), Self::Subtree(inner)) => below(inner, root, true),
+            (Self::Subtree(root), other) => below(other.root(), root, false),
+            (Self::Name(a) | Self::Class(a), Self::Member(_) | Self::Class(_)) => {
+                a == narrow.root()
+            }
+            _ => false,
+        }
+    }
+}
+
+/// The class of a `Class::member` value.
+fn class_of(written: &str) -> &str {
+    written.split_once("::").map_or(written, |(class, _)| class)
+}
+
+/// Whether the namespace `name` lies below `root`, or is `root` when `or_equal`.
+fn below(name: &str, root: &str, or_equal: bool) -> bool {
+    match name.strip_prefix(root) {
+        Some("") => or_equal,
+        Some(rest) => rest.starts_with('\\'),
+        None => false,
     }
 }
 

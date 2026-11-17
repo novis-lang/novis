@@ -353,6 +353,87 @@ fn the_version_step_decides_whether_a_break_fails() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
+/// The changes `nvs pkg diff` reports between two of the `restrict` fixtures, each line before
+/// the summary, and whether it exits zero. No side has a version.
+fn restrict_diff(old: &str, new: &str) -> (bool, Vec<String>) {
+    let pair = fixture("restrict");
+    let (ok, printed) = diff(&pair.join(old), &pair.join(new), &[]);
+    let lines: Vec<String> = printed.lines().map(str::to_owned).collect();
+    assert_eq!(
+        lines.last().map(String::as_str),
+        Some(NO_VERSION),
+        "{printed}"
+    );
+    let changes = lines[..lines.len().saturating_sub(2)].to_vec();
+    (ok, changes)
+}
+
+/// A package's `[[restrict]]` entries are in its API document, each `use` with its sorted
+/// `allow`, and the `note` is not (`rule:packaging/only-a-major-may-break-the-api`). A package
+/// with none prints no `restrict` key.
+#[test]
+fn the_api_document_lists_the_packages_restrictions() {
+    let pair = fixture("restrict");
+    let document: serde_json::Value =
+        serde_json::from_str(&api(&pair.join("narrow"))).expect("the document is JSON");
+    assert_eq!(
+        document["restrict"],
+        serde_json::json!([{
+            "use": "Acme\\Api\\Client::send",
+            "allow": ["Acme\\Api\\Queue", "Acme\\Api\\Signing\\*"],
+        }])
+    );
+    let none: serde_json::Value =
+        serde_json::from_str(&api(&pair.join("none"))).expect("the document is JSON");
+    assert!(none.get("restrict").is_none(), "{none}");
+}
+
+/// A restriction the old version did not have stops code that compiled, so it is a break.
+#[test]
+fn a_new_restriction_is_a_break() {
+    let (ok, changes) = restrict_diff("none", "narrow");
+    assert!(!ok);
+    assert_eq!(
+        changes,
+        [
+            "breaking: Acme\\Api\\Client::send — new restriction, now allowed only in \
+             `Acme\\Api\\Queue`, `Acme\\Api\\Signing\\*`"
+        ]
+    );
+}
+
+/// An `allow` that names fewer places than before stops code in the places it no longer names.
+#[test]
+fn a_restriction_allowing_fewer_places_is_a_break() {
+    let (ok, changes) = restrict_diff("wide", "narrow");
+    assert!(!ok);
+    assert_eq!(
+        changes,
+        [
+            "breaking: Acme\\Api\\Client::send — restriction allows fewer places, now allowed \
+             only in `Acme\\Api\\Queue`, `Acme\\Api\\Signing\\*`"
+        ]
+    );
+}
+
+/// A removed restriction, and one whose `allow` names more places, only lets more code compile.
+#[test]
+fn a_dropped_restriction_is_additive() {
+    let (ok, changes) = restrict_diff("narrow", "none");
+    assert!(ok, "{changes:?}");
+    assert_eq!(
+        changes,
+        ["additive: Acme\\Api\\Client::send — restriction removed"]
+    );
+
+    let (ok, changes) = restrict_diff("narrow", "wide");
+    assert!(ok, "{changes:?}");
+    assert_eq!(
+        changes,
+        ["additive: Acme\\Api\\Client::send — restriction now allows more places"]
+    );
+}
+
 /// Each side's version is the `version` in its `package.toml`, and `--to` replaces the new one.
 /// `versioned` removes a method from `1.4.0` to `1.5.0`, which a minor does not allow, and the
 /// JSON form names the step. A version that is not three numbers is an error.

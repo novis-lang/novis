@@ -1,0 +1,7 @@
+[package]
+name = 'Acme\Api'
+
+[[restrict]]
+use = 'Acme\Api\Client::send'
+allow = ['Acme\Api\Signing\*', 'Acme\Api\Queue']
+note = 'Use `Acme\Api\Outbox::post`. It retries a failed send.'

@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/diagnostics.rs, crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/render.rs, tests/lsp/hover/a-route-hover-in-an-autoloaded-file-lists-its-programs-grants.lspt, docs/reference/tools/40-editor.md]
   - id: 5
     title: nvs pkg api lists a package's restrictions and nvs pkg diff calls a new one a break
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/api.rs, crates/nvs-cli/src/package/diff.rs, crates/nvs-cli/tests/package_api.rs, docs/rules/packaging/only-a-major-may-break-the-api.md]
   - id: 6
     title: the feature's proofs and its pages
@@ -432,15 +432,15 @@ and `docs/agent/conventions.md` § *An `.lspt` case*. The session runs that chec
 **Does:** a package's restrictions are part of its public API, so a version that adds one, or widens
 one's target or narrows its `allow`, is a breaking change.
 
-- [ ] `crates/nvs-cli/src/package/api.rs:126`: `extract` writes the package's `[[restrict]]` entries
+- [x] `crates/nvs-cli/src/package/api.rs:126`: `extract` writes the package's `[[restrict]]` entries
   into the API document under a `restrict` key, each with `use` and `allow`. `note` and `replace` are
   left out, since a change to them breaks no caller.
-- [ ] `crates/nvs-cli/src/package/diff.rs:1130`: a new entry, a `use` that names more, or an `allow`
+- [x] `crates/nvs-cli/src/package/diff.rs:1130`: a new entry, a `use` that names more, or an `allow`
   that names less is `breaking`. A dropped entry or a wider `allow` is additive. The module doc's
   classification lists both.
-- [ ] `docs/rules/packaging/only-a-major-may-break-the-api.md:1`: one sentence naming a new
+- [x] `docs/rules/packaging/only-a-major-may-break-the-api.md:1`: one sentence naming a new
   restriction as a break.
-- [ ] `crates/nvs-cli/tests/package_api.rs:1`: the four tests the `api-diff` check names, run once.
+- [x] `crates/nvs-cli/tests/package_api.rs:1`: the four tests the `api-diff` check names, run once.
 
 ### 6. the feature's proofs and its pages
 
@@ -505,22 +505,20 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 Stages 1 to 3 are done and their checks green; `nvs-types` `restrict.rs` holds the check. A call
 through a `mixed` receiver is not held yet: stage 6's first item, a security gap stage 7 needs.
 
-Stage 4 is done; `editor` is green, run once. The language server now reads `[[restrict]]`
-(`crates/nvs-lsp/src/document.rs` `analyse_through`): `Grants::read` from the program's entry, kept
-by `Grants::restrictions_alone` (no grant key, so still no `E0658` in the editor), each loaded
-package's entries from `nvs_types::package::check` (its diagnostics dropped), the digest folded
-into `graph_key`, and `Analysed::restrictions` and `Analysed::manifests` (canonical, so
-`to_republish` finds them). `diagnostics::related` fills `relatedInformation` from a secondary
-label in another file; an `E0664`'s wire message carries its first note. Hover: `hover.rs`
-`restriction`. Completion: `completion.rs` `restricted_here`, `LAST` sort prefix. The server
-watches `**/package.toml` (`server.rs` `MANIFESTS`, `changed_manifests`). `nvs-types` now exports
-`restrict::{entries_on, allowed_text, allows_at, Site}`. The `.lspt` runner gained
-`diagnostics changed=<path>` (`suite.rs` `recheck`), and the renderer writes `related …` and
-`sorted last: …` lines.
+Stage 4 is done; `editor` is green. The language server reads `[[restrict]]` in
+`crates/nvs-lsp/src/document.rs` `analyse_through`; hover, completion, `relatedInformation` and
+the `**/package.toml` watcher sit in `hover.rs`, `completion.rs`, `diagnostics.rs`, `server.rs`.
 
-Sweep reds: `env-secret-proofs` is stale service state with no log and no definition anywhere in the
-tree. Nightly 43849315979 ran on 14fbea97; its `docs` and macOS reds were fixed after it
-(`2934ebe1ae`, `9efc45b6fd`).
+Stage 5 is done; `api-diff` is green, run once. `api.rs` `restrictions` reads the package's
+entries through `nvs_config::package::read` and writes `restrict` (each `use`, sorted `allow`),
+left out when empty so every pinned document keeps its bytes; no schema bump, since an older
+`diff` already calls an unknown differing key a break. `diff.rs` `restrict`: a new entry is
+additive only when an old entry's `use` covers its `use` and its `allow` plus its own
+declaration covers the old one's (`Pattern::covers`, doubt is a break). Fixtures:
+`crates/nvs-cli/tests/fixtures/package-api/restrict/{none,wide,narrow}`.
+
+Sweep reds: `env-secret-proofs` is stale service state (no log, no definition in the tree);
+nightly 43849315979's reds were fixed after it (`2934ebe1ae`, `9efc45b6fd`).
 
 Expected red at the gate: possibly an existing `.lspt` diagnostics case whose diagnostic has a
 secondary label in another file, which now renders a `related` line; re-freeze it.
@@ -528,8 +526,12 @@ secondary label in another file, which now renders a `related` line; re-freeze i
 
 ### Next
 
-Stage 5 (`crates/nvs-cli/src/package`): `api.rs:126` `extract` writes the `restrict` entries,
-`diff.rs:1130` classifies them, the rule sentence, and the four `api-diff` tests, run once.
+Stage 6, first the security gap: a call or property access through a `mixed` receiver is held
+(the stage's first item names the runtime entry points, `nvs_runtime::call_erased_method_from`,
+`read_erased_property_owned`, `write_erased_property`). Then the reference section at
+`docs/reference/tools/35-packages.md:113`, `about.md` and `details.md`, and the three writing
+subagents the stage's **Split:** names. The new `package_api` tests gain their `covers:` line
+with the feature id.
 
 ### Backlog
 

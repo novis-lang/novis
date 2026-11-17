@@ -1,0 +1,6 @@
+[package]
+name = 'Acme\Api'
+
+[[restrict]]
+use = 'Acme\Api\Client::send'
+allow = ['Acme\Api\*']
