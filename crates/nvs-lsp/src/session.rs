@@ -73,7 +73,8 @@
 //! `bun nv lsp-start` generates (972 files) with 15 workers, a cold index
 //! checks 972 files and peaks at 786 MB paged. When every worker's session
 //! checked every body its entries read, it peaked at 5752 MB. A surface edit
-//! checks the 972 files once more and peaks at about 1020 MB paged.
+//! checks the 972 files once more and peaks at about 1 GB paged, and the live
+//! bytes after it are the settled 228 MB (`crate::workers` gives the rest).
 //!
 //! [`Analysed`]: crate::Analysed
 

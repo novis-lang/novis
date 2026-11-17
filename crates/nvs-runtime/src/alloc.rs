@@ -21,9 +21,12 @@
 //! 16 bytes up to 256, each holding at most 512 blocks, so at most ~2 MB on a
 //! thread that has touched every class. It is never per request and never
 //! grows with requests served, which is the O(in-flight) rule AGENTS.md's
-//! priority ordering states. Blocks are never returned to the platform on
-//! thread exit, because the cache holds no `Drop` type (see below); a thread
-//! that ends hands its ~2 MB back to the OS with the rest of the process.
+//! priority ordering states. Blocks are not returned to the platform on
+//! thread exit by themselves, because the cache holds no `Drop` type (see
+//! below). A thread that ends keeps its blocks until the process ends, unless
+//! it calls [`release_cache`] first, through
+//! [`crate::budget::release_pooled_blocks`]. A pool that starts threads again
+//! and again calls it, or the blocks of every thread it ever ran add up.
 //!
 //! # The one trap
 //!
@@ -201,6 +204,31 @@ pub(crate) fn cached_blocks(layout: Layout) -> u32 {
     class_of(layout).map_or(0, |class| CACHE.with(|cache| cache[class].len.get()))
 }
 
+/// Hands every block the calling thread's cache keeps back to [`System`].
+///
+/// A thread that is about to end calls it, through
+/// [`crate::budget::release_pooled_blocks`]. Without it the blocks of a thread
+/// that ended stay allocated and no other thread can use them, because the
+/// cache holds no `Drop` type (the module doc's *The one trap*).
+pub(crate) fn release_cache() {
+    for class in 0..CLASS_COUNT {
+        loop {
+            let block = pop(class);
+            if block.is_null() {
+                break;
+            }
+            #[expect(
+                unsafe_code,
+                reason = "every cached block of `class` was allocated with \
+                          `block_layout(class)`, which is what `System` requires"
+            )]
+            unsafe {
+                System.dealloc(block, block_layout(class));
+            }
+        }
+    }
+}
+
 /// [`System`], with the per-thread size-class cache above in front of it.
 #[derive(Debug)]
 pub(crate) struct Pooled;
@@ -369,6 +397,18 @@ mod tests {
 
     fn layout(size: usize) -> Layout {
         Layout::from_size_align(size, 8).expect("a valid test layout")
+    }
+
+    #[test]
+    fn a_released_cache_keeps_no_block() {
+        let _ = round_trip(layout(48));
+        let class = class_of(layout(48)).expect("48 bytes is pooled");
+        assert!(cached(class) > 0, "the freed block was not cached");
+        release_cache();
+        assert!(
+            (0..CLASS_COUNT).all(|class| cached(class) == 0),
+            "a class kept a block after the cache was released"
+        );
     }
 
     #[test]

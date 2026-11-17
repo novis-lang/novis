@@ -1333,6 +1333,18 @@ pub(crate) fn uncount_debug_bytes(bytes: usize) {
     COUNTERS.with(|c| c.total.set(c.total.get().saturating_sub(bytes)));
 }
 
+/// Hands every block this thread's allocator cache keeps back to the platform
+/// heap. A build that has no cache does nothing.
+///
+/// A thread that is about to end calls it once, after it dropped what it
+/// held. The blocks of a thread that ended are otherwise kept until the
+/// process ends, up to about 1 MB per thread, because no other thread can
+/// take them.
+pub fn release_pooled_blocks() {
+    #[cfg(any(test, not(debug_assertions)))]
+    crate::alloc::release_cache();
+}
+
 /// How many freed blocks this thread's allocator cache holds for a request of
 /// `layout`, or `0` in a build that has no cache and for a layout it does not
 /// serve.

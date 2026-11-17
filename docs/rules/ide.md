@@ -266,7 +266,10 @@ worker while entries wait, one extra resolve of a graph per plan, and one set of
 memory buys a cold index on every core. On twelve copies of the generated tree of `bun nv lsp-start`
 (972 files) with 15 workers, a cold index parses and checks 972 files and peaks at 786 MB paged, 463 MB
 private once it settles. When each worker checked every body it read, the same index peaked at 5752 MB.
-A surface edit checks each of the 972 files once more, and its run peaks at about 1020 MB paged.
+A surface edit checks each of the 972 files once more, and its run peaks at about 1 GB paged. The live
+bytes after each edit stay at the settled 228 MB. The platform heap keeps the freed pages of the edit's
+run, so the private bytes climb to about 900 MB and stay there after 5, 10 and 20 edits. A worker hands
+its allocator's cached blocks back before its thread ends, so a run's workers keep nothing after it.
 
 The server holds one document store on one thread, so an async runtime would schedule nothing. Taking one
 would put tokio, tower and `async-trait` into every later dependency review and every build, for a process

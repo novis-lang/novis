@@ -49,7 +49,15 @@
 //! so 15 workers, over 972 files: a cold index parses and checks each file
 //! once and peaks at 786 MB paged, 463 MB private once it settles. When each
 //! worker checked every body it read, it peaked at 5752 MB. A surface edit
-//! checks each file once more and peaks at about 1020 MB paged.
+//! checks each file once more and peaks at about 1 GB paged. The live bytes
+//! after each edit stay at the settled 228 MB, summed over every thread. The
+//! platform heap keeps the freed pages of an edit's run, so the private bytes
+//! climb to about 900 MB and stay there after 5, 10 and 20 edits.
+//!
+//! A worker hands its allocator's cached blocks back before its thread ends
+//! (`nvs_runtime::budget::release_pooled_blocks`). Without that, the blocks of
+//! every worker that ever ran stayed allocated, up to about 1 MB per worker
+//! per run, and the private bytes grew with each edit.
 //!
 //! **Declined:** a cap on the number of workers. The memory grew with the
 //! workers because each one checked the same bodies again. A cap hid that
@@ -484,8 +492,15 @@ impl Pool {
 }
 
 /// One worker: runs each job it takes until the job channel closes. It keeps
-/// its session between jobs.
+/// its session between jobs. Before the thread ends, it frees the session and
+/// hands its allocator's cached blocks back, which nothing else could use.
 fn work(jobs: &Receiver<Job>, done: &Sender<Done>) {
+    run_jobs(jobs, done);
+    nvs_runtime::budget::release_pooled_blocks();
+}
+
+/// The loop of [`work`], which owns everything the worker holds.
+fn run_jobs(jobs: &Receiver<Job>, done: &Sender<Done>) {
     let mut session = Session::default();
     let mut trees = TreeCache::default();
     while let Ok(job) = jobs.recv() {
