@@ -548,6 +548,95 @@ fn compile(
     }
 }
 
+/// `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s
+/// `replace`, written at `at`: one expression over the parameters of the
+/// method `sig` of `owner` and, on an instance method, `$this`, compiled in
+/// `namespace` from outside every class. `env.src` is the copy the text is
+/// parsed in ([`nvs_diagnostics::SourceFile::code_in`]). It answers every
+/// declaration the replacement names, or the first error in it, and reports
+/// nothing itself: the caller reports what is wrong under its own code.
+pub(crate) fn check_restriction(
+    text: &str,
+    at: u32,
+    owner: &QName,
+    sig: &crate::signatures::MethodSig,
+    namespace: &[String],
+    env: &mut Env<'_>,
+) -> Result<Vec<(QName, Member)>, Diagnostic> {
+    let mut parsed = Diagnostics::new();
+    let expr = nvs_syntax::parse_expression(env.src, &mut parsed);
+    let end = at + u32::try_from(text.trim_end().len()).unwrap_or(0);
+    if let Some(error) = parsed.iter().find(|d| d.is_error()) {
+        return Err(error.clone());
+    }
+    if expr.span.end != end {
+        return Err(Diagnostic::error(
+            code::E_BAD_RESTRICTION_REPLACE,
+            "this is more than one expression",
+        ));
+    }
+    let imports = rustc_hash::FxHashMap::default();
+    let ctx = Ctx {
+        namespace,
+        imports: &imports,
+        current_class: None,
+        current_hook: None,
+        in_constructor: false,
+        generator_elem: None,
+        in_anon_fn: false,
+        in_test_code: false,
+    };
+    let mut scope = LocalScope::new();
+    let mut live = Live::default();
+    let whole = expr.span;
+    if !sig.is_static {
+        let this = env.interner.class(owner.clone());
+        scope.declare_param("this".to_owned(), this, whole);
+        live.insert("this".to_owned());
+    }
+    for (at, name) in sig.param_names.iter().enumerate() {
+        let ty = sig
+            .params
+            .get(at)
+            .copied()
+            .unwrap_or_else(|| env.interner.mixed());
+        let ty = if sig.variadic && at + 1 == sig.params.len() {
+            env.interner.array(ty)
+        } else {
+            ty
+        };
+        scope.declare_param(name.clone(), ty, whole);
+        live.insert(name.clone());
+    }
+    let want = (!matches!(env.interner.get(sig.return_ty), Ty::Void)).then_some(sig.return_ty);
+    let before = env.diags.len();
+    let mark = env.exprs.len();
+    let got = infer(&expr, want, &mut live, &scope, &ctx, env);
+    let first = env
+        .diags
+        .iter()
+        .skip(before)
+        .find(|d| d.is_error())
+        .cloned();
+    env.diags.truncate(before);
+    if let Some(error) = first {
+        return Err(error);
+    }
+    if let Some(want) = want
+        && !is_assignable(got, want, env.interner, env.graph, env.signatures)
+    {
+        let (got, want) = (env.interner.describe(got), env.interner.describe(want));
+        return Err(Diagnostic::error(
+            code::E_BAD_RESTRICTION_REPLACE,
+            format!("the replacement is `{got}`, and the restricted method returns `{want}`"),
+        ));
+    }
+    Ok(named(mark, env)
+        .into_iter()
+        .map(|(owner, member, _)| (owner, member))
+        .collect())
+}
+
 /// Every declaration the expression table resolved after `mark`, with the
 /// class that declares it and its visibility.
 fn named(mark: usize, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {

@@ -265,13 +265,25 @@ impl SourceFile {
     /// when `at` leaves no room for the first line.
     #[must_use]
     pub fn code_at(&self, at: BytePos, text: &str) -> Option<Self> {
+        Self::code_in(self.id, &self.name, at, text)
+    }
+
+    /// [`Self::code_at`] for a file the caller holds only the id and the name of, such as a
+    /// `package.toml` whose `[[restrict]]` entry writes code in a string
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`). `None` when `at`
+    /// leaves no room for the first line, or the copy would be longer than [`MAX_SOURCE_LEN`].
+    #[must_use]
+    pub fn code_in(id: SourceId, name: &str, at: BytePos, text: &str) -> Option<Self> {
         const LEAD: &str = "#!\n";
         let pad = (at as usize).checked_sub(LEAD.len())?;
+        if LEAD.len() + pad + text.len() > MAX_SOURCE_LEN {
+            return None;
+        }
         let mut copy = String::with_capacity(LEAD.len() + pad + text.len());
         copy.push_str(LEAD);
         copy.extend(std::iter::repeat_n(' ', pad));
         copy.push_str(text);
-        Some(Self::new(self.id, self.name.clone(), None, copy))
+        Some(Self::new(id, name.to_owned(), None, copy))
     }
 }
 

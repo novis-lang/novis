@@ -85,6 +85,16 @@ impl Param {
             default,
         }
     }
+
+    /// A parameter known by its name alone, as a signature has it: a `Core`
+    /// method's, or a method a `[[restrict]]` entry names. It has no default.
+    pub(super) fn named(name: &str, variadic: bool) -> Self {
+        Self {
+            name: name.to_owned(),
+            variadic,
+            default: None,
+        }
+    }
 }
 
 /// The edit that replaces one use with its template filled in.

@@ -30,7 +30,7 @@
 mod fix;
 mod template;
 
-pub(crate) use template::resolved;
+pub(crate) use template::{check_restriction, resolved};
 
 use std::fmt::Write as _;
 
@@ -318,10 +318,30 @@ fn report(
     let shown = fill
         .as_ref()
         .map_or(template, |fill| Some(fill.shown.as_str()));
-    let mut diagnostic =
-        Diagnostic::warning(code::W_DEPRECATED, message(&what, deprecation, shown))
-            .with_primary(span, "this is deprecated");
-    match (&fill, template) {
+    let diagnostic = Diagnostic::warning(code::W_DEPRECATED, message(&what, deprecation, shown))
+        .with_primary(span, "this is deprecated");
+    let diagnostic = attach(diagnostic, fill.as_ref(), template, &member, site, span);
+    if at_new || !matches!(member, Member::Type | Member::Method(_)) {
+        let message = message(&what, deprecation, shown);
+        let (line, _) = env.src.line_col(span.start);
+        let at = format!("{}:{}", env.src.name(), line + 1);
+        env.exprs
+            .record_deprecation_check(span, DeprecationCheck { message, at });
+    }
+    env.diags.report(diagnostic);
+}
+
+/// `diagnostic` with `fill` as its fix, and the `use` line the fix needs, or
+/// with `template` as its help where no fix is written.
+fn attach(
+    mut diagnostic: Diagnostic,
+    fill: Option<&fix::Fill>,
+    template: Option<&str>,
+    member: &Member,
+    site: Option<nvs_hir::ImportSite>,
+    span: Span,
+) -> Diagnostic {
+    match (fill, template) {
         (Some(fill), _) => {
             diagnostic = diagnostic.with_fix(
                 fill.span,
@@ -336,7 +356,7 @@ fn report(
                 );
             }
         }
-        (None, Some(template)) if member != Member::Type => {
+        (None, Some(template)) if *member != Member::Type => {
             diagnostic = diagnostic.with_help(format!(
                 "write `{template}` here, with the values this use passes in place of its \
                  parameters"
@@ -344,14 +364,53 @@ fn report(
         }
         (None, _) => {}
     }
-    if at_new || !matches!(member, Member::Type | Member::Method(_)) {
-        let message = message(&what, deprecation, shown);
-        let (line, _) = env.src.line_col(span.start);
-        let at = format!("{}:{}", env.src.name(), line + 1);
-        env.exprs
-            .record_deprecation_check(span, DeprecationCheck { message, at });
-    }
-    env.diags.report(diagnostic);
+    diagnostic
+}
+
+/// `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s fix: a
+/// `[[restrict]]` entry's `replace` over the method `name` of `owner`, filled
+/// in at the use at `span` exactly as a deprecation's template is. Its names
+/// resolve in `namespace`, the namespace of the file the table is in. A
+/// parameter's default is not read, so a left-out parameter the template
+/// uses leaves no fix, and the help names the template.
+pub(crate) fn restriction_fix(
+    diagnostic: Diagnostic,
+    span: Span,
+    owner: &QName,
+    name: &str,
+    replace: &str,
+    namespace: &[String],
+    env: &Env<'_>,
+) -> Diagnostic {
+    let member = Member::Method(name.to_owned());
+    let Some((_, sig)) = crate::signatures::resolve_method(owner, name, env.signatures, env.graph)
+    else {
+        return attach(diagnostic, None, Some(replace), &member, None, span);
+    };
+    let last = sig.param_names.len();
+    let params = sig
+        .param_names
+        .iter()
+        .enumerate()
+        .map(|(at, param)| fix::Param::named(param, sig.variadic && at + 1 == last))
+        .collect();
+    let deprecation = Deprecation {
+        replace: Some(replace.to_owned()),
+        params,
+        scope: fix::Scope::new(namespace, &FxHashMap::default()),
+        ..Deprecation::default()
+    };
+    let site = nvs_hir::import_site(env.stmts, env.src, span.start);
+    let fill = fix::fill(span, owner, &member, false, &deprecation, &mut None, env)
+        .filter(|fill| fill.imports.is_empty() || site.is_some());
+    attach(
+        diagnostic,
+        fill.as_ref(),
+        Some(replace),
+        &member,
+        site,
+        span,
+    )
 }
 
 /// Records the entry check of method `name` of `class`, declared at `span`,

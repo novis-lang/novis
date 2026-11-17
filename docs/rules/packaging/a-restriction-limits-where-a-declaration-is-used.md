@@ -41,6 +41,19 @@ current program does not load. A `use` that names a method which overrides or im
 is `E0665` with the help "restrict `Parent::method` instead". A `replace` that does not compile is
 `E0666`.
 
+**The replacement is compiled where it is written.** Before any body is checked, each `replace` is
+inferred in a copy of its `package.toml` in which it is the only code, so an error inside it points
+at its bytes in the file. Its scope is the target method's parameters and, on an instance method,
+`$this`, in the namespace of the file the table is in: the package's name, or the global namespace
+in the application's file. It is outside every class. It is `E0666` when it does not parse, does not
+compile, returns a type that does not fit the method's, holds an escape sequence (its text must be
+the text between its quotes), or uses a declaration its own entry restricts. Only the declarations
+the program loads are known: a name in it that the program does not load is checked when a program
+that loads it compiles, such as the one the fix writes. `E0664` at a use carries the replacement
+filled in as its fix, through the same filling as a deprecation's
+(`rule:attributes/a-deprecation-names-its-replacement-as-code`), and a parameter's default is not
+read, so a left-out parameter the template uses leaves the help and no fix.
+
 **What counts as a use.** A call (static, instance, `parent::`), a method reference
 (`Name::method`), `new`, a property read or write, a class constant, an enum case, and a
 reflective act on the member. A type position, an `is` test and `catch` are not uses, so allowed

@@ -148,6 +148,8 @@ pub struct Restriction {
     line: usize,
     /// The span of the entry's `use` value.
     span: Option<Span>,
+    /// The span of the `replace` value, its quotes included.
+    replace_span: Option<Span>,
 }
 
 impl Restriction {
@@ -197,6 +199,28 @@ impl Restriction {
     #[must_use]
     pub fn span(&self) -> Option<Span> {
         self.span
+    }
+
+    /// Where the replacement's code starts in the file and the span of its whole value, quotes
+    /// included. `None` when there is no `replace`, or when its value is not the text written
+    /// between its quotes, as with an escape sequence: the code must be the written text, so an
+    /// error inside it points at the bytes in the file.
+    #[must_use]
+    pub fn replace_at(&self) -> Option<(u32, Span)> {
+        let (text, span) = (self.replace.as_deref()?, self.replace_span?);
+        let written = usize::try_from(span.end.checked_sub(span.start)?).ok()?;
+        let quote = match written.checked_sub(text.len())? {
+            2 => 1,
+            6 => 3,
+            _ => return None,
+        };
+        Some((span.start + quote, span))
+    }
+
+    /// The span of the `replace` value, quotes included.
+    #[must_use]
+    pub fn replace_span(&self) -> Option<Span> {
+        self.replace_span
     }
 
     /// Feeds the entry to the digest. The file and the line are left out.
@@ -349,6 +373,7 @@ pub(crate) fn parse(
         }
         entries.push(Restriction {
             span: span(id, &entry.target),
+            replace_span: entry.replace.as_ref().and_then(|written| span(id, written)),
             target,
             allow,
             note: entry.note.map(Spanned::into_inner),

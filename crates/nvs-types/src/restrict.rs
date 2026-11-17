@@ -30,17 +30,26 @@
 //! where the using file is inside that package by layout ([`crate::package`]), so a file that
 //! writes the package's namespace from outside its folder is still refused.
 //!
+//! **A `replace` is compiled where it is written.** [`Restricted::replacements`] makes a copy of
+//! the entry's `package.toml` in which the replacement is the only code, and [`check_replacement`]
+//! infers it there, in the namespace of the file the table is in, with the target method's
+//! parameters and `$this`, through [`crate::deprecated::check_restriction`]. What is wrong is
+//! [`code::E_BAD_RESTRICTION_REPLACE`] at the value. At a refused use the entry's `replace` is
+//! filled in as the fix ([`crate::deprecated::restriction_fix`]).
+//!
 //! Cost: one pass over each body's new table entries, and a few hash lookups per entry, only when
-//! a table exists. Memory: one index of the program's entries per check, never per request.
+//! a table exists, and one inference of each `replace` per check. Memory: one index of the
+//! program's entries per check, and one copy of a `package.toml` per `replace` while it is
+//! inferred, never per request.
 
 use nvs_config::restrict::{Restriction, Restrictions, Target};
-use nvs_diagnostics::{Diagnostic, Diagnostics, SourceId, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, Span, code};
 use nvs_hir::{ClassGraph, QName};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::Env;
 use crate::deprecated::Member;
-use crate::signatures::{SignatureTable, resolve_const_owned, resolve_method_ref};
+use crate::signatures::{SignatureTable, resolve_const_owned, resolve_method, resolve_method_ref};
 
 /// The program's restrictions, indexed by the declaration each one names.
 pub(crate) struct Restricted<'g> {
@@ -203,20 +212,186 @@ pub(crate) fn check_uses(place: Place<'_>, mark: usize, env: &mut Env<'_>) {
     let Some(restricted) = env.restricted else {
         return;
     };
-    let mut found: Vec<(Span, usize)> = Vec::new();
+    let mut found: Vec<(Span, usize, QName, Member)> = Vec::new();
     for (span, info) in env.exprs.since_at(mark) {
         for (owner, member, _) in crate::deprecated::resolved(info, env) {
             for at in restricted.holding(&owner, &member, env) {
                 if !restricted.allows(at, &place, span.file, env) {
-                    found.push((span, at));
+                    found.push((span, at, owner.clone(), member.clone()));
                 }
             }
         }
     }
     let mut seen = FxHashSet::default();
-    for (span, at) in found {
-        if seen.insert((span, at)) {
-            env.diags.report(refusal(&restricted.entries[at], span));
+    for (span, at, owner, member) in found {
+        if !seen.insert((span, at)) {
+            continue;
+        }
+        let entry = &restricted.entries[at];
+        let mut diagnostic = refusal(entry, span);
+        if let (Some(replace), Member::Method(name)) = (entry.replace(), &member) {
+            diagnostic = crate::deprecated::restriction_fix(
+                diagnostic,
+                span,
+                &owner,
+                name,
+                replace,
+                &namespace(entry),
+                env,
+            );
+        }
+        env.diags.report(diagnostic);
+    }
+}
+
+/// The namespace an entry's `replace` is written in: the package's name, or the global namespace
+/// for the application's file.
+fn namespace(entry: &Restriction) -> Vec<String> {
+    entry
+        .package()
+        .map(|name| name.split('\\').map(str::to_owned).collect())
+        .unwrap_or_default()
+}
+
+/// One entry's `replace`, ready to compile: the copy of `package.toml` its text is parsed in, and
+/// the method it replaces.
+pub(crate) struct Replacement {
+    at: usize,
+    /// The copy of the file in which the replacement is the only code
+    /// ([`nvs_diagnostics::SourceFile::code_in`]).
+    pub copy: SourceFile,
+    owner: QName,
+    method: String,
+    start: u32,
+    lit: Span,
+}
+
+impl Restricted<'_> {
+    /// Every entry's `replace` that can be compiled, each in its copy of the file. A `replace` on
+    /// a target that is not a method is [`code::E_BAD_RESTRICTION`], and one whose value is not
+    /// its written text is [`code::E_BAD_RESTRICTION_REPLACE`], both reported to `diags`. An
+    /// entry whose target names nothing has been reported already and is skipped.
+    pub(crate) fn replacements(
+        &self,
+        signatures: &SignatureTable,
+        graph: &ClassGraph,
+        diags: &mut Diagnostics,
+    ) -> Vec<Replacement> {
+        let mut out = Vec::new();
+        for (at, entry) in self.entries.iter().enumerate() {
+            let (Some(text), Some(lit)) = (entry.replace(), entry.replace_span()) else {
+                continue;
+            };
+            let method = match entry.target() {
+                Target::Member { class, member } => {
+                    let owner = QName::parse(class);
+                    if resolve_method(&owner, member, signatures, graph).is_some() {
+                        Some((owner, member.clone()))
+                    } else if names_something(entry.target(), signatures, graph) {
+                        None
+                    } else {
+                        continue;
+                    }
+                }
+                Target::Name(_) | Target::Subtree(_) => None,
+            };
+            let Some((owner, method)) = method else {
+                diags.report(
+                    Diagnostic::error(
+                        code::E_BAD_RESTRICTION,
+                        format!(
+                            "`{}` is not a method, so it has no replacement",
+                            entry.target()
+                        ),
+                    )
+                    .with_primary(lit, "here")
+                    .with_help("a `replace` belongs to a method. Delete this line".to_owned()),
+                );
+                continue;
+            };
+            let copy = entry.replace_at().and_then(|(start, _)| {
+                SourceFile::code_in(lit.file, entry.file(), start, text).map(|copy| (start, copy))
+            });
+            let Some((start, copy)) = copy else {
+                diags.report(
+                    Diagnostic::error(
+                        code::E_BAD_RESTRICTION_REPLACE,
+                        "the replacement is not the text written between its quotes",
+                    )
+                    .with_primary(lit, "this text has an escape sequence")
+                    .with_help(
+                        "write the replacement in single quotes, with no `\\` escape".to_owned(),
+                    ),
+                );
+                continue;
+            };
+            out.push(Replacement {
+                at,
+                copy,
+                owner,
+                method,
+                start,
+                lit,
+            });
+        }
+        out
+    }
+}
+
+/// Compiles `job`'s replacement in `env`, whose source is `job.copy`, and reports
+/// [`code::E_BAD_RESTRICTION_REPLACE`] when it does not compile, does not fit the method's return
+/// type, or uses a declaration its own entry restricts.
+pub(crate) fn check_replacement(job: &Replacement, env: &mut Env<'_>) {
+    let Some(restricted) = env.restricted else {
+        return;
+    };
+    let entry = &restricted.entries[job.at];
+    let Some(text) = entry.replace() else {
+        return;
+    };
+    let signatures = env.signatures;
+    let Some((_, sig)) = resolve_method(&job.owner, &job.method, signatures, env.graph) else {
+        return;
+    };
+    let namespace = namespace(entry);
+    let lit = job.lit;
+    let refused = |message: String| {
+        Diagnostic::error(code::E_BAD_RESTRICTION_REPLACE, message)
+            .with_primary(lit, "a use outside the allowed places is rewritten to this")
+    };
+    match crate::deprecated::check_restriction(text, job.start, &job.owner, &sig, &namespace, env) {
+        Err(inner) => {
+            let diagnostic = refused("the replacement does not compile".to_owned());
+            let diagnostic = match inner.primary_span() {
+                Some(span) if span != lit => diagnostic.with_secondary(span, inner.message),
+                _ => diagnostic.with_note(inner.message),
+            };
+            env.diags.report(diagnostic);
+        }
+        Ok(named) => {
+            let own = named
+                .iter()
+                .find(|(owner, member)| restricted.holding(owner, member, env).contains(&job.at));
+            if let Some((owner, member)) = own {
+                let what = match member {
+                    Member::Type => owner.to_string(),
+                    Member::Method(name)
+                    | Member::Property(name)
+                    | Member::Const(name)
+                    | Member::Case(name) => format!("{owner}::{name}"),
+                    Member::Param(..) => return,
+                };
+                env.diags.report(
+                    refused(format!(
+                        "the replacement uses `{what}`, which this entry restricts"
+                    ))
+                    .with_help(
+                        "write the code that replaces it, which a use outside the allowed \
+                             places may call"
+                            .to_owned(),
+                    ),
+                );
+            }
         }
     }
 }

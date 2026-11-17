@@ -327,6 +327,32 @@ fn check_files(
     // The encode half of the same question: a call that writes a class whose
     // decoder fills a `secret` property. See `crate::derive::check_encode_sites`.
     let mut encode_sites = Vec::new();
+    let shared = Shared {
+        module,
+        signatures: &signatures,
+        enums: &enums,
+        consts: &consts,
+        attributes: &attributes,
+        deprecations: &deprecations,
+        test_code: &test_code,
+        grants,
+        backtracking,
+        namespace_grants,
+        packages,
+        restricted: restricted.as_ref(),
+        files,
+    };
+    // Each `[[restrict]]` entry's `replace`, compiled where it is written, in a copy of its
+    // `package.toml` and an expression table nothing keeps.
+    if let Some(index) = &restricted {
+        for job in index.replacements(&signatures, &module.graph, diags) {
+            let mut output = crate::FileOutput::empty(0, exprs.part());
+            let mut scratch = Diagnostics::new();
+            let mut env = file_env(&job.copy, &[], &shared, &mut output, interner, &mut scratch);
+            crate::restrict::check_replacement(&job, &mut env);
+            diags.extend(scratch.take());
+        }
+    }
     for file in files {
         let id = file.src.id();
         // A file outside the body set takes its cached output where the
@@ -343,27 +369,7 @@ fn check_files(
             None => {
                 let mut output = crate::FileOutput::empty(anon_fn_seq, exprs.part());
                 let mut file_diags = Diagnostics::new();
-                let end_seq = walk_file(
-                    file,
-                    &Shared {
-                        module,
-                        signatures: &signatures,
-                        enums: &enums,
-                        consts: &consts,
-                        attributes: &attributes,
-                        deprecations: &deprecations,
-                        test_code: &test_code,
-                        grants,
-                        backtracking,
-                        namespace_grants,
-                        packages,
-                        restricted: restricted.as_ref(),
-                        files,
-                    },
-                    &mut output,
-                    interner,
-                    &mut file_diags,
-                );
+                let end_seq = walk_file(file, &shared, &mut output, interner, &mut file_diags);
                 output.end_seq = end_seq;
                 output.diags = file_diags.take();
                 if let Some((_, cache)) = partial.as_mut() {
@@ -445,8 +451,40 @@ fn walk_file(
     interner: &mut TypeInterner,
     diags: &mut Diagnostics,
 ) -> u32 {
+    let mut env = file_env(file.src, file.stmts, shared, output, interner, diags);
+    let mut frame = ScriptFrame {
+        scope: LocalScope::new(),
+        live: Live::default(),
+        // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target
+        // file hands back, typed `mixed` at the boundary — so the
+        // synthesized frame's return type is `mixed`, not `void`.
+        return_ty: env.interner.mixed(),
+    };
+    check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
+    // The whole file, because the synthesized frame is the whole file's:
+    // `rule:statements/storage-that-outlives-a-call` makes the script body
+    // a function, and a `namespace { ... }` block's statements land in this
+    // same frame rather than in one of their own.
+    let script = Span::new(
+        file.src.id(),
+        0,
+        BytePos::try_from(file.src.text().len()).unwrap_or(BytePos::MAX),
+    );
+    record_locals(script, &mut frame.scope, &mut env);
+    env.anon_fn_seq
+}
+
+/// The checker's state for one source, `src` with its statements `stmts`, writing into `output`.
+fn file_env<'a>(
+    src: &'a nvs_diagnostics::SourceFile,
+    stmts: &'a [nvs_syntax::ast::Stmt],
+    shared: &'a Shared<'_, '_>,
+    output: &'a mut crate::FileOutput,
+    interner: &'a mut TypeInterner,
+    diags: &'a mut Diagnostics,
+) -> Env<'a> {
     let module = shared.module;
-    let mut env = Env {
+    Env {
         symbols: &module.symbols,
         aliases: &module.aliases,
         graph: &module.graph,
@@ -461,8 +499,8 @@ fn walk_file(
         namespace_grants: shared.namespace_grants,
         packages: shared.packages,
         restricted: shared.restricted,
-        src: file.src,
-        stmts: file.stmts,
+        src,
+        stmts,
         files: shared.files,
         interner,
         exprs: &mut output.exprs,
@@ -495,27 +533,7 @@ fn walk_file(
         key_options: Vec::new(),
         secret_options: FxHashSet::default(),
         deprecated_uses: None,
-    };
-    let mut frame = ScriptFrame {
-        scope: LocalScope::new(),
-        live: Live::default(),
-        // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target
-        // file hands back, typed `mixed` at the boundary — so the
-        // synthesized frame's return type is `mixed`, not `void`.
-        return_ty: env.interner.mixed(),
-    };
-    check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
-    // The whole file, because the synthesized frame is the whole file's:
-    // `rule:statements/storage-that-outlives-a-call` makes the script body
-    // a function, and a `namespace { ... }` block's statements land in this
-    // same frame rather than in one of their own.
-    let script = Span::new(
-        file.src.id(),
-        0,
-        BytePos::try_from(file.src.text().len()).unwrap_or(BytePos::MAX),
-    );
-    record_locals(script, &mut frame.scope, &mut env);
-    env.anon_fn_seq
+    }
 }
 
 /// Every pass that reads the whole program's walk, over the folded result.
