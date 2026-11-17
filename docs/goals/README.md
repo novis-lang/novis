@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: []
+chain: [restrict]
 floor:
   - id: ci-check
     name: "every check the goal end's push runs is green"
@@ -32,7 +32,11 @@ floor:
 
 # Goals
 
-The chain is empty.
+The chain holds 1 goal(s). `restrict` is live.
+
+| # | Goal | Reached when | Stages |
+|---|---|---|---|
+| 1 | [`restrict`](restrict.md) **live** | Reached when a [[restrict]] table in package.toml limits where a Core or user declaration may be used, checked while compiling, only ever narrowing, shown in the editor at the use with its reason and fix, and the feature has its proofs and pages. | **1 the table is read from the application's file and each package's, and a broken table is an error where it is written** · 2 a use outside the allowed places does not compile · 3 the replacement is checked where it is written and becomes the fix, and a reflective act is held to the same table · 4 the editor shows the restriction at the use, on hover and in completion · 5 nvs pkg api lists a package's restrictions and nvs pkg diff calls a new one a break · 6 the feature's proofs and its pages · 7 the goal is verified once, and every failure is fixed |
 
 Off the chain (side goals): [`release-green`](release-green.md).
 
