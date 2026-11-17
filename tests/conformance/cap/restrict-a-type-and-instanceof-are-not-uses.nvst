@@ -7,6 +7,7 @@ autoload 'App' from './app';
 
 echo App\Desk\Clerk::check(), "\n";
 echo App\Desk\Clerk::recover(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Desk/Clerk.nvs--
 <?nvs
 // `App\Desk` is not in the allow list. This class names `App\Billing\Ledger`

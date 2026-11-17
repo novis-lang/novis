@@ -13,6 +13,7 @@ echo $post->boot(), "\n";
 // `Blog\Feed::start` implements `Framework\Kernel\Startable::start`, so this call does not compile.
 Framework\Kernel\Startable $feed = new Blog\Feed();
 echo $feed->start(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE framework/Kernel/Module.nvs--
 <?nvs
 namespace Framework\Kernel;

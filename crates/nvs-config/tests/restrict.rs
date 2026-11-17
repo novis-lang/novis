@@ -42,6 +42,7 @@ const SIGNED: &str = concat!(
     "replace = 'Framework\\Core\\Url::signed($route, $params)'\n",
 );
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_restrict_table_is_read_from_the_application_file() {
     let table = application(SIGNED).expect("the table reads");
@@ -86,6 +87,7 @@ fn a_restrict_table_is_read_from_the_application_file() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_restrict_table_is_read_from_a_package_manifest() {
     let text = concat!(
@@ -117,6 +119,7 @@ fn a_restrict_table_is_read_from_a_package_manifest() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_target_that_is_not_a_declaration_name_is_an_error() {
     for (written, line) in [
@@ -152,6 +155,7 @@ fn a_target_that_is_not_a_declaration_name_is_an_error() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_core_target_that_names_nothing_is_an_error() {
     let table = application(concat!(
@@ -180,6 +184,7 @@ fn a_core_target_that_names_nothing_is_an_error() {
     assert!(fine.restrictions().check_core(known).is_ok());
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_package_allow_outside_its_own_name_is_an_error() {
     for outside in [
@@ -218,6 +223,7 @@ fn a_package_allow_outside_its_own_name_is_an_error() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn an_unknown_restrict_field_is_an_error() {
     let refusal = refused("[[restrict]]\nuse = 'Core\\Router'\nallow = []\nallowed = []\n");
@@ -235,6 +241,7 @@ fn an_unknown_restrict_field_is_an_error() {
     assert_eq!(in_package.code, Some(code::E_BAD_RESTRICTION));
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn an_edited_restriction_changes_the_cache_key() {
     let config = Config::default();
@@ -278,6 +285,7 @@ fn an_edited_restriction_changes_the_cache_key() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_program_with_no_restriction_keeps_its_cache_key() {
     let config = Config::default();

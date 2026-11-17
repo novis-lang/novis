@@ -10,6 +10,7 @@ echo App\Allowed\Door::open(), "\n";
 // This line is outside `App\Allowed`, so it does not compile.
 echo App\Secret\Vault::open(), "\n";
 echo App\Other\Report::read(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Secret/Vault.nvs--
 <?nvs
 namespace App\Secret;

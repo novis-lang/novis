@@ -105,6 +105,7 @@ fn refused(stderr: &str, allowed: &str) -> bool {
         && stderr.contains(&format!("It is allowed only in `{allowed}`."))
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_framework_folder_with_a_manifest_restricts_every_module_that_loads_it() {
     let direct = module_entry(&format!("{SIGN}{UPPER}"));
@@ -139,6 +140,7 @@ fn a_framework_folder_with_a_manifest_restricts_every_module_that_loads_it() {
     }
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_module_file_that_declares_the_framework_namespace_is_still_refused() {
     // The Signing namespace has two roots: Blog's folder first, then the framework's.
@@ -178,6 +180,7 @@ fn a_module_file_that_declares_the_framework_namespace_is_still_refused() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn the_frameworks_own_tests_read_its_manifest_as_the_application_file() {
     // The entry is inside `Framework/`, so the walk up from `Framework/tests` finds
@@ -220,6 +223,7 @@ fn the_frameworks_own_tests_read_its_manifest_as_the_application_file() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_restriction_of_a_package_the_program_never_loads_restricts_nothing() {
     let mail = "[package]\nname = 'Framework\\Mail'\nversion = \"1.0.0\"\n\n\
@@ -262,6 +266,7 @@ class Sender
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn every_restriction_on_a_declaration_must_hold() {
     let page = |namespace: &str| {
@@ -334,6 +339,7 @@ fn every_restriction_on_a_declaration_must_hold() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn the_error_names_the_restricting_file_and_line() {
     let direct = module_entry(&format!("{SIGN}{UPPER}"));

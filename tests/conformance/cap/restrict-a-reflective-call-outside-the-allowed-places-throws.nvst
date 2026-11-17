@@ -32,6 +32,7 @@ try {
 } catch (LogicError $error) {
     echo "the function value throws too\n";
 }
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Secret/Vault.nvs--
 <?nvs
 namespace App\Secret;

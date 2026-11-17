@@ -91,6 +91,7 @@ fn bad_replacement(stderr: &str, message: &str) -> bool {
         && stderr.contains(message)
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_replacement_that_does_not_compile_is_an_error_in_package_toml() {
     let (_root, entry) = program("App\\Allowed\\Door::open($whom)");
@@ -108,6 +109,7 @@ fn a_replacement_that_does_not_compile_is_an_error_in_package_toml() {
     assert!(stderr.contains("error[E0664]"), "{stderr}");
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_replacement_of_the_wrong_type_is_an_error() {
     let (_root, entry) = program("App\\Allowed\\Door::count($who)");
@@ -119,6 +121,7 @@ fn a_replacement_of_the_wrong_type_is_an_error() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_replacement_that_uses_the_restricted_declaration_is_an_error() {
     let (_root, entry) = program("App\\Secret\\Vault::open($who)");
@@ -133,6 +136,7 @@ fn a_replacement_that_uses_the_restricted_declaration_is_an_error() {
     );
 }
 
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn the_fix_fills_in_the_replacement_at_the_use() {
     let (_root, entry) = program("App\\Allowed\\Door::open($who)");

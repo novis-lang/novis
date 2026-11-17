@@ -6,6 +6,7 @@ autoload 'Framework' from './framework';
 autoload 'Blog' from './blog';
 
 echo Blog\Post::run(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE framework/Kernel/Module.nvs--
 <?nvs
 namespace Framework\Kernel;

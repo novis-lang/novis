@@ -11,6 +11,7 @@ echo App\Billing\Ledger::total(), "\n";
 echo App\Billing\Ledger::CURRENCY, "\n";
 echo $ledger->owner, "\n";
 echo $ledger->describe(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Billing/Ledger.nvs--
 <?nvs
 namespace App\Billing;

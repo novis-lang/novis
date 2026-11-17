@@ -12,6 +12,7 @@ autoload 'Acme\Signing' from './vendor/signing';
 echo Acme\Signing\Internal\Signer::sign("page"), "\n";
 // This call is outside `Acme\Signing\Internal`, so it does not compile.
 echo Acme\Signing\Keys::sign("page"), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE vendor/signing/package.toml--
 [package]
 name = 'Acme\Signing'

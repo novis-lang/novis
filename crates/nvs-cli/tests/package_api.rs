@@ -371,6 +371,7 @@ fn restrict_diff(old: &str, new: &str) -> (bool, Vec<String>) {
 /// A package's `[[restrict]]` entries are in its API document, each `use` with its sorted
 /// `allow`, and the `note` is not (`rule:packaging/only-a-major-may-break-the-api`). A package
 /// with none prints no `restrict` key.
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn the_api_document_lists_the_packages_restrictions() {
     let pair = fixture("restrict");
@@ -389,6 +390,7 @@ fn the_api_document_lists_the_packages_restrictions() {
 }
 
 /// A restriction the old version did not have stops code that compiled, so it is a break.
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_new_restriction_is_a_break() {
     let (ok, changes) = restrict_diff("none", "narrow");
@@ -403,6 +405,7 @@ fn a_new_restriction_is_a_break() {
 }
 
 /// An `allow` that names fewer places than before stops code in the places it no longer names.
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_restriction_allowing_fewer_places_is_a_break() {
     let (ok, changes) = restrict_diff("wide", "narrow");
@@ -417,6 +420,7 @@ fn a_restriction_allowing_fewer_places_is_a_break() {
 }
 
 /// A removed restriction, and one whose `allow` names more places, only lets more code compile.
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_dropped_restriction_is_additive() {
     let (ok, changes) = restrict_diff("narrow", "none");

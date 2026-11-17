@@ -1,8 +1,8 @@
 ---
 id: packages
 title: "Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract`, `nvs pkg unlist` and `nvs pkg advise`, which publish a package, change its versions and send an advisory on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock`
-keywords: nvs pkg audit, nvs pkg advise, version range, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, the `[[restrict]]` table, which says where a class or method may be used, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract`, `nvs pkg unlist` and `nvs pkg advise`, which publish a package, change its versions and send an advisory on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock`
+keywords: [[restrict]], restrict, allow, restriction, where a method may be used, E0664, E0665, E0666, W1031, nvs pkg audit, nvs pkg advise, version range, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -120,14 +120,107 @@ package.
 A `require` or `autoload` path in a package must stay inside the package's directory. A path that
 leaves it with `..`, with an absolute path or through a symbolic link is error `E0661`.
 
+<!-- src: `rule:packaging/a-restriction-limits-where-a-declaration-is-used` -->
+
+# Restrictions: where a class or method may be used
+
+A `[[restrict]]` table says that a class, a method or a namespace may be used only in some places. A
+framework uses it to make sure that every module calls its own helper, and not the method the helper
+wraps. The check happens when the program compiles, so it costs nothing when the program runs.
+
+```toml
+[[restrict]]
+use     = 'Core\Router::urlSigned'
+allow   = ['Framework\Core\Signing\*']
+note    = "Use `Framework\Core\Url::signed`. It adds the framework's key rotation."
+replace = 'Framework\Core\Url::signed($route, $params)'
+```
+
+| Key | What it says |
+|---|---|
+| `use` | the declaration that is restricted. It is required |
+| `allow` | the list of places that may use it. It is required, and `[]` allows no place |
+| `note` | the text the error and the editor show. It is optional, and it may use Markdown |
+| `replace` | the code to write instead, as one Novis expression. It is optional, and only for a method or a function |
+
+`use` names one of these:
+
+- a class, an interface or an enum: `'Shop\Vault'`
+- a method, a property or a class constant: `'Shop\Vault::open'`
+- a function: `'Shop\format'`
+- a namespace: `'Shop'` for its own declarations, or `'Shop\*'` for every namespace below it too
+
+An entry of `allow` is a namespace, `'Shop'` or `'Shop\*'`, a class, `'Shop\Door'`, or one method
+of a class, `'Shop\Door::open'`. Code inside the restricted declaration, its class or its namespace
+may always use it.
+
+In `replace`, the method's parameters and `$this` are the values of the call. The compiler checks
+the replacement where it is written. The editor offers it as a fix at each use that is not allowed.
+
+## What counts as a use
+
+These are uses:
+
+- a call, also through `parent::`, a subclass or an interface
+- a method reference, such as `callable $open = Shop\Vault::open;`
+- `new`, a property read or write, a class constant and an enum case
+- a call or a property access through a `mixed` or `object` variable
+- `Core\Reflect\ClassInfo`'s `call`, `get`, `set`, `constant` and `construct`
+
+A type, an `is` test and `catch` are not uses. Allowed code can pass a restricted object to other
+code through typed parameters.
+
+A use outside the allowed places is error `E0664`, and the program does not compile. The message
+says what is not allowed, where it is allowed and the `note`. Then it names the `package.toml` file
+and the line of the rule. A call through `mixed` and a reflective call cannot be checked when the
+program compiles. They throw a `LogicError` with the same text when they run.
+
+A restriction on a method holds for every method that overrides or implements it. A `use` that
+names such an overriding method is error `E0665`. Restrict the parent's method instead.
+
+## Where the tables are read
+
+Novis reads `[[restrict]]` from your application's `package.toml` and from the `package.toml` of
+each package your program loads. A package's `allow` entries must all be inside the package's own
+namespace. A package's entry allows only the files inside that package's folder. A file outside the
+folder that writes `namespace Framework\Core;` is still not allowed.
+
+Nothing lifts a restriction. Every entry on a declaration must allow the use. Your application's file
+cannot remove or widen an entry of a package.
+
+A broken entry is error `E0665` at its line. A `replace` that does not compile is error `E0666`. A
+`Core` target that does not exist is error `E0665`. Any other target that names nothing in your
+program is warning `W1031` in your application's file. In a package's file it is allowed, because
+the package may name code your program does not load.
+
+## A framework folder is a package too
+
+A package does not have to come from a registry. A folder with a `package.toml` that has a
+`[package] name` is a package. Every file below that folder must use the package's namespace.
+
+```txt skip="a file tree"
+modules/
+  Framework/
+    package.toml          [package] name = 'Framework\Core'
+    src/Signing/Url.nvs   the class Framework\Core\Signing\Url
+  Blog/
+    public/index.nvs      the entry file of Blog
+```
+
+When the entry file of `Blog` loads a file of `modules/Framework`, the restrictions in
+`modules/Framework/package.toml` hold in `Blog` too. Every module that loads the framework gets the
+same rules.
+
+`nvs pkg diff` reports a new restriction, or one that allows fewer places, as a breaking change.
+
 <!-- src: `rule:packaging/package-toml-is-a-tool-input`, `rule:packaging/a-package-name-is-vendor-slash-name`, `rule:packaging/a-vendor-resolves-from-one-registry`, `rule:packaging/a-git-dependency-is-root-only` -->
 
 # package.toml
 
 `package.toml` describes your application or a package. The `nvs pkg` commands read all of it.
-When your program compiles, Novis reads only `[grants]` of your application's file, and only
-`[package] name` and `[capabilities]` of a package's file. Your program never reads the file when it
-runs.
+When your program compiles, Novis reads only `[grants]` and `[[restrict]]` of your application's
+file, and only `[package] name`, `[capabilities]` and `[[restrict]]` of a package's file. Your
+program never reads the file when it runs.
 
 A file with a `[package] name` is a package's file. A file without one is an application's file.
 This is an application's file:
@@ -155,6 +248,7 @@ Acme = { url = "https://packages.example.com", key = "packages.example.com+6c1a1
 | `[registries]` | the registry each vendor's packages come from |
 | `[capabilities]` | the capabilities a package needs, as `required` and `optional` |
 | `[grants]` | the capabilities each namespace may use, in an application's file only |
+| `[[restrict]]` | where a class, a method or a namespace may be used, with the keys `use`, `allow`, `note` and `replace` |
 | `[[download]]` | a large file a package downloads from another host, with its size and SHA-256 hash |
 | `[bundle] icon` | the `.ico` file a Windows executable from `nvs build --compile` shows, as a path from this file's folder |
 

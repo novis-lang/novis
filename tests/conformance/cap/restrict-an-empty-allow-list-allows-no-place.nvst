@@ -7,6 +7,7 @@ autoload 'App' from './app';
 
 echo Core\Str::upper("shop"), "\n";
 echo App\Label\Title::make("blog"), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Label/Title.nvs--
 <?nvs
 namespace App\Label;

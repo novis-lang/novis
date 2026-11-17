@@ -10,6 +10,7 @@ echo App\Admin\Tools\Panel::open(), "\n";
 echo App\Web\Controller::open(), "\n";
 echo App\Jobs\Nightly::run(), "\n";
 echo App\Secret\Vault::twice(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Secret/Vault.nvs--
 <?nvs
 namespace App\Secret;

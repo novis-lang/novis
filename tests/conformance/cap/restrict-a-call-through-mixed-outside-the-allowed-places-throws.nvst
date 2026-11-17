@@ -34,6 +34,7 @@ echo $vault->label(), "\n";
 
 // The same call through `mixed` runs in `App\Allowed`.
 App\Allowed\Door::open($vault);
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Secret/Vault.nvs--
 <?nvs
 namespace App\Secret;

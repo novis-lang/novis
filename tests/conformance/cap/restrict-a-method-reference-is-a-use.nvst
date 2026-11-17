@@ -10,6 +10,7 @@ callable $allowed = App\Allowed\Door::opener();
 // This line takes the reference here, so it does not compile.
 callable $open = App\Secret\Vault::open;
 echo $open(), "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 --FILE app/Secret/Vault.nvs--
 <?nvs
 namespace App\Secret;
