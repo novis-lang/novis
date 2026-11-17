@@ -37,6 +37,14 @@ stages:
     status: open
     context: [crates/nvs-lsp/src/actions.rs, docs/rules/ide/narrow-an-annotation-to-its-literal.md]
   - id: 9
+    title: a method call the compiler can name is direct, and a method that returns one property reads it
+    status: open
+    context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-types/src/signatures.rs, crates/nvs-ir/src/lower/tests.rs]
+  - id: 10
+    title: a split with a limit, a search that ignores case and a JSON validity test read only what their result needs
+    status: open
+    context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/json.rs]
+  - id: 11
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -50,15 +58,12 @@ checks:
       - every_form_row_has_its_cases
   - id: call-forms
     stage: 2
-    name: "a null test of a match, a null test of indexOf, a zero test of length, a count or first of keys or values, an escape in a template hole, a difference written as filter and contains, and a caught conversion that assigns null each compile as their fast form"
-    run: [cargo, test, --lib, --, a_null_test_of_a_match_compiles_as_matches, a_null_test_of_index_of_compiles_as_contains, a_zero_test_of_length_compiles_as_is_empty, a_count_or_first_of_keys_or_values_reads_the_array_itself, an_escape_inside_a_template_hole_is_the_hole, a_difference_written_as_filter_and_contains_compiles_as_diff, a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion]
+    name: "a null test of a match, a count or first of keys or values, a difference written as filter and contains, and a caught conversion that assigns null each compile as their fast form"
+    run: [cargo, test, --lib, --, a_null_test_of_a_match_compiles_as_matches, a_count_or_first_of_keys_or_values_reads_the_array_itself, a_difference_written_as_filter_and_contains_compiles_as_diff, a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion]
     timeout: 1800
     tests:
       - a_null_test_of_a_match_compiles_as_matches
-      - a_null_test_of_index_of_compiles_as_contains
-      - a_zero_test_of_length_compiles_as_is_empty
       - a_count_or_first_of_keys_or_values_reads_the_array_itself
-      - an_escape_inside_a_template_hole_is_the_hole
       - a_difference_written_as_filter_and_contains_compiles_as_diff
       - a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion
   - id: direct-paths
@@ -133,6 +138,29 @@ checks:
     tests:
       - tests/lsp/actions/a-bare-callable-parameter-takes-the-type-every-caller-passes.lspt
       - tests/lsp/actions/a-parameter-whose-callers-differ-is-offered-no-type.lspt
+  - id: named-calls
+    stage: 9
+    name: "a method nothing at or below the receiver's class overrides is called directly, a method one class at or below it overrides stays virtual, and a method that returns one property is the property read"
+    run: [cargo, test, --lib, --, a_method_nothing_below_the_receiver_overrides_is_direct, a_method_a_class_below_the_receiver_overrides_stays_virtual, a_method_that_returns_one_property_is_the_property_read]
+    timeout: 1800
+    tests:
+      - a_method_nothing_below_the_receiver_overrides_is_direct
+      - a_method_a_class_below_the_receiver_overrides_stays_virtual
+      - a_method_that_returns_one_property_is_the_property_read
+  - id: members
+    stage: 10
+    name: "a split with a limit visits no piece past its limit, a search that ignores case builds no table for plain text, and a validity test builds no document"
+    run: [cargo, test, --lib, --, a_split_with_a_limit_visits_no_piece_past_its_limit, a_search_that_ignores_case_builds_no_table_for_plain_text, a_validity_test_builds_no_document]
+    timeout: 1800
+    tests:
+      - a_split_with_a_limit_visits_no_piece_past_its_limit
+      - a_search_that_ignores_case_builds_no_table_for_plain_text
+      - a_validity_test_builds_no_document
+  - id: member-ladder
+    stage: 10
+    name: "splitting a key off a long line does not grow with the line"
+    run: [bun, nv, scaling, --check, strings/forms-]
+    timeout: 3600
 ---
 
 # the compiler runs the cheaper of two forms that give the same result, and names the ones only an edit can change
@@ -160,6 +188,21 @@ Measured on 2026-11-17 with the release binary, single runs:
 | a literal with four constant keys, 1M times | 279 ms | a list literal of four | 130 ms |
 | a call through a bare `callable` with a 1000-entry `array<int>` argument, 100k calls | 359 ms | `callable(array<int>): int` | 3 ms |
 | `mixed $x` in `$x + 1`, 5M times | 146 ms | `int $x` | 11 ms |
+| `Core\Arr::count(Core\Arr::keys($m))`, 200 calls on 10k entries | 38 ms | `Core\Arr::count($m)` | one step |
+| `$dog->name()` where a sibling class overrides `name`, 5M calls | 129 ms | the same call where nothing overrides | 26 ms |
+| `$dog->legs()` whose body is `return $this->legs;`, 5M calls | 34 ms | `$dog->legs` | 10 ms |
+| `Core\Str::split($line, '=', { limit: 2 })`, 2000 calls on a 42 KB line, and on 84 KB | 42 ms, 80 ms | `Core\Str::before($line, '=')` | 0 ms |
+| `Core\Str::indexOf($s, $n, { caseInsensitive: true })`, 500 calls on 42 KB | 124 ms | the same search without the option | 1 ms |
+| `Core\Json::isValid($doc)`, 50 calls on 109 KB | 62 ms | `Core\Json::decode($doc)`, which also builds the value | 68 ms |
+| three `queryParameter` calls on one `Core\Uri` with a 1.5 KB query, 20,000 times | 840 ms | one `Core\Uri::parseQuery` | 253 ms |
+| two `get` calls for one cache key holding 8000 entries, 2000 times | 830 ms | one `get` | 291 ms |
+| `Core\IO::isFile`, `size` and `modifiedAt` on one path, 20,000 times | 4.5 s | one `Core\IO::stat` | 1.6 s |
+
+Three forms the review named were measured the same day and showed no gain worth a row:
+`Core\Str::indexOf(…) != null` against `Core\Str::contains` (1 ms each for 500 calls on 42 KB),
+`Core\Str::length(…) == 0` against `Core\Str::isEmpty` (1 ms each for 20,000 strings of 70 characters),
+and `Core\Html::escape` written inside a template hole against the plain hole (218 ms against 151 ms
+for 1M holes, which is 1.4x). They are not in the table.
 
 `Core\Arr::map($rows, fn(array<int> $row): int => 1)` over 100 rows, 1000 times, took 536 ms with
 1000-entry rows and 916 ms with 2000-entry rows. The callback never reads the row. The time is
@@ -217,12 +260,9 @@ lowering, and emits the fast form directly:
 | As written | Compiled as | Holds when |
 |---|---|---|
 | `Core\Regex::match(s, p)` used only in `== null`, `!= null` or `is null` | `Core\Regex::matches(s, p)` | no `from` option |
-| `Core\Str::indexOf(s, n)` used only in a null test | `Core\Str::contains(s, n)` | no options |
-| `Core\Str::length(s)` compared with the literal `0` | `Core\Str::isEmpty(s)` | always |
 | `Core\Arr::count` of `keys(a)` or `values(a)` | `Core\Arr::count(a)` | always |
 | `Core\Arr::first` of `keys(a)`, `first` of `values(a)` | `firstKey(a)`, `first(a)` | always |
 | `Core\Arr::filter(a, fn(x) => !Core\Arr::contains(b, x))` and the same without `!` | `diff(a, b)`, `intersect(a, b)` | `b` is not assigned in the function, and the element type is not an array |
-| `{Core\Html::escape($x)}` in an `html` template hole | `{$x}` | `$x` is a `string` |
 | `try { $v = X as T; } catch (C) { $v = null; }` | `$v = X as ?T;` | below |
 | `try { $v = K::parse(X); } catch (C) { $v = null; }` | `$v = K::tryParse(X);` | below, and `K` declares `tryParse` |
 | `foreach (Core\Arr::keys(m) as $k)`, `foreach (Core\Arr::values(m) as $v)` | the loop over `m` itself, binding the key or the value | always: a loop walks the array it began with |
@@ -230,6 +270,8 @@ lowering, and emits the fast form directly:
 | a `foreach` key binding the body never reads | no key is made | always |
 | an array literal whose keys are all constants, no two equal, with no spread | one `ArrayNew` with its entries | always |
 | `static::m()` and `static::NAME` | the direct call and the constant | no class in the program overrides `m` or declares `NAME` again |
+| `$x->m()` on a receiver of static class `C` | the direct call | no class at or below `C` declares `m` again, or `m` has exactly one body at or below `C` |
+| `$x->m()` where the one body of `m` is `return $this->p;` | the read of `p` | the call is direct, and `p` has no hook |
 
 The caught conversion holds when the `try` body is exactly that one assignment, `X` is a local, a
 parameter, a literal or a property with no hook (so the conversion is the body's only failure), there
@@ -269,8 +311,23 @@ free `W1xxx` number when it lands, with a card in end-user prose.
   `isDir`, `size` and `modifiedAt` on one path where `Core\IO::stat` (`crates/nvs-stdlib/src/io.rs:3799`)
   asks once. The shape is exact: the same receiver variable and the same literal key or path variable,
   neither assigned between the two calls, the second call reached only through the first, and between
-  them no call to a Novis function, no callable call and no member of the same class that writes. A
-  row is built only if stage 5 measures it at 2x or more, as § *Limits* says.
+  them no call to a Novis function, no callable call and no member of the same class that writes. The
+  cache, `queryParameter` and file rows are measured in § *Why*: each read costs enough that the
+  second one doubles it or worse. The session row cannot be measured outside a request, so stage 5
+  measures it and builds it only at 2x or more, as § *Limits* says.
+
+**Three members read only what their result needs (my call).** These are fixes inside the member,
+with no row in the table, because nothing about the call changes:
+
+- `Core\Str::split` with a positive `limit` stops counting pieces at the limit
+  (`crates/nvs-stdlib/src/str.rs:2176`). Today it counts every piece of the subject first.
+- A search that ignores case (`indexOf`, `lastIndexOf`, `contains` with `caseInsensitive`) folds bytes
+  as it scans when the needle and the subject are both plain ASCII, and builds its tables
+  (`str.rs:2831`) only otherwise. A letter outside ASCII can fold to an ASCII one, so the fast path
+  needs both sides plain.
+- `Core\Json::isValid` runs the reader without building the value, which its module doc already
+  names as not built (`crates/nvs-stdlib/src/json.rs:141`). Its gain is not known until it exists, so
+  it is kept only if it measures 2x or better against today's 62 ms.
 
 **What is not a warning, and why (my call).**
 
@@ -335,7 +392,9 @@ removes work. A program holds no more memory for a request or a task.
 `crates/nvs-runtime/src/callable.rs`, `dispatch.rs` and the callback argument's lowering, and can run as
 a side goal at any time. Stage 7 touches the debug index and `crates/nvs-lsp/src/recorded.rs`, and stage
 8 `crates/nvs-lsp/src/actions.rs`: both are disjoint from every other stage and can run as side goals.
-Stages 4 and 5 share `forms.rs` with stage 2 and run in order after it.
+Stages 4 and 5 share `forms.rs` with stage 2 and run in order after it. Stage 9 shares the call
+lowering with stages 2 and 3 and runs after them. Stage 10 touches `crates/nvs-stdlib/src/str.rs` and
+`json.rs` alone and can run as a side goal at any time.
 
 ## Stages
 
@@ -371,20 +430,16 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
 
 - [ ] `crates/nvs-ir/src/lower/expr.rs:5160`: before a `CoreCall` is emitted, the lowering asks
   `forms.rs` with the resolved member, the argument expressions and how the result is used. The rows:
-  the null test of `match` (`crates/nvs-stdlib/src/regex.rs:2090` against `:1901`), the null test of
-  `indexOf` (`crates/nvs-stdlib/src/str.rs:3383` against `:2051`), the zero test of `length`
-  (`str.rs:1989` against `:2040`), and `count` or `first` of `keys` (`crates/nvs-stdlib/src/arr.rs:3220`)
-  or `values` (`arr.rs:4037`).
+  the null test of `match` (`crates/nvs-stdlib/src/regex.rs:2090` against `:1901`), and `count` or
+  `first` of `keys` (`crates/nvs-stdlib/src/arr.rs:3220`) or `values` (`arr.rs:4037`).
 - [ ] The `filter` and `contains` row. The callback is matched as a tree: one `return` of
   `Core\Arr::contains(<captured b>, <its parameter>)`, negated or not. The element-type condition is
   read from the static types. A differential test in `crates/nvs-stdlib/src/arr.rs` runs `filter` with
   `contains` and `diff` over the same pairs of `int`, `uint`, `float`, `string`, `bool` and object
   lists, with a `float` equal to an `int` among them, and both give the same entries.
-- [ ] The template-hole row, where a hole's expression is lowered: a direct call of
-  `Core\Html::escape` (`crates/nvs-stdlib/src/html.rs:719`) on a `string`.
 - [ ] `crates/nvs-ir/src/lower/exception.rs:382` `lower_try`: the two caught-conversion rows, under the
   conditions in § *Standing decisions*. The conversion's miss arm is the one `as ?T` already takes.
-- [ ] The seven tests the `call-forms` check names, each asserting the instruction emitted with the
+- [ ] The four tests the `call-forms` check names, each asserting the instruction emitted with the
   table on and with it off. Run once.
 
 ### 3. a loop, a literal and a static call take the direct path
@@ -434,10 +489,10 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
   card in end-user prose. Its message names the member to use. Its `Suggestion` is the fast form's
   text, marked `alternative`. `nvs check` prints it, and `crates/nvs-lsp/src/actions.rs` translates it
   as it does every other suggestion.
-- [ ] The repeated-read warning. First measure each of its four rows once, with the release binary: a
-  16 KiB session record, a 64 KiB cached value, a 2 KiB query string and three file facts on one path.
-  A row under 2x is not built, and its number goes to the rule's Declined list. The rows that pass are
-  matched in the lowering under the exact shape in § *Standing decisions*. One code and one card.
+- [ ] The repeated-read warning, for the cache, `queryParameter` and file rows, matched in the
+  lowering under the exact shape in § *Standing decisions*. One code and one card. The session row is
+  measured first, once, under `nvs serve` with a 16 KiB session record: two `Core\Session::get` calls
+  against one. Under 2x it is not built, and its number goes to the rule's Declined list.
 - [ ] Every file the `reader` subagent lists is rewritten to the fast form, or keeps its form where
   the example is about that form. Its `.out` file does not change.
 - [ ] The two tests the `warnings` check names and the two `.lspt` cases. Run once.
@@ -481,7 +536,38 @@ under `tests/lsp/actions/`.
 - [ ] `rule:ide/a-code-action-writes-only-what-is-already-determined` gains the action.
 - [ ] The two `.lspt` cases the `typed-parameter-action` check names. Run once.
 
-### 9. the goal is verified once, and every failure is fixed
+### 9. a method call the compiler can name is direct, and a method that returns one property reads it
+
+- [ ] `crates/nvs-types/src/signatures.rs:1125` `mark_overridden_methods` marks a method by the class
+  that declares it, so one override anywhere makes every call of it virtual. The fact becomes one per
+  receiver class: whether any class at or below it declares the method again, and whether the method
+  has exactly one body at or below it. `crates/nvs-ir/src/lower/expr.rs:5052` reads it for the
+  receiver's static class. An interface or abstract method with one body in the program is direct by
+  the same fact.
+- [ ] A direct call whose one body is `return $this->p;`, with `p` a property that has no hook, is
+  lowered as the read of `p` on the receiver. A class that implements a property observer or guard
+  gets the same read the method body would have made.
+- [ ] The three tests the `named-calls` check names. Run once.
+
+### 10. a split with a limit, a search that ignores case and a JSON validity test read only what their result needs
+
+**Split:** one writing subagent writes the ladder, copying the shape of
+`benches/scaling/strings/at.nvs`.
+
+- [ ] `benches/scaling/strings/forms-a-key-split-off-a-long-line.nvs`
+  (`Core\Str::split($line, '=', { limit: 2 })`, the ladder's size is the line's length,
+  `// scaling: expect constant`).
+- [ ] `crates/nvs-stdlib/src/str.rs:2176`: the count of pieces stops at a positive `limit`. The memory
+  check before the build still asks for what will be built.
+- [ ] `str.rs:2831`: the plain-ASCII path of a search that ignores case. The item first reads how a
+  string knows its text is plain ASCII, and uses that. Without such a fact it tests the needle once
+  and the subject as it scans, and falls back at the first byte outside ASCII.
+- [ ] `crates/nvs-stdlib/src/json.rs:141`: `isValid` runs the reader with nothing built. Measure it once
+  against the figure in § *Why*. Under 2x it is reverted, and its number goes to the rule's Declined
+  list.
+- [ ] The three tests the `members` check names, and `bun nv scaling --check strings/forms-`. Run once.
+
+### 11. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
@@ -503,22 +589,15 @@ one the compiler can prove. A by-value loop that writes the entry it is on went 
 `in-place-everywhere` as a silent change. `Core\IO::append` in a loop is shown from a recorded
 request, because one opened handle behaves differently when the file is replaced.
 
+Every row and every member fix here was timed on the release binary on 2026-11-17, and § *Why* holds
+the figures. Three forms measured no gain and were left out. Two things could not be timed before
+they exist and carry their own 2x test: the session row of the repeated-read warning, and
+`Core\Json::isValid` without a built value.
+
 Sessions used per stage: none yet. Nothing is built.
 
 ### Next
 
-Stage 1 from its first item. Stages 6, 7 and 8 can start as side goals at any time.
+Stage 1 from its first item. Stages 6, 7, 8 and 10 can start as side goals at any time.
 
 ### Backlog
-
-Read in the code by a reviewer on 2026-11-17 and not measured. Each needs a measurement before a goal
-takes it:
-
-- `Core\Str::split` with a `limit` counts every piece before it builds (`crates/nvs-stdlib/src/str.rs:2176`).
-- `Core\Json::isValid` builds the whole document and frees it (`crates/nvs-stdlib/src/json.rs:141`).
-- A case-insensitive `indexOf` builds its tables on every call (`str.rs:2831`).
-- A method call is direct only when nothing redeclares the method anywhere, so a call on a class whose
-  own subclasses do not override it is still virtual (`crates/nvs-types/src/signatures.rs:1125`).
-- A method whose body is `return $this->x;` is a call, with no inlining.
-- A generator's resume reloads every local with a retain (`crates/nvs-ir/src/lower/generator.rs:153`),
-  so an array local changed after a `yield` may copy once per resume.

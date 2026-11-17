@@ -138,14 +138,15 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 
 ### 1. the ladders show every quadratic array shape
 
-**Split:** one writing subagent writes the thirteen ladders, copying the shape of
+**Split:** one writing subagent writes the fourteen ladders, copying the shape of
 `benches/scaling/arrays/sort.nvs`.
 
-- [ ] Two ladders under `benches/scaling/arrays/` for the forms `in-place-everywhere` added on
+- [ ] Three ladders under `benches/scaling/arrays/` for the forms `in-place-everywhere` added on
   2026-11-17, each `// scaling: expect linear`, start 1000, max 32000:
-  `in-place-a-list-built-with-a-spread.nvs` (`$list = [...$list, $x]`) and
+  `in-place-a-list-built-with-a-spread.nvs` (`$list = [...$list, $x]`),
   `in-place-a-list-built-by-reduce.nvs` (a `Core\Arr::reduce` callback that returns
-  `Core\Arr::append($carry, $x)`). They are red until `in-place-everywhere` is reached.
+  `Core\Arr::append($carry, $x)`) and `in-place-a-list-built-inside-a-generator.nvs` (a generator that
+  appends to a local and then yields). They are red until `in-place-everywhere` is reached.
 - [ ] Two ladders for the reads, each `// scaling: expect linear`, start 1000, max 32000:
   `read-the-last-entry-of-a-growing-list.nvs` (`Core\Arr::last` once per entry) and
   `read-a-list-page-by-page-with-slice.nvs` (`Core\Arr::slice($a, $at, 50)` over the whole list). They
@@ -214,7 +215,7 @@ nothing for a developer to remember, and every replacement in place. Every other
 § *Standing decisions* is the authoring session's call. Nothing is built yet.
 
 A review the person asked for on 2026-11-17 added the two reads that walk (`last` and `lastKey`, and a
-late `slice` window) and four ladders. The person agreed to add them.
+late `slice` window) and five ladders. The person agreed to add them.
 
 ### Next
 

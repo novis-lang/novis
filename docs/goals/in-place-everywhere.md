@@ -113,6 +113,14 @@ checks:
     tests:
       - a_loop_that_writes_only_its_own_entry_holds_no_reference
       - a_loop_whose_body_can_change_the_array_another_way_keeps_its_reference
+  - id: generator-local
+    stage: 3
+    name: "an array local a generator changes after a yield is changed in place, and a generator that is dropped while parked frees each local once"
+    run: [cargo, test, --lib, --, a_generator_local_changed_after_a_yield_is_changed_in_place, a_generator_dropped_while_parked_frees_each_local_once]
+    timeout: 1800
+    tests:
+      - a_generator_local_changed_after_a_yield_is_changed_in_place
+      - a_generator_dropped_while_parked_frees_each_local_once
   - id: carry
     stage: 5
     name: "a reduce callback that changes its carry changes it in place, and a callback that throws frees the carry once"
@@ -227,8 +235,8 @@ back-edges, a `catch`, a `finally` and a generator's resume. The rules:
 its last use, never at the end of its scope. So `$b = $a; $a = Core\Arr::slice($a, 1);` changes `$a` in
 place when `$b` is not read afterwards. A copy is left only where two values are really used.
 
-**Three more replacement forms, found by the review of 2026-11-17 (my calls).** Each was measured or
-read on the release binary that day, and none was named above:
+**Four more replacement forms, found by the review of 2026-11-17 (my calls).** Each was measured on
+the release binary that day, and none was named above:
 
 - **A literal that opens with a spread of its own target.** `$list = [...$list, $x]` built a list of
   10,000 entries in 667 ms and one of 20,000 in 3.6 s. It is the array form of `$s = $s . 'x'`. The
@@ -247,11 +255,19 @@ read on the release binary that day, and none was named above:
   one member that hands a value over.
 - **A by-value loop that writes only the entry it is on holds no reference of its own.**
   `foreach ($a as $k => $v) { $a[$k] = f($v); }` copies the whole array once, because the loop keeps a
-  reference to the array it walks (`crates/nvs-ir/src/lower/control.rs:955`). Read in the code, not
-  measured. The pass drops that reference when every write to the array in the body is an element
+  reference to the array it walks (`crates/nvs-ir/src/lower/control.rs:955`). On 2M entries it took
+  164 ms, against 83 ms for the `inout` loop. The pass drops that reference when every write to the
+  array in the body is an element
   write at the loop's own key, the key is not assigned, and no instruction in the body may write the
   slot another way by its effects. Nothing is added or removed, so the walk is the same. Any other
   body keeps the reference.
+- **A generator's local is its only reference after a resume.** A generator that appends to an array
+  local and then yields took 184 ms for 10,000 values and 729 ms for 20,000. Every `yield` parks each
+  local in the generator's state object, and the resume reads it back with a reference of its own
+  (`reload_field`, `crates/nvs-ir/src/lower/generator.rs:21`), so the state object and the local both
+  hold the array and the next change copies it. The resume instead takes the value out of the state
+  object and leaves the field empty until the next `yield` parks it again. The field is read by
+  nothing else while the body runs.
 
 **Every copy the pass keeps is reported, and the report is compiled in (the person's call).** The pass
 records each place it keeps a copy, with a reason and, where one exists, a fix. That table is part
@@ -435,7 +451,11 @@ disjoint and they run side by side. The session runs the test once all batches e
 - [ ] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
   dropped for a by-value loop whose body writes only the entry it is on, under the conditions in
   § *Standing decisions*.
-- [ ] The five tests the `moves` check names and the two the `own-entry-loop` check names. Run once.
+- [ ] `crates/nvs-ir/src/lower/generator.rs:21` `reload_field` takes the parked value and leaves the
+  field empty, with no retain. A generator that is dropped while parked still frees what its fields
+  hold, and one dropped while its body runs frees nothing twice.
+- [ ] The five tests the `moves` check names, the two the `own-entry-loop` check names and the two the
+  `generator-local` check names. Run once.
 
 ### 4. the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
 
@@ -519,9 +539,10 @@ accepted every decision below, and asked that a Novis callee get the in-place pa
 compiler can prove it safe, which is stage 5. Every other choice in § *Standing decisions* is the authoring session's call under the priority ordering,
 and stands until the person picks another. Nothing is built yet.
 
-A review the person asked for on 2026-11-17 added three forms: a literal that spreads its own target,
-the carry of a `Core\Arr::reduce` callback, and a by-value loop that writes only the entry it is on. The
-person agreed to add them. Goal `cheaper-forms` holds the rest of that review.
+A review the person asked for on 2026-11-17 added four forms: a literal that spreads its own target,
+the carry of a `Core\Arr::reduce` callback, a by-value loop that writes only the entry it is on, and a
+generator's local after a resume. The person agreed to add the first three; the fourth was measured
+after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
 
 ### Next
 
