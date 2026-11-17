@@ -340,20 +340,20 @@ hash, stamps every `about.md` and help card, and takes the first stamps.
   release step*), with its reasons, its cost line and its Declined list.
   `data/rules/testing/every-change-reaches-the-website.json:1` as `designed` with its `goal`, the id
   added to `data/rules/testing.json:85`, then `bun nv rules --render` and `bun nv rules --check`.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `docs/rules/testing/website-pages-are-stamped.md:1`: the hash covers the feature's tests too, and
   the rule points to the new one for the `about.md` and help stamps.
   `rule:testing/website-pages-are-stamped`
 - [ ] `tools/nv/lib/texts.ts:1`: `card` and `section` move here from `tools/nv/cmd/site.ts:407`, with
   `testsOf(root, entry)` over `markersIn` (`tools/nv/proofs/markers.ts:22`) and each test's text as
   § *A feature's tests* says, then the page, text, `about.md`, help and behaviour hashes.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/cmd/site.ts:462`: `featureHash` is the page hash; `questionSources` (`:610`) uses the
   text hash. `staleness` (`:506`) names a stale or never-stamped `about.md` and help card beside the
   pages, and `stamp` (`:537`) takes their keys. The module doc (`:240`) and `summary` (`:329`) say so.
   `rule:testing/website-pages-are-stamped`
 - [ ] `tools/nv/cmd/site.ts:2608`: `--stamp --baseline` as § *The first stamps* says.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/test/site.test.ts:32`: the six tests the `feature-hash` check names, then the check run
   once by name.
 - [ ] `bun nv site --stamp --baseline` once, then the `stale-green` check. A page stale before this
@@ -369,24 +369,24 @@ release step, and shows the unreleased entries on What changed.
 page from § *The page*, once the data file's shape is on disk.
 
 - [ ] `tools/nv/schema/proofs.ts:86`: the `released` record for `data/proofs/released.json`, beside
-  `helpBacklog`. `rule:testing/every-change-reaches-the-website`
+  `helpBacklog`. `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/cmd/site.ts:2453`: the `changes` part in `PARTS` (`:339`) and `check`, as § *The
   snapshot* says, reading `website/src/data/changes.json:1` (created with empty `entries` and `unseen`).
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/cmd/site.ts:2608`: `--changes --snapshot` and `--changes --release <version>`, as
   § *The snapshot* and § *The release step* say. The module doc (`:1`) lists both.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `.github/workflows/release.yml:353`: a step after *Bump the manifests* that unpacks the Linux
   x86_64 archive from `dist/` and runs `bun nv site --changes --release "$VERSION" --nvs <it>`. The
   commit step's `git add` (`:368`) adds `what-changed.mdx`, `changes.json`, `core-changelog.json` and
-  `data/proofs/released.json`. `rule:testing/every-change-reaches-the-website`
+  `data/proofs/released.json`. `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:608`: the website stale guard runs
   `changes` too. The comment above the CI step says what it checks.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `website/src/content/docs/in-depth/what-changed.mdx:12`: the sentence of § *The page*, and
   `<UnreleasedChanges />` under `## Not released yet`. `website/src/components/UnreleasedChanges.astro:1`
   and `website/src/pages/reference/[area]/[...slug].astro:90` (the changelog section), from the subagent.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/test/site-changes.test.ts:1`: the ten tests the `changes-tool` check names, then the
   check run once by name.
 - [ ] The first snapshot, `data/proofs/released.json:1`, as § *The first snapshot* says. `gh release
@@ -407,7 +407,7 @@ merges them into the data file, and deletes the drafts.
 - [ ] `bun nv site --check changes` once, and its list written into `### State`.
 - [ ] `website/src/data/changes.json:1`: one entry per change a user can see, which may name several
   features. An `unseen` record only for a moved hash with nothing a user sees, with its `why`.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] The `changes-green` check, run once.
 
 ### 4. a changed user text needs a review stamp, and Reviewed is a feature proof
@@ -446,20 +446,20 @@ commands and `--check review`, and makes Reviewed a feature proof.
 - [ ] `docs/agent/conventions.md:648`: two bullets in § *A goal*. Every goal's last content stage
   names the website pages it rereads and stamps and the `changes.json` entries it writes, by kind and
   feature. Every gate stage starts with the review of `docs/agent/prose.md` § *A newcomer reads it*,
-  before its first `looper verify`. `rule:testing/every-change-reaches-the-website`
+  before its first `looper verify`. `testing/every-change-reaches-the-website` (new)
 - [ ] `docs/agent/loop-authoring.md:194`: one line under § 6 that the last content stage owes the
   website and the gate stage runs the review, pointing to `conventions.md` § *A goal*.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `AGENTS.md:91`: one bullet under § *The rules only this project has*, after the feature proofs
   one: a change reaches the website, so `bun nv site --check stale`, `changes` and `review` are green
   before a goal ends, and the gate stage runs the newcomer review.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `docs/agent/commands.md:470`: the stamp, changes and review commands in the website block.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `data/rules/testing/every-change-reaches-the-website.json:1`: `shipped`, its `goal` removed, and
   its `guardedBy` lists `tools/nv/lib/texts.ts`, `tools/nv/test/site.test.ts` and
   `tools/nv/test/site-changes.test.ts`. `bun nv rules --render`.
-  `rule:testing/every-change-reaches-the-website`
+  `testing/every-change-reaches-the-website` (new)
 - [ ] The `ci-check` check, run once, and each red fixed.
 
 ### 6. the goal is verified once, and every failure is fixed

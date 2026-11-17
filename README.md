@@ -132,6 +132,8 @@ The work is in the order it is planned. The order can change.
 
 1. **Rules a framework can set.** *Working on it now.* A package can say where a class or a method may be used, and the compiler checks it. A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.
 2. **Less work for each request.** Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.
+3. **The website shows every change.** When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
+4. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
 <!-- roadmap:end -->
 
 ## Contributing

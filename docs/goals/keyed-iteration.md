@@ -214,7 +214,7 @@ keys, since its parameter is `array|Iterable|Iterator`; `Core\ObjectSet`, `Core\
 `docs/rules/iteration/keyed-interfaces.md`, is the keyed pair's one home: the members, the drive choice
 above, the method name and the Declined list. `rule:iteration/two-interfaces` keeps its id and becomes
 the rule of the value pair: its first sentence says it covers iteration over values and names
-`rule:iteration/keyed-interfaces` for keys. Renaming it would rewrite 107 citations in 67 files, every
+the new rule `iteration/keyed-interfaces` for keys. Renaming it would rewrite 107 citations in 67 files, every
 one of which means the value pair and stays true. `rule:iteration/foreach-subjects` lists five
 subjects and takes the binding-form choice, `rule:types/var-inference` takes the key sentence,
 `rule:security/taint-propagation` takes one sentence on a `K` that carries `tainted`, and
