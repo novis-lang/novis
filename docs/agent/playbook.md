@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A sweep red whose log file does not exist names a check no goal defines any more.** Three
+  sessions searched the tree for `env-secret-proofs`, which a retired goal's sweep left behind. Run
+  `git log -S '<name>' --oneline` once: when the newest hit is a goal's retire commit, the red is
+  stale, and the handoff says so. See `.looper/loops/main/checks/`.
 - **A goal that changes a `Core` member's source file makes that member's perf record stale, and
   `bun nv ci --check` shows only the first 29.** Recording those 29 brought the next batch to
   light. List every one with `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe`, grepped
