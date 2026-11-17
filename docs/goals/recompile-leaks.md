@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "a recompile frees what it made on every way out, and a crashed compile is not retried"
-summary: "Reached when a compile that fails or panics in code generation frees its compiled code, a compile that panics is recorded as failed until its content changes, a busy keep-alive connection keeps serving through many reloads, the memory each successful recompile keeps is measured and bounded, and bun nv serve-mem prints the memory per recompile."
+summary: "Reached when a compile that fails or panics in code generation frees its compiled code, a compile that panics is recorded as failed until its content changes, a busy keep-alive connection keeps serving through many reloads, the memory each successful recompile keeps is measured and bounded, a fuzz target and a cut sweep find no panic from the parser to code generation, and bun nv serve-mem prints the memory per recompile."
 context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/script.rs, crates/nvs-cli/src/serve/mounts.rs, docs/rules/config/a-broken-edit-fails-the-requests-that-resolve-it.md]
 stages:
   - id: 1
@@ -25,6 +25,10 @@ stages:
     status: open
     context: [crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs]
   - id: 6
+    title: no source text makes the compiler panic, from the parser to code generation
+    status: open
+    context: [crates/nvs-fuzz-checks/src/lib.rs, crates/nvs-fuzz-checks/src/prefix.rs, crates/nvs-syntax/tests/prefixes.rs, crates/nvs-codegen/src/lib.rs]
+  - id: 7
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -51,6 +55,14 @@ checks:
     timeout: 1800
     tests:
       - a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads
+  - id: no-panic
+    stage: 6
+    name: "every saved compile input, and every example cut at each statement, compiles or reports diagnostics, and never panics or returns a code generation error"
+    run: [cargo, test, --lib, --, compile_seeds_never_panic, every_example_cut_at_a_statement_compiles_or_reports]
+    timeout: 3600
+    tests:
+      - compile_seeds_never_panic
+      - every_example_cut_at_a_statement_compiles_or_reports
 ---
 
 # a recompile frees what it made on every way out, and a crashed compile is not retried
@@ -93,8 +105,8 @@ Read from the code, and confirmed against it:
    serve compiles it too.
 
 Together, a file that panics in code generation leaks one unit every 2 s, with no saves and no
-requests. That matches the report. The panic itself was not reproduced from an edit, so the reporter's
-stderr would name it. Whatever it is, it is fixed under this goal once found.
+requests. That matches the report. The panic itself was not reproduced from an edit. Stage 6
+searches for it and for every other panic in the compiler.
 
 ## Standing decisions
 
@@ -134,12 +146,23 @@ unit. That is O(in-flight), not growth with traffic. Stage 5 measures the rest o
 with the live-byte counters and fixes what grows with the number of recompiles. Growth with recompiles
 served is a leak, the same as growth with requests served.
 
+**The compiler never panics, on any input (the person's call).** A panic is a bug in Novis whatever
+text reached it: broken, half-saved or valid. It is found by search, not from a report. The fuzz targets
+in `crates/nvs-fuzz-checks` stop at the parser (`parse`, `prefix`, `ast`, `lex`), and nothing searches
+the type checker, the lowering or code generation. An editing loop that saves half-written files is the
+input most likely to reach them. So stage 6 adds a `compile` target over the whole pipeline. Its
+properties are: no panic, and a program that type-checks with no error never gets a `CodegenError`.
+Such an error is a shape the checker let through and the backend cannot lower. The fix for each case is
+in the front end or the backend, wherever the case belongs. Catching the panic (stage 3) stays, as the
+last line of defence.
+
 **What it costs.** A builder holds its pages in `JitPages` one call earlier, which is no new memory. A
 compile runs under one more `catch_unwind`. A panicked content keeps one failure message in the
 compile table, as a failed compile does now.
 
 **Lanes.** Stages 2 and 3 touch disjoint crates and may run as side goals after stage 1. Stage 4 needs
-stage 1's command. Stage 5 needs stages 2 and 3.
+stage 1's command. Stage 5 needs stages 2 and 3. Stage 6 may run as a side goal once stage 2 is done,
+because its fixes may touch `crates/nvs-codegen/src/lib.rs`.
 
 **What stops the goal.** One attempt per item, two sessions per stage. An item still red after its
 attempt goes into the handoff with its cause, and the stage moves on to its other items. A stage still
@@ -213,7 +236,30 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 - [ ] Rebuild with `bun nv relink --build`, run `bun nv serve-mem --app registry --fails 10 --oks 30`
   once, and write the figures beside the baseline.
 
-### 6. the goal is verified once, and every failure is fixed
+### 6. no source text makes the compiler panic, from the parser to code generation
+
+**Does:** a fuzz target and a cut sweep over the whole pipeline, and a fix for every panic and every
+code generation error on checked code that they find.
+
+**Split:** after the target and the sweep exist, each failure found is one item for a writing
+subagent, one at a time, because most fixes share `crates/nvs-types` or `crates/nvs-codegen`.
+
+- [ ] `crates/nvs-fuzz-checks/src/compile.rs:1`: `compile(data)` runs the source through parse,
+  check, lowering and `nvs_codegen` with the object-file backend, so nothing is mapped or run. It
+  asserts no panic, and no `CodegenError` when the check reported no error. The crate takes the
+  dependencies it needs. `fuzz/fuzz_targets/compile.rs` is its one-line target, and `tests.rs` replays
+  `fuzz/seeds/compile/` in `compile_seeds_never_panic`. The seeds are the `docs/examples/` files the
+  target accepts in under one second each.
+- [ ] `every_example_cut_at_a_statement_compiles_or_reports`, beside the `compile` target: every
+  `docs/examples/**/*.nvs` file is cut after each top-level statement and each statement of a body, in the
+  shape of `crates/nvs-syntax/tests/prefixes.rs`, and each cut goes through `compile`. A half-saved file
+  is a cut.
+- [ ] Run `bun nv fuzz compile` for 30 minutes once. Save each input that fails as a seed, and fix
+  its cause.
+- [ ] Every failure the sweep and the search found is fixed at its cause, and the `no-panic` check runs
+  once. The handoff lists each cause in one line.
+
+### 7. the goal is verified once, and every failure is fixed
 
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
