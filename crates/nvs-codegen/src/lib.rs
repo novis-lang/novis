@@ -2656,11 +2656,7 @@ impl UnitBuilder<JitPages> {
         }));
 
         // The pages are owned from here on, so a compile that stops early frees them.
-        Ok(Self::around(
-            JitPages::new(builder),
-            desc_symbols,
-            disasm,
-        ))
+        Ok(Self::around(JitPages::new(builder), desc_symbols, disasm))
     }
 }
 
