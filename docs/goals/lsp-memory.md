@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/document.rs, crates/nvs-lsp/src/session.rs]
   - id: 3
     title: the workers split one graph's bodies between them, and never check one graph twice
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/workers.rs]
   - id: 4
     title: every worker reads the server's one parse of each file
@@ -167,6 +167,23 @@ several files, such as two routes on one path, see only the files whose output i
 are checked again. `nvs check` reports them whole. Checking those files to complete the rows is the
 cost this goal removes, so it is declined. `crate::session`'s module doc says this.
 
+**A file's `errors` flag counts only its own errors (my call, stage 3).** A part has the rows of its own
+files alone, so a pass over several files, such as a link to a route in another part, reported an
+error the serial check did not. The flag says "a use here may be missing", and such an error hides no
+use. So `Indexed::errors` reads `Analysed::erring` (`crates/nvs-lsp/src/document.rs`): the errors of
+the file's parse, declarations and own bodies, the same on every thread. The published diagnostics
+are unchanged.
+
+**A stale entry is split again whole, and an incomplete join is analysed on the server thread (my
+call, stage 3).** Re-sending one stale part alone needs a second claim state per part, for an edit
+that arrives during a cold index. Re-splitting the entry at its next turn is simpler, and costs one
+extra check of that entry's parts. A join with a file the graph loaded, that no part recorded and the
+index does not hold, runs `analyse_here`, which is the serial loop's analysis and always right.
+
+**A part counts no anonymous functions for a file it never checked (my call, stage 3).** So the name
+of an anonymous function in a later file may differ from a whole check's. The index records no such
+name, so the records are byte-identical. `crate::workers`' module doc says so.
+
 **What stops the goal.** One attempt per item, two sessions per stage. An item still red after its
 attempt goes into the handoff with its cause, and the stage moves on to its other items. A stage still
 open after two sessions stops the loop with `BLOCKED` naming the item.
@@ -216,14 +233,14 @@ Nothing in the server changes yet.
 
 **Does:** the second cause's multiplier: plan jobs, parts and claims, as § *Standing decisions* says.
 
-- [ ] `crates/nvs-lsp/src/workers.rs:41` `Job` gains the part, the files whose bodies it checks, and a
+- [x] `crates/nvs-lsp/src/workers.rs:41` `Job` gains the part, the files whose bodies it checks, and a
   plan kind that checks no body and returns the graph's file list. `Done` (`:58`) carries the part and,
   for a plan, the list.
-- [ ] `crates/nvs-lsp/src/index.rs` `turns` (`:893`) and `send` (`:950`) plan the head entry, split
+- [x] `crates/nvs-lsp/src/index.rs` `turns` (`:893`) and `send` (`:950`) plan the head entry, split
   its unclaimed files into parts, keep the claims beside `in_flight`, and send the next entry only with
   claimed files left out. `file_result` (`:975`) files an entry's parts in part order at its turn. A stale part
-  is sent again, alone.
-- [ ] `a_cold_settle_checks_each_file_once_on_any_number_of_workers` and
+  is sent again, alone. (A stale entry's parts are all sent again: see § *Standing decisions*.)
+- [x] `a_cold_settle_checks_each_file_once_on_any_number_of_workers` and
   `a_surface_edit_read_by_every_program_checks_each_file_once` run once, then the `once` check.
 
 ### 4. every worker reads the server's one parse of each file
@@ -261,38 +278,36 @@ Nothing in the server changes yet.
 
 ### State
 
-Stage 1's baseline (`lsp-start --copies 12 --cold --edits 5`, release, 16 cores): a cold index peaked
-at 5752 MB paged, and each edit checked about 11.5k files for one of 972. Stage 2 landed in `b3225828aa`. `check_program_partial` takes an `absent` set. `analyse_through`
-(`crates/nvs-lsp/src/document.rs:1074`) takes `absent` by path and leaves those files out, the entry
-excepted. `analyse_entry` (`crates/nvs-lsp/src/index.rs:1522`) passes `indexed`, and `analyse`
-(`document.rs:978`) passes every file. `Session::store` keeps no key for a left-out file whose key
-moved. The record loop needed no change: it already skipped every indexed file.
+Baseline (`lsp-start --copies 12 --cold --edits 5`, release, 16 cores): a cold index peaked at
+5752 MB paged. Stage 3: a `Job` (`crates/nvs-lsp/src/workers.rs:70`) is a `Task::Plan` or a `Task::Part(files)`.
+The `Pool` (`workers.rs:132`) keeps each entry's `Flight` (planning, or split with its parts and
+claims), the claimed set and each plan's graph. `turns` (`crates/nvs-lsp/src/index.rs:902`) sends the
+head, then splits entries ahead in path order and stops at one still planning. `send` (`index.rs:978`)
+takes the graph from `reads`, else the plan, else sends a plan. `file_parts` (`index.rs:1042`) joins
+the parts at the entry's turn and falls back to `analyse_here` when one is missing. `analyse_through`
+no longer excepts the entry: `absent` is asked about it by its key, `analyse` passes "every file but
+the document", and `analyse_entry` (`index.rs:1633`) takes `checks_entry`. `plan_entry`
+(`index.rs:1704`) resolves a graph and checks no body.
 
-Run once by name: `a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`,
-`a_parallel_index_holds_what_the_serial_index_holds`,
-`a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone`,
-`a_surface_edit_read_by_every_program_checks_each_file_once` and
-`the_session_interner_is_rebuilt_once_it_doubles` pass. No body read another body. Still red, as
-expected:
+A part made `a_parallel_index_holds_what_the_serial_index_holds` red: a link in one part to a route in
+another reported `E0754` there. `Indexed::errors` now reads `Analysed::erring`
+(`crates/nvs-lsp/src/document.rs:1192`), as § *Standing decisions* says.
 
-- `a_cold_settle_checks_each_file_once_on_any_number_of_workers`: 44 on the server thread now, **112
-  on four workers**. Stage 3.
-- `a_cold_settle_parses_each_file_once_on_any_number_of_workers`: 116 parses on four workers. Stage 4.
+The `once` check is green, and only its tests ran. `parsed-once` is red until stage 4. May go red at
+the gate: a test pinning `errors` from a link or route error (`index.rs:595`), the other parallel
+tests of `tests/incremental.rs`, and `document.rs` tests near `:1575` to `:2008` and
+`definition.rs:1730`.
 
-No other suite ran. `crates/nvs-lsp`'s unit tests that call `analyse` and then read a file other than
-the document may go red at the gate, because `analyse` now leaves every other file out of the fold.
-Look first at `document.rs` tests near `:1575` to `:2008` and `definition.rs:1730`.
-
-The sweep's reds need no change: `env-secret-proofs` is stale (its newest `git log -S` hit is a
-retire commit), and `0fe2fdef25` removed the `chrono` that failed the nightly `supply chain`.
+The sweep's reds are stale: `env-secret-proofs` has no log, and the nightly `supply chain` built
+`2934ebe1ae`, before `0fe2fdef25` removed `chrono`.
 
 ### Next
 
-Stage 3 from its first item: `Job` (`crates/nvs-lsp/src/workers.rs:41`) gains the part and a plan
-job. `turns` (`crates/nvs-lsp/src/index.rs:893`) and `send` (`index.rs:950`) plan the head entry
-from `reads`, split its unclaimed files into parts by path, and keep the claims beside `in_flight`.
-A worker's `work` (`workers.rs:241`) calls `analyse_entry` with an `indexed` that is "every file
-outside my part", so the stage 2 `absent` path does the split. Then rerun the `once` check once.
+Stage 4 from its first item: `ParseCache` (`crates/nvs-lsp/src/parse_cache.rs:61`) pins every
+surveyed file before the first job and gives a job an `Arc` map of its graph's parses. `send`
+(`index.rs:978`) puts that map on each `Job`, for a plan and for every part. `work`
+(`crates/nvs-lsp/src/workers.rs:456`) reads parses from it first and returns the ones it made, and
+`Pool::receive` hands them back for the server thread to file. Then run the `parsed-once` check once.
 
 ### Backlog
 

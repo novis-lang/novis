@@ -366,8 +366,11 @@ pub(crate) struct Indexed {
     /// The kind of the one type this file declares, when the file has the
     /// shape an autoloaded file must have (`nvs_hir::autoload::sole_declaration`).
     pub(crate) sole: Option<DeclKind>,
-    /// Whether the analysis that indexed this file reported an error inside
-    /// it, in which case a use written there may be missing from the index.
+    /// Whether the file's parse, declarations or own bodies reported an error
+    /// ([`Analysed`]'s `erring`), in which case a use written there may be
+    /// missing from the index. An error of a pass over several files does not
+    /// count: it hides no use, and an analysis that left files out has only
+    /// some of their rows.
     pub(crate) errors: bool,
     /// Whether one of those errors is the lexer's or the parser's, so this
     /// file's text did not parse and its declarations may be missing.
@@ -809,9 +812,15 @@ impl SymbolIndex {
             path: entry,
             key: entry,
         };
-        let analysed = analyse_entry(&snapshot, &mut session, &mut trees, at, version, |key| {
-            files.contains_key(key)
-        });
+        let analysed = analyse_entry(
+            &snapshot,
+            &mut session,
+            &mut trees,
+            at,
+            version,
+            |key| files.contains_key(key),
+            true,
+        );
         drop((session, trees));
         if let Some((_, analysis)) = analysed {
             self.merge(analysis);
@@ -891,15 +900,18 @@ impl SymbolIndex {
     ///
     /// [`settle_one`]: Self::settle_one
     fn turns(&mut self, documents: &Documents, pool: &mut crate::workers::Pool) -> bool {
+        // An entry a refresh took out of the queue keeps no claim.
+        pool.retain(|entry| self.pending.contains(entry));
         loop {
+            self.work += pool.take_work();
             let Some(head) = self.pending.first().cloned() else {
                 pool.stop();
                 self.changed.clear();
                 documents.settled(|path| self.files.contains_key(path));
                 return false;
             };
-            if let Some(done) = pool.take(&head) {
-                self.file_result(documents, done);
+            if let Some((change, parts)) = pool.take(&head) {
+                self.file_parts(documents, &head, change, parts);
                 continue;
             }
             if pool.is_running(&head) {
@@ -909,17 +921,19 @@ impl SymbolIndex {
                 self.pending.remove(&head);
                 continue;
             }
-            if !self.send(documents, pool, &head) {
-                self.pending.remove(&head);
-                self.drop_owned(std::slice::from_ref(&head));
-                self.analyse_here(documents, &head);
-                continue;
+            match self.send(documents, pool, &head) {
+                Sent::Plan | Sent::Parts => break,
+                Sent::Nothing | Sent::Failed => {
+                    self.pending.remove(&head);
+                    self.drop_owned(std::slice::from_ref(&head));
+                    self.analyse_here(documents, &head);
+                }
             }
-            break;
         }
-        // Entries ahead of their turn go to the workers too. One whose own
-        // file is indexed and that owns nothing is left for its turn, which
-        // skips it unless an earlier turn dropped that file.
+        // Entries ahead of their turn are split too, in path order, and each
+        // only once every entry before it was. One whose own file is indexed
+        // or claimed and that owns nothing is left for its turn, which skips
+        // it unless an earlier turn dropped that file.
         while pool.has_room() {
             let next = match &pool.cursor {
                 Some(cursor) => self
@@ -935,55 +949,110 @@ impl SymbolIndex {
             let Some(next) = next else {
                 break;
             };
-            pool.cursor = Some(next.clone());
-            if pool.is_sent(&next) || self.skips(&next) {
-                continue;
-            }
-            if !self.send(documents, pool, &next) {
+            if pool.is_planning(&next) {
                 break;
             }
+            let passed = pool.is_split(&next)
+                || ((self.files.contains_key(&next) || pool.is_claimed(&next))
+                    && self.owned_by(&next).is_empty());
+            if !passed {
+                match self.send(documents, pool, &next) {
+                    Sent::Plan | Sent::Failed => break,
+                    Sent::Parts | Sent::Nothing => {}
+                }
+            }
+            pool.cursor = Some(next);
         }
         true
     }
 
-    /// Sends `entry` to the workers, with the files the index holds now.
-    fn send(&self, documents: &Documents, pool: &mut crate::workers::Pool, entry: &Path) -> bool {
-        let indexed = match &pool.view {
-            Some((generation, view)) if *generation == self.generation => Arc::clone(view),
-            _ => {
-                let view: Arc<FxHashSet<PathBuf>> = Arc::new(self.files.keys().cloned().collect());
-                pool.view = Some((self.generation, Arc::clone(&view)));
-                view
+    /// Sends `entry` to the workers. An entry whose graph is unknown is sent
+    /// as a plan. Otherwise the graph's files that no other entry indexed and
+    /// no entry in flight claims are split into one part per worker, in path
+    /// order.
+    ///
+    /// The graph is the one the index kept for the entry's last analysis, else
+    /// the one its plan returned. A graph that moved since leaves a file out
+    /// of every part or puts in one the entry does not load, and its turn then
+    /// analyses it on this thread ([`file_parts`](Self::file_parts)).
+    fn send(&self, documents: &Documents, pool: &mut crate::workers::Pool, entry: &Path) -> Sent {
+        let job = |task, part| {
+            let snapshot = documents.snapshot();
+            let version = snapshot.version_of(entry).unwrap_or(NO_BUFFER);
+            crate::workers::Job {
+                entry: entry.to_path_buf(),
+                snapshot,
+                version,
+                task,
+                part,
+                change: self.change,
             }
         };
-        let snapshot = documents.snapshot();
-        let version = snapshot.version_of(entry).unwrap_or(NO_BUFFER);
-        pool.send(crate::workers::Job {
-            entry: entry.to_path_buf(),
-            snapshot,
-            version,
-            indexed,
-            owned: self.owned_by(entry),
-            change: self.change,
-        })
+        let graph = match self.reads.get(entry) {
+            Some(reads) => reads.as_slice(),
+            None => match pool.graph(entry) {
+                Some(graph) => graph,
+                None => {
+                    return if pool.send_plan(job(crate::workers::Task::Plan, 0)) {
+                        Sent::Plan
+                    } else {
+                        Sent::Failed
+                    };
+                }
+            },
+        };
+        let owned = self.owned_by(entry);
+        let mut free: Vec<PathBuf> = graph
+            .iter()
+            .filter(|file| {
+                (!self.files.contains_key(*file) || owned.contains(file)) && !pool.is_claimed(file)
+            })
+            .cloned()
+            .collect();
+        free.sort();
+        free.dedup();
+        if free.is_empty() {
+            return Sent::Nothing;
+        }
+        let size = free.len().div_ceil(pool.size().min(free.len()));
+        let jobs = free
+            .chunks(size)
+            .enumerate()
+            .map(|(part, files)| {
+                let files: FxHashSet<PathBuf> = files.iter().cloned().collect();
+                job(crate::workers::Task::Part(Arc::new(files)), part)
+            })
+            .collect();
+        if pool.send_parts(jobs, free) {
+            Sent::Parts
+        } else {
+            Sent::Failed
+        }
     }
 
-    /// Files the result of the entry whose turn it is, as [`settle_one`]
-    /// would have filed its own analysis.
+    /// Files the parts of the entry whose turn it is, as [`settle_one`] would
+    /// have filed its own analysis.
+    ///
+    /// The parts are joined into one analysis: each part's records, and the
+    /// first part's reads. A file the graph loaded that no part recorded and
+    /// the index does not hold, because the graph moved or an earlier entry's
+    /// result was not filed, sends the entry to this thread's analysis.
     ///
     /// [`settle_one`]: Self::settle_one
-    fn file_result(&mut self, documents: &Documents, done: crate::workers::Done) {
-        let crate::workers::Done {
-            entry,
-            change,
-            analysis,
-        } = done;
+    fn file_parts(
+        &mut self,
+        documents: &Documents,
+        entry: &Path,
+        change: u64,
+        parts: Vec<Option<Analysis>>,
+    ) {
         let moved = |key: &Path| self.changed.get(key).is_some_and(|at| *at > change);
-        let stale = moved(&entry)
-            || analysis
-                .as_ref()
-                .is_some_and(|analysis| analysis.reads.iter().any(|read| moved(read)));
-        if let Some(analysis) = &analysis {
+        let stale = moved(entry)
+            || parts
+                .iter()
+                .flatten()
+                .any(|analysis| analysis.reads.iter().any(|read| moved(read)));
+        for analysis in parts.iter().flatten() {
             self.work += analysis.work;
         }
         // A file it read changed after it was sent: it stays waiting, and its
@@ -991,24 +1060,47 @@ impl SymbolIndex {
         if stale {
             return;
         }
-        self.pending.remove(&entry);
-        if self.skips(&entry) {
+        self.pending.remove(entry);
+        if self.skips(entry) {
             return;
         }
-        self.drop_owned(std::slice::from_ref(&entry));
-        let Some(mut analysis) = analysis else {
+        self.drop_owned(&[entry.to_path_buf()]);
+        if parts.iter().all(Option::is_none) {
             return;
-        };
-        if analysis
-            .skipped
+        }
+        if parts.iter().any(Option::is_none) {
+            self.analyse_here(documents, entry);
+            return;
+        }
+        let mut records: Vec<(PathBuf, Indexed)> = Vec::new();
+        let mut skipped: FxHashSet<PathBuf> = FxHashSet::default();
+        let mut reads = Vec::new();
+        for part in parts.into_iter().flatten() {
+            if reads.is_empty() {
+                reads = part.reads;
+            }
+            records.extend(part.records);
+            skipped.extend(part.skipped);
+        }
+        let recorded: FxHashSet<&PathBuf> = records.iter().map(|(key, _)| key).collect();
+        if skipped
             .iter()
-            .any(|key| !self.files.contains_key(key))
+            .any(|key| !recorded.contains(key) && !self.files.contains_key(key))
         {
-            self.analyse_here(documents, &entry);
+            self.analyse_here(documents, entry);
             return;
         }
-        analysis.work = Work::default();
-        self.merge(analysis);
+        // In the order the graph loaded them, which is the serial analysis's.
+        let order: FxHashMap<&PathBuf, usize> =
+            reads.iter().enumerate().map(|(at, key)| (key, at)).collect();
+        records.sort_by_key(|(key, _)| order.get(key).copied().unwrap_or(usize::MAX));
+        self.merge(Analysis {
+            entry: entry.to_path_buf(),
+            records,
+            reads,
+            skipped: Vec::new(),
+            work: Work::default(),
+        });
     }
 
     /// The entry points that are waiting for [`settle_one`](Self::settle_one),
@@ -1406,9 +1498,15 @@ impl SymbolIndex {
         let (mut session, mut trees) = documents.caches();
         let files = &self.files;
         let (analysed, analysis) =
-            analyse_entry(documents, &mut session, &mut trees, entry, version, |key| {
-                files.contains_key(key)
-            })?;
+            analyse_entry(
+                documents,
+                &mut session,
+                &mut trees,
+                entry,
+                version,
+                |key| files.contains_key(key),
+                true,
+            )?;
         drop((session, trees));
         self.merge(analysis);
         Some(analysed)
@@ -1487,6 +1585,18 @@ impl SymbolIndex {
     }
 }
 
+/// What [`SymbolIndex::send`] sent to the workers for one entry.
+enum Sent {
+    /// A plan job: the entry's graph was unknown.
+    Plan,
+    /// The entry's parts.
+    Parts,
+    /// No part: every file of its graph is indexed or claimed.
+    Nothing,
+    /// No worker runs and none could be started.
+    Failed,
+}
+
 /// What one analysis of an entry point found, before it is filed into the
 /// index. It owns everything it holds, so the analysis that built it and the
 /// [`SymbolIndex::merge`] that files it are apart.
@@ -1512,10 +1622,11 @@ pub(crate) struct Analysis {
 /// `indexed` does not name. It reads the store only through `reads`, and
 /// keeps its parses and checked outputs in `session`.
 ///
-/// It checks the bodies of the entry and of the files it will build a record
-/// of, and no others: a file `indexed` names was checked by the analysis that
-/// indexed it ([`analyse_through`]). So a cold settle checks each file once
-/// however many entries read it.
+/// It checks the bodies of the files it will build a record of, and of the
+/// entry where `checks_entry` says so, and no others: a file `indexed` names
+/// is checked by the analysis that indexes it ([`analyse_through`]). So a
+/// cold settle checks each file once however many entries read it. A worker's
+/// part passes `false` when the entry is another part's.
 ///
 /// Each path the graph loaded is a `canonical_key` already, because the walk
 /// resolves every file it loads, so only the entry is resolved, by the caller.
@@ -1526,10 +1637,18 @@ pub(crate) fn analyse_entry(
     entry: Entry<'_>,
     version: i32,
     indexed: impl Fn(&Path) -> bool,
+    checks_entry: bool,
 ) -> Option<(Analysed, Analysis)> {
     let before = nvs_diagnostics::work::so_far();
     let started = SystemTime::now();
-    let analysed = analyse_through(reads, session, trees, entry, version, None, &indexed)?;
+    let absent = |key: &Path| {
+        if key == entry.key {
+            !checks_entry
+        } else {
+            indexed(key)
+        }
+    };
+    let analysed = analyse_through(reads, session, trees, entry, version, None, &absent)?;
     let open = reads.open_keys();
     // The entry was loaded by the path the caller gave, and every other file
     // by the key the walk resolved.
@@ -1578,6 +1697,34 @@ pub(crate) fn analyse_entry(
     Some((analysed, analysis))
 }
 
+/// The files of `entry`'s graph, under `canonical_key`, in the order the walk
+/// loaded them, and the work of resolving it. It parses the graph and reads
+/// its declarations, and checks no body. `None` when the entry could not be
+/// loaded.
+pub(crate) fn plan_entry(
+    reads: &impl Reads,
+    session: &mut Session,
+    trees: &mut crate::tree_cache::TreeCache,
+    entry: Entry<'_>,
+    version: i32,
+) -> Option<(Vec<PathBuf>, Work)> {
+    let before = nvs_diagnostics::work::so_far();
+    let analysed = analyse_through(reads, session, trees, entry, version, None, &|_| true)?;
+    let graph = analysed
+        .loaded
+        .iter()
+        .filter_map(|loaded| {
+            if loaded.id == analysed.entry {
+                return Some(entry.key.to_path_buf());
+            }
+            analysed.map.file(loaded.id).path().map(Path::to_path_buf)
+        })
+        .collect();
+    let mut work = analysed.work;
+    work.files = nvs_diagnostics::work::so_far() - before;
+    Some((graph, work))
+}
+
 /// The record of one file `analysed` loaded, under `key`.
 fn record(
     analysed: &Analysed,
@@ -1602,10 +1749,7 @@ fn record(
         queries: uses.queries,
         sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
             .map(|(_, kind)| DeclKind::of_symbol(kind)),
-        errors: analysed
-            .diags
-            .iter()
-            .any(|diag| diag.is_error() && in_file(diag)),
+        errors: analysed.erring.contains(&loaded.id),
         broken: analysed
             .diags
             .iter()

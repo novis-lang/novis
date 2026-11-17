@@ -888,6 +888,13 @@ pub struct Analysed {
     /// a `[[restrict]]` table. [`files`](Self::files) names them, so an edit to
     /// one checks this document again.
     pub manifests: Vec<PathBuf>,
+    /// The files with an error of their own: one their parse, their
+    /// declarations or their own bodies reported. An error a pass over
+    /// several files reported, such as a link to a method with no route, is
+    /// not one. Those passes read the rows of every file, and an analysis
+    /// that left a file out has only some of them, so the index records this
+    /// set alone (`crate::index`).
+    pub(crate) erring: rustc_hash::FxHashSet<SourceId>,
     /// The files this analysis parsed and the files whose bodies it checked.
     /// It parsed only the files whose text the store's parse cache did not
     /// hold, and it checked the bodies of every file of the graph.
@@ -979,10 +986,8 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let document = documents.get(uri)?;
     let path = document.path()?;
     let (mut session, mut trees) = documents.caches();
-    let entry = Entry {
-        path,
-        key: &canonical_key(path),
-    };
+    let key = canonical_key(path);
+    let entry = Entry { path, key: &key };
     analyse_through(
         documents,
         &mut session,
@@ -990,7 +995,7 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
         entry,
         document.version,
         None,
-        &|_| true,
+        &|file| file != key.as_path(),
     )
 }
 
@@ -1066,7 +1071,8 @@ pub(crate) struct Entry<'a> {
 /// and keeping its parses and checked outputs in `session`.
 ///
 /// `absent` names, by `canonical_key`, the files whose bodies another
-/// analysis checks. Such a file other than the entry is not checked here. Its
+/// analysis checks, and is asked about the entry by its key. Such a file is
+/// not checked here. Its
 /// checked output is used where it is current, and otherwise the file is left
 /// out of the result's expressions, diagnostics and rows, and no key is
 /// stored for it, so the next analysis that needs it checks it
@@ -1181,6 +1187,13 @@ pub(crate) fn analyse_through(
         .map(|manifest| canonical_key(&manifest))
         .collect();
 
+    // Every diagnostic so far is a parse's, a declaration's or the graph's,
+    // and the same whatever the check leaves out.
+    let mut erring: rustc_hash::FxHashSet<SourceId> = diags
+        .iter()
+        .filter(|diag| diag.is_error())
+        .filter_map(|diag| diag.primary_span().map(|span| span.file))
+        .collect();
     let mut exprs = ExprTypeTable::new();
     // The editor is the one reader of a tainted value's path, so it is the
     // one caller that asks the checker to record it.
@@ -1236,7 +1249,13 @@ pub(crate) fn analyse_through(
         let left_out: rustc_hash::FxHashSet<SourceId> = files
             .iter()
             .map(|file| file.src)
-            .filter(|src| src.id() != entry && src.path().is_some_and(absent))
+            .filter(|src| {
+                if src.id() == entry {
+                    absent(key)
+                } else {
+                    src.path().is_some_and(absent)
+                }
+            })
             .map(|src| src.id())
             .collect();
         let walked = session.checks.walked();
@@ -1265,6 +1284,16 @@ pub(crate) fn analyse_through(
             &mut diags,
         );
         work.checked = session.checks.walked() - walked;
+        // A file's own bodies' errors are in its output, which the check
+        // stored for every file it walked or folded.
+        erring.extend(files.iter().map(|file| file.src.id()).filter(|id| {
+            session.checks.get(*id).is_some_and(|output| {
+                output
+                    .diagnostics()
+                    .iter()
+                    .any(nvs_diagnostics::Diagnostic::is_error)
+            })
+        }));
         session.store(keys, &left_out);
         deprecated = nvs_types::deprecated::notices(&files);
     }
@@ -1303,6 +1332,7 @@ pub(crate) fn analyse_through(
         extensions: extensions.manifests,
         restrictions: restricting.restrictions().clone(),
         manifests,
+        erring,
         work,
     })
 }
