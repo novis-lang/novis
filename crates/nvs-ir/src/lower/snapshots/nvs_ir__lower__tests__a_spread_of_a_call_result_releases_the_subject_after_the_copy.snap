@@ -1,14 +1,14 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> void {
   bb0:
     v0 = param 0  ; object
+    v2 = class.of v0  ; classdesc
     safepoint
     ; stmt s0 @4:5-4:34
     v1 = array.new []  ; array
-    v2 = class.of v0  ; classdesc
     v3 = call T::rows(this: v2) ! bb2  ; array
     v4 = array.spread v1, v3 ! bb3  ; array
     release v3

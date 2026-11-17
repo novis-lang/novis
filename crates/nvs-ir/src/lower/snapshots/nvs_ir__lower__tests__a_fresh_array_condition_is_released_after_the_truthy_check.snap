@@ -5,9 +5,9 @@ expression: "print_function(&f, map.file(file))"
 fn m(object) -> bool {
   bb0:
     v0 = param 0  ; object
+    v1 = class.of v0  ; classdesc
     safepoint
     ; stmt s0 @4:5-6:6
-    v1 = class.of v0  ; classdesc
     v2 = call T::make(this: v1) ! bb2  ; array
     v3 = helper.array_truthy v2 ! bb3  ; bool
     release v2

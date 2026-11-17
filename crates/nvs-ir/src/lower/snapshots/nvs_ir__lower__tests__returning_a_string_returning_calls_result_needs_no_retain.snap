@@ -1,13 +1,13 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> string {
   bb0:
     v0 = param 0  ; object
+    v1 = class.of v0  ; classdesc
     safepoint
     ; stmt s0 @4:5-4:25
-    v1 = class.of v0  ; classdesc
     v2 = call T::make(this: v1) ! bb2  ; string
     release v0
     return v2

@@ -1,6 +1,5 @@
 ---
 source: crates/nvs-ir/src/lower/tests.rs
-assertion_line: 2763
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::two(classdesc) -> object {
@@ -11,6 +10,7 @@ fn G::two(classdesc) -> object {
     v2 = const.int 0  ; int
     field.set v1, G::two$gen::gen#state, v2
     field.set v1, G::two$gen::gen#unwind, v2
+    field.set v1, G::two$gen::gen#class, v0
     return v1
   bb1:
     propagate "G::two() at t.nvs:1"

@@ -11,6 +11,7 @@ fn G::upTo(classdesc, int) -> object {
     v3 = const.int 0  ; int
     field.set v2, G::upTo$gen::gen#state, v3
     field.set v2, G::upTo$gen::gen#unwind, v3
+    field.set v2, G::upTo$gen::gen#class, v0
     field.set v2, G::upTo$gen::limit, v1
     return v2
   bb1:

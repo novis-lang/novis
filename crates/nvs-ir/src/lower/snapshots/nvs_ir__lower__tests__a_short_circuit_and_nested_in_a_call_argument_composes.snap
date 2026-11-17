@@ -1,15 +1,15 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, bool, bool) -> void {
   bb0:
     v0 = param 0  ; object
+    v3 = class.of v0  ; classdesc
     v1 = param 1  ; bool
     v2 = param 2  ; bool
     safepoint
     ; stmt s0 @4:5-4:26
-    v3 = class.of v0  ; classdesc
     v4 = const.bool false  ; bool
     branch v1 -> bb2 (e0), bb3 (e1)
   bb1:
