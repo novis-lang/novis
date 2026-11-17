@@ -6,7 +6,7 @@ context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/script.rs, crates/nv
 stages:
   - id: 1
     title: bun nv serve-mem measures memory per recompile and the keep-alive answers under edits, and the tests are written red
-    status: open
+    status: done
     context: [tools/nv/cmd/lsp-start.ts, crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/script.rs]
   - id: 2
     title: a unit frees its compiled code on every way out of compile
@@ -44,7 +44,7 @@ checks:
   - id: no-retry
     stage: 3
     name: "a compile that panics is compiled once per content, answers as a failed compile, and compiles again once its content changes"
-    run: [cargo, test, --lib, --, a_compile_that_panics_is_not_compiled_again_until_its_content_changes]
+    run: [cargo, test, --bin, nvs, --, a_compile_that_panics_is_not_compiled_again_until_its_content_changes]
     timeout: 1800
     tests:
       - a_compile_that_panics_is_not_compiled_again_until_its_content_changes
@@ -195,22 +195,22 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** makes the measurements of § *Why* one command, and writes the tests the checks name.
 
-- [ ] `tools/nv/cmd/serve-mem.ts:1`: from `.agent-tmp/serve-mem/fail.ts` and `ka500.ts`. It copies an app
+- [x] `tools/nv/cmd/serve-mem.ts:1`: from `.agent-tmp/serve-mem/fail.ts` and `ka500.ts`. It copies an app
   (`registry` or `html`) under `.agent-tmp/serve-mem/`, starts `target/release/nvs serve` on it, and
   writes broken, good and restored edits with a pause between them. After each step it prints the
   private bytes (Windows `PrivateMemorySize64`, Linux `RssAnon`) and `MAPPED_JIT_UNITS` if the server
   logs it. `--load <conns>` adds keep-alive load and counts `200`s and `500`s per round. The header
   comment names every flag. It deletes its copy when it ends.
-- [ ] Run `bun nv serve-mem --app registry --fails 10 --oks 10` and
+- [x] Run `bun nv serve-mem --app registry --fails 10 --oks 10` and
   `bun nv serve-mem --app html --load 64 --edits 70` once. Write the figures into the handoff as
   the baseline.
-- [ ] `crates/nvs-codegen/src/lib.rs`: the two tests the `pages` check names, in its `mod tests`. Each
+- [x] `crates/nvs-codegen/src/lib.rs`: the two tests the `pages` check names, in its `mod tests`. Each
   builds a unit through a `#[cfg(test)]` failpoint in `compile_all` that returns a `CodegenError` or
   panics after one function is defined. It reads `MAPPED_JIT_UNITS` before and after. Red until stage 2.
-- [ ] `crates/nvs-cli/src/script.rs`: the test the `no-retry` check names, through a `#[cfg(test)]`
+- [x] `crates/nvs-cli/src/script.rs`: the test the `no-retry` check names, through a `#[cfg(test)]`
   failpoint in `Compiler::compile` (`:1481`) that panics for one content. It counts compiles over three
   `revalidate` passes, then changes the content. Red until stage 3.
-- [ ] `crates/nvs-cli/tests/serve_reload.rs:1`: the test the `keep-alive` check names. One keep-alive
+- [x] `crates/nvs-cli/tests/serve_reload.rs:1`: the test the `keep-alive` check names. One keep-alive
   connection sends requests without a pause while the entry is rewritten 60 times, and every answer is
   `200` with the version written last or one before it. Red until stage 4 if it reproduces. If it does
   not reproduce on this machine, the handoff says so, and stage 4 starts from `serve-mem --load`.
@@ -301,17 +301,38 @@ because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
 ### State
 
-Written on 2026-11-17 from a user report and the measurement in § *Why*. The scripts the measurement
-used are in `.agent-tmp/serve-mem/`: `fail.ts`, `drive.ts`, `suite.ts`, `load.ts`, `ka500.ts`, with
-raw samples in `fail-results.jsonl` and `results.jsonl`. Stage 1 turns them into
-`bun nv serve-mem` and then deletes that folder. Nothing is built yet. The person decided the four
-fixes and the place before `lsp-memory`. Every other choice in § *Standing decisions* is the authoring
-session's call under the priority ordering.
+Stage 1 is done: `bun nv serve-mem` replaces the scratch scripts, which are deleted. The server prints
+no `jit_units=` line yet, so that column shows `-`. The baseline, on Windows with the release binary:
+
+- `--app registry --fails 10 --oks 10`: 33.4 MB private at the start. The failures level off at
+  +26.6 MB from the fourth on. Each success adds 9 to 20 MB with no plateau: +153.6 MB once restored.
+- `--app html --load 64 --edits 70`: only `200`s up to round 26. From round 27 the `500`s grow, and
+  from round 60 every answer is a `500` with an empty body. `--load 4 --edits 8` fails at round 6.
+
+The tests, each run once by name. The two `pages` tests in `crates/nvs-codegen/src/lib.rs` are red:
+at the failpoint after the first body the unit is not counted yet. They read `failpoint::MAPPED_HERE`,
+a per-thread copy of `MAPPED_JIT_UNITS`, because the crate's tests run in parallel. The `no-retry`
+test in `crates/nvs-cli/src/script.rs` is red: the panic leaves `revalidate`. Its check now runs
+`cargo test --bin nvs`, since `--lib` finds no test there. The `keep-alive` test is green: one
+connection on the debug binary does not reproduce the `500`s.
+
+The sweep's two reds are stale: `env-secret-proofs` is defined nowhere, and nightly 44073672172 ran
+before `0fe2fdef25`, which is on `origin/main`.
 
 ### Next
 
-Stage 1 from its first item: `tools/nv/cmd/serve-mem.ts`, then the four tests, which are expected to
-fail until stages 2 to 4.
+Stages 2 and 3, which touch disjoint crates.
+
+- Stage 2: `crates/nvs-codegen/src/lib.rs` `UnitBuilder::<JITModule>::new` (about `:2505`) puts the
+  module into `JitPages` at once, and `finish` (about `:2870`) takes it from there. Then the `pages`
+  check runs once.
+- Stage 3: `crates/nvs-cli/src/script.rs:1001`, the one call of `self.compile`, runs under
+  `catch_unwind`, as § *Standing decisions* says. Then the `no-retry` check runs once.
+- Stage 4: once the cause is found, add background connections to the `keep-alive` test so it fails
+  on the cause, if one connection still does not reproduce it.
+
+Tests expected red until their stage: the two `pages` tests (stage 2) and the `no-retry` test
+(stage 3).
 
 ### Backlog
 
