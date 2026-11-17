@@ -16,6 +16,7 @@
 //! value the call returns through `nvs_stdlib::fuzz::Owned`, which releases it.
 
 mod ast;
+mod compile;
 mod cookie;
 mod decompress;
 mod image_path;
@@ -38,6 +39,7 @@ mod xml;
 mod tests;
 
 pub use ast::ast;
+pub use compile::{Compiled, compile, compile_source};
 pub use cookie::cookie;
 pub use decompress::decompress;
 pub use image_path::image_path;

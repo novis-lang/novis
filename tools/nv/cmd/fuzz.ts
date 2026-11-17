@@ -72,6 +72,9 @@ export const BY_HAND: Record<string, string> = {
   // A differential against comrak. Its open differences are cmark-gfm edge cases with no security
   // value, so it would save an input on every run (`rule:core-classes/markdown-cost`).
   markdown_comrak: "known differences from cmark-gfm on unusual input",
+  // The whole compiler per input, which is slow to search. Every `cargo test` runs its seeds and the
+  // matrix of each construct in each kind of body (`crates/nvs-fuzz-checks/src/tests.rs`).
+  compile: "a search of the whole compiler, started by hand",
 };
 /**
  * The `bash` that sets `j` to the fork mode's job count: half the cores, at most one per GiB the

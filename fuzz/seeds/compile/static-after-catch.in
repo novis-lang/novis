@@ -1,0 +1,17 @@
+<?nvs
+class Base
+{
+    public const int K = 1;
+}
+class Child extends Base
+{
+    public const int K = 2;
+    public function read(): int {
+        try {
+            throw new LogicError('stop');
+        } catch (LogicError $e) {
+        }
+        return static::K;
+    }
+}
+echo (new Child())->read(), "\n";

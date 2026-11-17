@@ -1,0 +1,10 @@
+<?nvs
+class Base
+{
+    public static function run(): Iterator<int> { return self::pages(); }
+    private static function pages(): Iterator<int> { yield self::one(); }
+    private static function one(): int { return 1; }
+}
+foreach (Base::run() as int $page) {
+    echo $page, "\n";
+}

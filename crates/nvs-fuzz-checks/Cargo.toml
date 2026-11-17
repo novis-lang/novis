@@ -15,9 +15,15 @@ repository.workspace = true
 doctest = false
 
 # The crates whose readers the checks call, and nothing else: every one is
-# already in the tree, so this crate adds no new edge to the lock file.
+# a crate of this workspace, so this crate adds no package to the lock file.
 [dependencies]
+# The `compile` check runs the whole compiler, and code generation writes an
+# object file, so nothing it builds is mapped or run.
+nvs-codegen.workspace = true
 nvs-diagnostics.workspace = true
+nvs-hir.workspace = true
+nvs-ir.workspace = true
+nvs-types.workspace = true
 nvs-runtime.workspace = true
 nvs-server.workspace = true
 nvs-stdlib.workspace = true

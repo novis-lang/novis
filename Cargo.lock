@@ -4394,12 +4394,16 @@ name = "nvs-fuzz-checks"
 version = "0.0.4"
 dependencies = [
  "httparse",
+ "nvs-codegen",
  "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-ir",
  "nvs-repo",
  "nvs-runtime",
  "nvs-server",
  "nvs-stdlib",
  "nvs-syntax",
+ "nvs-types",
 ]
 
 [[package]]
