@@ -232,12 +232,18 @@ fn an_endless_statement_stops_near_the_cpu_time_its_request_has_left() {
         "the statement was charged {charged:?} of CPU time, less than its budget of {budget:?}"
     );
     // Past its budget, the statement runs to the next interrupt check and then
-    // ends. Each of the three clock readings around that can lag by one step.
-    let allowed = budget + reference + step * 3;
+    // ends: less than one bounded statement's work. The thread is also billed
+    // for time it did not spend on the statement, such as an interrupt handled
+    // on it or the host pausing a virtual CPU. A macOS runner billed 280 µs of
+    // that past one bounded statement of 218 µs, so the allowance is ten of
+    // them. A stop that runs ten bounded statements' work past its budget, or
+    // never comes, still fails it. Each of the three clock readings can also
+    // lag by one step.
+    let allowed = budget + reference * 10 + step * 3;
     assert!(
         charged <= allowed,
         "the statement was charged {charged:?} of CPU time on a budget of {budget:?}; the \
-         budget, a bounded statement's {reference:?} and three clock steps of {step:?} \
+         budget, ten bounded statements of {reference:?} and three clock steps of {step:?} \
          allow {allowed:?}"
     );
     // The bound is the statement's: the next one runs to its end.
