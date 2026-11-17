@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/lsp-start.ts, crates/nvs-lsp/tests/incremental.rs]
   - id: 2
     title: an analysis checks the bodies of the files it will own and no others
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/document.rs, crates/nvs-lsp/src/session.rs]
   - id: 3
     title: the workers split one graph's bodies between them, and never check one graph twice
@@ -158,6 +158,15 @@ its `end` logs the line. A client sees the index catch up after a surface edit, 
 It costs one token per such edit, and is pinned by
 `an_edit_that_queues_entries_after_the_start_begins_a_run_of_its_own` in `tests/progress.rs`.
 
+**A left-out file is left out of the fold too (my call, stage 2).** `check_program_partial` takes an
+`absent` set (`crates/nvs-types/src/check.rs`). A file in it is never walked. Its output is folded
+where it is current, and otherwise its expressions, diagnostics and rows are missing from the result.
+It counts the anonymous functions its last output counted, so later files start where a whole check
+starts them. The cost: after a surface edit, an open document's diagnostics that compare rows of
+several files, such as two routes on one path, see only the files whose output is current until they
+are checked again. `nvs check` reports them whole. Checking those files to complete the rows is the
+cost this goal removes, so it is declined. `crate::session`'s module doc says this.
+
 **What stops the goal.** One attempt per item, two sessions per stage. An item still red after its
 attempt goes into the handoff with its cause, and the stage moves on to its other items. A stage still
 open after two sessions stops the loop with `BLOCKED` naming the item.
@@ -191,17 +200,17 @@ Nothing in the server changes yet.
 
 **Does:** the first of the three causes, on the server thread and on the workers as they are now.
 
-- [ ] `crates/nvs-lsp/src/index.rs:1517` `analyse_entry` passes `indexed` down to `analyse_through`
+- [x] `crates/nvs-lsp/src/index.rs:1517` `analyse_entry` passes `indexed` down to `analyse_through`
   (`crates/nvs-lsp/src/document.rs:1046`), which removes every indexed file but the entry from
   `keys.bodies` before `check_program_partial` (`:1212`), and stores keys only for the files it checked.
   The record loop (`index.rs:1539`) skips the files whose bodies were not checked.
-- [ ] `analyse` (`document.rs:972`), the open document's analysis outside the index, passes "every file
+- [x] `analyse` (`document.rs:972`), the open document's analysis outside the index, passes "every file
   but this one", so a keystroke checks one file's bodies once the index holds the rest.
-- [ ] Run `a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`,
+- [x] Run `a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`,
   `a_parallel_index_holds_what_the_serial_index_holds` and
   `a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone` once. If the first two are red
   because a body reads another body, the handoff says which, as § *Standing decisions* says.
-- [ ] Doc comments of `analyse_entry`, `analyse_through` and `crate::session` say what is true now.
+- [x] Doc comments of `analyse_entry`, `analyse_through` and `crate::session` say what is true now.
 
 ### 3. the workers split one graph's bodies between them, and never check one graph twice
 
@@ -252,38 +261,38 @@ Nothing in the server changes yet.
 
 ### State
 
-Stage 1 is done. `bun nv lsp-start --copies <n> --edits <m>` measures memory after indexing and edits.
-Waiting for an edit's `index work:` line needed the progress change in § *Standing decisions*.
+Stage 1's baseline (`lsp-start --copies 12 --cold --edits 5`, release, 16 cores): a cold index peaked
+at 5752 MB paged, and each edit checked about 11.5k files for one of 972. Stage 2 landed in `b3225828aa`. `check_program_partial` takes an `absent` set. `analyse_through`
+(`crates/nvs-lsp/src/document.rs:1074`) takes `absent` by path and leaves those files out, the entry
+excepted. `analyse_entry` (`crates/nvs-lsp/src/index.rs:1522`) passes `indexed`, and `analyse`
+(`document.rs:978`) passes every file. `Session::store` keeps no key for a left-out file whose key
+moved. The record loop needed no change: it already skipped every indexed file.
 
-The baseline, `bun nv lsp-start --copies 12 --cold --edits 5` on the release binary, Windows, 16 cores
-(the work counts are summed since the start):
+Run once by name: `a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`,
+`a_parallel_index_holds_what_the_serial_index_holds`,
+`a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone`,
+`a_surface_edit_read_by_every_program_checks_each_file_once` and
+`the_session_interner_is_rebuilt_once_it_doubles` pass. No body read another body. Still red, as
+expected:
 
-| Moment | Memory | Work |
-|---|---|---|
-| cold index, 15.6 s | private 467 MB, **peak paged 5752 MB** | `parsed=11630 checked=11630` |
-| after 5 edits that each add a method to `src/C1/Publish.nvs`, 98.5 s | private 1586 MB, peak 5752 MB | `parsed=69326 checked=69476` |
+- `a_cold_settle_checks_each_file_once_on_any_number_of_workers`: 44 on the server thread now, **112
+  on four workers**. Stage 3.
+- `a_cold_settle_parses_each_file_once_on_any_number_of_workers`: 116 parses on four workers. Stage 4.
 
-So each edit parsed and checked about 11.5k files, nearly a cold index's worth, for one file of 972.
-The four count tests are at the end of `crates/nvs-lsp/tests/incremental.rs`, on `tree(12, 8)`, 44
-files. Expected red until their stage:
+No other suite ran. `crates/nvs-lsp`'s unit tests that call `analyse` and then read a file other than
+the document may go red at the gate, because `analyse` now leaves every other file out of the fold.
+Look first at `document.rs` tests near `:1575` to `:2008` and `definition.rs:1730`.
 
-- `a_cold_settle_checks_each_file_once_on_any_number_of_workers`: 132 checked on the server thread.
-- `a_cold_settle_parses_each_file_once_on_any_number_of_workers`: 44 on the server thread, 116 on four
-  workers.
-- `a_surface_edit_read_by_every_program_checks_each_file_once`: 142 checked on the server thread.
-- `a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone` passes already, on both. It stays
-  as the guard that stages 2 to 4 keep a keystroke at one file.
-
-The sweep's reds need no change: `env-secret-proofs` is stale, and `0fe2fdef25` removed the `chrono`
-that failed the nightly `supply chain`.
+The sweep's reds need no change: `env-secret-proofs` is stale (its newest `git log -S` hit is a
+retire commit), and `0fe2fdef25` removed the `chrono` that failed the nightly `supply chain`.
 
 ### Next
 
-Stage 2 from its first item: `analyse_entry` (`crates/nvs-lsp/src/index.rs:1517`) passes `indexed` to
-`analyse_through` (`crates/nvs-lsp/src/document.rs:1046`), which drops indexed files but the entry
-from `keys.bodies` before `check_program_partial` (`document.rs:1212`). Then `analyse`
-(`document.rs:972`) and the record loop (`index.rs:1539`). Rerun the cold-check test once by name: it
-should reach 44 on the server thread after stage 2.
+Stage 3 from its first item: `Job` (`crates/nvs-lsp/src/workers.rs:41`) gains the part and a plan
+job. `turns` (`crates/nvs-lsp/src/index.rs:893`) and `send` (`index.rs:950`) plan the head entry
+from `reads`, split its unclaimed files into parts by path, and keep the claims beside `in_flight`.
+A worker's `work` (`workers.rs:241`) calls `analyse_entry` with an `indexed` that is "every file
+outside my part", so the stage 2 `absent` path does the split. Then rerun the `once` check once.
 
 ### Backlog
 
