@@ -6079,7 +6079,12 @@ mod tests {
         let mut taken = vec![false; HELLO_ROWS.len()];
         for (bytes, trace) in &noted {
             let frames = frames_above_the_allocator(trace);
-            let shown = frames.iter().take(6).cloned().collect::<Vec<_>>().join("\n    ");
+            let shown = frames
+                .iter()
+                .take(6)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n    ");
             let site = frames.iter().find_map(|frame| {
                 let rows = HELLO_ROWS
                     .iter()

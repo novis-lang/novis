@@ -234,7 +234,11 @@ impl TraceContext {
     /// This context as the header value an outbound call carries — `00-<trace>-<span>-<flags>`.
     #[must_use]
     pub fn traceparent(&self) -> String {
-        self.traceparent_bytes().iter().copied().map(char::from).collect()
+        self.traceparent_bytes()
+            .iter()
+            .copied()
+            .map(char::from)
+            .collect()
     }
 
     /// [`traceparent`](Self::traceparent) as bytes on the caller's stack, for a
