@@ -1725,6 +1725,13 @@ requests that newly resolve the broken file fail, and they fail loudly. Silently
 the last good version after an edit — especially a security fix — is the worse failure mode, and it
 would buy availability nothing needs.
 
+**A compile that panics is a broken edit for its content.** The compiler's panic is caught, printed
+once with a request to report it, and recorded as the content's `Failed` state, with the trace of
+every file the front end read before it stopped. So it is answered from the table like any other
+failure, and compiled again only once the content or a file it read changes. Compiling it again on
+every pass would print the same panic each time and spend a compile per pass on content that cannot
+compile. A panic is still a bug in Novis, whatever text reached it.
+
 The same policy covers an extension removed while source still references it: nothing proves that at
 reload time, and the units that call it fail when a request next resolves them, and only those.
 

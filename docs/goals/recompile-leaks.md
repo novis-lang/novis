@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-codegen/src/lib.rs]
   - id: 3
     title: a compile that panics is recorded as failed until its content changes
-    status: open
+    status: done
     context: [crates/nvs-cli/src/script.rs, docs/rules/config/a-broken-edit-fails-the-requests-that-resolve-it.md]
   - id: 4
     title: a busy keep-alive connection keeps serving through many reloads
@@ -147,6 +147,9 @@ internal error" and the panic text, recorded under the content's key like any ot
 answered and not compiled again until the content or something it read changes. stderr gets one line
 per content, not one per pass. The server answers it as `rule:config/a-broken-edit-fails-the-requests-that-resolve-it`
 says for a broken edit. That rule says so. A panic is still a bug, so the line asks the reader to report it.
+The `catch_unwind` sits inside `Compiler::compile`, around the front end and around the backend, and
+not at its call site: there the trace of what the front end read is still in hand, so a panic is
+recorded under that trace, and an edit to a `require`d file compiles the content again.
 
 **The keep-alive `500`s are found before they are fixed (my call).** The lead is the per-thread byte
 counter (`crates/nvs-runtime/src/budget.rs:164-189`). A unit compiled on one thread and freed on a
@@ -225,17 +228,17 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 ### 3. a compile that panics is recorded as failed until its content changes
 
-- [ ] `crates/nvs-cli/src/script.rs:1001`: the compile runs under `catch_unwind`. A panic becomes
+- [x] `crates/nvs-cli/src/script.rs:1001`: the compile runs under `catch_unwind`. A panic becomes
   `CompileState::Failed`, recorded as § *Standing decisions* says. `Landing` (`:463`) and its comment
   say what is now true. The watch thread's own `catch_unwind` (`:1769`) stays for a panic outside a
   compile.
-- [ ] The stderr line for a panicked compile, printed once per content, is held to `AGENTS.md`
+- [x] The stderr line for a panicked compile, printed once per content, is held to `AGENTS.md`
   § *Text an end user reads*. It says that the compiler stopped on an internal error, names the file,
   and asks the reader to report it.
-- [ ] `docs/rules/config/a-broken-edit-fails-the-requests-that-resolve-it.md:1` says that a compile
+- [x] `docs/rules/config/a-broken-edit-fails-the-requests-that-resolve-it.md:1` says that a compile
   that panics is a broken edit for its content. Then `bun nv rules --render`, and
   `bun nv rules --check` is green.
-- [ ] The `no-retry` check runs once.
+- [x] The `no-retry` check runs once.
 
 ### 4. a busy keep-alive connection keeps serving through many reloads
 
@@ -309,30 +312,33 @@ no `jit_units=` line yet, so that column shows `-`. The baseline, on Windows wit
 - `--app html --load 64 --edits 70`: only `200`s up to round 26. From round 27 the `500`s grow, and
   from round 60 every answer is a `500` with an empty body. `--load 4 --edits 8` fails at round 6.
 
-The tests, each run once by name. The two `pages` tests in `crates/nvs-codegen/src/lib.rs` are red:
-at the failpoint after the first body the unit is not counted yet. They read `failpoint::MAPPED_HERE`,
-a per-thread copy of `MAPPED_JIT_UNITS`, because the crate's tests run in parallel. The `no-retry`
-test in `crates/nvs-cli/src/script.rs` is red: the panic leaves `revalidate`. Its check now runs
-`cargo test --bin nvs`, since `--lib` finds no test there. The `keep-alive` test is green: one
-connection on the debug binary does not reproduce the `500`s.
+Stages 2 and 3 are done, and the `pages` and `no-retry` checks are green.
+
+- Stage 2: `UnitBuilder<M>` is now generic over a `Backend` trait (`crates/nvs-codegen/src/lib.rs`,
+  beside `JitPages`). `UnitBuilder<JitPages>::new` wraps the `JITModule` at once, and every use goes
+  through `self.module.module()`. `finish` moves the `JitPages` into the class table. The tests that
+  read the module (`assert_relocated`) now take `&mut`.
+- Stage 3: `Compiler::compile` (`crates/nvs-cli/src/script.rs`, about `:1481`) runs the front end
+  and the backend each under `catch_unwind`. A panic goes to `stopped`, beside it, which prints one
+  `E_INTERNAL` line and returns the failure. The panic test failpoint moved inside the front-end
+  closure. Why it is inside `compile` and not at its call site is in § *Standing decisions*.
 
 The sweep's two reds are stale: `env-secret-proofs` is defined nowhere, and nightly 44073672172 ran
 before `0fe2fdef25`, which is on `origin/main`.
 
 ### Next
 
-Stages 2 and 3, which touch disjoint crates.
+Stage 4, the keep-alive `500`s, which needs a release binary: run `bun nv relink --build` first.
 
-- Stage 2: `crates/nvs-codegen/src/lib.rs` `UnitBuilder::<JITModule>::new` (about `:2505`) puts the
-  module into `JitPages` at once, and `finish` (about `:2870`) takes it from there. Then the `pages`
-  check runs once.
-- Stage 3: `crates/nvs-cli/src/script.rs:1001`, the one call of `self.compile`, runs under
-  `catch_unwind`, as § *Standing decisions* says. Then the `no-retry` check runs once.
-- Stage 4: once the cause is found, add background connections to the `keep-alive` test so it fails
-  on the cause, if one connection still does not reproduce it.
+- Rerun `bun nv serve-mem --app html --load 64 --edits 70` with `[limits] memory` raised in the
+  copy, and read the stop reason for each `500` (`crates/nvs-server/src/serve.rs:3499` `failed`).
+  The lead is the per-thread byte counter, `crates/nvs-runtime/src/budget.rs:164-189`.
+- Once the cause is found, add background connections to the `keep-alive` test
+  (`a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads`) so it fails on the
+  cause, if one connection still does not reproduce it.
+- Stage 6 may now run as a side goal: stage 2 is done.
 
-Tests expected red until their stage: the two `pages` tests (stage 2) and the `no-retry` test
-(stage 3).
+No test is expected red now. The `keep-alive` test stays green until stage 4 makes it reproduce.
 
 ### Backlog
 

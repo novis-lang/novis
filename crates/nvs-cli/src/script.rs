@@ -455,11 +455,12 @@ impl Flight {
 /// The landing a compile owes the callers waiting on its flight, taken on the
 /// way in so that it is paid on the way out.
 ///
-/// A guard rather than a call because the way out includes a panic beneath the
-/// front end: `Cargo.toml`'s profiles all unwind, so this drop runs, and what a
-/// caller woken by it finds is a table with nothing under the key — which sends
-/// it to compile the content itself rather than to wait again on a compile that
-/// is not happening.
+/// A guard rather than a call because the way out includes a panic. A panic in
+/// the compiler is caught by [`Compiler::compile`] and recorded as a failed
+/// compile, so this is for a panic anywhere else between the claim and the
+/// record. `Cargo.toml`'s profiles all unwind, so this drop runs, and a caller
+/// woken by it finds nothing under the key. That caller then compiles the
+/// content itself, and does not wait again on a compile that is not happening.
 struct Landing<'a>(&'a Flight);
 
 impl Drop for Landing<'_> {
@@ -984,8 +985,8 @@ impl Compiler {
             Claim::Landed => false,
         };
         // Every caller but that one reads what the compile published. Finding
-        // nothing there takes a panic beneath it — [`Landing`] wakes a waiter
-        // either way rather than leaving it here — or a [`Self::record`] for
+        // nothing there takes a panic outside the compiler — [`Landing`] wakes
+        // a waiter either way rather than leaving it here — or a [`Self::record`] for
         // another content of this path sweeping the entry out in between. Both
         // fall through and compile on this caller's own account, which is what
         // every caller did before there was a flight to wait behind.
@@ -1489,8 +1490,6 @@ impl Compiler {
         // this cache paid for, and the claim being counted is about how many
         // times the file was put through the front end at all.
         self.compiles.fetch_add(1, Ordering::Relaxed);
-        #[cfg(test)]
-        panic_failpoint::hit(written);
         // Resolved once, and the whole program is read below it: a link
         // switched while the front end runs cannot hand it one file from each
         // release. [`Self::moved`] resolves it again afterwards.
@@ -1502,33 +1501,49 @@ impl Compiler {
         // Typed against the live extension set. A reload installs a new set
         // before it moves [`Self::env`], so a unit compiled from then on reads
         // the set its key will name.
-        let checked = crate::front_end_looking(
-            &real,
-            crate::extensions::live_manifests(),
-            *shared(&self.backtracking),
-            &mut looked,
-        );
+        // A panic is caught here and in the backend below, where the trace of
+        // what the front end read is still in hand. So a panic is recorded as
+        // a failure of this content, and an edit to any file it read compiles
+        // it again ([`stopped`]).
+        let checked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            #[cfg(test)]
+            panic_failpoint::hit(written);
+            crate::front_end_looking(
+                &real,
+                crate::extensions::live_manifests(),
+                *shared(&self.backtracking),
+                &mut looked,
+            )
+        }));
         let Looks {
             answers,
             reads,
             listed,
             probes,
         } = looks(looked, Some(&real), started);
-        let Ok(checked) = checked else {
-            let program = failed_program(content, &reads);
-            return (
-                Err(format!(
-                    "`{path}` could not be compiled; see the errors above"
-                )),
-                Trace {
-                    program,
-                    probes,
-                    answers,
-                    files: reads,
-                    listed,
-                    real: Some(real),
-                },
-            );
+        let checked = match checked {
+            Ok(Ok(checked)) => Ok(checked),
+            Ok(Err(_)) => Err(format!(
+                "`{path}` could not be compiled; see the errors above"
+            )),
+            Err(panic) => Err(stopped(path, &*panic)),
+        };
+        let checked = match checked {
+            Ok(checked) => checked,
+            Err(message) => {
+                let program = failed_program(content, &reads);
+                return (
+                    Err(message),
+                    Trace {
+                        program,
+                        probes,
+                        answers,
+                        files: reads,
+                        listed,
+                        real: Some(real),
+                    },
+                );
+            }
         };
         // Held across the lowering and the key alike: the digest of
         // `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` is over
@@ -1536,50 +1551,54 @@ impl Compiler {
         // list that was lowered and not the entry file alone.
         let files = checked.program_files();
         let program = crate::cache::program_digest(&files);
-        let lower = || {
-            nvs_ir::lower::lower_program(
-                nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-                &files,
-                &checked.exprs,
-                &checked.interner,
-                &checked.enums,
-                &checked.layouts,
-            )
-        };
-        let lowered = if self.debug.is_some() {
-            nvs_ir::lower::with_debug_slots(lower)
-        } else {
-            lower()
-        };
-        let id: Arc<str> =
-            nvs_config::cache::program_id(&crate::cache::unit_digests(&files), self.env())
-                .to_string()
-                .into();
-        let cache = shared(&self.cache).clone();
-        let outcome = crate::cache::unit_for(&lowered, program, cache.as_ref())
-            .map(|(unit, _)| {
-                let debug = self.debug.as_ref().and_then(|debugger| {
-                    let unit = debug_unit(&unit, &lowered, &checked.map, crate::dap::file_key)?;
-                    debugger.load(&unit);
-                    Some((debugger.clone(), unit))
-                });
-                let coverage = self.counts.then(|| {
-                    let probes = crate::coverage::Probes::of(&lowered);
-                    crate::coverage::Sites::of(probes, &checked.map).table()
-                });
-                Arc::new(Compiled {
-                    unit: Arc::new(unit),
-                    routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
-                    id,
-                    debug,
-                    coverage,
-                    query_sites: query_sites(&lowered, &checked.map),
+        let backend = || {
+            let lower = || {
+                nvs_ir::lower::lower_program(
+                    nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+                    &files,
+                    &checked.exprs,
+                    &checked.interner,
+                    &checked.enums,
+                    &checked.layouts,
+                )
+            };
+            let lowered = if self.debug.is_some() {
+                nvs_ir::lower::with_debug_slots(lower)
+            } else {
+                lower()
+            };
+            let id: Arc<str> =
+                nvs_config::cache::program_id(&crate::cache::unit_digests(&files), self.env())
+                    .to_string()
+                    .into();
+            let cache = shared(&self.cache).clone();
+            crate::cache::unit_for(&lowered, program, cache.as_ref())
+                .map(|(unit, _)| {
+                    let debug = self.debug.as_ref().and_then(|debugger| {
+                        let unit = debug_unit(&unit, &lowered, &checked.map, crate::dap::file_key)?;
+                        debugger.load(&unit);
+                        Some((debugger.clone(), unit))
+                    });
+                    let coverage = self.counts.then(|| {
+                        let probes = crate::coverage::Probes::of(&lowered);
+                        crate::coverage::Sites::of(probes, &checked.map).table()
+                    });
+                    Arc::new(Compiled {
+                        unit: Arc::new(unit),
+                        routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
+                        id,
+                        debug,
+                        coverage,
+                        query_sites: query_sites(&lowered, &checked.map),
+                    })
                 })
-            })
-            .map_err(|error| {
-                crate::report_internal(format!("`{path}`: {error}"));
-                format!("`{path}` could not be compiled; see the errors above")
-            });
+                .map_err(|error| {
+                    crate::report_internal(format!("`{path}`: {error}"));
+                    format!("`{path}` could not be compiled; see the errors above")
+                })
+        };
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(backend))
+            .unwrap_or_else(|panic| Err(stopped(path, &*panic)));
         (
             outcome,
             Trace {
@@ -1592,6 +1611,29 @@ impl Compiler {
             },
         )
     }
+}
+
+/// A compile of `path` that panicked, as the failure its content is answered
+/// with until the content or a file it read changes.
+///
+/// A panic is a bug in Novis whatever text reached it, so the line on stderr
+/// asks the reader to report it. It is printed once per content, because the
+/// failure is recorded under the content's key like any other and is not
+/// compiled again (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`).
+///
+/// **What it costs:** one `catch_unwind` around each half of a compile, and the
+/// one message the compile table keeps for a failed content.
+fn stopped(path: &str, panic: &(dyn std::any::Any + Send)) -> String {
+    let text = panic
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("no message");
+    crate::report_internal(format!(
+        "The compiler stopped on an internal error in `{path}`. The error is: {text}. \
+         This is a bug in Novis. Please report it."
+    ));
+    format!("`{path}` could not be compiled. The compiler stopped on an internal error.")
 }
 
 /// What one front-end run looked at, in the shape a [`Trace`] keeps it.
