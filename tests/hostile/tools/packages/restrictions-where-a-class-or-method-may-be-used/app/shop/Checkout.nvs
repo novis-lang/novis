@@ -6,7 +6,7 @@ final class Checkout
 {
     public static function signWith(Acme\Signing\Signs $signer): string
     {
-        return $signer->sign("page");
+        return $signer->sign('page');
     }
 
     public static function openVault(): string

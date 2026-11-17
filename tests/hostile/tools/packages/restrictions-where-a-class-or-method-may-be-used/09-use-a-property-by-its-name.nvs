@@ -6,18 +6,18 @@
 autoload 'Acme\Signing' from './vendor/acme/signing/src';
 
 Acme\Signing\Keys $keys = new Acme\Signing\Keys();
-property<Acme\Signing\Keys> $keyName = "key" as property<Acme\Signing\Keys>;
+property<Acme\Signing\Keys> $keyName = 'key' as property<Acme\Signing\Keys>;
 
 // 1. This line reads `$key` through the variable `$keyName`.
 echo $keys->$keyName, "\n";
 
 // 2. This line writes a new value to `$key` through the variable `$keyName`.
-$keys->$keyName = "forged";
+$keys->$keyName = 'forged';
 
 // 3. This line adds text to `$key` with `.=` through the variable `$keyName`.
-$keys->$keyName .= "-again";
+$keys->$keyName .= '-again';
 
 // 4. `Signer::vault` may create a `Vault`, and returns it. This line reads its `$code` by name.
 Acme\Signing\Vault $vault = Acme\Signing\Internal\Signer::vault();
-property<Acme\Signing\Vault> $codeName = "code" as property<Acme\Signing\Vault>;
+property<Acme\Signing\Vault> $codeName = 'code' as property<Acme\Signing\Vault>;
 echo $vault->$codeName, "\n";

@@ -9,56 +9,56 @@ mixed $keys = new Acme\Signing\Keys();
 
 // 1. This line calls the restricted method `sign` on a `mixed` variable.
 try {
-    echo $keys->sign("page"), "\n";
+    echo $keys->sign('page'), "\n";
 } catch (LogicError $error) {
-    echo "step 1 stopped: ", $error->message, "\n";
+    echo 'step 1 stopped: ', $error->message, "\n";
 }
 
 // 2. This line reads the restricted property `$key` on a `mixed` variable.
 try {
     echo $keys->key, "\n";
 } catch (LogicError $error) {
-    echo "step 2 stopped: ", $error->message, "\n";
+    echo 'step 2 stopped: ', $error->message, "\n";
 }
 
 // 3. This line writes `$key` on an `object` variable.
 object $box = new Acme\Signing\Keys();
 try {
-    $box->key = "forged";
+    $box->key = 'forged';
     echo "step 3 wrote the key\n";
 } catch (LogicError $error) {
-    echo "step 3 stopped: ", $error->message, "\n";
+    echo 'step 3 stopped: ', $error->message, "\n";
 }
 
 // 4. This line adds text to `$key` with `.=`, which reads and writes it.
 try {
-    $box->key .= "-forged";
+    $box->key .= '-forged';
     echo "step 4 changed the key\n";
 } catch (LogicError $error) {
-    echo "step 4 stopped: ", $error->message, "\n";
+    echo 'step 4 stopped: ', $error->message, "\n";
 }
 
 // 5. This line calls `sign` with `?->` on a `mixed` variable.
 try {
-    echo $keys?->sign("page"), "\n";
+    echo $keys?->sign('page'), "\n";
 } catch (LogicError $error) {
-    echo "step 5 stopped: ", $error->message, "\n";
+    echo 'step 5 stopped: ', $error->message, "\n";
 }
 
 // 6. The `mixed` variable has an object of the subclass `FastKeys`, and this line calls `sign`.
 mixed $fast = new Shop\FastKeys();
 try {
-    echo $fast->sign("page"), "\n";
+    echo $fast->sign('page'), "\n";
 } catch (LogicError $error) {
-    echo "step 6 stopped: ", $error->message, "\n";
+    echo 'step 6 stopped: ', $error->message, "\n";
 }
 
 // 7. The `mixed` variable has a `Seal`, which implements the restricted interface method.
 mixed $seal = new Acme\Signing\Seal();
 try {
-    echo $seal->sign("page"), "\n";
+    echo $seal->sign('page'), "\n";
 } catch (LogicError $error) {
-    echo "step 7 stopped: ", $error->message, "\n";
+    echo 'step 7 stopped: ', $error->message, "\n";
 }
 
 // 8. `Signer::vault` may create a `Vault`, and returns it into a `mixed` variable.
@@ -67,14 +67,14 @@ mixed $vault = Acme\Signing\Internal\Signer::vault();
 try {
     echo $vault->open(), "\n";
 } catch (LogicError $error) {
-    echo "step 8 stopped: ", $error->message, "\n";
+    echo 'step 8 stopped: ', $error->message, "\n";
 }
 
 // 9. This line reads the property `$code` of that `Vault`.
 try {
     echo $vault->code, "\n";
 } catch (LogicError $error) {
-    echo "step 9 stopped: ", $error->message, "\n";
+    echo 'step 9 stopped: ', $error->message, "\n";
 }
 
 // 10. A method that is not restricted still works.

@@ -6,6 +6,6 @@ final class FastKeys extends Acme\Signing\Keys
 {
     public function speed(): string
     {
-        return "fast";
+        return 'fast';
     }
 }

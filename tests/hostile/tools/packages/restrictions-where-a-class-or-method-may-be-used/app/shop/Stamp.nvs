@@ -6,6 +6,6 @@ final class Stamp implements Acme\Signing\Signs
 {
     public function sign(string $text): string
     {
-        return "stamped " . $text;
+        return 'stamped ' . $text;
     }
 }

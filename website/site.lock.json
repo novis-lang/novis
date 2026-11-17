@@ -387,7 +387,7 @@
     "tools:editor/nvs-dap": "894cd41ad9f221e8"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "57b3bc37cb4b9e03",
+    "tools:editor/nvs-lsp": "7aeebd4ae5d1e270",
     "tools:editor/the-vs-code-extension": "32911fc92f4c97bc"
   },
   "tools/formatter/index.mdx": {

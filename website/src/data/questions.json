@@ -300,13 +300,14 @@
   },
   "/guides/how-to-use/modules/": {
     "feature": "guides/how-to-use/modules.mdx",
-    "hash": "0cd3941e06971f8d",
+    "hash": "bc11ff291c115589",
     "questions": [
       "How do I run several apps on one server?",
       "Serve every folder with an index file under its own path",
       "Which address does a link use when one app has two paths?",
       "How do I link from one app to a page of another app?",
-      "Give each app its own subdomain and link between them"
+      "Give each app its own subdomain and link between them",
+      "How can a framework stop every module from calling a method directly?"
     ]
   },
   "/guides/how-to-use/project-layout/": {
@@ -1357,25 +1358,26 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "57b3bc37cb4b9e03",
+    "hash": "7aeebd4ae5d1e270",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Why does the editor command hang with no output in my terminal?",
       "See every method that calls this method in my editor",
       "Which routes and tests use this method, and how do I run those tests?",
       "Where did this tainted value in my code come from?",
-      "How does the editor use @param, @return and @throws in doc comments?"
+      "Why does my editor say a method cannot be used here?"
     ]
   },
   "/reference/cli/nvs-lsp-test/": {
     "feature": "tools:editor/nvs-lsp-test",
-    "hash": "084b227a64a12b01",
+    "hash": "0728d1aa10aba529",
     "questions": [
       "How do I test what my editor completion returns?",
       "Write a test for hover text at a cursor position",
       "What is an .lspt file and how is it written?",
       "Which kinds of syntax do my editor tests cover?",
-      "Check language server output against an expected result"
+      "Check language server output against an expected result",
+      "Test that the editor shows a restricted method call as an error"
     ]
   },
   "/reference/cli/nvs-meta-json/": {

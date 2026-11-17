@@ -80,8 +80,11 @@ replace = 'Framework\Core\Signing\Url::signed($route, $params)'
 The restriction holds in every module that loads a file of the framework. A call to
 `Core\Router::urlSigned` in `Blog` does not compile. The error shows the `note`, and the editor
 offers the `replace` code as a fix. A module cannot remove the restriction in its own `package.toml`.
-Read [Restrictions](/reference/cli/restrictions-where-a-class-or-method-may-be-used/) for every key
-of the table.
+
+`use` and `allow` are required. `use` names one class, method, property, constant, function or
+namespace. `allow` lists the namespaces, classes and methods that may use it. `Ns\*` means the
+namespace `Ns` and every namespace below it. An empty list, `allow = []`, allows no place. `note`
+and `replace` are optional.
 
 ## A link to another module
 

@@ -4,9 +4,9 @@ namespace Acme\Signing;
 
 final class Vault
 {
-    public const string PIN = "0000";
+    public const string PIN = '0000';
 
-    public string $code = "1234";
+    public string $code = '1234';
 
     public static function make(): Vault
     {
@@ -15,6 +15,6 @@ final class Vault
 
     public function open(): string
     {
-        return "open";
+        return 'open';
     }
 }

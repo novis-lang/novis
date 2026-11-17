@@ -5,6 +5,6 @@ final class Tool
 {
     public static function run(): string
     {
-        return "run";
+        return 'run';
     }
 }

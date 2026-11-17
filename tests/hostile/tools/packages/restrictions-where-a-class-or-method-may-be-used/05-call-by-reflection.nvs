@@ -10,24 +10,24 @@ var $info = Core\Reflect::forObject($keys);
 
 // 1. `call` runs the restricted method `sign`.
 try {
-    echo $info->call($keys, "sign", ["page"]), "\n";
+    echo $info->call($keys, 'sign', ['page']), "\n";
 } catch (LogicError $error) {
-    echo "step 1 stopped: ", $error->message, "\n";
+    echo 'step 1 stopped: ', $error->message, "\n";
 }
 
 // 2. `get` reads the restricted property `$key`.
 try {
-    echo $info->get($keys, "key"), "\n";
+    echo $info->get($keys, 'key'), "\n";
 } catch (LogicError $error) {
-    echo "step 2 stopped: ", $error->message, "\n";
+    echo 'step 2 stopped: ', $error->message, "\n";
 }
 
 // 3. `set` writes a new value to `$key`.
 try {
-    $info->set($keys, "key", "forged");
+    $info->set($keys, 'key', 'forged');
     echo "step 3 wrote the key\n";
 } catch (LogicError $error) {
-    echo "step 3 stopped: ", $error->message, "\n";
+    echo 'step 3 stopped: ', $error->message, "\n";
 }
 
 // `Signer::vault` is allowed to create a `Vault`, and it returns one to the application.
@@ -39,60 +39,60 @@ try {
     mixed $vault = $vaultInfo->construct([]);
     echo "step 4 created a vault\n";
 } catch (LogicError $error) {
-    echo "step 4 stopped: ", $error->message, "\n";
+    echo 'step 4 stopped: ', $error->message, "\n";
 }
 
 // 5. `constant` reads the constant `PIN` of `Vault`.
 try {
-    echo $vaultInfo->constant("PIN"), "\n";
+    echo $vaultInfo->constant('PIN'), "\n";
 } catch (LogicError $error) {
-    echo "step 5 stopped: ", $error->message, "\n";
+    echo 'step 5 stopped: ', $error->message, "\n";
 }
 
 // 6. `call` runs the method `open` of the `Vault` that `Signer::vault` returned.
 try {
-    echo $vaultInfo->call($given, "open", []), "\n";
+    echo $vaultInfo->call($given, 'open', []), "\n";
 } catch (LogicError $error) {
-    echo "step 6 stopped: ", $error->message, "\n";
+    echo 'step 6 stopped: ', $error->message, "\n";
 }
 
 // 7. `call` runs `sign` on an object of the subclass `FastKeys`.
 var $fast = new Shop\FastKeys();
 try {
-    echo Core\Reflect::forObject($fast)->call($fast, "sign", ["page"]), "\n";
+    echo Core\Reflect::forObject($fast)->call($fast, 'sign', ['page']), "\n";
 } catch (LogicError $error) {
-    echo "step 7 stopped: ", $error->message, "\n";
+    echo 'step 7 stopped: ', $error->message, "\n";
 }
 
 // 8. `call` runs `sign` on `Seal`, which implements the restricted interface method.
 var $seal = new Acme\Signing\Seal();
 try {
-    echo Core\Reflect::forObject($seal)->call($seal, "sign", ["page"]), "\n";
+    echo Core\Reflect::forObject($seal)->call($seal, 'sign', ['page']), "\n";
 } catch (LogicError $error) {
-    echo "step 8 stopped: ", $error->message, "\n";
+    echo 'step 8 stopped: ', $error->message, "\n";
 }
 
 // 9. `$info->call(...)` makes a function value, and the attack calls `sign` through it.
 var $call = $info->call(...);
 try {
-    echo $call($keys, "sign", ["page"]), "\n";
+    echo $call($keys, 'sign', ['page']), "\n";
 } catch (LogicError $error) {
-    echo "step 9 stopped: ", $error->message, "\n";
+    echo 'step 9 stopped: ', $error->message, "\n";
 }
 
 // 10. `call` writes the method name in capital letters, `SIGN`.
 try {
-    echo $info->call($keys, "SIGN", ["page"]), "\n";
+    echo $info->call($keys, 'SIGN', ['page']), "\n";
 } catch (Throwable $failure) {
-    echo "step 10 stopped: ", $failure->message, "\n";
+    echo 'step 10 stopped: ', $failure->message, "\n";
 }
 
 // 11. `get` writes the property name in capital letters, `KEY`.
 try {
-    echo $info->get($keys, "KEY"), "\n";
+    echo $info->get($keys, 'KEY'), "\n";
 } catch (Throwable $failure) {
-    echo "step 11 stopped: ", $failure->message, "\n";
+    echo 'step 11 stopped: ', $failure->message, "\n";
 }
 
 // 12. The allowed way still works. `Signer::sign` is inside the package.
-echo Acme\Signing\Internal\Signer::sign("page"), "\n";
+echo Acme\Signing\Internal\Signer::sign('page'), "\n";
