@@ -509,29 +509,21 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Every stage is done, and the gate is green: `looper verify` passed on its third run (798 s).
-`bun nv verify --doc` is green, `bun nv owners --closes restrict` is clear, and the rule
-`packaging/a-restriction-limits-where-a-declaration-is-used` is `shipped` in its record.
+Every stage is done, and the gate is green: `looper verify` passed (798 s), `bun nv verify
+--doc` is green, `bun nv owners --closes restrict` is clear, and the rule
+`packaging/a-restriction-limits-where-a-declaration-is-used` is `shipped`.
 
-The gate landed: the CLI names the manifest relative to `Restrictions::home` (the application
-file's directory, else the walk's start) through `nvs_types::restrict::source_text`, which the hover
-shares. The key hashes each entry's file and line and `home`, since a thrown text names them
-(`rule:packaging/package-toml-is-a-tool-input`). `W1031` has a test in `package_restrict.rs`. The
-rules render, attack formatting, `Core\Reflect` perf records, guide link, page questions,
-`llms-full.txt` and roadmap themes were fixed.
-
-The `chrono` advisory is gone: `rxing` is replaced as d13 decided (*Standing decisions*), and
-`image_barcode`'s four tests pass with the new reader. `bun nv ci --check` is green in every
-check, `bun nv verify --doc` is green and `bun nv owners --closes restrict` is clear. The sweep's
+The `chrono` advisory is gone: `rxing` is replaced as d13 decided. Nightly 44073672172's
+`supply chain` red ran on `2934ebe1ae`, before `0fe2fdef25` removed it. The sweep's
 `env-secret-proofs` red has no definition in the tree (`looper check --name env-secret-proofs`
-says no check matches), and nightly 43849315979's reds were fixed after it (`2934ebe1ae`,
-`9efc45b6fd`). Nightly 44073672172's `supply chain` red is the `chrono` advisory on `2934ebe1ae`,
-before `0fe2fdef25` removed `rxing`; `Cargo.lock` has no `chrono` now.
+matches nothing).
 
-The refused DONE's `floor-debt` red was two tools test files, `tools/nv/test/fuzz.test.ts` and
-`tools/nv/test/mirror.test.ts`, red once in the 40-minute debt run. Both pass alone and under the
-debt run's preload, and `looper check --name floor-debt` reran them green. Both start `bash`, so
-a fork failure of Git Bash under that load is the likely cause; it did not reproduce.
+The `floor-debt` red of an earlier refused DONE was `tools/nv/test/fuzz.test.ts` and
+`mirror.test.ts`, red once under load and green on rerun; a Git Bash fork failure is likely.
+
+The last refused DONE's `ci-check` red came from the four goals `1b61b2b32c` added: two cited
+their future rules with `rule:`, and none was in a roadmap theme. `0cb571987b` fixed both, and
+`bun nv ci --check` is green.
 
 ### Next
 
