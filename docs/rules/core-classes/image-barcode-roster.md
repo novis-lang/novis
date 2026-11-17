@@ -23,7 +23,8 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
 `QrCode::svg` and `QrCode::giroCode` are in the binary. `extensions/image/src/barcode.rs` says what
 each symbology takes and what each option's default is. `crates/nvs-ext/tests/image_barcode.rs`
-reads every code back with `rxing`, and `crates/nvs-cli/tests/image_barcode.rs` pins the GiroCode
+reads every code back with a reader written from each symbology's tables and `datamatrix`'s
+decoder, and `crates/nvs-cli/tests/image_barcode.rs` pins the GiroCode
 layout.
 
 **Declined:**

@@ -2,12 +2,14 @@
 //! `Novis\Image\Barcode` and `Novis\Image\QrCode` call them (`rule:core-classes/image-barcode-roster`).
 //!
 //! Every 1D symbology and DataMatrix is drawn as PNG, and read back to the data written by
-//! `rxing`, a reader that is a dependency of this test only. A QR code and a Code 128 drawn as SVG
-//! are SVG documents, and the component's own SVG decoding turns them into pixels that read back
-//! too. A wrong check digit returns `invalid` naming the digit it should be, and a character a
-//! symbology cannot encode returns `invalid` naming it. The GiroCode payload is Novis source, and
-//! `crates/nvs-cli/tests/image_barcode.rs` runs it.
+//! `support/barcode_read.rs`, a reader written from each symbology's tables for this test. A QR
+//! code and a Code 128 drawn as SVG are SVG documents, and the component's own SVG decoding turns
+//! them into pixels that read back too. A wrong check digit returns `invalid` naming the digit it
+//! should be, and a character a symbology cannot encode returns `invalid` naming it. The GiroCode
+//! payload is Novis source, and `crates/nvs-cli/tests/image_barcode.rs` runs it.
 
+#[path = "support/barcode_read.rs"]
+mod barcode_read;
 #[path = "support/module_cache.rs"]
 mod module_cache;
 
@@ -17,10 +19,10 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
+use barcode_read::Format;
 use nvs_ext::call::{Error, Failure, Host, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Extension, Loader};
-use rxing::{BarcodeFormat, DecodeHints};
 
 /// `future` polled on this thread until it finishes.
 fn block_on<T>(future: impl Future<Output = T>) -> T {
@@ -119,18 +121,12 @@ fn grey(request: &Request, extension: &Extension, data: &[u8]) -> (u32, u32, Vec
     (word(0), word(8), luma)
 }
 
-/// The text `rxing` reads from the encoded image `data` as a `format` code. A GS1-128 code reads
-/// as `]C1` and its element strings, an FNC1 between two of them read as the GS character.
-fn read(request: &Request, extension: &Extension, data: &[u8], format: BarcodeFormat) -> String {
+/// The text read from the encoded image `data` as a `format` code. A GS1-128 code reads as `]C1`
+/// and its element strings, an FNC1 between two of them read as the GS character.
+fn read(request: &Request, extension: &Extension, data: &[u8], format: Format) -> String {
     let (width, height, luma) = grey(request, extension, data);
-    let mut hints = DecodeHints {
-        AssumeGs1: Some(true),
-        ..DecodeHints::default()
-    };
-    rxing::helpers::detect_in_luma_with_hints(luma, width, height, Some(format), &mut hints)
-        .unwrap_or_else(|err| panic!("no {format:?} code is read back: {err:?}"))
-        .getText()
-        .to_owned()
+    barcode_read::read(width, height, &luma, format)
+        .unwrap_or_else(|| panic!("no {format:?} code is read back"))
 }
 
 // covers: Novis\Image\Barcode::render
@@ -138,33 +134,18 @@ fn read(request: &Request, extension: &Extension, data: &[u8], format: BarcodeFo
 fn every_1d_symbology_reads_back_as_the_data_written() {
     let (_host, extension, request) = setup();
     for (symbology, data, format, read_back) in [
-        (
-            "Code128",
-            "Shop-42 order",
-            BarcodeFormat::CODE_128,
-            "Shop-42 order",
-        ),
+        ("Code128", "Shop-42 order", Format::Code128, "Shop-42 order"),
         (
             "Gs1128",
             "(01)09501101530003(10)ABC",
-            BarcodeFormat::CODE_128,
+            Format::Code128,
             "]C10109501101530003\u{1d}10ABC",
         ),
-        (
-            "Ean13",
-            "4006381333931",
-            BarcodeFormat::EAN_13,
-            "4006381333931",
-        ),
-        ("Ean8", "96385074", BarcodeFormat::EAN_8, "96385074"),
-        ("UpcA", "036000291452", BarcodeFormat::UPC_A, "036000291452"),
-        ("Code39", "SHOP-42", BarcodeFormat::CODE_39, "SHOP-42"),
-        (
-            "Itf14",
-            "15400141288763",
-            BarcodeFormat::ITF,
-            "15400141288763",
-        ),
+        ("Ean13", "4006381333931", Format::Ean13, "4006381333931"),
+        ("Ean8", "96385074", Format::Ean8, "96385074"),
+        ("UpcA", "036000291452", Format::UpcA, "036000291452"),
+        ("Code39", "SHOP-42", Format::Code39, "SHOP-42"),
+        ("Itf14", "15400141288763", Format::Itf, "15400141288763"),
     ] {
         let png = barcode(&request, &extension, data, symbology, None)
             .unwrap_or_else(|failure| panic!("{symbology} of {data:?}: {failure:?}"));
@@ -186,10 +167,7 @@ fn a_datamatrix_reads_back_as_the_data_written() {
     let (_host, extension, request) = setup();
     let data = "https://shop.example.com/items/1234";
     let png = barcode(&request, &extension, data, "DataMatrix", None).expect("a DataMatrix draws");
-    assert_eq!(
-        read(&request, &extension, &png, BarcodeFormat::DATA_MATRIX),
-        data
-    );
+    assert_eq!(read(&request, &extension, &png, Format::DataMatrix), data);
 }
 
 // covers: Novis\Image\Barcode::svg
@@ -231,10 +209,7 @@ fn a_qr_code_and_a_barcode_render_as_svg() {
         "{}",
         String::from_utf8_lossy(&svg)
     );
-    assert_eq!(
-        read(&request, &extension, &svg, BarcodeFormat::CODE_128),
-        "Shop-42"
-    );
+    assert_eq!(read(&request, &extension, &svg, Format::Code128), "Shop-42");
 }
 
 #[test]
