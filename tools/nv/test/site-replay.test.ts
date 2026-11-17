@@ -169,7 +169,7 @@ describe("a .replay", () => {
     const written: string[] = [];
     let ended = false;
     const talk = lspTalk(parts);
-    talk.talk!({ write: (t) => written.push(t), end: () => (ended = true) });
+    talk.talk!({ write: (t) => written.push(t), end: () => (ended = true), pid: 0 });
     expect(written).toEqual([parts[0]!.frames]);
     talk.onText!(lspFrame({ method: "window/logMessage", params: {} }), "stdout");
     expect(written.length).toBe(1);

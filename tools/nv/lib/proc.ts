@@ -34,8 +34,9 @@ export interface RunOptions {
   /** Called with each piece of text the program prints, as it arrives, for output that is not lines. */
   onText?: (text: string, stream: "stdout" | "stderr") => void;
   /** Called once the program starts, with a way to write to its standard input as the run goes on and
-   * to close it, for a program that answers what it is sent. A run with `talk` has no `input`. */
-  talk?: (stdin: { write(text: string): void; end(): void }) => void;
+   * to close it, for a program that answers what it is sent, and the program's process id. A run with
+   * `talk` has no `input`. */
+  talk?: (stdin: { write(text: string): void; end(): void; pid: number }) => void;
   /** When the program exits with a failure, kill every process it started that is still running. */
   reap?: boolean;
   /** When aborted, the program is killed with every process it started. A run whose signal is already
@@ -113,6 +114,7 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
         if (open) void sink.end();
         open = false;
       },
+      pid: child.pid,
     });
   }
   let timedOut = false;

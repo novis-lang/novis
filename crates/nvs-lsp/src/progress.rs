@@ -26,6 +26,11 @@
 //! queue when its result is filed, not when a worker takes it, so the share
 //! counts filed entries.
 //!
+//! An edit that queues entries once the start's run has ended begins a run of
+//! its own at the next turn, so a client sees the index catch up after an edit
+//! read by many programs, and its `end` logs the work line below. A client
+//! with no start run, at a scope other than `Workspace`, is sent none.
+//!
 //! A run's `end` is followed by one `window/logMessage` at the `Log` level: the
 //! index's [`Work`](crate::Work) since the session started, and the file-system
 //! work the server's thread did, the survey of the tree included. `bun nv
@@ -145,6 +150,11 @@ impl Indexing {
         let pending = index.pending().len();
         if pending == 0 {
             return self.end(connection, Some(index.work()));
+        }
+        // An edit that queues entries after the start's run ended begins a
+        // run of its own. `runs` is not zero only where a start began one.
+        if self.run.is_none() && self.runs > 0 {
+            self.begin(connection)?;
         }
         let Some(run) = self.run.as_mut() else {
             return Ok(());

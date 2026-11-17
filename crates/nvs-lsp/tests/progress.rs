@@ -2,7 +2,8 @@
 //!
 //! A client that declared `window.workDoneProgress` gets one token created and
 //! one run on it: `begin`, any number of `report`s, then `end`. A client that
-//! did not declare it gets no progress message at all. The runs here wait on
+//! did not declare it gets no progress message at all. An edit that queues
+//! entries after that run ended begins a run of its own. The runs here wait on
 //! the messages themselves and never on time.
 
 use std::fs;
@@ -283,4 +284,108 @@ fn a_client_that_does_not_show_progress_is_sent_none() {
             .any(|message| matches!(message, Message::Notification(n) if n.method == "$/progress")),
         "no `$/progress` at all: {sent:?}"
     );
+}
+
+/// An edit that queues an entry another file's program reads, once the
+/// start's run has ended, begins a second run on a new token. Its `end` is
+/// followed by the index's work line, as the first run's is.
+#[test]
+fn an_edit_that_queues_entries_after_the_start_begins_a_run_of_its_own() {
+    let (dir, params) = workspace("edit", true);
+    let library = dir.join("a.nvs");
+    let text = "<?nvs\nclass A\n{\n    public function f(): int\n    {\n        return 1;\n    }\n}\n";
+    fs::write(&library, text).expect("a fixture file");
+    fs::write(
+        dir.join("b.nvs"),
+        "<?nvs\nrequire './a.nvs';\n\nA $a = new A();\necho $a->f(), \"\\n\";\n",
+    )
+    .expect("a fixture file");
+    let uri = nvs_lsp::uri_of(&library).expect("a scratch path is UTF-8");
+
+    let (server, client) = Connection::memory();
+    let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
+    let send = |message: Message| client.sender.send(message).expect("the server is reading");
+    // A generous bound that only a hung server reaches: every wait below is
+    // for a message the server sends without being asked again.
+    let next = || {
+        client
+            .receiver
+            .recv_timeout(Duration::from_secs(120))
+            .expect("the server sends its next message")
+    };
+    // Reads until the `index work:` line that follows a run's `end`, answers
+    // each request on the way as a client does, and returns the progress seen.
+    let run = || {
+        let mut progress = Vec::new();
+        loop {
+            let message = next();
+            if let Message::Request(request) = &message {
+                send(Message::Response(Response::new_ok(
+                    request.id.clone(),
+                    serde_json::json!(null),
+                )));
+            }
+            if let Message::Notification(n) = &message
+                && n.method == "window/logMessage"
+                && n.params["message"]
+                    .as_str()
+                    .is_some_and(|line| line.starts_with("index work:"))
+            {
+                return progress;
+            }
+            progress.extend(seen(&message));
+        }
+    };
+
+    send(Message::Request(Request::new(
+        RequestId::from(1),
+        "initialize".to_owned(),
+        params,
+    )));
+    assert!(
+        matches!(next(), Message::Response(_)),
+        "the handshake answer"
+    );
+    send(Message::Notification(Notification::new(
+        "initialized".to_owned(),
+        serde_json::json!({}),
+    )));
+    let first = run();
+    assert_one_run(&first);
+
+    send(Message::Notification(Notification::new(
+        "textDocument/didOpen".to_owned(),
+        serde_json::json!({ "textDocument": {
+            "uri": uri, "languageId": "nvs", "version": 1, "text": text,
+        } }),
+    )));
+    send(Message::Notification(Notification::new(
+        "textDocument/didChange".to_owned(),
+        serde_json::json!({
+            "textDocument": { "uri": uri, "version": 2 },
+            "contentChanges": [{ "text": text.replace("f(): int", "f(int $n = 0): int") }],
+        }),
+    )));
+    let second = run();
+    assert_one_run(&second);
+    assert_ne!(
+        first.first(),
+        second.first(),
+        "the second run has a token of its own"
+    );
+
+    send(Message::Request(Request::new(
+        RequestId::from(1000),
+        "shutdown".to_owned(),
+        serde_json::json!(null),
+    )));
+    while !matches!(next(), Message::Response(response) if response.id == RequestId::from(1000)) {}
+    send(Message::Notification(Notification::new(
+        "exit".to_owned(),
+        serde_json::json!(null),
+    )));
+    serving
+        .join()
+        .expect("the server thread did not panic")
+        .expect("the server served without a protocol error");
 }

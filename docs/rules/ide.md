@@ -1774,7 +1774,8 @@ loaded or planned, and at every turn of the loop, a `report` gives "N of M files
 only when the whole percent rises, so a run is at most a hundred reports. `end` follows at the first turn
 with no entry waiting, whether the idle turns, a whole-tree request's `settle` or a rebuild emptied it, and
 at once when nothing was stale. A scope change that rebuilds the index begins a fresh run, ending one still
-going first, so a client never sees two `begin`s without an `end`. A client that did not declare the
+going first, so a client never sees two `begin`s without an `end`. An edit that queues entries after the
+start's run ended begins a run of its own, and its `end` logs the index's work since the start. A client that did not declare the
 capability is sent nothing, since a token it never created is a protocol error to it. `begin` follows the
 `create` without waiting for its response, as rust-analyzer does, and the loop and `shut_down` drop the
 response. `crates/nvs-lsp/src/progress.rs` is the mechanism and `crates/nvs-lsp/tests/progress.rs` pins
