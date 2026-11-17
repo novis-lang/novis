@@ -6146,8 +6146,7 @@ mod tests {
     }
 
     /// Every allocation of one warm served `hello` request, in the order the
-    /// request makes them. The goal file's `### State` has the same table
-    /// with each allocation's size.
+    /// request makes them.
     #[cfg(debug_assertions)]
     const HELLO_ROWS: &[Row] = &[
         Row {

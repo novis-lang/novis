@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/request.rs]
   - id: 3
     title: a hello request allocates only what its answer needs, and its head is scanned a line at a time
-    status: open
+    status: done
     context: [crates/nvs-server/src/trace.rs, crates/nvs-server/src/heads.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -207,25 +207,25 @@ the head scan step through framing lines only.
 **Split:** one writing subagent rewrites `Scanner::feed` and writes its two tests in
 `crates/nvs-server/src/heads.rs`, which nothing else in this stage touches.
 
-- [ ] Print every allocation of one warm `hello` request with its call site, from the stage 1 test. Add
+- [x] Print every allocation of one warm `hello` request with its call site, from the stage 1 test. Add
   the call-site trace to the counter under `#[cfg(test)]` if it has none. Write the table into
   `### State`: call site, bytes, kept or removed, and the reason.
-- [ ] `crates/nvs-server/src/trace.rs:359` `respond`: the `traceparent` value is written into a buffer
+- [x] `crates/nvs-server/src/trace.rs:359` `respond`: the `traceparent` value is written into a buffer
   on the stack and becomes the header value with one allocation or none.
   `crates/nvs-runtime/src/trace_context.rs:232` keeps `traceparent()` for the outbound client.
-- [ ] `crates/nvs-server/src/serve.rs:1925`: the path is borrowed from the request where every reader
+- [x] `crates/nvs-server/src/serve.rs:1925`: the path is borrowed from the request where every reader
   of it lives no longer than the request. Where one outlives it, the copy stays and its row says so.
-- [ ] Every other row marked removed in the table, in the table's order. A row is removed only under
+- [x] Every other row marked removed in the table, in the table's order. A row is removed only under
   § *No object that held one request's data is used by another request*.
-- [ ] `every_allocation_of_a_served_request_has_a_row`: the test holds the table as data, and fails
+- [x] `every_allocation_of_a_served_request_has_a_row`: the test holds the table as data, and fails
   naming a call site that allocates with no row. The constant of
   `a_served_request_allocates_its_recorded_count` becomes the number of kept rows. Run both once by
   name.
-- [ ] `crates/nvs-server/src/heads.rs:158` `Scanner::feed` and `:174` `step`, as § *The head scanner*
+- [x] `crates/nvs-server/src/heads.rs:158` `Scanner::feed` and `:174` `step`, as § *The head scanner*
   says, with the two tests the `head-scan` check names. The first feeds every head of the file's
   existing tests to both scanners at every split point. The second counts the bytes stepped one at a
   time. Run once by name.
-- [ ] `bun nv bench-compare --direct` once. Write the three peers' CPU per request into `### State`
+- [x] `bun nv bench-compare --direct` once. Write the three peers' CPU per request into `### State`
   beside stage 1's.
 
 ### 4. the goal is verified once, and every failure is fixed
@@ -238,38 +238,42 @@ the head scan step through framing lines only.
 
 ### State
 
-Stages 1 and 2 are done. `one_connection_through_the_slot` (`crates/nvs-cli/src/serve.rs`) takes a
-`Way` with `late` and `expect`; each `Reading` adds `nvs_server::body::parks_on_this_thread`. Stage 2:
-`body.rs` ends a body with its last frame, and `Supply::prime` polls once before `isolate.start` for a
-`Content-Length` body with no `Expect`. `carried` moved into `Wire`, so `Pull::allow_total` still
-refuses past a smaller request total. Each new test failed with its guard removed.
+Stages 1, 2 and 3 are done, stage 3 in one session; `request-counts` and `head-scan` ran green by
+name. The allocation table is `HELLO_ROWS` in `crates/nvs-cli/src/serve.rs`: 25 kept, 5 removed, each
+with its reason. `every_allocation_of_a_served_request_has_a_row` reads backtraces through the
+debug-only `nvs_runtime::budget::watch_allocations` hook, and failed with a kept row marked removed.
+The largest kept rows are hyper's: 8,192 B read ahead for a client that hangs up (only `half_close`
+avoids it, which changes how a lost client is noticed), and the path copy that keeps that buffer
+unshared. Debug counts on Windows: **25** allocations per `hello` (Linux and macOS unrun), **1**
+clock reading and **0** parks per request with a body.
 
-Debug counts: **30** allocations per `hello` (Windows and WSL; macOS unrun), **1** clock reading and
-**0** parks per request with a body. `--profile json-api` under `strace -c 8`: `clock_gettime` 1.00
-per request (about six before), 3.20 system calls in all, 22,192 requests/s under `-c 64`.
-
-`--direct` (stage 1), CPU µs per request (user + system) and requests/s:
+`--direct` at stage 3's end, CPU µs per request (user + system) and requests/s; stage 1 measured
+Novis at 15.0, 40.2 and 58.1:
 
 | case | Novis | Bun | Go |
 |---|---|---|---|
-| `hello` | 15.0 (6.0 + 9.0), 67,954/s | 9.3 (1.9 + 7.3), 107,958/s | 17.1 (5.8 + 11.3), 60,502/s |
-| `json-api` | 40.2 (27.8 + 12.4), 24,720/s | 16.7 (7.3 + 9.4), 59,059/s | 39.0 (24.5 + 14.4), 25,706/s |
-| `html-page` | 58.1 (47.0 + 11.1), 19,176/s | 36.8 (23.1 + 13.8), 28,008/s | 270.8 (233.0 + 37.8), 4,048/s |
+| `hello` | 14.8 (6.0 + 8.8), 69,274/s | 9.5 (2.1 + 7.4), 106,560/s | 16.6 (5.8 + 10.8), 66,766/s |
+| `json-api` | 36.8 (27.0 + 9.8), 28,572/s | 17.8 (8.0 + 9.8), 57,886/s | 42.3 (26.2 + 16.1), 26,085/s |
+| `html-page` | 55.5 (44.5 + 11.0), 18,667/s | 34.1 (21.5 + 12.6), 30,817/s | 275.6 (236.7 + 39.0), 4,056/s |
 
-The sweep's reds are stale: nightly 44073672172 ran on `2934ebe1ae`, before `0fe2fdef25` dropped
-`chrono`, and `env-secret-proofs` is defined nowhere in the tree.
+The sweep's reds are stale, checked again this session: nightly 44073672172 ran on `2934ebe1ae`,
+an ancestor of `0fe2fdef25` (which dropped `chrono` and is on `origin/main`), and
+`env-secret-proofs` is defined nowhere in the tree.
 
 ### Next
 
-Stage 3, from its first item: print every allocation of one warm `hello` request with its call site
-from `a_served_request_allocates_its_recorded_count` in `crates/nvs-cli/src/serve.rs` (the counter is
-`nvs_runtime::budget::allocations`; a call-site trace under `#[cfg(test)]` goes beside it). Then
-`crates/nvs-server/src/trace.rs:359` `respond` and the path copy in `crates/nvs-server/src/serve.rs`
-near `:1925`. Follow the stage's `**Split:**` line: `crates/nvs-server/src/heads.rs` goes to one writing
-subagent. No test is expected red. A macOS runner may count other than 30 allocations; if it does, the
-constant is per platform.
+Stage 4, the gate: `looper verify` over the whole goal, then the goal-end gates AGENTS.md names
+(`bun nv verify --doc`, `bun nv owners --closes request-fixed-cost`, `bun nv ci --check`). Tests that
+may go red: `every_allocation_of_a_served_request_has_a_row` on Linux or macOS if a frame name differs
+there (its sites are platform-neutral names, and a generic dependency function is named without its
+path); `a_served_request_allocates_its_recorded_count` if a platform counts other than 25, in which
+case the rows, not the constant, are per platform. `nvs-host`'s `take_ended` now returns a `Drain`.
 
 ### Backlog
 
+- `start_as_task`'s end flag (`crates/nvs-host/src/isolate.rs:1165`) could live in the completion cell,
+  one allocation fewer. Declined for scope in stage 3.
+- `nvs_runtime::script::Program` is a `Box<dyn Fn>`, so each request boxes a closure over the shared
+  unit (8 B). An `Rc` program would share code only, but changes every caller of the type.
 - The three `--direct` backends of a case share core 1, and two are idle while the third is measured.
   A fresh backend per pass would keep a busy host from moving a figure.
