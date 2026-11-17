@@ -2967,6 +2967,13 @@ impl<'a> Lowering<'a> {
     /// instruction list, so a later append still lands before the entry
     /// block's own terminator, and the only operand is parameter 0.
     ///
+    /// A generator's `advance()` has no receiver of its own class. It reads
+    /// the called class from its state object in the entry block: the parked
+    /// [`generator::GEN_CLASS`] of a `static` generator, or the class of the
+    /// parked `$this` of an instance one. The entry block dominates every
+    /// resume point, and `$this` is never reassigned, so that value holds for
+    /// the whole body.
+    ///
     /// # Panics
     ///
     /// Panics for a frame with neither — the script frame, or an anonymous
@@ -2976,6 +2983,40 @@ impl<'a> Lowering<'a> {
     /// anonymous function, so lowering never reaches this on one.
     pub(crate) fn lsb(&mut self) -> ValueId {
         if let Some(v) = self.lsb {
+            return v;
+        }
+        if let Some(frame) = &self.generator {
+            let (class, gen_v, is_static) = (frame.class.clone(), frame.gen_v, frame.is_static);
+            let entry = self
+                .entry
+                .expect("a generator frame has its entry block before its body");
+            let v = if is_static {
+                self.emit(
+                    entry,
+                    Ty::ClassDesc,
+                    InstKind::FieldGet {
+                        object: gen_v,
+                        class,
+                        field: generator::GEN_CLASS.to_owned(),
+                    },
+                )
+                .0
+            } else {
+                // A borrowed read: the field keeps its reference, and the
+                // descriptor is loaded at once, so nothing is retained.
+                let (this, _) = self.emit(
+                    entry,
+                    Ty::Object,
+                    InstKind::FieldGet {
+                        object: gen_v,
+                        class,
+                        field: "this".to_owned(),
+                    },
+                );
+                self.emit(entry, Ty::ClassDesc, InstKind::ClassDescOf { object: this })
+                    .0
+            };
+            self.lsb = Some(v);
             return v;
         }
         let this = self.this.unwrap_or_else(|| {

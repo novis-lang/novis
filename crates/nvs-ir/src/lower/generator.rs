@@ -294,6 +294,16 @@ pub(crate) const GEN_UNWIND: &str = "gen#unwind";
 
 pub(crate) const GEN_SELF: &str = "gen#self";
 
+/// A `static` generator's called class, which the factory finds in its
+/// parameter 0 and parks here, so `advance()` can answer `self::`, `parent::`
+/// and `static::` with the class the generator was called on. An instance
+/// generator has no such field: its called class is its `$this`'s class.
+/// See [`Lowering::lsb`].
+///
+/// **Cost:** one field slot on a `static` generator's state object, 16 bytes
+/// per suspended generator, whether or not its body names the class.
+pub(crate) const GEN_CLASS: &str = "gen#class";
+
 /// The state value meaning "this generator has finished" — any value no
 /// resumption arm names, so the entry switch's default arm takes it.
 pub(crate) const GEN_DONE: i64 = -1;
@@ -328,6 +338,9 @@ pub(crate) struct GenFrame {
     pub(crate) elem: Ty,
     /// This frame's own receiver, the state object.
     pub(crate) gen_v: ValueId,
+    /// Whether the generator was declared `static`, so its called class is
+    /// the parked [`GEN_CLASS`] and not the class of its parked `$this`.
+    pub(crate) is_static: bool,
     /// Every field the class needs, in first-registered order: the two
     /// reserved ones, then each parameter, then each local some `yield`
     /// spilled. Deduplicated by name.
@@ -765,10 +778,12 @@ pub(crate) fn lower_generator_factory(
     // Every stored parameter *transfers* the reference the caller handed this
     // frame — the field owns it from here, and there is no release to pair,
     // which is why the factory never sweeps its own locals. A `static`
-    // method's parameter 0 is a `Ty::ClassDesc` and is simply dropped: it is
-    // not refcounted, and nothing in a generator body can ask for it (see
-    // `Lowering::lsb`'s panic).
-    if !is_static {
+    // method's parameter 0 is the called class, a `Ty::ClassDesc`, and is
+    // parked in [`GEN_CLASS`]. It is not refcounted, so it needs no release.
+    if is_static {
+        fields.push((GEN_CLASS.to_owned(), Ty::ClassDesc));
+        low.emit_field_set(entry, gen_v, class.to_owned(), GEN_CLASS.to_owned(), recv_v);
+    } else {
         fields.push(("this".to_owned(), Ty::Object));
         low.emit_field_set(entry, gen_v, class.to_owned(), "this".to_owned(), recv_v);
     }
@@ -859,13 +874,14 @@ pub(crate) fn lower_generator_advance(
     // sees one kind of binding rather than two.
     let seeded: Vec<(String, Ty)> = fields
         .iter()
-        .filter(|(n, _)| n != GEN_STATE && n != GEN_CURRENT && n != GEN_UNWIND)
+        .filter(|(n, _)| n != GEN_STATE && n != GEN_CURRENT && n != GEN_UNWIND && n != GEN_CLASS)
         .cloned()
         .collect();
     low.generator = Some(GenFrame {
         class: class.to_owned(),
         elem,
         gen_v,
+        is_static,
         fields,
         resumes: Vec::new(),
         unwind_states: Vec::new(),
@@ -879,10 +895,9 @@ pub(crate) fn lower_generator_advance(
         env.insert(name.clone(), (v, *ty));
     }
     // `$this` inside a generator body is an ordinary reloaded local, so
-    // `Lowering::this` stays `None` and `static::`/`new static()` panic
-    // naming the gap rather than reading a value from a block that does not
-    // dominate every resume point.
-    let _ = is_static;
+    // `Lowering::this` stays `None`. The called class is read from the state
+    // object in the entry block instead, which dominates every resume point
+    // (`Lowering::lsb`).
 
     let body = m
         .body
