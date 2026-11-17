@@ -53,9 +53,10 @@
 //!
 //! A compile that fails keeps about 22 KB on that app: its message and its
 //! [`Trace`], which the next failure of the path replaces. A compile that
-//! panics keeps the same 22 KB and ends no thread (`--panics 10`, measured
-//! with the compile thread's live-byte counter). The private bytes of 25
-//! panics in a row still rise by about 8 MB more than 25 failures. A panic
+//! panics keeps the same 22 KB and ends no thread (measured with the compile
+//! thread's live-byte counter, on a compile made to panic in the lowering).
+//! The private bytes of 25 panics in a row still rise by about 8 MB more
+//! than 25 failures. A panic
 //! stops in the lowering, after the whole front end ran, so its peak is
 //! larger, and the heap keeps the freed pages. No byte stays live.
 //!

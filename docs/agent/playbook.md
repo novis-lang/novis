@@ -463,7 +463,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
 - **In a namespaced file, `Iterator<int>` names `<Namespace>\Iterator`, and `\Iterator<int>` is
   E0240.** A generator written into `apps/registry/src/App.nvs` failed E0441 and E0303 twice before
   it reached the compiler. Add `use Iterator;` under the `namespace` line, as
-  `extensions/spreadsheet/nvs/Reader.nvs` does. See `tools/nv/cmd/serve-mem.ts`'s `--panics` edit.
+  `extensions/spreadsheet/nvs/Reader.nvs` does. See that file's head.
 - **`Core\Script::args()`'s strings are `tainted`, and `as` cannot target a tainted type.**
   `as array<string>` fails `E0401` and `as array<tainted string>` fails `E0711`. Convert to
   `array<mixed>`, then each value `as string`, which gives a `tainted string` to declare as one.
