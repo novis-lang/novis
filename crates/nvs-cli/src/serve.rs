@@ -5774,7 +5774,14 @@ mod tests {
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   _origin: nvs_server::Origin,
                   record: &nvs_server::Record| {
+                let at = readings.borrow().len();
+                if way.watch.is_some_and(|watch| at == watch + 1) {
+                    nvs_runtime::budget::watch_allocations(None);
+                }
                 readings.borrow_mut().push(Reading::now());
+                if way.watch == Some(at) {
+                    nvs_runtime::budget::watch_allocations(Some(note_allocation));
+                }
                 if let Some(heard) = heard.as_ref() {
                     heard
                         .send(())
@@ -5894,6 +5901,9 @@ mod tests {
         /// Whether the head carries `Expect: 100-continue`. The client then
         /// sends no body at all.
         expect: bool,
+        /// The request, counted from 0, whose allocations [`note_allocation`]
+        /// records, from its arrival at the handler to the next request's.
+        watch: Option<usize>,
     }
 
     #[cfg(debug_assertions)]
@@ -5904,6 +5914,7 @@ mod tests {
             served: false,
             late: 0,
             expect: false,
+            watch: None,
         };
 
         /// A request run as `nvs serve` runs it, carrying `body`.
@@ -5913,8 +5924,57 @@ mod tests {
                 served: true,
                 late: 0,
                 expect: false,
+                watch: None,
             }
         }
+    }
+
+    #[cfg(debug_assertions)]
+    thread_local! {
+        /// Each allocation [`note_allocation`] saw: its size and its backtrace.
+        static NOTED: std::cell::RefCell<Vec<(usize, std::backtrace::Backtrace)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// Records one allocation's size and backtrace in [`NOTED`]. The hook
+    /// [`Way::watch`] installs.
+    #[cfg(debug_assertions)]
+    fn note_allocation(bytes: usize) {
+        let trace = std::backtrace::Backtrace::force_capture();
+        NOTED.with(|noted| noted.borrow_mut().push((bytes, trace)));
+    }
+
+    /// The frames of `trace` above the allocator, as function names: the
+    /// allocator's own frames and the standard library's below the first
+    /// other one are skipped.
+    #[cfg(debug_assertions)]
+    fn frames_above_the_allocator(trace: &std::backtrace::Backtrace) -> Vec<String> {
+        const SKIPPED: &[&str] = &[
+            "std::",
+            "core::",
+            "alloc::",
+            "<std::",
+            "<core::",
+            "<alloc::",
+            "__rust",
+            "__rdl",
+            "__rg_",
+            "nvs_runtime::_::",
+            "nvs_runtime::budget::",
+            "<nvs_runtime::budget::",
+            "nvs::serve::tests::note_allocation",
+            "backtrace",
+        ];
+        trace
+            .to_string()
+            .lines()
+            .filter_map(|line| {
+                let (number, name) = line.trim_start().split_once(": ")?;
+                number.parse::<usize>().ok()?;
+                Some(name.trim().to_owned())
+            })
+            .filter(|name| !SKIPPED.iter().any(|skipped| name.starts_with(skipped)))
+            .collect()
     }
 
     /// The serving thread's counters, read as a request reaches the handler.
@@ -5957,10 +6017,10 @@ mod tests {
     const HELLO_COUNTED: usize = 200;
 
     /// How many allocations one served `hello` request makes on its core, in
-    /// a debug build: the request's head, its isolate and its answer. A change
-    /// that removes an allocation lowers it here.
+    /// a debug build: one per kept row of [`HELLO_ROWS`]. A change that
+    /// removes an allocation marks its row removed.
     #[cfg(debug_assertions)]
-    const HELLO_ALLOCATIONS: usize = 30;
+    const HELLO_ALLOCATIONS: usize = kept_rows();
 
     /// How many times a served request with a body reads its core's CPU
     /// clock, in a debug build, when the body is sent in the same write as
@@ -6000,6 +6060,260 @@ mod tests {
             "{HELLO_COUNTED} served hello requests made {over} allocations, and each is held to \
              {HELLO_ALLOCATIONS}"
         );
+    }
+
+    /// Every allocation of one warm served `hello` request has a row.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn every_allocation_of_a_served_request_has_a_row() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_program("serve-hello-rows", HELLO, &compiler);
+        let way = Way {
+            watch: Some(HELLO_WARM),
+            ..Way::served("")
+        };
+        let (_readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, HELLO_WARM + 2, way, |_| {});
+        assert!(bodies.iter().all(|body| body == "hello, world\n"));
+        let noted = NOTED.with(|noted| std::mem::take(&mut *noted.borrow_mut()));
+        let mut taken = vec![false; HELLO_ROWS.len()];
+        for (bytes, trace) in &noted {
+            let frames = frames_above_the_allocator(trace);
+            let shown = frames.iter().take(6).cloned().collect::<Vec<_>>().join("\n    ");
+            let site = frames.iter().find_map(|frame| {
+                let rows = HELLO_ROWS
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, row)| names(frame, row.site))
+                    .collect::<Vec<_>>();
+                (!rows.is_empty()).then_some(rows)
+            });
+            let Some(rows) = site else {
+                panic!("an allocation of {bytes} B has no row:\n    {shown}");
+            };
+            let (_, first) = rows[0];
+            assert!(
+                first.kept,
+                "an allocation of {bytes} B was made at {}, whose row is removed:\n    {shown}",
+                first.site
+            );
+            let Some(&(at, _)) = rows.iter().find(|(at, _)| !taken[*at]) else {
+                panic!(
+                    "{} made more allocations than its {} rows; this one is {bytes} B:\n    {shown}",
+                    first.site,
+                    rows.len()
+                );
+            };
+            taken[at] = true;
+        }
+        let unmade = HELLO_ROWS
+            .iter()
+            .zip(&taken)
+            .filter(|(row, taken)| row.kept && !**taken)
+            .map(|(row, _)| row.site)
+            .collect::<Vec<_>>();
+        assert!(
+            unmade.is_empty(),
+            "these kept rows made no allocation, so they are removed now: {unmade:?}"
+        );
+    }
+
+    /// Whether the function name `frame` names the function `site`, and not
+    /// one whose name only starts with it.
+    #[cfg(debug_assertions)]
+    fn names(frame: &str, site: &str) -> bool {
+        frame.match_indices(site).any(|(at, _)| {
+            !frame[at + site.len()..]
+                .chars()
+                .next()
+                .is_some_and(|after| after.is_alphanumeric() || after == '_')
+        })
+    }
+
+    /// One allocation of a served `hello` request: the function that makes
+    /// it, whether it is still made, and why.
+    #[cfg(debug_assertions)]
+    struct Row {
+        /// The innermost function that names the allocation in a backtrace.
+        /// A generic function of a dependency is named without its path,
+        /// because each platform writes its type parameters differently.
+        site: &'static str,
+        /// Whether the request still makes it.
+        kept: bool,
+        /// Why the answer needs it, or how it was removed.
+        #[expect(dead_code, reason = "read by a person; the test reads the other two")]
+        why: &'static str,
+    }
+
+    /// Every allocation of one warm served `hello` request, in the order the
+    /// request makes them. The goal file's `### State` has the same table
+    /// with each allocation's size.
+    #[cfg(debug_assertions)]
+    const HELLO_ROWS: &[Row] = &[
+        Row {
+            site: "nvs::script::program_over",
+            kept: true,
+            why: "the program is a boxed closure the isolate owns, over the shared unit",
+        },
+        Row {
+            site: "nvs_runtime::ctx::inbound::Head::with_capacity",
+            kept: true,
+            why: "the program's own copy of the method and the path",
+        },
+        Row {
+            site: "nvs_runtime::ctx::inbound::Head::with_capacity",
+            kept: true,
+            why: "the offsets into that copy",
+        },
+        Row {
+            site: "nvs_runtime::ctx::inbound::Inbound::new",
+            kept: true,
+            why: "the head the program reads, shared by the carrier and the program",
+        },
+        Row {
+            site: "nvs_host::isolate::Isolate::answering",
+            kept: true,
+            why: "the carrier, boxed into the isolate",
+        },
+        Row {
+            site: "nvs_runtime::ctx::inbound::SseSlot::new",
+            kept: true,
+            why: "the event-stream cell; nothing on the request path is made on first use",
+        },
+        Row {
+            site: "nvs_runtime::stream::BodySlot::new",
+            kept: true,
+            why: "the streamed-body cell, on the same terms",
+        },
+        Row {
+            site: "nvs_runtime::ctx::Ctx::reroot",
+            kept: true,
+            why: "a fresh tree for the connection's context, so no state reaches the next request",
+        },
+        Row {
+            site: "nvs_runtime::ctx::Ctx::new",
+            kept: true,
+            why: "the isolate's tree state, which its limits and its safepoint word live in",
+        },
+        Row {
+            site: "nvs_runtime::ctx::Ctx::new",
+            kept: true,
+            why: "the isolate's deadline word, which the watchdog reads",
+        },
+        Row {
+            site: "nvs_runtime::ctx::Ctx::sharing",
+            kept: true,
+            why: "the isolate's own list of live objects",
+        },
+        Row {
+            site: "nvs_host::isolate::Isolate::start",
+            kept: true,
+            why: "the isolate's task, with its context",
+        },
+        Row {
+            site: "nvs_host::isolate::Isolate::start",
+            kept: true,
+            why: "the wake the connection is woken by when the program ends",
+        },
+        Row {
+            site: "nvs_host::isolate::start_as_task",
+            kept: true,
+            why: "the cell the completion is filed in",
+        },
+        Row {
+            site: "nvs_host::isolate::start_as_task",
+            kept: true,
+            why: "the flag that says the program ended",
+        },
+        Row {
+            site: "spawn_child_ordered",
+            kept: true,
+            why: "the child task's entry on the scheduler",
+        },
+        Row {
+            site: "nvs_host::isolate::start_as_task",
+            kept: true,
+            why: "the child task's body",
+        },
+        Row {
+            site: "nvs_host::scheduler::Scheduler::drain_pending",
+            kept: false,
+            why: "the spawns are started in place, with no list split in two",
+        },
+        Row {
+            site: "nvs_host::watchdog::Local::publish",
+            kept: true,
+            why: "the handle the watchdog stops the request with",
+        },
+        Row {
+            site: "nvs_runtime::ctx::output::write_to",
+            kept: true,
+            why: "the answer's bytes",
+        },
+        Row {
+            site: "nvs_host::scheduler::Wake::wake",
+            kept: false,
+            why: "the list of wakes keeps its buffer",
+        },
+        Row {
+            site: "nvs_host::scheduler::Scheduler::run",
+            kept: false,
+            why: "the list of ended tasks is drained in place",
+        },
+        Row {
+            site: "nvs_server::serve::answer",
+            kept: false,
+            why: "the default content type is a static header value",
+        },
+        Row {
+            site: "try_reserve_one",
+            kept: true,
+            why: "the response's header indices",
+        },
+        Row {
+            site: "try_reserve_one",
+            kept: true,
+            why: "the response's header entries",
+        },
+        Row {
+            site: "nvs_runtime::trace_context::TraceContext::traceparent",
+            kept: false,
+            why: "the value is written on the stack",
+        },
+        Row {
+            site: "nvs_server::trace::respond",
+            kept: true,
+            why: "the traceresponse header's value",
+        },
+        Row {
+            site: "promote_to_shared",
+            kept: true,
+            why: "hyper shares its read buffer with the head it parsed",
+        },
+        Row {
+            site: "poll_read_from_io",
+            kept: true,
+            why: "hyper reads ahead for a client that hangs up, while the head shares the buffer",
+        },
+        Row {
+            site: "nvs_server::serve::serve_connection",
+            kept: true,
+            why: "the path for the access line, which outlives the request's head",
+        },
+    ];
+
+    /// How many rows of [`HELLO_ROWS`] are kept.
+    #[cfg(debug_assertions)]
+    const fn kept_rows() -> usize {
+        let mut kept = 0;
+        let mut at = 0;
+        while at < HELLO_ROWS.len() {
+            if HELLO_ROWS[at].kept {
+                kept += 1;
+            }
+            at += 1;
+        }
+        kept
     }
 
     /// A served request whose body arrived with its head reads its core's CPU

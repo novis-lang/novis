@@ -1346,25 +1346,34 @@ impl Scheduler {
     /// accept loop's balance (`rule:security/isolate-budget-is-the-trees`).
     /// **What it spends:** the buffer of the largest burst of spawns between
     /// two drains, held per core.
+    ///
+    /// The two orders are taken out of the one list in place, so a drain
+    /// allocates nothing.
     fn drain_pending(&mut self) {
         let mut pending = std::mem::take(&mut self.tree.borrow_mut().pending);
-        let (next, last): (Vec<Pending>, Vec<Pending>) =
-            pending.drain(..).partition(|pending| pending.next);
-        for pending in last.into_iter().chain(next.into_iter().rev()) {
-            let Pending {
-                id,
-                ctx,
-                root,
-                body,
-                next,
-                role,
-            } = pending;
-            self.start(id, ctx, root, body, next, role);
+        for last in pending.extract_if(.., |pending| !pending.next) {
+            self.start_pending(last);
+        }
+        for next in pending.drain(..).rev() {
+            self.start_pending(next);
         }
         let mut tree = self.tree.borrow_mut();
         if tree.pending.is_empty() {
             tree.pending = pending;
         }
+    }
+
+    /// Starts one spawn [`Scheduler::drain_pending`] took.
+    fn start_pending(&mut self, pending: Pending) {
+        let Pending {
+            id,
+            ctx,
+            root,
+            body,
+            next,
+            role,
+        } = pending;
+        self.start(id, ctx, root, body, next, role);
     }
 
     /// Delivers the wakes queued since the last drain.
@@ -1374,10 +1383,19 @@ impl Scheduler {
     /// a peer it unblocked is on the run queue rather than waiting for the core
     /// to go idle first. A wake naming a task that is not parked — one already
     /// runnable, or one that has been torn down — does nothing.
+    ///
+    /// The emptied list goes back with its buffer, as in
+    /// [`Scheduler::drain_pending`], so the next wake allocates nothing.
+    /// **What it spends:** the buffer of the largest burst of wakes between two
+    /// drains, held per core.
     fn drain_wakes(&mut self) {
-        let wakes = std::mem::take(&mut self.tree.borrow_mut().wakes);
-        for id in wakes {
+        let mut wakes = std::mem::take(&mut self.tree.borrow_mut().wakes);
+        for id in wakes.drain(..) {
             self.wake(id);
+        }
+        let mut tree = self.tree.borrow_mut();
+        if tree.wakes.is_empty() {
+            tree.wakes = wakes;
         }
     }
 
@@ -1398,8 +1416,12 @@ impl Scheduler {
     /// change that. A list read without draining is walked again on every turn
     /// and grows with the number of tasks a worker has *served*, which under a
     /// server is O(requests served) in both memory and per-turn work.
-    pub fn take_ended(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.ended)
+    ///
+    /// The list keeps its buffer, so the next task that ends allocates
+    /// nothing. **What it spends:** the buffer of the most tasks that ended
+    /// between two calls, held per core.
+    pub fn take_ended(&mut self) -> std::vec::Drain<'_, TaskId> {
+        self.ended.drain(..)
     }
 
     /// Marks a task and everything beneath it for teardown, answering how many
@@ -3188,7 +3210,7 @@ mod tests {
         assert_eq!(sched.ready_count(), 0);
         assert_eq!(sched.parked_count(), 0);
         assert!(
-            sched.take_ended().contains(&child),
+            sched.take_ended().any(|ended| ended == child),
             "the torn-down child's registrations have nothing left to retire them"
         );
         assert!(
@@ -3250,7 +3272,7 @@ mod tests {
             0,
             "the tree outlived every task in it"
         );
-        let mut ended = sched.take_ended();
+        let mut ended = sched.take_ended().collect::<Vec<_>>();
         ended.sort_unstable();
         let mut expected = ids.borrow().clone();
         expected.push(root);

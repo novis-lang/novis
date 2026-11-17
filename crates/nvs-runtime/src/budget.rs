@@ -1860,6 +1860,45 @@ fn record(counters: &Counters, bytes: isize) {
         .set(counters.requests.get().wrapping_add(1));
     let grew = usize::try_from(bytes).unwrap_or(0);
     counters.total.set(counters.total.get().wrapping_add(grew));
+    #[cfg(debug_assertions)]
+    watched(counters, grew);
+}
+
+#[cfg(debug_assertions)]
+thread_local! {
+    /// The hook [`watch_allocations`] installed on this thread, if any.
+    static WATCH: Cell<Option<fn(usize)>> = const { Cell::new(None) };
+}
+
+/// Calls this thread's [`watch_allocations`] hook with the size of the
+/// allocation just counted.
+///
+/// The hook is taken out while it runs, so what it allocates is not watched,
+/// and the two counters are put back after it, so what it allocates is not
+/// counted either: a watched run counts what an unwatched one does.
+#[cfg(debug_assertions)]
+#[inline]
+fn watched(counters: &Counters, bytes: usize) {
+    let Ok(Some(hook)) = WATCH.try_with(Cell::take) else {
+        return;
+    };
+    let before = (counters.requests.get(), counters.total.get());
+    hook(bytes);
+    counters.requests.set(before.0);
+    counters.total.set(before.1);
+    WATCH.with(|watch| watch.set(Some(hook)));
+}
+
+/// Installs `hook` to be called with the size of every allocation this
+/// thread makes from now on, or removes it with `None`.
+///
+/// For a test that names the call site of each allocation a run makes: the
+/// hook captures a backtrace. The hook's own allocations are neither watched
+/// nor counted in [`allocations`]. It exists only under `debug_assertions`,
+/// and what it costs a debug build is one thread-local read per allocation.
+#[cfg(debug_assertions)]
+pub fn watch_allocations(hook: Option<fn(usize)>) {
+    WATCH.with(|watch| watch.set(hook));
 }
 
 /// Charges `bytes` to this thread's counters — negative for a release.

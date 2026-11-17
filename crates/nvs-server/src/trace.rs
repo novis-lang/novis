@@ -355,7 +355,8 @@ const TRACERESPONSE: &str = "traceresponse";
 /// still reaches the access line and the spans.
 ///
 /// **What it spends:** the 55-byte value, once per response, and nothing with
-/// the header off.
+/// the header off. The value is written on the stack and copied once into the
+/// header, so it costs one allocation.
 pub fn respond(headers: &mut hyper::HeaderMap, trace: &TraceContext, on: bool) {
     let name = hyper::header::HeaderName::from_static(TRACERESPONSE);
     if !on {
@@ -363,7 +364,7 @@ pub fn respond(headers: &mut hyper::HeaderMap, trace: &TraceContext, on: bool) {
         return;
     }
     // Always 55 bytes of lower-case hex and dashes, so it is a valid value.
-    if let Ok(value) = hyper::header::HeaderValue::from_str(&trace.traceparent()) {
+    if let Ok(value) = hyper::header::HeaderValue::from_bytes(&trace.traceparent_bytes()) {
         headers.insert(name, value);
     }
 }

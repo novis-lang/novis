@@ -78,6 +78,10 @@ pub struct TraceContext {
 /// The one `traceparent` version this parses and the only one it emits.
 const VERSION: &str = "00";
 
+/// How many bytes a `traceparent` value is: the version, the two ids in hex,
+/// the flags and three dashes.
+pub const TRACEPARENT_LEN: usize = 55;
+
 /// The flags bit W3C gives to "sampled". No other bit is defined, and an unknown one is ignored
 /// rather than refused, exactly as an unparseable header is.
 const SAMPLED: u8 = 0x01;
@@ -230,13 +234,25 @@ impl TraceContext {
     /// This context as the header value an outbound call carries — `00-<trace>-<span>-<flags>`.
     #[must_use]
     pub fn traceparent(&self) -> String {
-        let mut out = String::with_capacity(55);
-        out.push_str(VERSION);
-        out.push('-');
-        push_hex(&mut out, &self.trace_id);
-        out.push('-');
-        push_hex(&mut out, &self.span_id);
-        out.push_str(if self.sampled { "-01" } else { "-00" });
+        self.traceparent_bytes().iter().copied().map(char::from).collect()
+    }
+
+    /// [`traceparent`](Self::traceparent) as bytes on the caller's stack, for a
+    /// caller that copies them once into a header value of its own.
+    #[must_use]
+    pub fn traceparent_bytes(&self) -> [u8; TRACEPARENT_LEN] {
+        let mut out = [0_u8; TRACEPARENT_LEN];
+        let (version, rest) = out.split_at_mut(VERSION.len());
+        version.copy_from_slice(VERSION.as_bytes());
+        let (dash, rest) = rest.split_at_mut(1);
+        dash.copy_from_slice(b"-");
+        let (trace, rest) = rest.split_at_mut(self.trace_id.len() * 2);
+        write_hex(trace, &self.trace_id);
+        let (dash, rest) = rest.split_at_mut(1);
+        dash.copy_from_slice(b"-");
+        let (span, flags) = rest.split_at_mut(self.span_id.len() * 2);
+        write_hex(span, &self.span_id);
+        flags.copy_from_slice(if self.sampled { b"-01" } else { b"-00" });
         out
     }
 
@@ -302,6 +318,17 @@ fn draws(sample: f64) -> bool {
 }
 
 /// `bytes` as lower-case hex, appended.
+/// `bytes` as lower-case hex into `out`, which is twice as long.
+fn write_hex(out: &mut [u8], bytes: &[u8]) {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    for (pair, byte) in out.as_chunks_mut::<2>().0.iter_mut().zip(bytes) {
+        *pair = [
+            DIGITS[usize::from(byte >> 4)],
+            DIGITS[usize::from(byte & 0xf)],
+        ];
+    }
+}
+
 fn push_hex(out: &mut String, bytes: &[u8]) {
     for byte in bytes {
         out.push(char::from_digit(u32::from(byte >> 4), 16).unwrap_or('0'));

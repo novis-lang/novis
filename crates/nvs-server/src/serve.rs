@@ -3155,9 +3155,12 @@ fn answer(mut done: Completion) -> Response<Answer> {
     }
     // `rule:security/response-body-is-one-typed-member`: the request's own body member said what these bytes are,
     // and an `echo` said nothing, which that rule reads as HTML.
-    let declared = done.content_type.as_deref().unwrap_or(ECHOED);
-    let content_type =
-        HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
+    // The default is a static value, so a request that declared nothing
+    // allocates no header value.
+    let content_type = done.content_type.as_deref().map_or_else(
+        || HeaderValue::from_static(ECHOED),
+        |declared| HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE)),
+    );
     let mut response = Response::new(Answer::written(done.output));
     // `Core\Response`'s status, on the same channel and read the same way: the
     // request said what its answer means, and a request that said nothing
