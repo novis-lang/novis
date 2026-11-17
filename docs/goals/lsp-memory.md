@@ -267,17 +267,32 @@ Nothing in the server changes yet.
 
 ### 5. the rule and the module docs say what the index spends, with the measured figures
 
-- [ ] `docs/rules/ide/the-server-is-synchronous.md:18`: the paragraph about workers says that a job is
+- [x] `docs/rules/ide/the-server-is-synchronous.md:18`: the paragraph about workers says that a job is
   a part of one graph, that each body is checked once per settle, and that every worker reads the
   server's parses through the job. Its cost sentence gives the measured figures. The Declined entry
   "One parse cache shared by every worker, behind a lock" stays, and a new entry declines a worker cap
   with the reason above. `bun nv rules --render`, then `bun nv rules --check` is green.
-- [ ] `crates/nvs-lsp/src/workers.rs:1` and `crates/nvs-lsp/src/session.rs:1` module docs say the same,
+- [x] `crates/nvs-lsp/src/workers.rs:1` and `crates/nvs-lsp/src/session.rs:1` module docs say the same,
   with the numbers.
 - [ ] Rebuild the release binary with `bun nv relink --build` and run
   `bun nv lsp-start --copies 12 --cold --edits 5` once. Write the figures beside the baseline in the
   handoff. The cold peak and the edit peak are each expected under 1 GB. A figure above that names in
   the handoff what holds the memory, measured.
+  - [x] The release binary is rebuilt, and the run's figures are in the handoff.
+  - [x] The cold peak is under 1 GB: 786 MB paged.
+  - [ ] The edit peak is over 1 GB, and the private bytes grow about 70 MB per surface edit. What holds
+    them is measured, by the next item.
+- [ ] Attribute the memory an edit keeps, and fix the cause if it grows with the edits.
+  - [ ] Measure what the process keeps live after each edit, summed over every thread, with a
+    temporary log line beside `index work:` (`crates/nvs-lsp/src/progress.rs:204`), so live bytes
+    are told apart from heap the allocator keeps.
+  - [ ] If live bytes grow per edit, name the holder (the interner, a session, the parse map) by
+    dropping each one in turn on a scratch build.
+  - [ ] If live bytes stay flat, the growth is heap the allocator keeps: the pooled cache of each
+    worker thread that exits (`crates/nvs-runtime/src/alloc.rs:24`) and the platform heap's
+    retention. Then keep the workers alive between the runs of a session, or say the cost.
+  - [ ] The fix, or the measured holder with its bound, goes into the rule's cost sentence and the
+    `crate::workers` module doc.
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -292,18 +307,16 @@ Nothing in the server changes yet.
 Baseline (`lsp-start --copies 12 --cold --edits 5`, release, 16 cores): a cold index peaked at
 5752 MB paged. Stages 2 and 3 split each graph's bodies between the workers (`workers.rs` module doc).
 
-Stage 4 is done. `ParseCache` (`crates/nvs-lsp/src/parse_cache.rs:89`) keeps its parses in an
-`Arc<Files>` copied on write. `pin_keys` (`:184`) pins canonical keys through the new
-`Pins::pin_key` and `Pins::of_key` (`crates/nvs-diagnostics/src/source.rs`). `share` (`:196`) gives a
-job a `Shared` of the pins and the map, `adopt` (`:208`) makes a worker read it after its own parses,
-`take_made` (`:223`) returns a worker's own parses at the server's ids, and `file` (`:240`) files
-them. `Documents::share_parses` (`document.rs:616`) pins and shares. `send` (`index.rs:982`) pins the
-pending entries and the indexed files when no worker runs yet, and puts the `Shared` on every job.
-`work` (`workers.rs:478`) adopts it, and `Done::parses` goes through `Pool::receive` and
-`take_parses` to `turns` (`index.rs:908`), which files them before it sends again. The rule's worker
-paragraph says so already.
+Stage 5's doc items are done: the rule, `crate::workers` and `crate::session` give the figures, and
+a worker cap is declined. Release, 15 workers, 972 files (`lsp-start --copies 12 --cold`): baseline
+cold peak 5752 MB paged; now cold 786 MB peak, 463 MB private; after 1, 5 and 10 surface edits
+(972 files checked each) private 521, 866 and 1120 MB, peak 1020, 1132 and 1210 MB.
 
-`parsed-once` is green, and only its tests ran. Build and clippy are green. May go red at the gate: a
+The edit peak is over 1 GB, and private bytes grow about 70 MB per edit. Not attributed yet: the
+runtime counts live bytes per thread only. Known part: the pooled allocator keeps an exited thread's
+cached blocks (`crates/nvs-runtime/src/alloc.rs:24`), and the workers stop after every edit's run, so
+at most about 17 MB per edit. The rest may be the interner, the platform heap, or an old index or
+session held. Build, clippy and `bun nv rules --check` are green. May go red at the gate: a
 test pinning `errors` from a link or route error (`index.rs:595`), the other parallel tests of
 `tests/incremental.rs`, `document.rs` tests near `:1575` to `:2008`, `definition.rs:1730`, and any
 test that reads the ids of a map, since the whole tree is now pinned before workers run.
@@ -313,11 +326,17 @@ The sweep's reds are stale: `env-secret-proofs` has no log, and the nightly `sup
 
 ### Next
 
-Stage 5 from its first item: the rule's worker paragraph
-(`docs/rules/ide/the-server-is-synchronous.md:18`) gets the measured figures and the Declined entry
-for a worker cap, then the module docs of `crates/nvs-lsp/src/workers.rs:1` and
-`crates/nvs-lsp/src/session.rs:1`. Then `bun nv relink --build` and one run of
-`bun nv lsp-start --copies 12 --cold --edits 5`, with the figures beside the baseline.
+Stage 5's last item, "Attribute the memory an edit keeps", from its first checkpoint. This is the
+stage's second and last session. A sum of live bytes over every thread needs a process-wide counter:
+`crates/nvs-runtime/src/budget.rs:1174` counts per thread, and a block freed on another thread moves
+the count of the thread that frees it. So sum the counter over the server thread and each worker
+before it exits, or count in `counting_alloc` globally on a scratch build. Run
+`bun nv lsp-start --copies 12 --cold --edits 5` and `--edits 10` after each change (each takes about
+a minute). Then put the result in the rule's cost sentence
+(`docs/rules/ide/the-server-is-synchronous.md:39`) and the `crate::workers` module doc
+(`crates/nvs-lsp/src/workers.rs:47`), and tick the open item above it. If a fix lands, it is a new
+slice with its own commit. If the cause is still unknown at the end of that session, write the
+measured state in the handoff and move to stage 6.
 
 ### Backlog
 

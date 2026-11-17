@@ -39,11 +39,21 @@
 //! entries wait, freed when the queue empties. A worker keeps its session
 //! between jobs, so the workers together hold about one copy of the checked
 //! output of the files they checked. A worker reads the server's parses
-(`crate::parse_cache`), so the parses are kept once, on the server's
-thread. Each job copies the open buffers' text,
-//! and each part one set of the paths it checks. A plan is one extra resolve
+//! (`crate::parse_cache`), so the parses are kept once, on the server's
+//! thread. Each job copies the open buffers' text, and each part one set of
+//! the paths it checks. A plan is one extra resolve
 //! of a graph no entry indexed yet. That memory buys the latency of a cold
 //! index, which the priority ordering allows.
+//!
+//! Measured with `bun nv lsp-start --copies 12 --cold --edits 5` on 16 cores,
+//! so 15 workers, over 972 files: a cold index parses and checks each file
+//! once and peaks at 786 MB paged, 463 MB private once it settles. When each
+//! worker checked every body it read, it peaked at 5752 MB. A surface edit
+//! checks each file once more and peaks at about 1020 MB paged.
+//!
+//! **Declined:** a cap on the number of workers. The memory grew with the
+//! workers because each one checked the same bodies again. A cap hid that
+//! cause and made the cold index slower on every machine.
 
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};

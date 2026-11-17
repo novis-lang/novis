@@ -67,6 +67,14 @@
 //! alone. Each part is freed when the file leaves the tree. The interner is
 //! bounded by twice its size at the last settle.
 //!
+//! Because an analysis checks only the bodies it will own, a session on a
+//! worker keeps the checked output of its own parts, and the workers together
+//! keep about one copy of the tree's. On twelve copies of the tree
+//! `bun nv lsp-start` generates (972 files) with 15 workers, a cold index
+//! checks 972 files and peaks at 786 MB paged. When every worker's session
+//! checked every body its entries read, it peaked at 5752 MB. A surface edit
+//! checks the 972 files once more and peaks at about 1020 MB paged.
+//!
 //! [`Analysed`]: crate::Analysed
 
 use std::path::Path;

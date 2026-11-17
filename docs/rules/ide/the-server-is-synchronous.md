@@ -38,7 +38,10 @@ read was edited, a file it took as indexed was dropped, or its graph has a file 
 request that needs every file waits for the workers to drain. The open documents are still analysed on
 the one thread, before the answer that needs them. It costs one session and one configuration cache per
 worker while entries wait, one extra resolve of a graph per plan, and one set of paths per part. That
-memory buys a cold index on every core.
+memory buys a cold index on every core. On twelve copies of the generated tree of `bun nv lsp-start`
+(972 files) with 15 workers, a cold index parses and checks 972 files and peaks at 786 MB paged, 463 MB
+private once it settles. When each worker checked every body it read, the same index peaked at 5752 MB.
+A surface edit checks each of the 972 files once more, and its run peaks at about 1020 MB paged.
 
 The server holds one document store on one thread, so an async runtime would schedule nothing. Taking one
 would put tokio, tower and `async-trait` into every later dependency review and every build, for a process
@@ -53,3 +56,6 @@ that never has two analyses running at once.
 - **One parse cache shared by every worker, behind a lock.** A lock on the analysis path costs every
   analysis latency to save memory, which is the wrong direction.
 - **A setting for the worker count.** Nobody asked for one, and a fixed rule is one thing less to tune.
+- **A cap on the worker count to bound the memory of a cold index.** The memory grew with the workers
+  because each one checked every body it read again. A cap hid that cause and slowed the cold index on
+  every machine. Each body is now checked once per settle, so more workers split the same work.
