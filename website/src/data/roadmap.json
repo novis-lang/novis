@@ -52,6 +52,13 @@
         "keyed-iteration",
         "revocable-objects"
       ]
+    },
+    {
+      "title": "Faster mutation tests",
+      "text": "`nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.",
+      "goals": [
+        "aimed-mutation"
+      ]
     }
   ]
 }

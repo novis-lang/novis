@@ -136,6 +136,7 @@ The work is in the order it is planned. The order can change.
 4. **Rules a framework can set.** A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.
 5. **The website shows every change.** When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
 6. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
+7. **Faster mutation tests.** `nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.
 <!-- roadmap:end -->
 
 ## Contributing

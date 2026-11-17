@@ -239,8 +239,11 @@ the head scan step through framing lines only.
 ### State
 
 Every stage is done. `looper verify`, `bun nv verify --doc`, `bun nv owners --closes` and
-`bun nv ci --check` are green; the last was red only on `recompile-leaks` having no roadmap theme,
-which it now has. Each standing decision has its home: the `body.rs` and `heads.rs` module docs,
+`bun nv ci --check` are green. The refused DONEs' `ci-check` reds were each a goal added to the
+chain with no roadmap theme: `recompile-leaks`, and then `aimed-mutation`, which now has the theme
+*Faster mutation tests*. The sweep's other reds are stale. Nightly 44073672172 ran before
+`0fe2fdef25`, which dropped `rxing` and `chrono` and is on `origin/main`. `env-secret-proofs` is
+defined nowhere in the tree. Each standing decision has its home: the `body.rs` and `heads.rs` module docs,
 `benches/compare/README.md`, `cpuclock.rs` and `HELLO_ROWS`. The allocation table is `HELLO_ROWS` in `crates/nvs-cli/src/serve.rs`: 25 kept, 5 removed, each
 with its reason. `every_allocation_of_a_served_request_has_a_row` reads backtraces through the
 debug-only `nvs_runtime::budget::watch_allocations` hook, and failed with a kept row marked removed.
