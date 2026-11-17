@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/package/manifest.rs, crates/nvs-config/src/cache.rs, crates/nvs-diagnostics/src/code/config.rs, crates/nvs-diagnostics/src/code/mod.rs, docs/rules/security/grants-are-keyed-on-a-namespace.md, docs/rules/security/longest-prefix-wins.md]
   - id: 2
     title: a use outside the allowed places does not compile
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/capability.rs, crates/nvs-types/src/signatures.rs, docs/rules/packaging/a-components-engine-class-is-internal.md, docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md, tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst, crates/nvs-cli/tests/package_grants.rs]
   - id: 3
     title: the replacement is checked where it is written and becomes the fix, and a reflective act is held to the same table
@@ -214,8 +214,8 @@ that adds a restriction makes a breaking change, and stage 5 makes `nvs pkg diff
 (`rule:packaging/only-a-major-may-break-the-api`).
 
 **What counts as a use.** A call (static, instance, `parent::`), a method reference
-(`Name::method(...)`), `new`, a property read or write, a class constant, an enum case, and a
-reflective act on the member (stage 3). A type position, `instanceof` and `catch` are not uses, so
+(`Name::method`), `new`, a property read or write, a class constant, an enum case, and a
+reflective act on the member (stage 3). A type position, an `is` test and `catch` are not uses, so
 allowed code can pass a restricted object around through typed signatures.
 
 **Overrides and interfaces (my call).** A restriction on a method holds for every override and
@@ -336,19 +336,31 @@ with a `--FILE package.toml--` section. A second one, whose files are disjoint, 
 of `crates/nvs-cli/tests/package_restrict.rs`, each in a temporary tree with the monorepo layout of
 § *Why* where the test needs it. The session runs both checks once.
 
-- [ ] `crates/nvs-types/src/restrict.rs:1`: the restricted-declaration set built from the program's
+- [x] `crates/nvs-types/src/restrict.rs:1`: the restricted-declaration set built from the program's
   tables once the file set is complete, the use's place (namespace, class, method and package, from
   `crates/nvs-types/src/package.rs:58` `of`), and the match of § *Standing decisions*.
-- [ ] The pass over resolved uses, after the type check. Its reader is the session's choice between
+  - [x] `build` indexes the entries by name, member and subtree, after `build_signatures`.
+  - [x] `Place` from `crate::deprecated::window`, which now takes the body's namespace.
+  - [x] `allows`: the package check, the four `allow` forms and a declaration's own code.
+- [x] The pass over resolved uses, after the type check. Its reader is the session's choice between
   the typed tree and a side list (§ *When the check runs*), recorded in the rule. Every use kind of
   § *What counts as a use* reaches it: calls through `crates/nvs-types/src/expr/calls.rs:534`
   `infer_static_call` and `:54` `infer_method_call`, the method reference at `:617`, `new`, a property
   and a constant.
-- [ ] Overrides: a use that resolves to an override or implementation is checked against the
+  - [x] The typed tree: `check_uses` reads the body's expression table entries through
+    `crate::deprecated::resolved`, recorded in the rule's *When it runs*.
+  - [x] Tried by hand: a static call, `new`, a property, a constant, a method reference and a `Core`
+    call are refused, and the allowed namespace compiles.
+- [x] Overrides: a use that resolves to an override or implementation is checked against the
   restriction on the method it overrides. A `use` that names an override is `E0665` with its help.
-- [ ] The `Core` target check: a `use` under `Core` that names no declaration is `E0665`. The `W`
+  - [x] `holding` walks the ancestors of a method use.
+  - [x] `report_override` in `build`, tried by hand.
+- [x] The `Core` target check: a `use` under `Core` that names no declaration is `E0665`. The `W`
   code for an application target that names nothing.
-- [ ] The ten `.nvst` cases and the six Rust tests, the `use-refused` and `layouts` checks run once.
+  - [x] `check_core` with `names_something`, and `W1031` for an application entry, tried by hand.
+- [x] The ten `.nvst` cases and the six Rust tests, the `use-refused` and `layouts` checks run once.
+  - [x] Ten cases under `tests/conformance/cap/restrict-*.nvst`, `use-refused` green.
+  - [x] `crates/nvs-cli/tests/package_restrict.rs`, `layouts` green.
 
 ### 3. the replacement is checked where it is written and becomes the fix, and a reflective act is held to the same table
 
@@ -464,31 +476,45 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Stage 1 is done, and its `table-read` check is green (eight tests in
-`crates/nvs-config/tests/restrict.rs`, run once by name). `crates/nvs-config/src/restrict.rs` reads
-`[[restrict]]` for both readers and checks each entry's shape where it is written (`E0665`).
-`Grants` holds every table (§ *Standing decisions* *Where the tables live in memory*), and
-`crates/nvs-config/src/cache.rs:225` folds their digest in only when one exists. The rule is
-`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`, with status `designed`
-and owned by this goal. Stage 7 sets it to `shipped`. No check reads a restriction yet, so a
-program with a table compiles exactly as before.
+Stages 1 and 2 are done, and `table-read`, `use-refused` and `layouts` are green, each run once.
+`crates/nvs-types/src/restrict.rs` holds the check. `build` indexes the entries once the signatures
+exist (`crates/nvs-types/src/check.rs`, `check_files`) and reports `E0665` for a `Core` name that
+names nothing and for an override, and `W1031` for an application name that names nothing.
+`check_uses` runs at the end of each body's `crate::deprecated::window`, which now takes the body's
+namespace, and maps the body's expression table entries through `crate::deprecated::resolved`. So
+the reader is the typed tree, and the rule's *When it runs* records it. Two choices this stage made,
+both in the rule: an entry on a class or namespace holds every use of its members, and a use inside
+the restricted declaration's own class or namespace is always allowed.
 
-The sweep's reds at this session's start: `env-secret-proofs` is stale state in looper's service, and
-no check by that name exists. The nightly run's `docs` link and the macOS `Storage/get` hostile case
-were both already fixed on disk after the run's commit (`bun nv links` is green, and `9efc45b6fd`
-gives each attack its own file). `proofs / windows-x86_64` was cancelled by the workflow's
-`concurrency` group, not by a failure.
+A package's table holds once one of its files is compiled. An `autoload` line alone adds nothing,
+and an entry inside a package's folder reads its manifest as the application's file, matched by
+namespace alone (`the_frameworks_own_tests_read_its_manifest_as_the_application_file` asserts it).
+An entry that is `E0665` still restricts its target, so a refused use beside it also reports `E0664`.
+
+The sweep's reds at the start of the last two sessions: `env-secret-proofs` is stale state in
+looper's service, and no check by that name exists. The nightly `docs` and macOS `Storage/get` reds
+were fixed on disk after that run's commit, and the Windows leg was cancelled by its `concurrency`
+group.
 
 ### Next
 
-Stage 2 from its first item: `crates/nvs-types/src/restrict.rs:1`. It reads
-`Grants::restrictions()` (`crates/nvs-config/src/grants.rs`), resolves each `Target::Name` against
-the program, and calls `Restrictions::check_core` with `nvs_types::core_lib`'s lookup. Then comes
-the pass over resolved uses. The `use-refused` and `layouts` checks are red until stage 2 writes
-their cases.
+Stage 3 from its first item. The replacement: `crates/nvs-types/src/deprecated/template.rs` checks a
+`#[Core\Deprecated]` `replace`, and `crates/nvs-types/src/restrict.rs` `build` is where an entry's
+`replace` gets the same check (`E0666`). The fix at the use goes into `refusal` in the same file,
+the way `crate::deprecated::report` attaches `fix::fill`. Then the reflective act in
+`crates/nvs-stdlib/src/reflect.rs`. No test is expected to go red: every check so far is green.
 
 ### Backlog
 
+- The error's note names the manifest by its absolute path. The rule's example names it relative to
+  the project (`modules/Framework/package.toml`). Stage 4 or 6 picks the form, since the editor
+  links it and the pages quote it (`crates/nvs-types/src/restrict.rs` `refusal`).
+- The error prints `Ns\*` for a subtree in "It is allowed only in". Stage 6 writes the final
+  wording, with the pages that quote it.
+- The case `restrict-a-type-and-instanceof-are-not-uses.nvst` keeps the name the `use-refused` check
+  gives it, but Novis writes the test as `is`. Rename both together if the name matters.
+- The new tests carry no `covers:` line, because the feature id does not exist yet. Stage 6 adds one
+  to each when it creates the feature.
 - The end-user pages still say the compiler reads only `[grants]` and `[capabilities]`:
   `docs/examples/tools/packages/package-toml/about.md:9` and `docs/reference/tools/35-packages.md:128`.
   Stage 6 rewrites both with the feature's pages, once a restriction does something.
