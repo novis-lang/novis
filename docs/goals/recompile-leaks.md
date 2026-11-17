@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs]
   - id: 6
     title: no source text makes the compiler panic, from the parser to code generation
-    status: open
+    status: done
     context: [crates/nvs-fuzz-checks/src/lib.rs, crates/nvs-fuzz-checks/src/prefix.rs, crates/nvs-syntax/tests/prefixes.rs, crates/nvs-codegen/src/lib.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -193,6 +193,18 @@ Such an error is a shape the checker let through and the backend cannot lower. T
 in the front end or the backend, wherever the case belongs. Catching the panic (stage 3) stays, as the
 last line of defence.
 
+**A generator keeps its called class in its state (my call, stage 6).** A static generator's factory
+parks parameter 0 in a `gen#class` field, and `advance` loads it once, in its entry block, the first
+time the body names the class. An instance generator loads the class of its parked `$this` instead,
+so it gains no field. It costs 16 bytes per suspended static generator, and one load per `advance`
+whose body names the class. **Declined:** making the checker refuse `self::` and `static::` in a
+generator. They are ordinary code in a class's method.
+
+**`serve-mem --panics` is removed (my call, stage 6).** Its edit was the reported panic, which now
+compiles, so it measured good edits under the wrong name. No source text is known to panic, and a
+trigger built into the release binary would put a panic on the request path's compiler.
+`script.rs` keeps the figures it gave.
+
 **What it costs.** A builder holds its pages in `JitPages` one call earlier, which is no new memory. A
 compile runs under one more `catch_unwind`. A panicked content keeps one failure message in the
 compile table, as a failed compile does now.
@@ -296,26 +308,26 @@ to any run.
 **Split:** after the matrix exists, each failing cell is one item for a writing subagent, one at a time,
 because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
-- [ ] `crates/nvs-ir/src/lower/mod.rs:2982`: a static call through `self::` or `static::` inside a
+- [x] `crates/nvs-ir/src/lower/mod.rs:2982`: a static call through `self::` or `static::` inside a
   generator panics there, because the generator's `advance` function has neither a receiver nor a called
   class. A generator keeps the class it was called on, from its creation, in its state, and `advance`
   reads `self` and `static` from there. The case in § *Why* (`yield self::one();` in a static generator,
   `yield static::one();`, and `yield self::one();` in an instance generator) is the first row the
   matrix proves.
-- [ ] `crates/nvs-fuzz-checks/src/compile.rs:1`: `compile(data)` runs a source through parse, check,
+- [x] `crates/nvs-fuzz-checks/src/compile.rs:1`: `compile(data)` runs a source through parse, check,
   lowering and `nvs_codegen` with the object-file backend, so nothing is mapped or run. It asserts no
   panic, and no `CodegenError` when the check reported no error. The crate takes the dependencies it
   needs. `fuzz/fuzz_targets/compile.rs` is its one-line target, for a search somebody starts by hand.
   `tests.rs` replays `fuzz/seeds/compile/` in `compile_seeds_never_panic`. The reported case is its first
   seed.
-- [ ] `every_construct_compiles_in_every_body`, in the same file: a matrix of the body kinds (a
+- [x] `every_construct_compiles_in_every_body`, in the same file: a matrix of the body kinds (a
   function, an instance method, a static method, a generator of each, an anonymous function, an arrow
   function, and each of these nested in a generator) times the constructs that read the enclosing
   context (`self::`, `static::` and `parent::` calls and constants, `$this`, a captured variable, `yield`,
   `return`, `throw`, `try`, `match`). Each cell is one small program through `compile`. It is built from
   the grammar, not from the corpus. Its run time goes into the handoff, and is expected under ten
   seconds.
-- [ ] Every failing cell is fixed at its cause, and the `no-panic` check runs once. The handoff lists
+- [x] Every failing cell is fixed at its cause, and the `no-panic` check runs once. The handoff lists
   each cause in one line.
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -328,35 +340,41 @@ because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
 ### State
 
-Stages 1 to 5 are done, and the `pages`, `no-retry` and `keep-alive` checks are green. Stage 6 has
-not started.
+Stages 1 to 6 are done, and the `pages`, `no-retry`, `keep-alive` and `no-panic` checks are green.
+Stage 7, the gate, is next.
 
-**A panic keeps what a failure keeps (stage 5).** `bun nv serve-mem --app registry --panics <n>`
-writes a static generator that yields `self::one<n>()`, which panics in `nvs-ir` and is caught
-(`E0901`, once per content). A temporary live-byte line around `self.compile`
-(`crates/nvs-cli/src/script.rs:1012`) read 22 KB kept per panic and per failure alike: the message
-and the `Trace`, which the next failure replaces. No thread ends. 25 failures level at +15 MB private;
-25 panics reach +23.5 MB, which is heap the larger peak left, not live bytes. A success keeps one
-unit of about 10 MB, within the bound of three plus one per core. `script.rs` and `mounts.rs` state
-the figures.
+**Stage 6.** `nvs_fuzz_checks::compile` (`crates/nvs-fuzz-checks/src/compile.rs`) runs a source
+through the whole compiler with the object-file backend. `compile_seeds_never_panic` replays
+`fuzz/seeds/compile/` (two seeds, one per cause below). `every_construct_compiles_in_every_body`
+(`crates/nvs-fuzz-checks/src/tests.rs`) is 15 bodies × 5 places × 15 constructs, 800 cells, in
+about 0.6 s on 16 cores. Novis has no free function (`E0215`), so the script's own statements are
+the "function" body. The matrix had 21 red cells, all from the two causes:
+
+- A generator's `advance` had no called class, so `self::`, `static::`, `parent::` and
+  `new static()` in a generator panicked in `Lowering::lsb`. A static generator now parks its
+  called class in `gen#class`, and an instance one reads the class of its parked `$this`.
+- `Lowering::lsb` appended `class.of $this` at the end of the entry block, after the body's first
+  fallible instruction, so a use after a caught throw, in a `catch` or in a `finally` failed the
+  Cranelift verifier. It is now inserted right after the receiver's definition (`emit_after`).
+
+`bun nv serve-mem --panics` is removed: its edit was the first cause, which now compiles. The
+`no-retry` test triggers its panic through its own marker and is unaffected.
 
 The sweep's two reds are stale: `env-secret-proofs` is defined nowhere (`git log -S` ends at a
 retired goal), and nightly 44073672172 ran on `2934ebe1ae`, which predates `0fe2fdef25`.
 
 ### Next
 
-Stage 6, item 1 first: the reported panic.
+Stage 7: start `looper verify` with `run_in_background`, fix every failure it names in one pass,
+and run it once more. Then the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
+`bun nv owners --closes recompile-leaks`, `bun nv ci --check`.
 
-- `crates/nvs-ir/src/lower/mod.rs:2982` panics because a generator's `advance` has neither a receiver
-  nor a called class. Give the generator's state the called class at creation, and read `self` and
-  `static` from it in `advance`. Find where a generator's state is built with
-  `bun nv peek --locate` on `$gen`. Reproduce with the class in § *Why*, or with
-  `bun nv serve-mem --app registry --panics 1`, whose log then shows no `E0901`.
-- Then item 2 (`crates/nvs-fuzz-checks/src/compile.rs`) and item 3, the matrix. Each failing cell
-  of the matrix is one item, as the stage's `**Split:**` line says.
-
-`compile_seeds_never_panic` and `every_construct_compiles_in_every_body` do not exist yet. No test
-is expected red now.
+- Tests that may go red: any that counts the instructions of a method that reads `static`, because
+  `class.of` now sits before the entry safepoint (`crates/nvs-codegen/tests/`, `benches/abi-probe`).
+  The 14 `nvs-ir` lowering snapshots this moved are already updated.
+- `crates/nvs-fuzz-checks/Cargo.toml` now takes `nvs-codegen`, `nvs-hir`, `nvs-ir` and
+  `nvs-types`, so `fuzz/` builds Cranelift. `bun nv fuzz --all` leaves `compile` out
+  (`tools/nv/cmd/fuzz.ts` `BY_HAND`).
 
 ### Backlog
 
