@@ -32,6 +32,7 @@
     "packaging/a-package-name-is-vendor-slash-name",
     "packaging/a-package-is-its-digest",
     "packaging/package-toml-is-a-tool-input",
+    "packaging/a-restriction-limits-where-a-declaration-is-used",
     "packaging/a-package-file-stays-under-its-declared-prefix",
     "packaging/a-fetched-package-is-an-autoload-line",
     "packaging/nothing-runs-before-the-program",

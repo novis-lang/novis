@@ -1,5 +1,5 @@
-//! A package's own `package.toml`, read for the two things the compiler needs of it: the
-//! package's name and the capabilities it requests.
+//! A package's own `package.toml`, read for the three things the compiler needs of it: the
+//! package's name, the capabilities it requests and its `[[restrict]]` table.
 //!
 //! ```toml
 //! [package]
@@ -10,8 +10,10 @@
 //! optional = ["fs.write"]
 //! ```
 //!
-//! **This module reads `[package] name` and `[capabilities]`, and nothing else of the file**
-//! (`rule:packaging/package-toml-is-a-tool-input`). A version, the dependencies and every other
+//! **This module reads `[package] name`, `[capabilities]` and, through `crate::restrict`,
+//! `[[restrict]]`, and nothing else of the file** (`rule:packaging/package-toml-is-a-tool-input`).
+//! Every `allow` entry of a package's restriction lies inside the package's name
+//! (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`). A version, the dependencies and every other
 //! table are the `nvs pkg` commands', and an unknown key there is their refusal to make.
 //!
 //! **A name is the package's root namespace**, exactly two segments, `Vendor\Package`
@@ -47,6 +49,7 @@ use toml::Spanned;
 
 use crate::capability::Cap;
 use crate::grants::{FILE, is_segment};
+use crate::restrict::{self, Restriction};
 
 /// The namespace no package may take, compared without case.
 const RESERVED: &str = "Core";
@@ -68,6 +71,8 @@ pub struct Package {
     /// The files the package's own code may read with no grant, relative to [`Self::dir`] and
     /// joined with `/`, sorted. Empty for a package that is not vendored.
     files: Vec<String>,
+    /// The package's `[[restrict]]` entries, each `allow` inside the package's name.
+    restrictions: Vec<Restriction>,
 }
 
 impl Package {
@@ -102,6 +107,13 @@ impl Package {
         &self.files
     }
 
+    /// The package's `[[restrict]]` entries
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    #[must_use]
+    pub fn restrictions(&self) -> &[Restriction] {
+        &self.restrictions
+    }
+
     /// Whether `relative`, a path inside [`Self::dir`] joined with `/`, is one of [`Self::files`].
     #[must_use]
     pub fn lists(&self, relative: &str) -> bool {
@@ -133,7 +145,7 @@ impl Package {
         dir: &Path,
     ) -> Result<Option<Self>, Diagnostic> {
         let id = sources.add(name, text);
-        parse_in(id, text, dir)
+        parse_in(id, text, dir, name)
     }
 }
 
@@ -161,7 +173,8 @@ pub fn read(dir: &Path, sources: &mut SourceMap) -> Result<Option<Package>, Diag
             "the compiler reads the package's name and capabilities from this file".to_owned(),
         )
     })?;
-    let Some(mut package) = parse_in(id, sources.file(id).text(), dir)? else {
+    let label = path.display().to_string();
+    let Some(mut package) = parse_in(id, sources.file(id).text(), dir, &label)? else {
         return Ok(None);
     };
     package.files = own_files(&package, sources)?;
@@ -229,8 +242,13 @@ struct Requests {
     optional: Vec<Spanned<String>>,
 }
 
-/// [`Package::parse`] over `text`, already in the caller's map as `id`.
-fn parse_in(id: SourceId, text: &str, dir: &Path) -> Result<Option<Package>, Diagnostic> {
+/// [`Package::parse`] over `text`, already in the caller's map as `id` and named `label`.
+fn parse_in(
+    id: SourceId,
+    text: &str,
+    dir: &Path,
+    label: &str,
+) -> Result<Option<Package>, Diagnostic> {
     let (file, _) = crate::file::parse_at::<File>(id, text)
         .map_err(|refused| refused.with_code(code::E_BAD_PACKAGE_MANIFEST))?;
     let Some(written) = file.package.and_then(|header| header.name) else {
@@ -255,12 +273,14 @@ fn parse_in(id: SourceId, text: &str, dir: &Path) -> Result<Option<Package>, Dia
             "list it in `required` or in `optional`, not in both",
         ));
     }
+    let restrictions = restrict::parse(id, text, label, Some(&name))?;
     Ok(Some(Package {
         name,
         dir: dir.to_path_buf(),
         required,
         optional,
         files: Vec::new(),
+        restrictions,
     }))
 }
 

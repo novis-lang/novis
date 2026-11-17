@@ -923,4 +923,35 @@ codes! {
         "An entry in `[server] development_hosts` must be a host name, such as `app.test`, or an \
          IP address. A port, a scheme, `*` and `/` are not allowed. Write each host on its own.",
     );
+
+    /// A use of a declaration outside every place a `[[restrict]]` entry allows
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`). The message
+    /// names the places, the entry's note and the file and line of the entry.
+    pub const E_RESTRICTED_USE: Code = Code::new("E0664").card(
+        "A `[[restrict]]` entry in a `package.toml` file allows this class, method or namespace \
+         only in some places. This code is not one of them. The message names the places and the \
+         file with the entry. Use the replacement that the message names, or move this code into \
+         an allowed place. A package's entry applies to your application too, and your \
+         application cannot remove it.",
+    );
+
+    /// A `[[restrict]]` entry that is broken where it is written: a `use` or `allow` that is not
+    /// a declaration name, a `\*` that is not at the end, an unknown field, a `Core` target that
+    /// names nothing, a package's `allow` outside its own name, or a `use` that names an override
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    pub const E_BAD_RESTRICTION: Code = Code::new("E0665").card(
+        "This `[[restrict]]` entry in `package.toml` is not valid. `use` names one class, method, \
+         function or namespace. `allow` lists namespaces, classes or methods. Write `Acme\\Http\\*` \
+         for a namespace and every namespace below it. In a package's file, every `allow` entry \
+         must be inside the package's own namespace. The fields are `use`, `allow`, `note` and \
+         `replace`.",
+    );
+
+    /// A `[[restrict]]` entry's `replace` that does not compile in place of the restricted call
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    pub const E_BAD_RESTRICTION_REPLACE: Code = Code::new("E0666").card(
+        "The `replace` expression of this `[[restrict]]` entry does not compile. It must be one \
+         Novis expression that can replace the restricted call. It may use the call's \
+         parameters and `$this`. It must not use the restricted declaration itself.",
+    );
 }

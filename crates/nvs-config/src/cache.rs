@@ -8,7 +8,8 @@
 //! extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
 //! built_in_hash      = BLAKE3(count ‖ sha256 of each built-in component, in the binary's order)
 //! grants_hash        = BLAKE3(each [grants] line of package.toml, sorted by key)
-//! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ built_in_hash ‖ extension_set_hash ‖ grants_hash)
+//! restrict_hash      = BLAKE3(each [[restrict]] entry the program read), absent with none
+//! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ built_in_hash ‖ extension_set_hash ‖ grants_hash ‖ restrict_hash)
 //! content_hash       = BLAKE3(each file's name ‖ text ‖ folder, in program order)
 //! probe_hash         = BLAKE3(each path the unit's autoload resolution probed, in probe order)
 //! artifact_key       = BLAKE3(content_hash ‖ env_hash)
@@ -223,6 +224,11 @@ fn env_hash_with(
     hasher.update(extension_set_hash(config).as_bytes());
     hasher.update(&[crate::regex::Backtracking::of_config(config) as u8]);
     hasher.update(&grants.digest());
+    // Only when some `package.toml` has a `[[restrict]]` entry, so a program with none keeps
+    // the key it had.
+    if let Some(restrictions) = grants.restrictions().digest() {
+        hasher.update(&restrictions);
+    }
     EnvHash(Digest(*hasher.finalize().as_bytes()))
 }
 

@@ -320,4 +320,13 @@ codes! {
         "This doc comment describes some parameters with `@param`, but not this one. Add an \
          `@param` line for it, and write what it means.",
     );
+    /// A `[[restrict]]` target in the application's `package.toml` that names no declaration
+    /// of the program (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`). The
+    /// same target in a package's file is silent, since it often names code this program does
+    /// not load.
+    pub const W_RESTRICTION_NAMES_NOTHING: Code = Code::new("W1031").card(
+        "The `use` of this `[[restrict]]` entry names no class, method, function or namespace \
+         in this program, so the entry has no effect. Check the name for a typo. Delete the \
+         entry if the code it named is gone.",
+    );
 }

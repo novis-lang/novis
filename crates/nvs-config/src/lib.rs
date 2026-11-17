@@ -95,6 +95,7 @@ pub mod regex;
 pub mod reload;
 pub mod request;
 pub mod resolve;
+pub mod restrict;
 pub mod schedule;
 pub mod secret;
 pub mod server;

@@ -407,6 +407,13 @@ struct File {
         reason = "read so the key is known; `nvs_config::grants` parses it"
     )]
     grants: Option<toml::Table>,
+    // `nvs_config::restrict` reads the entries, through `Grants::parse` and `Package::parse`.
+    #[serde(default)]
+    #[allow(
+        dead_code,
+        reason = "read so the key is known; `nvs_config::restrict` parses it"
+    )]
+    restrict: Option<Vec<toml::Table>>,
     #[serde(default)]
     download: Option<Spanned<Vec<Download>>>,
     #[serde(default)]

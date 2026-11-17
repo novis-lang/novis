@@ -1368,6 +1368,14 @@ fn front_end_in(
                 .iter()
                 .map(|package| (package.name().to_owned(), package.files().to_vec())),
         );
+        // Each loaded package's `[[restrict]]` entries, so an edited entry is a cache miss
+        // (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+        namespace_grants.set_restrictions(
+            packages
+                .all()
+                .iter()
+                .flat_map(|package| package.restrictions().iter().cloned()),
+        );
         mark.end(phases::Phase::Collection);
 
         let mark = phases::start();

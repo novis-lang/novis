@@ -1,6 +1,8 @@
-`package.toml` is read by the `nvs pkg` commands, and the compiler reads **one table of the
-application's file, `[grants]`**, and nothing else of it. Neither the runtime nor name resolution ever
-reads `package.toml`.
+`package.toml` is read by the `nvs pkg` commands, and the compiler reads **two tables of the
+application's file, `[grants]` and `[[restrict]]`**, and nothing else of it. Of a package's file it
+reads the name, the capability split and `[[restrict]]`
+(`rule:packaging/a-restriction-limits-where-a-declaration-is-used`). Neither the runtime nor name
+resolution ever reads `package.toml`.
 
 **Every package and registry command a user types is a subcommand of `nvs pkg`**: `add`, `fetch`,
 `update`, `outdated`, `vendor`, `audit`, `publish`, `retract`, `unlist`, `login`, `whoami`, `api`,
@@ -22,13 +24,14 @@ ordinary `autoload` line (`rule:packaging/a-fetched-package-is-an-autoload-line`
 included, and never rewrite a line a person already edited. A person reviews and edits the lines. The
 operator's `nvs.toml` can only narrow what they grant. A package's own `package.toml` declares its name,
 version, dependencies and the capabilities it requests, split into `required` and `optional`
-(`rule:security/optional-capability-degrades`); the compiler reads that name and that split for a file
-inside the package, and nothing else of a package's file.
+(`rule:security/optional-capability-degrades`); the compiler reads that name, that split and the
+package's `[[restrict]]` for a file inside the package, and nothing else of a package's file.
 
-**Only the grants fold into the cache key.** Every compiled unit's key carries the grant table and the
-capability declarations it is intersected with, the way it carries the extension set
-(`rule:config/the-extension-set-is-in-every-unit-key`), so an edited grant line is an ordinary cache
-miss. A changed version, dependency or comment changes no key, because none of them changes what
+**Only the grants and the restrictions fold into the cache key.** Every compiled unit's key carries
+the grant table, the capability declarations it is intersected with and every `[[restrict]]` table
+the program read, the way it carries the extension set
+(`rule:config/the-extension-set-is-in-every-unit-key`), so an edited grant line or restriction is an
+ordinary cache miss. A changed version, dependency or comment changes no key, because none of them changes what
 compiles.
 
 Every `nvs pkg` command finds the file by walking up from the working directory, the way `git` finds

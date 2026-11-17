@@ -834,7 +834,9 @@ parameter. `$params` defaults to `[]`, so a route with no captures is linked as 
 
 **A reference passed as a value**, such as a menu entry built elsewhere, is resolved when the call
 runs, and the call throws when the method has no route. A computed `$params` is not checked at all —
-there are no keys to read.
+there are no keys to read. The table is on every program's context, with or without a request, so
+the same reference finds its route under `nvs run`, in a served request, and in a test, its fixtures
+and its class hooks under `nvs test`.
 
 **A link calls nothing**, so an instance method needs no object (`App::show` names it whether or not
 it is `static`), and its visibility is not checked: a `private` handler is linked to like a `public`

@@ -9,8 +9,10 @@
 //! 'Acme\Http\Cache' = []              # this one namespace, granted nothing
 //! ```
 //!
-//! **This module reads `[grants]` and nothing else of the file**
-//! (`rule:packaging/package-toml-is-a-tool-input`). Every other table is the `nvs pkg` commands',
+//! **This module reads `[grants]`, and `crate::restrict` reads `[[restrict]]` beside it, and
+//! nothing else of the file is read** (`rule:packaging/package-toml-is-a-tool-input`). The table
+//! holds the application's restrictions and, once the compiler has placed the program's files,
+//! each package's ([`Grants::set_restrictions`]). Every other table is the `nvs pkg` commands',
 //! and an unknown one there is their refusal to make, not this one's. The file is found by walking
 //! up from a directory, the way `git` finds `.git` ([`find`]); a tree with no `package.toml` has
 //! an empty table, and so does a file with no `[grants]`.
@@ -50,6 +52,7 @@ use serde::Deserialize;
 use toml::Spanned;
 
 use crate::capability::Cap;
+use crate::restrict::{self, Restrictions};
 
 /// The file name [`find`] looks for.
 pub const FILE: &str = "package.toml";
@@ -73,6 +76,9 @@ pub struct Grants {
     /// Each package's name and the files its own code may read with no grant, sorted by name.
     /// Read by [`Self::digest`] alone.
     files: Vec<(String, Vec<String>)>,
+    /// The application file's `[[restrict]]` entries, then each package's
+    /// ([`Self::set_restrictions`]). `crate::cache` folds their digest in beside [`Self::digest`].
+    restrictions: Restrictions,
 }
 
 /// One line of the table: a key and the capabilities it grants.
@@ -142,6 +148,7 @@ pub static EMPTY: Grants = Grants {
     file: None,
     optional: Vec::new(),
     files: Vec::new(),
+    restrictions: Restrictions::new(),
 };
 
 impl Grants {
@@ -156,7 +163,8 @@ impl Grants {
     ///
     /// # Errors
     ///
-    /// A file that cannot be read, or one whose `[grants]` table [`Self::parse`] refuses.
+    /// A file that cannot be read, or one whose `[grants]` or `[[restrict]]` table
+    /// [`Self::parse`] refuses.
     pub fn read(start: &Path, sources: &mut SourceMap) -> Result<Self, Diagnostic> {
         let mut found = None;
         for candidate in start.ancestors().map(|dir| dir.join(FILE)) {
@@ -176,26 +184,28 @@ impl Grants {
             )
             .with_note("the compiler reads the `[grants]` table of this file".to_owned())
         })?;
-        let mut grants = Self::parse_in(id, sources.file(id).text())?;
+        let label = path.display().to_string();
+        let mut grants = Self::parse_in(id, sources.file(id).text(), &label)?;
         grants.file = Some(path);
         Ok(grants)
     }
 
-    /// The `[grants]` table of `text`, a `package.toml` registered in `sources` as `name`.
+    /// The `[grants]` and `[[restrict]]` tables of `text`, a `package.toml` registered in
+    /// `sources` as `name`.
     ///
     /// # Errors
     ///
     /// A file that is not TOML, a `[grants]` that is not a table of lists, a capability not on
     /// the roster, or a key that is not a namespace: [`code::E_BAD_GRANT`]. A key under `Core`:
     /// [`code::E_GRANT_UNDER_CORE`]. Two keys that match identically:
-    /// [`code::E_GRANT_KEYS_TIE`].
+    /// [`code::E_GRANT_KEYS_TIE`]. A broken `[[restrict]]` entry: [`code::E_BAD_RESTRICTION`].
     pub fn parse(sources: &mut SourceMap, name: &str, text: &str) -> Result<Self, Diagnostic> {
         let id = sources.add(name, text);
-        Self::parse_in(id, text)
+        Self::parse_in(id, text, name)
     }
 
-    /// [`Self::parse`] over `text`, already in the caller's map as `id`.
-    fn parse_in(id: SourceId, text: &str) -> Result<Self, Diagnostic> {
+    /// [`Self::parse`] over `text`, already in the caller's map as `id` and named `name`.
+    fn parse_in(id: SourceId, text: &str, name: &str) -> Result<Self, Diagnostic> {
         let (file, _) = crate::file::parse_at::<File>(id, text)
             .map_err(|refused| refused.with_code(code::E_BAD_GRANT))?;
         let mut lines: Vec<_> = file.grants.into_iter().collect();
@@ -209,12 +219,26 @@ impl Grants {
             }
             keys.insert(slot, (grant, written));
         }
+        let mut restrictions = Restrictions::new();
+        restrictions.set_packages(restrict::parse(id, text, name, None)?);
         Ok(Self {
             keys: keys.into_values().map(|(grant, _)| grant).collect(),
             file: None,
             optional: Vec::new(),
             files: Vec::new(),
+            restrictions,
         })
+    }
+
+    /// Every `[[restrict]]` entry: the application file's, then each package's.
+    #[must_use]
+    pub fn restrictions(&self) -> &Restrictions {
+        &self.restrictions
+    }
+
+    /// Replaces the packages' `[[restrict]]` entries with `entries`, keeping the application's.
+    pub fn set_restrictions(&mut self, entries: impl IntoIterator<Item = restrict::Restriction>) {
+        self.restrictions.set_packages(entries);
     }
 
     /// The line that holds for a declaration in `namespace`, or `None` when no key matches and
@@ -327,7 +351,8 @@ pub fn find(start: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// The part of `package.toml` this module reads. Every other table is left to `nvs pkg`.
+/// The part of `package.toml` this module reads. [`restrict`] reads `[[restrict]]`, and every
+/// other table is left to `nvs pkg`.
 #[derive(Deserialize)]
 struct File {
     #[serde(default)]

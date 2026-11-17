@@ -1,0 +1,19 @@
+{
+  "title": "A `[[restrict]]` table in `package.toml` limits where a class, method or namespace may be used, at compile time and only ever narrowing",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/package-toml-is-a-tool-input",
+    "packaging/a-package-file-stays-under-its-declared-prefix",
+    "packaging/only-a-major-may-break-the-api",
+    "security/longest-prefix-wins",
+    "security/authority-is-the-enclosing-namespace",
+    "attributes/a-deprecation-names-its-replacement-as-code",
+    "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "config/the-extension-set-is-in-every-unit-key"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/restrict.rs",
+    "crates/nvs-config/tests/restrict.rs"
+  ],
+  "goal": "restrict"
+}
