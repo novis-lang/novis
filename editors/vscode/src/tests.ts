@@ -17,6 +17,14 @@
 // rather than on activation, because a workspace's programs are not the editor's business until
 // somebody asks what tests it holds.
 //
+// **A project is one program, as `nvs test .` runs it.** Each `.nvs` file belongs to the deepest
+// workspace folder or folder holding `nvs.toml` or `package.toml` above it, and that folder is listed
+// and run as one program (`rule:testing/a-directory-of-programs-is-one-test-program`), in the folder
+// itself so its `nvs.toml` is read. That is what gives a test file its bootstrap's `autoload` map and
+// a test request the folder's `public/index.nvs`; a test file run alone has neither. A folder whose
+// files do not compile together, such as a folder of separate examples, or one that also holds
+// `.nvst` cases, lists each of its files as a program of its own instead.
+//
 // **Two suites, because there are two.** A program's `#[Test]` methods and the `.nvst` corpus
 // report differently and share no summary (`rule:testing/nvst-is-separate`), and the CLI refuses a
 // machine format over a case tree for exactly that reason — so the corpus half is one process per
@@ -39,7 +47,7 @@
 
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 
 import {
   BranchCoverage,
@@ -78,11 +86,13 @@ import {
   listed,
   messages,
   name,
+  owner,
   ran,
   state,
   statements,
   suites,
   traced,
+  written,
 } from "./report";
 
 /** The controller's id, and the `testing` view's grouping key for everything below it. */
@@ -91,8 +101,9 @@ export const CONTROLLER = "nvs";
 /** The item every `.nvst` case hangs under: the second suite, named as one. */
 export const CORPUS = "nvst";
 
-/** Where a program is found, and what is never walked looking for one. */
+/** Where a program is found, where a project starts, and what is never walked looking for either. */
 const PROGRAMS = "**/*.nvs";
+const PROJECTS = "**/{nvs,package}.toml";
 const EXCLUDED = "**/{node_modules,target,.git}/**";
 
 // A JSON report of a large suite is larger than the program that produced it, and Node caps a
@@ -100,8 +111,22 @@ const EXCLUDED = "**/{node_modules,target,.git}/**";
 // for as long as the view is open, which is the memory this feature spends and all of it.
 const OUTPUT_CEILING = 64 * 1024 * 1024;
 
-/** What a program's listing said, kept so a run can tell a filtered request from a whole file. */
-const known = new Map<string, Listed[]>();
+/** What `nvs` printed and what it exited with. */
+interface Output {
+  stdout: string;
+  stderr: string;
+  code: number;
+}
+
+/** One program in the tree: the file or folder `nvs test` is given, the folder it runs in, and its listing. */
+interface Program {
+  path: string;
+  cwd: string;
+  listed: Listed[];
+}
+
+/** Every program in the tree by its item's id, kept so a run can tell a filtered request from a whole program. */
+const known = new Map<string, Program>();
 
 // The details behind each `FileCoverage` a run added, read back when the user opens that file's
 // coverage. A run's details live as long as the editor keeps the run's coverage.
@@ -188,29 +213,62 @@ async function runTests(
 }
 
 /**
- * Fill the tree: every program's `#[Test]` table, then the `.nvst` corpus beside it.
+ * Fill the tree: every project's `#[Test]` table, then the `.nvst` corpus beside it.
  *
  * A program that lists nothing gets no item rather than an empty one — a workspace is mostly files
- * with no tests in them, and a tree of empty nodes is a tree nobody can read.
+ * with no tests in them, and a tree of empty nodes is a tree nobody can read. A folder's listing
+ * keeps only the tests written in files it owns, because a folder program also compiles the files
+ * of a project nested in it, and that project runs as its own program.
  */
 async function discover(controller: TestController): Promise<void> {
   known.clear();
   controller.items.replace([]);
+  const folders = (workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath);
+  const markers = await workspace.findFiles(PROJECTS, EXCLUDED);
+  const roots = [...new Set([...folders, ...markers.map((uri) => dirname(uri.fsPath))])];
+  const owned = new Map<string, Uri[]>();
   for (const uri of await workspace.findFiles(PROGRAMS, EXCLUDED)) {
-    const document = await cli(["test", "--list", "--format=json", uri.fsPath]);
+    const root = owner(roots, uri.fsPath) ?? dirname(uri.fsPath);
+    owned.set(root, [...(owned.get(root) ?? []), uri]);
+  }
+  // A workspace folder's listing is asked for twice, as a program and as a case tree, and runs once.
+  const listings = new Map<string, Promise<Output | undefined>>();
+  const list = (path: string, cwd: string): Promise<Output | undefined> => {
+    const asked = listings.get(path) ?? cli(["test", "--list", "--format=json", path], cwd);
+    listings.set(path, asked);
+    return asked;
+  };
+  for (const [root, files] of [...owned].sort(([a], [b]) => a.localeCompare(b))) {
+    const document = await list(root, root);
     const declared = document === undefined ? undefined : listed(document.stdout);
-    if (declared === undefined || declared.length === 0) {
+    if (declared !== undefined) {
+      const mine = declared.filter(
+        (test) => test.file === null || owner(roots, resolve(root, test.file)) === root,
+      );
+      if (mine.length > 0) {
+        const uri = Uri.file(root);
+        known.set(uri.toString(), { path: root, cwd: root, listed: mine });
+        controller.items.add(populate(controller, uri, label(root), mine, root));
+      }
       continue;
     }
-    known.set(uri.toString(), declared);
-    controller.items.add(populate(controller, uri, declared));
+    // A case tree, or a folder whose files are separate programs: each file is listed alone.
+    for (const uri of files) {
+      const alone = await list(uri.fsPath, root);
+      const tests = alone === undefined ? undefined : listed(alone.stdout);
+      if (tests === undefined || tests.length === 0) {
+        continue;
+      }
+      known.set(uri.toString(), { path: uri.fsPath, cwd: root, listed: tests });
+      controller.items.add(populate(controller, uri, basename(uri), tests, root));
+    }
   }
   // The CLI walks each workspace folder for its cases. A folder with any `.nvst` file in it is a
   // case tree under `--list` (`crates/nvs-cli/src/main.rs`, `run_test`), so the corpus is the
   // listing's records and nothing this client searched for.
   const found: Uri[] = [];
-  for (const folder of workspace.workspaceFolders ?? []) {
-    const document = await cli(["test", "--list", "--format=json", folder.uri.fsPath]);
+  for (const folder of folders) {
+    const document = await list(folder, folder);
     const named = document === undefined ? undefined : cases(document.stdout);
     found.push(...(named ?? []).map((path) => Uri.file(path)));
   }
@@ -224,29 +282,57 @@ async function discover(controller: TestController): Promise<void> {
 }
 
 /**
- * One program's item: the file, its classes, and a leaf per listed test at the line it is written
- * on.
+ * One program's item: the file or folder, under a folder each file that holds tests, then its
+ * classes, and a leaf per listed test at the line it is written on.
  *
- * The class is the only grouping the document offers, and `report.ts` owns why that is the whole
- * tree. A record with no location keeps its leaf and gets no range, because a test the compiler
- * could not place still runs.
+ * The class is the grouping the document offers, and `report.ts` owns why a file adds nothing more.
+ * Every class and leaf id starts with the program's id, which is how a run finds the program that
+ * answers for a leaf. A record with no location keeps its leaf and gets no range, because a test
+ * the compiler could not place still runs.
  */
-function populate(controller: TestController, uri: Uri, tests: Listed[]): TestItem {
-  const file = controller.createTestItem(uri.toString(), basename(uri), uri);
-  for (const suite of suites(tests)) {
-    const held = controller.createTestItem(`${uri.toString()}::${suite.class}`, suite.class, uri);
+function populate(
+  controller: TestController,
+  uri: Uri,
+  title: string,
+  tests: Listed[],
+  cwd: string,
+): TestItem {
+  const key = uri.toString();
+  const top = controller.createTestItem(key, title, uri);
+  for (const group of written(tests, cwd)) {
+    const file = group.file === null ? uri : Uri.file(group.file);
+    if (file.toString().toLowerCase() === key.toLowerCase()) {
+      classes(controller, key, file, group.tests).forEach((held) => top.children.add(held));
+      continue;
+    }
+    const held = controller.createTestItem(`${key}|${file.toString()}`, basename(file), file);
+    classes(controller, key, file, group.tests).forEach((suite) => held.children.add(suite));
+    top.children.add(held);
+  }
+  return top;
+}
+
+/** The class items of one file's tests, each with a leaf per test, all ids under `key`. */
+function classes(controller: TestController, key: string, uri: Uri, tests: Listed[]): TestItem[] {
+  return suites(tests).map((suite) => {
+    const held = controller.createTestItem(`${key}::${suite.class}`, suite.class, uri);
     for (const test of suite.tests) {
-      const leaf = controller.createTestItem(
-        `${uri.toString()}::${name(test)}`,
-        test.method,
-        uri,
-      );
+      const leaf = controller.createTestItem(`${key}::${name(test)}`, test.method, uri);
       leaf.range = located(test);
       held.children.add(leaf);
     }
-    file.children.add(held);
+    return held;
+  });
+}
+
+/** A project folder's label: its path inside its workspace folder, or that folder's name. */
+function label(root: string): string {
+  const folder = workspace.getWorkspaceFolder(Uri.file(root));
+  if (folder === undefined) {
+    return root;
   }
-  return file;
+  const path = relative(folder.uri.fsPath, root).split(sep).join("/");
+  return path === "" ? folder.name : path;
 }
 
 /**
@@ -276,7 +362,7 @@ async function perform(
     if (file === CORPUS) {
       await corpus(run, items);
     } else {
-      await program(run, Uri.parse(file), items, coverage);
+      await program(run, file, items, coverage);
     }
   }
   run.end();
@@ -286,8 +372,10 @@ async function perform(
  * One program's run: the JSON report, mapped back onto the items that asked for it, and under the
  * Coverage profile the lcov file the same run wrote.
  */
-async function program(run: TestRun, uri: Uri, items: TestItem[], coverage: boolean): Promise<void> {
-  const wanted = known.get(uri.toString()) ?? [];
+async function program(run: TestRun, key: string, items: TestItem[], coverage: boolean): Promise<void> {
+  const path = known.get(key)?.path ?? Uri.parse(key).fsPath;
+  const folder = known.get(key)?.cwd ?? dirname(path);
+  const wanted = known.get(key)?.listed ?? [];
   const narrowed = filter(
     wanted.filter((test) => items.some((item) => item.id.endsWith(`::${name(test)}`))),
     wanted,
@@ -295,22 +383,22 @@ async function program(run: TestRun, uri: Uri, items: TestItem[], coverage: bool
   for (const item of items) {
     run.started(item);
   }
-  const argv = ["test", "--format=json", uri.fsPath];
+  // The run starts in the program's project folder, so the `nvs.toml` there is the one it reads.
+  const argv = ["test", "--format=json", path];
   const asked = narrowed === undefined ? argv : [...argv, "--filter", narrowed];
   if (!coverage) {
-    answer(run, items, await cli(asked));
+    answer(run, items, await cli(asked, folder));
     return;
   }
-  // The tracefile names each file relative to the directory the run starts in, so the run starts
-  // in the program's workspace folder and every name is resolved against that folder.
-  const folder = workspace.getWorkspaceFolder(uri)?.uri.fsPath ?? dirname(uri.fsPath);
+  // The tracefile names each file relative to the directory the run starts in, so every name is
+  // resolved against that folder.
   await mkdir(storage, { recursive: true });
   const scratch = await mkdtemp(join(storage, "coverage-"));
   try {
     const tracefile = join(scratch, "coverage.lcov");
     const document = await cli([...asked, "--coverage-lcov", tracefile], folder);
     answer(run, items, document);
-    await keep(uri, folder, scratch, document?.stdout);
+    await keep(path, folder, scratch, document?.stdout);
     const files = traced(await readFile(tracefile, "utf8").catch(() => ""));
     for (const trace of files ?? []) {
       run.addCoverage(covered(Uri.file(resolve(folder, trace.file)), trace));
@@ -327,12 +415,12 @@ async function program(run: TestRun, uri: Uri, items: TestItem[], coverage: bool
  * of some tests replaces a report of all of them, so a lens counts only the tests that run covered.
  * The server is not asked to refresh its lenses, so a new count shows at the next edit.
  */
-async function keep(uri: Uri, folder: string, scratch: string, stdout?: string): Promise<void> {
+async function keep(program: string, folder: string, scratch: string, stdout?: string): Promise<void> {
   const report = stdout === undefined ? undefined : kept(stdout, folder);
   if (report === undefined) {
     return;
   }
-  const name = keptName(uri.fsPath);
+  const name = keptName(program);
   const partial = join(scratch, name);
   try {
     await mkdir(reports, { recursive: true });
@@ -457,8 +545,9 @@ function leaves(controller: TestController, request: TestRunRequest): TestItem[]
 /**
  * The queued leaves grouped by the process that will answer for them.
  *
- * A program's leaves share their file's uri; every `.nvst` case is its own file and is grouped
- * under the corpus instead, because the run below spawns one process per case either way.
+ * A program's leaves share their program's id, the file or folder `nvs test` is given; every
+ * `.nvst` case is its own file and is grouped under the corpus instead, because the run below
+ * spawns one process per case either way.
  */
 function byFile(items: TestItem[]): Map<string, TestItem[]> {
   const grouped = new Map<string, TestItem[]>();
@@ -470,10 +559,7 @@ function byFile(items: TestItem[]): Map<string, TestItem[]> {
 }
 
 /** What `nvs` printed and what it exited with, or nothing when it did not run at all. */
-async function cli(
-  args: string[],
-  cwd?: string,
-): Promise<{ stdout: string; stderr: string; code: number } | undefined> {
+async function cli(args: string[], cwd?: string): Promise<Output | undefined> {
   const { command } = await runnable();
   return new Promise((resolve) => {
     execFile(

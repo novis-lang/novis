@@ -100,7 +100,7 @@ describe("the lens click", () => {
   it("runs through the Run profile, and a coverage run keeps its report", () => {
     const client = source("tests.ts");
     assert.match(client, /new TestRunRequest\(matched, undefined, profile\)/);
-    assert.match(client, /await keep\(uri, folder, scratch, document\?\.stdout\)/);
+    assert.match(client, /await keep\(path, folder, scratch, document\?\.stdout\)/);
     assert.match(client, /await rename\(partial, join\(reports, name\)\)/);
     assert.match(source("extension.ts"), /initializationOptions: withCoverage\(/);
   });

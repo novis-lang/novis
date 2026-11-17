@@ -26,9 +26,11 @@ import {
   listed,
   messages,
   name,
+  owner,
   ran,
   state,
   suites,
+  written,
 } from "../../src/report";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
@@ -153,6 +155,37 @@ describe("the test explorer", () => {
     assert.equal(filter([tests[2]], tests), "GreetingTest::aGreetingIsItsOwnName");
     assert.equal(filter(tests.slice(0, 2), tests), "CountingTest::");
     assert.equal(filter([tests[0], tests[2]], tests), undefined);
+  });
+
+  it("lists and runs a project folder as one program, as nvs test . does", () => {
+    // The deepest root above a file owns it, so a project nested in a workspace is its own program.
+    const roots = [resolve("/work"), resolve("/work/apps/shop"), resolve("/work/apps/shop-admin")];
+    assert.equal(owner(roots, resolve("/work/apps/shop/tests/CartTest.nvs")), roots[1]);
+    assert.equal(owner(roots, resolve("/work/apps/shop-admin/AdminTest.nvs")), roots[2]);
+    assert.equal(owner(roots, resolve("/work/tools/build.nvs")), roots[0]);
+    assert.equal(owner(roots, resolve("/elsewhere/a.nvs")), undefined);
+    // Windows gives one drive letter in two cases, and both name the same folder.
+    if (process.platform === "win32") {
+      assert.equal(owner(["E:\\work"], "e:\\work\\a.nvs"), "E:\\work");
+    }
+
+    // A folder's records are grouped by the file each test is written in, names resolved against
+    // the folder the listing ran in.
+    const tests = listed(LIST) as Listed[];
+    const groups = written([...tests, synthetic("passed")], ROOT);
+    assert.deepEqual(
+      groups.map((group) => [group.file, group.tests.length]),
+      [
+        [resolve(ROOT, "editors/vscode/test/surfaces/recorded/suite.nvs"), 4],
+        [null, 1],
+      ],
+    );
+
+    // The folder is the path a run is given and the folder it starts in, so its `nvs.toml` is read
+    // and a test request reaches its `public/index.nvs`.
+    assert.ok(/"--format=json", path\]/.test(CLIENT), "a run is not given the program's path");
+    assert.ok(/cli\(asked, folder\)/.test(CLIENT), "a run does not start in the project folder");
+    assert.ok(/nvs,package\}\.toml/.test(CLIENT), "a project is not found by its nvs.toml");
   });
 
   it("holds the .nvst corpus as a second suite in the same controller", () => {

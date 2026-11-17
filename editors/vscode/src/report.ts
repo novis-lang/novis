@@ -21,7 +21,7 @@
 // absolute and `keptName` is the one file per program it is written to. Neither reads the disk.
 
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 /** Where a test is written, as version 2 of the schema reports it — `null` in all three when the compiler could not place it. */
 export interface Located {
@@ -170,6 +170,50 @@ export function suites<T extends Listed>(tests: T[]): Suite<T>[] {
     }
   }
   return grouped;
+}
+
+/** The tests of one file, in the order the document listed them. `null` when it could not be placed. */
+export interface Written<T extends Listed> {
+  file: string | null;
+  tests: T[];
+}
+
+/**
+ * A folder program's listed tests grouped under the file each is written in, both in the
+ * document's own order, with every name resolved against `folder`.
+ */
+export function written<T extends Listed>(tests: T[], folder: string): Written<T>[] {
+  const grouped: Written<T>[] = [];
+  for (const test of tests) {
+    const file = test.file === null ? null : resolve(folder, test.file);
+    const held = grouped.find((group) => group.file === file);
+    if (held === undefined) {
+      grouped.push({ file, tests: [test] });
+    } else {
+      held.tests.push(test);
+    }
+  }
+  return grouped;
+}
+
+/**
+ * The folder whose program `file` belongs to: the deepest of `roots` at or above it, or nothing
+ * when none is.
+ *
+ * A root is a workspace folder or a folder that holds `nvs.toml` or `package.toml`, the project
+ * bound `nvs check` uses (`rule:ide/an-autoloaded-file-borrows-its-programs-map`). Paths compare
+ * without case, because Windows reports one drive letter in two cases.
+ */
+export function owner(roots: string[], file: string): string | undefined {
+  let found: string | undefined;
+  for (const root of roots) {
+    const path = relative(root.toLowerCase(), file.toLowerCase());
+    const inside = path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+    if (inside && (found === undefined || root.length > found.length)) {
+      found = root;
+    }
+  }
+  return found;
 }
 
 /**
