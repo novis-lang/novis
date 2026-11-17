@@ -21,3 +21,7 @@ when to ask.
   mint one for another program's route would cross the isolation boundary between the two. The
   module that declares the route signs its own links. `signedRoute` takes no route, so it has no such
   call.
+- **Default keys and a default lifetime from the configuration** (`[router.signed]` naming a secret
+  and a `valid_for`). It would tie `Core` to one secret's name and to a text format for a key ring,
+  and add a configuration surface for what one function of the application's own already does. A
+  framework that rotates its keys owns its signer, and its defaults live in that signer.
