@@ -27,8 +27,11 @@
 //!
 //! **What it spends**, per `rule:programs/memory-priority`: one [`Scanner`]
 //! of about a hundred bytes per connection, held for the connection's life,
-//! and one pass over each head's bytes on the read that brings them. A body is
-//! skipped by its length, except for each chunk's size line.
+//! and one search per line of a head for the CR or LF that ends it. Only a
+//! line that can be `Content-Length` or `Transfer-Encoding` is stepped through
+//! a byte at a time, with each line's ending and the bytes that tell the other
+//! lines apart from those two. A body is skipped by its length, except for each
+//! chunk's size line, and a trailer line is searched like a head line.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -38,6 +41,22 @@ use std::rc::Rc;
 /// of either is one the scanner cannot read, and stops on, except that a comma
 /// anywhere in a `Content-Length` line is seen whether it was kept or not.
 const LINE: usize = 64;
+
+/// How the two header lines that frame a body start, with their colon.
+const FRAMING: [&[u8]; 2] = [b"content-length:", b"transfer-encoding:"];
+
+/// The length of the longer of [`FRAMING`]. A line kept this far that still
+/// matches one of them is a framing line.
+const FRAMING_LONGEST: usize = b"transfer-encoding:".len();
+
+/// Whether a head line that starts with `prefix` can be a framing line,
+/// with header names compared without case.
+fn may_frame(prefix: &[u8]) -> bool {
+    FRAMING.iter().any(|name| {
+        let shared = prefix.len().min(name.len());
+        prefix[..shared].eq_ignore_ascii_case(&name[..shared])
+    })
+}
 
 /// What the scanner has found on one connection, shared with the service that
 /// answers its requests.
@@ -127,7 +146,13 @@ pub struct Scanner {
     long: bool,
     /// Whether the line being read has a comma in it, kept or not.
     comma: bool,
+    /// Whether the head line being read is known not to be a framing line.
+    /// Its bytes up to its CR or LF are then skipped and not kept.
+    plain: bool,
     framing: Framing,
+    /// How many bytes [`Scanner::step`] has read one at a time.
+    #[cfg(test)]
+    stepped: usize,
 }
 
 impl Default for Scanner {
@@ -141,7 +166,10 @@ impl Default for Scanner {
             len: 0,
             long: false,
             comma: false,
+            plain: false,
             framing: Framing::default(),
+            #[cfg(test)]
+            stepped: 0,
         }
     }
 }
@@ -155,7 +183,49 @@ impl Scanner {
 
     /// Reads the next bytes the connection received, in the order it received
     /// them.
+    ///
+    /// A head line that cannot be a framing line, and a trailer line, are
+    /// skipped up to their first CR or LF with one search. That byte and all
+    /// the others outside a body's data go through [`Scanner::step`], so a
+    /// bare LF or a stray CR is found as it is found a byte at a time.
     pub fn feed(&mut self, mut bytes: &[u8]) {
+        while let Some((&byte, rest)) = bytes.split_first() {
+            match self.state {
+                State::Stopped => return,
+                State::Sized(left) | State::ChunkData(left) => {
+                    let skipped = usize::try_from(left).unwrap_or(usize::MAX).min(bytes.len());
+                    let left = left - skipped as u64;
+                    bytes = &bytes[skipped..];
+                    self.state = match self.state {
+                        State::Sized(_) if left == 0 => self.next_head(),
+                        State::Sized(_) => State::Sized(left),
+                        _ if left == 0 => State::ChunkEnd,
+                        _ => State::ChunkData(left),
+                    };
+                    continue;
+                }
+                State::Head | State::Trailers { started: true } if self.skips_line() => {
+                    let end = bytes
+                        .iter()
+                        .position(|&byte| byte == b'\r' || byte == b'\n')
+                        .unwrap_or(bytes.len());
+                    if end > 0 {
+                        bytes = &bytes[end..];
+                        continue;
+                    }
+                    self.step_counted(byte);
+                }
+                _ => self.step_counted(byte),
+            }
+            bytes = rest;
+        }
+    }
+
+    /// Reads every byte outside a body's data through [`Scanner::step`], with
+    /// no search for line ends. It is the reference the tests compare
+    /// [`Scanner::feed`] with.
+    #[cfg(test)]
+    fn feed_bytewise(&mut self, mut bytes: &[u8]) {
         while let Some((&byte, rest)) = bytes.split_first() {
             match self.state {
                 State::Stopped => return,
@@ -174,6 +244,36 @@ impl Scanner {
                 _ => self.step(byte),
             }
             bytes = rest;
+        }
+    }
+
+    /// Whether the bytes up to the next CR or LF can be skipped: the line is a
+    /// head line known not to frame a body, or a trailer line, and no CR is
+    /// waiting for its LF.
+    fn skips_line(&self) -> bool {
+        !self.cr
+            && match self.state {
+                State::Head => self.plain,
+                State::Trailers { started } => started,
+                _ => false,
+            }
+    }
+
+    /// One byte through [`Scanner::step`], and then whether the head line it
+    /// is in can still be a framing line.
+    fn step_counted(&mut self, byte: u8) {
+        self.step(byte);
+        #[cfg(test)]
+        {
+            self.stepped += 1;
+        }
+        if self.state == State::Head
+            && !self.plain
+            && self.len > 0
+            && self.len <= FRAMING_LONGEST
+            && !self.long
+        {
+            self.plain = self.request_line || !may_frame(&self.line[..self.len]);
         }
     }
 
@@ -277,12 +377,13 @@ impl Scanner {
             self.end_head();
         } else if self.request_line {
             self.request_line = false;
-        } else {
+        } else if !self.plain {
             self.header_line();
         }
         self.len = 0;
         self.long = false;
         self.comma = false;
+        self.plain = false;
     }
 
     /// A header line, read for the two framing headers and nothing else.
@@ -364,7 +465,7 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
-    use super::Scanner;
+    use super::{Scanner, State};
 
     /// The scanner's verdict on each request `bytes` carry, in order, for as
     /// many requests as `count` names.
@@ -493,5 +594,126 @@ mod tests {
     #[test]
     fn a_head_not_yet_read_to_its_end_is_refused() {
         assert_eq!(verdicts(b"GET / HTTP/1.1\r\nHost: a\r\n", 1), vec![true]);
+    }
+
+    /// Every request the other tests in this file read, and a few more that
+    /// change the case of a framing header, share its first letters, or put a
+    /// CR or a bare LF inside a trailer.
+    const REQUESTS: &[&[u8]] = &[
+        b"GET / HTTP/1.1\r\nHost: a\r\n\r\n",
+        b"POST / HTTP/1.1\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nok",
+        b"POST / HTTP/1.1\r\nContent-Length: 2, 2\r\n\r\nok",
+        b"POST / HTTP/1.1\r\nContent-Length: 2                                                  , 2\r\n\r\nok",
+        b"GET / HTTP/1.1\nHost: a\r\n\r\n",
+        b"GET / HTTP/1.1\r\nHost: a\n\r\n",
+        b"GET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\nHost: a\n\r\n",
+        b"POST /a HTTP/1.1\r\nContent-Length: 5\r\n\r\nhelloGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nTransfer-Encoding: gzip, chunked\r\n\r\n5;x=y\r\nhello\r\nA\r\n0123456789\r\n0\r\nT: 1\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
+        b"POST / HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+        b"POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\nContent-Length: 5\r\n\r\n0\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nContent-Length: 3\r\n\r\na\nbGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\n\nGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nTransfer-Encoding: chunked, gzip\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nContent-Length: +5\r\n\r\nhelloGET /b HTTP/1.1\r\n\r\n",
+        b"GET / HTTP/1.1\r\nHost: a\r\n",
+        b"POST /a HTTP/1.1\r\ncontent-length: 2\r\nCONTENT-LENGTH: 2\r\n\r\nokGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\ntransfer-ENCODING: chunked\r\n\r\n0\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nContent-Type: text/plain\r\nTransfer-Encodings: x\r\nContent-Length: 2\r\n\r\nokGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nContent-Length : 2\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
+        b"GET / HTTP/1.1\r\nHost: a\rb\r\n\r\n",
+        b"GET /a\r HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nT: 1\nGET /b HTTP/1.1\r\n\r\n",
+        b"POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nT: 1\rx\r\n\r\nGET /b HTTP/1.1\r\n\r\n",
+        b"\r\n\r\nGET /a HTTP/1.1\r\nHost: a\r\n\r\nGET /b HTTP/1.1\r\nHost: b\r\n\r\n",
+    ];
+
+    /// What a scanner has found and where it is: the three counts in its
+    /// `Heads`, its state, and whether a CR or the request line is pending.
+    type Outcome = (u64, Option<u64>, Option<u64>, State, bool, bool);
+
+    /// The [`Outcome`] of `scanner` now.
+    fn outcome(scanner: &Scanner) -> Outcome {
+        let heads = scanner.heads();
+        (
+            heads.clean.get(),
+            heads.defect.get(),
+            heads.lost.get(),
+            scanner.state,
+            scanner.cr,
+            scanner.request_line,
+        )
+    }
+
+    /// `feed` gives the same counts and state as the byte-at-a-time reader,
+    /// after the first part of a request and after all of it, wherever the
+    /// request is split in two. It does the same when fed one byte per call.
+    #[test]
+    fn the_line_scanner_agrees_with_the_byte_scanner_on_every_split() {
+        for request in REQUESTS {
+            let shown = String::from_utf8_lossy(request);
+            for split in 0..=request.len() {
+                let (first, second) = request.split_at(split);
+                let mut reference = Scanner::default();
+                let mut scanner = Scanner::default();
+                reference.feed_bytewise(first);
+                scanner.feed(first);
+                assert_eq!(
+                    outcome(&scanner),
+                    outcome(&reference),
+                    "{shown:?}, the first {split} bytes"
+                );
+                reference.feed_bytewise(second);
+                scanner.feed(second);
+                assert_eq!(
+                    outcome(&scanner),
+                    outcome(&reference),
+                    "{shown:?}, split after {split} bytes"
+                );
+            }
+            let mut reference = Scanner::default();
+            reference.feed_bytewise(request);
+            let mut scanner = Scanner::default();
+            for byte in *request {
+                scanner.feed(std::slice::from_ref(byte));
+            }
+            assert_eq!(
+                outcome(&scanner),
+                outcome(&reference),
+                "{shown:?}, a byte at a time"
+            );
+        }
+    }
+
+    /// One read of a head with four ordinary headers and a `Content-Length`
+    /// line. The bytes read one at a time are exactly these: the whole
+    /// `Content-Length` line, the first byte of the request line and of each
+    /// ordinary header (which already rules out a framing header), the CR
+    /// and LF that end every line, and the empty line's CR and LF. The body
+    /// is skipped by its length.
+    #[test]
+    fn the_line_scanner_looks_at_one_byte_at_a_time_only_in_a_framing_line() {
+        let framing_line: &[u8] = b"Content-Length: 5";
+        let request: &[u8] = b"POST /upload/a/longer/path HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            User-Agent: example-client/1.0 (a longer product string)\r\n\
+            Accept: text/html, application/json;q=0.9, */*;q=0.8\r\n\
+            Accept-Language: en-US, en;q=0.9, de;q=0.5\r\n\
+            Content-Length: 5\r\n\
+            \r\n\
+            hello";
+        let mut scanner = Scanner::default();
+        scanner.feed(request);
+        assert!(!scanner.heads().refused(0));
+        assert!(scanner.heads().refused(1));
+        let other_lines = 5;
+        let expected = framing_line.len() + 2 + other_lines * (1 + 2) + 2;
+        assert_eq!(scanner.stepped, expected);
+        assert!(
+            scanner.stepped * 4 < request.len(),
+            "{} of {}",
+            scanner.stepped,
+            request.len()
+        );
     }
 }
