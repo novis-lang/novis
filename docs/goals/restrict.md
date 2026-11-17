@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/grants.rs, crates/nvs-config/src/package.rs, cra
 stages:
   - id: 1
     title: the table is read from the application's file and each package's, and a broken table is an error where it is written
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/manifest.rs, crates/nvs-config/src/cache.rs, crates/nvs-diagnostics/src/code/config.rs, crates/nvs-diagnostics/src/code/mod.rs, docs/rules/security/grants-are-keyed-on-a-namespace.md, docs/rules/security/longest-prefix-wins.md]
   - id: 2
     title: a use outside the allowed places does not compile
@@ -255,10 +255,20 @@ key at `crates/nvs-config/src/cache.rs:225`. The restriction tables fold in besi
 of every table the program read, so an edited line is an ordinary cache miss. A program with no table
 keeps exactly its key today.
 
-**The codes.** `E0664` for a use outside the allowed places, `E0665` for a broken table entry,
-`E0666` for a replacement that does not compile, and the next free `W` code for a target in the
-application's file that names nothing, in `crates/nvs-diagnostics/src/code/config.rs` after `:922`,
-each with its card. If another goal took one first, take the next free number and fix this paragraph.
+**The codes.** `E0664` (`E_RESTRICTED_USE`) for a use outside the allowed places, `E0665`
+(`E_BAD_RESTRICTION`) for a broken table entry, `E0666` (`E_BAD_RESTRICTION_REPLACE`) for a
+replacement that does not compile, in `crates/nvs-diagnostics/src/code/config.rs`, and `W1031`
+(`W_RESTRICTION_NAMES_NOTHING`) in `warnings.rs` for a target in the application's file that names
+nothing. Each has its card.
+
+**Where the tables live in memory (stage 1's call).** `Grants` holds a `Restrictions`
+(`crates/nvs-config/src/restrict.rs`): the application file's entries from `Grants::parse`, then
+each loaded package's, which `crates/nvs-cli/src/main.rs` sets with `Grants::set_restrictions` beside
+`set_optional` and `set_files`. So the one value every compile already carries reaches the check pass
+and the cache key, and no second parameter is threaded through. A `Target` is `Name` (namespace,
+class or function: the file cannot tell which), `Subtree` or `Member`. Stage 2 resolves a `Name`
+against the program. `Restrictions::check_core` takes the `Core` lookup as a closure, because
+`nvs-config` cannot see `nvs_types::core_lib`; stage 2 calls it with that lookup.
 
 **The error's text** (end-user prose, `AGENTS.md` § *Text an end user reads*): first what is not
 allowed, then where it is allowed, then the note, then the source. For example: "`Core\Router::urlSigned`
@@ -291,26 +301,26 @@ where it is written, and folds the tables into the cache key.
 sentence "the compiler reads its `[grants]` table and nothing else" across `docs/` and `website/`
 (`path:line`, one line each). The session writes the code.
 
-- [ ] `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:1`: the new rule from
+- [x] `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:1`: the new rule from
   § *Standing decisions*, with its reasons, its memory line and its Declined list. One line in
   `docs/ground-rules.md`. `docs/rules/packaging/package-toml-is-a-tool-input.md:1` says the compiler
   reads `[[restrict]]` too, and each citation the subagent lists follows. `bun nv rules --check` is
   green.
-- [ ] `crates/nvs-config/src/restrict.rs:1`: the `Restriction` type (`use`, `allow`, `note`,
+- [x] `crates/nvs-config/src/restrict.rs:1`: the `Restriction` type (`use`, `allow`, `note`,
   `replace`, and the file and line it came from) and its parser, shared by both readers. The target
   and `allow` shapes are checked here: a name that is not a declaration name, a `\*` anywhere but the
   end, an unknown field.
-- [ ] `crates/nvs-config/src/grants.rs:192`: `Grants::parse` reads `[[restrict]]` from the
+- [x] `crates/nvs-config/src/grants.rs:192`: `Grants::parse` reads `[[restrict]]` from the
   application's file beside `[grants]`. `crates/nvs-config/src/package.rs:209`: the package `File`
   reads it from a package's file, and a package entry whose `allow` lies outside the package's name is
   `E0665`. `crates/nvs-cli/src/package/manifest.rs:280`: `Manifest` accepts the table, so `nvs pkg`
   does not refuse a file that has one.
-- [ ] `crates/nvs-config/src/cache.rs:225`: the restriction digest folds in beside the grants digest,
+- [x] `crates/nvs-config/src/cache.rs:225`: the restriction digest folds in beside the grants digest,
   and adds nothing to the key when no table exists.
-- [ ] `E0664`, `E0665`, `E0666` and the `W` code with their cards in
+- [x] `E0664`, `E0665`, `E0666` and the `W` code with their cards in
   `crates/nvs-diagnostics/src/code/config.rs:922`, listed in `ALL` at
   `crates/nvs-diagnostics/src/code/mod.rs:121`.
-- [ ] `crates/nvs-config/tests/restrict.rs:1`: the eight tests the `table-read` check names, run once
+- [x] `crates/nvs-config/tests/restrict.rs:1`: the eight tests the `table-read` check names, run once
   by name.
 
 ### 2. a use outside the allowed places does not compile
@@ -454,15 +464,35 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Written on 2026-11-17 from a design conversation with the person. Nothing is built yet. The person's
-calls are in § *Why*: the feature itself, narrowing only, the editor showing why at the use, the
-monorepo layout, and the full proofs. Every other choice in § *Standing decisions* is the authoring
-session's call under the priority ordering, and stands until the person picks another.
+Stage 1 is done, and its `table-read` check is green (eight tests in
+`crates/nvs-config/tests/restrict.rs`, run once by name). `crates/nvs-config/src/restrict.rs` reads
+`[[restrict]]` for both readers and checks each entry's shape where it is written (`E0665`).
+`Grants` holds every table (§ *Standing decisions* *Where the tables live in memory*), and
+`crates/nvs-config/src/cache.rs:225` folds their digest in only when one exists. The rule is
+`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`, with status `designed`
+and owned by this goal. Stage 7 sets it to `shipped`. No check reads a restriction yet, so a
+program with a table compiles exactly as before.
+
+The sweep's reds at this session's start: `env-secret-proofs` is stale state in looper's service, and
+no check by that name exists. The nightly run's `docs` link and the macOS `Storage/get` hostile case
+were both already fixed on disk after the run's commit (`bun nv links` is green, and `9efc45b6fd`
+gives each attack its own file). `proofs / windows-x86_64` was cancelled by the workflow's
+`concurrency` group, not by a failure.
 
 ### Next
 
-Stage 1 from its first item: the rule fragment, then `crates/nvs-config/src/restrict.rs`, the two
-readers, the cache key and the codes. The `table-read` check's tests do not exist yet and are expected
-to fail until the stage writes them.
+Stage 2 from its first item: `crates/nvs-types/src/restrict.rs:1`. It reads
+`Grants::restrictions()` (`crates/nvs-config/src/grants.rs`), resolves each `Target::Name` against
+the program, and calls `Restrictions::check_core` with `nvs_types::core_lib`'s lookup. Then comes
+the pass over resolved uses. The `use-refused` and `layouts` checks are red until stage 2 writes
+their cases.
 
 ### Backlog
+
+- The end-user pages still say the compiler reads only `[grants]` and `[capabilities]`:
+  `docs/examples/tools/packages/package-toml/about.md:9` and `docs/reference/tools/35-packages.md:128`.
+  Stage 6 rewrites both with the feature's pages, once a restriction does something.
+- A package's file read through `nvs pkg` (`crates/nvs-cli/src/package/manifest.rs:489`) is also
+  parsed by `Grants::parse`, which reads its `[[restrict]]` as an application's and skips the
+  package-name check. `Package::parse` runs right before it and makes that check, so nothing is
+  missed. Stage 5 may read the entries from `Package` alone.
