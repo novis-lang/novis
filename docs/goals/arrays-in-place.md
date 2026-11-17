@@ -30,6 +30,19 @@ checks:
       - a_list_prepends_into_its_front_room
       - a_map_finds_its_first_entry_past_front_holes_in_one_step
       - front_room_and_holes_are_freed_by_compaction
+  - id: runtime-reads
+    stage: 2
+    name: "an array names its last live entry without walking from the front, and a list finds an entry by its position in one step"
+    run: [cargo, test, --lib, --, an_array_names_its_last_live_entry_without_walking_from_the_front, a_list_finds_an_entry_by_its_position_in_one_step]
+    timeout: 1800
+    tests:
+      - an_array_names_its_last_live_entry_without_walking_from_the_front
+      - a_list_finds_an_entry_by_its_position_in_one_step
+  - id: read-ladders
+    stage: 3
+    name: "reading the last entry of a growing list and reading a long list page by page both grow linearly"
+    run: [bun, nv, scaling, --check, arrays/read-]
+    timeout: 3600
   - id: every-member
     stage: 3
     name: "every owning Core\\Arr member has a row, and on a sole subject each one keeps the entries it does not change in the same storage"
@@ -68,6 +81,17 @@ entry moves every other one. A map walks its front holes on every `firstKey` unt
 `withoutFirst` is also about 3× slower per entry than `slice`, because it inserts every kept key into a
 new table one at a time.
 
+The review of 2026-11-17 measured two reads that walk, on the release binary:
+
+| Shape | Smaller | Doubled |
+|---|---|---|
+| `Core\Arr::last($a)` once per entry | 10 ms at 20,000 entries | 49 ms at 40,000 |
+| `Core\Arr::slice($a, $at, 50)` page by page over the whole list | 62 ms at 100,000 entries | 336 ms at 200,000 |
+
+`last` and `lastKey` walk every slot from the front, on a list too (`crates/nvs-stdlib/src/arr.rs:5302`,
+`:5340`), because the array has no way to name its last slot. `slice` walks from the first slot to its
+start (`arr.rs:3340`), so a late page costs its whole distance from the front.
+
 ## Standing decisions
 
 **The rule, the protocol, the ABI, the moves and the lends are `in-place-everywhere`'s** and are used
@@ -81,6 +105,14 @@ and front holes are freed by the compaction that already frees holes, when they 
 entries. **What it spends:** a list that was prepended to holds up to twice its entries, and a map holds
 one more word. A list that is never prepended to holds nothing more. Home: `rule:types/arrays` and the
 decisions at the top of `crates/nvs-runtime/src/array.rs`.
+
+**A read finds its place without a walk (my call, from the review of 2026-11-17).** The array names its
+last live slot: one step on a list, and a walk backward past the holes at its end on a map, which
+compaction bounds. A list with no hole names the slot of a position in one step. `last`, `lastKey`, the
+end `withoutLast` looks for and the start of a `slice` window use them, on a shared subject as on a sole
+one. A stack read with `last` and cut with `withoutLast` is then O(1) for each step, and paging a list
+with `slice` costs each page its own length. **What it spends:** nothing held. A map's first and last
+live slot are found from what it already keeps.
 
 **What each member does with a sole subject (my call).** Every owning member, all 34:
 
@@ -106,9 +138,18 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 
 ### 1. the ladders show every quadratic array shape
 
-**Split:** one writing subagent writes the nine ladders, copying the shape of
+**Split:** one writing subagent writes the thirteen ladders, copying the shape of
 `benches/scaling/arrays/sort.nvs`.
 
+- [ ] Two ladders under `benches/scaling/arrays/` for the forms `in-place-everywhere` added on
+  2026-11-17, each `// scaling: expect linear`, start 1000, max 32000:
+  `in-place-a-list-built-with-a-spread.nvs` (`$list = [...$list, $x]`) and
+  `in-place-a-list-built-by-reduce.nvs` (a `Core\Arr::reduce` callback that returns
+  `Core\Arr::append($carry, $x)`). They are red until `in-place-everywhere` is reached.
+- [ ] Two ladders for the reads, each `// scaling: expect linear`, start 1000, max 32000:
+  `read-the-last-entry-of-a-growing-list.nvs` (`Core\Arr::last` once per entry) and
+  `read-a-list-page-by-page-with-slice.nvs` (`Core\Arr::slice($a, $at, 50)` over the whole list). They
+  are red until stage 3.
 - [ ] Nine ladders under `benches/scaling/arrays/`, each `// scaling: expect linear`, start 1000, max
   32000: `in-place-a-queue-in-a-local-with-without-first.nvs`,
   `in-place-a-queue-in-a-static-property-with-slice.nvs`,
@@ -130,8 +171,11 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 - [ ] `NvsArray` gains the in-place operations the members call, each on a sole array only: drop the
   first k, drop the last k, keep a window (renumbered or with its keys), prepend values, permute by a
   plan, keep by a mask, rewrite values, and rekey. Each states its cost in its doc comment.
-- [ ] The four tests the `runtime-room` check names, beside `:4269`
-  `compaction_preserves_order_and_the_append_counter`, run once by name.
+- [ ] `NvsArray` gains two readers beside `next_slot` (`:1930`): the last live slot, and the slot of a
+  position. The second answers in one step for a list with no hole and walks otherwise. Each states
+  its cost in its doc comment.
+- [ ] The four tests the `runtime-room` check names and the two the `runtime-reads` check names, beside
+  `:4269` `compaction_preserves_order_and_the_append_counter`, run once by name.
 
 ### 3. every Core\Arr member changes only what its result changes
 
@@ -149,7 +193,10 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
   keeps its storage or builds. `every_arr_member_keeps_what_it_does_not_change` checks each row on a
   sole subject. `a_shared_subject_builds_only_the_window_it_keeps` counts the entries a shared `slice`
   touches. Run once by name.
-- [ ] `bun nv scaling --check arrays/in-place-` once. Every ladder grows linearly.
+- [ ] The reads that walked use stage 2's two readers: `last` (`:5302`), `lastKey` (`:5340`), the end
+  `withoutLast` looks for (`:3619`) and the start of `slice`'s window (`:3340`).
+- [ ] `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-`, once each.
+  Every ladder grows linearly.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -165,6 +212,9 @@ Written on 2026-11-17 from a conversation with the person, and narrowed the same
 `in-place-everywhere` took the protocol, the ABI, the moves and the lends. Their calls: fix the cause,
 nothing for a developer to remember, and every replacement in place. Every other choice in
 § *Standing decisions* is the authoring session's call. Nothing is built yet.
+
+A review the person asked for on 2026-11-17 added the two reads that walk (`last` and `lastKey`, and a
+late `slice` window) and four ladders. The person agreed to add them.
 
 ### Next
 

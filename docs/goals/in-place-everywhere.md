@@ -25,7 +25,7 @@ stages:
     status: open
     context: [crates/nvs-ir/src/lower/tests.rs, crates/nvs-ir/src/lower/call.rs]
   - id: 6
-    title: concatenation and interpolation append in place on every target
+    title: concatenation, interpolation and a literal that spreads its target append in place on every target
     status: open
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 7
@@ -105,6 +105,30 @@ checks:
       - an_overridable_or_dynamic_callee_keeps_the_retain
       - recursive_callees_reach_one_summary
       - a_fatal_is_not_a_failure_the_summary_counts
+  - id: own-entry-loop
+    stage: 3
+    name: "a by-value loop whose body writes only the entry it is on holds no reference of its own, and one whose body can change the array another way keeps it"
+    run: [cargo, test, --lib, --, a_loop_that_writes_only_its_own_entry_holds_no_reference, a_loop_whose_body_can_change_the_array_another_way_keeps_its_reference]
+    timeout: 1800
+    tests:
+      - a_loop_that_writes_only_its_own_entry_holds_no_reference
+      - a_loop_whose_body_can_change_the_array_another_way_keeps_its_reference
+  - id: carry
+    stage: 5
+    name: "a reduce callback that changes its carry changes it in place, and a callback that throws frees the carry once"
+    run: [cargo, test, --test, in_place, --, a_reduce_callback_changes_its_carry_in_place, a_reduce_callback_that_throws_frees_the_carry_once]
+    timeout: 1800
+    tests:
+      - a_reduce_callback_changes_its_carry_in_place
+      - a_reduce_callback_that_throws_frees_the_carry_once
+  - id: spread
+    stage: 6
+    name: "a literal that opens with a spread of its own target appends in place on a list, and still renumbers a map with number keys"
+    run: [cargo, test, --lib, --, a_literal_that_spreads_its_target_appends_in_place_on_a_list, a_literal_that_spreads_a_map_with_number_keys_still_renumbers]
+    timeout: 1800
+    tests:
+      - a_literal_that_spreads_its_target_appends_in_place_on_a_list
+      - a_literal_that_spreads_a_map_with_number_keys_still_renumbers
   - id: concat
     stage: 6
     name: "a concatenation or an interpolation that opens with its own target appends in place on a local, a property, a static property and an element"
@@ -202,6 +226,32 @@ back-edges, a `catch`, a `finally` and a generator's resume. The rules:
 **A release at the last use (my call).** A binding that is never read again is released right after
 its last use, never at the end of its scope. So `$b = $a; $a = Core\Arr::slice($a, 1);` changes `$a` in
 place when `$b` is not read afterwards. A copy is left only where two values are really used.
+
+**Three more replacement forms, found by the review of 2026-11-17 (my calls).** Each was measured or
+read on the release binary that day, and none was named above:
+
+- **A literal that opens with a spread of its own target.** `$list = [...$list, $x]` built a list of
+  10,000 entries in 667 ms and one of 20,000 in 3.6 s. It is the array form of `$s = $s . 'x'`. The
+  literal's first spread takes its source as an owning operand, so the pass moves a local into it and
+  lends a slot to it. At run time, a sole source that is a list is the literal itself, and the rest of
+  the literal appends to it. A source that is shared, or that is not a list, builds as it does today,
+  because a spread renumbers number keys and only a list keeps its keys under that. **What it
+  spends:** one shape test for each such literal.
+- **A `Core\Arr::reduce` callback is handed its carry.** `reduce` whose callback returns
+  `Core\Arr::append($carry, $x)` took 2.9 s for 20,000 entries and 16.1 s for 40,000. `reduce` keeps a
+  reference to the carry while the callback runs (`crates/nvs-stdlib/src/arr.rs:4504`), and
+  `call_callable` adds one more (`crates/nvs-runtime/src/callable.rs:175`), so the callback's change
+  always copies. `reduce` instead gives the carry away: the callback owns it as a Novis callee owns a
+  moved parameter, and its error exit frees it. A shared first carry separates once, at the first
+  change. This is the one member whose callback receives a value the member itself made, so it is the
+  one member that hands a value over.
+- **A by-value loop that writes only the entry it is on holds no reference of its own.**
+  `foreach ($a as $k => $v) { $a[$k] = f($v); }` copies the whole array once, because the loop keeps a
+  reference to the array it walks (`crates/nvs-ir/src/lower/control.rs:955`). Read in the code, not
+  measured. The pass drops that reference when every write to the array in the body is an element
+  write at the loop's own key, the key is not assigned, and no instruction in the body may write the
+  slot another way by its effects. Nothing is added or removed, so the walk is the same. Any other
+  body keeps the reference.
 
 **Every copy the pass keeps is reported, and the report is compiled in (the person's call).** The pass
 records each place it keeps a copy, with a reason and, where one exists, a fix. That table is part
@@ -352,7 +402,8 @@ disjoint and they run side by side. The session runs the test once all batches e
     local, static property, array element, element of a property, and a property chain.
   - Value: an owning `Core` member with no callback, one with a callback, a Novis function that
     cannot fail after its change, one that can, one that reads the slot before its change, one that
-    reads it after, one that writes it, `.`, and interpolation.
+    reads it after, one that writes it, `.`, interpolation, and an array literal that opens with a
+    spread of the target.
   - Context: straight code, a loop, a `try` whose `catch` reads the target, a `finally`, and a
     generator.
   - Kind: array and string.
@@ -381,7 +432,10 @@ disjoint and they run side by side. The session runs the test once all batches e
   becomes the pass's decision bullet.
 - [ ] Owning `Core` parameters are `ArgOwnership::Transferred` at `call.rs:187`, read from the ABI.
 - [ ] A binding that is never read again is released right after its last use.
-- [ ] The five tests the `moves` check names. Run once.
+- [ ] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
+  dropped for a by-value loop whose body writes only the entry it is on, under the conditions in
+  § *Standing decisions*.
+- [ ] The five tests the `moves` check names and the two the `own-entry-loop` check names. Run once.
 
 ### 4. the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
 
@@ -404,15 +458,21 @@ disjoint and they run side by side. The session runs the test once all batches e
   conditions in § *Standing decisions*.
 - [ ] The lent body's write to the lent slot retains the parameter first, and the caller's store
   releases the slot's value unless it is still the lent one.
-- [ ] The ten tests the `user-callees` check names. Run once.
+- [ ] `Core\Arr::reduce` (`crates/nvs-stdlib/src/arr.rs:4452`) hands its carry to the callback. `call_callable`
+  (`crates/nvs-runtime/src/callable.rs:193`) gains the form that takes an argument the caller gives
+  away, with no retain for it, and `reduce`'s guard no longer holds the carry during the call.
+- [ ] The ten tests the `user-callees` check names and the two the `carry` check names. Run once.
 
-### 6. concatenation and interpolation append in place on every target
+### 6. concatenation, interpolation and a literal that spreads its target append in place on every target
 
 - [ ] `crates/nvs-ir/src/lower/expr.rs:3402` `concat_spine_opens_with` accepts an `ExprKind::Interpolated`
   whose first part is the target. A concatenation is one instruction that the pass lends its first
   operand to, for every target the pass can lend. `lower_string_self_concat` (`stmt.rs:1395`) and
   `lower_carrier_self_append` are folded into it.
-- [ ] The two tests the `concat` check names. Run once.
+- [ ] `crates/nvs-ir/src/lower/expr.rs:6904`: a literal whose first item is a spread takes that source
+  as an owning operand of its first `ArraySpread`. `crates/nvs-runtime/src/array.rs` `nvs_array_spread`
+  into an empty array returns a sole list source itself, and builds otherwise.
+- [ ] The two tests the `concat` check names and the two the `spread` check names. Run once.
 
 ### 7. every copy the compiler keeps is reported where it is written, with its reason and its fix
 
@@ -458,6 +518,10 @@ developer to remember, and **every** replacement in place, handled by the compil
 accepted every decision below, and asked that a Novis callee get the in-place path whenever the
 compiler can prove it safe, which is stage 5. Every other choice in § *Standing decisions* is the authoring session's call under the priority ordering,
 and stands until the person picks another. Nothing is built yet.
+
+A review the person asked for on 2026-11-17 added three forms: a literal that spreads its own target,
+the carry of a `Core\Arr::reduce` callback, and a by-value loop that writes only the entry it is on. The
+person agreed to add them. Goal `cheaper-forms` holds the rest of that review.
 
 ### Next
 
