@@ -131,10 +131,11 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Less work for each request.** *Working on it now.* Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.
-2. **An editor that uses less memory.** The language server checks each file once, however many files load it. Every check reads the same parsed copy of a file. When you type in a file, only that file is checked again.
-3. **Rules a framework can set.** A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.
-4. **The website shows every change.** When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
-5. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
+2. **Reloads that keep the server steady.** When you change a file, the server compiles it again. A compile that fails frees all the memory it used. A file that crashes the compiler is not compiled again until you change it. A busy connection keeps working through many reloads.
+3. **An editor that uses less memory.** The language server checks each file once, however many files load it. Every check reads the same parsed copy of a file. When you type in a file, only that file is checked again.
+4. **Rules a framework can set.** A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.
+5. **The website shows every change.** When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
+6. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
 <!-- roadmap:end -->
 
 ## Contributing

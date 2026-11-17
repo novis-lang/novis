@@ -16,6 +16,13 @@
       ]
     },
     {
+      "title": "Reloads that keep the server steady",
+      "text": "When you change a file, the server compiles it again. A compile that fails frees all the memory it used. A file that crashes the compiler is not compiled again until you change it. A busy connection keeps working through many reloads.",
+      "goals": [
+        "recompile-leaks"
+      ]
+    },
+    {
       "title": "An editor that uses less memory",
       "text": "The language server checks each file once, however many files load it. Every check reads the same parsed copy of a file. When you type in a file, only that file is checked again.",
       "goals": [
