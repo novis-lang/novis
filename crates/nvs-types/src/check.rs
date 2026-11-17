@@ -276,8 +276,17 @@ fn check_files(
     // `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s index, built once the
     // signatures are known, since an entry's target is checked against them. `None` when the
     // program has no `[[restrict]]` entry, and then no body checks a restriction.
+    // The project's directory, which the cache key carries, or the entry's directory for tables
+    // that were not read from a directory.
+    let home = namespace_grants.restrictions().home().or_else(|| {
+        files
+            .first()
+            .and_then(|file| file.src.path())
+            .and_then(std::path::Path::parent)
+    });
     let restricted = crate::restrict::build(
         namespace_grants.restrictions(),
+        home,
         &signatures,
         &module.graph,
         diags,

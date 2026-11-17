@@ -265,9 +265,15 @@ fn an_edited_restriction_changes_the_cache_key() {
     assert_eq!(
         first,
         key(&format!(
-            "# a comment\n[package]\nversion = '2.0.0'\n\n{base}"
+            "{base}# a comment\n[package]\nversion = '2.0.0'\n"
         )),
-        "a comment and another table change no key"
+        "a comment and another table that move no entry change no key"
+    );
+    // A refused reflective act throws a text that names the entry's line.
+    assert_ne!(
+        first,
+        key(&format!("# a comment\n{base}")),
+        "an entry moved to another line changes the key"
     );
 
     let found = package(

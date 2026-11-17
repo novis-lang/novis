@@ -62,6 +62,7 @@
 //! list in the unit's data, and each act it makes scans it once.
 
 use std::cell::OnceCell;
+use std::path::{Path, PathBuf};
 
 use nvs_config::restrict::{Restriction, Restrictions, Target};
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, Span, code};
@@ -87,6 +88,9 @@ pub(crate) struct Restricted<'g> {
     subtrees: Vec<(&'g str, usize)>,
     /// Every reflective act an entry holds, built on the first reflective call ([`record_acts`]).
     acts: OnceCell<Vec<Held>>,
+    /// The program's directory. An error names an entry's file relative to it, as the editor's
+    /// hover does, so the text is the same on every machine.
+    home: Option<PathBuf>,
 }
 
 /// One reflective act on a member of a class, and the entries that hold it.
@@ -107,9 +111,11 @@ pub(crate) struct Place<'p> {
 }
 
 /// The index of `restrictions`, or `None` when there is no entry. Each entry's target is checked
-/// against the program here, and what is wrong goes to `diags`.
+/// against the program here, and what is wrong goes to `diags`. `home` is the program's
+/// directory, which every error names an entry's file relative to.
 pub(crate) fn build<'g>(
     restrictions: &'g Restrictions,
+    home: Option<&Path>,
     signatures: &SignatureTable,
     graph: &ClassGraph,
     diags: &mut Diagnostics,
@@ -129,6 +135,7 @@ pub(crate) fn build<'g>(
         members: FxHashMap::default(),
         subtrees: Vec::new(),
         acts: OnceCell::new(),
+        home: home.map(Path::to_path_buf),
     };
     for (at, entry) in entries.iter().enumerate() {
         let target = entry.target();
@@ -286,7 +293,7 @@ pub(crate) fn check_uses(place: Place<'_>, mark: usize, env: &mut Env<'_>) {
             continue;
         }
         let entry = &restricted.entries[at];
-        let mut diagnostic = refusal(entry, span);
+        let mut diagnostic = refusal(entry, span, restricted.home.as_deref());
         if let (Some(replace), Member::Method(name)) = (entry.replace(), &member) {
             diagnostic = crate::deprecated::restriction_fix(
                 diagnostic,
@@ -363,7 +370,7 @@ fn record_acts(restricted: &Restricted<'_>, place: &Place<'_>, mark: usize, env:
                     let text = format!(
                         "`{}` cannot be used here. {}",
                         entry.target(),
-                        refusal_text(entry)
+                        refusal_text(entry, restricted.home.as_deref())
                     );
                     Some((held.act, held.class.as_str(), held.member.as_str(), text))
                 })
@@ -725,14 +732,14 @@ pub fn allows_at(entry: &Restriction, site: &Site<'_>) -> bool {
 
 /// The error at a use `entry` does not allow: what is not allowed, where it is allowed, the note,
 /// and the file and line of the entry.
-fn refusal(entry: &Restriction, span: Span) -> Diagnostic {
+fn refusal(entry: &Restriction, span: Span, home: Option<&Path>) -> Diagnostic {
     let mut diagnostic = Diagnostic::error(
         code::E_RESTRICTED_USE,
         format!("`{}` cannot be used here", entry.target()),
     )
     .with_primary(span, "this use is not allowed here")
     .with_note(allowed_text(entry))
-    .with_note(source_text(entry));
+    .with_note(source_text(entry, home));
     if let Some(at) = entry.span() {
         diagnostic = diagnostic.with_secondary(at, "the restriction");
     }
@@ -782,14 +789,55 @@ pub fn allowed_text(entry: &Restriction) -> String {
     text
 }
 
-/// The file and line `entry` is written at.
-fn source_text(entry: &Restriction) -> String {
-    format!("This rule is in `{}`, line {}.", entry.file(), entry.line())
+/// The file and line `entry` is written at, the file relative to the program's directory `home`.
+/// The editor's hover shows the same sentence.
+#[must_use]
+pub fn source_text(entry: &Restriction, home: Option<&Path>) -> String {
+    format!(
+        "This rule is in `{}`, line {}.",
+        relative_to(home, entry.file()),
+        entry.line()
+    )
 }
 
 /// The error text a refused reflective act throws: [`refusal`]'s notes, after the message.
-fn refusal_text(entry: &Restriction) -> String {
-    format!("{} {}", allowed_text(entry), source_text(entry))
+fn refusal_text(entry: &Restriction, home: Option<&Path>) -> String {
+    format!("{} {}", allowed_text(entry), source_text(entry, home))
+}
+
+/// `file` relative to `home`, with `/` between its parts, or `file` as it is when it is not
+/// inside `home`. An absolute path differs from machine to machine, and in an error it is noise.
+/// `home` may be relative, and the two may differ in a symlink or in Windows' `\\?\` prefix, so
+/// the comparison is tried as written, then made absolute, then with both canonicalized.
+fn relative_to(home: Option<&Path>, file: &str) -> String {
+    let path = Path::new(file);
+    // An entry named by its bare file name has the empty path as its parent: the working directory.
+    let home = home.map(|dir| {
+        if dir.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            dir
+        }
+    });
+    let inside = |file: &Path, dir: &Path| {
+        file.strip_prefix(dir)
+            .ok()
+            .map(|rest| rest.to_string_lossy().replace('\\', "/"))
+    };
+    home.and_then(|dir| {
+        inside(path, dir)
+            .or_else(|| {
+                std::path::absolute(dir)
+                    .ok()
+                    .and_then(|dir| inside(path, &dir))
+            })
+            .or_else(|| {
+                let dir = nvs_hir::requires::canonicalize(dir)?;
+                let file = nvs_hir::requires::canonicalize(path)?;
+                inside(&file, &dir)
+            })
+    })
+    .unwrap_or_else(|| file.to_owned())
 }
 
 /// The namespace `class` is declared in, or `None` for a class in the global namespace.

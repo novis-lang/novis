@@ -32,6 +32,7 @@
 //! Memory: a few short strings per entry, held once per compiled program and never per request.
 
 use std::fmt;
+use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, SourceId, Span, code};
 use serde::Deserialize;
@@ -225,6 +226,10 @@ impl Restriction {
 
     /// Feeds the entry to the digest. The file and the line are left out.
     fn feed(&self, hasher: &mut blake3::Hasher) {
+        // A refused reflective act throws a text that names the entry's file and line, so both
+        // are in the key: an entry moved down a line recompiles the units that name it.
+        text(hasher, &self.file);
+        hasher.update(&len(self.line));
         self.target.feed(hasher);
         hasher.update(&len(self.allow.len()));
         for place in &self.allow {
@@ -248,6 +253,9 @@ impl Restriction {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Restrictions {
     entries: Vec<Restriction>,
+    /// The project's directory: the application file's, or where the walk for it started when
+    /// there is none. An error names an entry's file relative to it, so it is in [`Self::digest`].
+    home: Option<PathBuf>,
 }
 
 impl Restrictions {
@@ -256,7 +264,20 @@ impl Restrictions {
     pub const fn new() -> Self {
         Self {
             entries: Vec::new(),
+            home: None,
         }
+    }
+
+    /// The directory an error names an entry's file relative to, or `None` for tables that were
+    /// not read from a directory.
+    #[must_use]
+    pub fn home(&self) -> Option<&Path> {
+        self.home.as_deref()
+    }
+
+    /// Sets [`Self::home`].
+    pub fn set_home(&mut self, home: Option<&Path>) {
+        self.home = home.map(Path::to_path_buf);
     }
 
     /// Every entry, in the order the tables were read.
@@ -291,6 +312,14 @@ impl Restrictions {
         for entry in &self.entries {
             entry.feed(&mut hasher);
         }
+        // A refused reflective act throws a text that names an entry's file relative to the
+        // project's directory, so the directory is in the key with the entries.
+        let home = self
+            .home
+            .as_deref()
+            .map(Path::as_os_str)
+            .unwrap_or_default();
+        text(&mut hasher, &home.to_string_lossy());
         Some(*hasher.finalize().as_bytes())
     }
 

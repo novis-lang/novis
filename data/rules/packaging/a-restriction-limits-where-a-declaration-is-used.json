@@ -1,6 +1,6 @@
 {
   "title": "A `[[restrict]]` table in `package.toml` limits where a class, method or namespace may be used, at compile time and only ever narrowing",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/package-toml-is-a-tool-input",
     "packaging/a-package-file-stays-under-its-declared-prefix",
@@ -13,7 +13,8 @@
   ],
   "guardedBy": [
     "crates/nvs-config/src/restrict.rs",
-    "crates/nvs-config/tests/restrict.rs"
-  ],
-  "goal": "restrict"
+    "crates/nvs-config/tests/restrict.rs",
+    "crates/nvs-types/src/restrict.rs",
+    "crates/nvs-cli/tests/package_restrict.rs"
+  ]
 }

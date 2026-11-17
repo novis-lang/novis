@@ -537,29 +537,13 @@ fn restriction(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
         .iter()
         .map(|entry| {
             format!(
-                "**Restricted.** {}\n\nThis rule is in `{}`, line {}.",
+                "**Restricted.** {}\n\n{}",
                 nvs_types::restrict::allowed_text(entry),
-                relative_to(home, entry.file()),
-                entry.line(),
+                nvs_types::restrict::source_text(entry, analysed.restrictions.home().or(home),),
             )
         })
         .collect();
     Some(parts.join("\n\n"))
-}
-
-/// `file` relative to `home`, with `/` between its parts, or `file` as it is
-/// when it is not inside `home`.
-fn relative_to(home: Option<&Path>, file: &str) -> String {
-    let file = Path::new(file);
-    let inside = |dir: &Path| {
-        file.strip_prefix(dir)
-            .ok()
-            .map(|rest| rest.to_string_lossy().replace('\\', "/"))
-    };
-    home.and_then(|dir| {
-        inside(dir).or_else(|| nvs_hir::requires::canonicalize(dir).and_then(|dir| inside(&dir)))
-    })
-    .unwrap_or_else(|| file.display().to_string())
 }
 
 /// What `#[Core\Deprecated]` wrote on the declaration `target` resolves to,

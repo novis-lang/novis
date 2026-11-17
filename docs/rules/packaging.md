@@ -3,8 +3,6 @@
 
 # Packaging
 
-*1 of 95 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
 ## A compiled unit is one immutable file whose address is its content and its environment
@@ -1125,7 +1123,10 @@ the grant table, the capability declarations it is intersected with and every `[
 the program read, the way it carries the extension set
 ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)), so an edited grant line or restriction is an
 ordinary cache miss. A changed version, dependency or comment changes no key, because none of them changes what
-compiles.
+compiles. The one exception is a line that moves a `[[restrict]]` entry: a refused reflective act
+throws a text that names the entry's file, relative to the project's directory, and its line. So
+each entry's file and line, and that directory, are in the key, and a program with no entry carries
+none of them.
 
 Every `nvs pkg` command finds the file by walking up from the working directory, the way `git` finds
 `.git`, and the compiler finds it by walking up from the entry file's directory: a tool locating its
@@ -1154,7 +1155,7 @@ editor reads `[grants]` from the snapshot the runtime enforces, and a route's ho
 
 <a id="packaging-a-restriction-limits-where-a-declaration-is-used"></a>
 
-## A `[[restrict]]` table in `package.toml` limits where a class, method or namespace may be used, at compile time and only ever narrowing  *(designed — owned by goal restrict)*
+## A `[[restrict]]` table in `package.toml` limits where a class, method or namespace may be used, at compile time and only ever narrowing
 
 `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
 
@@ -1254,6 +1255,19 @@ inherited one is held under each class that inherits it, by the entries a use of
 A callable reference to one of these members, `$info->call(...)`, runs wherever it is later called,
 so its list names every restricted act, allowed anywhere or not.
 
+**A call or property access through a `mixed` or `object` receiver is held the same way.** Its
+class is known only when it runs, so the checker lists, for that one name and that kind of act, every
+restricted member its place does not allow. The compiler emits a check of the receiver's class
+before the access (`Helper::RestrictedErasedAct`), and it throws the same `LogicError`. A name no
+entry restricts gets no list and no check.
+
+**A keyed access, `$object->$key`, is a use of every property its key may name.** The key is a
+`property<T>`, which ranges over `T`'s public properties, so the access does not compile where any
+of them is restricted and not allowed, whichever name the key holds when it runs. It is a compile
+error, never a run-time check, so it costs nothing per request. Declined: a check of the key's value
+when it runs. It would cost a branch per access and hold a list per site, and fail only when the
+line runs, for a form that a class with a restricted property rarely needs.
+
 **The error** says first what is not allowed, then where it is allowed, then the note, then the
 source: "`Core\Router::urlSigned` cannot be used here. It is allowed only in
 `Framework\Core\Signing`. Use `Framework\Core\Url::signed`. It adds the framework's key rotation.
@@ -1274,7 +1288,8 @@ scans that site's list only in a program with a table. At compile time, one read
 one hash-set lookup per resolved use when a table exists, and, on the first reflective call, one walk
 of the classes an entry names. **Memory:** the tables are compile-time input, held once per compiled
 program, and nothing of them is held per request. Each reflective call site in a program with a
-table carries its list in the unit's data. `crates/nvs-config/src/restrict.rs` reads the tables.
+table carries its list in the unit's data, and so does each erased access to a restricted name, which
+pays one helper call and one scan of that list each time it runs. `crates/nvs-config/src/restrict.rs` reads the tables.
 
 **Declined:**
 - **A map form, like `[grants]`** (`'Core\Router::urlSigned' = [...]`). It has no room for `note`
@@ -1483,7 +1498,10 @@ toolchain's own scheme.
 - a new method on a public interface, or a new abstract method;
 - a new enum case, because it breaks an exhaustive `match`;
 - a parameter type that narrows, or a return type that widens;
-- a new required parameter.
+- a new required parameter;
+- a new `[[restrict]]` entry, one whose `use` names more, or one whose `allow` names fewer places
+  ([`packaging/a-restriction-limits-where-a-declaration-is-used`](packaging.md#packaging-a-restriction-limits-where-a-declaration-is-used)), because code that compiled
+  stops compiling.
 
 A change the comparison cannot classify is a break, and there is no way to suppress one.
 

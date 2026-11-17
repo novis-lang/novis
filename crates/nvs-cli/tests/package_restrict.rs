@@ -373,7 +373,46 @@ fn the_error_names_the_restricting_file_and_line() {
         "a second label shows the manifest's `use` line:\n{stderr}"
     );
     assert!(
-        stderr.contains(&format!("{}`, line {line}.", file.display())),
-        "a note names the manifest's path and the line of its `use`:\n{stderr}"
+        stderr.contains(&format!(
+            "This rule is in `Framework/package.toml`, line {line}."
+        )),
+        "a note names the manifest's path, relative to the application's file, and the line of \
+         its `use`:\n{stderr}"
+    );
+}
+
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
+#[test]
+fn a_target_that_names_nothing_warns_only_in_the_application_file() {
+    let names_nothing = "[[restrict]]\nuse = 'Blog\\Missing'\nallow = []\n";
+    let application = format!("{APPLICATION}\n{names_nothing}");
+    let framework = format!("{FRAMEWORK}\n{names_nothing}");
+    let entry = module_entry(SIGN);
+
+    let (_root, modules) = layout(&[
+        ("package.toml", &application),
+        ("Framework/package.toml", FRAMEWORK),
+        ("Framework/src/Signing/Signer.nvs", SIGNER),
+        ("Blog/public/index.nvs", &entry),
+    ]);
+    let (stderr, ok) = check(&modules.join("Blog/public/index.nvs"));
+    assert!(ok, "a warning does not stop the compile:\n{stderr}");
+    assert!(
+        stderr.contains("warning[W1031]")
+            && stderr.contains("`Blog\\Missing` is not a declaration of this program"),
+        "the application's file names nothing, and the compiler warns:\n{stderr}"
+    );
+
+    let (_root, modules) = layout(&[
+        ("package.toml", APPLICATION),
+        ("Framework/package.toml", &framework),
+        ("Framework/src/Signing/Signer.nvs", SIGNER),
+        ("Blog/public/index.nvs", &entry),
+    ]);
+    let (stderr, ok) = check(&modules.join("Blog/public/index.nvs"));
+    assert!(ok, "the package's table compiles:\n{stderr}");
+    assert!(
+        !stderr.contains("W1031"),
+        "a package's file may name code this program does not load:\n{stderr}"
     );
 }

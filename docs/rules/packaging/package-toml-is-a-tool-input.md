@@ -32,7 +32,10 @@ the grant table, the capability declarations it is intersected with and every `[
 the program read, the way it carries the extension set
 (`rule:config/the-extension-set-is-in-every-unit-key`), so an edited grant line or restriction is an
 ordinary cache miss. A changed version, dependency or comment changes no key, because none of them changes what
-compiles.
+compiles. The one exception is a line that moves a `[[restrict]]` entry: a refused reflective act
+throws a text that names the entry's file, relative to the project's directory, and its line. So
+each entry's file and line, and that directory, are in the key, and a program with no entry carries
+none of them.
 
 Every `nvs pkg` command finds the file by walking up from the working directory, the way `git` finds
 `.git`, and the compiler finds it by walking up from the entry file's directory: a tool locating its

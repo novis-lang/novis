@@ -175,7 +175,14 @@ impl Grants {
             sources.note_missing(&candidate);
         }
         let Some(path) = found else {
-            return Ok(Self::default());
+            let mut grants = Self::default();
+            let home = if start.is_dir() {
+                Some(start)
+            } else {
+                start.parent()
+            };
+            grants.restrictions.set_home(home);
+            return Ok(grants);
         };
         let id = sources.load(&path).map_err(|err| {
             Diagnostic::error(
@@ -186,6 +193,7 @@ impl Grants {
         })?;
         let label = path.display().to_string();
         let mut grants = Self::parse_in(id, sources.file(id).text(), &label)?;
+        grants.restrictions.set_home(path.parent());
         grants.file = Some(path);
         Ok(grants)
     }

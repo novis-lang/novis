@@ -72,7 +72,7 @@ note = 'Use `App\Allowed\Door::open`.'
 use = 'App\Secret\Vault::code'
 allow = ['App\Allowed']
 --EXPECTF--
-Core\Reflect\ClassInfo::call(): `App\Secret\Vault::open` cannot be used here. It is allowed only in `App\Allowed`. Use `App\Allowed\Door::open`. This rule is in `%spackage.toml`, line 2.
-Core\Reflect\ClassInfo::get(): `App\Secret\Vault::code` cannot be used here. It is allowed only in `App\Allowed`. This rule is in `%spackage.toml`, line 7.
+Core\Reflect\ClassInfo::call(): `App\Secret\Vault::open` cannot be used here. It is allowed only in `App\Allowed`. Use `App\Allowed\Door::open`. This rule is in `package.toml`, line 2.
+Core\Reflect\ClassInfo::get(): `App\Secret\Vault::code` cannot be used here. It is allowed only in `App\Allowed`. This rule is in `package.toml`, line 7.
 vault
 the function value throws too
