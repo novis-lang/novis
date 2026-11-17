@@ -499,7 +499,51 @@ pub fn mapped_jit_units() -> usize {
 impl JitPages {
     fn new(module: JITModule) -> Self {
         MAPPED_JIT_UNITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        #[cfg(test)]
+        failpoint::MAPPED_HERE.with(|n| n.set(n.get() + 1));
         Self(Mutex::new(Some(module)))
+    }
+}
+
+/// A test's way to end [`UnitBuilder::compile_all`] after its first function,
+/// with an error or a panic, and to read how many units the test's own thread
+/// has mapped.
+///
+/// [`MAPPED_JIT_UNITS`] counts for the whole process, and the tests of this
+/// crate compile in parallel, so a test reads [`failpoint::MAPPED_HERE`]
+/// instead: the same count, for the units mapped and freed on its own thread.
+#[cfg(test)]
+mod failpoint {
+    use std::cell::Cell;
+
+    /// How a compile ends at the failpoint.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum Stop {
+        Error,
+        Panic,
+    }
+
+    thread_local! {
+        /// The units this thread mapped less the units it freed.
+        pub(crate) static MAPPED_HERE: Cell<isize> = const { Cell::new(0) };
+        /// The failpoint this thread's next compile stops at.
+        pub(crate) static STOP: Cell<Option<Stop>> = const { Cell::new(None) };
+        /// [`MAPPED_HERE`] as the failpoint read it.
+        pub(crate) static SEEN: Cell<Option<isize>> = const { Cell::new(None) };
+    }
+
+    /// Called after the first function's body is defined.
+    pub(crate) fn hit() -> Result<(), super::CodegenError> {
+        let Some(stop) = STOP.with(Cell::take) else {
+            return Ok(());
+        };
+        SEEN.with(|seen| seen.set(Some(MAPPED_HERE.with(Cell::get))));
+        match stop {
+            Stop::Error => Err(super::CodegenError::Internal(
+                "the test failpoint stopped this compile".to_owned(),
+            )),
+            Stop::Panic => panic!("the test failpoint stopped this compile"),
+        }
     }
 }
 
@@ -526,6 +570,8 @@ impl Drop for JitPages {
                 module.free_memory();
             }
             MAPPED_JIT_UNITS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+            #[cfg(test)]
+            failpoint::MAPPED_HERE.with(|n| n.set(n.get() - 1));
         }
     }
 }
@@ -2642,6 +2688,10 @@ impl<M: Module> UnitBuilder<M> {
             let index = u32::try_from(index)
                 .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
             self.compile_function(function, index, stmt_base, edge_base, query_base)?;
+            #[cfg(test)]
+            if index == 0 {
+                failpoint::hit()?;
+            }
             query_base = u32::try_from(function.query_sites().count())
                 .ok()
                 .and_then(|count| query_base.checked_add(count))
@@ -3935,5 +3985,43 @@ echo $total;
             small, large,
             "2,000 rows entered a refcount helper {small} times and 4,000 rows {large} times"
         );
+    }
+
+    /// Compiles a small program that stops at the failpoint after its first
+    /// function, and checks the unit's pages are counted while it is built and
+    /// freed once the compile has ended.
+    fn stops_and_unmaps(stop: failpoint::Stop) {
+        let program = lower("<?nvs\nint $x = 1;\necho $x;\n");
+        let before = failpoint::MAPPED_HERE.with(std::cell::Cell::get);
+        failpoint::SEEN.with(|seen| seen.set(None));
+        failpoint::STOP.with(|s| s.set(Some(stop)));
+        let ended =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compile(&program).map(drop)));
+        failpoint::STOP.with(|s| s.set(None));
+        match (stop, &ended) {
+            (failpoint::Stop::Error, Ok(Err(CodegenError::Internal(_))))
+            | (failpoint::Stop::Panic, Err(_)) => {}
+            _ => panic!("the compile did not stop at the failpoint: {ended:?}"),
+        }
+        assert_eq!(
+            failpoint::SEEN.with(std::cell::Cell::get),
+            Some(before + 1),
+            "the unit's pages are counted from the moment they are mapped"
+        );
+        assert_eq!(
+            failpoint::MAPPED_HERE.with(std::cell::Cell::get),
+            before,
+            "the stopped compile left its pages mapped"
+        );
+    }
+
+    #[test]
+    fn a_unit_whose_codegen_fails_unmaps_its_pages() {
+        stops_and_unmaps(failpoint::Stop::Error);
+    }
+
+    #[test]
+    fn a_unit_whose_codegen_panics_unmaps_its_pages() {
+        stops_and_unmaps(failpoint::Stop::Panic);
     }
 }
