@@ -300,6 +300,12 @@ pages quote the final error text and the editor's behaviour.
 attempt goes into the handoff with its cause and the stage moves on to its other items. A stage still
 open after two sessions stops the loop with `BLOCKED` naming the item.
 
+**The `chrono` advisory (the user's call, d13).** RUSTSEC-2026-0543 calls `chrono` unmaintained, and
+only `rxing`, a dev-dependency of `nvs-ext`'s `image_barcode` test, reached it. The user chose to
+replace `rxing`, not to ignore the advisory in `deny.toml`. The test reads the 1D codes with
+`crates/nvs-ext/tests/support/barcode_read.rs`, written from each symbology's standard tables, and
+decodes the DataMatrix grid it samples with `datamatrix`'s decoder.
+
 ## Stages
 
 ### 1. the table is read from the application's file and each package's, and a broken table is an error where it is written
@@ -514,19 +520,17 @@ shares. The key hashes each entry's file and line and `home`, since a thrown tex
 rules render, attack formatting, `Core\Reflect` perf records, guide link, page questions,
 `llms-full.txt` and roadmap themes were fixed.
 
-**One red is left in `bun nv ci --check`: `advisories`.** RUSTSEC-2026-0543 (`chrono` unmaintained)
-is new. `chrono` is a required dependency of `rxing`, and `rxing` is only a dev-dependency of
-`nvs-ext` (`Cargo.toml:92`), so nothing that ships links it. The fix is one `ignore` entry in
-`deny.toml` in that file's style. The permission check refused the edit to `deny.toml`, so it is
-filed as a parked decision.
+The `chrono` advisory is gone: `rxing` is replaced as d13 decided (*Standing decisions*), and
+`image_barcode`'s four tests pass with the new reader. `bun nv ci --check` is green in every
+check, `bun nv verify --doc` is green and `bun nv owners --closes restrict` is clear. The sweep's
+`env-secret-proofs` red has no definition in the tree, and nightly 43849315979's reds were fixed
+after it (`2934ebe1ae`, `9efc45b6fd`).
 
 ### Next
 
-Once the user allows it, add the `deny.toml` entry: `{ id = "RUSTSEC-2026-0543", reason = "reached
-only through rxing, a test-only dependency of nvs-ext; not shipped" }`, with a comment that says why
-and "Revisit 2027-04-01". Then `bun nv ci --check` is green, and the goal is `DONE`. Move each decision
-only this file's prose has to the rule. The *Standing decisions* are already in
-`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`; check before deleting.
+Nothing: the goal is reached. Every standing decision is in
+`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md`, and the d13 choice is in
+`Cargo.toml`'s `datamatrix` comment and `docs/rules/core-classes/image-barcode-roster.md`.
 
 No test is expected to go red.
 
