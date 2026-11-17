@@ -1,0 +1,36 @@
+--TEST--
+an edit to `package.toml` that restricts a method the open document calls checks the document again, and the call is then an error, `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+autoload 'App' from './app';
+
+echo App\Secret\Vault::open(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function close(): string
+    {
+        return "closed";
+    }
+
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::close'
+allow = ['App\Allowed']
+--FILE package.toml.changed--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+--REQUEST--
+diagnostics changed=package.toml
+--EXPECT--
+4:6-4:30 error E0664 `App\Secret\Vault::open` cannot be used here. It is allowed only in `App\Allowed`.
+  related package.toml:2:7 the restriction

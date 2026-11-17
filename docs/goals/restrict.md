@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-types/src/deprecated.rs, crates/nvs-types/src/deprecated/template.rs, crates/nvs-types/src/deprecated/fix.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/attributes/a-deprecation-names-its-replacement-as-code.md, docs/rules/security/reflection-enforces-visibility.md, docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md]
   - id: 4
     title: the editor shows the restriction at the use, on hover and in completion
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/diagnostics.rs, crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/render.rs, tests/lsp/hover/a-route-hover-in-an-autoloaded-file-lists-its-programs-grants.lspt, docs/reference/tools/40-editor.md]
   - id: 5
     title: nvs pkg api lists a package's restrictions and nvs pkg diff calls a new one a break
@@ -410,22 +410,22 @@ file changes.
 names, copying the shape of `tests/lsp/hover/a-route-hover-in-an-autoloaded-file-lists-its-programs-grants.lspt`
 and `docs/agent/conventions.md` § *An `.lspt` case*. The session runs that check once.
 
-- [ ] `crates/nvs-lsp/src/diagnostics.rs:521`: `related_information` is filled from a diagnostic's
+- [x] `crates/nvs-lsp/src/diagnostics.rs:521`: `related_information` is filled from a diagnostic's
   secondary label, and `E0664` carries one at the restricting `package.toml` line. This is the first
   user of it, so `crates/nvs-lsp/src/render.rs:1` learns to write it down in an `.lspt` answer.
-- [ ] `crates/nvs-lsp/src/actions.rs:272`: `E0664`'s suggestion is offered as a quick fix. Expected
+- [x] `crates/nvs-lsp/src/actions.rs:272`: `E0664`'s suggestion is offered as a quick fix. Expected
   to need no code, as `W1003`'s does. The `.lspt` case proves it.
-- [ ] `crates/nvs-lsp/src/hover.rs:514`: beside `deprecation`, a `restriction` section on a restricted
+- [x] `crates/nvs-lsp/src/hover.rs:514`: beside `deprecation`, a `restriction` section on a restricted
   member's hover: where it is allowed, the note, and the file that says so.
-- [ ] `crates/nvs-lsp/src/completion.rs:3850`: a completion item for a member that is restricted at
+- [x] `crates/nvs-lsp/src/completion.rs:3850`: a completion item for a member that is restricted at
   the cursor's place sorts after every other item and has its reason in `detail`. It is not tagged
   deprecated, because it is not deprecated.
-- [ ] The language server re-checks the open files of a program when its application file or a
+- [x] The language server re-checks the open files of a program when its application file or a
   loaded package's `package.toml` changes. The grants path already watches the application file
   (`crates/nvs-config/src/grants.rs:152`); a package's manifest joins it.
-- [ ] `docs/reference/tools/40-editor.md:191`: a section *Restricted classes and methods* after
+- [x] `docs/reference/tools/40-editor.md:191`: a section *Restricted classes and methods* after
   *The grants of a route's program*, in end-user prose.
-- [ ] The five `.lspt` cases, and the `editor` check run once.
+- [x] The five `.lspt` cases, and the `editor` check run once.
 
 ### 5. nvs pkg api lists a package's restrictions and nvs pkg diff calls a new one a break
 
@@ -502,34 +502,34 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Stages 1 and 2 are done; `table-read`, `use-refused` and `layouts` are green. `restrict.rs` in
-`nvs-types` holds the check, run at the end of each body's `crate::deprecated::window`.
+Stages 1 to 3 are done and their checks green; `nvs-types` `restrict.rs` holds the check. A call
+through a `mixed` receiver is not held yet: stage 6's first item, a security gap stage 7 needs.
 
-Stage 3 is done; `replacement-and-reflection` and `reflective-act` are green, each run once. The
-replacement and its fix are in `restrict.rs` and `deprecated.rs`, whose module docs say how. The
-reflective act (`81ff702318`): `restrict::record_acts` puts a per-call-site list on
-`InstKind::SourceConst { restricted }`, baked by `nvs_runtime::source::encode_site`, and
-`reflect.rs` `refuse_restricted` throws `LogicError` with `E0664`'s text.
-
-A call through a `mixed` receiver is not held: `mixed $v = new App\Secret\Vault(); $v->open();`
-runs a restricted method with no error (probed this session). Stage 6's new first item closes it
-with the same per-site list; it is a security gap, so stage 7 does not pass without it.
+Stage 4 is done; `editor` is green, run once. The language server now reads `[[restrict]]`
+(`crates/nvs-lsp/src/document.rs` `analyse_through`): `Grants::read` from the program's entry, kept
+by `Grants::restrictions_alone` (no grant key, so still no `E0658` in the editor), each loaded
+package's entries from `nvs_types::package::check` (its diagnostics dropped), the digest folded
+into `graph_key`, and `Analysed::restrictions` and `Analysed::manifests` (canonical, so
+`to_republish` finds them). `diagnostics::related` fills `relatedInformation` from a secondary
+label in another file; an `E0664`'s wire message carries its first note. Hover: `hover.rs`
+`restriction`. Completion: `completion.rs` `restricted_here`, `LAST` sort prefix. The server
+watches `**/package.toml` (`server.rs` `MANIFESTS`, `changed_manifests`). `nvs-types` now exports
+`restrict::{entries_on, allowed_text, allows_at, Site}`. The `.lspt` runner gained
+`diagnostics changed=<path>` (`suite.rs` `recheck`), and the renderer writes `related …` and
+`sorted last: …` lines.
 
 Sweep reds: `env-secret-proofs` is stale service state with no log and no definition anywhere in the
 tree. Nightly 43849315979 ran on 14fbea97; its `docs` and macOS reds were fixed after it
 (`2934ebe1ae`, `9efc45b6fd`).
 
+Expected red at the gate: possibly an existing `.lspt` diagnostics case whose diagnostic has a
+secondary label in another file, which now renders a `related` line; re-freeze it.
+`crates/nvs-lsp/tests/completion_files.rs` already expects the second watcher glob.
+
 ### Next
 
-Stage 4 (`crates/nvs-lsp`) and stage 5 (`crates/nvs-cli/src/package`) touch disjoint files and may
-run side by side. Stage 4 first: `crates/nvs-lsp/src/diagnostics.rs:521` fills
-`related_information` from `E0664`'s secondary label (`restrict.rs` `refusal`), then the hover
-beside `deprecation` at `crates/nvs-lsp/src/hover.rs:514`, the completion sort at
-`crates/nvs-lsp/src/completion.rs:3850`, and the re-check on a package's `package.toml` change
-beside `crates/nvs-config/src/grants.rs:152`. The hover and completion can reuse
-`restrict::allowed_text`, which now builds the note's text. No test is expected to go red: the
-IR printer adds ` restricted Nb` to a `source` line only in a program with a table, and no golden
-IR test has one.
+Stage 5 (`crates/nvs-cli/src/package`): `api.rs:126` `extract` writes the `restrict` entries,
+`diff.rs:1130` classifies them, the rule sentence, and the four `api-diff` tests, run once.
 
 ### Backlog
 
@@ -546,8 +546,12 @@ IR test has one.
   Check whether `#[Core\Deprecated]`'s `replace` has the same gap.
 
 - The error's note names the manifest by its absolute path. The rule's example names it relative to
-  the project (`modules/Framework/package.toml`). Stage 4 or 6 picks the form, since the editor
-  links it and the pages quote it (`crates/nvs-types/src/restrict.rs` `refusal`).
+  the project (`modules/Framework/package.toml`). The editor's hover names it relative to the
+  program's directory (`hover.rs` `relative_to`); stage 6 picks the CLI's form with the pages
+  (`crates/nvs-types/src/restrict.rs` `refusal`).
+- Editor gaps, each small: a `Core` member's hover (the card path) shows no restriction; completion
+  does not read the method around the cursor, so an `allow` naming `Class::method` still sorts the
+  item last there; `restrict::entries_on` skips an entry on a parent's method an override replaces.
 - The error prints `Ns\*` for a subtree in "It is allowed only in". Stage 6 writes the final
   wording, with the pages that quote it.
 - The case `restrict-a-type-and-instanceof-are-not-uses.nvst` keeps the name the `use-refused` check

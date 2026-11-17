@@ -199,6 +199,22 @@ The grants belong to the whole program. Every route of the program has the same 
 reads `nvs.toml` again for each hover, so a change to the file shows at once. If there is no
 `nvs.toml`, the hover says so and lists the default policy.
 
+## Restricted classes and methods
+
+A `[[restrict]]` table in `package.toml` says where a class or method may be used. The editor shows
+this in four places:
+
+- A use in a place the table does not allow is an error, `E0664`. The message says where the use is
+  allowed. The error links to the line of `package.toml` that has the rule.
+- If the rule has a `replace` value, the quick fix for the error writes that code in place of the use.
+- Hover a restricted class or method to see where it is allowed, the rule's note, and the file and
+  line of the rule.
+- In the completion list, a method you cannot use at the cursor is at the end of the list. Its
+  details say where it is allowed.
+
+The editor checks your open files again when a `package.toml` changes. This includes the
+`package.toml` of every package your program loads.
+
 ## Where a tainted or secret value came from
 
 Hover a value whose type is `tainted` or `secret` to see where that came from. A `tainted` value comes
@@ -271,11 +287,12 @@ asked about valid code would not be testing the thing the editor is for.
 ## The requests a case may ask
 
 `diagnostics`, `hover`, `definition`, `completion`, `semanticTokens`, `documentSymbol`,
-`selectionRange`, `foldingRange`, `documentLink`, `codeAction`, `redactions`. Four arguments exist:
+`selectionRange`, `foldingRange`, `documentLink`, `codeAction`, `redactions`. These arguments exist:
 
 | Argument | On | What it does |
 |---|---|---|
 | `phase=all` | `diagnostics` | switches the phase gate off, so the case sees everything the walk reported |
+| `changed=` | `diagnostics` | writes the case's `--FILE <path>.changed--` over the file `<path>` after the first answer. The answer is then the diagnostics the editor shows once it checks the file again |
 | `prefix=` | `completion` | narrows the list to the labels starting with it, as typing would |
 | `limit=` | `completion` | keeps the first N entries of a list already sorted by label |
 | `types=` | `semanticTokens` | narrows the answer to those token types |
@@ -287,7 +304,9 @@ where a walk happened to visit first. A diagnostic is `L:C-L:C severity CODE mes
 position; a definition is `file:L:C`, naming the file as the case wrote it; a completion is its
 label, kind and detail in three columns, sorted by label; a semantic token is `L:C+length type
 modifiers`; a fold is `L-L kind`; an outline is one indented line per symbol; a hover is its
-Markdown verbatim. An answer with nothing in it is `none`.
+Markdown verbatim. An answer with nothing in it is `none`. A diagnostic's link to another file is
+the line `related file:L:C message` under it. A completion item that sorts after every other is
+written after them, with the line `sorted last: detail` under it.
 
 Positions are 1-based here, in both columns — a case is read by people.
 

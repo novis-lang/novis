@@ -114,6 +114,7 @@
 
 use std::borrow::Cow;
 use std::fmt::Write as _;
+use std::path::Path;
 
 use lsp_types::{
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
@@ -497,10 +498,68 @@ fn run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let doc = declared
         .doc
         .map(|doc| markdown_in(analysed.map.file(declared.span.file).text(), doc, &order));
-    match (deprecation(analysed, target), doc) {
-        (Some(notice), Some(doc)) => Some(format!("{notice}\n\n{doc}")),
-        (notice, doc) => notice.or(doc),
+    let parts: Vec<String> = deprecation(analysed, target)
+        .into_iter()
+        .chain(restriction(analysed, target))
+        .chain(doc)
+        .collect();
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
+/// The `[[restrict]]` entries on the declaration `target` resolves to, as
+/// Markdown: where it may be used, the note, and the file and line of each
+/// entry (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+/// `None` when no entry names it.
+///
+/// The text is the first note of the `E0664` a use outside those places gets,
+/// so a hover and the error say the same thing. The file is named relative to
+/// the program's directory where it is inside it.
+fn restriction(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    if analysed.restrictions.is_empty() {
+        return None;
     }
+    let (class, member): (&QName, Option<&str>) = match target {
+        Target::Type(class) => (class, None),
+        Target::Method(call) => (&call.class, Some(call.method.as_str())),
+        Target::Property { class, name } | Target::Constant { class, name } => (class, Some(name)),
+        Target::TypeAlias { .. } => return None,
+    };
+    let entries = nvs_types::restrict::entries_on(&analysed.restrictions, class, member);
+    if entries.is_empty() {
+        return None;
+    }
+    let home = analysed
+        .program
+        .as_deref()
+        .or_else(|| analysed.map.file(analysed.entry).path())
+        .and_then(Path::parent);
+    let parts: Vec<String> = entries
+        .iter()
+        .map(|entry| {
+            format!(
+                "**Restricted.** {}\n\nThis rule is in `{}`, line {}.",
+                nvs_types::restrict::allowed_text(entry),
+                relative_to(home, entry.file()),
+                entry.line(),
+            )
+        })
+        .collect();
+    Some(parts.join("\n\n"))
+}
+
+/// `file` relative to `home`, with `/` between its parts, or `file` as it is
+/// when it is not inside `home`.
+fn relative_to(home: Option<&Path>, file: &str) -> String {
+    let file = Path::new(file);
+    let inside = |dir: &Path| {
+        file.strip_prefix(dir)
+            .ok()
+            .map(|rest| rest.to_string_lossy().replace('\\', "/"))
+    };
+    home.and_then(|dir| {
+        inside(dir).or_else(|| nvs_hir::requires::canonicalize(dir).and_then(|dir| inside(&dir)))
+    })
+    .unwrap_or_else(|| file.display().to_string())
 }
 
 /// What `#[Core\Deprecated]` wrote on the declaration `target` resolves to,

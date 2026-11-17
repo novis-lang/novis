@@ -1,0 +1,28 @@
+--TEST--
+a call outside the places a `[[restrict]]` entry allows is published as `E0664` with where it is allowed in the message, and a related location at the entry's line in `package.toml`, `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+autoload 'App' from './app';
+
+echo App\Secret\Vault::open(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+note = 'Use `App\Allowed\Door::open`.'
+--REQUEST--
+diagnostics
+--EXPECT--
+4:6-4:30 error E0664 `App\Secret\Vault::open` cannot be used here. It is allowed only in `App\Allowed`. Use `App\Allowed\Door::open`.
+  related package.toml:2:7 the restriction

@@ -202,7 +202,7 @@ pub mod provenance;
 pub(crate) mod reasons;
 pub mod redaction;
 pub(crate) mod response;
-pub(crate) mod restrict;
+pub mod restrict;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod routes;

@@ -3848,6 +3848,10 @@ fn enum_cases(
 ///
 /// The analysis's own [`Notices`](nvs_types::deprecated::Notices) are asked,
 /// so an item is tagged exactly where a use of it warns `W1003`.
+///
+/// A member a `[[restrict]]` entry does not allow at the cursor sorts after
+/// every other item, and its `detail` says where it is allowed instead
+/// ([`restricted_here`]). It is not tagged deprecated, because it is not.
 fn tagged(
     cursor: &Cursor<'_>,
     class: &QName,
@@ -3855,10 +3859,55 @@ fn tagged(
     mut item: CompletionItem,
 ) -> CompletionItem {
     let analysed = cursor.analysed;
+    if let Some(reason) = restricted_here(cursor, class, &member) {
+        item.sort_text = Some(format!("{LAST}{}", item.label));
+        item.detail = Some(reason);
+    }
     if analysed.deprecated.contains_key(&(class.clone(), member)) {
         item.tags = Some(vec![CompletionItemTag::DEPRECATED]);
     }
     item
+}
+
+/// The first character of the `sortText` of an item that sorts after every
+/// other: `~` is after every digit and letter another item's starts with.
+pub(crate) const LAST: char = '~';
+
+/// Why `member` of `class` may not be used at the cursor, or `None` when every
+/// `[[restrict]]` entry on it allows the cursor's place
+/// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+///
+/// The place is the namespace and the class around the cursor. The method
+/// around it is not read, so an entry that allows only one method is not
+/// matched here. The entry document is in no package, as the checker places
+/// it. Cost: nothing for a program with no entry, and one pass over the
+/// entries per offered member otherwise.
+fn restricted_here(cursor: &Cursor<'_>, class: &QName, member: &Member) -> Option<String> {
+    let analysed = cursor.analysed;
+    if analysed.restrictions.is_empty() {
+        return None;
+    }
+    let name = match member {
+        Member::Type | Member::Param(..) => None,
+        Member::Method(name)
+        | Member::Property(name)
+        | Member::Const(name)
+        | Member::Case(name) => Some(name.as_str()),
+    };
+    let namespace = namespace_at(analysed, cursor.offset).join("\\");
+    let around = class_at(analysed, cursor.offset).map(|class| class.to_string());
+    let site = nvs_types::restrict::Site {
+        namespace: &namespace,
+        class: around.as_deref(),
+        method: None,
+        package: None,
+    };
+    let refused: Vec<String> = nvs_types::restrict::entries_on(&analysed.restrictions, class, name)
+        .into_iter()
+        .filter(|entry| !nvs_types::restrict::allows_at(entry, &site))
+        .map(nvs_types::restrict::allowed_text)
+        .collect();
+    (!refused.is_empty()).then(|| format!("You cannot use this here. {}", refused.join(" ")))
 }
 
 /// One declared member, or `None` for one this access does not reach.

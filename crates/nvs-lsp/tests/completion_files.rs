@@ -786,9 +786,10 @@ fn the_server_registers_a_watcher_for_completion_files_when_the_client_can() {
         .collect();
     assert_eq!(
         globs,
-        [GlobPattern::String(
-            "**/.novis/completion/**/*.json".to_owned()
-        )]
+        [
+            GlobPattern::String("**/.novis/completion/**/*.json".to_owned()),
+            GlobPattern::String("**/package.toml".to_owned()),
+        ]
     );
 
     // A client that cannot register a watcher is sent nothing it would have to refuse.

@@ -1,0 +1,40 @@
+--TEST--
+a call outside the places a `[[restrict]]` entry allows is offered the entry's `replace` as a quick fix, `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+autoload 'App' from './app';
+
+echo App\Secret\Vault::op<|>en(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+namespace App\Allowed;
+
+final class Door
+{
+    public static function open(): string
+    {
+        return \App\Secret\Vault::open();
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+note = 'Use `App\Allowed\Door::open`.'
+replace = 'App\Allowed\Door::open()'
+--REQUEST--
+codeAction
+--EXPECT--
+1:6-1:6 quickfix import `App\Allowed\Door` -> "\nuse App\Allowed\Door;"
+4:6-4:30 quickfix replace with `Door::open()` -> "Door::open()"

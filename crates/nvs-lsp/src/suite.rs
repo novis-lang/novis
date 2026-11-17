@@ -291,9 +291,13 @@ pub(crate) struct Answered {
 /// The materialised files are held until the answer is rendered, because the
 /// files a `require` resolves against go when they do.
 pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
-    let (files, documents, entry) = store(case, root)?;
+    let (files, mut documents, entry) = store(case, root)?;
     let analysed = analyse(&documents, &entry)
         .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let analysed = match &case.args.changed {
+        Some(changed) => recheck(case, changed, &files, &mut documents, &entry, analysed)?,
+        None => analysed,
+    };
     let response = match case.request {
         Request::Diagnostics => {
             diagnostics(&analysed, &documents, &files, &entry, case.args.phase_all)
@@ -467,6 +471,43 @@ fn open(documents: &mut Documents, path: &Path, text: &str) -> Result<Uri, Strin
     Ok(uri)
 }
 
+/// `diagnostics changed=<path>`: writes the text of the case's `--FILE
+/// <path>.changed--` over `<path>`, and checks the entry again when the server
+/// would. The server checks every open document whose last analysis read the
+/// changed file ([`Documents::to_republish`]), so this asks the same list. An
+/// entry not on it keeps `first`, and the case sees the diagnostics from
+/// before the change.
+fn recheck(
+    case: &Case,
+    changed: &str,
+    files: &Materialised,
+    documents: &mut Documents,
+    entry: &Uri,
+    first: Analysed,
+) -> Result<Analysed, String> {
+    let after = format!("{changed}.changed");
+    let text = case
+        .aux
+        .iter()
+        .find(|aux| aux.path == after)
+        .ok_or_else(|| {
+            format!("`changed={changed}` needs a `--FILE {after}--` section with the new text")
+        })?;
+    documents.record_graph(entry, first.files());
+    let path = files.dir.join(changed);
+    std::fs::write(&path, &text.body)
+        .map_err(|error| format!("`{changed}` could not be written: {error}"))?;
+    // A file the case wrote is open as a buffer, and a buffer is read before
+    // the disk, so the buffer gets the new text too.
+    if let Some(uri) = uri_of(&path).filter(|uri| documents.get(uri).is_some()) {
+        documents.open(uri, 2, text.body.clone());
+    }
+    if !documents.to_republish(&path).contains(&entry) {
+        return Ok(first);
+    }
+    analyse(documents, entry).ok_or_else(|| "the case's document could not be analysed".to_owned())
+}
+
 /// `textDocument/publishDiagnostics`, gated unless the case asked for
 /// `phase=all`.
 ///
@@ -500,6 +541,19 @@ fn diagnostics(
     published.extend(crate::server::dimming_of_case(
         documents, analysed, &files.dir, entry, COLUMNS,
     ));
+    // A related location names a file in the case's directory, which is
+    // spelled as the case wrote it, on `Place`'s terms.
+    for entry in published
+        .iter_mut()
+        .flat_map(|diagnostic| diagnostic.related_information.iter_mut().flatten())
+    {
+        let spelled = crate::document::path_of(&entry.location.uri)
+            .map(|path| format!("{}{}", crate::render::CASE_SCHEME, files.spelling(&path)))
+            .and_then(|text| text.parse().ok());
+        if let Some(uri) = spelled {
+            entry.location.uri = uri;
+        }
+    }
     Response::Diagnostics(published)
 }
 

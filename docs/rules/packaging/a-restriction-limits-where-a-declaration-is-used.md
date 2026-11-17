@@ -97,7 +97,17 @@ so its list names every restricted act, allowed anywhere or not.
 **The error** says first what is not allowed, then where it is allowed, then the note, then the
 source: "`Core\Router::urlSigned` cannot be used here. It is allowed only in
 `Framework\Core\Signing`. Use `Framework\Core\Url::signed`. It adds the framework's key rotation.
-This rule is in `modules/Framework/package.toml`, line 4." The editor shows the same text at the use.
+This rule is in `modules/Framework/package.toml`, line 4."
+
+**The editor** reads the same tables, from the program's `package.toml` and each loaded package's,
+and checks with them and with no grant key, so it shows `E0664` and never `E0658`. The error's
+message carries where the use is allowed and the note, and a related location links the entry's
+line. The fix is the entry's `replace`. A hover on a restricted declaration names where it is
+allowed, the note, and the entry's file relative to the program's directory and its line. A
+completion item the cursor's namespace and class are not allowed to use sorts last, with that text
+in its `detail`; the method around the cursor is not read there. Every `package.toml` is watched,
+and an edit to one an open document's analysis read checks that document again
+(`crates/nvs-lsp/src/document.rs` `analyse_through`).
 
 **Cost:** nothing per request. A reflective act reads one header word of its call-site constant, and
 scans that site's list only in a program with a table. At compile time, one read of each table and

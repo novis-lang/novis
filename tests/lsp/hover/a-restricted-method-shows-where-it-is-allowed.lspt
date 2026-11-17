@@ -1,0 +1,32 @@
+--TEST--
+the hover on a restricted method says where it is allowed, the entry's note, and the file and line of the entry, above the method's `///` text, `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+autoload 'App' from './app';
+
+echo App\Secret\Vault::op<|>en(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    /// Opens the vault.
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+note = 'Use `App\Allowed\Door::open`.'
+--REQUEST--
+hover
+--EXPECT--
+**Restricted.** It is allowed only in `App\Allowed`. Use `App\Allowed\Door::open`.
+
+This rule is in `package.toml`, line 2.
+
+Opens the vault.

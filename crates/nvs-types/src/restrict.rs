@@ -607,37 +607,68 @@ impl Restricted<'_> {
 
     /// Whether entry `at` allows a use at `place`, in `file`.
     fn allows(&self, at: usize, place: &Place<'_>, file: SourceId, env: &Env<'_>) -> bool {
-        let entry = &self.entries[at];
-        if let Some(package) = entry.package() {
-            let inside = env
-                .packages
-                .and_then(|packages| packages.of(file))
-                .is_some_and(|of| of.name() == package);
-            if !inside {
-                return false;
-            }
-        }
         let namespace = place.namespace.join("\\");
         let class = place.class.map(QName::to_string);
         let method = match place.member {
             Some(Member::Method(name)) => Some(name.as_str()),
             _ => None,
         };
-        let matches = |target: &Target| match target {
-            Target::Name(name) => namespace == *name || class.as_deref() == Some(name.as_str()),
-            Target::Subtree(root) => under(&namespace, root),
-            Target::Member {
-                class: owner,
-                member,
-            } => class.as_deref() == Some(owner.as_str()) && method == Some(member.as_str()),
+        let site = Site {
+            namespace: &namespace,
+            class: class.as_deref(),
+            method,
+            package: env
+                .packages
+                .and_then(|packages| packages.of(file))
+                .map(nvs_config::package::Package::name),
         };
-        let own = match entry.target() {
-            Target::Name(name) => namespace == *name || class.as_deref() == Some(name.as_str()),
-            Target::Subtree(root) => under(&namespace, root),
-            Target::Member { class: owner, .. } => class.as_deref() == Some(owner.as_str()),
-        };
-        own || entry.allow().iter().any(matches)
+        allows_at(&self.entries[at], &site)
     }
+}
+
+/// Where one use is written: the namespace, the class and the method around it, and the package
+/// its file is in by layout.
+#[derive(Clone, Copy, Debug)]
+pub struct Site<'s> {
+    /// The namespace, its segments joined with `\`, and empty for the global one.
+    pub namespace: &'s str,
+    /// The class around the use, without a leading `\`.
+    pub class: Option<&'s str>,
+    /// The method around the use.
+    pub method: Option<&'s str>,
+    /// The name of the package the use's file is in, by layout ([`crate::package`]).
+    pub package: Option<&'s str>,
+}
+
+/// Whether `entry` allows a use at `site`: the check behind every [`code::E_RESTRICTED_USE`],
+/// and the one the editor's completion asks of the cursor.
+#[must_use]
+pub fn allows_at(entry: &Restriction, site: &Site<'_>) -> bool {
+    if let Some(package) = entry.package()
+        && site.package != Some(package)
+    {
+        return false;
+    }
+    let Site {
+        namespace,
+        class,
+        method,
+        ..
+    } = *site;
+    let matches = |target: &Target| match target {
+        Target::Name(name) => namespace == name || class == Some(name.as_str()),
+        Target::Subtree(root) => under(namespace, root),
+        Target::Member {
+            class: owner,
+            member,
+        } => class == Some(owner.as_str()) && method == Some(member.as_str()),
+    };
+    let own = match entry.target() {
+        Target::Name(name) => namespace == name || class == Some(name.as_str()),
+        Target::Subtree(root) => under(namespace, root),
+        Target::Member { class: owner, .. } => class == Some(owner.as_str()),
+    };
+    own || entry.allow().iter().any(matches)
 }
 
 /// The error at a use `entry` does not allow: what is not allowed, where it is allowed, the note,
@@ -656,8 +687,35 @@ fn refusal(entry: &Restriction, span: Span) -> Diagnostic {
     diagnostic
 }
 
-/// Where `entry` allows its target, then its note.
-fn allowed_text(entry: &Restriction) -> String {
+/// Every entry of `restrictions` that names `class`, its `member` when one is given, or the
+/// namespace `class` is declared in, in the order the tables were read. The editor's hover lists
+/// them. An entry on a parent's method that an override replaces is not among them.
+#[must_use]
+pub fn entries_on<'r>(
+    restrictions: &'r Restrictions,
+    class: &QName,
+    member: Option<&str>,
+) -> Vec<&'r Restriction> {
+    let name = class.to_string();
+    let namespace = namespace_of(class).unwrap_or_default();
+    restrictions
+        .entries()
+        .iter()
+        .filter(|entry| match entry.target() {
+            Target::Name(target) => *target == name || *target == namespace,
+            Target::Subtree(root) => under(&namespace, root),
+            Target::Member {
+                class: owner,
+                member: written,
+            } => *owner == name && Some(written.as_str()) == member,
+        })
+        .collect()
+}
+
+/// Where `entry` allows its target, then its note: the first note of an `E0664`, and the text
+/// the editor's hover shows.
+#[must_use]
+pub fn allowed_text(entry: &Restriction) -> String {
     let mut text = match entry.allow() {
         [] => "It cannot be used anywhere.".to_owned(),
         places => {

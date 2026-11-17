@@ -53,8 +53,8 @@ use std::sync::Arc;
 
 use lsp_types::{DiagnosticSeverity, DiagnosticTag, NumberOrString, Range};
 use nvs_diagnostics::{
-    BytePos, Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId,
-    SourceMap, Span, code,
+    BytePos, Code, Diagnostic, Diagnostics, LabelStyle, PositionEncoding, Severity, SourceFile,
+    SourceId, SourceMap, Span, code,
 };
 use nvs_hir::Loaded;
 use nvs_syntax::string_lit::cook_string_literal;
@@ -176,9 +176,50 @@ pub fn for_document(
         .into_iter()
         .filter(|diagnostic| file_of(diagnostic).is_none_or(|file| file == analysed.entry))
         .chain(&listed)
-        .map(|diagnostic| to_wire(diagnostic, entry, encoding))
+        .map(|diagnostic| {
+            let mut wire = to_wire(diagnostic, entry, encoding);
+            wire.related_information = related(diagnostic, &analysed.map, encoding);
+            wire
+        })
         .chain(todos(entry, encoding))
         .collect()
+}
+
+/// Each secondary label of `diagnostic` in a file other than its primary span's, as a
+/// `relatedInformation` entry an editor links to, or `None` when there is none.
+///
+/// A label in the diagnostic's own file is left out: the editor already shows that file, and
+/// the wire has no place for a label's text inside it. A label in another file is the one way
+/// to reach what that file says, such as the `package.toml` line of a restriction an `E0664`
+/// names (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`). A file with no
+/// path, or one a `file:` URI cannot name, is left out too.
+#[must_use]
+pub fn related(
+    diagnostic: &Diagnostic,
+    map: &SourceMap,
+    encoding: PositionEncoding,
+) -> Option<Vec<lsp_types::DiagnosticRelatedInformation>> {
+    let home = diagnostic.primary_span().map(|span| span.file);
+    let entries: Vec<_> = diagnostic
+        .labels
+        .iter()
+        .filter(|label| label.style == LabelStyle::Secondary && Some(label.span.file) != home)
+        .filter_map(|label| {
+            let file = map.file(label.span.file);
+            let uri = crate::document::uri_of(file.path()?)?;
+            Some(lsp_types::DiagnosticRelatedInformation {
+                location: lsp_types::Location {
+                    uri,
+                    range: Range {
+                        start: position_at(file, label.span.start, encoding),
+                        end: position_at(file, label.span.end, encoding),
+                    },
+                },
+                message: label.message.clone(),
+            })
+        })
+        .collect();
+    (!entries.is_empty()).then_some(entries)
 }
 
 /// Every `// TODO:` comment in `file`, as the entries an editor lists
@@ -482,11 +523,13 @@ const fn severity(severity: Severity) -> DiagnosticSeverity {
 /// being dropped. It is a compiler bug when one has no span at all, and an
 /// editor showing it on line 1 is how that gets reported.
 ///
-/// Two things are deliberately not carried yet, each waiting for the slice that
-/// has somewhere to put it: a secondary label wants `relatedInformation`, which
-/// needs the `Uri` of a file that is not necessarily this one, and a
+/// A secondary label is not carried here: it wants `relatedInformation`, which
+/// needs the `Uri` of a file that is not necessarily this one, and
+/// [`related`] adds it from the analysis's map. A
 /// [`nvs_diagnostics::Suggestion`] is a code action, which is
-/// `textDocument/codeAction`'s. The one tag set here is `Deprecated`, on
+/// `textDocument/codeAction`'s. An `E0664`'s message is followed by its first
+/// note, which says where the declaration is allowed and why, because that is
+/// the reason a person reads the error for. The one tag set here is `Deprecated`, on
 /// `W1003`, a use of deprecated code, and on `W1021`, the hint
 /// [`from_completion_files`] gives a deprecated value. `Unnecessary` is set on
 /// `W1026`, an unused `use` line, so an editor fades the line as well as
@@ -517,7 +560,12 @@ pub fn to_wire(
         // which a person can at least search for.
         code_description: None,
         source: Some(SOURCE.to_owned()),
-        message: diagnostic.message.clone(),
+        message: match (diagnostic.code, diagnostic.notes.first()) {
+            (Some(found), Some(why)) if found == code::E_RESTRICTED_USE => {
+                format!("{}. {why}", diagnostic.message)
+            }
+            _ => diagnostic.message.clone(),
+        },
         related_information: None,
         tags: match diagnostic.code {
             Some(found)

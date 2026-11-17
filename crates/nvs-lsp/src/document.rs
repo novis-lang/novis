@@ -878,6 +878,16 @@ pub struct Analysed {
     /// walk and the type phase read. An extension class has no declaration to
     /// answer a cursor from, so completion and hover read its manifest.
     pub extensions: std::sync::Arc<Vec<std::sync::Arc<nvs_ext::manifest::Manifest>>>,
+    /// Every `[[restrict]]` entry the check read: the program's `package.toml`
+    /// first, then each loaded package's. A hover names the entries on a
+    /// declaration from it
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    pub restrictions: nvs_config::restrict::Restrictions,
+    /// The `package.toml` files the restrictions were read from: the
+    /// program's, when it has one, and each loaded package's, with or without
+    /// a `[[restrict]]` table. [`files`](Self::files) names them, so an edit to
+    /// one checks this document again.
+    pub manifests: Vec<PathBuf>,
     /// The files this analysis parsed and the files whose bodies it checked.
     /// It parsed only the files whose text the store's parse cache did not
     /// hold, and it checked the bodies of every file of the graph.
@@ -904,6 +914,7 @@ impl Analysed {
             .iter()
             .filter_map(|file| self.map.file(file.id).path().map(Path::to_path_buf))
             .chain(self.lent.iter().cloned())
+            .chain(self.manifests.iter().cloned())
     }
 
     /// Every body whose span covers `offset` in the entry document, innermost
@@ -1107,6 +1118,40 @@ pub(crate) fn analyse_through(
         .cloned()
         .collect();
 
+    // `rule:packaging/a-restriction-limits-where-a-declaration-is-used`: the `[[restrict]]`
+    // tables `nvs check` reads, from the program's `package.toml` and each loaded package's, so
+    // a restricted use is an error here too. The grant keys are dropped
+    // ([`nvs_config::grants::Grants::restrictions_alone`]). A broken table and a package file
+    // outside its namespace are `nvs check`'s to report: both point into another file, which
+    // this document's diagnostics never show.
+    let start = program.as_deref().unwrap_or(path);
+    let mut restricting = nvs_config::grants::Grants::read(start, &mut map).map_or_else(
+        |_| nvs_config::grants::Grants::default(),
+        nvs_config::grants::Grants::restrictions_alone,
+    );
+    let packages =
+        nvs_types::package::check(entry, &loaded, &autoload, &mut map, &mut Diagnostics::new());
+    restricting.set_restrictions(
+        packages
+            .all()
+            .iter()
+            .flat_map(|package| package.restrictions().iter().cloned()),
+    );
+    let manifests: Vec<PathBuf> = restricting
+        .file()
+        .map(Path::to_path_buf)
+        .into_iter()
+        .chain(
+            packages
+                .all()
+                .iter()
+                .map(|package| package.dir().join(nvs_config::grants::FILE)),
+        )
+        // Canonical, as every path of the graph [`Documents::to_republish`]
+        // compares a changed file with.
+        .map(|manifest| canonical_key(&manifest))
+        .collect();
+
     let mut exprs = ExprTypeTable::new();
     // The editor is the one reader of a tainted value's path, so it is the
     // one caller that asks the checker to record it.
@@ -1141,7 +1186,13 @@ pub(crate) fn analyse_through(
         // Each file's bodies are checked only where its key moved
         // (`crate::session`).
         let keys = session.keys(
-            &graph_key(&session.parses, &files, &lent, &extensions.digest),
+            &graph_key(
+                &session.parses,
+                &files,
+                &lent,
+                &extensions.digest,
+                restricting.restrictions().digest(),
+            ),
             &files
                 .iter()
                 .map(|file| {
@@ -1165,10 +1216,11 @@ pub(crate) fn analyse_through(
             // The editor reads no `nvs.toml`, so a backtracking pattern is
             // silent here. `nvs check` and every run judge it.
             nvs_types::Backtracking::Allow,
-            // The editor does not read the `[grants]` table yet, so it shows
-            // no `E0658`. `nvs check` and every run still refuse the call.
-            &nvs_types::Grants::default(),
-            None,
+            // The table carries the restrictions and no grant key, so the
+            // editor shows no `E0658`. `nvs check` and every run still refuse
+            // the call.
+            &restricting,
+            Some(&packages),
             &extensions.manifests,
             &keys.bodies,
             checks,
@@ -1213,6 +1265,8 @@ pub(crate) fn analyse_through(
         diags,
         stubs: reads.stubs().cloned(),
         extensions: extensions.manifests,
+        restrictions: restricting.restrictions().clone(),
+        manifests,
         work,
     })
 }
@@ -1223,14 +1277,20 @@ pub(crate) fn analyse_through(
 ///
 /// A file the parse cache does not hold, which no walk leaves behind, hashes
 /// its whole text in place of its surface, so any edit to it moves the key.
+/// The `[[restrict]]` tables' digest is in it too, so an edited restriction
+/// checks every body again.
 fn graph_key(
     parses: &crate::parse_cache::ParseCache,
     files: &[nvs_types::ProgramFile<'_>],
     lent: &[PathBuf],
     extensions: &blake3::Hash,
+    restrictions: Option<[u8; 32]>,
 ) -> blake3::Hash {
     let mut hasher = blake3::Hasher::new();
     hasher.update(extensions.as_bytes());
+    if let Some(digest) = restrictions {
+        hasher.update(&digest);
+    }
     for path in lent {
         hasher.update(path.as_os_str().as_encoded_bytes());
         hasher.update(&[0]);

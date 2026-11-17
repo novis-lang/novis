@@ -527,6 +527,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     continue;
                 }
                 if notification.method == DidChangeWatchedFiles::METHOD {
+                    let manifests = changed_manifests(&notification.params);
                     refresh_completion_files(
                         connection,
                         &mut completion_files,
@@ -534,6 +535,26 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         encoding,
                         notification.params,
                     )?;
+                    // A `package.toml` holds the `[[restrict]]` tables, so
+                    // every open document whose analysis read it is checked
+                    // again (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+                    for path in manifests {
+                        let changed = Changed {
+                            path: Some(path),
+                            closed: None,
+                            edited: false,
+                        };
+                        publish(
+                            connection,
+                            &mut documents,
+                            &index,
+                            &completion_files,
+                            settings.scope,
+                            encoding,
+                            &changed,
+                            Vec::new(),
+                        )?;
+                    }
                     continue;
                 }
                 let Some(changed) = apply(&mut documents, notification) else {
@@ -3155,14 +3176,17 @@ fn can_watch(params: &InitializeParams) -> bool {
 }
 
 /// The `client/registerCapability` request that asks the client to watch
-/// [`completion_files::WATCHED`]. The glob alone, with no kind, is a watcher for
-/// a file created, changed or deleted.
+/// [`completion_files::WATCHED`] and every [`MANIFESTS`]. A glob alone, with no
+/// kind, is a watcher for a file created, changed or deleted.
 fn watch_completion_files() -> Request {
     let options = DidChangeWatchedFilesRegistrationOptions {
-        watchers: vec![FileSystemWatcher {
-            glob_pattern: GlobPattern::String(completion_files::WATCHED.to_owned()),
-            kind: None,
-        }],
+        watchers: [completion_files::WATCHED, MANIFESTS]
+            .into_iter()
+            .map(|glob| FileSystemWatcher {
+                glob_pattern: GlobPattern::String(glob.to_owned()),
+                kind: None,
+            })
+            .collect(),
     };
     let params = RegistrationParams {
         registrations: vec![Registration {
@@ -3176,6 +3200,28 @@ fn watch_completion_files() -> Request {
         RegisterCapability::METHOD.to_owned(),
         params,
     )
+}
+
+/// Every `package.toml`, whose `[[restrict]]` table an open document's check
+/// reads.
+const MANIFESTS: &str = "**/package.toml";
+
+/// The path of each `package.toml` a watcher event names. A payload that will
+/// not deserialize names none.
+fn changed_manifests(params: &serde_json::Value) -> Vec<PathBuf> {
+    serde_json::from_value::<DidChangeWatchedFilesParams>(params.clone())
+        .map(|params| {
+            params
+                .changes
+                .iter()
+                .filter_map(|change| path_of(&change.uri))
+                .filter(|path| {
+                    path.file_name()
+                        .is_some_and(|name| name == nvs_config::grants::FILE)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Reads again each completion file a watcher event names, and publishes what

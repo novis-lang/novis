@@ -2,7 +2,9 @@
 closed per request and lives in the case parser, `crates/nvs-lsp/src/case.rs`, so a case cannot ask for something no runner implements.
 `completion` takes `prefix=` (filter the labels, which is how a case about `->` avoids freezing the whole
 keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat `rule:ide/diagnostics-are-phase-gated`,
-which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict the rendering to
+which is how the gating itself gets a case, and `changed=<path>`, which writes the case's
+`--FILE <path>.changed--` over that file after the first analysis and answers what the server
+publishes once it checks the document again; `semanticTokens` takes `types=` to restrict the rendering to
 the token types under test; `rename` needs `to=`, the new name; `willRenameFiles` needs `from=` and
 `to=`, the file or folder that moves and where it moves to, each relative to the case's own directory;
 `workspaceSymbol` takes `query=`, the text a name has to contain, and asks for every declaration

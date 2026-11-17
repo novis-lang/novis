@@ -221,6 +221,11 @@ pub struct RequestArgs {
     /// `rule:ide/diagnostics-are-phase-gated`, which is how the gating itself
     /// gets a case in both directions.
     pub phase_all: bool,
+    /// `diagnostics changed=`: a file the case changes on disk after the first
+    /// analysis. Its new text is the section `--FILE <path>.changed--`, and the
+    /// answer is the entry's diagnostics once the server has checked it again,
+    /// which it does only when its first analysis read that file.
+    pub changed: Option<String>,
     /// `semanticTokens types=`: render only these token types, so a case about
     /// one of them is not rewritten by every unrelated token added later.
     pub types: Vec<String>,
@@ -403,6 +408,9 @@ fn apply_argument(
                 ));
             }
             args.phase_all = true;
+        }
+        (Request::Diagnostics, "changed") => {
+            args.changed = Some(section::aux_path(value, &[], "")?)
         }
         (Request::SemanticTokens, "types") => {
             for wanted in value.split(',') {

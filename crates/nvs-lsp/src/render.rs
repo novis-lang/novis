@@ -465,7 +465,13 @@ fn column(text: &str, width: usize) -> String {
     }
 }
 
-/// `L:C-L:C severity CODE message`.
+/// The scheme the runner names a related location's file with, followed by the
+/// file as the case wrote it, on [`Place`]'s terms: `case:package.toml`.
+pub(crate) const CASE_SCHEME: &str = "case:";
+
+/// `L:C-L:C severity CODE message`, and under it one `  related file:L:C
+/// message` line for each `relatedInformation` entry, in the order the server
+/// sent them.
 fn diagnostic(item: &Diagnostic) -> ((u32, u32, u32, u32), String) {
     let severity = or_absent(item.severity.as_ref(), spelled);
     let code = or_absent(item.code.as_ref(), |code| match code {
@@ -475,10 +481,17 @@ fn diagnostic(item: &Diagnostic) -> ((u32, u32, u32, u32), String) {
     // One entry is one line, so a message that wraps is written with its breaks
     // escaped rather than spilling into what reads as another diagnostic.
     let message = item.message.replace('\n', "\\n");
-    (
-        span_key(item.range),
-        format!("{} {severity} {code} {message}", range(item.range)),
-    )
+    let mut text = format!("{} {severity} {code} {message}", range(item.range));
+    for entry in item.related_information.iter().flatten() {
+        let file = entry.location.uri.as_str();
+        let file = file.strip_prefix(CASE_SCHEME).unwrap_or(file);
+        text.push_str(&format!(
+            "\n  related {file}:{} {}",
+            position(entry.location.range.start),
+            entry.message.replace('\n', "\\n"),
+        ));
+    }
+    (span_key(item.range), text)
 }
 
 /// A hover's markdown, verbatim.
@@ -547,7 +560,7 @@ fn refused(message: &str) -> String {
 /// item's description where it carries label details, its detail otherwise.
 /// What a client shows only in a panel, the detail behind a description and
 /// the documentation `crate::card` resolves, is not a row and is not here.
-fn completion(item: &CompletionItem) -> (String, String) {
+fn completion(item: &CompletionItem) -> ((bool, String), String) {
     let kind = or_absent(item.kind.as_ref(), spelled);
     let (after, right) = match &item.label_details {
         Some(details) => (
@@ -561,7 +574,20 @@ fn completion(item: &CompletionItem) -> (String, String) {
         column(&format!("{}{after}", item.label), LABEL_WIDTH),
         column(&kind, KIND_WIDTH)
     );
-    (item.label.clone(), text.trim_end().to_owned())
+    let mut text = text.trim_end().to_owned();
+    // An item that sorts after every other is written after them, with its
+    // `detail` under it, which says why it sorts last.
+    let last = item
+        .sort_text
+        .as_deref()
+        .is_some_and(|sort| sort.starts_with(crate::completion::LAST));
+    if last {
+        text.push_str(&format!(
+            "\n  sorted last: {}",
+            item.detail.as_deref().unwrap_or("-")
+        ));
+    }
+    ((last, item.label.clone()), text)
 }
 
 /// Where each token starts, with the wire's deltas undone.

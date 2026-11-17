@@ -236,6 +236,19 @@ impl Grants {
         &self.restrictions
     }
 
+    /// The table with its `[[restrict]]` entries and its file, and no grant key. The language
+    /// server checks a document under it: it shows a restricted use, and it does not refuse a
+    /// call for want of a grant, because the grant a call holds also depends on an `nvs.toml`
+    /// the editor never names.
+    #[must_use]
+    pub fn restrictions_alone(self) -> Self {
+        Self {
+            file: self.file,
+            restrictions: self.restrictions,
+            ..Self::default()
+        }
+    }
+
     /// Replaces the packages' `[[restrict]]` entries with `entries`, keeping the application's.
     pub fn set_restrictions(&mut self, entries: impl IntoIterator<Item = restrict::Restriction>) {
         self.restrictions.set_packages(entries);
