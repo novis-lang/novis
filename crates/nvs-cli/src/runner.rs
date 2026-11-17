@@ -1785,10 +1785,10 @@ fn run_suite(
     ctx.set_run_hits(hits.clone());
     let shared = Arc::new(Shared {
         // `rule:routing/matched-once-before-the-handler`'s table, crossed once for the whole suite rather than per
-        // test: it is a product of the compile every isolate already shares, and
-        // [`TestServer`] is the only thing that reads it — a run whose tests declare
-        // no `server:` pays one walk of the program's `#[Route]` rows and nothing
-        // else. `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism.
+        // test: it is a product of the compile every isolate already shares. The suite's context
+        // and each test's isolate are given it, so `Core\Router` links a reference passed as a
+        // value, and [`TestServer`] serves from it. A test pays one reference count for it.
+        // `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism.
         routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
         config: ctx.config().map(|config| Arc::clone(config.snapshot())),
         folder: ctx
@@ -1812,6 +1812,12 @@ fn run_suite(
             .then(nvs_host::Watchdog::new),
         debug,
     });
+    // The suite's own context gets the table as `nvs run`'s program does, so a class hook or a
+    // fixture links a method reference passed as a value. Each test's isolate gets it in
+    // [`run_the_test`].
+    if !shared.routes.rows().is_empty() {
+        ctx.set_routes(Arc::clone(&shared.routes));
+    }
     let mut queue = Queue::new(unit, ctx, shape, hits, cores);
     let mut order = shape.shuffle.map(Order);
     let mut not_run = 0;
@@ -3544,6 +3550,7 @@ fn run_the_test(
     // `nvs_stdlib::db::begin_test_transaction` is the one home of that reading.
     let transacted = wants_db(case).map(str::to_owned);
     let child_unit = Arc::clone(unit);
+    let child_routes = (!routes.rows().is_empty()).then(|| Arc::clone(routes));
     let class_name = class.to_owned();
     let method = case.method.clone();
     let attempted = test.clone();
@@ -3552,6 +3559,12 @@ fn run_the_test(
         // the isolate's context deliberately arrives with none, so this call
         // is the whole of why one test does not read back another's static.
         child_unit.install_in(child);
+        // `Core\Router`'s members read the table outside a request too, as under `nvs run`, so a
+        // test links a method reference passed as a value
+        // (`rule:routing/link-target-and-params-are-checked`).
+        if let Some(routes) = &child_routes {
+            child.set_routes(Arc::clone(routes));
+        }
         // A failed comparison keeps its two values only on a test's own
         // context (`nvs_runtime::Ctx::owned_by_test`).
         child.set_owned_by_test();

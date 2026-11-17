@@ -1,0 +1,61 @@
+--TEST--
+under `nvs test`, a method reference passed as a value finds its route outside a request, as it does under `nvs run`, in a test and in a fixture (`rule:routing/link-target-and-params-are-checked`)
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\Fixture;
+
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string { return "show"; }
+}
+
+class Links {
+    public static function url(callable $route, array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+
+    public static function show(): callable {
+        return Shop::show;
+    }
+}
+
+final class Link {
+    public function constructor(public string $path) {}
+}
+
+final class LinksTest {
+    #[Fixture]
+    public static function link(): Link {
+        return new Link(Links::url(Shop::show, ['id' => 1]));
+    }
+
+    #[Test]
+    public function aFixtureLinksAPassedReference(Link $link): void {
+        Test::assertSame($link->path, '/shop/1');
+    }
+
+    #[Test]
+    public function aTestLinksAPassedReference(): void {
+        Test::assertSame(Links::url(Shop::show, ['id' => 3]), '/shop/3');
+    }
+
+    #[Test]
+    public function aTestSignsAPassedReference(): void {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        Test::assertSame(
+            Core\Router::urlSigned(Links::show(), ['id' => 3], {keys: $keys, until: null}),
+            Core\Router::urlSigned(Shop::show, ['id' => 3], {keys: $keys, until: null}),
+        );
+    }
+}
+--EXPECTF--
+  LinksTest
+    ✓ aFixtureLinksAPassedReference    %f ms
+    ✓ aTestLinksAPassedReference       %f ms
+    ✓ aTestSignsAPassedReference       %f ms
+
+  0 failed, 3 passed, 0 skipped, 0 flaky in %d ms
