@@ -1355,7 +1355,13 @@ pub(crate) fn analyse_through(
 
 /// The key every file of one analysis's graph shares (`crate::session`): the
 /// extension set's digest, the files the walk borrowed `autoload` declarations from,
-/// and each file's path, id and declaration surface, in graph order.
+/// and each file's canonical path, id and declaration surface, in graph order.
+///
+/// The path is the canonical one, not the name the file was loaded by. The
+/// index loads an entry by the path its tree walk found, and an open document
+/// by the path of its URI, and on Windows the two differ in their separators.
+/// So the open document's analysis reads the output the index's analysis
+/// stored.
 ///
 /// A file the parse cache does not hold, which no walk leaves behind, hashes
 /// its whole text in place of its surface, so any edit to it moves the key.
@@ -1379,7 +1385,7 @@ fn graph_key(
     }
     for file in files {
         let src = file.src;
-        hasher.update(src.name().as_bytes());
+        hasher.update(parses.key_of(src).as_os_str().as_encoded_bytes());
         hasher.update(&[0]);
         hasher.update(&src.id().index().to_le_bytes());
         match parses.hashes(src) {
@@ -1870,6 +1876,11 @@ mod tests {
 
         let mut documents = Documents::new();
         open_from_disk(&mut documents, &dir, &["main.nvs"]);
+        // The index's analysis checks `lib.nvs`, and the open document's
+        // analysis checks its own bodies and reads that output. The index
+        // names the entry by a joined path, which on Windows is not the path
+        // the URI gives, and the output is read all the same.
+        analyse_file(&documents, &dir.path.join("main.nvs"), 1).expect("main.nvs is analysed");
         let analysed = analyse(&documents, &dir.uri("main.nvs")).expect("main.nvs is open");
 
         let ungated = codes_in(analysed.diags.iter(), &analysed, "main.nvs");

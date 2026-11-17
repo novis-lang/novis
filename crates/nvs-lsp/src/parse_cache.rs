@@ -360,7 +360,7 @@ impl ParseCache {
     /// with no path. A NUL is in no real path, so a file with no path never
     /// takes the key of one that has one. A path [`entry`](Self::entry)
     /// already resolved is not resolved again.
-    fn key_of(&self, src: &SourceFile) -> Cow<'_, Path> {
+    pub(crate) fn key_of(&self, src: &SourceFile) -> Cow<'_, Path> {
         match src.path() {
             Some(path) => self.keys.get(path).map_or_else(
                 || Cow::Owned(canonical_key(path)),

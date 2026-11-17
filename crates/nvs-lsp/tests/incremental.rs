@@ -766,8 +766,8 @@ fn waiting(index: &SymbolIndex) -> Vec<String> {
 }
 
 /// A start with an index file of an unchanged tree takes every entry from it
-/// and analyses nothing. Opening a document then analyses that document's
-/// graph once, and queues no other entry.
+/// and analyses nothing. Opening a document then parses that document's graph
+/// once, checks the document's own bodies alone, and queues no other entry.
 #[test]
 fn a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry() {
     let dir = tree(2, 40);
@@ -812,10 +812,10 @@ fn a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry() {
         work,
         Work {
             parsed: graph,
-            checked: graph,
+            checked: 1,
             files: work.files,
         },
-        "one analysis of the open document's graph, and no other"
+        "one parse of the open document's graph, one check of its own bodies, and no other"
     );
 }
 
