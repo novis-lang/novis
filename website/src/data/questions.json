@@ -8983,7 +8983,7 @@
   },
   "/reference/core/novis-image-diff/constructor/": {
     "feature": "Novis\\Image\\Diff::constructor",
-    "hash": "56c757044c61ebf4",
+    "hash": "4a9b31b3b04c880a",
     "questions": [
       "How do I create an image comparison result by hand?",
       "Make a fake image diff in my tests",
@@ -9800,7 +9800,7 @@
   },
   "/reference/core/novis-pdf-page/constructor/": {
     "feature": "Novis\\Pdf\\Page::constructor",
-    "hash": "c042ab5377b64152",
+    "hash": "7c6f1f4bb5faf283",
     "questions": [
       "Test a footer function without rendering a PDF",
       "Make a page object by hand for a test",
@@ -9984,7 +9984,7 @@
   },
   "/reference/core/novis-spreadsheet-cell/constructor/": {
     "feature": "Novis\\Spreadsheet\\Cell::constructor",
-    "hash": "6a9906abf2c186ea",
+    "hash": "a78ef8bdcf76889f",
     "questions": [
       "Create a cell with a value and style by hand",
       "Read the value and style of a cell object",
@@ -10205,7 +10205,7 @@
   },
   "/reference/core/novis-spreadsheet-formula/constructor/": {
     "feature": "Novis\\Spreadsheet\\Formula::constructor",
-    "hash": "a8862e6d0e1450b9",
+    "hash": "46e2b46cfe238dca",
     "questions": [
       "Read the text of a formula from a file",
       "Why is formula text tainted?",

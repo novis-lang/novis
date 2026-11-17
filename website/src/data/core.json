@@ -27505,7 +27505,7 @@
           "name": "$diff",
           "access": "$diff->diff",
           "type": "?bytes",
-          "descHtml": "a PNG image with the differing pixels in red. It is <code>null</code> unless <code>render</code> is <code>true</code>."
+          "descHtml": "a PNG image with the differing pixels in red.\nIt is <code>null</code> unless <code>render</code> is <code>true</code>."
         }
       ],
       "members": [
@@ -27581,7 +27581,7 @@
               },
               {
                 "name": "diff",
-                "descHtml": "a PNG image with the differing pixels in red. It is <code>null</code> unless <code>render</code> is <code>true</code>."
+                "descHtml": "a PNG image with the differing pixels in red.\nIt is <code>null</code> unless <code>render</code> is <code>true</code>."
               }
             ]
           },
@@ -30204,7 +30204,7 @@
           "name": "$name",
           "access": "$page->name",
           "type": "?string",
-          "descHtml": "the page name from the CSS <code>page</code> property of the first block on this page. It is <code>null</code> when the page has no name."
+          "descHtml": "the page name from the CSS <code>page</code> property of the first block on this page.\nIt is <code>null</code> when the page has no name."
         }
       ],
       "members": [
@@ -30272,7 +30272,7 @@
               },
               {
                 "name": "name",
-                "descHtml": "the page name from the CSS <code>page</code> property of the first block on this page. It is <code>null</code> when the page has no name."
+                "descHtml": "the page name from the CSS <code>page</code> property of the first block on this page.\nIt is <code>null</code> when the page has no name."
               },
               {
                 "name": "strings",
@@ -30518,7 +30518,7 @@
           "name": "$metadata",
           "access": "$reader->metadata",
           "type": "Metadata",
-          "descHtml": "the title, author, subject, keywords, creator and producer of the file. Each one is <code>null</code> when the file does not have it."
+          "descHtml": "the title, author, subject, keywords, creator and producer of the file.\nEach one is <code>null</code> when the file does not have it."
         }
       ],
       "members": [
@@ -30799,7 +30799,7 @@
           "name": "$runs",
           "access": "$cell->runs",
           "type": "?array<Run>",
-          "descHtml": "the parts of a rich text cell, each with its text and its style. It is <code>null</code> for every other cell."
+          "descHtml": "the parts of a rich text cell, each with its text and its style.\nIt is <code>null</code> for every other cell."
         }
       ],
       "members": [
@@ -30851,7 +30851,7 @@
               },
               {
                 "name": "runs",
-                "descHtml": "the parts of a rich text cell, each with its text and its style. It is <code>null</code> for every other cell."
+                "descHtml": "the parts of a rich text cell, each with its text and its style.\nIt is <code>null</code> for every other cell."
               }
             ]
           },
@@ -31598,7 +31598,7 @@
           "name": "$text",
           "access": "$formula->text",
           "type": "tainted string",
-          "descHtml": "the Excel text of the formula, with no <code>=</code> at the start. It is <code>tainted</code>, because <code>Reader</code> can read a formula from a file."
+          "descHtml": "the Excel text of the formula, with no <code>=</code> at the start.\nIt is <code>tainted</code>, because <code>Reader</code> can read a formula from a file."
         },
         {
           "name": "$cached",
@@ -31640,7 +31640,7 @@
             "params": [
               {
                 "name": "text",
-                "descHtml": "the Excel text of the formula, with no <code>=</code> at the start. It is <code>tainted</code>, because <code>Reader</code> can read a formula from a file."
+                "descHtml": "the Excel text of the formula, with no <code>=</code> at the start.\nIt is <code>tainted</code>, because <code>Reader</code> can read a formula from a file."
               },
               {
                 "name": "cached",

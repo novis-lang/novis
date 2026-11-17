@@ -712,8 +712,10 @@ program does not compile (`E0323`). `@example` must name a file under `examples/
 and the fix rewrites it to `@return`.
 
 `@param`, `@return` and `@throws` need a sentence after them (`E0139`). The sentence runs to the end
-of the line. The next `///` line continues it, unless that line is blank or starts with a tag. The
-compiler checks each tag against the method under it:
+of the line. The next `///` line continues it, unless that line is blank or starts with a tag. A
+continuation line that starts with `- ` is a list item. Use it to describe each key of a shape
+parameter. The editor and `nvs doc` show the list under that parameter. The compiler checks each tag
+against the method under it:
 
 - `@param $name`: `$name` is a parameter of this method (`E0335`). Only one `@param` describes it
   (`E0331`). Write `$name` without a type (`E0138`).
@@ -54242,7 +54244,8 @@ the structural similarity of the two images, `1.0` for identical images
 Novis\Image\Diff::?bytes $diff
 ```
 
-a PNG image with the differing pixels in red. It is `null` unless `render` is `true`.
+a PNG image with the differing pixels in red.
+It is `null` unless `render` is `true`.
 
 **Returns** `void`
 
@@ -55679,7 +55682,8 @@ the number of pages in the document
 Novis\Pdf\Page::?string $name
 ```
 
-the page name from the CSS `page` property of the first block on this page. It is `null` when the page has no name.
+the page name from the CSS `page` property of the first block on this page.
+It is `null` when the page has no name.
 
 **Returns** `void`
 
@@ -55808,7 +55812,8 @@ the number of pages in the PDF file
 Novis\Pdf\Reader::Metadata $metadata
 ```
 
-the title, author, subject, keywords, creator and producer of the file. Each one is `null` when the file does not have it.
+the title, author, subject, keywords, creator and producer of the file.
+Each one is `null` when the file does not have it.
 
 **Returns** `void`
 
@@ -56100,7 +56105,8 @@ the style of the cell
 Novis\Spreadsheet\Cell::?array<Run> $runs
 ```
 
-the parts of a rich text cell, each with its text and its style. It is `null` for every other cell.
+the parts of a rich text cell, each with its text and its style.
+It is `null` for every other cell.
 
 **Returns** `void`
 
@@ -56450,7 +56456,8 @@ new Novis\Spreadsheet\Formula(tainted string $text, string|int|float|null $cache
 Novis\Spreadsheet\Formula::tainted string $text
 ```
 
-the Excel text of the formula, with no `=` at the start. It is `tainted`, because `Reader` can read a formula from a file.
+the Excel text of the formula, with no `=` at the start.
+It is `tainted`, because `Reader` can read a formula from a file.
 
 **Returns** `void`
 
