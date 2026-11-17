@@ -150,21 +150,31 @@ fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
     out.sort();
 }
 
-/// The shipped half of a file: every line before a `#[cfg(test)]` that opens a module. A
-/// `#[cfg(test)]` on one item does not end it, so a test-only door above the test module is
-/// still read and still owes a row.
+/// The shipped lines of a file: every line outside a top-level `#[cfg(test)]` module. Such a
+/// module may sit anywhere in the file, and it ends at the first `}` in column 0 after it. A
+/// `#[cfg(test)]` on one item does not skip it, so a test-only door is still read and still
+/// owes a row.
 fn shipped(text: &str) -> Vec<(usize, &str)> {
     let lines: Vec<&str> = text.lines().collect();
     let mut out = Vec::new();
-    for (at, line) in lines.iter().enumerate() {
+    let mut at = 0;
+    while at < lines.len() {
+        let line = lines[at];
+        let opens = lines.get(at + 1).filter(|next| next.starts_with("mod "));
         if line.trim_end() == "#[cfg(test)]"
-            && lines
-                .get(at + 1)
-                .is_some_and(|next| next.starts_with("mod "))
+            && let Some(module) = opens
         {
-            break;
+            at += 2;
+            if !module.trim_end().ends_with(';') {
+                while at < lines.len() && lines[at].trim_end() != "}" {
+                    at += 1;
+                }
+                at += 1;
+            }
+            continue;
         }
-        out.push((at + 1, *line));
+        out.push((at + 1, line));
+        at += 1;
     }
     out
 }
