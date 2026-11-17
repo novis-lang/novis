@@ -14,8 +14,12 @@
 //! [`SIGN_IN_KEY`], so a registration and a sign-in in flight in one session do not take each
 //! other's challenge. [`nvs_core_passkey_verify_registration`] and
 //! [`nvs_core_passkey_verify_sign_in`] **take theirs out before they read a byte of the
-//! response**, so a replayed response, a second check of one response and a
-//! check that fails all find no challenge the next time. A challenge older than
+//! response**, so once that check's request has ended, a replayed response, a second check of one
+//! response and a check that fails all find no challenge. Two checks of one session that run at the
+//! same time both find it, because each takes it out of its own copy of the session
+//! (`rule:http-server/a-session-is-loaded-once-and-written-whole`). That is left as it is: a sender
+//! of the second check already holds the session cookie and the signed response, which is the
+//! account. An atomic take would be a store round trip that buys nothing. A challenge older than
 //! [`TIMEOUT_SECONDS`] is refused; that is the `timeout` the options tell the browser, so a ceremony
 //! the browser has abandoned cannot be completed later. The session is
 //! `rule:core-classes/session-is-started-explicitly`'s, so a member called before
