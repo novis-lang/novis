@@ -5620,6 +5620,14 @@ mod tests {
             .expect("a bound listener knows its own address");
         let draining = nvs_server::Draining::detached();
         let drained = draining.clone();
+        // The handler says it has run, for a client that holds part of a body
+        // back until the server has read the head. Made only for such a body.
+        let (heard, hears) = if way.late > 0 {
+            let (heard, hears) = std::sync::mpsc::sync_channel::<()>(asked);
+            (Some(heard), Some(hears))
+        } else {
+            (None, None)
+        };
         let client = std::thread::spawn(move || {
             let _ends = EndsTheServer(drained);
             let mut socket =
@@ -5634,21 +5642,39 @@ mod tests {
                 } else {
                     ""
                 };
+                let early = if way.expect {
+                    ""
+                } else {
+                    &way.body[..way.body.len() - way.late]
+                };
                 let sent = if way.body.is_empty() {
                     format!("GET / HTTP/1.1\r\nHost: localhost\r\n{closing}\r\n")
                 } else {
                     // The head and the body in one write, so the body has
-                    // arrived by the time the head is read.
+                    // arrived by the time the head is read. A late part and
+                    // a body behind an `Expect` are not in it.
                     format!(
                         "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/plain\r\n\
-                         Content-Length: {}\r\n{closing}\r\n{}",
+                         Content-Length: {}\r\n{}{closing}\r\n{early}",
                         way.body.len(),
-                        way.body
+                        if way.expect {
+                            "Expect: 100-continue\r\n"
+                        } else {
+                            ""
+                        },
                     )
                 };
                 socket
                     .write_all(sent.as_bytes())
                     .expect("a request could not be written");
+                if let Some(hears) = hears.as_ref() {
+                    hears
+                        .recv()
+                        .expect("the server ended before its handler ran");
+                    socket
+                        .write_all(&way.body.as_bytes()[way.body.len() - way.late..])
+                        .expect("the late part of a body could not be written");
+                }
                 let head = head_from(&mut socket);
                 assert!(
                     head.starts_with("HTTP/1.1 200 "),
@@ -5739,7 +5765,9 @@ mod tests {
             )
         });
         // Sized for every reading up front.
-        let readings = Rc::new(std::cell::RefCell::new(Vec::<Reading>::with_capacity(asked)));
+        let readings = Rc::new(std::cell::RefCell::new(Vec::<Reading>::with_capacity(
+            asked,
+        )));
         let handler = Rc::new({
             let compiler = Arc::clone(compiler);
             let readings = Rc::clone(&readings);
@@ -5747,6 +5775,11 @@ mod tests {
                   _origin: nvs_server::Origin,
                   record: &nvs_server::Record| {
                 readings.borrow_mut().push(Reading::now());
+                if let Some(heard) = heard.as_ref() {
+                    heard
+                        .send(())
+                        .expect("the client went away before its body ended");
+                }
                 let table = tables.table(record.generation(), record.published());
                 let mount = &table.mounts()[0];
                 let chosen =
@@ -5855,6 +5888,12 @@ mod tests {
         /// registered with a watchdog, the isolate watched by it, and the
         /// entry's configuration handed to the request.
         served: bool,
+        /// How many bytes at the end of `body` are held back until the
+        /// handler has run, and then sent in a second write.
+        late: usize,
+        /// Whether the head carries `Expect: 100-continue`. The client then
+        /// sends no body at all.
+        expect: bool,
     }
 
     #[cfg(debug_assertions)]
@@ -5863,11 +5902,18 @@ mod tests {
         const BARE: Self = Self {
             body: "",
             served: false,
+            late: 0,
+            expect: false,
         };
 
         /// A request run as `nvs serve` runs it, carrying `body`.
         const fn served(body: &'static str) -> Self {
-            Self { body, served: true }
+            Self {
+                body,
+                served: true,
+                late: 0,
+                expect: false,
+            }
         }
     }
 
@@ -5881,6 +5927,8 @@ mod tests {
         allocations: usize,
         /// The readings of a CPU clock this thread has made.
         clock_reads: u64,
+        /// The times a body pull on this thread has parked for a chunk.
+        body_parks: u64,
     }
 
     #[cfg(debug_assertions)]
@@ -5890,6 +5938,7 @@ mod tests {
                 shared: nvs_diagnostics::shared::Shared::now(),
                 allocations: nvs_runtime::budget::allocations(),
                 clock_reads: nvs_host::cpuclock::reads_on_this_thread(),
+                body_parks: nvs_server::body::parks_on_this_thread(),
             }
         }
     }
@@ -5938,8 +5987,8 @@ mod tests {
             "{:?}",
             bodies.first()
         );
-        let over = readings[HELLO_WARM + HELLO_COUNTED].allocations
-            - readings[HELLO_WARM].allocations;
+        let over =
+            readings[HELLO_WARM + HELLO_COUNTED].allocations - readings[HELLO_WARM].allocations;
         println!(
             "allocations per served hello request: {} (and {} over)",
             over / HELLO_COUNTED,
@@ -5977,6 +6026,66 @@ mod tests {
             "20 requests with a body read the core's clock {over} times, and each is held to \
              {BODY_CLOCK_READS}"
         );
+    }
+
+    /// The program of the three body tests below: it prints how many bytes
+    /// of body it read.
+    #[cfg(debug_assertions)]
+    const BODY_LENGTH: &str = "<?nvs\necho Core\\Str::length(Core\\Request::body());\n";
+
+    /// A served request whose body arrived in the same write as its head
+    /// reaches the program with no park: the connection's one early poll
+    /// gives the program the body, and its end comes with it.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_body_that_arrived_with_its_head_reaches_the_program_with_no_park() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_program("serve-body-no-park", BODY_LENGTH, &compiler);
+        let way = Way::served("a body that arrived with its head");
+        let (readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, 2 + 20 + 1, way, |_| {});
+        let length = way.body.len().to_string();
+        assert!(bodies.iter().all(|body| *body == length), "{bodies:?}");
+        let parks = readings[2 + 20].body_parks - readings[2].body_parks;
+        assert_eq!(
+            parks, 0,
+            "20 requests whose body came with the head parked {parks} times for it"
+        );
+    }
+
+    /// A served request whose body arrives in two writes, the second sent
+    /// only once the handler has run, still gives the program the whole body.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_body_that_arrives_late_is_still_read_whole() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_program("serve-body-late", BODY_LENGTH, &compiler);
+        let way = Way {
+            late: 12,
+            ..Way::served("a body whose last part arrives after its head")
+        };
+        let (_readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, 4, way, |_| {});
+        let length = way.body.len().to_string();
+        assert!(bodies.iter().all(|body| *body == length), "{bodies:?}");
+    }
+
+    /// A served request with `Expect: 100-continue` whose program never reads
+    /// the body is answered with no `100 Continue` first: the connection does
+    /// not poll a body the program has not asked for. The harness checks that
+    /// the first head the client reads is the `200`.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_request_that_expects_continue_is_not_read_before_the_program_asks() {
+        let compiler = Arc::new(Compiler::default());
+        let (_dir, entry) = a_compiled_entry("serve-body-expect", "unread", &compiler);
+        let way = Way {
+            expect: true,
+            ..Way::served("a body the client sends only after 100 Continue")
+        };
+        let (_readings, bodies) =
+            one_connection_through_the_slot(&entry, &compiler, 1, way, |_| {});
+        assert_eq!(bodies, ["unread"]);
     }
 
     /// The writes one keep-alive request makes to cache lines every core

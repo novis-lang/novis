@@ -2324,7 +2324,7 @@ where
                 let mut next = Some((first, first_supply));
                 let mut first_run = true;
                 loop {
-                    let Some((isolate, supply)) = next.take() else {
+                    let Some((isolate, mut supply)) = next.take() else {
                         break failed();
                     };
                     let rerunning = !std::mem::replace(&mut first_run, false);
@@ -2458,6 +2458,17 @@ where
                             nvs_diagnostics::shared::Line::Context,
                             context,
                         );
+                    }
+                    // One poll of the body with this task's own context, before
+                    // the program starts. A body that came in the head's write
+                    // is then the program's first chunk, with no park.
+                    // `crate::body`'s docs say which bodies it reads and why.
+                    if let Some(supply) = supply.as_mut() {
+                        std::future::poll_fn(|cx| {
+                            supply.prime(cx);
+                            Poll::Ready(())
+                        })
+                        .await;
                     }
                     let started = isolate.start(&mut ctx.borrow_mut());
                     let response = match started {

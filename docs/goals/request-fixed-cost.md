@@ -184,15 +184,15 @@ Rust count tests. The two touch disjoint files and run side by side.
 
 **Does:** the two changes of § *The body hand-over*.
 
-- [ ] `crates/nvs-server/src/body.rs:195` `Supply::pump`: the end is delivered with the last data
+- [x] `crates/nvs-server/src/body.rs:195` `Supply::pump`: the end is delivered with the last data
   frame. `:344` `Pull::next_chunk` then returns the end without a park when the chunk before it carried
   it.
-- [ ] `crates/nvs-server/src/body.rs:97` `body::of` and its caller in
+- [x] `crates/nvs-server/src/body.rs:97` `body::of` and its caller in
   `crates/nvs-server/src/serve.rs:2429`: the one early poll, under the two conditions the standing
   decision names. `crates/nvs-stdlib/src/request.rs:3491` `pull_whole` needs no change if the pull
   answers its first chunk and the end from what it holds; confirm it by reading, and change it only
   where it parks without need.
-- [ ] The four tests the `body-no-wait` check names. The late body is written in two parts by the
+- [x] The four tests the `body-no-wait` check names. The late body is written in two parts by the
   test's client, which waits for the server's read between them and never for time. Run once by name.
 - [ ] `crates/nvs-host/src/watchdog.rs:133` *How many readings a request makes* is rewritten as a
   whole with the new counts for one connection and for eight.

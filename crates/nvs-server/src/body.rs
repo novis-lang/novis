@@ -38,6 +38,27 @@
 //! adds a copy of the chunks the program pulled, at most
 //! `nvs_runtime::spool::BODY_CHUNK` of them held at once, and reads nothing more.
 //!
+//! # A body that has already arrived costs no wait
+//!
+//! Two exceptions to "nothing is read before a program asks", and neither one
+//! holds a byte the transport did not already have:
+//!
+//! - **The end comes with the last chunk.** When the frame [`Supply::pump`]
+//!   takes leaves the [`Incoming`] at its end, the end is recorded with that
+//!   chunk. The pull after the last chunk returns the end without a park.
+//! - **One early poll.** [`Supply::prime`] polls the [`Incoming`] once before
+//!   the program starts, with the connection's own `Context`. It does so only
+//!   for a body with a `Content-Length` and no `Expect` header: polling a body
+//!   is what makes `hyper` send `100 Continue`, and a program that has not
+//!   asked for the body has not agreed to it. A frame that is ready becomes the
+//!   pull's first chunk, and a poll that is pending changes nothing.
+//!
+//! So a small body sent in the same write as its head reaches the program
+//! with no park at all. **What it spends:** nothing held. The chunk is the same
+//! [`Bytes`] the transport read, freed when the request ends, read or not. The
+//! request's own `upload_total` is applied to it when a reader sets it
+//! ([`Pull`]'s [`RequestBody::allow_total`]), so the refusal is the same.
+//!
 
 use std::cell::RefCell;
 use std::pin::Pin;
@@ -46,7 +67,7 @@ use std::task::{Context, Poll};
 
 use hyper::HeaderMap;
 use hyper::body::{Body as _, Bytes, Incoming};
-use hyper::header::CONTENT_LENGTH;
+use hyper::header::{CONTENT_LENGTH, EXPECT};
 use nvs_host::{Waiting, Wake, suspend_current};
 use nvs_runtime::RequestBody;
 
@@ -112,9 +133,9 @@ pub fn of(headers: &HeaderMap, incoming: Incoming, upload_total: u64) -> Arrived
     let supply = Supply {
         incoming: Box::pin(incoming),
         wire: Rc::clone(&wire),
-        carried: 0,
         spent: false,
         malformed: false,
+        early: declared.is_some() && !headers.contains_key(EXPECT),
     };
     let pull = Pull {
         wire,
@@ -149,6 +170,10 @@ struct Wire {
     /// reader sets the request's own through [`Pull`]'s
     /// [`RequestBody::allow_total`].
     total: u64,
+    /// Body bytes the connection has read so far, counted against `total`.
+    /// Kept here, beside `total`, so a reader that sets a smaller `total`
+    /// after [`Supply::prime`] read a chunk is refused for that chunk.
+    carried: u64,
     /// Where the chunks the program pulls are recorded for the debug spool, in
     /// `development` with `[debug] store` on ([`Supply::record`]).
     recording: Option<nvs_runtime::spool::Recorder>,
@@ -165,13 +190,14 @@ pub struct Supply {
     /// `Pin` and this struct moves into the service future after it is built.
     incoming: Pin<Box<Incoming>>,
     wire: Rc<RefCell<Wire>>,
-    /// Body bytes delivered so far, against the wire's `upload_total`.
-    carried: u64,
     /// Whether the [`Incoming`] is finished — ended, failed, or over the cap.
     spent: bool,
     /// Whether it failed on framing the client wrote wrong, such as a chunk
     /// size line that is not hex or ends in a bare LF.
     malformed: bool,
+    /// Whether [`Supply::prime`] may poll before the program asks: the head
+    /// declared a `Content-Length` and sent no `Expect`.
+    early: bool,
 }
 
 impl Supply {
@@ -181,8 +207,9 @@ impl Supply {
     /// `hyper`'s dispatcher loop. The `want` handshake is what keeps this from
     /// running ahead: with nothing asked for, this does not poll the
     /// [`Incoming`] at all, so no read interest is registered and no byte of the
-    /// body is buffered by anyone. With a chunk still uncollected it does not
-    /// poll either, which is the whole of the O(in-flight) bound.
+    /// body is buffered by anyone. [`Supply::prime`]'s one poll before the
+    /// program starts is the only exception. With a chunk still uncollected it
+    /// does not poll either, which is the whole of the O(in-flight) bound.
     ///
     /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s `upload_total` is counted here, because this is the only
     /// thing that sees every byte: a body that crosses it mid-stream ends as an
@@ -224,21 +251,44 @@ impl Supply {
                     if data.is_empty() {
                         continue;
                     }
-                    self.carried = self
+                    let mut wire = self.wire.borrow_mut();
+                    wire.carried = wire
                         .carried
                         .saturating_add(u64::try_from(data.len()).unwrap_or(u64::MAX));
-                    let total = self.wire.borrow().total;
-                    if self.carried > total {
+                    if wire.carried > wire.total {
                         self.spent = true;
-                        self.wire.borrow_mut().failed = Some(OVER_CAP.into());
+                        wire.failed = Some(OVER_CAP.into());
                     } else {
-                        self.wire.borrow_mut().chunk = Some(data);
+                        wire.chunk = Some(data);
+                        // The last data frame: its end is delivered with it,
+                        // so the pull after it ends without a park.
+                        if self.incoming.is_end_stream() {
+                            self.spent = true;
+                            wire.ended = true;
+                        }
                     }
+                    drop(wire);
                     self.deliver();
                     return;
                 }
             }
         }
+    }
+
+    /// Polls the [`Incoming`] once before the program starts, for a body that
+    /// declared a `Content-Length` and sent no `Expect` header.
+    ///
+    /// A frame that is ready becomes the first chunk the program pulls, and
+    /// [`Supply::pump`]'s end check applies to it. A poll that is pending
+    /// leaves the want unset, so nothing more is read until the program asks.
+    /// The poll never waits. Any other body is left alone.
+    pub fn prime(&mut self, cx: &mut Context<'_>) {
+        if !self.early || self.spent {
+            return;
+        }
+        self.wire.borrow_mut().wanted = true;
+        self.pump(cx);
+        self.wire.borrow_mut().wanted = false;
     }
 
     /// Whether the body failed on framing the client wrote wrong.
@@ -375,6 +425,8 @@ impl RequestBody for Pull {
                     connection.wake();
                 }
             }
+            #[cfg(debug_assertions)]
+            PARKS.with(|parks| parks.set(parks.get().wrapping_add(1)));
             let resumed = suspend_current(Waiting::Parked);
             if !resumed.suspended() {
                 break Landed::Failed(NO_TASK.into());
@@ -393,9 +445,34 @@ impl RequestBody for Pull {
         }
     }
 
+    /// Sets the request's own `upload_total`. A chunk the connection already
+    /// read past it is refused here, as it would be at the pull that took it.
     fn allow_total(&mut self, total: u64) {
-        self.wire.borrow_mut().total = total;
+        let mut wire = self.wire.borrow_mut();
+        wire.total = total;
+        if wire.carried > total && wire.failed.is_none() {
+            wire.chunk = None;
+            wire.failed = Some(OVER_CAP.into());
+        }
     }
+}
+
+#[cfg(debug_assertions)]
+thread_local! {
+    /// How many times a pull on this thread has parked for a chunk.
+    /// Const-initialized and holding no `Drop` type, so it never allocates.
+    static PARKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times a body pull on the calling thread has parked its task to
+/// wait for a chunk, counted from the thread's start and never decreasing.
+///
+/// `nvs-cli`'s served-request tests hold a body that arrived with its head to
+/// no park. Debug builds only, as `nvs_host::cpuclock`'s counter is.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn parks_on_this_thread() -> u64 {
+    PARKS.with(std::cell::Cell::get)
 }
 
 /// Whether `hyper` ended a body over framing it could not read. Its HTTP/1
