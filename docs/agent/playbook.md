@@ -185,6 +185,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A thread's `thread_live_bytes` does not show what a compile keeps.** The JIT compile added
+  5.9 MB on the compile thread, but the artifact's object payload, built on the scoped `nvs
+  artifact` thread, is freed there too, so the thread read +143 KB per compile. The units' bytes
+  then showed as negative balances on whichever core freed them. Measure the step itself, around
+  `nvs_codegen::compile` or a `Drop`, and not a thread's running balance. See
+  `crates/nvs-cli/src/cache.rs`'s `compile_beside_object`.
 - **A buffer filled by `resize` then `read` zeroes a whole block per fill, and a scale bench sees
   it as growth.** `readLine`'s read-ahead resized to 8 KiB before every read, so a short line paid
   for 8 KiB of zeroing and the slope read 1.26. Keep the buffer's length and track where the read

@@ -141,6 +141,15 @@ holds as written: no address was taken. The object-file backend (`UnitBuilder<Ob
 nothing and does not change. **Declined:** a custom `memory_provider` that frees on drop. It changes
 the allocator of every unit to fix the one path that never ends in `finish`.
 
+**A finished unit keeps its pages and not its module (my call, stage 5).** Each unit kept its whole
+`JITModule` until the unit dropped: 5.9 MB of heap on the registry app (declarations, compiled blobs
+with their relocations, the copy of every helper name), which the code never reads. `JitPages` now
+maps through `SharedPages`, a handle to a `SystemMemoryProvider` that `JitPages` also holds, and
+`finish` frees the module once it has read every address (`JitPages::shed`). `Drop` frees the module
+if it is still there and then unmaps the pages. This reuses `cranelift-jit`'s own provider, so the
+allocator of every unit is the same as before; only who owns it changes. It saves 5.9 MB per unit
+alive, up to about 110 MB on 16 cores. It costs one `Arc` per unit.
+
 **A panic is a failed compile for its content (my call).** `compile` in `script.rs` runs under
 `catch_unwind`. A panic becomes `CompileState::Failed` with the message "the compiler stopped on an
 internal error" and the panic text, recorded under the content's key like any other failure. So it is
@@ -261,7 +270,7 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 ### 5. what a successful recompile keeps is measured, bounded and written down
 
-- [ ] Run `bun nv serve-mem --app registry --oks 30` with no requests, and read the live bytes of the
+- [x] Run `bun nv serve-mem --app registry --oks 30` with no requests, and read the live bytes of the
   compile thread and of each core with the runtime's counters. Write in the handoff what grows per
   success, and what holds it.
 - [ ] Before stage 6 fixes the panic, write a `yield self::…` call into a generator of the registry
@@ -269,9 +278,11 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
   which threads end (24 became 21 on the small file).
 - [ ] Fix what grows with the number of recompiles or panics. A bound of three cached units plus one
   per core stays as it is.
-- [ ] The module doc of `crates/nvs-cli/src/serve/mounts.rs` and of `crates/nvs-cli/src/script.rs`
+  - [x] A success: nothing grows past the bound. Each unit's 5.9 MB module heap is freed at `finish`.
+  - [ ] A panic: waits on the item above it.
+- [x] The module doc of `crates/nvs-cli/src/serve/mounts.rs` and of `crates/nvs-cli/src/script.rs`
   say what a recompile keeps, per unit and per core, with the measured figures.
-- [ ] Rebuild with `bun nv relink --build`, run `bun nv serve-mem --app registry --fails 10 --oks 30`
+- [x] Rebuild with `bun nv relink --build`, run `bun nv serve-mem --app registry --fails 10 --oks 30`
   once, and write the figures beside the baseline.
 
 ### 6. no source text makes the compiler panic, from the parser to code generation
@@ -315,32 +326,40 @@ because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
 ### State
 
-Stages 1 to 4 are done, and the `pages`, `no-retry` and `keep-alive` checks are green. The
-memory baseline (Windows, release, `--app registry --fails 10 --oks 10`): 33.4 MB private at the
-start, failures level off at +26.6 MB, and each success adds 9 to 20 MB with no plateau.
+Stages 1 to 4 are done, and the `pages`, `no-retry` and `keep-alive` checks are green (`pages`
+rerun green after this session's change to `JitPages`). Stage 5 has every item done but the panic
+measurement and its fix.
 
-Stage 4 found the `500`s were not about reloads. Each was `answer`'s `failed()`
-(`crates/nvs-server/src/serve.rs`): a memory `FATAL` under a ceiling of a few KB, because a
-request's ceiling is what remains of its connection's, and that reading grew about 2,100 bytes per
-request served. `crates/nvs-host/src/scheduler.rs` (about `:1225`) ended a child as a `Box<Ctx>`
-and the box was freed after the turn. The fix is `Ctx::end_in_its_turn(self: Box<Self>)`
-(`crates/nvs-runtime/src/ctx/limits.rs`, about `:400`): one connection reads 24,182 bytes after
-each of 10,000 requests. The `keep-alive` test now sends 2,000 more requests under a 2 MB limit, and
-fails at answer 717 without the fix. `serve-mem --load 64 --edits 70`: 6,556,689 answers, all
-`200`. `serve-mem` gained `--memory <size>` and keeps the server's log. The nightly soak missed it
-because it closes each connection after 50 requests.
+**What a success keeps, measured (stage 5).** Temporary trace lines, since removed, read
+`thread_live_bytes` per pass and per request. A JIT compile allocates 5.9 MB of heap on the compile
+thread, and the front end about 22 MB, which it frees. The units alive follow `mapped_jit_units`: 15
+after 30 edits on 16 cores, so the bound of three cached units plus one per core holds, and nothing
+grows per edit beyond it. What held the bytes was each unit's whole `JITModule` (declarations, blobs,
+relocations, helper-name copies), kept until the unit dropped. The fix (`f05b7b4472`): `JitPages`
+maps through `SharedPages` and `finish` frees the module (`JitPages::shed`,
+`crates/nvs-codegen/src/lib.rs` about `:540`). A unit now costs about 10 MB private on the registry
+app. `--oks 30` alone: 259 MB before, 175 MB after, with 15 units alive.
 
-The sweep's two reds are stale: `env-secret-proofs` is defined nowhere, and nightly 44073672172 ran
-before `0fe2fdef25`, which is on `origin/main`.
+**Beside the baseline** (`--fails 10 --oks 30`, Windows, release): 26.8 MB at the start (33.4 before),
+failures level off at +17.8 MB (+26.6 before), and successes reach +157 MB after 30 (the old run
+reached about +225 MB at 30 on `--oks 30`). The later samples swing by ±30 MB because a sample can
+land while a compile's front end is alive. The growth is the units on idle cores' slots, which the
+`mounts.rs` doc now states with a decline of clearing them on a swap.
+
+The sweep's two reds are stale: `env-secret-proofs` is defined nowhere (`git log -S` ends at a
+retired goal), and nightly 44073672172 ran before `0fe2fdef25`, which is on `origin/main`.
 
 ### Next
 
-Stage 5, what a successful recompile keeps (needs `bun nv relink --build` first).
+Stage 5's last item, then stage 6.
 
-- Run `bun nv serve-mem --app registry --oks 30` with no requests, and read the live bytes of the
-  compile thread and of each core with the runtime's counters. Each success added 9 to 20 MB in the
-  baseline. The first lead is `crates/nvs-cli/src/serve/mounts.rs:172`'s slots and the cache's three
-  units in `crates/nvs-cli/src/script.rs`.
+- Item 2: write `yield self::one();` into a static generator of the registry copy's
+  `src/App.nvs` (by hand under `.agent-tmp/serve-mem/registry/` while `serve-mem` waits, or give
+  `serve-mem` a `--panics <n>` mode beside `BROKEN` in `tools/nv/cmd/serve-mem.ts:212`). Count the
+  private bytes and the threads (`Get-Process -Id <pid>`'s `Threads.Count`) after each of ten panics.
+  If a panic adds memory or ends a thread, fix it at the cause, then tick item 3's panic checkpoint.
+- To read per-thread bytes again, put an `eprintln!` of `thread_live_bytes()` around the step itself
+  (see the playbook bullet on `compile_beside_object`), never a thread's running balance.
 - Stage 6 may run as a side goal: stage 2 is done.
 
 No test is expected red now.
