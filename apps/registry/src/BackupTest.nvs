@@ -27,7 +27,7 @@ final class BackupTest
             var $site = BackupTest::site($folder);
             var $browser = new BrowserTest();
             string $account = $browser->newAccount();
-            Test::assertTrue(new Backup(Schema::open(), $site)->copy());
+            new Backup(Schema::open(), $site)->write();
 
             string $sealed = IO::read($folder . '/backup/' . Backup::FILE);
             // The store has no row of the database as text.
@@ -42,6 +42,31 @@ final class BackupTest
             Test::assertThrows(fn(): void => { Backup::open($changed, $site->backupKey); }, RuntimeError::class);
             // The key opens it, and the copy has the new account.
             Test::assertTrue(Str::contains(Backup::open($sealed, $site->backupKey), '"id":"' . $account . '"'));
+        } finally {
+            BackupTest::remove($folder);
+        }
+    }
+
+    // The database is in memory and the test's own, so no other test changes it between two copies.
+    #[Test]
+    public function aCopyIsWrittenOnlyWhenTheDatabaseChanged(): void
+    {
+        string $folder = BackupTest::folder();
+        try {
+            var $site = BackupTest::site($folder);
+            var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+            Schema::setUp($db);
+            var $backup = new Backup($db, $site);
+            Test::assertTrue($backup->copy());
+            string $first = IO::read($folder . '/backup/' . Backup::FILE);
+            // Nothing changed, so the store keeps the first copy.
+            Test::assertTrue(!$backup->copy());
+            Test::assertSame(IO::read($folder . '/backup/' . Backup::FILE), $first);
+            // A new account changes the database, so the next check writes a new copy.
+            $db->execute('insert into accounts (id, created_at, active_at) values (?, 1, 1)', [Random::token(16)]);
+            Test::assertTrue($backup->copy());
+            Test::assertTrue(IO::read($folder . '/backup/' . Backup::FILE) != $first);
+            $db->close();
         } finally {
             BackupTest::remove($folder);
         }
@@ -66,7 +91,7 @@ final class BackupTest
             // Below 0.1.0 no owner has to confirm the API, so each release waits only its seven days.
             BackupTest::publish($site, $token, $vendor, $repository, '0.0.1');
             Test::assertTrue(new Index(Schema::open(), BackupTest::log(0), $site)->catchUp($key));
-            Test::assertTrue(new Backup(Schema::open(), $site)->copy());
+            new Backup(Schema::open(), $site)->write();
             // Version 0.0.2 goes into the log after it. The copy does not have it.
             BackupTest::publish($site, $token, $vendor, $repository, '0.0.2');
             int $first = BackupTest::logNumber($key, '0.0.1');

@@ -83,6 +83,28 @@ final class Backup
             $this->remember($digest, $now);
             return false;
         }
+        $this->send($plain);
+        $this->remember($digest, $now);
+        return true;
+    }
+
+    // Writes a copy whether or not the database changed, and saves its hash as `copy` does.
+    // It throws a `RuntimeError` when there is no `backupKey` or the store fails.
+    // The tests use it: they run at the same time with their own backup stores but one `backups` row,
+    // so another test's copy can make `copy` find nothing changed.
+    public function write(): void
+    {
+        if ($this->site->backupKey == '') {
+            throw new RuntimeError('the settings have no backupKey');
+        }
+        string $plain = Backup::dump($this->db);
+        $this->send($plain);
+        $this->remember(Encoding::toHex(Hash::of($plain, Hash::Digest::Sha256)), Time::now()->toEpochSeconds());
+    }
+
+    // Seals `$plain` and puts it in the backup store as `registry.copy`.
+    private function send(string $plain): void
+    {
         string $file = Index::work($this->site) . '/' . Random::token(8) . '.copy';
         try {
             IO::write($file, Backup::seal($plain, $this->site->backupKey));
@@ -92,8 +114,6 @@ final class Backup
                 IO::remove($file);
             }
         }
-        $this->remember($digest, $now);
-        return true;
     }
 
     // Returns every row of every table of `$db` but `backups`, one JSON object per line,
