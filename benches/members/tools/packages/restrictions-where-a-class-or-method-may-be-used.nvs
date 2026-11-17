@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Str::length` called from the one namespace a `[[restrict]]` table allows, as a framework calls a method only it may use.
+// bench: iterations 256
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+namespace Shop\Text;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $labels = ['sku', 'Zürich', 'shipping zip'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($labels[(($total + $i) % 3) as int]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

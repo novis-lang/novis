@@ -1,0 +1,10 @@
+# This folder is the package `Framework\Core`. Every module that loads it gets this rule.
+# Only the code in `Framework\Core\Signing` and below may call `Core\Router::urlSigned`.
+[package]
+name = 'Framework\Core'
+version = "1.0.0"
+
+[[restrict]]
+use   = 'Core\Router::urlSigned'
+allow = ['Framework\Core\Signing\*']
+note  = "Use `Framework\\Core\\Signing\\Url::signed`. Every link that it builds works for one day."

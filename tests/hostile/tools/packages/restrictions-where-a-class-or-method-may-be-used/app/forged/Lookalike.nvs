@@ -1,0 +1,12 @@
+<?nvs
+// This file is part of the application, not of the package `Acme\Signing`.
+// It says it is in `Acme\Signing`, the namespace of the restricted class.
+namespace Acme\Signing;
+
+final class Lookalike
+{
+    public static function sign(string $text): string
+    {
+        return (new Keys())->sign($text);
+    }
+}

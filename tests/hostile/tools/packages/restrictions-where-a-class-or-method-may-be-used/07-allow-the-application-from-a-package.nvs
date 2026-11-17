@@ -1,0 +1,11 @@
+<?nvs
+// Attack: a package's `package.toml` allows the application's namespace to use the package's code.
+// A package may only allow places inside its own namespace, so this program should not compile.
+// hostile: expect-refusal
+namespace Shop;
+
+autoload 'Acme\Hooks' from './vendor/acme/hooks/src';
+
+// 1. This line uses the package, so its `package.toml` is read.
+// Each entry in that file tries one way to allow a place outside the package.
+echo Acme\Hooks\Tool::run(), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Attack: the application calls a restricted interface method through the classes that implement it.
+// The restriction holds for every class that implements the method, so this program should not compile.
+// hostile: expect-refusal
+namespace Shop;
+
+autoload 'Acme\Signing' from './vendor/acme/signing/src';
+autoload 'Shop' from './app/shop';
+
+// 1. A variable of the interface type has a `Seal` object, and this line calls `sign`.
+Acme\Signing\Signs $signer = new Acme\Signing\Seal();
+echo $signer->sign("page"), "\n";
+
+// 2. This line calls `sign` on `Seal` directly, without the interface type.
+echo (new Acme\Signing\Seal())->sign("page"), "\n";
+
+// 3. `Stamp` is a class of the application that implements the interface, and this line calls it.
+echo (new Shop\Stamp())->sign("page"), "\n";
+
+// 4. `Checkout::signWith` receives the interface type and calls `sign` inside the method.
+echo Shop\Checkout::signWith(new Shop\Stamp()), "\n";

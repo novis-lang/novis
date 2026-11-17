@@ -1,0 +1,10 @@
+<?nvs
+namespace Acme\Signing;
+
+final class Seal implements Signs
+{
+    public function sign(string $text): string
+    {
+        return "sealed " . $text;
+    }
+}

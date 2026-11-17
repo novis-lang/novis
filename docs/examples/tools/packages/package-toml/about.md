@@ -6,8 +6,8 @@ capabilities the code of each package may use, such as `fs.read`. A package's fi
 table with its `name` and `version`. It lists the capabilities it needs in `[capabilities]`, and its
 data files in `files`.
 
-When your program compiles, Novis reads only `[grants]` from your application's file. From a
-package's file, it reads only the name and `[capabilities]`. Your program never reads the file when
+When your program compiles, Novis reads only `[grants]` and `[[restrict]]` from your application's
+file. From a package's file, it reads only the name, `[capabilities]` and `[[restrict]]`. Your program never reads the file when
 it runs.
 
 **Good to know:** a package may read the files it lists with no grant. It may not write them.

@@ -1,0 +1,7 @@
+# This application compares names and email addresses without case.
+# `allow` is empty, so no code may call `Core\Str::lower`.
+[[restrict]]
+use     = 'Core\Str::lower'
+allow   = []
+note    = "Use `Core\\Str::fold` to compare text without case. It also finds `Straße` when you search for `STRASSE`."
+replace = 'Core\Str::fold($s)'

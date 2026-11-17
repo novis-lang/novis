@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/package/api.rs, crates/nvs-cli/src/package/diff.rs, crates/nvs-cli/tests/package_api.rs, docs/rules/packaging/only-a-major-may-break-the-api.md]
   - id: 6
     title: the feature's proofs and its pages
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md, docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md, website/src/content/docs/guides/how-to-use/modules.mdx, docs/agent/prose.md, tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs, benches/members/tools/packages/grants-what-each-namespace-may-do.nvs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -469,29 +469,29 @@ writes the reference section, `about.md`, `details.md` and the website page, and
   agent find restrict` reaches it). The `[[restrict]]` keys join the `package.toml` key list at
   `:125`, the page's `keywords` gain `[[restrict]]`, `restrict`, `allow`, `E0664`, `E0665`, `E0666`,
   and its `src:` comment cites the new rule.
-- [ ] `docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/about.md:1` and
+- [x] `docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/about.md:1` and
   `details.md:1`: what the table does, the four keys, what counts as a use, that nothing lifts a
   restriction, and the monorepo layout as the second way to make a package.
-- [ ] Three examples in the same folder, each with its `.out`, as the grants examples are laid out:
+- [x] Three examples in the same folder, each with its `.out`, as the grants examples are laid out:
   `01-a-framework-allows-one-namespace` (a fetched package under `vendor/` restricts
   `Core\Router::urlSigned`, and its own signer uses it), `02-a-module-uses-the-framework-signer`
   (the monorepo layout of § *Why*: `modules/Framework/package.toml`, a module's entry, and the
   module calling the framework's signer), `03-an-application-forbids-a-method-everywhere` (the
   application's own file with `allow = []`, and the program that compiles without the call).
-- [ ] Attacks in `tests/hostile/tools/packages/restrictions-where-a-class-or-method-may-be-used/`,
+- [x] Attacks in `tests/hostile/tools/packages/restrictions-where-a-class-or-method-may-be-used/`,
   each `// hostile: expect-refusal`: `01-declare-the-framework-namespace` (a module file writes the
   framework's namespace), `02-call-through-a-subclass` and `03-call-through-an-interface`,
   `04-take-a-method-reference`, `05-call-by-reflection` (expects the throw instead),
   `06-lift-the-restriction-in-the-application-file` (the application's file names the same `use`
   with a wider `allow`), `07-allow-the-application-from-a-package` (a package's `allow` names the
   application's namespace).
-- [ ] `benches/members/tools/packages/restrictions-where-a-class-or-method-may-be-used.nvs:1`: an
+- [x] `benches/members/tools/packages/restrictions-where-a-class-or-method-may-be-used.nvs:1`: an
   allowed call of a restricted `Core` method in a loop, against the same call with no table, which
   shows the run time is the same. `// bench: complexity constant`.
-- [ ] `website/src/content/docs/guides/how-to-use/modules.mdx:43`: a section *A framework shared by
+- [x] `website/src/content/docs/guides/how-to-use/modules.mdx:43`: a section *A framework shared by
   every module* after *One entry file for each module*: the framework folder's `package.toml` makes it
   a package, and a restriction in it holds in every module. It links to the reference section.
-- [ ] The `feature-proofs` check run once, and every proof it names written.
+- [x] The `feature-proofs` check run once, and every proof it names written.
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -503,70 +503,78 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Stages 1 to 3 are done and their checks green; `nvs-types` `restrict.rs` holds the check.
+Stages 1 to 6 are done, and the `feature-proofs` check passes: `bun nv proofs --id
+tools:packages/restrictions-where-a-class-or-method-may-be-used` owes nothing. Only stage 7, the gate, is
+left.
 
-Stage 6's first two items are done. A call, property read or write through a `mixed` or `object`
-receiver is held: `restrict::record_acts` lists, per erased site (`ActSite::Erased`), the acts of
-its one kind on restricted members of its one name the place does not allow, and `nvs_ir`
-`Lowering::restricted_erased_act` (`lower/mod.rs`) emits `Helper::RestrictedErasedAct`
-(`nvs_runtime` `helpers.rs` `nvs_restricted_erased_act`) before the access, only where a list was
-recorded. The new case `restrict-a-call-through-mixed-outside-the-allowed-places-throws.nvst` is
-green, run once, and joins the `reflective-act` check. The reference section is
-`docs/reference/tools/35-packages.md` `# Restrictions: where a class or method may be used`; the
-feature exists, and its 13 cases and 22 Rust tests carry `covers:` (at the end of each case's main
-file, so no quoted line number moved). `bun nv proofs --id` now owes `about.md`, an example and an
-attack.
+Stage 6 wrote `about.md`, `details.md`, three examples with `.out`
+(`docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/`), nine attacks
+(`tests/hostile/tools/packages/restrictions-where-a-class-or-method-may-be-used/`, `07` with its own
+broken package `vendor/acme/hooks`), the bench (its table is in the shared
+`benches/members/tools/packages/package.toml` and restricts `Core\Str::length` to `Shop\Text`), the
+section *A framework shared by every module* in `website/src/content/docs/guides/how-to-use/modules.mdx`,
+and the `package-toml/about.md` line on what the compiler reads. `bun nv proofs --run --id` is green: 3
+examples and 9 attacks. `bun nv proofs --comments` passes on all 29 files, and `bun nv site --check code`
+and `--check guides` pass.
 
-Stages 4 (`crates/nvs-lsp`) and 5 (`crates/nvs-cli/src/package` `api.rs`, `diff.rs`) are done.
+The attacks found a bypass, now fixed (`981359cfb4`): `$object->$key` with a `property<T>` key read and
+wrote a restricted property. `restrict::check_uses` now treats an `ExprInfo::KeyedProperty` as a use of
+every public property of `T`, at compile time. Case
+`restrict-a-keyed-property-access-is-a-use-of-every-key.nvst` is green, run once. Attack `09` is now
+`expect-refusal`, and the keyed step left `08`.
 
 Sweep reds: `env-secret-proofs` is stale service state (no log, no definition in the tree);
 nightly 43849315979's reds were fixed after it (`2934ebe1ae`, `9efc45b6fd`).
 
-Expected red at the gate: possibly an existing `.lspt` diagnostics case whose diagnostic has a
-secondary label in another file, which now renders a `related` line; re-freeze it.
-`crates/nvs-lsp/tests/completion_files.rs` already expects the second watcher glob.
-
 ### Next
 
-Stage 6's rest: `about.md` and `details.md` in
-`docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/`, then the three
-writing subagents the stage's **Split:** names (examples, attacks with `08-call-through-mixed`,
-bench), each told the reference section's path and the error text (`restrict.rs` `refusal`,
-`allowed_text`, `source_text`). Then the website section in `modules.mdx:43`, and the
-`feature-proofs` check once. The pages name the rule's file and line without quoting a path,
-because the CLI still prints the absolute path (see *Backlog*).
+Stage 7. First, before the gate, make the CLI name the manifest relative to the program's directory,
+as the editor's hover does (`crates/nvs-lsp` `hover.rs` `relative_to`). The change is in
+`crates/nvs-types/src/restrict.rs` `source_text` and the reflective `refusal_text`. Decided here: an
+absolute path depends on the machine and is noise in an error the user reads. Re-freeze every `.nvst`
+case that matched the path with `%s`, if any. Then run `looper verify` with `run_in_background`, fix every
+failure in one pass, and run it once more. Then the goal-end gates in AGENTS.md § *In the loop*.
+
+Expected reds at the gate: an existing `.lspt` diagnostics case whose diagnostic has a secondary label in
+another file, which now renders a `related` line, so re-freeze it. Also any test whose program does a
+keyed access on a class with a restricted property. None is known. The new bench has no share in
+`data/perf/bench-budget.json` (`bun nv scaling --budget --write`) and no perf record. If the gate or
+`bun nv ci --check` asks for either, record it on the release binary.
 
 ### Backlog
 
-- A keyed access, `$object->$key` (`ExprInfo::KeyedProperty`, `InstKind::KeyGet`), names its
-  member only at run time and is not held. It needs every property act the place does not allow
-  in its list, and the check after the key is lowered. Stage 7 or a follow-up; the rule says so.
+- **`replace` cannot use a `Core` method's shape parameter** (`E0666`). With `use =
+  'Core\Router::urlSigned'`, `replace = 'App\S::link($settings->keys)'` says a property cannot be
+  reached through the shape. Passing `$settings` to a parameter of the same shape says "expected `{ keys:
+  …, until: null|Core\Time\Instant }`, found" the same text. `CoreTy::Shape(SIGNING)` is likely not
+  treated as a plain shape where the replacement is type-checked. Example 01 has no `replace` because
+  of it.
+- `clone $object` of a restricted class outside the allowed places compiles and runs. `clone` is not on
+  the list of uses. It makes an instance as `new` does, so it should probably be one. Decide with the
+  rule.
+- `Core\Reflect::forClass("Ns\Name")` returns `null` for a class the program does not otherwise reference.
+  This is not a restriction gap. Attack `05` gets its `ClassInfo` from an object instead.
+- An application entry refused a file in the restricted class's own namespace
+  (`app/forged/Lookalike.nvs`, attack `01`). The rule says a declaration's own namespace may always use
+  it. That is stricter than the rule says, so it is safe, but the rule and the check disagree.
+- An `E0666` diagnostic prints the `package.toml` source line twice, once per label.
+- `tools/nv/proofs/run.ts:1429` `suiteLines` threw `TypeError: undefined is not an object (evaluating
+  'r.verdict')` once, while other agents changed files under the run. Not seen again.
 - `held_acts` lists an inherited member under the class that inherits it, held by the entries on
   its declaring class, as the static check holds a use. An entry on a subclass does not hold an
   inherited member's reflective act, matching `$child->inherited()` statically.
-
-- A `replace` naming an undeclared class or member is not `E0666` (see *State*). Running
+- A `replace` naming an undeclared class or member is not `E0666`. Running
   `nvs_hir::MemberResolver::check` over the template needs it wrapped as a statement in its
-  namespace, and `module.members` handed to it; stage 7 or a follow-up decides whether it pays.
-  Check whether `#[Core\Deprecated]`'s `replace` has the same gap.
-
-- The error's note names the manifest by its absolute path. The rule's example names it relative to
-  the project (`modules/Framework/package.toml`). The editor's hover names it relative to the
-  program's directory (`hover.rs` `relative_to`); stage 6 picks the CLI's form with the pages
-  (`crates/nvs-types/src/restrict.rs` `refusal`).
+  namespace, and `module.members` handed to it. Check whether `#[Core\Deprecated]`'s `replace` has the
+  same gap.
 - Editor gaps, each small: a `Core` member's hover (the card path) shows no restriction; completion
   does not read the method around the cursor, so an `allow` naming `Class::method` still sorts the
   item last there; `restrict::entries_on` skips an entry on a parent's method an override replaces.
-- The error prints `Ns\*` for a subtree in "It is allowed only in". Stage 6 writes the final
-  wording, with the pages that quote it.
+- The error keeps `Ns\*` for a subtree in "It is allowed only in" (decided by stage 6): it is the
+  syntax the user wrote in `allow`, and the reference page explains it.
 - The case `restrict-a-type-and-instanceof-are-not-uses.nvst` keeps the name the `use-refused` check
   gives it, but Novis writes the test as `is`. Rename both together if the name matters.
-- The new tests carry no `covers:` line, because the feature id does not exist yet. Stage 6 adds one
-  to each when it creates the feature.
-- The end-user pages still say the compiler reads only `[grants]` and `[capabilities]`:
-  `docs/examples/tools/packages/package-toml/about.md:9` and `docs/reference/tools/35-packages.md:128`.
-  Stage 6 rewrites both with the feature's pages, once a restriction does something.
 - A package's file read through `nvs pkg` (`crates/nvs-cli/src/package/manifest.rs:489`) is also
   parsed by `Grants::parse`, which reads its `[[restrict]]` as an application's and skips the
   package-name check. `Package::parse` runs right before it and makes that check, so nothing is
-  missed. Stage 5 may read the entries from `Package` alone.
+  missed.

@@ -1,0 +1,13 @@
+<?nvs
+// Shows an application that does not allow `Core\Str::lower` anywhere, and a program that compiles without it.
+
+array<string> $customers = ['Anna Straße', 'Ben Weber', 'Clara Roth'];
+string $search = 'ANNA STRASSE';
+
+// `package.toml` does not allow `Core\Str::lower`, so this program uses `Core\Str::fold`.
+// `fold` gives the same result for `Straße` and `STRASSE`. This prints `Anna Straße`.
+foreach ($customers as string $customer) {
+    if (Core\Str::fold($customer) == Core\Str::fold($search)) {
+        echo $customer, "\n";
+    }
+}

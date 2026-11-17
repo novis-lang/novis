@@ -1,0 +1,12 @@
+<?nvs
+// This file is part of the application, not of the package `Acme\Signing`.
+// It says it is in `Acme\Signing\Internal`, the namespace that may call `sign`.
+namespace Acme\Signing\Internal;
+
+final class Forger
+{
+    public static function sign(string $text): string
+    {
+        return (new Acme\Signing\Keys())->sign($text);
+    }
+}

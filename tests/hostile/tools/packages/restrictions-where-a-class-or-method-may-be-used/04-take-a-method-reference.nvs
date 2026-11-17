@@ -1,0 +1,24 @@
+<?nvs
+// Attack: the application takes a reference to a restricted method, to call it later.
+// Taking the reference is a use of the method, so this program should not compile.
+// hostile: expect-refusal
+namespace Shop;
+
+autoload 'Acme\Signing' from './vendor/acme/signing/src';
+autoload 'Shop' from './app/shop';
+
+// 1. This line takes a reference to the static method `Vault::make` by its class and method name.
+callable $make = Acme\Signing\Vault::make;
+
+// 2. This line takes a reference to `sign` on one object with `(...)`, and calls it.
+var $keys = new Acme\Signing\Keys();
+callable $onObject = $keys->sign(...);
+echo $onObject("page"), "\n";
+
+// 3. This line takes the reference on an object of the subclass `FastKeys`.
+var $fast = new Shop\FastKeys();
+callable $onSubclass = $fast->sign(...);
+
+// 4. This line takes the reference on a variable of the interface type `Signs`.
+Acme\Signing\Signs $signer = new Acme\Signing\Seal();
+callable $onInterface = $signer->sign(...);

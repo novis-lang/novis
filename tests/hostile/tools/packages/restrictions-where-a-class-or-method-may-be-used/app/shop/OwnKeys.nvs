@@ -1,0 +1,11 @@
+<?nvs
+// This subclass replaces `sign` with its own method, and calls the original with `parent::`.
+namespace Shop;
+
+final class OwnKeys extends Acme\Signing\Keys
+{
+    public function sign(string $text): string
+    {
+        return parent::sign($text);
+    }
+}

@@ -1,0 +1,13 @@
+<?nvs
+namespace Acme\Links;
+
+final class Signer
+{
+    // This class may call `Core\Router::urlSigned`, because its namespace is allowed.
+    // A link without an end time works for one hour.
+    public static function link(callable $route, array<mixed> $params, { keys: array<secret bytes>, until: ?Core\Time\Instant } $settings): string
+    {
+        Core\Time\Instant $until = $settings->until ?? Core\Time::now()->plus(1h);
+        return Core\Router::urlSigned($route, $params, { keys: $settings->keys, until: $until });
+    }
+}

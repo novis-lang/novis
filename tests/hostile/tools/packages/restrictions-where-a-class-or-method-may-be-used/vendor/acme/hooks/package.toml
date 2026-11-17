@@ -1,0 +1,27 @@
+[package]
+name = 'Acme\Hooks'
+
+# This entry allows the application's namespace `Shop`.
+[[restrict]]
+use = 'Acme\Hooks\Tool::run'
+allow = ['Shop']
+
+# This entry allows every namespace below `Shop`.
+[[restrict]]
+use = 'Acme\Hooks\Tool::run'
+allow = ['Acme\Hooks', 'Shop\*']
+
+# `Acme\HooksExtra` starts with the same letters as `Acme\Hooks`, but it is another namespace.
+[[restrict]]
+use = 'Acme\Hooks\Tool::run'
+allow = ['Acme\HooksExtra']
+
+# This entry allows the namespace above the package, `Acme`, and everything below it.
+[[restrict]]
+use = 'Acme\Hooks\Tool::run'
+allow = ['Acme\*']
+
+# This entry starts inside the package and uses `..` to reach `Shop`.
+[[restrict]]
+use = 'Acme\Hooks\Tool::run'
+allow = ['Acme\Hooks\..\..\Shop']

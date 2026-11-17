@@ -1,0 +1,10 @@
+<?nvs
+namespace Acme\Hooks;
+
+final class Tool
+{
+    public static function run(): string
+    {
+        return "run";
+    }
+}

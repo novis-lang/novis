@@ -1,0 +1,24 @@
+<?nvs
+// Shows a module that builds a signed link with the signer of the framework folder beside it.
+
+// The folder `modules/Framework` has a `package.toml`, so it is a package.
+// Its rules apply to this file, because this file loads it.
+autoload 'Framework\Core' from './modules/Framework/src';
+
+class Posts
+{
+    #[Core\Route(path: '/posts/{id}/preview', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function preview(uint $id): string
+    {
+        return 'a draft post';
+    }
+}
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// This module may not call `Core\Router::urlSigned`. It calls the framework's signer instead.
+string $link = Framework\Core\Signing\Url::signed(Posts::preview, ['id' => 12], $keys);
+
+// This prints `/posts/12/preview`, the part of the link before the signature.
+echo Core\Str::split($link, '?')[0], "\n";

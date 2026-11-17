@@ -1,0 +1,14 @@
+# The application file of every attack in this folder.
+# These entries add `Shop` to the places that may use the package's restricted code.
+# The package's own entries still allow only `Acme\Signing\Internal`.
+[[restrict]]
+use = 'Acme\Signing\Keys::sign'
+allow = ['Acme\Signing\Internal', 'Shop']
+
+[[restrict]]
+use = 'Acme\Signing\Keys::key'
+allow = ['Acme\Signing\Internal', 'Shop\*']
+
+[[restrict]]
+use = 'Acme\Signing\Vault'
+allow = ['Acme\Signing\Internal', 'Shop\Checkout']

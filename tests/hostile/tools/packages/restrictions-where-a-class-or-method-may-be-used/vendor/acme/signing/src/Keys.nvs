@@ -1,0 +1,18 @@
+<?nvs
+// Only `Acme\Signing\Internal` may call `sign` and read `$key`.
+namespace Acme\Signing;
+
+class Keys
+{
+    public string $key = "key-1234";
+
+    public function sign(string $text): string
+    {
+        return "signed " . $text . " with " . $this->key;
+    }
+
+    public function label(): string
+    {
+        return "keys";
+    }
+}

@@ -1,0 +1,19 @@
+[package]
+name = 'Acme\Signing'
+
+[[restrict]]
+use = 'Acme\Signing\Keys::sign'
+allow = ['Acme\Signing\Internal']
+note = "Use `Acme\\Signing\\Internal\\Signer::sign`. It adds the current key."
+
+[[restrict]]
+use = 'Acme\Signing\Keys::key'
+allow = ['Acme\Signing\Internal']
+
+[[restrict]]
+use = 'Acme\Signing\Signs::sign'
+allow = ['Acme\Signing\Internal']
+
+[[restrict]]
+use = 'Acme\Signing\Vault'
+allow = ['Acme\Signing\Internal']

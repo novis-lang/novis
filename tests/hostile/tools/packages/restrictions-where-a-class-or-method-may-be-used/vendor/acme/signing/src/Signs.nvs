@@ -1,0 +1,8 @@
+<?nvs
+// Only `Acme\Signing\Internal` may call `sign`, through this interface or through a class that implements it.
+namespace Acme\Signing;
+
+interface Signs
+{
+    public function sign(string $text): string;
+}

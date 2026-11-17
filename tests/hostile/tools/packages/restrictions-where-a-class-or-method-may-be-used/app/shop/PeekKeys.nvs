@@ -1,0 +1,11 @@
+<?nvs
+// This subclass reads the property `$key` that it inherits from `Acme\Signing\Keys`.
+namespace Shop;
+
+final class PeekKeys extends Acme\Signing\Keys
+{
+    public function readKey(): string
+    {
+        return $this->key;
+    }
+}

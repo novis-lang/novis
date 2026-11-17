@@ -1,0 +1,17 @@
+<?nvs
+// Attack: the application's `package.toml` adds `Shop` to the places that may use the package's code.
+// The application cannot widen a package's restriction, so this program should not compile.
+// hostile: expect-refusal
+namespace Shop;
+
+autoload 'Acme\Signing' from './vendor/acme/signing/src';
+autoload 'Shop' from './app/shop';
+
+// 1. The application's file allows `Shop` to call `sign`, and this line calls it.
+echo (new Acme\Signing\Keys())->sign("page"), "\n";
+
+// 2. The application's file allows `Shop\*` to read `$key`, and `PeekKeys` reads it.
+echo (new Shop\PeekKeys())->readKey(), "\n";
+
+// 3. The application's file allows the class `Shop\Checkout` to use `Vault`, and that method creates one.
+echo Shop\Checkout::openVault(), "\n";

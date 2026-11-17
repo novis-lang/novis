@@ -1,0 +1,21 @@
+<?nvs
+// Attack: the application extends a class and calls its restricted method through the subclass.
+// The restriction holds for every subclass, so this program should not compile.
+// hostile: expect-refusal
+namespace Shop;
+
+autoload 'Acme\Signing' from './vendor/acme/signing/src';
+autoload 'Shop' from './app/shop';
+
+// 1. `FastKeys` inherits `sign` from `Acme\Signing\Keys`, and this line calls it.
+echo (new Shop\FastKeys())->sign("page"), "\n";
+
+// 2. `OwnKeys` replaces `sign` with its own method, and this line calls that method.
+echo (new Shop\OwnKeys())->sign("page"), "\n";
+
+// 3. A variable of the parent type has a `FastKeys` object, and this line calls `sign`.
+Acme\Signing\Keys $keys = new Shop\FastKeys();
+echo $keys->sign("page"), "\n";
+
+// 4. A method of `PeekKeys` reads the restricted property `$key` that it inherits.
+echo (new Shop\PeekKeys())->readKey(), "\n";

@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a file outside the package says it is in the package's namespace, to call a restricted method.
+// Only files inside the package's folder count as the package, so this program should not compile.
+// hostile: expect-refusal
+namespace Acme\Signing\Internal;
+
+autoload 'Acme\Signing' from './vendor/acme/signing/src', './app/forged';
+
+// 1. This file says it is in `Acme\Signing\Internal`, the namespace that may call `sign`.
+echo (new Acme\Signing\Keys())->sign("page"), "\n";
+
+// 2. It reads `$key`, which only `Acme\Signing\Internal` may read.
+echo (new Acme\Signing\Keys())->key, "\n";
+
+// 3. It creates a `Vault`, which only `Acme\Signing\Internal` may use.
+echo (new Acme\Signing\Vault())->open(), "\n";
+
+// 4. A file of the application says it is in `Acme\Signing\Internal` and calls `sign`.
+echo Acme\Signing\Internal\Forger::sign("page"), "\n";
+
+// 5. A file of the application says it is in `Acme\Signing`, the namespace of `Keys` itself.
+echo Acme\Signing\Lookalike::sign("page"), "\n";

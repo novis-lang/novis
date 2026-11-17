@@ -1,0 +1,20 @@
+<?nvs
+// Only `Acme\Signing\Internal` may use this class.
+namespace Acme\Signing;
+
+final class Vault
+{
+    public const string PIN = "0000";
+
+    public string $code = "1234";
+
+    public static function make(): Vault
+    {
+        return new Vault();
+    }
+
+    public function open(): string
+    {
+        return "open";
+    }
+}

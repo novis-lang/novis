@@ -1,0 +1,10 @@
+# The package `Acme\Links` builds signed links.
+# Only the code in its own namespace `Acme\Links` may call `Core\Router::urlSigned`.
+[package]
+name = 'Acme\Links'
+version = "1.0.0"
+
+[[restrict]]
+use   = 'Core\Router::urlSigned'
+allow = ['Acme\Links']
+note  = "Use `Acme\\Links\\Signer::link`. A link without an end time works for one hour."

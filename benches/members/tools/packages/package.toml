@@ -1,3 +1,8 @@
 # The code in the namespace `Shop\Catalog` may read files, and nothing else.
 [grants]
 'Shop\Catalog' = ["fs.read"]
+
+# Only the code in the namespace `Shop\Text` may call `Core\Str::length`.
+[[restrict]]
+use   = 'Core\Str::length'
+allow = ['Shop\Text']

@@ -165,6 +165,7 @@ These are uses:
 - a method reference, such as `callable $open = Shop\Vault::open;`
 - `new`, a property read or write, a class constant and an enum case
 - a call or a property access through a `mixed` or `object` variable
+- `$object->$key`, where `$key` is a `property<T>`. It is a use of every public property of `T`
 - `Core\Reflect\ClassInfo`'s `call`, `get`, `set`, `constant` and `construct`
 
 A type, an `is` test and `catch` are not uses. Allowed code can pass a restricted object to other

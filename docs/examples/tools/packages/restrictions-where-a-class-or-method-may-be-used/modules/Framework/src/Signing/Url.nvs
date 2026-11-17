@@ -1,0 +1,13 @@
+<?nvs
+namespace Framework\Core\Signing;
+
+final class Url
+{
+    // This class is in `Framework\Core\Signing`, so it may call `Core\Router::urlSigned`.
+    // Every link that it builds works for one day.
+    public static function signed(callable $route, array<mixed> $params, array<secret bytes> $keys): string
+    {
+        Core\Time\Instant $until = Core\Time::now()->plus(24h);
+        return Core\Router::urlSigned($route, $params, { keys: $keys, until: $until });
+    }
+}

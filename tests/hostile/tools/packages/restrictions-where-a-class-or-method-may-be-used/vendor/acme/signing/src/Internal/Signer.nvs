@@ -1,0 +1,16 @@
+<?nvs
+// This class is inside `Acme\Signing\Internal`, so it may use `Keys::sign` and `Vault`.
+namespace Acme\Signing\Internal;
+
+final class Signer
+{
+    public static function sign(string $text): string
+    {
+        return (new Acme\Signing\Keys())->sign($text);
+    }
+
+    public static function vault(): Acme\Signing\Vault
+    {
+        return new Acme\Signing\Vault();
+    }
+}

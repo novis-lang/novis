@@ -1,0 +1,24 @@
+<?nvs
+// Shows a package that allows only its own namespace to call `Core\Router::urlSigned`.
+
+autoload 'Acme\Links' from './vendor/acme/links/src';
+
+class Reports
+{
+    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function download(uint $year): string
+    {
+        return 'the report';
+    }
+}
+
+// A real program reads its key from its configuration. This one makes a new key.
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// This file may not call `Core\Router::urlSigned`. It calls the package's signer instead.
+string $signed = Acme\Links\Signer::link(Reports::download, ['year' => 2024], { keys: $keys, until: null });
+
+// The signed link is the normal link with a signature at the end. This prints `yes`.
+string $plain = Core\Router::url(Reports::download, ['year' => 2024]);
+echo Core\Str::startsWith($signed, $plain . '?_sig=') ? 'yes' : 'no', "\n";
