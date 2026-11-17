@@ -3,14 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Rules a framework can set",
-      "text": "A package can say where a class or a method may be used, and the compiler checks it. A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.",
-      "goals": [
-        "route-parameters",
-        "session-per-key"
-      ]
-    },
-    {
       "title": "Less work for each request",
       "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
       "goals": [
@@ -21,6 +13,21 @@
         "strings-in-place",
         "cheaper-forms",
         "compare-recorded"
+      ]
+    },
+    {
+      "title": "An editor that uses less memory",
+      "text": "The language server checks each file once, however many files load it. Every check reads the same parsed copy of a file. When you type in a file, only that file is checked again.",
+      "goals": [
+        "lsp-memory"
+      ]
+    },
+    {
+      "title": "Rules a framework can set",
+      "text": "A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.",
+      "goals": [
+        "route-parameters",
+        "session-per-key"
       ]
     },
     {
