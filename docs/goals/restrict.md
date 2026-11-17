@@ -368,19 +368,25 @@ of `crates/nvs-cli/tests/package_restrict.rs`, each in a temporary tree with the
 `#[Core\Deprecated]` uses, and `E0664` carries the filled-in replacement as its `Suggestion`. A
 reflective act on a restricted member checks the same table at run time.
 
-- [ ] `crates/nvs-types/src/deprecated/template.rs:338`: the template check takes its scope from a
+- [x] `crates/nvs-types/src/deprecated/template.rs:551`: the template check takes its scope from a
   restriction as well as from an attribute: the target's parameters and `$this`, compiled in the
   namespace of the file the table is in (the package's name, or the application's global
   namespace). Its errors are `E0666`, pointing into `package.toml`, carrying the inner message. A
   replacement that uses the declaration it restricts is `E0666`.
-- [ ] `crates/nvs-types/src/deprecated/fix.rs:104`: `fill` serves `E0664`'s suggestion as it serves
+  - [x] `SourceFile::code_in` and `Restriction::replace_at` place the copy at the value's bytes
+  - [x] `check_restriction` infers it, `restrict::check_replacement` reports `E0666`
+  - [x] `check_files` runs each job before the walk, in a scratch `Env` (`file_env`)
+- [x] `crates/nvs-types/src/deprecated/fix.rs:104`: `fill` serves `E0664`'s suggestion as it serves
   `W1003`'s, with every side-effect rule unchanged. No new fix code.
+  - [x] `deprecated::attach` shared by `W1003` and `E0664`, `restriction_fix` builds the template
 - [ ] `crates/nvs-stdlib/src/reflect.rs:2903`: a reflective act on a member checks the restriction
   table against the place of the code that called the reflection member, and throws
   `Core\AccessError` (or the error the visibility check throws there) with `E0664`'s text. The table
   is compiled into the unit. Cost: one hash lookup per reflective act, none elsewhere.
-- [ ] `crates/nvs-types/tests/restrict_replace.rs:1`: the four tests the `replacement-and-reflection`
+- [ ] `crates/nvs-cli/tests/restrict_replace.rs:1`: the four tests the `replacement-and-reflection`
   check names, and the two `.nvst` cases of the `reflective-act` check, each run once.
+  - [x] the four tests, run once and green (in `nvs-cli`, since they drive `nvs check --fix`)
+  - [ ] the two `.nvst` cases of the `reflective-act` check
 
 ### 4. the editor shows the restriction at the use, on hover and in completion
 
@@ -476,35 +482,38 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 
 ### State
 
-Stages 1 and 2 are done, and `table-read`, `use-refused` and `layouts` are green, each run once.
-`crates/nvs-types/src/restrict.rs` holds the check. `build` indexes the entries once the signatures
-exist (`crates/nvs-types/src/check.rs`, `check_files`) and reports `E0665` for a `Core` name that
-names nothing and for an override, and `W1031` for an application name that names nothing.
-`check_uses` runs at the end of each body's `crate::deprecated::window`, which now takes the body's
-namespace, and maps the body's expression table entries through `crate::deprecated::resolved`. So
-the reader is the typed tree, and the rule's *When it runs* records it. Two choices this stage made,
-both in the rule: an entry on a class or namespace holds every use of its members, and a use inside
-the restricted declaration's own class or namespace is always allowed.
+Stages 1 and 2 are done; `table-read`, `use-refused` and `layouts` are green. `restrict.rs` in
+`nvs-types` holds the check, run at the end of each body's `crate::deprecated::window`.
 
-A package's table holds once one of its files is compiled. An `autoload` line alone adds nothing,
-and an entry inside a package's folder reads its manifest as the application's file, matched by
-namespace alone (`the_frameworks_own_tests_read_its_manifest_as_the_application_file` asserts it).
-An entry that is `E0665` still restricts its target, so a refused use beside it also reports `E0664`.
+Stage 3's replacement and fix items are done, and `replacement-and-reflection` is green, run once.
+`Restricted::replacements` copies the `package.toml` with `SourceFile::code_in` at the bytes
+`Restriction::replace_at` gives. `check_files` infers each copy before the walk, in a scratch `Env`
+from the new `file_env` (`check.rs`), through `crate::deprecated::check_restriction`, and
+`check_replacement` reports `E0666`. `check_uses` attaches the fix through
+`crate::deprecated::restriction_fix`, which shares `attach` with `W1003`. The four tests are in
+`crates/nvs-cli/tests/restrict_replace.rs`, since the fix test drives `nvs check --fix`.
 
-The sweep's reds at the start of the last two sessions: `env-secret-proofs` is stale state in
-looper's service, and no check by that name exists. The nightly `docs` and macOS `Storage/get` reds
-were fixed on disk after that run's commit, and the Windows leg was cancelled by its `concurrency`
-group.
+The type checker does not report an undeclared class or static member (`nvs_hir` does, over files
+only), and a class the program does not load is unknown. So such a `replace` passes `E0666`, and
+the fix's next compile reports it at the use; the rule says so.
+
+Sweep reds: `env-secret-proofs` is stale service state with no log. Nightly 43849315979 ran on
+14fbea97; its `docs` and macOS reds were fixed after it (`2934ebe1ae`, `9efc45b6fd`).
 
 ### Next
 
-Stage 3 from its first item. The replacement: `crates/nvs-types/src/deprecated/template.rs` checks a
-`#[Core\Deprecated]` `replace`, and `crates/nvs-types/src/restrict.rs` `build` is where an entry's
-`replace` gets the same check (`E0666`). The fix at the use goes into `refusal` in the same file,
-the way `crate::deprecated::report` attaches `fix::fill`. Then the reflective act in
-`crates/nvs-stdlib/src/reflect.rs`. No test is expected to go red: every check so far is green.
+Stage 3's last item: the reflective act in `crates/nvs-stdlib/src/reflect.rs:2903`
+(`nvs_core_reflect_class_info_call`, `_get`), compiled table and the two `.nvst` cases of the
+`reflective-act` check. Find how the calling site's place reaches the visibility check there (the
+`nvs_render::Source` the call decodes), and carry each restricted member's allowed places into the
+unit beside it. No test is expected to go red.
 
 ### Backlog
+
+- A `replace` naming an undeclared class or member is not `E0666` (see *State*). Running
+  `nvs_hir::MemberResolver::check` over the template needs it wrapped as a statement in its
+  namespace, and `module.members` handed to it; stage 7 or a follow-up decides whether it pays.
+  Check whether `#[Core\Deprecated]`'s `replace` has the same gap.
 
 - The error's note names the manifest by its absolute path. The rule's example names it relative to
   the project (`modules/Framework/package.toml`). Stage 4 or 6 picks the form, since the editor
