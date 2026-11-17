@@ -2958,21 +2958,23 @@ impl<'a> Lowering<'a> {
     ///
     /// A `static` method already has it in parameter 0 ([`lower_method`]). An
     /// *instance* method loads it from `$this` — one load at
-    /// `nvs_runtime::OBJ_CLASS_OFFSET`, emitted into the **entry block** and
-    /// cached, so it dominates every block that could ask and so a method
-    /// whose body never says `static` pays nothing at all.
+    /// `nvs_runtime::OBJ_CLASS_OFFSET`, inserted into the **entry block** right
+    /// after the instruction that defines `$this`, and cached. A method whose
+    /// body never says `static` pays nothing at all.
     ///
-    /// Appending to the entry block after other blocks exist is safe by
-    /// construction: a block's terminator is a separate field from its
-    /// instruction list, so a later append still lands before the entry
-    /// block's own terminator, and the only operand is parameter 0.
+    /// Inserted there, and not appended. The body is lowered into the entry
+    /// block too, and an instruction with an error edge ends the block early
+    /// in code generation. A load appended after it would not dominate the
+    /// landing block, nor a `catch` handler that block enters. The
+    /// receiver's definition comes before any instruction that can fail, so
+    /// a load right after it dominates every block of the frame.
     ///
     /// A generator's `advance()` has no receiver of its own class. It reads
-    /// the called class from its state object in the entry block: the parked
-    /// [`generator::GEN_CLASS`] of a `static` generator, or the class of the
-    /// parked `$this` of an instance one. The entry block dominates every
-    /// resume point, and `$this` is never reassigned, so that value holds for
-    /// the whole body.
+    /// the called class from its state object, right after the state object
+    /// (its parameter 0) is defined: the parked [`generator::GEN_CLASS`] of a
+    /// `static` generator, or the class of the parked `$this` of an instance
+    /// one. `$this` is never reassigned, so that value holds for the whole
+    /// body.
     ///
     /// # Panics
     ///
@@ -2987,12 +2989,9 @@ impl<'a> Lowering<'a> {
         }
         if let Some(frame) = &self.generator {
             let (class, gen_v, is_static) = (frame.class.clone(), frame.gen_v, frame.is_static);
-            let entry = self
-                .entry
-                .expect("a generator frame has its entry block before its body");
             let v = if is_static {
-                self.emit(
-                    entry,
+                self.emit_after(
+                    gen_v,
                     Ty::ClassDesc,
                     InstKind::FieldGet {
                         object: gen_v,
@@ -3000,12 +2999,11 @@ impl<'a> Lowering<'a> {
                         field: generator::GEN_CLASS.to_owned(),
                     },
                 )
-                .0
             } else {
                 // A borrowed read: the field keeps its reference, and the
                 // descriptor is loaded at once, so nothing is retained.
-                let (this, _) = self.emit(
-                    entry,
+                let this = self.emit_after(
+                    gen_v,
                     Ty::Object,
                     InstKind::FieldGet {
                         object: gen_v,
@@ -3013,8 +3011,7 @@ impl<'a> Lowering<'a> {
                         field: "this".to_owned(),
                     },
                 );
-                self.emit(entry, Ty::ClassDesc, InstKind::ClassDescOf { object: this })
-                    .0
+                self.emit_after(this, Ty::ClassDesc, InstKind::ClassDescOf { object: this })
             };
             self.lsb = Some(v);
             return v;
@@ -3026,11 +3023,40 @@ impl<'a> Lowering<'a> {
                 self.fn_label
             )
         });
+        let v = self.emit_after(this, Ty::ClassDesc, InstKind::ClassDescOf { object: this });
+        self.lsb = Some(v);
+        v
+    }
+    /// [`Self::emit`], but the instruction goes into the entry block right
+    /// after the one that defines `after`, so it dominates every block that
+    /// value does. Only [`Self::lsb`] needs this.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no instruction of the entry block defines `after`. A frame's
+    /// receiver and a generator's state object are both defined there.
+    fn emit_after(&mut self, after: ValueId, ty: Ty, kind: InstKind) -> ValueId {
         let entry = self
             .entry
             .expect("a frame asking for its called class has at least one block");
-        let (v, _) = self.emit(entry, Ty::ClassDesc, InstKind::ClassDescOf { object: this });
-        self.lsb = Some(v);
+        let insts = &mut self.block_insts[entry.index() as usize];
+        let at = insts
+            .iter()
+            .position(|inst| inst.result == Some(after))
+            .unwrap_or_else(|| {
+                panic!("nvs-ir: the value the called class is read from is not defined in the entry block")
+            });
+        let v = self.ids.next_value();
+        insts.insert(
+            at + 1,
+            Inst {
+                result: Some(v),
+                ty: Some(ty),
+                kind,
+                on_error: None,
+                raise_site: None,
+            },
+        );
         v
     }
     pub(crate) fn is_terminated(&self, b: BlockId) -> bool {
