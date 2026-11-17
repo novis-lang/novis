@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/capability.rs, crates/nvs-types/src/signatures.rs, docs/rules/packaging/a-components-engine-class-is-internal.md, docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md, tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst, crates/nvs-cli/tests/package_grants.rs]
   - id: 3
     title: the replacement is checked where it is written and becomes the fix, and a reflective act is held to the same table
-    status: open
+    status: done
     context: [crates/nvs-types/src/deprecated.rs, crates/nvs-types/src/deprecated/template.rs, crates/nvs-types/src/deprecated/fix.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/attributes/a-deprecation-names-its-replacement-as-code.md, docs/rules/security/reflection-enforces-visibility.md, docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md]
   - id: 4
     title: the editor shows the restriction at the use, on hover and in completion
@@ -281,6 +281,15 @@ reflective act on a member, which stage 3 adds. At compile time: one read of eac
 table, one hash-set lookup per resolved use when a table exists, and none when it does not. The
 language gains one table and four codes. The restriction tables are held once per compiled program.
 
+**How a reflective act is held (stage 3's call).** The checker, not the run time, decides: for each
+`Core\Reflect\ClassInfo` acting call it lists every act on a restricted member its place does not
+allow, with `E0664`'s text, and the call-site constant those members already take carries the list.
+The member throws a `LogicError`, the class a refused reflective `call` of a `private` member
+throws; no `Core\AccessError` exists. A callable reference to such a member lists every restricted
+act, since where it runs is not known. Declined: one unit-wide table matched at run time, because a
+package's entry matches by file layout, which the run time cannot see, so it would be a second copy
+of the checker's match. The rule records both.
+
 **Lanes.** Stages 1 to 3 run in order: each builds on the one before and they share
 `crates/nvs-types`. After stage 3, stage 4 (`crates/nvs-lsp`) and stage 5 (`crates/nvs-cli/src/package`)
 touch disjoint files and may run as side goals at once. Stage 6 waits for stages 3 to 5, because its
@@ -379,14 +388,17 @@ reflective act on a restricted member checks the same table at run time.
 - [x] `crates/nvs-types/src/deprecated/fix.rs:104`: `fill` serves `E0664`'s suggestion as it serves
   `W1003`'s, with every side-effect rule unchanged. No new fix code.
   - [x] `deprecated::attach` shared by `W1003` and `E0664`, `restriction_fix` builds the template
-- [ ] `crates/nvs-stdlib/src/reflect.rs:2903`: a reflective act on a member checks the restriction
+- [x] `crates/nvs-stdlib/src/reflect.rs:2903`: a reflective act on a member checks the restriction
   table against the place of the code that called the reflection member, and throws
   `Core\AccessError` (or the error the visibility check throws there) with `E0664`'s text. The table
   is compiled into the unit. Cost: one hash lookup per reflective act, none elsewhere.
-- [ ] `crates/nvs-cli/tests/restrict_replace.rs:1`: the four tests the `replacement-and-reflection`
+  - [x] `restrict::record_acts` lists each refused act per call site into the expression table
+  - [x] the call-site constant carries it (`nvs_runtime::source::encode_site`, `restricted`)
+  - [x] `call`, `get`, `set`, `constant` and `construct` throw `LogicError` through `refuse_restricted`
+- [x] `crates/nvs-cli/tests/restrict_replace.rs:1`: the four tests the `replacement-and-reflection`
   check names, and the two `.nvst` cases of the `reflective-act` check, each run once.
   - [x] the four tests, run once and green (in `nvs-cli`, since they drive `nvs check --fix`)
-  - [ ] the two `.nvst` cases of the `reflective-act` check
+  - [x] the two `.nvst` cases of the `reflective-act` check
 
 ### 4. the editor shows the restriction at the use, on hover and in completion
 
@@ -443,6 +455,14 @@ one the bench. Each is told the reference section's path and the error text from
 writes the reference section, `about.md`, `details.md` and the website page, and runs the
 `feature-proofs` check once.
 
+- [ ] First, before the pages: a call, property read or write through a `mixed` receiver is held
+  too. Today `mixed $v = new App\Secret\Vault(); $v->open();` runs a restricted method with no
+  error (probed by stage 3's session). The fix reuses stage 3's mechanism: an erased call or
+  property access in a body of a program with a table gets a call-site constant carrying
+  `restrict::record_acts`' list for its place, and `nvs_runtime::call_erased_method_from`,
+  `read_erased_property_owned` and `write_erased_property` check it through
+  `nvs_runtime::source::restricted`. With no table nothing is emitted. Add attack
+  `08-call-through-mixed` below, and one `.nvst` case beside the two `reflective-act` cases.
 - [ ] `docs/reference/tools/35-packages.md:113`: a `#` section *Restrictions: where a class or method
   may be used* after *The rules for a package's files*, which makes the feature and its help (`nvs
   agent find restrict` reaches it). The `[[restrict]]` keys join the `package.toml` key list at
@@ -485,30 +505,40 @@ writes the reference section, `about.md`, `details.md` and the website page, and
 Stages 1 and 2 are done; `table-read`, `use-refused` and `layouts` are green. `restrict.rs` in
 `nvs-types` holds the check, run at the end of each body's `crate::deprecated::window`.
 
-Stage 3's replacement and fix items are done, and `replacement-and-reflection` is green, run once.
-`Restricted::replacements` copies the `package.toml` with `SourceFile::code_in` at the bytes
-`Restriction::replace_at` gives. `check_files` infers each copy before the walk, in a scratch `Env`
-from the new `file_env` (`check.rs`), through `crate::deprecated::check_restriction`, and
-`check_replacement` reports `E0666`. `check_uses` attaches the fix through
-`crate::deprecated::restriction_fix`, which shares `attach` with `W1003`. The four tests are in
-`crates/nvs-cli/tests/restrict_replace.rs`, since the fix test drives `nvs check --fix`.
+Stage 3 is done; `replacement-and-reflection` and `reflective-act` are green, each run once. The
+replacement and its fix are in `restrict.rs` and `deprecated.rs`, whose module docs say how. The
+reflective act (`81ff702318`): `restrict::record_acts` puts a per-call-site list on
+`InstKind::SourceConst { restricted }`, baked by `nvs_runtime::source::encode_site`, and
+`reflect.rs` `refuse_restricted` throws `LogicError` with `E0664`'s text.
 
-The type checker does not report an undeclared class or static member (`nvs_hir` does, over files
-only), and a class the program does not load is unknown. So such a `replace` passes `E0666`, and
-the fix's next compile reports it at the use; the rule says so.
+A call through a `mixed` receiver is not held: `mixed $v = new App\Secret\Vault(); $v->open();`
+runs a restricted method with no error (probed this session). Stage 6's new first item closes it
+with the same per-site list; it is a security gap, so stage 7 does not pass without it.
 
-Sweep reds: `env-secret-proofs` is stale service state with no log. Nightly 43849315979 ran on
-14fbea97; its `docs` and macOS reds were fixed after it (`2934ebe1ae`, `9efc45b6fd`).
+Sweep reds: `env-secret-proofs` is stale service state with no log and no definition anywhere in the
+tree. Nightly 43849315979 ran on 14fbea97; its `docs` and macOS reds were fixed after it
+(`2934ebe1ae`, `9efc45b6fd`).
 
 ### Next
 
-Stage 3's last item: the reflective act in `crates/nvs-stdlib/src/reflect.rs:2903`
-(`nvs_core_reflect_class_info_call`, `_get`), compiled table and the two `.nvst` cases of the
-`reflective-act` check. Find how the calling site's place reaches the visibility check there (the
-`nvs_render::Source` the call decodes), and carry each restricted member's allowed places into the
-unit beside it. No test is expected to go red.
+Stage 4 (`crates/nvs-lsp`) and stage 5 (`crates/nvs-cli/src/package`) touch disjoint files and may
+run side by side. Stage 4 first: `crates/nvs-lsp/src/diagnostics.rs:521` fills
+`related_information` from `E0664`'s secondary label (`restrict.rs` `refusal`), then the hover
+beside `deprecation` at `crates/nvs-lsp/src/hover.rs:514`, the completion sort at
+`crates/nvs-lsp/src/completion.rs:3850`, and the re-check on a package's `package.toml` change
+beside `crates/nvs-config/src/grants.rs:152`. The hover and completion can reuse
+`restrict::allowed_text`, which now builds the note's text. No test is expected to go red: the
+IR printer adds ` restricted Nb` to a `source` line only in a program with a table, and no golden
+IR test has one.
 
 ### Backlog
+
+- The erased-call gap above is stage 6's first item. `nvs_runtime::dispatch::call_erased_method`
+  gets no site today, so the erased lowering needs a trailing constant for it, only where the
+  checker recorded a list (`ExprTypeTable::restricted_acts`).
+- `held_acts` lists an inherited member under the class that inherits it, held by the entries on
+  its declaring class, as the static check holds a use. An entry on a subclass does not hold an
+  inherited member's reflective act, matching `$child->inherited()` statically.
 
 - A `replace` naming an undeclared class or member is not `E0666` (see *State*). Running
   `nvs_hir::MemberResolver::check` over the template needs it wrapped as a statement in its
