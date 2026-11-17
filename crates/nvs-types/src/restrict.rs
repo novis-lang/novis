@@ -14,7 +14,7 @@
 //! [`crate::deprecated::window`] that warns about a deprecated use, and maps each expression table
 //! entry the body recorded to the declarations it names
 //! ([`crate::deprecated::resolved`]). So a call, a method reference, `new`, a property, a class
-//! constant and an enum case are each a use, and a type position, `instanceof` and `catch` record
+//! constant and an enum case are each a use, and a type position, an `is` test and `catch` record
 //! no such entry and are not. No side list is kept.
 //!
 //! **Which entries hold a use.** A use of a member is held by an entry on the member, on its class

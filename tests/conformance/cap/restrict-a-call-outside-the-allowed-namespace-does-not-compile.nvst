@@ -1,0 +1,65 @@
+--TEST--
+a call to a restricted method compiles only in the namespaces its `[[restrict]]` entry allows, and a call anywhere else is an error that names the entry — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `App\Allowed`.
+autoload 'App' from './app';
+
+// `App\Allowed\Door::open` may call `App\Secret\Vault::open`.
+echo App\Allowed\Door::open(), "\n";
+// This line is outside `App\Allowed`, so it does not compile.
+echo App\Secret\Vault::open(), "\n";
+echo App\Other\Report::read(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+// `App\Allowed` is in the allow list, so this call compiles.
+namespace App\Allowed;
+
+final class Door
+{
+    public static function open(): string
+    {
+        return App\Secret\Vault::open();
+    }
+}
+--FILE app/Other/Report.nvs--
+<?nvs
+// `App\Other` is not in the allow list, so this call does not compile.
+namespace App\Other;
+
+final class Report
+{
+    public static function read(): string
+    {
+        return App\Secret\Vault::open();
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+note = 'Use `App\Allowed\Door::open`.'
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `App\Secret\Vault::open` cannot be used here
+  --> case.nvs:8:6
+%A
+  = note: It is allowed only in `App\Allowed`. Use `App\Allowed\Door::open`.
+%A
+error[E0664]: `App\Secret\Vault::open` cannot be used here
+  --> %sReport.nvs:9:16
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

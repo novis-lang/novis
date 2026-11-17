@@ -1,0 +1,50 @@
+--TEST--
+a `package.toml` with no `[[restrict]]` entry restricts nothing, so every call compiles and the program runs — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// The `package.toml` of this program has only a `[grants]` table, so every call compiles.
+autoload 'App' from './app';
+
+echo App\Allowed\Door::open(), "\n";
+echo App\Secret\Vault::open(), "\n";
+echo App\Other\Report::read(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+namespace App\Allowed;
+
+final class Door
+{
+    public static function open(): string
+    {
+        return "door " . App\Secret\Vault::open();
+    }
+}
+--FILE app/Other/Report.nvs--
+<?nvs
+namespace App\Other;
+
+final class Report
+{
+    public static function read(): string
+    {
+        return "report " . App\Secret\Vault::open();
+    }
+}
+--FILE package.toml--
+[grants]
+'App\*' = []
+--EXPECT--
+door open
+open
+report open

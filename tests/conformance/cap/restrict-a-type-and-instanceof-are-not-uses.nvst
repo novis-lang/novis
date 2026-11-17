@@ -1,0 +1,84 @@
+--TEST--
+a parameter type, a return type, an `is` type test and a `catch` that name a restricted class are not uses, so code outside the allowed places can pass its objects along — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `App\Billing`.
+autoload 'App' from './app';
+
+echo App\Desk\Clerk::check(), "\n";
+echo App\Desk\Clerk::recover(), "\n";
+--FILE app/Desk/Clerk.nvs--
+<?nvs
+// `App\Desk` is not in the allow list. This class names `App\Billing\Ledger`
+// and `App\Billing\LedgerError` only as types, so it compiles.
+namespace App\Desk;
+
+final class Clerk
+{
+    // A parameter type and a return type are not uses.
+    public static function keep(App\Billing\Ledger $ledger): App\Billing\Ledger
+    {
+        return $ledger;
+    }
+
+    // An `is` type test is not a use.
+    public static function check(): string
+    {
+        var $ledger = self::keep(App\Billing\Factory::make());
+        return $ledger is App\Billing\Ledger ? "a ledger" : "something else";
+    }
+
+    // A `catch` is not a use.
+    public static function recover(): string
+    {
+        try {
+            App\Billing\Factory::fail();
+        } catch (App\Billing\LedgerError $error) {
+            return "caught";
+        }
+        return "not caught";
+    }
+}
+--FILE app/Billing/Ledger.nvs--
+<?nvs
+namespace App\Billing;
+
+final class Ledger
+{
+}
+--FILE app/Billing/LedgerError.nvs--
+<?nvs
+namespace App\Billing;
+
+use RuntimeError;
+
+final class LedgerError extends RuntimeError
+{
+}
+--FILE app/Billing/Factory.nvs--
+<?nvs
+namespace App\Billing;
+
+final class Factory
+{
+    public static function make(): Ledger
+    {
+        return new Ledger();
+    }
+
+    public static function fail(): void
+    {
+        throw new LedgerError("closed");
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Billing\Ledger'
+allow = ['App\Billing']
+
+[[restrict]]
+use = 'App\Billing\LedgerError'
+allow = ['App\Billing']
+--EXPECT--
+a ledger
+caught

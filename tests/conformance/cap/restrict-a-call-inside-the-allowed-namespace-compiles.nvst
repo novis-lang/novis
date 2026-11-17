@@ -1,0 +1,87 @@
+--TEST--
+a call to a restricted method compiles in each place its `[[restrict]]` entry allows: a namespace, a namespace and every namespace below it, a class and one method, and the restricted class itself — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file calls only classes that may call `App\Secret\Vault::open`.
+autoload 'App' from './app';
+
+echo App\Allowed\Door::open(), "\n";
+echo App\Admin\Tools\Panel::open(), "\n";
+echo App\Web\Controller::open(), "\n";
+echo App\Jobs\Nightly::run(), "\n";
+echo App\Secret\Vault::twice(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function open(): string
+    {
+        return "open";
+    }
+
+    // A class may always call its own restricted method.
+    public static function twice(): string
+    {
+        return self::open() . " " . Vault::open();
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+// `'App\Allowed'` allows code in the namespace `App\Allowed`.
+namespace App\Allowed;
+
+final class Door
+{
+    public static function open(): string
+    {
+        return "door " . App\Secret\Vault::open();
+    }
+}
+--FILE app/Admin/Tools/Panel.nvs--
+<?nvs
+// `'App\Admin\*'` allows code in `App\Admin` and in every namespace below it.
+namespace App\Admin\Tools;
+
+final class Panel
+{
+    public static function open(): string
+    {
+        return "panel " . App\Secret\Vault::open();
+    }
+}
+--FILE app/Web/Controller.nvs--
+<?nvs
+// `'App\Web\Controller'` allows every method of this class.
+namespace App\Web;
+
+final class Controller
+{
+    public static function open(): string
+    {
+        return "controller " . App\Secret\Vault::open();
+    }
+}
+--FILE app/Jobs/Nightly.nvs--
+<?nvs
+// `'App\Jobs\Nightly::run'` allows this one method.
+namespace App\Jobs;
+
+final class Nightly
+{
+    public static function run(): string
+    {
+        return "nightly " . App\Secret\Vault::open();
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed', 'App\Admin\*', 'App\Web\Controller', 'App\Jobs\Nightly::run']
+--EXPECT--
+door open
+panel open
+controller open
+nightly open
+open open

@@ -173,7 +173,14 @@ pub fn read(dir: &Path, sources: &mut SourceMap) -> Result<Option<Package>, Diag
             "the compiler reads the package's name and capabilities from this file".to_owned(),
         )
     })?;
-    let label = path.display().to_string();
+    // A canonical folder on Windows starts with `\\?\`. The label is shown in a diagnostic, so a
+    // drive path loses that prefix. A `\\?\UNC\` path keeps it, because without it the path
+    // reads differently.
+    let full = path.display().to_string();
+    let label = full
+        .strip_prefix(r"\\?\")
+        .filter(|rest| !rest.starts_with(r"UNC\"))
+        .map_or_else(|| full.clone(), str::to_owned);
     let Some(mut package) = parse_in(id, sources.file(id).text(), dir, &label)? else {
         return Ok(None);
     };

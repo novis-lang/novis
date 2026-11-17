@@ -26,7 +26,10 @@ unknown field is an error
 **Where it is read.** The application's `package.toml`, the one the grant table is read from, and
 every package's own, the one `rule:packaging/a-package-file-stays-under-its-declared-prefix` places
 a package's files under. A hand-placed folder with a named `package.toml` counts exactly as a fetched
-package does.
+package does. A package's table holds once one of its files is compiled into the program. An
+`autoload` line alone loads nothing, so a package the program never uses restricts nothing, and an
+entry inside a package's own folder reads its `package.toml` as the application's file, matched by
+namespace alone.
 
 **What is checked where it is written** (`E0665`, at the entry's line): a `use` or an `allow` entry
 that is not a declaration name, a `\*` anywhere but at the end, a field `nvs` does not know, a
@@ -39,8 +42,8 @@ is `E0665` with the help "restrict `Parent::method` instead". A `replace` that d
 `E0666`.
 
 **What counts as a use.** A call (static, instance, `parent::`), a method reference
-(`Name::method(...)`), `new`, a property read or write, a class constant, an enum case, and a
-reflective act on the member. A type position, `instanceof` and `catch` are not uses, so allowed
+(`Name::method`), `new`, a property read or write, a class constant, an enum case, and a
+reflective act on the member. A type position, an `is` test and `catch` are not uses, so allowed
 code can pass a restricted object through typed signatures. A restriction on a method holds for
 every override and implementation of it, so a call through a subclass or an interface meets the same
 check. An entry on a class holds every use of its members too, and an entry on a namespace every

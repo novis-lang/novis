@@ -1,0 +1,59 @@
+--TEST--
+a package's `[[restrict]]` entry holds for the application too: an entry in the application's own `package.toml` that allows the application does not lift it — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is in the namespace `App`. The application's `package.toml` allows `App`,
+// but the package `Acme\Signing` allows only `Acme\Signing\Internal`.
+namespace App;
+
+autoload 'Acme\Signing' from './vendor/signing';
+
+// The package's own code may call `Acme\Signing\Keys::sign`, so this call compiles.
+echo Acme\Signing\Internal\Signer::sign("page"), "\n";
+// This call is outside `Acme\Signing\Internal`, so it does not compile.
+echo Acme\Signing\Keys::sign("page"), "\n";
+--FILE vendor/signing/package.toml--
+[package]
+name = 'Acme\Signing'
+
+[[restrict]]
+use = 'Acme\Signing\Keys::sign'
+allow = ['Acme\Signing\Internal']
+note = 'Use `Acme\Signing\Internal\Signer::sign`.'
+--FILE vendor/signing/Keys.nvs--
+<?nvs
+namespace Acme\Signing;
+
+final class Keys
+{
+    public static function sign(string $text): string
+    {
+        return "signed " . $text;
+    }
+}
+--FILE vendor/signing/Internal/Signer.nvs--
+<?nvs
+namespace Acme\Signing\Internal;
+
+final class Signer
+{
+    public static function sign(string $text): string
+    {
+        return Acme\Signing\Keys::sign($text);
+    }
+}
+--FILE package.toml--
+# This entry adds `App`, but it cannot lift the package's own entry.
+[[restrict]]
+use = 'Acme\Signing\Keys::sign'
+allow = ['Acme\Signing\Internal', 'App']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `Acme\Signing\Keys::sign` cannot be used here
+   --> case.nvs:11:6
+%A
+   = note: It is allowed only in `Acme\Signing\Internal`. Use `Acme\Signing\Internal\Signer::sign`.
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

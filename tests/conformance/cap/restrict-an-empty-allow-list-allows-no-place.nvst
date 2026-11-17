@@ -1,0 +1,35 @@
+--TEST--
+an entry with `allow = []` allows no place, so every call to the restricted `Core` method is an error, in the application and in every namespace — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// No place may call `Core\Str::upper`, so both calls in this program do not compile.
+autoload 'App' from './app';
+
+echo Core\Str::upper("shop"), "\n";
+echo App\Label\Title::make("blog"), "\n";
+--FILE app/Label/Title.nvs--
+<?nvs
+namespace App\Label;
+
+final class Title
+{
+    public static function make(string $text): string
+    {
+        return Core\Str::upper($text);
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'Core\Str::upper'
+allow = []
+note = 'Titles are written as they are typed.'
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `Core\Str::upper` cannot be used here
+  --> case.nvs:5:6
+%A
+error[E0664]: `Core\Str::upper` cannot be used here
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

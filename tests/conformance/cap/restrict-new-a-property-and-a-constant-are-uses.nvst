@@ -1,0 +1,57 @@
+--TEST--
+an entry on a class restricts every use of it: `new`, a static call, a class constant, a property read and a method call on an instance each do not compile outside the allowed places — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `App\Billing`.
+autoload 'App' from './app';
+
+// Each line below uses `App\Billing\Ledger`, so none of them compiles.
+var $ledger = new App\Billing\Ledger();
+echo App\Billing\Ledger::total(), "\n";
+echo App\Billing\Ledger::CURRENCY, "\n";
+echo $ledger->owner, "\n";
+echo $ledger->describe(), "\n";
+--FILE app/Billing/Ledger.nvs--
+<?nvs
+namespace App\Billing;
+
+final class Ledger
+{
+    public const string CURRENCY = "EUR";
+
+    public string $owner = "Shop";
+
+    public static function total(): int
+    {
+        return 42;
+    }
+
+    public function describe(): string
+    {
+        return $this->owner . " " . self::CURRENCY;
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Billing\Ledger'
+allow = ['App\Billing\*']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `App\Billing\Ledger` cannot be used here
+  --> case.nvs:6:15
+%A
+error[E0664]: %s cannot be used here
+  --> case.nvs:7:6
+%A
+error[E0664]: %s cannot be used here
+  --> case.nvs:8:6
+%A
+error[E0664]: %s cannot be used here
+  --> case.nvs:9:6
+%A
+error[E0664]: %s cannot be used here
+   --> case.nvs:10:6
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

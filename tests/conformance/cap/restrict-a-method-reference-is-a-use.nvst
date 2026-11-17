@@ -1,0 +1,47 @@
+--TEST--
+a reference to a restricted method, written to call it later, is a use: it compiles in an allowed place and does not compile anywhere else — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `App\Allowed`.
+autoload 'App' from './app';
+
+// `App\Allowed\Door::opener` returns the reference, so this call compiles.
+callable $allowed = App\Allowed\Door::opener();
+// This line takes the reference here, so it does not compile.
+callable $open = App\Secret\Vault::open;
+echo $open(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public static function open(): string
+    {
+        return "open";
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+// `App\Allowed` is in the allow list, so this reference compiles.
+namespace App\Allowed;
+
+final class Door
+{
+    public static function opener(): callable
+    {
+        return App\Secret\Vault::open;
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `App\Secret\Vault::open` cannot be used here
+  --> case.nvs:8:18
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

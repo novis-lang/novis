@@ -1,0 +1,50 @@
+--TEST--
+a `[[restrict]]` entry that names a method which overrides another one is an error at the entry, and its help names the parent's method to restrict — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+autoload 'Framework' from './framework';
+autoload 'Blog' from './blog';
+
+echo Blog\Post::run(), "\n";
+--FILE framework/Kernel/Module.nvs--
+<?nvs
+namespace Framework\Kernel;
+
+abstract class Module
+{
+    public function boot(): string
+    {
+        return "module";
+    }
+}
+--FILE blog/Post.nvs--
+<?nvs
+namespace Blog;
+
+final class Post extends Framework\Kernel\Module
+{
+    public function boot(): string
+    {
+        return "post";
+    }
+
+    public static function run(): string
+    {
+        return (new Post())->boot();
+    }
+}
+--FILE package.toml--
+# `Blog\Post::boot` overrides `Framework\Kernel\Module::boot`, so this entry is an error.
+[[restrict]]
+use = 'Blog\Post::boot'
+allow = ['Blog']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0665]: `Blog\Post::boot` replaces `Framework\Kernel\Module::boot`, so it cannot be restricted alone
+  --> %spackage.toml:3:7
+%A
+  = help: restrict `Framework\Kernel\Module::boot` instead
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

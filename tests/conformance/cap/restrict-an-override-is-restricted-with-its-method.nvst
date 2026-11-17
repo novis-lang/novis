@@ -1,0 +1,75 @@
+--TEST--
+an entry on a method also restricts every override and every implementation of it: a call to a subclass's method and a call through an interface each do not compile outside the allowed places — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `Framework\Kernel`.
+autoload 'Framework' from './framework';
+autoload 'Blog' from './blog';
+
+// `Blog\Post::boot` overrides `Framework\Kernel\Module::boot`, so this call does not compile.
+var $post = new Blog\Post();
+echo $post->boot(), "\n";
+
+// `Blog\Feed::start` implements `Framework\Kernel\Startable::start`, so this call does not compile.
+Framework\Kernel\Startable $feed = new Blog\Feed();
+echo $feed->start(), "\n";
+--FILE framework/Kernel/Module.nvs--
+<?nvs
+namespace Framework\Kernel;
+
+abstract class Module
+{
+    public function boot(): string
+    {
+        return "module";
+    }
+}
+--FILE framework/Kernel/Startable.nvs--
+<?nvs
+namespace Framework\Kernel;
+
+interface Startable
+{
+    public function start(): string;
+}
+--FILE blog/Post.nvs--
+<?nvs
+namespace Blog;
+
+final class Post extends Framework\Kernel\Module
+{
+    public function boot(): string
+    {
+        return "post";
+    }
+}
+--FILE blog/Feed.nvs--
+<?nvs
+namespace Blog;
+
+final class Feed implements Framework\Kernel\Startable
+{
+    public function start(): string
+    {
+        return "feed";
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'Framework\Kernel\Module::boot'
+allow = ['Framework\Kernel']
+
+[[restrict]]
+use = 'Framework\Kernel\Startable::start'
+allow = ['Framework\Kernel']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: %s cannot be used here
+  --> case.nvs:8:6
+%A
+error[E0664]: %s cannot be used here
+   --> case.nvs:12:6
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
