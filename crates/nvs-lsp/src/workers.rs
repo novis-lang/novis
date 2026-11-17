@@ -38,7 +38,9 @@
 //! One session and one configuration cache per worker, for as long as
 //! entries wait, freed when the queue empties. A worker keeps its session
 //! between jobs, so the workers together hold about one copy of the checked
-//! output of the files they checked. Each job copies the open buffers' text,
+//! output of the files they checked. A worker reads the server's parses
+(`crate::parse_cache`), so the parses are kept once, on the server's
+thread. Each job copies the open buffers' text,
 //! and each part one set of the paths it checks. A plan is one extra resolve
 //! of a graph no entry indexed yet. That memory buys the latency of a cold
 //! index, which the priority ordering allows.
@@ -54,6 +56,7 @@ use rustc_hash::FxHashSet;
 
 use crate::document::{Entry, Snapshot, Work};
 use crate::index::{Analysis, analyse_entry, plan_entry};
+use crate::parse_cache::{Made, Shared};
 use crate::session::Session;
 use crate::tree_cache::TreeCache;
 
@@ -80,6 +83,8 @@ pub(crate) struct Job {
     pub(crate) part: usize,
     /// The index's change counter when the job was sent.
     pub(crate) change: u64,
+    /// The server's pins and parses, which the worker reads before it parses.
+    pub(crate) parses: Shared,
 }
 
 /// What a worker found for one [`Job`].
@@ -101,6 +106,8 @@ pub(crate) struct Done {
     pub(crate) part: usize,
     /// What it found.
     pub(crate) found: Found,
+    /// The parses it made, for the server to file.
+    pub(crate) parses: Made,
 }
 
 /// A result is sent from the worker that built it to the server's thread.
@@ -149,6 +156,8 @@ pub(crate) struct Pool {
     graphs: BTreeMap<PathBuf, Vec<PathBuf>>,
     /// The work of the plans that arrived, for the index to count.
     work: Work,
+    /// The parses the workers made, for the server to file.
+    parses: Vec<Made>,
     /// The last entry split or passed ahead of its turn, so the next look for
     /// one starts after it.
     pub(crate) cursor: Option<PathBuf>,
@@ -179,6 +188,7 @@ impl Pool {
             claimed: FxHashSet::default(),
             graphs: BTreeMap::new(),
             work: Work::default(),
+            parses: Vec::new(),
             cursor: None,
         }
     }
@@ -299,14 +309,20 @@ impl Pool {
 
     /// Files `done` beside its entry. A result of an earlier job for the same
     /// entry, which a refresh has moved the counter past, is dropped. A plan's
-    /// graph is kept until the entry is split.
+    /// graph is kept until the entry is split. The parses it made are kept
+    /// for the server to file, whatever its counter, since a parse is right
+    /// for its own text.
     pub(crate) fn receive(&mut self, done: Done) {
         let Done {
             entry,
             change: sent,
             part,
             found,
+            parses,
         } = done;
+        if !parses.is_empty() {
+            self.parses.push(parses);
+        }
         match (self.in_flight.get_mut(&entry), found) {
             (Some(Flight::Planning { change }), Found::Plan(graph)) if *change == sent => {
                 self.in_flight.remove(&entry);
@@ -408,6 +424,11 @@ impl Pool {
         std::mem::take(&mut self.work)
     }
 
+    /// The parses the workers made since the last call.
+    pub(crate) fn take_parses(&mut self) -> Vec<Made> {
+        std::mem::take(&mut self.parses)
+    }
+
     /// Takes every result that already arrived, without waiting.
     pub(crate) fn collect(&mut self) {
         while let Ok(done) = self.results.try_recv() {
@@ -442,6 +463,7 @@ impl Pool {
         self.in_flight.clear();
         self.claimed.clear();
         self.graphs.clear();
+        self.parses.clear();
         self.cursor = None;
     }
 
@@ -457,6 +479,7 @@ fn work(jobs: &Receiver<Job>, done: &Sender<Done>) {
     let mut session = Session::default();
     let mut trees = TreeCache::default();
     while let Ok(job) = jobs.recv() {
+        session.parses.adopt(job.parses);
         let at = Entry {
             path: &job.entry,
             key: &job.entry,
@@ -498,6 +521,7 @@ fn work(jobs: &Receiver<Job>, done: &Sender<Done>) {
             change: job.change,
             part: job.part,
             found,
+            parses: session.parses.take_made(),
         });
         if sent.is_err() {
             return;

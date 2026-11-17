@@ -342,6 +342,29 @@ impl Pins {
         self.ids.get(&canonical_key(path)).copied()
     }
 
+    /// The id `key`, a path already under [`canonical_key`], is pinned to.
+    /// It resolves no path.
+    #[must_use]
+    pub fn of_key(&self, key: &Path) -> Option<SourceId> {
+        self.ids.get(key).copied()
+    }
+
+    /// Pins `key`, a path already under [`canonical_key`], to the next free id
+    /// unless it is pinned already. Returns whether it was added. A map built
+    /// from this table later loads the path at that id.
+    pub fn pin_key(&mut self, key: &Path) -> bool {
+        if self.ids.contains_key(key) {
+            return false;
+        }
+        let id = self.free.pop().unwrap_or_else(|| {
+            let at = self.next;
+            self.next += 1;
+            SourceId(at)
+        });
+        self.ids.insert(key.to_path_buf(), id);
+        true
+    }
+
     /// Unpins `path`, so a later path may take its id.
     pub fn forget(&mut self, path: &Path) {
         if let Some(id) = self.ids.remove(&canonical_key(path)) {

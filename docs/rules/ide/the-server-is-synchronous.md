@@ -17,9 +17,12 @@ text is about that text and is answered.
 
 **The index's waiting entries are analysed on worker threads** (`crates/nvs-lsp/src/workers.rs`). There
 are as many workers as cores but one, and at least one. They start when an entry waits and stop when none
-does, so a settled server has no worker thread. A worker keeps its own parse and check session and its own
+does, so a settled server has no worker thread. A worker keeps its own check session and its own
 configuration cache, and keeps them between jobs. Each job carries a copy of the open buffers' text and
-the lenders, shared and read-only. The workers split one entry's graph between them: an entry whose
+the lenders, shared and read-only, and the server's pins and parses, shared, read-only and copied on
+write. Before the first job the server pins every file of the tree, so a file has one id on every
+thread. A worker reads a parse from the server's before it parses, and returns the parses it made,
+which the server files before its next job, so each file is parsed once per settle. The workers split one entry's graph between them: an entry whose
 graph the index does not know is sent as a plan, which resolves the graph and checks no body, and the
 graph's files that no entry indexed and no entry in flight claims are split into one part per worker,
 in path order. A part checks the bodies of its own files and builds their records. Entries are split in

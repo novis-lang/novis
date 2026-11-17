@@ -904,6 +904,10 @@ impl SymbolIndex {
         pool.retain(|entry| self.pending.contains(entry));
         loop {
             self.work += pool.take_work();
+            // Filed before the next job is sent, so that job reads them.
+            for made in pool.take_parses() {
+                documents.file_parses(made);
+            }
             let Some(head) = self.pending.first().cloned() else {
                 pool.stop();
                 self.changed.clear();
@@ -976,6 +980,18 @@ impl SymbolIndex {
     /// of every part or puts in one the entry does not load, and its turn then
     /// analyses it on this thread ([`file_parts`](Self::file_parts)).
     fn send(&self, documents: &Documents, pool: &mut crate::workers::Pool, entry: &Path) -> Sent {
+        // A pool that runs no worker yet pins the whole tree first, so a parse
+        // a worker makes is at the id the server gives the same file.
+        let tree: Vec<&Path> = if pool.running() == 0 {
+            self.pending
+                .iter()
+                .chain(self.files.keys())
+                .map(PathBuf::as_path)
+                .collect()
+        } else {
+            vec![entry]
+        };
+        let parses = documents.share_parses(tree);
         let job = |task, part| {
             let snapshot = documents.snapshot();
             let version = snapshot.version_of(entry).unwrap_or(NO_BUFFER);
@@ -986,6 +1002,7 @@ impl SymbolIndex {
                 task,
                 part,
                 change: self.change,
+                parses: parses.clone(),
             }
         };
         let graph = match self.reads.get(entry) {

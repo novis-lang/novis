@@ -611,6 +611,22 @@ impl Documents {
         }
     }
 
+    /// The session's parses for a worker's job, with each of `pin`, paths
+    /// under `canonical_key`, pinned first so every thread loads it at one id.
+    pub(crate) fn share_parses<'a>(
+        &self,
+        pin: impl IntoIterator<Item = &'a Path>,
+    ) -> crate::parse_cache::Shared {
+        let parses = &mut self.session.borrow_mut().parses;
+        parses.pin_keys(pin);
+        parses.share()
+    }
+
+    /// Files the parses a worker made into the session's cache.
+    pub(crate) fn file_parses(&self, made: crate::parse_cache::Made) {
+        self.session.borrow_mut().parses.file(made);
+    }
+
     /// The parse and check session and the configuration cache every analysis
     /// out of this store writes, for an analysis that reads a [`Snapshot`].
     pub(crate) fn caches(

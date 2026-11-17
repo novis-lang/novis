@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/workers.rs]
   - id: 4
     title: every worker reads the server's one parse of each file
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/parse_cache.rs, crates/nvs-lsp/src/workers.rs, crates/nvs-lsp/src/session.rs]
   - id: 5
     title: the rule and the module docs say what the index spends, with the measured figures
@@ -132,6 +132,17 @@ already shared. A worker parses only what the map lacks and returns those parses
 server thread files them. Every file the survey found is pinned to its `SourceId` on the server thread
 before any job is sent, so a parse made on one thread is valid on every other. A file outside the tree
 is parsed by the worker that loads it and is not shared.
+
+**A job carries the server's whole map of parses, copied on write (my call, stage 4).** A map of the
+graph's parses alone is not possible for a plan, whose graph is unknown, and a plan that reparsed the
+library would parse it once per program. So the server's own map is an `Arc<HashMap<Arc<Path>,
+Arc<Entry>>>`, and a job takes an `Arc` of it. The server copies it with `Arc::make_mut` only when it
+files a parse while a job still reads the old map: two pointers per file, about once per result
+during a cold index. That is less work than building a map per job, which costs one per graph file
+for every part. The pins go the same way: the server pins the pending entries and the indexed files
+when a pool with no worker sends its first job, and a worker copies the pins only when they changed.
+A worker returns only the parses it made at the id the server pinned. The server files one only where
+it has none for that file. `crate::parse_cache`'s module doc says this.
 
 **A worker keeps its session between jobs (my call).** It holds the declarations of the graphs it
 planned or checked and the checked output of its parts, until the pool stops. That is one copy of the
@@ -247,12 +258,12 @@ Nothing in the server changes yet.
 
 **Does:** the shared parses, with no lock.
 
-- [ ] `crates/nvs-lsp/src/parse_cache.rs:61` `ParseCache` pins every file the survey found before the
+- [x] `crates/nvs-lsp/src/parse_cache.rs:61` `ParseCache` pins every file the survey found before the
   first job, gives a read-only `Arc` map of a graph's parses for a job, and files the parses a worker
   returns. Its module doc's *What it costs* says so.
-- [ ] `crates/nvs-lsp/src/workers.rs:241` `work`: the worker's session reads parses from the job's map
+- [x] `crates/nvs-lsp/src/workers.rs:241` `work`: the worker's session reads parses from the job's map
   first, and returns the ones it made.
-- [ ] The `parsed-once` check runs once.
+- [x] The `parsed-once` check runs once.
 
 ### 5. the rule and the module docs say what the index spends, with the measured figures
 
@@ -279,35 +290,34 @@ Nothing in the server changes yet.
 ### State
 
 Baseline (`lsp-start --copies 12 --cold --edits 5`, release, 16 cores): a cold index peaked at
-5752 MB paged. Stage 3: a `Job` (`crates/nvs-lsp/src/workers.rs:70`) is a `Task::Plan` or a `Task::Part(files)`.
-The `Pool` (`workers.rs:132`) keeps each entry's `Flight` (planning, or split with its parts and
-claims), the claimed set and each plan's graph. `turns` (`crates/nvs-lsp/src/index.rs:902`) sends the
-head, then splits entries ahead in path order and stops at one still planning. `send` (`index.rs:978`)
-takes the graph from `reads`, else the plan, else sends a plan. `file_parts` (`index.rs:1042`) joins
-the parts at the entry's turn and falls back to `analyse_here` when one is missing. `analyse_through`
-no longer excepts the entry: `absent` is asked about it by its key, `analyse` passes "every file but
-the document", and `analyse_entry` (`index.rs:1633`) takes `checks_entry`. `plan_entry`
-(`index.rs:1704`) resolves a graph and checks no body.
+5752 MB paged. Stages 2 and 3 split each graph's bodies between the workers (`workers.rs` module doc).
 
-A part made `a_parallel_index_holds_what_the_serial_index_holds` red: a link in one part to a route in
-another reported `E0754` there. `Indexed::errors` now reads `Analysed::erring`
-(`crates/nvs-lsp/src/document.rs:1192`), as § *Standing decisions* says.
+Stage 4 is done. `ParseCache` (`crates/nvs-lsp/src/parse_cache.rs:89`) keeps its parses in an
+`Arc<Files>` copied on write. `pin_keys` (`:184`) pins canonical keys through the new
+`Pins::pin_key` and `Pins::of_key` (`crates/nvs-diagnostics/src/source.rs`). `share` (`:196`) gives a
+job a `Shared` of the pins and the map, `adopt` (`:208`) makes a worker read it after its own parses,
+`take_made` (`:223`) returns a worker's own parses at the server's ids, and `file` (`:240`) files
+them. `Documents::share_parses` (`document.rs:616`) pins and shares. `send` (`index.rs:982`) pins the
+pending entries and the indexed files when no worker runs yet, and puts the `Shared` on every job.
+`work` (`workers.rs:478`) adopts it, and `Done::parses` goes through `Pool::receive` and
+`take_parses` to `turns` (`index.rs:908`), which files them before it sends again. The rule's worker
+paragraph says so already.
 
-The `once` check is green, and only its tests ran. `parsed-once` is red until stage 4. May go red at
-the gate: a test pinning `errors` from a link or route error (`index.rs:595`), the other parallel
-tests of `tests/incremental.rs`, and `document.rs` tests near `:1575` to `:2008` and
-`definition.rs:1730`.
+`parsed-once` is green, and only its tests ran. Build and clippy are green. May go red at the gate: a
+test pinning `errors` from a link or route error (`index.rs:595`), the other parallel tests of
+`tests/incremental.rs`, `document.rs` tests near `:1575` to `:2008`, `definition.rs:1730`, and any
+test that reads the ids of a map, since the whole tree is now pinned before workers run.
 
 The sweep's reds are stale: `env-secret-proofs` has no log, and the nightly `supply chain` built
 `2934ebe1ae`, before `0fe2fdef25` removed `chrono`.
 
 ### Next
 
-Stage 4 from its first item: `ParseCache` (`crates/nvs-lsp/src/parse_cache.rs:61`) pins every
-surveyed file before the first job and gives a job an `Arc` map of its graph's parses. `send`
-(`index.rs:978`) puts that map on each `Job`, for a plan and for every part. `work`
-(`crates/nvs-lsp/src/workers.rs:456`) reads parses from it first and returns the ones it made, and
-`Pool::receive` hands them back for the server thread to file. Then run the `parsed-once` check once.
+Stage 5 from its first item: the rule's worker paragraph
+(`docs/rules/ide/the-server-is-synchronous.md:18`) gets the measured figures and the Declined entry
+for a worker cap, then the module docs of `crates/nvs-lsp/src/workers.rs:1` and
+`crates/nvs-lsp/src/session.rs:1`. Then `bun nv relink --build` and one run of
+`bun nv lsp-start --copies 12 --cold --edits 5`, with the figures beside the baseline.
 
 ### Backlog
 
