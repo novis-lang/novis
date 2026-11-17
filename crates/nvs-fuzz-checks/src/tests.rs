@@ -341,6 +341,10 @@ fn cell(body: Body, place: Place, c: &Construct) -> Option<String> {
 /// type-check, since `$this` has no meaning in a static method, but no cell
 /// panics, and a cell that checks is built. The cells run in parallel, one
 /// thread per core.
+///
+/// This matrix is the check that the compiler never panics, because it runs in
+/// seconds on every `cargo test`. **Declined:** a timed fuzz search as part of
+/// that check. `bun nv fuzz` runs the `compile` target by hand.
 #[test]
 #[cfg_attr(miri, ignore = "runs the whole compiler over each cell")]
 fn every_construct_compiles_in_every_body() {

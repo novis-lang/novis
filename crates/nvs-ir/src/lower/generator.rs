@@ -302,6 +302,9 @@ pub(crate) const GEN_SELF: &str = "gen#self";
 ///
 /// **Cost:** one field slot on a `static` generator's state object, 16 bytes
 /// per suspended generator, whether or not its body names the class.
+///
+/// **Declined:** making the checker refuse `self::` and `static::` in a
+/// generator. They are ordinary code in a class's method.
 pub(crate) const GEN_CLASS: &str = "gen#class";
 
 /// The state value meaning "this generator has finished" — any value no

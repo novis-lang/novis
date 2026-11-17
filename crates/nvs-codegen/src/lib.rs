@@ -498,6 +498,10 @@ fn extension_classes(program: &Program) -> Box<[String]> {
 ///
 /// **What it spends:** one atomic increment per compile and one decrement per
 /// free, for [`mapped_jit_units`], and one `Arc` per unit for the provider.
+///
+/// **Declined:** a custom memory provider that frees its pages on drop. It
+/// would change the allocator of every unit to fix the one path that never
+/// ends in `finish`. [`SharedPages`] keeps `cranelift-jit`'s own provider.
 struct JitPages {
     module: Mutex<Option<JITModule>>,
     pages: Arc<Mutex<SystemMemoryProvider>>,

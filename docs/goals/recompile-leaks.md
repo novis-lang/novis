@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-fuzz-checks/src/lib.rs, crates/nvs-fuzz-checks/src/prefix.rs, crates/nvs-syntax/tests/prefixes.rs, crates/nvs-codegen/src/lib.rs]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: pages
@@ -332,49 +332,31 @@ because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, and the `pages`, `no-retry`, `keep-alive` and `no-panic` checks are green.
-Stage 7, the gate, is next.
+Every stage is done, and the goal is reached. `looper verify` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes recompile-leaks` (no gap) and `bun nv ci --check`.
 
-**Stage 6.** `nvs_fuzz_checks::compile` (`crates/nvs-fuzz-checks/src/compile.rs`) runs a source
-through the whole compiler with the object-file backend. `compile_seeds_never_panic` replays
-`fuzz/seeds/compile/` (two seeds, one per cause below). `every_construct_compiles_in_every_body`
-(`crates/nvs-fuzz-checks/src/tests.rs`) is 15 bodies × 5 places × 15 constructs, 800 cells, in
-about 0.6 s on 16 cores. Novis has no free function (`E0215`), so the script's own statements are
-the "function" body. The matrix had 21 red cells, all from the two causes:
-
-- A generator's `advance` had no called class, so `self::`, `static::`, `parent::` and
-  `new static()` in a generator panicked in `Lowering::lsb`. A static generator now parks its
-  called class in `gen#class`, and an instance one reads the class of its parked `$this`.
-- `Lowering::lsb` appended `class.of $this` at the end of the entry block, after the body's first
-  fallible instruction, so a use after a caught throw, in a `catch` or in a `finally` failed the
-  Cranelift verifier. It is now inserted right after the receiver's definition (`emit_after`).
-
-`bun nv serve-mem --panics` is removed: its edit was the first cause, which now compiles. The
-`no-retry` test triggers its panic through its own marker and is unaffected.
+**Stage 7.** The gate found two reds. `website/src/data/numbers.json` counted 19 fuzz targets, and
+`bun nv render` wrote 20. `erased_entries`'s `shipped` stopped reading a file at its first
+`#[cfg(test)] mod`, and stage 2's `failpoint` module sits mid-file in `nvs-codegen`'s `lib.rs`, so
+`raw_function` looked gone. `shipped` now skips only that module. `fuzz/Cargo.lock` took the
+`compile` target's Cranelift dependencies. The Declined items that only this file held now stand
+in `JitPages`'s doc, `GEN_CLASS`'s doc and `every_construct_compiles_in_every_body`'s doc.
 
 The sweep's two reds are stale: `env-secret-proofs` is defined nowhere (`git log -S` ends at a
 retired goal), and nightly 44073672172 ran on `2934ebe1ae`, which predates `0fe2fdef25`.
 
 ### Next
 
-Stage 7: start `looper verify` with `run_in_background`, fix every failure it names in one pass,
-and run it once more. Then the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
-`bun nv owners --closes recompile-leaks`, `bun nv ci --check`.
-
-- Tests that may go red: any that counts the instructions of a method that reads `static`, because
-  `class.of` now sits before the entry safepoint (`crates/nvs-codegen/tests/`, `benches/abi-probe`).
-  The 14 `nvs-ir` lowering snapshots this moved are already updated.
-- `crates/nvs-fuzz-checks/Cargo.toml` now takes `nvs-codegen`, `nvs-hir`, `nvs-ir` and
-  `nvs-types`, so `fuzz/` builds Cranelift. `bun nv fuzz --all` leaves `compile` out
-  (`tools/nv/cmd/fuzz.ts` `BY_HAND`).
+Nothing. The goal is retired, and `lsp-memory` is next on the chain. No test is expected to go
+red.
 
 ### Backlog
 
