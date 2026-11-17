@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "a recompile frees what it made on every way out, and a crashed compile is not retried"
-summary: "Reached when a compile that fails or panics in code generation frees its compiled code, a compile that panics is recorded as failed until its content changes, a busy keep-alive connection keeps serving through many reloads, the memory each successful recompile keeps is measured and bounded, a fuzz target and a cut sweep find no panic from the parser to code generation, and bun nv serve-mem prints the memory per recompile."
+summary: "Reached when a compile that fails or panics in code generation frees its compiled code, a compile that panics is recorded as failed until its content changes, a busy keep-alive connection keeps serving through many reloads, the memory each successful recompile keeps is measured and bounded, a static call through self or static in a generator runs, every construct compiles in every kind of body with no panic, and bun nv serve-mem prints the memory per recompile."
 context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/script.rs, crates/nvs-cli/src/serve/mounts.rs, docs/rules/config/a-broken-edit-fails-the-requests-that-resolve-it.md]
 stages:
   - id: 1
@@ -57,12 +57,12 @@ checks:
       - a_busy_keep_alive_connection_serves_the_newest_version_after_many_reloads
   - id: no-panic
     stage: 6
-    name: "every saved compile input, and every example cut at each statement, compiles or reports diagnostics, and never panics or returns a code generation error"
-    run: [cargo, test, --lib, --, compile_seeds_never_panic, every_example_cut_at_a_statement_compiles_or_reports]
-    timeout: 3600
+    name: "every saved compile input, and every construct in every kind of body, compiles or reports diagnostics, and never panics or returns a code generation error"
+    run: [cargo, test, --lib, --, compile_seeds_never_panic, every_construct_compiles_in_every_body]
+    timeout: 1800
     tests:
       - compile_seeds_never_panic
-      - every_example_cut_at_a_statement_compiles_or_reports
+      - every_construct_compiles_in_every_body
 ---
 
 # a recompile frees what it made on every way out, and a crashed compile is not retried
@@ -105,8 +105,26 @@ Read from the code, and confirmed against it:
    serve compiles it too.
 
 Together, a file that panics in code generation leaks one unit every 2 s, with no saves and no
-requests. That matches the report. The panic itself was not reproduced from an edit. Stage 6
-searches for it and for every other panic in the compiler.
+requests.
+
+**The reported panic, reproduced on the current build.** A static call through `self::` or `static::`
+inside a generator passes `nvs check` and panics in `nvs-ir` (`crates/nvs-ir/src/lower/mod.rs:2982`).
+The message says `Base::pages$gen::advance` names `static` but has neither a receiver nor a called
+class. Writing the class name, as in `Base::one()`, works. Reading a constant through `self::` works.
+
+```nvs
+class Base
+{
+    public static function run(): Iterator<int> { return self::pages(); }
+    private static function pages(): Iterator<int> { yield self::one(); }
+    private static function one(): int { return 1; }
+}
+```
+
+Measured with that file served, with no requests: the server compiled it again about every 2 s, 66
+panics in 140 s, and its threads went from 24 to 21. Its memory stayed at 9 MB. So a panic in lowering
+leaks nothing on a small file. It happens before any code is mapped. The reported 50 MB per failure is
+not explained yet. Stage 5 measures a panic on the registry copy before it closes.
 
 ## Standing decisions
 
@@ -150,8 +168,11 @@ served is a leak, the same as growth with requests served.
 text reached it: broken, half-saved or valid. It is found by search, not from a report. The fuzz targets
 in `crates/nvs-fuzz-checks` stop at the parser (`parse`, `prefix`, `ast`, `lex`), and nothing searches
 the type checker, the lowering or code generation. An editing loop that saves half-written files is the
-input most likely to reach them. So stage 6 adds a `compile` target over the whole pipeline. Its
-properties are: no panic, and a program that type-checks with no error never gets a `CodegenError`.
+input most likely to reach them. So stage 6 adds a `compile` target over the whole pipeline, and a
+matrix test that puts each construct into each kind of body. The reported panic is that shape: a
+construct that reads the enclosing class, in a generator. The matrix is the check, because it runs in
+seconds on every `cargo test`. A timed search is not part of the goal, and the person declined one.
+The properties are: no panic, and a program that type-checks with no error never gets a `CodegenError`.
 Such an error is a shape the checker let through and the backend cannot lower. The fix for each case is
 in the front end or the backend, wherever the case belongs. Catching the panic (stage 3) stays, as the
 last line of defence.
@@ -229,8 +250,11 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 - [ ] Run `bun nv serve-mem --app registry --oks 30` with no requests, and read the live bytes of the
   compile thread and of each core with the runtime's counters. Write in the handoff what grows per
   success, and what holds it.
-- [ ] Fix what grows with the number of recompiles. A bound of three cached units plus one per core
-  stays as it is.
+- [ ] Before stage 6 fixes the panic, write a `yield self::…` call into a generator of the registry
+  copy, and let it panic ten times with no requests. Write in the handoff what each panic adds, and
+  which threads end (24 became 21 on the small file).
+- [ ] Fix what grows with the number of recompiles or panics. A bound of three cached units plus one
+  per core stays as it is.
 - [ ] The module doc of `crates/nvs-cli/src/serve/mounts.rs` and of `crates/nvs-cli/src/script.rs`
   say what a recompile keeps, per unit and per core, with the measured figures.
 - [ ] Rebuild with `bun nv relink --build`, run `bun nv serve-mem --app registry --fails 10 --oks 30`
@@ -238,26 +262,34 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 ### 6. no source text makes the compiler panic, from the parser to code generation
 
-**Does:** a fuzz target and a cut sweep over the whole pipeline, and a fix for every panic and every
-code generation error on checked code that they find.
+**Does:** fixes the reported panic, and adds a matrix test that puts every expression and statement
+kind into every kind of body. The matrix runs in seconds under `cargo test`, and adds no timed search
+to any run.
 
-**Split:** after the target and the sweep exist, each failure found is one item for a writing
-subagent, one at a time, because most fixes share `crates/nvs-types` or `crates/nvs-codegen`.
+**Split:** after the matrix exists, each failing cell is one item for a writing subagent, one at a time,
+because most fixes share `crates/nvs-ir` or `crates/nvs-codegen`.
 
-- [ ] `crates/nvs-fuzz-checks/src/compile.rs:1`: `compile(data)` runs the source through parse,
-  check, lowering and `nvs_codegen` with the object-file backend, so nothing is mapped or run. It
-  asserts no panic, and no `CodegenError` when the check reported no error. The crate takes the
-  dependencies it needs. `fuzz/fuzz_targets/compile.rs` is its one-line target, and `tests.rs` replays
-  `fuzz/seeds/compile/` in `compile_seeds_never_panic`. The seeds are the `docs/examples/` files the
-  target accepts in under one second each.
-- [ ] `every_example_cut_at_a_statement_compiles_or_reports`, beside the `compile` target: every
-  `docs/examples/**/*.nvs` file is cut after each top-level statement and each statement of a body, in the
-  shape of `crates/nvs-syntax/tests/prefixes.rs`, and each cut goes through `compile`. A half-saved file
-  is a cut.
-- [ ] Run `bun nv fuzz compile` for 30 minutes once. Save each input that fails as a seed, and fix
-  its cause.
-- [ ] Every failure the sweep and the search found is fixed at its cause, and the `no-panic` check runs
-  once. The handoff lists each cause in one line.
+- [ ] `crates/nvs-ir/src/lower/mod.rs:2982`: a static call through `self::` or `static::` inside a
+  generator panics there, because the generator's `advance` function has neither a receiver nor a called
+  class. A generator keeps the class it was called on, from its creation, in its state, and `advance`
+  reads `self` and `static` from there. The case in § *Why* (`yield self::one();` in a static generator,
+  `yield static::one();`, and `yield self::one();` in an instance generator) is the first row the
+  matrix proves.
+- [ ] `crates/nvs-fuzz-checks/src/compile.rs:1`: `compile(data)` runs a source through parse, check,
+  lowering and `nvs_codegen` with the object-file backend, so nothing is mapped or run. It asserts no
+  panic, and no `CodegenError` when the check reported no error. The crate takes the dependencies it
+  needs. `fuzz/fuzz_targets/compile.rs` is its one-line target, for a search somebody starts by hand.
+  `tests.rs` replays `fuzz/seeds/compile/` in `compile_seeds_never_panic`. The reported case is its first
+  seed.
+- [ ] `every_construct_compiles_in_every_body`, in the same file: a matrix of the body kinds (a
+  function, an instance method, a static method, a generator of each, an anonymous function, an arrow
+  function, and each of these nested in a generator) times the constructs that read the enclosing
+  context (`self::`, `static::` and `parent::` calls and constants, `$this`, a captured variable, `yield`,
+  `return`, `throw`, `try`, `match`). Each cell is one small program through `compile`. It is built from
+  the grammar, not from the corpus. Its run time goes into the handoff, and is expected under ten
+  seconds.
+- [ ] Every failing cell is fixed at its cause, and the `no-panic` check runs once. The handoff lists
+  each cause in one line.
 
 ### 7. the goal is verified once, and every failure is fixed
 
