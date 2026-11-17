@@ -174,10 +174,10 @@ sends them to the new identifier. A session with no row yet draws its identifier
 move. *The old one is gone* and *the new one is taken* give what they give today
 (`session.rs:1601-1621`): a fresh empty session with no cookie, and the same throw.
 
-**The rules (my call).** `rule:http-server/a-session-is-loaded-once-and-written-whole` is renamed
-`rule:http-server/a-session-is-loaded-once-and-written-back-per-key` and rewritten.
-`rule:http-server/a-session-store-answers-four-operations` is renamed
-`rule:http-server/a-session-store-answers-five-operations` and rewritten. Every citation follows
+**The rules (my call).** `rule:http-server/a-session-is-loaded-once-and-written-whole` is renamed to
+`docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md` and rewritten.
+`rule:http-server/a-session-store-answers-four-operations` is renamed to
+`docs/rules/http-server/a-session-store-answers-five-operations.md` and rewritten. Every citation follows
 (`git grep` both ids; about forty lines, most in `session.rs`, `wiring.rs` and `sqlite.rs`). The first
 rule's Declined list keeps the generation counter and the request-long lock. It drops "A per-key write
 instead of a whole-record one" and adds two entries. **A whole-record write-back:** a request undoes
@@ -327,8 +327,3 @@ Stage 1 from its first item: the two rule fragments, their renames and citations
 exist yet, and are expected to fail until the stage writes them.
 
 ### Backlog
-
-- `crates/nvs-stdlib/src/session.rs:1327` `take_bytes` is what makes `Core\Passkey`'s challenge
-  single-use. Two requests of one session that run at once both load the challenge before either
-  write-back, so both can take it. That is true today and after this goal. It needs its own look at
-  whether a concurrent replay of one assertion matters, and a gap record if it does.
