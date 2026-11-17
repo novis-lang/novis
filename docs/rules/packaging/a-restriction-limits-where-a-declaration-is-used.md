@@ -98,7 +98,14 @@ so its list names every restricted act, allowed anywhere or not.
 class is known only when it runs, so the checker lists, for that one name and that kind of act, every
 restricted member its place does not allow. The compiler emits a check of the receiver's class
 before the access (`Helper::RestrictedErasedAct`), and it throws the same `LogicError`. A name no
-entry restricts gets no list and no check. A keyed access, `$object->$key`, is not held yet.
+entry restricts gets no list and no check.
+
+**A keyed access, `$object->$key`, is a use of every property its key may name.** The key is a
+`property<T>`, which ranges over `T`'s public properties, so the access does not compile where any
+of them is restricted and not allowed, whichever name the key holds when it runs. It is a compile
+error, never a run-time check, so it costs nothing per request. Declined: a check of the key's value
+when it runs. It would cost a branch per access and hold a list per site, and fail only when the
+line runs, for a form that a class with a restricted property rarely needs.
 
 **The error** says first what is not allowed, then where it is allowed, then the note, then the
 source: "`Core\Router::urlSigned` cannot be used here. It is allowed only in

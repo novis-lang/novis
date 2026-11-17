@@ -52,7 +52,8 @@
 //! restricted member of its name that the place does not allow, and `nvs_ir` emits
 //! `Helper::RestrictedErasedAct` before the access, which throws when the receiver's class is on
 //! the list. A site whose name no entry restricts records nothing and emits nothing. A keyed
-//! access, `$object->$key`, names its member only at run time and is not held yet.
+//! access, `$object->$key`, is a use of every public property of its key's class, and
+//! [`check_uses`] refuses it at compile time where any of them is restricted here.
 //!
 //! Cost: one pass over each body's new table entries, and a few hash lookups per entry, only when
 //! a table exists, and one inference of each `replace` per check. Memory: one index of the
@@ -250,6 +251,27 @@ pub(crate) fn check_uses(place: Place<'_>, mark: usize, env: &mut Env<'_>) {
     };
     let mut found: Vec<(Span, usize, QName, Member)> = Vec::new();
     for (span, info) in env.exprs.since_at(mark) {
+        // A keyed access, `$object->$key`, names its property only at run time, and the key may
+        // be any public property of its class. So it is a use of each of them.
+        if let ExprInfo::KeyedProperty { class, .. } = info {
+            let class = QName::parse(class);
+            for name in crate::expr::members::public_property_names(&class, env) {
+                let owner = crate::signatures::resolve_property_owned(
+                    &class,
+                    &name,
+                    env.signatures,
+                    env.graph,
+                )
+                .map_or_else(|| class.clone(), |(owner, _)| owner);
+                let member = Member::Property(name);
+                for at in restricted.holding(&owner, &member, env) {
+                    if !restricted.allows(at, &place, span.file, env) {
+                        found.push((span, at, owner.clone(), member.clone()));
+                    }
+                }
+            }
+            continue;
+        }
         for (owner, member, _) in crate::deprecated::resolved(info, env) {
             for at in restricted.holding(&owner, &member, env) {
                 if !restricted.allows(at, &place, span.file, env) {

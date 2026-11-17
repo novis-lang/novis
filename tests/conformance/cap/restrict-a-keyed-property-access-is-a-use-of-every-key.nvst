@@ -1,0 +1,36 @@
+--TEST--
+a keyed property access, `$object->$key`, may name any public property of the key's class, so it does not compile outside the places a restricted one allows, even when the key names a free property — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `App\Billing`.
+autoload 'App' from './app';
+
+var $ledger = new App\Billing\Ledger();
+// `owner` is free, and a direct read compiles.
+echo $ledger->owner, "\n";
+// A key of `Ledger` may name `secret` too, so this read does not compile.
+property<App\Billing\Ledger> $key = "owner" as property<App\Billing\Ledger>;
+echo $ledger->$key, "\n";
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
+--FILE app/Billing/Ledger.nvs--
+<?nvs
+namespace App\Billing;
+
+final class Ledger
+{
+    public string $owner = "Shop";
+
+    public string $secret = "1234";
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Billing\Ledger::secret'
+allow = ['App\Billing\*']
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0664]: `App\Billing\Ledger::secret` cannot be used here
+   --> case.nvs:10:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
