@@ -83,15 +83,28 @@ looks up a hash map of restricted declarations, and a method use also walks its 
 every unit's cache key beside the grants (`rule:config/the-extension-set-is-in-every-unit-key`), so an
 edited entry is an ordinary cache miss, and a program with no table keeps the key it had.
 
+**A reflective act is held at run time, by a list made at compile time.** `Core\Reflect\ClassInfo`'s
+`call`, `get`, `set`, `constant` and `construct` name their member in a string, so the checker
+cannot see which one. When a body holds such a call, the same pass lists every act on a restricted
+member that the call's place does not allow, each with `E0664`'s text, and the call-site constant
+those members already take carries the list (`nvs_runtime::source::encode_restricted`). The member
+throws a `LogicError` with that text when its act is on the list, the class a refused reflective
+`call` of a `private` method throws. A member is listed under the class the act is made on, so an
+inherited one is held under each class that inherits it, by the entries a use of it there holds.
+A callable reference to one of these members, `$info->call(...)`, runs wherever it is later called,
+so its list names every restricted act, allowed anywhere or not.
+
 **The error** says first what is not allowed, then where it is allowed, then the note, then the
 source: "`Core\Router::urlSigned` cannot be used here. It is allowed only in
 `Framework\Core\Signing`. Use `Framework\Core\Url::signed`. It adds the framework's key rotation.
 This rule is in `modules/Framework/package.toml`, line 4." The editor shows the same text at the use.
 
-**Cost:** nothing at run time and nothing per request, apart from one table lookup per reflective act
-on a member. At compile time, one read of each table and one hash-set lookup per resolved use when a
-table exists. **Memory:** the tables are compile-time input, held once per compiled program, and
-nothing of them is held per request. `crates/nvs-config/src/restrict.rs` reads them.
+**Cost:** nothing per request. A reflective act reads one header word of its call-site constant, and
+scans that site's list only in a program with a table. At compile time, one read of each table and
+one hash-set lookup per resolved use when a table exists, and, on the first reflective call, one walk
+of the classes an entry names. **Memory:** the tables are compile-time input, held once per compiled
+program, and nothing of them is held per request. Each reflective call site in a program with a
+table carries its list in the unit's data. `crates/nvs-config/src/restrict.rs` reads the tables.
 
 **Declined:**
 - **A map form, like `[grants]`** (`'Core\Router::urlSigned' = [...]`). It has no room for `note`
@@ -103,3 +116,7 @@ nothing of them is held per request. `crates/nvs-config/src/restrict.rs` reads t
 - **A runtime form through `Config::set`.** It costs a branch per call, fails only when the line
   runs, and the editor cannot see it.
 - **A warning instead of an error.** A warning is what a framework author is trying to get past.
+- **One table of the unit's restrictions, matched at run time against the calling place.** A
+  package's entry matches only a file inside the package by layout, which the run time cannot see,
+  so the match would be a second copy of the checker's, kept in step by hand. The per-site list is
+  the checker's own answer, made once.

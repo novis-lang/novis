@@ -1667,6 +1667,7 @@ pub struct ExprTypeTable {
     setting_names: crate::setting_names::SettingNames,
     prepared: FxHashMap<Span, Prepared>,
     plain_binds: FxHashSet<Span>,
+    restricted_acts: FxHashMap<Span, std::sync::Arc<[u8]>>,
     formats: FxHashMap<Span, Vec<FormatPiece>>,
     delegations: Vec<Delegation>,
     locals: Vec<(Span, Vec<LocalBinding>)>,
@@ -1853,6 +1854,7 @@ impl ExprTypeTable {
             setting_names,
             prepared,
             plain_binds,
+            restricted_acts,
             formats,
             delegations,
             locals,
@@ -1912,6 +1914,7 @@ impl ExprTypeTable {
         self.setting_names.absorb(setting_names);
         self.prepared.extend(prepared);
         self.plain_binds.extend(plain_binds);
+        self.restricted_acts.extend(restricted_acts);
         self.formats.extend(formats);
         self.delegations.extend(delegations);
         self.locals.extend(locals);
@@ -1998,6 +2001,7 @@ impl ExprTypeTable {
         section("setting_names", vec![format!("{:?}", self.setting_names)]);
         section("prepared", sorted(&self.prepared));
         section("plain_binds", sorted(&self.plain_binds));
+        section("restricted_acts", sorted(&self.restricted_acts));
         section("formats", sorted(&self.formats));
         section("delegations", sorted(&self.delegations));
         section("locals", sorted(&self.locals));
@@ -2994,6 +2998,20 @@ impl ExprTypeTable {
     #[must_use]
     pub fn plain_binds(&self, call: Span) -> bool {
         self.plain_binds.contains(&call)
+    }
+
+    /// Records the restricted-act list (`nvs_runtime::source::encode_restricted`)
+    /// the `Core\Reflect\ClassInfo` call or callable reference at `span` carries
+    /// to its call-site constant (`crate::restrict::record_acts`).
+    pub(crate) fn record_restricted_acts(&mut self, span: Span, acts: std::sync::Arc<[u8]>) {
+        self.restricted_acts.insert(span, acts);
+    }
+
+    /// The restricted-act list of the call or callable reference at `span`, or
+    /// `None` where no `[[restrict]]` entry refuses an act there.
+    #[must_use]
+    pub fn restricted_acts(&self, span: Span) -> Option<&std::sync::Arc<[u8]>> {
+        self.restricted_acts.get(&span)
     }
 
     /// Records that the `Core\Str::format` call at `call` lowers to `pieces`.

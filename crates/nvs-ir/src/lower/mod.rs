@@ -3170,8 +3170,15 @@ impl<'a> Lowering<'a> {
     /// reasons exactly.
     pub(crate) fn producer_source(&mut self, b: BlockId) -> ValueId {
         let source = Some(self.source());
-        self.emit(b, Ty::ClassDesc, InstKind::SourceConst { source })
-            .0
+        self.emit(
+            b,
+            Ty::ClassDesc,
+            InstKind::SourceConst {
+                source,
+                restricted: None,
+            },
+        )
+        .0
     }
 
     /// The constant a member on `nvs_stdlib::registry::CALL_SITE_MEMBERS` takes
@@ -3189,9 +3196,18 @@ impl<'a> Lowering<'a> {
     /// wanted is "no class".
     ///
     /// Emitted before the receiver is opened, and not refcounted, for
-    /// [`Self::producer_source`]'s reasons exactly.
-    pub(crate) fn call_site(&mut self, b: BlockId) -> ValueId {
-        self.producer_source(b)
+    /// [`Self::producer_source`]'s reasons exactly. The call at `span` adds
+    /// its restricted-act list where the checker recorded one
+    /// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+    pub(crate) fn call_site(&mut self, b: BlockId, span: nvs_diagnostics::Span) -> ValueId {
+        let source = Some(self.source());
+        let restricted = self.exprs.restricted_acts(span).cloned();
+        self.emit(
+            b,
+            Ty::ClassDesc,
+            InstKind::SourceConst { source, restricted },
+        )
+        .0
     }
 
     /// The id a member on `nvs_stdlib::registry::QUERY_SITE_MEMBERS` takes as

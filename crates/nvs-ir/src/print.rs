@@ -224,13 +224,19 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             (Some(span), false) => format!("query.site @{}", fmt_span(*span, src)),
             (None, _) => "query.site none".to_owned(),
         },
-        InstKind::SourceConst { source } => match source {
-            Some(source) => match &source.member {
-                Some(member) => format!("source {}:{} {member}", source.file, source.line),
-                None => format!("source {}:{}", source.file, source.line),
-            },
-            None => "source none".to_owned(),
-        },
+        InstKind::SourceConst { source, restricted } => {
+            let text = match source {
+                Some(source) => match &source.member {
+                    Some(member) => format!("source {}:{} {member}", source.file, source.line),
+                    None => format!("source {}:{}", source.file, source.line),
+                },
+                None => "source none".to_owned(),
+            };
+            match restricted {
+                Some(acts) => format!("{text} restricted {}b", acts.len()),
+                None => text,
+            }
+        }
         InstKind::ClassDescOf { object } => format!("class.of v{}", object.index()),
         InstKind::ClassDescIn { subject, base } => {
             format!("class.in v{} {base}", subject.index())

@@ -1123,6 +1123,10 @@ pub enum InstKind {
     SourceConst {
         /// The datum, exactly as `lower::Lowering::source` built it.
         source: Option<Source>,
+        /// A `Core\Reflect\ClassInfo` call site's restricted-act list, as
+        /// `nvs_runtime::source::encode_restricted` wrote it, or `None`.
+        /// Only a program with a `[[restrict]]` table has one.
+        restricted: Option<std::sync::Arc<[u8]>>,
     },
     /// What the checker prepared out of the literal a call on
     /// `nvs_stdlib::registry::PREPARED_MEMBERS`' roster was written with,

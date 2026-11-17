@@ -4883,7 +4883,7 @@ impl<'a> Lowering<'a> {
             // constant. Emitted here with the block above, before the receiver
             // is opened, and pushed last below.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
-                .then(|| self.call_site(*cur));
+                .then(|| self.call_site(*cur, expr.span));
             // A `Core\Db` member that sends a statement is handed its call
             // site's id as its last argument — `nvs_stdlib::registry::QUERY_SITE_MEMBERS`
             // owns the position and `Lowering::query_site_constant` the constant.
@@ -5232,7 +5232,7 @@ impl<'a> Lowering<'a> {
             // instance one, so a member joining the roster needs nothing
             // decided about which of the two paths reached it.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
-                .then(|| self.call_site(*cur));
+                .then(|| self.call_site(*cur, expr.span));
             // `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' trailing id, which
             // that roster owns, emitted the way the instance path emits it.
             let query_site =

@@ -43,6 +43,75 @@ const HEADER: usize = 12;
 /// share a spelling.
 const NO_MEMBER: u32 = u32::MAX;
 
+/// Bit 31 of the line word: a restricted-act list follows the member's bytes.
+/// No source file has 2^31 lines, so the bit is never part of a line.
+const RESTRICTED: u32 = 1 << 31;
+
+/// What a `Core\Reflect\ClassInfo` member does to a member, as a call site's
+/// restricted-act list names it
+/// (`rule:packaging/a-restriction-limits-where-a-declaration-is-used`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum Act {
+    /// `call`, on a method.
+    Call = 0,
+    /// `get` or `set`, on a property.
+    Property = 1,
+    /// `constant`, on a class constant.
+    Constant = 2,
+    /// `construct`, on the class; its member is empty.
+    Construct = 3,
+}
+
+/// The restricted-act list one call site carries: each act on `class::member`
+/// that a `[[restrict]]` entry does not allow at that site, and the message
+/// its refusal throws. `nvs_types::restrict` computes it, and
+/// [`encode_site`] appends it to the site's blob.
+///
+/// The layout is a little-endian `u32` count, then per act its [`Act`] byte
+/// and three `u32` lengths, and the class's, the member's and the message's
+/// bytes.
+///
+/// # Panics
+///
+/// Panics on a list or a string past `u32::MAX`, which no program declares.
+#[must_use]
+pub fn encode_restricted(acts: &[(Act, &str, &str, &str)]) -> Vec<u8> {
+    let count = u32::try_from(acts.len()).expect("far fewer than u32::MAX restricted members");
+    let mut out = count.to_le_bytes().to_vec();
+    for (act, class, member, message) in acts {
+        out.push(*act as u8);
+        for text in [class, member, message] {
+            out.extend_from_slice(&length(text.as_bytes()).to_le_bytes());
+        }
+        for text in [class, member, message] {
+            out.extend_from_slice(text.as_bytes());
+        }
+    }
+    out
+}
+
+/// The blob for a call site of a `Core\Reflect\ClassInfo` acting member:
+/// [`encode`]'s bytes, with the [`encode_restricted`] list behind them when
+/// the site has one. A site with no source (a callable reference's thunk) is
+/// encoded with an empty file and no member, which reads as outside every
+/// class.
+#[must_use]
+pub fn encode_site(source: Option<&Source>, restricted: Option<&[u8]>) -> Vec<u8> {
+    let empty = Source {
+        file: String::new(),
+        line: 0,
+        member: None,
+    };
+    let mut out = encode(source.unwrap_or(&empty));
+    if let Some(restricted) = restricted {
+        let line = u32::from_le_bytes([out[0], out[1], out[2], out[3]]) | RESTRICTED;
+        out[..4].copy_from_slice(&line.to_le_bytes());
+        out.extend_from_slice(restricted);
+    }
+    out
+}
+
 /// The blob `nvs-codegen` bakes for one producer call site.
 ///
 /// # Panics
@@ -116,7 +185,7 @@ unsafe fn parts<'a>(blob: *const u8) -> Option<Parts<'a>> {
     // nothing asked the data section for an alignment the header's `u32`s would
     // want, and a byte array has none to violate.
     let header: [u8; HEADER] = unsafe { ptr::read_unaligned(blob.cast::<[u8; HEADER]>()) };
-    let line = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
+    let line = u32::from_le_bytes([header[0], header[1], header[2], header[3]]) & !RESTRICTED;
     let file_len = usize::try_from(u32::from_le_bytes([
         header[4], header[5], header[6], header[7],
     ]))
@@ -183,6 +252,85 @@ pub unsafe fn member_of_operand<'a>(operand: Value) -> Option<&'a str> {
     // SAFETY: forwarding the caller's own contract, narrowed by the tag check.
     let (_, _, member) = unsafe { parts(operand.as_source_const()?) }?;
     std::str::from_utf8(member?).ok()
+}
+
+/// Whether the call site `operand` carries a restricted-act list. A site with
+/// none, the zero word included, answers `false` after one read of its header.
+///
+/// # Safety
+///
+/// [`of_operand`]'s.
+#[must_use]
+#[expect(
+    unsafe_code,
+    reason = "the blob's liveness is the caller's obligation to state, and `parts`' contract is the whole of it"
+)]
+pub unsafe fn restricts(operand: Value) -> bool {
+    let Some(blob) = operand.as_source_const() else {
+        return false;
+    };
+    if blob.is_null() {
+        return false;
+    }
+    // SAFETY: the caller's contract: `blob` addresses `encode`'s bytes, whose
+    // first four are the line word.
+    let word: [u8; 4] = unsafe { ptr::read_unaligned(blob.cast::<[u8; 4]>()) };
+    u32::from_le_bytes(word) & RESTRICTED != 0
+}
+
+/// The message the call site `operand` throws for `act` on `class::member`,
+/// or `None` when its restricted-act list does not name that act, or it has
+/// no list. Cost: one scan of the site's list, which only a program with a
+/// `[[restrict]]` table has.
+///
+/// # Safety
+///
+/// [`of_operand`]'s, and the caller picks `'a` no longer than the compiled unit
+/// that baked the blob lives.
+#[must_use]
+#[expect(
+    unsafe_code,
+    reason = "the blob's liveness is the caller's obligation to state, and `parts`' contract is the whole of it"
+)]
+pub unsafe fn restricted<'a>(
+    operand: Value,
+    act: Act,
+    class: &str,
+    member: &str,
+) -> Option<&'a str> {
+    // SAFETY: forwarding the caller's own contract.
+    if !unsafe { restricts(operand) } {
+        return None;
+    }
+    let blob = operand.as_source_const()?;
+    // SAFETY: the same contract; `restricts` saw a blob with a list.
+    let (_, file, own) = unsafe { parts::<'a>(blob) }?;
+    let mut at = HEADER + file.len() + own.map_or(0, <[u8]>::len);
+    // SAFETY: `encode_site` wrote the list right behind the member's bytes, and
+    // every offset below is one its own lengths give.
+    let word = |at: usize| unsafe { ptr::read_unaligned(blob.add(at).cast::<[u8; 4]>()) };
+    let count = u32::from_le_bytes(word(at));
+    at += 4;
+    for _ in 0..count {
+        // SAFETY: as above.
+        let kind = unsafe { *blob.add(at) };
+        let lens = [
+            u32::from_le_bytes(word(at + 1)),
+            u32::from_le_bytes(word(at + 5)),
+            u32::from_le_bytes(word(at + 9)),
+        ]
+        .map(|len| usize::try_from(len).unwrap_or(usize::MAX));
+        at += 13;
+        // SAFETY: as above: each string's bytes follow, at the lengths just read.
+        let text = |from: usize, len: usize| unsafe { slice::from_raw_parts(blob.add(from), len) };
+        let (held_class, held_member) = (text(at, lens[0]), text(at + lens[0], lens[1]));
+        let message = text(at + lens[0] + lens[1], lens[2]);
+        at += lens[0] + lens[1] + lens[2];
+        if kind == act as u8 && held_class == class.as_bytes() && held_member == member.as_bytes() {
+            return std::str::from_utf8(message).ok();
+        }
+    }
+    None
 }
 
 /// The `Throwable::$location` spelling of a [`Source`]: the file as the program
@@ -260,6 +408,46 @@ mod tests {
             let (borrowed, decoded) = unsafe { (member_of_operand(operand), of_operand(operand)) };
             assert_eq!(borrowed, member);
             assert_eq!(decoded.and_then(|source| source.member).as_deref(), member);
+        }
+    }
+
+    /// A restricted-act list behind a site's bytes names each act it carries,
+    /// and leaves the line and the member as they were.
+    #[test]
+    fn a_restricted_act_list_round_trips_and_leaves_the_source_alone() {
+        use super::{Act, encode_restricted, encode_site, restricted, restricts};
+        let source = Source {
+            file: "app/Main.nvs".to_owned(),
+            line: 12,
+            member: Some("Main::run".to_owned()),
+        };
+        let acts = encode_restricted(&[
+            (Act::Call, "App\\Vault", "open", "not here"),
+            (Act::Property, "App\\Vault", "open", "nor this"),
+        ]);
+        let bytes = encode_site(Some(&source), Some(&acts));
+        let plain = encode(&source);
+        let operand = crate::Value::source_const(bytes.as_ptr());
+        let bare = crate::Value::source_const(plain.as_ptr());
+        #[expect(unsafe_code, reason = "reading back what this test just baked")]
+        // SAFETY: both blobs are this frame's own, and outlive every call.
+        unsafe {
+            assert_eq!(decode(bytes.as_ptr()), Some(source.clone()));
+            assert!(restricts(operand) && !restricts(bare));
+            assert_eq!(
+                restricted(operand, Act::Call, "App\\Vault", "open"),
+                Some("not here")
+            );
+            assert_eq!(
+                restricted(operand, Act::Property, "App\\Vault", "open"),
+                Some("nor this")
+            );
+            assert_eq!(
+                restricted(operand, Act::Constant, "App\\Vault", "open"),
+                None
+            );
+            assert_eq!(restricted(operand, Act::Call, "App\\Vault", "close"), None);
+            assert_eq!(restricted(bare, Act::Call, "App\\Vault", "open"), None);
         }
     }
 

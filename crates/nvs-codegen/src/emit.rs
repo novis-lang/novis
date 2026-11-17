@@ -977,7 +977,7 @@ impl Emitter<'_, '_> {
                 let id = self.b.ins().iconst(types::I64, id);
                 self.define(inst, id)?;
             }
-            InstKind::SourceConst { source } => {
+            InstKind::SourceConst { source, restricted } => {
                 // One address and no length beside it: the blob
                 // `nvs_runtime::source` lays out carries its own, so a producer
                 // spends one slot of `rule:errors/propagation`'s fixed
@@ -985,9 +985,17 @@ impl Emitter<'_, '_> {
                 // read-only section the unit owns for its whole life — and the
                 // zero word where the call site is not known, which is
                 // `Self::shape_codec_const`'s answer to the same question.
-                let carrier = match source {
-                    Some(source) => self.emit_bytes(&nvs_runtime::source::encode(source))?.0,
-                    None => self.b.ins().iconst(types::I64, 0),
+                // A reflective call site with a restricted-act list carries it
+                // behind the same bytes (`nvs_runtime::source::encode_site`).
+                let carrier = match (source, restricted) {
+                    (Some(source), None) => {
+                        self.emit_bytes(&nvs_runtime::source::encode(source))?.0
+                    }
+                    (None, None) => self.b.ins().iconst(types::I64, 0),
+                    (source, Some(acts)) => {
+                        let bytes = nvs_runtime::source::encode_site(source.as_ref(), Some(acts));
+                        self.emit_bytes(&bytes)?.0
+                    }
                 };
                 self.define(inst, carrier)?;
             }

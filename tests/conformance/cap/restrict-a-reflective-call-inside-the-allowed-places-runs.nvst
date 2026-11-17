@@ -1,0 +1,45 @@
+--TEST--
+a reflective call and read inside the places a `[[restrict]]` entry allows run as ordinary ones do — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It calls into `App\Allowed`, where the reflective acts are written.
+autoload 'App' from './app';
+
+echo App\Allowed\Door::open(), "\n";
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public string $code = "1234";
+
+    public function open(): string
+    {
+        return "open";
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+// `App\Allowed` is in both allow lists, so the call and the read run.
+namespace App\Allowed;
+
+final class Door
+{
+    public static function open(): tainted string
+    {
+        var $vault = new App\Secret\Vault();
+        var $info = Core\Reflect::forObject($vault);
+        return $info->call($vault, "open", []) . " " . $info->get($vault, "code");
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+
+[[restrict]]
+use = 'App\Secret\Vault::code'
+allow = ['App\Allowed']
+--EXPECT--
+open 1234

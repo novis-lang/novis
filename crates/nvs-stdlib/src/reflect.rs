@@ -1008,6 +1008,40 @@ fn site_class(operand: Value) -> Option<&'static str> {
     Some(class)
 }
 
+/// `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s check of a reflective act:
+/// the error the call site's restricted-act list names for `act` on `class::name`, if it names
+/// one. The class name is read only when the site has a list, so a program with no `[[restrict]]`
+/// table pays one read of the site's header. The error is a `LogicError`, as a refused `call` of a
+/// `private` method is: the act is a mistake in the program, not a condition it handles.
+fn refuse_restricted(
+    site: Value,
+    act: nvs_runtime::source::Act,
+    class: impl FnOnce() -> String,
+    name: &str,
+    member: &str,
+) -> Result<(), Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
+    )]
+    if !unsafe { nvs_runtime::source::restricts(site) } {
+        return Ok(());
+    }
+    let class = class();
+    #[expect(
+        unsafe_code,
+        reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
+    )]
+    let refused = unsafe { nvs_runtime::source::restricted(site, act, &class, name) };
+    match refused {
+        Some(message) => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{CLASS_INFO_NAME}::{member}(): {message}"),
+        )),
+        None => Ok(()),
+    }
+}
+
 /// `Core\Reflect\ClassInfo::call`'s reference card — `rule:core-api/reference-card`.
 const CALL_DOC: MethodDoc = MethodDoc {
     short: "Calls the `$name` method of `$object` with `$arguments`. The visibility rules are the \
@@ -2529,6 +2563,13 @@ nvs_runtime::nvs_helper! {
                  outside the class, and reflection does not lift that"
             )));
         }
+        refuse_restricted(
+            args[2],
+            nvs_runtime::source::Act::Constant,
+            || described.to_owned(),
+            name,
+            member,
+        )?;
         if constant.secret {
             return Err(Fault::thrown(format!(
                 "{CLASS_INFO_NAME}::constant(): `{described}::{name}` is declared `secret`, and \
@@ -2961,6 +3002,13 @@ nvs_runtime::nvs_helper! {
                 class_name_of(subject)
             )));
         }
+        refuse_restricted(
+            args[3],
+            nvs_runtime::source::Act::Property,
+            || class_name_of(subject),
+            name,
+            member,
+        )?;
         nvs_runtime::read_erased_property_owned(ctx, args[1], name)
     }
 }
@@ -3027,6 +3075,13 @@ nvs_runtime::nvs_helper! {
                 class_name_of(subject)
             )));
         }
+        refuse_restricted(
+            args[4],
+            nvs_runtime::source::Act::Property,
+            || class_name_of(subject),
+            name,
+            member,
+        )?;
         nvs_runtime::write_erased_property(ctx, args[1], name, 0, true, args[3])
     }
 }
@@ -3068,7 +3123,14 @@ nvs_runtime::nvs_helper! {
         let member = "call";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::call")?;
-        subject_of(receiver, args[1], member)?;
+        let object = subject_of(receiver, args[1], member)?;
+        refuse_restricted(
+            args[4],
+            nvs_runtime::source::Act::Call,
+            || class_name_of(object),
+            name,
+            member,
+        )?;
         let site = site_class(args[4]);
         // Unreachable from source on `crate::arr`'s own terms: parameter 2 is
         // `array<mixed>` in `CLASS_INFO` above, so a non-container argument is
@@ -3174,6 +3236,13 @@ nvs_runtime::nvs_helper! {
                 ));
             }
         }
+        refuse_restricted(
+            args[2],
+            nvs_runtime::source::Act::Construct,
+            || described.to_owned(),
+            "",
+            member,
+        )?;
         let site = site_class(args[2]);
         // `crate::arr`'s terms are `call`'s: parameter 1 is `array<mixed>` in
         // `CLASS_INFO` above, so a non-container argument is `E0401` at the

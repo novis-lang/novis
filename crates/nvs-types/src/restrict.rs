@@ -37,19 +37,36 @@
 //! [`code::E_BAD_RESTRICTION_REPLACE`] at the value. At a refused use the entry's `replace` is
 //! filled in as the fix ([`crate::deprecated::restriction_fix`]).
 //!
+//! **A reflective act is held to the same entries.** A `Core\Reflect\ClassInfo` member that calls
+//! a method, reads or writes a property, reads a constant or constructs names its member at run
+//! time, so [`record_acts`] lists every act on a restricted member that the call's place does not
+//! allow, with its error text, and the call-site constant carries that list
+//! (`nvs_runtime::source::encode_restricted`). The member throws when the act it makes is on it.
+//! The list names the member on the class the act is made on: an inherited member is listed under
+//! every class that inherits it, held by the entries a use of it there would be. A callable
+//! reference to such a member is invoked somewhere not known here, so its list names every act an
+//! entry restricts, allowed anywhere or not.
+//!
 //! Cost: one pass over each body's new table entries, and a few hash lookups per entry, only when
 //! a table exists, and one inference of each `replace` per check. Memory: one index of the
 //! program's entries per check, and one copy of a `package.toml` per `replace` while it is
-//! inferred, never per request.
+//! inferred, never per request. A reflective call site in a program with a table carries one
+//! list in the unit's data, and each act it makes scans it once.
+
+use std::cell::OnceCell;
 
 use nvs_config::restrict::{Restriction, Restrictions, Target};
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, Span, code};
 use nvs_hir::{ClassGraph, QName};
+use nvs_runtime::source::Act;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::Env;
 use crate::deprecated::Member;
-use crate::signatures::{SignatureTable, resolve_const_owned, resolve_method, resolve_method_ref};
+use crate::expr_table::ExprInfo;
+use crate::signatures::{
+    SignatureTable, resolve_const_owned, resolve_method, resolve_method_ref, resolve_property_owned,
+};
 
 /// The program's restrictions, indexed by the declaration each one names.
 pub(crate) struct Restricted<'g> {
@@ -60,6 +77,17 @@ pub(crate) struct Restricted<'g> {
     members: FxHashMap<(&'g str, &'g str), Vec<usize>>,
     /// `'Ns\*'` entries, by the root.
     subtrees: Vec<(&'g str, usize)>,
+    /// Every reflective act an entry holds, built on the first reflective call ([`record_acts`]).
+    acts: OnceCell<Vec<Held>>,
+}
+
+/// One reflective act on a member of a class, and the entries that hold it.
+struct Held {
+    act: Act,
+    class: String,
+    /// The member's name, empty for [`Act::Construct`].
+    member: String,
+    entries: Vec<usize>,
 }
 
 /// Where one checked body is: its namespace, and the class and member around it.
@@ -92,6 +120,7 @@ pub(crate) fn build<'g>(
         names: FxHashMap::default(),
         members: FxHashMap::default(),
         subtrees: Vec::new(),
+        acts: OnceCell::new(),
     };
     for (at, entry) in entries.iter().enumerate() {
         let target = entry.target();
@@ -241,6 +270,61 @@ pub(crate) fn check_uses(place: Place<'_>, mark: usize, env: &mut Env<'_>) {
             );
         }
         env.diags.report(diagnostic);
+    }
+    record_acts(restricted, &place, mark, env);
+}
+
+/// Records, for each `Core\Reflect\ClassInfo` acting call after `mark`, the list of acts on a
+/// restricted member that `place` does not allow, and for each callable reference to one, every
+/// act an entry holds. A call with nothing to refuse records nothing.
+fn record_acts(restricted: &Restricted<'_>, place: &Place<'_>, mark: usize, env: &mut Env<'_>) {
+    let sites: Vec<(Span, bool)> = env
+        .exprs
+        .since_at(mark)
+        .filter_map(|(span, info)| match info {
+            ExprInfo::Call(call) | ExprInfo::ClassRefCall(call)
+                if crate::core_takes_call_site(&call.class.to_string(), &call.method) =>
+            {
+                Some((span, false))
+            }
+            ExprInfo::CallableRef(call)
+                if crate::core_takes_call_site(&call.class.to_string(), &call.method) =>
+            {
+                Some((span, true))
+            }
+            _ => None,
+        })
+        .collect();
+    if sites.is_empty() {
+        return;
+    }
+    let held = restricted.acts.get_or_init(|| restricted.held_acts(env));
+    for (span, anywhere) in sites {
+        let refused: Vec<(Act, &str, &str, String)> =
+            held.iter()
+                .filter_map(|held| {
+                    let at =
+                        held.entries.iter().copied().find(|&at| {
+                            anywhere || !restricted.allows(at, place, span.file, env)
+                        })?;
+                    let entry = &restricted.entries[at];
+                    let text = format!(
+                        "`{}` cannot be used here. {}",
+                        entry.target(),
+                        refusal_text(entry)
+                    );
+                    Some((held.act, held.class.as_str(), held.member.as_str(), text))
+                })
+                .collect();
+        if refused.is_empty() {
+            continue;
+        }
+        let acts: Vec<(Act, &str, &str, &str)> = refused
+            .iter()
+            .map(|(act, class, member, text)| (*act, *class, *member, text.as_str()))
+            .collect();
+        let bytes = nvs_runtime::source::encode_restricted(&acts);
+        env.exprs.record_restricted_acts(span, bytes.into());
     }
 }
 
@@ -397,6 +481,81 @@ pub(crate) fn check_replacement(job: &Replacement, env: &mut Env<'_>) {
 }
 
 impl Restricted<'_> {
+    /// Every reflective act on a member of a program class that an entry holds. Only a class whose
+    /// own name, namespace or ancestors an entry names is walked.
+    fn held_acts(&self, env: &Env<'_>) -> Vec<Held> {
+        let mut out = Vec::new();
+        for (class, _) in env.signatures.iter() {
+            let mut chain = vec![class.clone()];
+            chain.extend(ancestors(class, env.graph));
+            if !chain.iter().any(|link| self.touches(link)) {
+                continue;
+            }
+            let (mut methods, mut properties, mut constants) = (
+                FxHashSet::default(),
+                FxHashSet::default(),
+                FxHashSet::default(),
+            );
+            for link in &chain {
+                if let Some(sig) = env.signatures.get(link) {
+                    methods.extend(sig.methods.keys().cloned());
+                    properties.extend(sig.properties.keys().cloned());
+                    constants.extend(sig.constants.keys().cloned());
+                }
+            }
+            let mut push = |act: Act, member: String, entries: Vec<usize>| {
+                if !entries.is_empty() {
+                    out.push(Held {
+                        act,
+                        class: class.to_string(),
+                        member,
+                        entries,
+                    });
+                }
+            };
+            let mut construct = self.holding(class, &Member::Type, env);
+            for name in methods {
+                let Some((owner, _)) = resolve_method_ref(class, &name, env.signatures, env.graph)
+                else {
+                    continue;
+                };
+                let entries = self.holding(owner, &Member::Method(name.clone()), env);
+                if name == "constructor" {
+                    construct.extend(entries);
+                } else {
+                    push(Act::Call, name, entries);
+                }
+            }
+            for name in properties {
+                let owner = resolve_property_owned(class, &name, env.signatures, env.graph)
+                    .map_or_else(|| class.clone(), |(owner, _)| owner);
+                let entries = self.holding(&owner, &Member::Property(name.clone()), env);
+                push(Act::Property, name, entries);
+            }
+            for name in constants {
+                let owner = resolve_const_owned(class, &name, env.signatures, env.graph)
+                    .map_or_else(|| class.clone(), |(owner, _)| owner);
+                let entries = self.holding(&owner, &Member::Const(name.clone()), env);
+                push(Act::Constant, name, entries);
+            }
+            construct.sort_unstable();
+            construct.dedup();
+            push(Act::Construct, String::new(), construct);
+        }
+        out
+    }
+
+    /// Whether an entry names `class`, a member of it, or its namespace.
+    fn touches(&self, class: &QName) -> bool {
+        let name = class.to_string();
+        self.names.contains_key(name.as_str())
+            || self.members.keys().any(|(owner, _)| *owner == name)
+            || namespace_of(class).is_some_and(|ns| {
+                self.names.contains_key(ns.as_str())
+                    || self.subtrees.iter().any(|(root, _)| under(&ns, root))
+            })
+    }
+
     /// Every entry that holds a use of `member` of `owner`.
     fn holding(&self, owner: &QName, member: &Member, env: &Env<'_>) -> Vec<usize> {
         let mut out = Vec::new();
@@ -484,6 +643,21 @@ impl Restricted<'_> {
 /// The error at a use `entry` does not allow: what is not allowed, where it is allowed, the note,
 /// and the file and line of the entry.
 fn refusal(entry: &Restriction, span: Span) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(
+        code::E_RESTRICTED_USE,
+        format!("`{}` cannot be used here", entry.target()),
+    )
+    .with_primary(span, "this use is not allowed here")
+    .with_note(allowed_text(entry))
+    .with_note(source_text(entry));
+    if let Some(at) = entry.span() {
+        diagnostic = diagnostic.with_secondary(at, "the restriction");
+    }
+    diagnostic
+}
+
+/// Where `entry` allows its target, then its note.
+fn allowed_text(entry: &Restriction) -> String {
     let mut text = match entry.allow() {
         [] => "It cannot be used anywhere.".to_owned(),
         places => {
@@ -495,21 +669,17 @@ fn refusal(entry: &Restriction, span: Span) -> Diagnostic {
         text.push(' ');
         text.push_str(note.trim());
     }
-    let mut diagnostic = Diagnostic::error(
-        code::E_RESTRICTED_USE,
-        format!("`{}` cannot be used here", entry.target()),
-    )
-    .with_primary(span, "this use is not allowed here")
-    .with_note(text)
-    .with_note(format!(
-        "This rule is in `{}`, line {}.",
-        entry.file(),
-        entry.line()
-    ));
-    if let Some(at) = entry.span() {
-        diagnostic = diagnostic.with_secondary(at, "the restriction");
-    }
-    diagnostic
+    text
+}
+
+/// The file and line `entry` is written at.
+fn source_text(entry: &Restriction) -> String {
+    format!("This rule is in `{}`, line {}.", entry.file(), entry.line())
+}
+
+/// The error text a refused reflective act throws: [`refusal`]'s notes, after the message.
+fn refusal_text(entry: &Restriction) -> String {
+    format!("{} {}", allowed_text(entry), source_text(entry))
 }
 
 /// The namespace `class` is declared in, or `None` for a class in the global namespace.

@@ -1,0 +1,77 @@
+--TEST--
+a reflective call, read or constructor outside the places a `[[restrict]]` entry allows throws a `LogicError` with the entry's text, and an unrestricted member still runs — `rule:packaging/a-restriction-limits-where-a-declaration-is-used`
+--FILE--
+<?nvs
+// This file is the application. It is not in `App\Allowed`.
+autoload 'App' from './app';
+
+var $vault = new App\Secret\Vault();
+var $info = Core\Reflect::forObject($vault);
+
+// `open` may be called only in `App\Allowed`, so this call throws.
+try {
+    echo $info->call($vault, "open", []), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// `$code` may be read only in `App\Allowed`, so this read throws.
+try {
+    echo $info->get($vault, "code"), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A method with no restriction runs.
+echo $info->call($vault, "label", []), "\n";
+
+// A function value made from `call` throws as well, wherever it runs.
+var $call = $info->call(...);
+try {
+    echo $call($vault, "open", []), "\n";
+} catch (LogicError $error) {
+    echo "the function value throws too\n";
+}
+--FILE app/Secret/Vault.nvs--
+<?nvs
+namespace App\Secret;
+
+final class Vault
+{
+    public string $code = "1234";
+
+    public function open(): string
+    {
+        return "open";
+    }
+
+    public function label(): string
+    {
+        return "vault";
+    }
+}
+--FILE app/Allowed/Door.nvs--
+<?nvs
+namespace App\Allowed;
+
+final class Door
+{
+    public static function open(): string
+    {
+        return (new App\Secret\Vault())->open();
+    }
+}
+--FILE package.toml--
+[[restrict]]
+use = 'App\Secret\Vault::open'
+allow = ['App\Allowed']
+note = 'Use `App\Allowed\Door::open`.'
+
+[[restrict]]
+use = 'App\Secret\Vault::code'
+allow = ['App\Allowed']
+--EXPECTF--
+Core\Reflect\ClassInfo::call(): `App\Secret\Vault::open` cannot be used here. It is allowed only in `App\Allowed`. Use `App\Allowed\Door::open`. This rule is in `%spackage.toml`, line 2.
+Core\Reflect\ClassInfo::get(): `App\Secret\Vault::code` cannot be used here. It is allowed only in `App\Allowed`. This rule is in `%spackage.toml`, line 7.
+vault
+the function value throws too

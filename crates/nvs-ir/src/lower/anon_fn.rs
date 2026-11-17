@@ -877,8 +877,15 @@ pub(crate) fn lower_callable(
         // produce a record.
         let source =
             nvs_types::core_takes_source(&call.class.to_string(), &call.method).then(|| {
-                low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
-                    .0
+                low.emit(
+                    cur,
+                    Ty::ClassDesc,
+                    InstKind::SourceConst {
+                        source: None,
+                        restricted: None,
+                    },
+                )
+                .0
             });
         // A member on `nvs_stdlib::registry::CALL_SITE_MEMBERS` reached through
         // a callable reference is inside no class, for the reason the producer
@@ -886,10 +893,21 @@ pub(crate) fn lower_callable(
         // is later invoked, and the line that wrote the reference is not that
         // place. Outside is the answer that fails closed, which is what makes
         // the zero word right here rather than merely convenient.
+        // A `[[restrict]]` table still holds there: the reference's
+        // restricted-act list names every restricted member, since the place
+        // the callable is invoked from is not known.
         let site =
             nvs_types::core_takes_call_site(&call.class.to_string(), &call.method).then(|| {
-                low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
-                    .0
+                let restricted = exprs.restricted_acts(*span).cloned();
+                low.emit(
+                    cur,
+                    Ty::ClassDesc,
+                    InstKind::SourceConst {
+                        source: None,
+                        restricted,
+                    },
+                )
+                .0
             });
         // A `Core\Db` member reached through a callable reference is handed the
         // zero id, which names no site: the statement goes out wherever the
