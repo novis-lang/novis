@@ -130,15 +130,16 @@
 //! a request that waits before it runs away: security and request isolation
 //! are paid for here with request-path latency, in that order of priority.
 //!
-//! **How many readings a request makes.** Measured under `strace` on Linux,
-//! serving `benches/compare/cases/json-api` over one connection: three readings
-//! of the core's clock per request, from two call sites, and a quarter of one
-//! on the watchdog's thread. Under eight connections it is about six per
-//! request, because the turns of different requests interleave and each
-//! switch between them reads once. No reading repeats another: a switch reads
-//! once for the tree it leaves and the tree it enters together, and each
-//! reading charges a different moment. So none can be removed without
-//! charging a request for time it did not run.
+//! **How many readings a request makes.** One per request with a body that
+//! arrived with its head, over one connection and over eight. `nvs-cli`'s
+//! `a_request_with_a_body_reads_the_core_clock_once` holds the first, and
+//! `bun nv bench-compare --profile json-api` measures the second under
+//! `strace` on Linux: 1.00 `clock_gettime` per request over 20,000 requests.
+//! It stays one under eight connections because the request never parks for
+//! its body: `nvs_server::body` gives the program a body that is already
+//! there with no wait. A request that parks reads again at each resume. No
+//! reading repeats another, and each charges a different moment. So none can
+//! be removed without charging a request for time it did not run.
 //!
 //! [`Shared::sweep_and_wait`] reads a core's clock and then each charge, on the walk it
 //! already makes, and a request whose charge has reached its ceiling is asked

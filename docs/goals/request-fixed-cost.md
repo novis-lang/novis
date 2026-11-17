@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/bench-compare.ts, benches/compare/profile.sh]
   - id: 2
     title: a request body that has arrived whole reaches the program with no wait
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/request.rs]
   - id: 3
     title: a hello request allocates only what its answer needs, and its head is scanned a line at a time
@@ -194,9 +194,9 @@ Rust count tests. The two touch disjoint files and run side by side.
   where it parks without need.
 - [x] The four tests the `body-no-wait` check names. The late body is written in two parts by the
   test's client, which waits for the server's read between them and never for time. Run once by name.
-- [ ] `crates/nvs-host/src/watchdog.rs:133` *How many readings a request makes* is rewritten as a
+- [x] `crates/nvs-host/src/watchdog.rs:133` *How many readings a request makes* is rewritten as a
   whole with the new counts for one connection and for eight.
-- [ ] `bun nv bench-compare --profile json-api` once. Write the clock readings per request into
+- [x] `bun nv bench-compare --profile json-api` once. Write the clock readings per request into
   `### State`.
 
 ### 3. a hello request allocates only what its answer needs, and its head is scanned a line at a time
@@ -238,20 +238,17 @@ the head scan step through framing lines only.
 
 ### State
 
-Stage 1 is done in one session. `bun nv bench-compare --direct` exists and its smoke is green.
-`crates/nvs-cli/src/serve.rs`'s keep-alive harness `one_connection_through_the_slot` gained
-`Way::served(body)`, which registers a watchdog, watches the isolate and passes the entry's config as
-`nvs serve`'s handler does. Each `Reading` holds the core thread's allocations and its clock reads
-(`nvs_host::cpuclock::reads_on_this_thread`, debug builds only). The two count tests sit beside it:
+Stages 1 and 2 are done. `one_connection_through_the_slot` (`crates/nvs-cli/src/serve.rs`) takes a
+`Way` with `late` and `expect`; each `Reading` adds `nvs_server::body::parks_on_this_thread`. Stage 2:
+`body.rs` ends a body with its last frame, and `Supply::prime` polls once before `isolate.start` for a
+`Content-Length` body with no `Expect`. `carried` moved into `Wire`, so `Pull::allow_total` still
+refuses past a smaller request total. Each new test failed with its guard removed.
 
-- `a_served_request_allocates_its_recorded_count`: `HELLO_ALLOCATIONS` is **30** per served `hello`
-  request in a debug build. It is the same on Windows and in WSL. macOS has not run it.
-- `a_request_with_a_body_reads_the_core_clock_once`: `BODY_CLOCK_READS` is already **1** today, with
-  the body sent in the head's write. So stage 2's clock half holds now. What stage 2 still owes is
-  the park, which `a_body_that_arrived_with_its_head_reaches_the_program_with_no_park` measures.
+Debug counts: **30** allocations per `hello` (Windows and WSL; macOS unrun), **1** clock reading and
+**0** parks per request with a body. `--profile json-api` under `strace -c 8`: `clock_gettime` 1.00
+per request (about six before), 3.20 system calls in all, 22,192 requests/s under `-c 64`.
 
-`--direct`, five passes of 10 s, one cpu per backend, this workstation with the loops running, CPU
-µs per request (user + system) and requests/s:
+`--direct` (stage 1), CPU µs per request (user + system) and requests/s:
 
 | case | Novis | Bun | Go |
 |---|---|---|---|
@@ -259,22 +256,20 @@ Stage 1 is done in one session. `bun nv bench-compare --direct` exists and its s
 | `json-api` | 40.2 (27.8 + 12.4), 24,720/s | 16.7 (7.3 + 9.4), 59,059/s | 39.0 (24.5 + 14.4), 25,706/s |
 | `html-page` | 58.1 (47.0 + 11.1), 19,176/s | 36.8 (23.1 + 13.8), 28,008/s | 270.8 (233.0 + 37.8), 4,048/s |
 
-`--profile hello`: 3.19 system calls per request (`sendto`, `recvfrom`, `clock_gettime` 1.00 each).
-
-The sweep's reds are stale: nightly 44073672172 ran before `0fe2fdef25` dropped `chrono`, and
-`env-secret-proofs` is defined nowhere, in the tree or under `~/.looper`.
+The sweep's reds are stale: nightly 44073672172 ran on `2934ebe1ae`, before `0fe2fdef25` dropped
+`chrono`, and `env-secret-proofs` is defined nowhere in the tree.
 
 ### Next
 
-Stage 2, from its first item: `crates/nvs-server/src/body.rs` `Supply::pump` and `Pull::next_chunk`,
-then `body::of` and its caller in `crates/nvs-server/src/serve.rs`. The no-park test can be built on
-`one_connection_through_the_slot` with `Way::served(body)` in `crates/nvs-cli/src/serve.rs`, which
-already sends the body in the head's write. A park count needs a counter of its own, or a reading
-`nvs_host` already has. No test is expected red. A macOS runner may count other than 30 allocations
-in `a_served_request_allocates_its_recorded_count`; if it does, the constant is per platform.
+Stage 3, from its first item: print every allocation of one warm `hello` request with its call site
+from `a_served_request_allocates_its_recorded_count` in `crates/nvs-cli/src/serve.rs` (the counter is
+`nvs_runtime::budget::allocations`; a call-site trace under `#[cfg(test)]` goes beside it). Then
+`crates/nvs-server/src/trace.rs:359` `respond` and the path copy in `crates/nvs-server/src/serve.rs`
+near `:1925`. Follow the stage's `**Split:**` line: `crates/nvs-server/src/heads.rs` goes to one writing
+subagent. No test is expected red. A macOS runner may count other than 30 allocations; if it does, the
+constant is per platform.
 
 ### Backlog
 
 - The three `--direct` backends of a case share core 1, and two are idle while the third is measured.
   A fresh backend per pass would keep a busy host from moving a figure.
-
