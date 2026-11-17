@@ -7,6 +7,7 @@
 //                      [--load <conns>]           keep-alive load from <conns> connections while it edits
 //                      [--edits <n>]              how many edits the load phase writes, 20 by default
 //                      [--every <ms>]             the pause between two edits of the load phase, 1500 ms
+//                      [--memory <size>]          `[limits] memory` for the copy, such as `1G`; `html` only
 //
 // It copies the app under `.agent-tmp/serve-mem/<app>/` (`html` is
 // `benches/compare/cases/html-page`, `registry` is `apps/registry` without its database and its
@@ -25,7 +26,8 @@
 // answer. It exits 1 when any answer was not a `200`.
 //
 // The binary is the release build, so run `bun nv relink --build` first when the tree changed. The
-// server's own output is in `.agent-tmp/serve-mem/<app>/server.log` while it runs.
+// server's own output is in `.agent-tmp/serve-mem/<app>/server.log` while it runs, and is kept as
+// `.agent-tmp/serve-mem/<app>.log` once it ends; whoever reads it deletes it.
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
@@ -35,7 +37,7 @@ import { ROOT, rel } from "../lib/paths.ts";
 import { releaseCli } from "../lib/relink.ts";
 
 export const summary =
-  "measure nvs serve's memory per recompile and its answers under edits: nv serve-mem [--app html|registry] [--fails n] [--oks n] [--load conns] [--edits n]";
+  "measure nvs serve's memory per recompile and its answers under edits: nv serve-mem [--app html|registry] [--fails n] [--oks n] [--load conns] [--edits n] [--memory size]";
 
 const WORK = join(ROOT, ".agent-tmp", "serve-mem");
 
@@ -101,10 +103,11 @@ interface Args {
   load: number;
   edits: number;
   every: number;
+  memory: string;
 }
 
 function parse(args: string[]): Args | string {
-  const out: Args = { app: "html", fails: 0, oks: 0, wait: 6, load: 0, edits: 20, every: 1500 };
+  const out: Args = { app: "html", fails: 0, oks: 0, wait: 6, load: 0, edits: 20, every: 1500, memory: "" };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     const key = arg.replace(/^--/, "");
@@ -114,6 +117,9 @@ function parse(args: string[]): Args | string {
     if (key === "app") {
       if (!(value in APPS)) return `--app is one of ${Object.keys(APPS).join(", ")}`;
       out.app = value;
+    } else if (key === "memory") {
+      if (!/^\d+[KMG]?$/.test(value)) return "--memory needs a size such as 1G";
+      out.memory = value;
     } else {
       const n = Number(value);
       if (!Number.isFinite(n) || n < 0) return `${arg} needs a number`;
@@ -121,6 +127,7 @@ function parse(args: string[]): Args | string {
     }
   }
   if (out.fails === 0 && out.oks === 0 && out.load === 0) return "nothing to do: give --fails, --oks or --load";
+  if (out.memory && APPS[out.app]!.config) return "--memory needs an app with no configuration file of its own";
   return out;
 }
 
@@ -157,12 +164,12 @@ class Server {
   readonly base: string;
   /** The last `jit_units=<n>` the server printed, if it prints one. */
   jitUnits: string = "-";
-  constructor(exe: string, dir: string, app: App, port: number) {
+  constructor(exe: string, dir: string, app: App, port: number, config: string | null) {
     const log = join(dir, "server.log");
     const data = join(dir, ".data");
     mkdirSync(data, { recursive: true });
     const argv = ["serve", app.entry, "--listen", `127.0.0.1:${port}`, "--data", data, "--no-init"];
-    if (app.config) argv.push("--config", app.config);
+    if (config) argv.push("--config", config);
     this.child = spawn(exe, argv, { cwd: dir, stdio: ["ignore", "pipe", "pipe"] });
     const read = (d: Buffer) => {
       appendFileSync(log, d);
@@ -366,7 +373,12 @@ export async function run(args: string[]): Promise<number> {
   const file = join(dir, app.edited);
   const original = readFileSync(file, "utf8");
   const port = await freePort();
-  const server = new Server(exe, dir, app, port);
+  let config = app.config;
+  if (a.memory) {
+    config = "nvs.toml";
+    writeFileSync(join(dir, config), `[limits]\nmemory = "${a.memory}"\n`);
+  }
+  const server = new Server(exe, dir, app, port, config);
   let code = 0;
   try {
     if (!(await server.up(app.ready))) {
@@ -382,6 +394,8 @@ export async function run(args: string[]): Promise<number> {
   } finally {
     server.child.kill();
     await new Promise((r) => (server.child.exitCode !== null ? r(null) : server.child.once("exit", r)));
+    const log = join(dir, "server.log");
+    if (existsSync(log)) cpSync(log, `${dir}.log`);
     rmSync(dir, { recursive: true, force: true });
   }
   return code;
