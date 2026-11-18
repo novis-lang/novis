@@ -19,7 +19,8 @@
     "Core\\Router\\Refusal": "54a1cc05b2b1e7da",
     "Core\\Router\\Responder": "c0dec1200f6ca4ab",
     "lang:attributes/core-api-and-the-openapi-document": "a7eea746e456ce35",
-    "lang:attributes/core-route-and-core-access-the-route-table": "4fdb485be49c023d"
+    "lang:attributes/core-route-and-core-access-the-route-table": "4fdb485be49c023d",
+    "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "efc4000366638e13"
   },
   "syntax/attributes/writing-and-reading.mdx": {
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "69f3afc5ebf38911",
@@ -81,7 +82,7 @@
   "syntax/classes/property-names.mdx": {
     "lang:types/property-keys": "c96aa9ffb6045833",
     "lang:types/property-paths": "a6f27a41e4e3ee19",
-    "lang:types/strings-with-holes": "7a7b7035569b2ada"
+    "lang:types/strings-with-holes": "bd23c6e55abb9863"
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "9810676ff33ba0fd",

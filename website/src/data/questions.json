@@ -17938,14 +17938,14 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "55a4363705b44e89",
+    "hash": "9072fd7d3d71e5a5",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
       "Why does my route not compile without an access rule?",
       "How do I turn off the CSRF check for one route?",
       "Generate an OpenAPI document from my routes",
-      "Read a typed value from the query string in a route method"
+      "How can my own method take a route and its parameters, checked like a link?"
     ]
   },
   "/syntax/attributes/writing-and-reading/": {
