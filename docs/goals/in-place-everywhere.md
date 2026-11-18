@@ -6,7 +6,7 @@ context: [docs/rules/core-api/nothing-mutates.md, docs/rules/types/arrays.md, cr
 stages:
   - id: 1
     title: the rule, the off switch and the matrix of every replacement form
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, tools/nv/cmd/suite.ts, tests/conformance/core/arr-append-derives-the-next-free-key-from-the-entries-it-copies.nvst]
   - id: 2
     title: a Core member owns its subject whenever its signature says so, and every such member does
@@ -460,13 +460,13 @@ disjoint and they run side by side. The session runs the test once all batches e
   - Kind: array and string.
   Each case prints the target after the statement, and in a `try` after an error too. It is named
   `<target>-<value>-<context>-<kind>.nvst`.
-- [ ] The cases, through the subagents: 684 cells. Each batch's brief is § *Standing decisions*'
+- [x] The cases, through the subagents: 684 cells. Each batch's brief is § *Standing decisions*'
   **The case brief**, written to a scratch file the subagents read.
   - [x] `local` and `parameter` (110 cases)
   - [x] `inout` and `captured` (44 and 55; no `inout` in a generator)
   - [x] `this-property` and `local-property` (85 each)
   - [x] `static-property` and `element` (80 and 55; no interpolation of a static property)
-  - [ ] `property-element` and `property-chain` (85 each), then the test is green
+  - [x] `property-element` and `property-chain` (85 each), then the test is green
 
 ### 2. a Core member owns its subject whenever its signature says so, and every such member does
 
@@ -586,9 +586,9 @@ generator's local after a resume. The person agreed to add the first three; the 
 after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
 
 Stage 1 has its rule (`f2a676192e`), the switch (`bdb63ad386`) and the matrix test (`157a84b101`,
-684 cells). The `local`, `parameter`, `inout` and `captured` cells are written, 209 cases
-(`92eebe1ad5`, `1b024fd514`), the `this-property` and `local-property` cells, 170 cases
-(`0cd5a69925`), and the `static-property` and `element` cells, 135 cases (`ecfc4b9843`). The matrix no longer owes
+684 cells). All 684 cases exist under `tests/conformance/in-place/`, the last 170
+(`property-element-*`, `property-chain-*`) written on 2026-11-18. `every_replacement_form_has_a_case`
+is green, and stage 1 is done. The matrix no longer owes
 `static-property-interpolation-*`, because a string hole opens with `{$` and cannot hold
 `Store::$text`. Each case is green both ways, and none printed differently. A callee that reads or writes
 the property sees the old value in it, because the store happens when the call returns. The sweep's
@@ -598,19 +598,19 @@ An `inout` callee that throws writes nothing back, so `inout-*-try-*` print the 
 
 ### Next
 
-Stage 1's last checkpoint: `property-element` and `property-chain` (85 each), then the matrix test is
-green. Write the brief from § *Standing decisions*' **The case brief** to
-`.agent-tmp/in-place-brief.md`, adding the run commands (`target/debug/nvs.exe test <paths>` and the
-same with `--no-in-place`, no `cargo`, no commit, Write only and never `sed -i`), each target's shape
-(`$this->rows["a"]` or `$box->rows["a"]`; `$box->inner->items`), and a report of at most 15 lines.
-Tell them to copy the shape of the `this-property-*`, `local-property-*` and `element-*` siblings.
-Send four writing subagents per target, split by value: `core`+`core-callback`,
-`fn-safe`+`fn-fails`, `fn-reads-before`+`fn-reads-after`, and `fn-writes`+`concat`+`interpolation`+`spread`.
-Each took about 45k tokens and under two minutes. Then run every new case both ways and
-`bun nv proofs --comments` on them, and `cargo test --lib -- every_replacement_form_has_a_case`,
-which goes green at the last checkpoint. If an interpolation cell will not compile, rule it out in
-`replacement_is_written` (`crates/nvs-ir/src/lower/tests.rs`) as `static-property` was. Stage 2 can
-run beside stage 1.
+Stage 2, its first two items, which one session does before any subagent starts:
+
+- `crates/nvs-runtime/src/abi.rs:1096` `nvs_helper!`: an owning form with `check` over the borrowed
+  subject and `apply` over the owned `NvsArray` or `NvsStr`, emitting its ABI. Its doc comment states
+  the owned-subject protocol in § *Standing decisions*.
+- `crates/nvs-stdlib/src/lib.rs:18` and each module's `address` (`crates/nvs-stdlib/src/arr.rs:2270`)
+  return the ABI beside the address.
+
+Then the third item goes to writing subagents, one stdlib module each, which are disjoint files. Each
+moves the members the signature rule names to the owning form and changes no algorithm. None of them
+builds; the session builds once they all end. The fourth item's two tests go in
+`crates/nvs-stdlib/tests/in_place.rs` and run once by name. No test is expected to go red: the 684
+matrix cases pass both ways today, and stage 2 changes no lowering.
 
 ### Backlog
 
