@@ -148,7 +148,7 @@ checks:
   - id: copy-report
     stage: 7
     name: "every copy the pass keeps is in the compiled program's table with its reason and fix, a warning is raised exactly where an easy fix removes a copy, the table survives the compile cache, and a recorded request counts its copies by site"
-    run: [cargo, test, --lib, --, every_copy_the_pass_keeps_is_in_the_table, a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy, the_copy_table_survives_the_compile_cache, a_recorded_request_counts_its_copies_by_site]
+    run: [cargo, test, --lib, --bin, nvs, --, every_copy_the_pass_keeps_is_in_the_table, a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy, the_copy_table_survives_the_compile_cache, a_recorded_request_counts_its_copies_by_site]
     timeout: 1800
     tests:
       - every_copy_the_pass_keeps_is_in_the_table
@@ -290,6 +290,19 @@ the release binary that day, and none was named above:
 records each place it keeps a copy, with a reason and, where one exists, a fix. That table is part
 of the compiled program, beside its code, and it is stored in the compile cache entry. So it is
 available after the compile, without the compiler:
+
+**The table lives on the IR, and the cache payload carries nothing more (my call, 2026-11-18).**
+A warm hit still lowers the program and runs the pass, and skips only code generation
+(`rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`), as the query site table relies on.
+So `Program::copies` is rebuilt on every run, `Unit::copies` takes it on both paths, and a second
+copy in the payload would be a second home for one fact. A row holds spans; `nvs_ir::copies::table`
+adds the file, the line, the BLAKE3 and the edit from the source map when asked.
+**What a row is:** a place a copy may happen. A refused move of an `array`, `string` or `bytes`
+value is `StillUsed`, or `SlotKept` for a property's value, or `CalleeUnknown` at a virtual call.
+A lent body's separated change is `ReadAfterChange` or `FailureAfterChange`, with a fix where the
+first offending statement after it, in the same block, can move above the change's statement:
+it reads no value made from the change on, makes no value read later, and its effects meet
+neither the lent slots nor the statements it passes. Only those two reasons with a fix warn.
 
 - **A warning, only where an easy fix removes the copy.** Two new codes, each taking the next free
   `W1xxx` number when it lands. The first is a read of the lent slot after the change, and its fix
@@ -664,9 +677,14 @@ disjoint and they run side by side. The session runs the test once all batches e
 **Split:** after the table and the two codes land, one writing subagent writes the three `.lspt` cases,
 copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/lsp/lens/`.
 
-- [ ] `crates/nvs-ir/src/ownership.rs` records each kept copy: its span, the file's BLAKE3, its reason,
+- [x] `crates/nvs-ir/src/ownership.rs` records each kept copy: its span, the file's BLAKE3, its reason,
   and its fix as a text edit where one exists. `crates/nvs-codegen/src/lib.rs:382` `Unit` carries the
-  table, and `crates/nvs-cli/src/cache.rs` stores and loads it with the entry.
+  table, and a unit loaded from the compile cache has the same table.
+  - [x] `crates/nvs-ir/src/copies.rs`: `KeptCopy`, `Reason`, `Fix`, and `table` with the hash and edit.
+  - [x] The pass records refused moves (`refusal`) and lent bodies' separated changes (`Reach::fix`).
+  - [x] `Program::copies` and `Unit::copies`, on the compiled and the loaded path.
+  - [x] `every_copy_the_pass_keeps_is_in_the_table` and `the_copy_table_survives_the_compile_cache`
+    pass, run once by name.
 - [ ] The two warning codes in `crates/nvs-diagnostics/src/code/warnings.rs` after the last one, each
   with its card in end-user prose. `nvs check` lowers and runs the pass, and prints them.
 - [ ] `crates/nvs-lsp/Cargo.toml` links `nvs-ir`. The server runs the pass on the open document after
@@ -698,25 +716,32 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 6 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and the
-newest commit that names it is this goal's own handoff.
+Stages 1 to 6 are done, and stage 7's first item. The sweep's `env-secret-proofs` red is stale: no
+goal defines it, and the newest commit that names it is this goal's own handoff.
 
-Stage 6 landed this session in `bc590aaaef`. A `Concat` of strings consumes its first piece, so
-`InstKind::consumes` names it, and the pass lends a slot to it and moves a local into it. The
-lowering's own `$s = $s . e` path and the lowering's `in_place` field are gone, so the off switch
-now reaches concatenation only through the pass. `InstKind::ArraySpread` has `owned`, which the pass
-sets (`Move::Spread`) where a local moves into a literal's first spread into its empty array, and
-codegen then calls `nvs_array_spread_owned` (`crates/nvs-runtime/src/array.rs`). A slot is not
-lent to a spread; the standing decision says why. `cbe10627b3` formats two test files that rustfmt
-had flagged.
+This session landed the copy table. `crates/nvs-ir/src/copies.rs` defines `KeptCopy` (a span, a
+`Reason`, an optional `Fix` of two statement spans) and `table`, which adds the file, line, BLAKE3
+and a `TextEdit` from a `SourceMap`. `ownership::run` now returns the rows: `refusal` records a
+refused move in `run_function`, `lend_to_callees` drops the rows of values it later lends, and
+`lent::body` records each separated change with `Reach::fix`. `Program::copies` and `Unit::copies`
+carry them; the cache payload stores nothing more (standing decision of 2026-11-18). The
+`copy-report` check now runs `--lib --bin nvs`, because the cache test is in the `nvs` binary.
 
 ### Next
 
-- **Stage 7, the copy table.** Start in `crates/nvs-ir/src/ownership.rs`: each place `Lend::of`,
-  `Lend::of_call` or a move candidate is refused is a kept copy. Record its span, reason and fix
-  there, then carry the table on `Unit` (`crates/nvs-codegen/src/lib.rs`) and through
-  `crates/nvs-cli/src/cache.rs`. The stage's `**Split:**` line gives the `.lspt` cases to a
-  subagent once the table and the two codes land.
+- **Stage 7, the two warning codes.** Add them after the last code in
+  `crates/nvs-diagnostics/src/code/warnings.rs`, each with its card. A row warns when
+  `row.reason.warns() && row.edit.is_some()` (`crates/nvs-ir/src/copies.rs`); the help text is
+  `Reason::help`, and the diagnostic's span is the row's `span`, with the fix's `moved` as a second
+  label. `nvs check` then lowers and runs the pass after the type check and prints them; find its
+  type-check call with `bun nv peek --locate` on the check command in `crates/nvs-cli/src/main.rs`.
+  Write `a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy` beside
+  `every_copy_the_pass_keeps_is_in_the_table` (`crates/nvs-ir/src/lower/tests.rs`), or in the
+  check command's own tests if the warning is built there; the check runs `--lib --bin nvs`.
+- Then the language server item, then the counting item (the copy path in the runtime does not know
+  its site yet: the call site must hand its row id, as a query site id is handed,
+  `Program::query_sites`). The stage's `**Split:**` line gives the `.lspt` cases to a subagent once
+  the two codes land.
 - Not run yet, because a stage checks with a build alone: the `fn-`, `concat`, `interpolation` and
   `spread` conformance cases under `tests/conformance/in-place/`. They are the first real runs of a
   lent body, a lent local, an owned spread and a moved `Concat`. Run them early in the gate, under a
