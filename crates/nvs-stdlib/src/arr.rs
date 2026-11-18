@@ -6179,7 +6179,11 @@ nvs_runtime::nvs_helper! {
 ///
 /// The copy keeps the subject's append counter, as the sole subject does, so
 /// the result appends at the same key whoever else holds the subject.
-fn combine(layers: &Retained, subject: NvsArray, write: impl Fn(&mut NvsArray, &NvsArray)) -> Value {
+fn combine(
+    layers: &Retained,
+    subject: NvsArray,
+    write: impl Fn(&mut NvsArray, &NvsArray),
+) -> Value {
     let mut out = if subject.is_sole() {
         subject
     } else {
