@@ -1930,8 +1930,14 @@ jobs:
       - build
       - release-version
       - nvs-debug
-    # Not `tested`: a push run skips it, and a skipped need skips this job too.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # A push run skips `tested`, and most jobs above need it. An `if` with no status function is
+    # read as `success()`, which is false when any job in the chain of needs was skipped, so the
+    # image was never published. `!cancelled()` stops that, and the `needs.*.result` checks keep the
+    # rule: every job this one needs ended green.
+    if: >-
+      ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      && !contains(needs.*.result, 'skipped') }}
     uses: ./.github/workflows/image.yml
     permissions:
       contents: read

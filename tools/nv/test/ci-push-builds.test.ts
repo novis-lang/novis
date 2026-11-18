@@ -64,9 +64,16 @@ test("only a push to main publishes the dev image, after every other job of its 
   const ci = workflow("ci.yml").jobs;
   const image = ci["dev-image"]!;
   expect(image.uses).toBe("./.github/workflows/image.yml");
-  expect(image.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+  // A push run skips `tested`, which is in the chain of needs of most jobs here. An `if` with no
+  // status function is read as `success()`, which a skipped job anywhere in that chain makes false,
+  // so the condition starts with `!cancelled()` and checks each direct need's result itself.
+  const condition = image.if ?? "";
+  expect(condition.startsWith("${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main'")).toBe(true);
+  for (const result of ["failure", "cancelled", "skipped"]) {
+    expect(condition).toContain(`!contains(needs.*.result, '${result}')`);
+  }
   const needs = [image.needs ?? []].flat().sort();
-  // `tested` runs in the nightly alone, and a push run's skipped `tested` would skip the image.
+  // `tested` runs in the nightly alone, so it is not a direct need.
   const others = Object.keys(ci).filter((name) => !["dev-image", "tested"].includes(name) && !nightlyOnly(ci[name]!)).sort();
   expect(needs).toEqual(others);
   // The only job of ci.yml that writes anything.
