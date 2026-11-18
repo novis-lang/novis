@@ -556,7 +556,7 @@ disjoint and they run side by side. The session runs the test once all batches e
   (`crates/nvs-ir/src/lower/stmt.rs:623`) and `write_back_array` become uses of it.
   - [x] A plain property, a static property and a property chain are lent to an owning `Core`
     member, and a callback is judged by its body's write summary.
-  - [ ] An element, through containers made sole before the element's read.
+  - [x] An element, through containers made sole before the element's read.
   - [ ] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
   - [ ] `write_back_array`'s decision is the lend's.
 - [ ] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
@@ -630,38 +630,27 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 ### State
 
 The person's calls: fix the cause, nothing for a developer to remember, and every replacement in
-place, handled by the compiler and tested. § *Standing decisions* is the authoring sessions' calls.
+place, handled by the compiler and tested. � *Standing decisions* is the authoring sessions' calls.
 
-Stages 1 to 3 are done: 684 matrix cases under `tests/conformance/in-place/`, 117 owning members
-(`crates/nvs-runtime/src/owned.rs`), and every move in `crates/nvs-ir/src/ownership.rs`. The sweep's
-two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last named by `route-parameters`'
-retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
+Stages 1 to 3 are done. The sweep's two reds are stale (checked 2026-11-18): `env-secret-proofs` was
+last named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
 
-Stage 4 is under way. `InstKind::effects` (end of `crates/nvs-ir/src/ir.rs`) states each
-instruction's row in one exhaustive `match`, with `Helper::may_run_user_code` beside it. A `CoreCall`
-is `UserCode::ItsCallables`, and an argument that is not a scalar, a string, bytes, an array or an
-enum counts as a callable. `crates/nvs-ir/src/ownership.rs` runs `Lend::of` before the moves: a
-plain property, a static property and a chain of plain properties are lent to an owning `Core`
-member. The lend switches the symbol to `_owned` and removes the store's second read of the old value,
-its release, and the subject's one retain with every release that pairs with it. A callback passes
-when it is an anonymous function (`New` of a class with no constructor) whose `{class}::invoke` write
-summary (`summaries`) names no slot on the chain. A hook or a guard is a call, so it keeps the slot.
-Eight of the nine `lends` tests are green, run once by name (`crates/nvs-ir/src/lower/tests.rs`,
-helper `lower_lends`). `an_element_is_lent_through_its_containers` is not written yet.
+Stage 4: `InstKind::effects` (end of `crates/nvs-ir/src/ir.rs`) states each instruction's row.
+`Lend::of` (`crates/nvs-ir/src/ownership.rs`) lends a plain property, a static property, a chain of
+them, and, since `4fe6079bed`, an element of an array such a slot holds (`Lend::of_element`). For an
+element, `make_sole` puts `array.sole` and a store back into the slot after the container's read,
+points the `array.get` at the sole array, and flips the write to `array.set.lent`, which does not
+release the entry the call took. The runtime is `nvs_array_sole`, `nvs_array_set_lent` and
+`nvs_array_set_index_lent` (`NvsArray::sole` and `set_lent`, `crates/nvs-runtime/src/array.rs`); a
+refused `sole` is a no-op, because the member then refuses to run. All nine `lends` tests are written
+and were run once by name, and the 80 slot and element `core` matrix cases pass on the debug binary.
+A local's element is not lent yet: the sole array would have to replace the local's value on its
+error edges too.
 
 ### Next
 
 The rest of stage 4, in this order:
 
-- **The element lend.** Today `$this->g['a'] = M($this->g['a'], …)` lowers to `field.get` of the
-  container, a borrowed `array.get`, the call, a second `field.get`, `array.set` and `field.set`
-  (`lower_store`'s `Index` arm, `crates/nvs-ir/src/lower/stmt.rs`). `array.set` releases the entry it
-  overwrites, and it copies a shared container, which retains each entry. So an element lend needs
-  two things. First, each container on the chain is made sole before the element's read, as
-  `write_back_array` does (`crates/nvs-ir/src/lower/mod.rs:4057`). Second, an `ArraySet` form that
-  does not release the entry it overwrites, because the call took that reference. Add the form,
-  extend `slot_of`/`store_of` in `ownership.rs` with it, and write
-  `an_element_is_lent_through_its_containers`.
 - **Fold in `lower_slot_append`** (`stmt.rs:619`): emit a plain load, retain and store for `.=`, and
   let `Lend::of` remove the retain. `StrAppend` is not a `CoreCall`, so `Lend::of` needs a second
   call shape: the instruction that consumes the slot's value, named by an `InstKind` method beside
@@ -669,8 +658,11 @@ The rest of stage 4, in this order:
 - **The debug poison** in `crates/nvs-codegen/src/emit.rs`: in a debug build, after a lent slot's
   read, store a poison value into it, and trap with the statement's span on a read of the poison.
   The pass must record which reads it lent (a flag on the `CoreCall` or a new instruction), so the
-  emitter knows where to poison. Then `a_debug_build_traps_a_read_of_a_lent_slot` in
+  emitter knows where to poison. An element's poison goes into the entry, which `set_lent` then
+  overwrites. Then `a_debug_build_traps_a_read_of_a_lent_slot` in
   `crates/nvs-cli/tests/in_place.rs`, run once by name.
+- **A local's element**, if it fits: after `array.sole`, every later read of the local's old value,
+  the error edges' releases included, reads the sole array.
 
 **Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
@@ -682,7 +674,8 @@ by-value `foreach` that writes `$a[$k]` now walks the header phi with no `retain
 because the copy keeps its holes. A snapshot of a generator's `advance` now prints `field.take`
 where it printed `field.get` and a `retain` at each resume. A snapshot of `$this->p = M($this->p)`
 or `C::$s = M(C::$s)` with an owning `M` now prints `_owned`, and no second read of the slot and no
-release of it after the store.
+release of it after the store. One of `$this->g['a'] = M($this->g['a'])` prints `array.sole` and a
+store after the slot's read, and `array.set.lent`.
 
 ### Backlog
 
