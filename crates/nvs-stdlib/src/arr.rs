@@ -3996,17 +3996,16 @@ nvs_runtime::nvs_helper! {
     /// A sole list takes the copies into its front room and moves no entry.
     /// A sole map is renumbered into a list first, and a shared subject is
     /// copied.
-    fn nvs_core_arr_pad_start(_ctx, args: [3])-> Padding, owns NvsArray {
+    fn nvs_core_arr_pad_start(_ctx, args: [3])-> Retained, owns NvsArray {
         Padding::of(args, "padStart")
-    } apply(pad, subject) {
-        let value = pad.value();
+    } apply(copies, subject) {
+        let copies = copies.take();
         if subject.is_sole() {
             let mut subject = subject;
-            if pad.missing == 0 {
+            if copies.is_empty() {
                 subject.keep_window(0, usize::MAX, true);
                 return Value::array(subject);
             }
-            let copies = (0..pad.missing).map(|_| retained_copy(value)).collect();
             // A refusal is the request's memory limit, already recorded. The
             // copies are released and the subject is unchanged.
             if let Err(refused) = subject.prepend(copies) {
@@ -4017,7 +4016,9 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         // A refusal is the memory limit's, already recorded, and the request
         // ends at it.
-        let _ = append_copies(&mut out, value, pad.missing as u64, "Core\\Arr::padStart");
+        if let Err(refused) = out.prepend(copies) {
+            release_all(refused);
+        }
         let _ = append_values(&subject, &mut out);
         Value::array(out)
     }
@@ -4034,10 +4035,10 @@ nvs_runtime::nvs_helper! {
     ///
     /// A sole list takes the copies at its end and moves no entry. A sole map
     /// is renumbered into a list first, and a shared subject is copied.
-    fn nvs_core_arr_pad_end(_ctx, args: [3])-> Padding, owns NvsArray {
+    fn nvs_core_arr_pad_end(_ctx, args: [3])-> Retained, owns NvsArray {
         Padding::of(args, "padEnd")
-    } apply(pad, subject) {
-        let value = pad.value();
+    } apply(copies, subject) {
+        let copies = copies.take();
         let mut out = if subject.is_sole() {
             let mut subject = subject;
             subject.keep_window(0, usize::MAX, true);
@@ -4049,39 +4050,44 @@ nvs_runtime::nvs_helper! {
             let _ = append_values(&subject, &mut out);
             out
         };
-        let _ = append_copies(&mut out, value, pad.missing as u64, "Core\\Arr::padEnd");
+        let end = out.count();
+        // A refusal is the memory limit's, already recorded, and the request
+        // ends at it. The copies are released.
+        if let Err(refused) = out.replace_window(end, end, copies) {
+            release_all(refused);
+        }
         Value::array(out)
     }
 }
 
-/// What a padding member's `check` passes to its `apply`: the padding value
-/// with a reference of its own, and how many copies of it the result gets.
-#[derive(Debug)]
-pub struct Padding {
-    /// The padding value, alone.
-    value: Retained,
-    /// The copies to add, which the request's memory limit already allowed.
-    missing: usize,
-}
+/// The `check` of `padStart` and `padEnd`: the copies of the padding value
+/// that `apply` adds, each with a reference of its own.
+///
+/// The run is built here, before anything changes, so both refusals stay an
+/// error the program can catch. [`nvs_runtime::affordable`] refuses a run past
+/// `isize::MAX` bytes, and a fallible reserve gives the allocator's answer for
+/// every run below that. `apply` moves the copies into the result.
+/// **What it spends:** the run is held twice for the length of one call,
+/// once here and once in the result it moves into.
+struct Padding;
 
 impl Padding {
-    /// Decodes a `padStart`/`padEnd` call and checks that the request can
-    /// afford the copies, before anything changes.
-    fn of(args: &[Value], member: &str) -> Result<Self, Fault> {
+    /// Decodes a `padStart`/`padEnd` call and builds its run of copies.
+    fn of(args: &[Value], member: &str) -> Result<Retained, Fault> {
         let (_, missing, value) = padding(args, member)?;
         let entries = usize::try_from(missing)
             .ok()
             .and_then(|count| count.checked_mul(std::mem::size_of::<Value>()));
-        let bytes = nvs_runtime::affordable(entries, &format!("Core\\Arr::{member}"))?;
-        Ok(Self {
-            value: Retained(vec![retained_copy(value)]),
-            missing: bytes / std::mem::size_of::<Value>(),
-        })
-    }
-
-    /// The padding value, borrowed from [`Self::value`].
-    fn value(&self) -> Value {
-        self.value.0[0]
+        let count = nvs_runtime::affordable(entries, &format!("Core\\Arr::{member}"))?
+            / std::mem::size_of::<Value>();
+        let mut copies = Vec::new();
+        if copies.try_reserve_exact(count).is_err() {
+            return Err(Fault::thrown(format!(
+                "Core\\Arr::{member}: the result is larger than any array this process could hold"
+            )));
+        }
+        copies.extend((0..count).map(|_| retained_copy(value)));
+        Ok(Retained(copies))
     }
 }
 
