@@ -5450,9 +5450,48 @@ pub unsafe fn construct(
     args: &[Value],
 ) -> Result<Value, Fault> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let constructor = match unsafe { constructor_of(class) } {
+        Ok(constructor) => constructor,
+        Err(fault) => {
+            release_all(args);
+            return Err(fault);
+        }
+    };
+    let mut slots = Vec::with_capacity(args.len() + 1);
+    slots.push(Value::null());
+    slots.extend_from_slice(args);
+    #[expect(
+        unsafe_code,
+        reason = "the caller's live descriptor, and the constructor found on it"
+    )]
+    unsafe {
+        construct_found(ctx, class, constructor, &mut slots)
+    }
+}
+
+/// A class's [`CONSTRUCTOR`], found once by [`constructor_of`] and handed to
+/// [`construct_found`] for every instance a caller builds of that class.
+#[derive(Clone, Copy, Debug)]
+pub struct Constructor(crate::abi::NvsFn);
+
+/// The [`CONSTRUCTOR`] of `class`, looked up by name once.
+///
+/// # Errors
+///
+/// [`Fault::Fatal`] when `class` declares none, which is an engine fault, as
+/// [`construct`] says.
+///
+/// # Safety
+///
+/// As [`construct`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub unsafe fn constructor_of(class: *const ClassDesc) -> Result<Constructor, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let desc = unsafe { &*class };
     let Some(target) = desc.method(CONSTRUCTOR) else {
-        release_all(args);
         return Err(Fault::fatal(format!(
             "internal error: `{}` was constructed from native code and declares no \
              `{CONSTRUCTOR}`",
@@ -5465,8 +5504,38 @@ pub unsafe fn construct(
                   `nvs-codegen` fills only with compiled functions of exactly this \
                   signature"
     )]
-    let target: crate::abi::NvsFn = unsafe { std::mem::transmute::<*const u8, _>(target) };
+    Ok(Constructor(unsafe {
+        std::mem::transmute::<*const u8, crate::abi::NvsFn>(target)
+    }))
+}
 
+/// [`construct`] with the constructor already found, over `slots`: the
+/// receiver's place first, then one argument per parameter. The receiver's
+/// place is overwritten with the new instance, so the caller builds no second
+/// vector.
+///
+/// Every reference in `slots` after the first is transferred, as
+/// [`construct`]'s arguments are, and the slice is left holding values the
+/// caller must not release again.
+///
+/// # Errors
+///
+/// As [`construct`]'s, past the lookup.
+///
+/// # Safety
+///
+/// As [`construct`]'s, and `constructor` must be [`constructor_of`]'s answer
+/// for `class`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub unsafe fn construct_found(
+    ctx: &mut Ctx,
+    class: *const ClassDesc,
+    constructor: Constructor,
+    slots: &mut [Value],
+) -> Result<Value, Fault> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let object = unsafe { NvsObj::new(class) };
     let value = Value::object(object);
@@ -5478,11 +5547,19 @@ pub unsafe fn construct(
     unsafe {
         value.retain();
     }
-
-    let mut slots = Vec::with_capacity(args.len() + 1);
-    slots.push(value);
-    slots.extend_from_slice(args);
-    match crate::abi::call(target, ctx, &slots) {
+    let Some(receiver) = slots.first_mut() else {
+        // Unreachable: every caller gives the receiver's place.
+        #[expect(unsafe_code, reason = "both references are this frame's own")]
+        unsafe {
+            value.release();
+            value.release();
+        }
+        return Err(Fault::fatal(
+            "internal error: a constructor was called with no receiver's place".to_owned(),
+        ));
+    };
+    *receiver = value;
+    match crate::abi::call(constructor.0, ctx, slots) {
         Ok(_) => Ok(value),
         Err(status) => {
             #[expect(

@@ -3636,6 +3636,33 @@ fn declared(fields: &[nvs_runtime::CodecField], from: usize, key: &[u8]) -> Opti
     })
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The constructors [`constructor_of`] has looked up on this thread, for
+    /// the test that holds a whole decode to one lookup per class.
+    static CONSTRUCTORS_FOUND: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The constructor of `class`, which [`nvs_runtime::construct_found`] runs.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn constructor_of(
+    class: *const nvs_runtime::ClassDesc,
+) -> Result<nvs_runtime::Constructor, Fault> {
+    #[cfg(test)]
+    CONSTRUCTORS_FOUND.with(|found| found.set(found.get() + 1));
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    unsafe {
+        nvs_runtime::constructor_of(class)
+    }
+}
+
 /// Writes `found` into `slot`, or returns `true` where the slot is filled
 /// already, which is a key written twice. On `true`, `found` is released.
 fn fill_slot<'a>(slot: &mut Option<Found<'a>>, found: Found<'a>) -> bool {
@@ -4971,7 +4998,9 @@ impl<'a> Fields<'a> {
             contract,
             source,
             next: 0,
-            args: vec![Value::null(); arity],
+            // The receiver's place first, so the constructor takes this
+            // vector as its slots and no second one is built.
+            args: vec![Value::null(); arity.saturating_add(1)],
             filled: vec![false; arity],
             issues: Vec::new(),
         }
@@ -5033,7 +5062,7 @@ impl<'a> Fields<'a> {
         let contract = self.contract;
         let field = &contract.fields()[index];
         match outcome {
-            Ok(value) => match self.args.get_mut(field.param) {
+            Ok(value) => match self.args.get_mut(field.param.saturating_add(1)) {
                 Some(slot) => {
                     *slot = value;
                     self.filled[field.param] = true;
@@ -5059,7 +5088,7 @@ impl<'a> Fields<'a> {
                         contract.name(),
                         field.key,
                         field.param,
-                        self.args.len()
+                        self.args.len().saturating_sub(1)
                     ))))
                 }
             },
@@ -5114,7 +5143,9 @@ impl<'a> Fields<'a> {
                 reason = "the same live descriptor, and every value is one this frame \
                           owns and hands over"
             )]
-            return unsafe { build_shape(self.contract, std::mem::take(&mut self.args)) };
+            return unsafe {
+                build_shape(self.contract, std::mem::take(&mut self.args), 1)
+            };
         }
         // `rule:errors/on-limit`'s soft address, compared before each
         // constructor. The walk itself takes no native frame per level, but a
@@ -5126,13 +5157,21 @@ impl<'a> Fields<'a> {
                 "the call stack is too deep",
             )));
         }
-        let args = std::mem::take(&mut self.args);
+        let mut args = std::mem::take(&mut self.args);
+        #[expect(unsafe_code, reason = "the same live descriptor")]
+        let constructor = match unsafe { constructor_of(self.contract.class()) } {
+            Ok(constructor) => constructor,
+            Err(fault) => {
+                release_all(&args);
+                return Err(DecodeFailure::Fault(fault));
+            }
+        };
         #[expect(
             unsafe_code,
-            reason = "the same live descriptor, and every argument is one this frame \
-                      owns and hands over"
+            reason = "the same live descriptor and its constructor, and every argument \
+                      is one this frame owns and hands over"
         )]
-        unsafe { nvs_runtime::construct(ctx, self.contract.class(), &args) }
+        unsafe { nvs_runtime::construct_found(ctx, self.contract.class(), constructor, &mut args) }
             .map_err(DecodeFailure::Fault)
     }
 }
@@ -5307,7 +5346,8 @@ impl<'a> Positions<'a> {
 /// [`decode_fields`] can accumulate into one vector for both doors.
 ///
 /// `values` is transferred: every reference in it is written into the object or
-/// released.
+/// released. Its first `skip` places are not positions: [`Fields`] keeps the
+/// receiver's place there.
 ///
 /// # Safety
 ///
@@ -5319,9 +5359,11 @@ impl<'a> Positions<'a> {
 unsafe fn build_shape<'a>(
     contract: Contract<'a>,
     mut values: Vec<Value>,
+    skip: usize,
 ) -> Result<Value, DecodeFailure<'a>> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let object = unsafe { NvsObj::new(contract.class()) };
+    let values = values.get_mut(skip..).unwrap_or_default();
     for field in contract.fields() {
         // Unreachable from source with no diagnostic to name: a shape class's
         // slots are the sorted field names its contract was built from, so a
@@ -5330,7 +5372,7 @@ unsafe fn build_shape<'a>(
         // `nvs_runtime::NvsObj::set_field`, whose answer is a panic and so
         // costs the process rather than the request.
         if field.param >= values.len() || field.slot >= object.field_count() {
-            release_all(&values);
+            release_all(values);
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "internal error: `{}`'s `{}` field names position {} and slot {} of {}",
                 contract.name(),
