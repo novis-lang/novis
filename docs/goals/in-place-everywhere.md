@@ -349,6 +349,11 @@ callee when all of these hold:
     (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`), ends the request
     and is not one. An append that is refused leaves its array unchanged, so it is not a failure after
     a change either.
+  - **Every call to a Novis function is a failure (my call, 2026-11-18).** Each function may throw a
+    catchable `RecursionError` at its entry (`rule:errors/stack-depth`), so the effect summary has no
+    "may fail" flag: it would be true for every function. A lent body copies at a change after which
+    any such call is reachable. **What it spends:** a callee that changes its parameter and then calls
+    another Novis function copies once, on that call only.
 
 So `addItem(array $items, $x) { $items[] = $x; return $items; }` appends in place with no copy. A
 callee that checks `count($this->items)` and then appends also has no copy. A callee that appends and
@@ -600,7 +605,7 @@ disjoint and they run side by side. The session runs the test once all batches e
 
 ### 5. a Novis function takes a lent or moved value whenever the compiler proves it safe
 
-- [ ] `crates/nvs-ir/src/effects.rs:1`: each function's summary (properties it may read or write, by
+- [x] `crates/nvs-ir/src/effects.rs:1`: each function's summary (properties it may read or write, by
   class and name, and "anything"), solved to a fixed point over the call graph. The resolver that
   names the one body of a call while compiling lives here too.
 - [ ] The lent body: built once per function and parameter that a call site lends. Its error exits
@@ -665,35 +670,40 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 4 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and its
-newest naming commit is `route-parameters`' retire.
+Stages 1 to 4 are done, and stage 5's first item. The sweep's `env-secret-proofs` red is stale: no
+goal defines it, and its newest naming commit is `route-parameters`' retire.
 
-The pass lends every element-write root through `InstKind::consumes`: `ArrayUnset` and the root of
-`Helper::ArrayWriteThrough` and `ArrayStrAppendThrough` joined it. `Lowering::lendable_root`
-(`crates/nvs-ir/src/lower/stmt.rs`) takes a guarded root, read again after its guard, and a
-`lateinit` root. A union receiver keeps the lowering's store, and that function's doc says why.
-`Lend::borrows_a_row` (`crates/nvs-ir/src/ownership.rs`) allows a nested `unset`'s descent.
-
-**A use-after-free was fixed on the way.** `lower_unset` ran the `PropertyGuard` between the root's
-read and the removal with no reference of its own, so a guard that replaced the property freed the
-array first. The keys are now lowered before the root, and a guarded root and its borrowed keys are
-held across the guard. Its case is
-`tests/conformance/class/a-guard-that-replaces-the-array-during-an-unset-keeps-its-replacement.nvst`.
-
-`lends` and `lend-trap` are green, the four new lend tests in `lower/tests.rs` ran once by name, and
-`tests/conformance/class/` and `in-place/` pass on the debug binary.
+`crates/nvs-ir/src/effects.rs` holds the effect summary. `Summaries::of` solves each function's reads
+and writes, by `OwnedSlot`, to a fixed point over the call graph. `callee` names the one body of an
+`InstKind::Call` or a `New` with a constructor, and `callback` names an anonymous function's
+`Class::invoke`. `Summaries::of_inst` gives one instruction's effects with its callee's summary in
+place of "user code", which the lent body's per-instruction check reads. `ownership.rs`'s
+`callbacks_are_quiet` reads the summary, so a callback that calls a known quiet function is now lent.
+The summary has no "may fail" flag; § *Standing decisions* says why. `recursive_callees_reach_one_summary`
+ran once by name and passes.
 
 ### Next
 
-Stage 5, the lent body for a Novis callee. Its first two items in this order:
+Stage 5's second to fourth items, built together in `crates/nvs-ir/src/ownership.rs`:
 
-- **The effect summary.** `summaries` (`crates/nvs-ir/src/ownership.rs:140`) already solves a write
-  summary per function (`Writes`, line 130) for `callbacks_are_quiet` (line 1049). Stage 5 wants
-  reads too, and a resolver that names the one body a call reaches. Move both into
-  `crates/nvs-ir/src/effects.rs` as the item says, and keep `callbacks_are_quiet` reading it.
-- **The lent body.** One more `Function` per (function, parameter) that a call site lends. Build it
-  in `ownership.rs` by copying the callee and changing its error exits, then point the call at it.
-  The conditions are § *Standing decisions*' "A Novis callee takes a lent value".
+- **The lent body.** One more `Function` per (callee name, parameter index) that a call site lends,
+  named `<callee>#lent<i>`, appended to the functions after the pass's first sweep. Copy the callee,
+  remove the parameter's releases on every path that ends in `Terminator::Propagate` (`Walk::edge`
+  shows how a path is followed), and before each change of the parameter (`InstKind::consumes`, an
+  owning `CoreCall` on it, a `Call` that moves it) insert a separate when a failure (any instruction
+  with `on_error`, or a `Throw`) or a read of the lent slot (`Summaries::of_inst(..).reads.reaches`)
+  is reachable after it. A runtime separate exists as `ArraySole`; a string needs its own.
+- **The caller.** In `Lend::of`, accept an `InstKind::Call` whose `effects::callee` is known, whose
+  summary writes no slot on the chain, and whose lent argument is the slot's read; point it at the
+  lent body. A local inside a `try` whose `catch` reads it takes the same lent body
+  (`Walk::releases_after` with `error_edge`).
+- **A write to the slot inside the lent body** retains the parameter first, and the caller's store
+  compares the slot with the lent value before it releases.
+
+The ten `user-callees` tests go in `lower/tests.rs` beside the lend tests;
+`recursive_callees_reach_one_summary` is written. `a_fatal_is_not_a_failure_the_summary_counts`
+checks that a lent body does not copy before an allocation that can only `FATAL`, because such an
+instruction has no error edge.
 
 `Core\Arr::reduce`'s carry (`crates/nvs-runtime/src/callable.rs:193` `call_callable`, and the
 `reduce` test at `crates/nvs-stdlib/src/arr.rs:10719`) is separate from the lent body and fits a
@@ -722,7 +732,8 @@ call, and `lend.restore` before the call. A snapshot of `$this->p[k] = v`, `$thi
 pass off a `retain` of the root and a second read and release around the store. The same holds for
 a nested write, a nested `.=` and an `unset` on a property or static property root, guarded and
 `lateinit` roots included. A snapshot of an element `unset` now lowers its keys before the root's
-read, and a guarded one reads the root again after the guard.
+read, and a guarded one reads the root again after the guard. A `Core` call with a callback that
+calls a known function writing none of the slot's chain is now lent where it kept its retain.
 
 ### Backlog
 
