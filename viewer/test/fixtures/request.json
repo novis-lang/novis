@@ -1,6 +1,29 @@
 {
+  "copies": [
+    {
+      "copies": 4,
+      "file": "src/Shop/Orders.nvs",
+      "hash": "ab12",
+      "help": "The property is copied here. It has a hook or a guard, or other code here can read or change it.",
+      "id": 2,
+      "line": 36,
+      "reason": "slot_kept",
+      "units": 120
+    },
+    {
+      "copies": 1,
+      "file": "src/Shop/Orders.nvs",
+      "hash": "ab12",
+      "help": "The variable is used again after this call, so the call changes a copy.",
+      "id": 1,
+      "line": 30,
+      "reason": "still_used",
+      "units": 3
+    }
+  ],
   "coverage": null,
   "cut": {
+    "copies": false,
     "dumps": false,
     "events": false,
     "logs": false,

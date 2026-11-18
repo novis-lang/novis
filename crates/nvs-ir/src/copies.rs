@@ -52,6 +52,33 @@ impl Reason {
         matches!(self, Self::ReadAfterChange | Self::FailureAfterChange)
     }
 
+    /// The name a `copies` record and the debug index give this reason.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReadAfterChange => "read_after_change",
+            Self::FailureAfterChange => "failure_after_change",
+            Self::StillUsed => "still_used",
+            Self::SlotKept => "slot_kept",
+            Self::CalleeUnknown => "callee_unknown",
+        }
+    }
+
+    /// The reason whose [`Self::name`] is `name`, or `None` for a name no
+    /// reason has, such as one a newer build recorded.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::ReadAfterChange,
+            Self::FailureAfterChange,
+            Self::StillUsed,
+            Self::SlotKept,
+            Self::CalleeUnknown,
+        ]
+        .into_iter()
+        .find(|reason| reason.name() == name)
+    }
+
     /// The row's help, in end-user prose.
     #[must_use]
     pub const fn help(self) -> &'static str {

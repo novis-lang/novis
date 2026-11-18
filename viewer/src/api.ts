@@ -111,6 +111,23 @@ export interface ProfileFile {
   path: string;
 }
 
+/** A site where the request copied a value that the compiler could not change in place. */
+export interface CopySite {
+  id: number;
+  file: string;
+  line: number;
+  /** The BLAKE3 of the file's text when the program was compiled. */
+  hash: string;
+  /** Why the compiler kept the copy, as a snake-case name. */
+  reason: string;
+  /** What the reason means and how to remove the copy, or `null` for a reason this build does not know. */
+  help: string | null;
+  /** How many times the site copied. */
+  copies: number;
+  /** The entries or bytes those copies copied. */
+  units: number;
+}
+
 /** That a request's server counted the lines it ran. `GET /api/coverage?id=` gives the counts. */
 export interface CoverageRef {
   id: number;
@@ -148,11 +165,13 @@ export interface RequestDetail {
   dumps: Dump[];
   logs: LogLine[];
   profiles: ProfileFile[];
+  /** The sites where it copied a value, the most entries or bytes first. */
+  copies: CopySite[];
   coverage: CoverageRef | null;
   /** What it was sent and what it answered, when a development server recorded them. */
   input: RecordedInput | null;
   /** Which lists stopped at the most rows the service sends. */
-  cut: { events: boolean; dumps: boolean; logs: boolean; profiles: boolean };
+  cut: { events: boolean; dumps: boolean; logs: boolean; profiles: boolean; copies: boolean };
 }
 
 /** The value a recorded header has when the server replaced it. */

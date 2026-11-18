@@ -306,6 +306,30 @@ function Records(props: { detail: RequestDetail }) {
           </ul>
         </section>
       </Show>
+      <Show when={d().copies.length > 0}>
+        <section class="copies" aria-labelledby="copies-title">
+          <h3 id="copies-title">Copies</h3>
+          <p class="note">These lines copied a value. The line that copied the most comes first.</p>
+          <ul class="copy-list">
+            <For each={d().copies}>
+              {(copy) => (
+                <li id={`copy-${copy.id}`} class="copy">
+                  <p class="site">
+                    <Site site={copy} />{" "}
+                    <span class="note">
+                      {copy.copies} {copy.copies === 1 ? "copy" : "copies"}, {copy.units} entries or bytes
+                    </span>
+                  </p>
+                  <Show when={copy.help}>{(help) => <p class="copy-help">{help()}</p>}</Show>
+                </li>
+              )}
+            </For>
+          </ul>
+          <Show when={d().cut.copies}>
+            <p class="note cut-note">This request copied at more lines. Only these are shown.</p>
+          </Show>
+        </section>
+      </Show>
       <Show when={d().coverage}>{(c) => <Coverage coverage={c()} />}</Show>
       <section class="logs" aria-labelledby="logs-title">
         <h3 id="logs-title">Log lines</h3>

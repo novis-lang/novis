@@ -1225,9 +1225,9 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Coverage, Dropped, Dump, Event, EventKind,
-        Exception, Input, Line, Log, Now, Query, Record, Recorder, Request, Response, SEAL_AFTER,
-        Store, Writer,
+        BODY_CHUNK, BODY_INLINE, Body, BodyOf, BodyPart, Copies, CopyCount, Coverage, Dropped,
+        Dump, Event, EventKind, Exception, Input, Line, Log, Now, Query, Record, Recorder, Request,
+        Response, SEAL_AFTER, Store, Writer,
     };
 
     const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
@@ -1620,11 +1620,23 @@ mod tests {
             .collect(),
             elided: false,
         });
+        let copies = Record::Copies(Copies {
+            span: Some("00f067aa0ba902b7".to_owned()),
+            sites: vec![CopyCount {
+                file: "src/Shop/Orders.nvs".to_owned(),
+                line: 44,
+                hash: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262".to_owned(),
+                reason: "still_used".to_owned(),
+                copies: 2,
+                units: 6,
+            }],
+            elided: false,
+        });
         let dropped = Record::Dropped(Dropped {
             records: 3,
             files: 1,
         });
-        vec![body, request, event, dump, log, coverage, dropped]
+        vec![body, request, event, dump, log, coverage, copies, dropped]
     }
 
     /// The sample spool the ingester's tests read is exactly what this writer writes, and every line

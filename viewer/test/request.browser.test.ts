@@ -160,6 +160,13 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     expect(await tab.eval(`document.querySelector(".exception .exc-head").textContent`)).toBe("Shop\\OutOfStock: item 7 is out of stock");
     expect(await tab.eval(`document.querySelector(".exception .exc-site").textContent`)).toBe("Thrown at src/Shop/Orders.nvs:42");
     expect(await tab.eval(`document.querySelector("#log-1 .log-message").textContent`)).toBe("stock is empty");
+
+    // The copy sites are listed with the one that copied the most first, each with its help.
+    expect(await tab.eval(`[...document.querySelectorAll(".copy-list .copy .site")].map((p) => p.textContent)`)).toEqual([
+      "src/Shop/Orders.nvs:36 4 copies, 120 entries or bytes",
+      "src/Shop/Orders.nvs:30 1 copy, 3 entries or bytes",
+    ]);
+    expect(await tab.eval(`document.querySelectorAll(".copy-list .copy-help").length`)).toBe(2);
     await tab.close();
   }, 30_000);
 
@@ -265,7 +272,7 @@ describe.skipIf(!EXE)("one request's page in Chromium", () => {
     changed.dumps[0]!.tree = { $class: "Shop\\Item", $id: 1, $properties: { name: `<img src=x onerror="window.ran=1"><b>Lamp</b>` } };
     changed.dumps[1]!.elided = true;
     changed.dumps[1]!.tree = null;
-    changed.cut = { events: true, dumps: false, logs: true, profiles: false };
+    changed.cut = { events: true, dumps: false, logs: true, profiles: false, copies: false };
     detail = changed;
     const tab = await open();
     expect(await tab.eval(ROW("dump-1-n1"))).toBe(`name: "<img src=x onerror="window.ran=1"><b>Lamp</b>"`);

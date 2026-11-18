@@ -35,6 +35,11 @@
 //! started profile, written off the request's answer, and the file in this process's memory while
 //! it is sent.
 //!
+//! **A request's copies are listed by site, the most copied first.** The answer names each site
+//! where the compiler kept a copy and the request made one: its file, its line, how many copies and
+//! how many entries or bytes they copied, and the help of the site's reason. It is at most
+//! [`COPIES_MAX`] sites, read on the `copies_trace` index.
+//!
 //! **A request's coverage is its own path.** A request's answer says whether its server counted
 //! the lines it ran, and [`super::source`] serves those counts and the files they name.
 //!
@@ -89,6 +94,9 @@ const DUMPS_MAX: i64 = 200;
 
 /// The most log lines in one request's answer.
 const LOGS_MAX: i64 = 1_000;
+
+/// The most copy sites in one request's answer.
+const COPIES_MAX: i64 = 200;
 
 /// The index, opened for reading, and the way to the ingest loop.
 pub(crate) struct Api {
@@ -150,6 +158,9 @@ struct Detail {
     dumps: Vec<Dump>,
     logs: Vec<Log>,
     profiles: Vec<ProfileFile>,
+    /// The sites where it copied a value the compiler could not change in place, the most entries
+    /// or bytes first.
+    copies: Vec<CopySite>,
     /// The lines it ran, when its server counted them: `GET /api/coverage?id=` reads them.
     coverage: Option<Covered>,
     /// What it was sent and what it answered, when a development server recorded them.
@@ -189,6 +200,24 @@ struct ProfileFile {
     id: i64,
     at_us: i64,
     path: String,
+}
+
+/// A site where a request copied a value, with what it copied and why the compiler kept the copy.
+#[derive(Serialize)]
+struct CopySite {
+    id: i64,
+    file: String,
+    line: i64,
+    /// The BLAKE3 of the file's text when the program was compiled.
+    hash: String,
+    /// The reason's snake-case name.
+    reason: String,
+    /// The reason's help, or `None` for a reason this build does not know.
+    help: Option<&'static str>,
+    /// How many times the site copied.
+    copies: i64,
+    /// The entries or bytes those copies copied.
+    units: i64,
 }
 
 /// That a request has coverage, and the row that holds it.
@@ -271,6 +300,7 @@ struct Cut {
     dumps: bool,
     logs: bool,
     profiles: bool,
+    copies: bool,
 }
 
 /// What `GET /api/request` was asked for: a trace id, and the span id when the trace has several.
@@ -809,6 +839,33 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         cut.profiles = keep(&mut profiles, PROFILES_MAX);
         profiles
     };
+    // The copies line carries the span id, and the isolate writes it when it finishes, so it is
+    // found by span, as the coverage line below is.
+    let copies = {
+        let mut statement = tx.prepare_cached(
+            "SELECT id, file, line, hash, reason, copies, units FROM copies \
+             WHERE trace = ?1 AND (?2 IS NULL OR span = ?2) \
+             ORDER BY units DESC, copies DESC, id LIMIT ?3",
+        )?;
+        let mut copies = statement
+            .query_map(params![key.trace, request.span, COPIES_MAX + 1], |row| {
+                let reason: String = row.get(4)?;
+                Ok(CopySite {
+                    id: row.get(0)?,
+                    file: row.get(1)?,
+                    line: row.get(2)?,
+                    hash: row.get(3)?,
+                    help: nvs_ir::copies::Reason::from_name(&reason)
+                        .map(nvs_ir::copies::Reason::help),
+                    reason,
+                    copies: row.get(5)?,
+                    units: row.get(6)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        cut.copies = keep(&mut copies, COPIES_MAX);
+        copies
+    };
     // The coverage line carries the span id, and a streamed answer writes it after its `request`
     // line, so it is found by span rather than by the writer's sequence.
     let coverage = tx
@@ -834,6 +891,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         dumps,
         logs,
         profiles,
+        copies,
         coverage,
         input,
         cut,

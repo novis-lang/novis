@@ -254,22 +254,11 @@ pub(crate) fn copy_sites(
     let mut located = program.copy_table(map).into_iter().peekable();
     for copy in &program.copies {
         match located.next_if(|row| row.span == copy.span && row.reason == copy.reason) {
-            Some(row) => sites.push(&row.file, row.line, &row.text_hash, reason_name(row.reason)),
+            Some(row) => sites.push(&row.file, row.line, &row.text_hash, row.reason.name()),
             None => sites.skip(),
         }
     }
     Arc::new(sites)
-}
-
-/// The name a `copies` record and the debug index give `reason`.
-fn reason_name(reason: nvs_ir::copies::Reason) -> &'static str {
-    match reason {
-        nvs_ir::copies::Reason::ReadAfterChange => "read_after_change",
-        nvs_ir::copies::Reason::FailureAfterChange => "failure_after_change",
-        nvs_ir::copies::Reason::StillUsed => "still_used",
-        nvs_ir::copies::Reason::SlotKept => "slot_kept",
-        nvs_ir::copies::Reason::CalleeUnknown => "callee_unknown",
-    }
 }
 
 /// The query site table of `program`, whose files `map` has

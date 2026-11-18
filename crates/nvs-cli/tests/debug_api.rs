@@ -372,6 +372,21 @@ fn spool() -> String {
                 ),
             );
         }
+        // The thrown request copied at two sites, and the list puts the larger one first.
+        if *status == 500 {
+            line(
+                trace,
+                start_us + 15_200,
+                json!({
+                    "kind": "copies", "span": span, "sites": [
+                        { "file": "src/Shop/Orders.nvs", "line": 30, "hash": "ab12",
+                          "reason": "still_used", "copies": 1, "units": 3 },
+                        { "file": "src/Shop/Orders.nvs", "line": 36, "hash": "ab12",
+                          "reason": "slot_kept", "copies": 4, "units": 120 }
+                    ]
+                }),
+            );
+        }
         // Two requests share a trace id, and each has one record of its own.
         if *span == "53995c3f42cd8ad8" {
             line(
@@ -958,7 +973,18 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     );
     assert_eq!(
         detail["cut"],
-        json!({ "events": false, "dumps": false, "logs": false, "profiles": false })
+        json!({ "events": false, "dumps": false, "logs": false, "profiles": false, "copies": false })
+    );
+    let lines: Vec<i64> = detail["copies"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|copy| copy["line"].as_i64().expect("a line"))
+        .collect();
+    assert_eq!(lines, [36, 30], "the site that copied the most comes first");
+    assert_eq!(
+        detail["copies"][0]["help"],
+        nvs_ir::copies::Reason::SlotKept.help()
     );
     assert_eq!(
         detail["profiles"][0]["path"],
@@ -983,6 +1009,11 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     ));
     assert_eq!(put["dumps"][0]["tree"], 7);
     assert_eq!(put["profiles"], json!([]));
+    assert_eq!(
+        put["copies"],
+        json!([]),
+        "another trace's copies are not its own"
+    );
     assert_eq!(put["logs"], json!([]));
     assert_eq!(
         put["input"]["body"],
