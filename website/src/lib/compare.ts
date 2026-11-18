@@ -53,10 +53,16 @@ const raw = data as { recorded: false } | CompareRecord
 /** The recorded run, or `null` before the first one. */
 export const record: CompareRecord | null = raw.recorded ? raw : null
 
-export const CASE_TEXT: Record<string, { title: string; text: string }> = {
+/**
+ * Each case's title and its one-line text. A `note` is a second paragraph under the case's line, for
+ * what a reader needs to understand a result; a name in backticks in it is shown as code.
+ */
+export const CASE_TEXT: Record<string, { title: string; text: string; note?: string }> = {
   hello: { title: 'Hello', text: 'Returns a short text for every request.' },
   'json-api': { title: 'JSON API', text: 'Reads an order as JSON, checks it, and returns the order with its totals as JSON.' },
-  'html-page': { title: 'HTML page', text: 'Builds a page of 100 products and escapes a search term in it.' },
+  'html-page': { title: 'HTML page', text: 'Builds a page of 100 products and escapes a search term in it.',
+    note: 'Go builds this page with `html/template`, the package its documentation names for HTML. `html/template` looks up the type of each value while it builds the page. That takes more time for each page than the other servers need.',
+  },
   wait: { title: 'Waiting', text: 'Waits 50 ms on a timer for each request, with 1000 connections open.' },
 }
 
@@ -243,6 +249,7 @@ export interface CaseChart {
   id: string
   title: string
   text: string
+  note?: string
   concurrency: number
   bars: Bar[]
 }

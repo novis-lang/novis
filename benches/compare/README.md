@@ -66,6 +66,10 @@ the way each peer's own documentation says to: an html template in Novis, `htmls
 `Bun.escapeHTML` in Bun and `html/template` in Go. The timed term holds `<`, `>`, `&`, `"` and `'` and
 no `+`, because `html/template` alone also escapes `+` and that difference is not one the comparison
 maps away. Prices are integer cents formatted with integer division, for `json-api`'s reason.
+`html/template` resolves each value's type by reflection as it executes, and `bun nv bench-compare
+--direct` measured about 245 µs of CPU per page for Go against 35 µs for Bun and 56 µs for Novis; the
+Go program keeps it because it is the package Go's documentation names for HTML, and a hand-written
+escaper would be the comparison choosing how Go is written.
 
 `wait` sleeps 50 ms on each peer's own timer at 1000 connections, so its memory figure is what 1000
 requests in flight cost. The FPM pool is `phpChildren(1000)`, 2000 workers, because a worker is held

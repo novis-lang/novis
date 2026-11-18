@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/bench-compare.ts]
   - id: 2
     title: the page says what each figure measures, and its prose has the record's figures
-    status: open
+    status: done
     context: [docs/agent/prose.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -103,14 +103,14 @@ the programs, the settings or the page's ranking changes to improve one.
 
 ### 2. the page says what each figure measures, and its prose has the record's figures
 
-- [ ] `website/src/lib/compare.ts:59`: the `html-page` text gains the three sentences of
+- [x] `website/src/lib/compare.ts:59`: the `html-page` text gains the three sentences of
   § *The page's two additions*.
-- [ ] `website/src/content/docs/in-depth/compare.mdx:68`: the paragraph of § *The page's two
+- [x] `website/src/content/docs/in-depth/compare.mdx:68`: the paragraph of § *The page's two
   additions*, under `<CaseCharts />`.
-- [ ] Every figure, ratio and ranking written as prose in `compare.mdx` and in `compare.ts` is compared
+- [x] Every figure, ratio and ranking written as prose in `compare.mdx` and in `compare.ts` is compared
   with the record and corrected. A sentence that names which server is first in a case is corrected
   to the record's order.
-- [ ] `benches/compare/README.md:64`: the `html-page` paragraph gains one sentence with the measured
+- [x] `benches/compare/README.md:64`: the `html-page` paragraph gains one sentence with the measured
   cost of `html/template` and the reason the program keeps it.
 
 ### 3. the goal is verified once, and every failure is fixed
@@ -123,39 +123,29 @@ the programs, the settings or the page's ranking changes to improve one.
 
 ### State
 
-Stage 1 is done in one recording. `benches/compare.json` is the run, and `bun nv render --website`
-(`tools/nv/renderers/website-compare.ts:16`) wrote `website/src/data/compare.json` from it. Both of
-the record's `commit` values, the cases' and the rows' (`scenarios.commit`), are `068051b52c`, and
-neither `request-fixed-cost.md` nor `json-one-touch.md` exists at it.
+Stages 1 and 2 are done. `benches/compare.json` is one run at `068051b52c`, which the website shows,
+and `bun nv ci --check` (the `page-builds` check) is green on stage 2.
 
-Cases, requests/s with p99 ms, one cpu per backend:
+- The Go sentences are a `note` on `html-page` in `CASE_TEXT` (`website/src/lib/compare.ts:56`).
+  `CaseCharts.astro:29` renders a note as its own paragraph, with backticked names as `<code>`.
+- The isolate paragraph is under `<CaseCharts />` (`compare.mdx:70`), with "isolate" defined.
+- The record changed four prose figures in `compare.mdx`: the small deploy is 1.1 s and 56%, and the
+  big deploy is 2.9 s and 91%. No other prose figure or ranking differed from the record.
+- `benches/compare/README.md:69` gives the `html/template` CPU per page (245 µs, against 35 µs for
+  Bun and 56 µs for Novis) and why Go keeps it.
+- The page's questions are re-stamped unchanged in `website/src/data/questions.json`.
 
-| case | Novis | PHP | Bun | Go |
-|---|---|---|---|---|
-| hello | 34,600 / 5.4 | 8,456 / 82.8 | 36,700 / 4.6 | 38,458 / 3.6 |
-| json-api | 19,071 / 15.9 | 5,457 / 91.2 | 29,465 / 10.6 | 19,390 / 7.4 |
-| html-page | 12,707 / 14.7 | 4,894 / 89.7 | 21,265 / 8.6 | 3,651 / 43.0 |
-| wait | 13,093 / 437 | 3,730 / 1,392 | 13,994 / 406 | 13,743 / 407 |
-
-Novis is third on `hello` and `json-api` (2% behind Go), second on `html-page`; no row failed.
-
-`bun nv bench-compare --direct`, CPU per request (user + system):
-
-| case | Novis | Bun | Go |
-|---|---|---|---|
-| json-api | 35.1 µs (26.2 + 8.8) | 16.5 µs (7.4 + 9.2) | 45.1 µs (27.8 + 17.3) |
-| html-page | 56.2 µs (45.4 + 10.8) | 34.8 µs (21.2 + 13.5) | 244.7 µs (212.2 + 32.6) |
-
-The direct run also measured `hello`, but this session kept only the output's last lines, and that
-line was cut. Stage 2 needs only `html-page`. Go's 244.7 µs on `html-page` agrees with the
-290 µs that § *Why* measured for `html/template`.
+The sweep's reds: `env-secret-proofs` is stale, because its newest `git log -S` hit is
+json-one-touch's retire commit and it has no log. The nightly `supply chain` red (RUSTSEC-2026-0543,
+`chrono` through `rxing`) is already fixed on disk by `0fe2fdef25`, which postdates that run. The
+same run warned that RUSTSEC-2026-0206 and RUSTSEC-2025-0141 in `deny.toml` matched no crate. Those
+are warnings, not failures, and stage 3 may judge them.
 
 ### Next
 
-Stage 2: `website/src/lib/compare.ts:59` and `website/src/content/docs/in-depth/compare.mdx:68` gain
-the two additions, and every figure and ranking in their prose is checked against the tables above.
-Then `benches/compare/README.md:64` gains the `html/template` sentence: about 245 µs of CPU for each
-page measured directly, against 35 µs for Bun.
+Stage 3: `looper verify` with `run_in_background`, fix every failure in one pass, run it once more,
+then the goal-end gates of AGENTS.md § *In the loop*. No test is expected to go red. The change
+touched only the website, the README and the goal.
 
 ### Backlog
 

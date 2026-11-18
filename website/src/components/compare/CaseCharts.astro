@@ -5,7 +5,8 @@
  * peer's, and its peak memory against the most any peer used. Each bar has
  * its place for its kind, and every bar in place 1 takes the accent colour:
  * the most requests, and the least memory. A case whose PHP ran with its file
- * check off says so above the bars.
+ * check off says so above the bars. A case's `note`, when it has one, is a
+ * paragraph of its own under the case's line.
  */
 import Bars from './Bars.astro'
 import { charts, overLeast, record } from '~/lib/compare'
@@ -27,6 +28,7 @@ const fileCheckNote = (labels: string[]) =>
           <p>
             {c.text} {c.concurrency.toLocaleString('en-US')} connections at once.
           </p>
+          {c.note && <p>{c.note.split('`').map((part, i) => (i % 2 === 1 ? <code>{part}</code> : part))}</p>}
           <Bars
             groups={[c.bars].map((all) => {
               const off = all.filter((b) => b.fileCheckOff).map((b) => b.label)
