@@ -3492,6 +3492,25 @@ impl Retained {
         Self(values)
     }
 
+    /// The layers of a combining member's variadic tail, each checked to be
+    /// an array and retained. A layer that is the subject itself makes the
+    /// subject shared, so `apply` never writes into a layer it reads.
+    fn layers(tail: &Value, member: &str) -> Result<Self, Fault> {
+        for_each_layer(tail, member, |_| Ok(()))?;
+        Self::trailing(tail, member)
+    }
+
+    /// Calls `each` with every retained value as an array. Only for
+    /// [`Self::layers`], whose values are all arrays.
+    fn each_layer(&self, mut each: impl FnMut(&NvsArray)) {
+        for value in &self.0 {
+            let layer = value
+                .array_ptr()
+                .expect("Retained::layers keeps arrays only");
+            each(&borrowed(layer));
+        }
+    }
+
     /// Takes the values out, with their references.
     fn take(mut self) -> Vec<Value> {
         std::mem::take(&mut self.0)
@@ -3973,14 +3992,34 @@ nvs_runtime::nvs_helper! {
     /// the keys, which this member has already said it does not keep. `$size`
     /// is a `uint`, so PHP's "negative length pads on the left" overload is a
     /// member name here rather than a sign.
-    fn nvs_core_arr_pad_start(_ctx, args: [3])-> Value, owns NvsArray {
-        let (subject, missing, value) = padding(args, "padStart")?;
+    ///
+    /// A sole list takes the copies into its front room and moves no entry.
+    /// A sole map is renumbered into a list first, and a shared subject is
+    /// copied.
+    fn nvs_core_arr_pad_start(_ctx, args: [3])-> Padding, owns NvsArray {
+        Padding::of(args, "padStart")
+    } apply(pad, subject) {
+        let value = pad.value();
+        if subject.is_sole() {
+            let mut subject = subject;
+            if pad.missing == 0 {
+                subject.keep_window(0, usize::MAX, true);
+                return Value::array(subject);
+            }
+            let copies = (0..pad.missing).map(|_| retained_copy(value)).collect();
+            // A refusal is the request's memory limit, already recorded. The
+            // copies are released and the subject is unchanged.
+            if let Err(refused) = subject.prepend(copies) {
+                release_all(refused);
+            }
+            return Value::array(subject);
+        }
         let mut out = NvsArray::new();
-        append_copies(&mut out, value, missing, "Core\\Arr::padStart")?;
-        append_values(&subject, &mut out)?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        // A refusal is the memory limit's, already recorded, and the request
+        // ends at it.
+        let _ = append_copies(&mut out, value, pad.missing as u64, "Core\\Arr::padStart");
+        let _ = append_values(&subject, &mut out);
+        Value::array(out)
     }
 }
 
@@ -3992,15 +4031,71 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_pad_start`]'s own docs own why the result is always a
     /// list and why neither member takes a `preserveKeys` option. The two are
     /// the same walk with the padding on the other side.
-    fn nvs_core_arr_pad_end(_ctx, args: [3])-> Value, owns NvsArray {
-        let (subject, missing, value) = padding(args, "padEnd")?;
-        let mut out = NvsArray::new();
-        append_values(&subject, &mut out)?;
-        append_copies(&mut out, value, missing, "Core\\Arr::padEnd")?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+    ///
+    /// A sole list takes the copies at its end and moves no entry. A sole map
+    /// is renumbered into a list first, and a shared subject is copied.
+    fn nvs_core_arr_pad_end(_ctx, args: [3])-> Padding, owns NvsArray {
+        Padding::of(args, "padEnd")
+    } apply(pad, subject) {
+        let value = pad.value();
+        let mut out = if subject.is_sole() {
+            let mut subject = subject;
+            subject.keep_window(0, usize::MAX, true);
+            subject
+        } else {
+            let mut out = NvsArray::with_capacity(subject.count());
+            // A refusal is the memory limit's, already recorded, and the
+            // request ends at it.
+            let _ = append_values(&subject, &mut out);
+            out
+        };
+        let _ = append_copies(&mut out, value, pad.missing as u64, "Core\\Arr::padEnd");
+        Value::array(out)
     }
+}
+
+/// What a padding member's `check` passes to its `apply`: the padding value
+/// with a reference of its own, and how many copies of it the result gets.
+#[derive(Debug)]
+pub struct Padding {
+    /// The padding value, alone.
+    value: Retained,
+    /// The copies to add, which the request's memory limit already allowed.
+    missing: usize,
+}
+
+impl Padding {
+    /// Decodes a `padStart`/`padEnd` call and checks that the request can
+    /// afford the copies, before anything changes.
+    fn of(args: &[Value], member: &str) -> Result<Self, Fault> {
+        let (_, missing, value) = padding(args, member)?;
+        let entries = usize::try_from(missing)
+            .ok()
+            .and_then(|count| count.checked_mul(std::mem::size_of::<Value>()));
+        let bytes = nvs_runtime::affordable(entries, &format!("Core\\Arr::{member}"))?;
+        Ok(Self {
+            value: Retained(vec![retained_copy(value)]),
+            missing: bytes / std::mem::size_of::<Value>(),
+        })
+    }
+
+    /// The padding value, borrowed from [`Self::value`].
+    fn value(&self) -> Value {
+        self.value.0[0]
+    }
+}
+
+/// `value` with one more reference, for a copy that is stored.
+fn retained_copy(value: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the value is live for the length of the call, and the copy \
+                  returned here is stored with a reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    value
 }
 
 nvs_runtime::nvs_helper! {
@@ -5991,18 +6086,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`overlay_into`] owns the walk and the key order; [`COMBINED`] owns
     /// why the return type is spelled `array<T|U>` rather than `array<mixed>`.
-    fn nvs_core_arr_overlay(_ctx, args: [2])-> Value, owns NvsArray {
-        let base = subject(args, "overlay")?;
-        // Room for the base, the least the result has.
-        let mut out = NvsArray::with_capacity(base.count());
-        copy_all(&base, &mut out);
-        for_each_layer(&args[1], "overlay", |layer| {
-            overlay_into(&mut out, layer, false);
-            Ok(())
-        })?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+    fn nvs_core_arr_overlay(_ctx, args: [2])-> Retained, owns NvsArray {
+        subject(args, "overlay")?;
+        Retained::layers(&args[1], "overlay")
+    } apply(layers, subject) {
+        combine(&layers, subject, |out, layer| overlay_into(out, layer, false))
     }
 }
 
@@ -6016,18 +6104,11 @@ nvs_runtime::nvs_helper! {
     /// `array_merge_recursive` has no replacement at all — promoting two
     /// colliding scalars into a two-element array is a data-shape change
     /// rather than a merge.
-    fn nvs_core_arr_overlay_deep(_ctx, args: [2])-> Value, owns NvsArray {
-        let base = subject(args, "overlayDeep")?;
-        // Room for the base, the least the result has.
-        let mut out = NvsArray::with_capacity(base.count());
-        copy_all(&base, &mut out);
-        for_each_layer(&args[1], "overlayDeep", |layer| {
-            overlay_into(&mut out, layer, true);
-            Ok(())
-        })?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+    fn nvs_core_arr_overlay_deep(_ctx, args: [2])-> Retained, owns NvsArray {
+        subject(args, "overlayDeep")?;
+        Retained::layers(&args[1], "overlayDeep")
+    } apply(layers, subject) {
+        combine(&layers, subject, |out, layer| overlay_into(out, layer, true))
     }
 }
 
@@ -6041,18 +6122,11 @@ nvs_runtime::nvs_helper! {
     /// insertion-ordered, so the difference is observable in `foreach`, in
     /// `Core\Json::encode` and in every `Arr::first`. Two behaviours, two
     /// names — `rule:core-api/shape-rules` R15.
-    fn nvs_core_arr_underlay(_ctx, args: [2])-> Value, owns NvsArray {
-        let base = subject(args, "underlay")?;
-        // Room for the base, the least the result has.
-        let mut out = NvsArray::with_capacity(base.count());
-        copy_all(&base, &mut out);
-        for_each_layer(&args[1], "underlay", |layer| {
-            underlay_into(&mut out, layer);
-            Ok(())
-        })?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+    fn nvs_core_arr_underlay(_ctx, args: [2])-> Retained, owns NvsArray {
+        subject(args, "underlay")?;
+        Retained::layers(&args[1], "underlay")
+    } apply(layers, subject) {
+        combine(&layers, subject, underlay_into)
     }
 }
 
@@ -6067,22 +6141,55 @@ nvs_runtime::nvs_helper! {
     /// a call site actually meant when its arguments were lists, and naming
     /// it separately is what lets `overlay` be the other half without either
     /// one deciding by key type at run time.
-    fn nvs_core_arr_append_all(_ctx, args: [2])-> Value, owns NvsArray {
-        let base = subject(args, "appendAll")?;
+    ///
+    /// A sole list takes every other argument's values at its end and moves
+    /// no entry, so a list grown by `appendAll` a step at a time costs each
+    /// step the values it adds. A sole map is renumbered into a list first,
+    /// and a shared subject is copied.
+    fn nvs_core_arr_append_all(_ctx, args: [2])-> Retained, owns NvsArray {
+        subject(args, "appendAll")?;
+        Retained::layers(&args[1], "appendAll")
+    } apply(layers, subject) {
         // The result is a list of every argument's entries, so its room is
         // counted first and taken once.
-        let mut total = base.count();
-        for_each_layer(&args[1], "appendAll", |layer| {
-            total = total.saturating_add(layer.count());
-            Ok(())
-        })?;
-        let mut out = NvsArray::with_capacity(total);
-        append_values(&base, &mut out)?;
-        for_each_layer(&args[1], "appendAll", |layer| append_values(layer, &mut out))?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        let mut added = 0usize;
+        layers.each_layer(|layer| added = added.saturating_add(layer.count()));
+        let mut out = if subject.is_sole() {
+            let mut subject = subject;
+            subject.keep_window(0, usize::MAX, true);
+            subject
+        } else {
+            let mut out = NvsArray::with_capacity(subject.count().saturating_add(added));
+            // A refusal is the memory limit's, already recorded, and the
+            // request ends at it.
+            let _ = append_values(&subject, &mut out);
+            out
+        };
+        if out.reserve_within_budget(added) {
+            layers.each_layer(|layer| {
+                let _ = append_values(layer, &mut out);
+            });
+        }
+        Value::array(out)
     }
+}
+
+/// The apply of `overlay`, `overlayDeep` and `underlay`: `write` puts each
+/// layer into a sole subject, or into a copy of a shared one.
+///
+/// The copy keeps the subject's append counter, as the sole subject does, so
+/// the result appends at the same key whoever else holds the subject.
+fn combine(layers: &Retained, subject: NvsArray, write: impl Fn(&mut NvsArray, &NvsArray)) -> Value {
+    let mut out = if subject.is_sole() {
+        subject
+    } else {
+        let mut out = NvsArray::with_capacity(subject.count());
+        copy_all(&subject, &mut out);
+        out.keep_append_index_of(&subject);
+        out
+    };
+    layers.each_layer(|layer| write(&mut out, layer));
+    Value::array(out)
 }
 
 /// Which part of an entry a set member compares — `Core\Arr::SetOn`,
