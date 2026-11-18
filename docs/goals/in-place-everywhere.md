@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-ir/src/lower/call.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 4
     title: the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/tests.rs, crates/nvs-codegen/src/emit.rs]
   - id: 5
     title: a Novis function takes a lent or moved value whenever the compiler proves it safe
@@ -582,18 +582,18 @@ disjoint and they run side by side. The session runs the test once all batches e
 
 - [x] Each IR instruction states its effects: may run user code, and which slots it may read or
   write. The pass reads them, never the source.
-- [ ] The lend for every slot kind in § *Standing decisions*. `lower_slot_append`
+- [x] The lend for every slot kind in § *Standing decisions*. `lower_slot_append`
   (`crates/nvs-ir/src/lower/stmt.rs:623`) and `write_back_array` become uses of it.
   - [x] A plain property, a static property and a property chain are lent to an owning `Core`
     member, and a callback is judged by its body's write summary.
   - [x] An element, through containers made sole before the element's read.
   - [x] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
-  - [ ] `write_back_array`'s decision is the lend's.
+  - [x] `write_back_array`'s decision is the lend's.
     - [x] A one-level write or append into a plain `array` property or static property
       (`Lowering::lendable_root`).
-    - [ ] A nested write (`ArrayWriteThrough`) and a nested `.=` (`ArrayStrAppendThrough`).
-    - [ ] An `unset`, one level and nested.
-    - [ ] A guarded root, a union receiver and a `lateinit` root, or a recorded reason each keeps
+    - [x] A nested write (`ArrayWriteThrough`) and a nested `.=` (`ArrayStrAppendThrough`).
+    - [x] An `unset`, one level and nested.
+    - [x] A guarded root, a union receiver and a `lateinit` root, or a recorded reason each keeps
       the lowering's store.
 - [x] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
 - [x] The tests the `lends` and `lend-trap` checks name. Run once.
@@ -665,43 +665,39 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-The person's calls: fix the cause, nothing for a developer to remember, and every replacement in
-place, handled by the compiler and tested. § *Standing decisions* is the authoring sessions' calls.
-
-Stages 1 to 3 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and its
+Stages 1 to 4 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and its
 newest naming commit is `route-parameters`' retire.
 
-Stage 4: `Lend::of` (`crates/nvs-ir/src/ownership.rs`) lends a plain property, a static property,
-a chain, an element (`Lend::of_element`, `make_sole`), the target of `.=`, and now the root of a
-one-level element write or append, all through `InstKind::consumes` (`StrAppend`, `ArraySet`,
-`ArrayAppend`). For the last, `lower_reassignment`'s `Index` arm retains the root's read where
-`Lowering::lendable_root` holds (plain `array` property of one class, no guard, no `lateinit`, or
-an `array` static), owning it as a temporary across a fallible append, and
-`write_back_array(…, retained, …)` reads and releases the old value around the store.
-`Lend::of_element` removes those three too. A local's element is not lent. The debug poison is done
-(`InstKind::LendPoison`, `emit_lend_poison`, `emit_lend_check`). The ten `lends` tests,
-`an_element_write_into_a_plain_slot_is_lent` and the `lend-trap` test passed once by name, and a
-scratch program of property and static element writes printed the same with and without
-`--no-in-place` on the debug binary.
+The pass lends every element-write root through `InstKind::consumes`: `ArrayUnset` and the root of
+`Helper::ArrayWriteThrough` and `ArrayStrAppendThrough` joined it. `Lowering::lendable_root`
+(`crates/nvs-ir/src/lower/stmt.rs`) takes a guarded root, read again after its guard, and a
+`lateinit` root. A union receiver keeps the lowering's store, and that function's doc says why.
+`Lend::borrows_a_row` (`crates/nvs-ir/src/ownership.rs`) allows a nested `unset`'s descent.
+
+**A use-after-free was fixed on the way.** `lower_unset` ran the `PropertyGuard` between the root's
+read and the removal with no reference of its own, so a guard that replaced the property freed the
+array first. The keys are now lowered before the root, and a guarded root and its borrowed keys are
+held across the guard. Its case is
+`tests/conformance/class/a-guard-that-replaces-the-array-during-an-unset-keeps-its-replacement.nvst`.
+
+`lends` and `lend-trap` are green, the four new lend tests in `lower/tests.rs` ran once by name, and
+`tests/conformance/class/` and `in-place/` pass on the debug binary.
 
 ### Next
 
-The rest of stage 4, in this order. Every caller below still passes `retained: false`:
+Stage 5, the lent body for a Novis callee. Its first two items in this order:
 
-- **A nested write** (`emit_write_through`, `Helper::ArrayWriteThrough`, and
-  `Helper::ArrayStrAppendThrough` at `lower_element_str_append`'s `write_back_array` call): the
-  root is an argument of a fallible `HelperCall`. `InstKind::consumes` would name the call's first
-  argument for those two helpers. Check first in `nvs_runtime` that a failure leaves the root with
-  the caller, as a refused append does, and own the retain as a temporary across the call.
-- **`unset`** (the `write_back_array` call after the climb's `emit_array_set`s): a nested one reads
-  the root with `array.get`s between its read and the outer `array.set`, and `window_is_quiet`
-  refuses any reader of the subject but a retain or release. A borrowing `ArrayGet` would need to
-  be allowed there; a one-level `unset` is `ArrayUnset`, which `consumes` does not name yet.
-- **A guarded root, a union receiver, a `lateinit` root.** A union writes back in each branch, so
-  the read and the store are in different blocks. Decide each: lend it, or record in the module doc
-  why the lowering's store stays, and tick the item.
-- **A local's element**, if it fits: after `array.sole`, every later read of the local's old value,
-  the error edges' releases included, reads the sole array.
+- **The effect summary.** `summaries` (`crates/nvs-ir/src/ownership.rs:140`) already solves a write
+  summary per function (`Writes`, line 130) for `callbacks_are_quiet` (line 1049). Stage 5 wants
+  reads too, and a resolver that names the one body a call reaches. Move both into
+  `crates/nvs-ir/src/effects.rs` as the item says, and keep `callbacks_are_quiet` reading it.
+- **The lent body.** One more `Function` per (function, parameter) that a call site lends. Build it
+  in `ownership.rs` by copying the callee and changing its error exits, then point the call at it.
+  The conditions are § *Standing decisions*' "A Novis callee takes a lent value".
+
+`Core\Arr::reduce`'s carry (`crates/nvs-runtime/src/callable.rs:193` `call_callable`, and the
+`reduce` test at `crates/nvs-stdlib/src/arr.rs:10719`) is separate from the lent body and fits a
+session of its own.
 
 **What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
 property copies its array, so a loop of such writes is quadratic. Only the differential run uses it.
@@ -723,9 +719,16 @@ shows a `retain` before `str.append` and a second read and release around the st
 of a lent property or static property now prints `lend.poison` after the slot's read and after the
 call, and `lend.restore` before the call. A snapshot of `$this->p[k] = v`, `$this->p[] = v` or
 `C::$s[k] = v` now also prints `lend.poison` around the `array.set` or `array.append`, and with the
-pass off a `retain` of the root and a second read and release around the store.
+pass off a `retain` of the root and a second read and release around the store. The same holds for
+a nested write, a nested `.=` and an `unset` on a property or static property root, guarded and
+`lateinit` roots included. A snapshot of an element `unset` now lowers its keys before the root's
+read, and a guarded one reads the root again after the guard.
 
 ### Backlog
+
+- A local's element, `$a[k] = M($a[k])`, is not lent: a local is not a slot, so after
+  `array.sole` every later read of the local's old value, the error edges' releases included, would
+  have to read the sole array. It belongs with stage 6's targets if a measure shows it matters.
 
 - `foreach ([1, 2, 3] as int $x)` is E0401 because the literal's items are `mixed`. An element type
   inferred from the literal would accept it. Whether the checker should infer it belongs to a goal on
