@@ -1764,12 +1764,14 @@ pub enum InstKind {
     /// **Defines a fresh [`crate::ty::Ty::Str`] value on exactly
     /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol** —
     /// see that variant's own doc comment, which is the one home for it. The
-    /// consequence for lowering is the same one: the *holder* of `target` — a
-    /// local's `Env` binding, or the slot a `FieldGet` or `StaticGet` just
-    /// read — is re-pointed at the result, with no retain and no release of
-    /// either, because the consumed reference and the produced one are that
-    /// same one slot's. Nothing runs between a slot's load, this instruction
-    /// and the store back. `nvs_runtime`'s `nvs_str_append` owns
+    /// consequence for lowering is the same one: a local's `Env` binding is
+    /// re-pointed at the result, with no retain and no release of either,
+    /// because the consumed reference and the produced one are that same
+    /// binding's. A slot a `FieldGet` or `StaticGet` read is written as any
+    /// store is: the lowering retains the value it read, reads the old value
+    /// again for the store and releases it after. The ownership pass then
+    /// lends the slot ([`InstKind::consumes`]) and removes all three, so an
+    /// unshared slot grows in place. `nvs_runtime`'s `nvs_str_append` owns
     /// when the two are the same pointer (solely owned, and enough room) and
     /// when a copy-on-write separation makes them different ones.
     ///
@@ -4267,6 +4269,22 @@ impl InstKind {
                 reads: Touch::Nothing,
                 writes: Touch::Nothing,
             },
+        }
+    }
+
+    /// The operand whose reference this instruction always takes, and
+    /// replaces with its result, when it is a statement's change of a value.
+    /// The ownership pass lends a slot to it as it lends one to an owning
+    /// `Core` entry: the lowering retains the slot's value before it, and the
+    /// lend removes that retain.
+    ///
+    /// Only [`InstKind::StrAppend`] has one. It cannot fail, so the slot is
+    /// never left without a value it owns.
+    #[must_use]
+    pub fn consumes(&self) -> Option<ValueId> {
+        match self {
+            InstKind::StrAppend { target, .. } => Some(*target),
+            _ => None,
         }
     }
 }

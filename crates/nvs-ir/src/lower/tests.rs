@@ -2365,6 +2365,38 @@ fn a_callback_that_reads_the_slot_sees_the_old_value() {
     );
 }
 
+/// `.=` on a plain `string` property or static property is lent to its
+/// append: the pass removes the retain, the second read and the release the
+/// lowering put around it. With in-place changes off, all three stay.
+#[test]
+fn a_slot_append_is_lent() {
+    let src = "<?nvs\nfinal class T {\n  public string $o = '';\n  public static string $s = '';\n  \
+               public function m(string $x): void {\n    $this->o .= $x;\n    T::$s .= \"<{$x}>\";\n  }\n}\n";
+    let printed = |in_place: bool| {
+        let lower = || lower_whole_file_with_src(src);
+        let (program, map, file) = if in_place {
+            lower()
+        } else {
+            crate::lower::without_in_place(lower)
+        };
+        program
+            .functions
+            .iter()
+            .filter(|f| f.name == "T::m")
+            .map(|f| print_function(f, map.file(file)))
+            .collect::<String>()
+    };
+    let lent = printed(true);
+    assert!(lent.contains("str.append"), "{lent}");
+    assert_eq!(slot_reads(&lent, "T::o"), 1, "{lent}");
+    assert_eq!(slot_reads(&lent, "T::$s"), 1, "{lent}");
+    assert!(!lent.contains("retain "), "{lent}");
+    let kept = printed(false);
+    assert_eq!(slot_reads(&kept, "T::o"), 2, "{kept}");
+    assert_eq!(slot_reads(&kept, "T::$s"), 2, "{kept}");
+    assert_eq!(kept.matches("retain ").count(), 2, "{kept}");
+}
+
 /// A callback that writes the slot, or one whose body is not known, keeps
 /// the slot's reference, so the write cannot free the array the member is
 /// reading.

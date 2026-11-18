@@ -605,9 +605,12 @@ impl<'a> Lowering<'a> {
     /// The receiver is lowered first and the suffix second, left to right. A
     /// receiver the suffix can free is retained across it, as
     /// [`Self::lower_store`]'s property arm holds one. The slot is read after
-    /// the suffix, and nothing runs between the load and the store, so the
-    /// append consumes the slot's own reference and the store puts the result
-    /// back with no retain and no release, as [`Self::write_back_array`] does.
+    /// the suffix and its value retained for the append, which consumes one
+    /// reference. The store reads the old value again and releases it after,
+    /// as every store does. This decides nothing: the ownership pass lends the
+    /// slot to the append ([`InstKind::consumes`]) and removes the retain, the
+    /// second read and the release, so an unshared string grows in place.
+    /// With in-place changes off, the append always copies.
     ///
     /// A suffix read from a property, a static property or an element is
     /// retained across the append and released after it. That storage may be
@@ -671,6 +674,7 @@ impl<'a> Lowering<'a> {
                         field: name.clone(),
                     },
                 );
+                self.emit_retain(*cur, old);
                 let (appended, _) = self.emit(
                     *cur,
                     Ty::Str,
@@ -679,7 +683,17 @@ impl<'a> Lowering<'a> {
                         suffix,
                     },
                 );
+                let (held, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::FieldGet {
+                        object: object_v,
+                        class: class.clone(),
+                        field: name.clone(),
+                    },
+                );
                 self.emit_field_set(*cur, object_v, class, name, appended);
+                self.emit_release(*cur, held);
                 self.release_temporaries_since(mark, *cur);
                 true
             }
@@ -698,6 +712,7 @@ impl<'a> Lowering<'a> {
                         name: name.clone(),
                     },
                 );
+                self.emit_retain(*cur, old);
                 let (appended, _) = self.emit(
                     *cur,
                     Ty::Str,
@@ -706,7 +721,16 @@ impl<'a> Lowering<'a> {
                         suffix,
                     },
                 );
+                let (held, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::StaticGet {
+                        class: class.clone(),
+                        name: name.clone(),
+                    },
+                );
                 self.emit_static_set(*cur, class, name, appended);
+                self.emit_release(*cur, held);
                 self.release_temporaries_since(mark, *cur);
                 true
             }

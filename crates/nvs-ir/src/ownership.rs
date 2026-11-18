@@ -67,6 +67,10 @@
 //! its callbacks before it changes anything. A hook, a guard and an observer
 //! are calls, so a slot that has one is never lent.
 //!
+//! `slot .= e` is the same lend. Its [`InstKind::StrAppend`] always consumes
+//! its target ([`InstKind::consumes`]), so the lend switches no symbol and
+//! removes the retain the lowering put before it.
+//!
 //! An element of an array such a slot holds, `slot[k] = M(slot[k], …)` with
 //! the same `string` or `int` key, is lent the same way. The array must be
 //! the entry's only holder, so the pass makes it sole right after the
@@ -234,8 +238,10 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
             };
             if let Some(lent) = lend.of((b, c)) {
                 removed.extend(lent.gone);
-                if let InstKind::CoreCall { symbol, .. } = &mut f.blocks[b].insts[c].kind {
-                    *symbol = lent.symbol;
+                if let (Some(owned), InstKind::CoreCall { symbol, .. }) =
+                    (lent.symbol, &mut f.blocks[b].insts[c].kind)
+                {
+                    *symbol = owned;
                 }
                 if let Some(element) = lent.element {
                     make_sole(f, &element, &mut ids, &mut after);
@@ -511,10 +517,11 @@ fn drop_loop_reference(
     removed.insert((pre, retain));
 }
 
-/// What a lend changes: the owning symbol the call switches to, the
+/// What a lend changes: the owning symbol a `Core` call switches to, the
 /// instructions it removes, and for an element, the instructions it rewrites.
+/// An instruction that always consumes its operand switches to nothing.
 struct Lent {
-    symbol: &'static str,
+    symbol: Option<&'static str>,
     gone: Vec<At>,
     element: Option<Element>,
 }
@@ -568,20 +575,30 @@ impl Lend<'_> {
     fn of(&self, (b, c): At) -> Option<Lent> {
         let insts = &self.f.blocks[b].insts;
         let call = &insts[c];
-        let InstKind::CoreCall {
-            symbol,
-            args,
-            subject: Some(subject),
-        } = &call.kind
-        else {
-            return None;
+        // The subject, the owning symbol to switch to, and the arguments whose
+        // callables the call may run. An instruction that always consumes its
+        // operand needs no switch and runs no callable.
+        let (subject, symbol, args): (ValueId, Option<&'static str>, &[ValueId]) = match &call.kind
+        {
+            InstKind::CoreCall {
+                symbol,
+                args,
+                subject: Some(subject),
+            } => {
+                let entry = nvs_stdlib::owning_entry(symbol)?;
+                let at = *subject as usize;
+                if entry.slot != at {
+                    return None;
+                }
+                (*args.get(at)?, Some(entry.symbol), args)
+            }
+            kind => (kind.consumes()?, None, &[]),
         };
-        let entry = nvs_stdlib::owning_entry(symbol)?;
-        let at = *subject as usize;
-        let subject = *args.get(at)?;
         let result = call.result?;
-        if entry.slot != at
-            || args.iter().filter(|&&a| a == subject).count() != 1
+        let mut mentions = 0;
+        call.kind
+            .for_each_operand(|v| mentions += usize::from(v == subject));
+        if mentions != 1
             || !matches!(
                 self.tys.get(&subject),
                 Some(Ty::Array | Ty::Str | Ty::Bytes)
@@ -596,7 +613,7 @@ impl Lend<'_> {
         if matches!(insts[read].kind, InstKind::ArrayGet { .. }) {
             let (gone, element) = self.of_element((b, c), subject, result, read, args)?;
             return Some(Lent {
-                symbol: entry.symbol,
+                symbol,
                 gone,
                 element: Some(element),
             });
@@ -666,7 +683,7 @@ impl Lend<'_> {
         gone.extend(self.subject_counts((b, c), subject)?);
         self.callbacks_are_quiet(args, subject, &chain)?;
         Some(Lent {
-            symbol: entry.symbol,
+            symbol,
             gone,
             element: None,
         })

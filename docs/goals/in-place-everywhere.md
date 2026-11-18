@@ -557,7 +557,7 @@ disjoint and they run side by side. The session runs the test once all batches e
   - [x] A plain property, a static property and a property chain are lent to an owning `Core`
     member, and a callback is judged by its body's write summary.
   - [x] An element, through containers made sole before the element's read.
-  - [ ] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
+  - [x] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
   - [ ] `write_back_array`'s decision is the lend's.
 - [ ] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
 - [ ] The tests the `lends` and `lend-trap` checks name. Run once.
@@ -630,7 +630,7 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 ### State
 
 The person's calls: fix the cause, nothing for a developer to remember, and every replacement in
-place, handled by the compiler and tested. ง *Standing decisions* is the authoring sessions' calls.
+place, handled by the compiler and tested. ยง *Standing decisions* is the authoring sessions' calls.
 
 Stages 1 to 3 are done. The sweep's two reds are stale (checked 2026-11-18): `env-secret-proofs` was
 last named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
