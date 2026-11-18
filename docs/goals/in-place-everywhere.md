@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-fuzz-checks/src/lib.rs, crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/string.rs]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: matrix
@@ -741,9 +741,9 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
   - [x] the heap corruption in `nvs-stdlib`'s parallel unit tests, fixed
   - [x] the steps after `test`: conformance, reference, soundness, clippy and extension
 - [x] Run `looper verify` once more, and it is green.
-- [ ] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes` and `bun nv ci --check`.
+- [x] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes` and `bun nv ci --check`.
   - [x] `verify --doc`, `owners --closes`, the rulebook render, the roadmap and the questions page
-  - [ ] every stale `Core` perf record measured again
+  - [x] every stale `Core` perf record measured again
 
 ## Handoff
 
@@ -764,13 +764,16 @@ The goal-end gates, commit `fix(docs): the goal-end gates are green but for the 
 - `ci --check`: the rulebook render, the roadmap (a theme for `path-array-steps` and
   `attribute-property-names`) and the `temporaryDir` questions page are fixed. Its one other red
   was 874 stale `Core` perf records, because stage 2's owning form touched every module.
+- The perf records, commit `chore(perf)`: all 874 are measured. Fourteen benches declared `calls 0`
+  for a member they call, and five one allocation more than they make; each declares what it
+  measures now. `Core\Compress\Decompressor::finish` failed its timed ramp once and passed on
+  callgrind. `bun nv ci --check` is then green.
+- Every standing decision is in `rule:types/a-replaced-value-is-changed-in-place` or a module doc
+  (`ownership/lent.rs`, `copies.rs`, `owned.rs`, `array.rs`, `ctx/mod.rs`, `lower/tests.rs`).
 
 ### Next
 
-- **The perf records.** `bun nv proofs --record-perf --perf-report` measures every stale record on
-  the release binary. When it ends, `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe`
-  must list no `perf: stale`. Commit `data/perf/` and `data/perf/members.md` as `chore(perf)`.
-  Then `bun nv ci --check` once more, and the goal is reached.
+- Nothing: the goal is reached. The driver's sweep runs the acceptance checks and retires it.
 
 **What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
 property copies its array, so a loop of such writes is quadratic. `$s = $s . $x` on a local now
@@ -780,9 +783,7 @@ copies too, because the lowering no longer moves it. Only the differential run u
 
 ### Backlog
 
-- A local's element, `$a[k] = M($a[k])`, is not lent: a local is not a slot, so after
-  `array.sole` every later read of the local's old value, the error edges' releases included, would
-  have to read the sole array. It belongs with stage 6's targets if a measure shows it matters.
+- A local's element, `$a[k] = M($a[k])`, is not lent; the rule now says so and why.
 
 - `foreach ([1, 2, 3] as int $x)` is E0401 because the literal's items are `mixed`. An element type
   inferred from the literal would accept it. Whether the checker should infer it belongs to a goal on
