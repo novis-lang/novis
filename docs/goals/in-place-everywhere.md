@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs, crates/nvs-lsp/src/recorded.rs, crates/nvs-cli/src/debug/index.rs]
   - id: 8
     title: the fuzzer, Miri and an attack hold the guarantee
-    status: open
+    status: done
     context: [crates/nvs-fuzz-checks/src/lib.rs, crates/nvs-runtime/src/array.rs, crates/nvs-runtime/src/string.rs]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -721,15 +721,17 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### 8. the fuzzer, Miri and an attack hold the guarantee
 
-- [ ] `crates/nvs-fuzz-checks/src/in_place.rs:1`: a generator of small programs over the matrix's axes,
+- [x] `crates/nvs-fuzz-checks/src/in_place.rs:1`: a generator of small programs over the matrix's axes,
   with random sharing (`$b = $a`), errors and catches. Each program runs with and without the pass, and
   the outputs must match. `replacement_programs_print_the_same_without_in_place` runs a fixed seed
   set. The fuzz target runs the open-ended search.
-- [ ] The in-place tests of `crates/nvs-runtime/src/array.rs` and `string.rs` are on CI's Miri list.
-- [ ] `tests/conformance/in-place/a-value-from-the-configuration-is-cut-only-in-its-own-copy.nvst`:
+- [x] The in-place tests of `crates/nvs-runtime/src/array.rs` and `string.rs` are on CI's Miri list.
+  The `miri-units` job runs every `nvs-runtime` unit test with no filter, and none of them carries
+  `cfg_attr(miri, ignore)`, so they were on it already and the workflow is unchanged.
+- [x] `tests/conformance/in-place/a-value-from-the-configuration-is-cut-only-in-its-own-copy.nvst`:
   the program cuts an array and a string it read from `Core\Config`, which every request shares, and
   then reads the configuration again. Both reads print the original. Run once.
-- [ ] `bun nv suite tests/conformance/ --no-in-place-too` once, green.
+- [x] `bun nv suite tests/conformance/ --no-in-place-too` once, green.
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -741,47 +743,31 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 7 are done; `copy-report` and `copy-report-editor` are green, run once. The sweep's
-`env-secret-proofs` red is stale: no goal defines it, its log file does not exist, and `git log -S`
-finds it only in this goal's handoffs and a retired goal's retire commit.
+Stages 1 to 8 are done; only stage 9, the gate, is left. The sweep's `env-secret-proofs` red is
+stale: no goal defines it, its log file does not exist, and `git log -S` finds it only in this
+goal's handoffs and a retired goal's retire commit.
 
-This session landed the viewer and the lens. `GET /api/request` gives `copies`, the request's copy
-sites, most units first, at most `COPIES_MAX` (200), each with `help` from
-`nvs_ir::copies::Reason::from_name` (`crates/nvs-cli/src/debug/api.rs` `CopySite`, `cut.copies`).
-The page lists them under "Copies" (`viewer/src/views/request.tsx`). `Reason::name` replaced
-`script.rs`'s `reason_name`. The editor's lens is `crates/nvs-lsp/src/server.rs` `copy_lenses` over
-`recorded::copies_in`, one query per document by hash, one lens per line, summing that line's rows
-of the newest request that copied there; `recorded::viewer_url` now takes the trace and span. The
-sample spool (`spool.rs` `one_of_each`, `one-of-each.spool`), `debug_api.rs`'s spool and the
-viewer's `request.json` fixture have a `copies` line.
+Stage 8 landed this session. `crates/nvs-fuzz-checks/src/in_place.rs` draws a program from bytes
+(`program`: a prelude of `Store`, `Box` and `Lib`, then one to five steps over the kind, the
+target, the form and the context, with an optional share and a `try` failure), runs it through
+`compile::lower_source` with and without `without_in_place`, and asserts the same status and
+output, and that the run ends `OK`. `replacement_programs_print_the_same_without_in_place` runs 128
+SplitMix64 seeds in about 3 s and is green. The fuzz target is `fuzz/fuzz_targets/in_place.rs`,
+hand-run (`tools/nv/cmd/fuzz.ts` `BY_HAND`). The Miri item needed no edit: `miri-units` runs every
+`nvs-runtime` unit test, and none is ignored under Miri. The attack case is green, and
+`bun nv suite tests/conformance/ --no-in-place-too` was green over all 4032 cases.
 
-The counting pipeline is `ownership.rs` `count_copies`, `emit.rs` `emit_copy_count`,
-`ctx/trace.rs` `CopySites`, `isolate.rs` `finish` and the index's `copies` table (schema 8); only a
-request that ends in `finish` writes a `copies` record. The warnings are `W1032` and `W1033`
-(`nvs_ir::copies::warnings`), and the editor's are `nvs-lsp` `document.rs` `copy_warnings`.
+Stage 7's report: the viewer's `copies` (`crates/nvs-cli/src/debug/api.rs` `CopySite`), the lens
+(`crates/nvs-lsp/src/server.rs` `copy_lenses`), the count (`ownership.rs` `count_copies`, index
+schema 8), and the warnings `W1032` and `W1033` (`nvs_ir::copies::warnings`).
 
 ### Next
 
-- **Stage 8, the replacement fuzzer.** Write `crates/nvs-fuzz-checks/src/in_place.rs` beside the
-  crate's other generators (`lib.rs` lists the modules; `compile.rs` is the nearest shape, since it
-  compiles and runs a program). It draws small programs over the matrix's axes (the value slugs and
-  contexts of standing decision "The case brief"), with random sharing (`$b = $a`), errors and
-  catches, runs each with and without the pass (`nvs_ir::lower::without_in_place`), and compares
-  the output. `replacement_programs_print_the_same_without_in_place` runs a fixed seed set; add a
-  fuzz target for the open-ended search as the crate's other targets are added.
-- **Stage 8, Miri.** Add the in-place tests of `crates/nvs-runtime/src/array.rs` and `string.rs`
-  to the `miri` job's filter in `.github/workflows/ci.yml` (around line 1532). After the edit, run
-  `bun test tools/nv/test/ci.test.ts tools/nv/test/supply-chain.test.ts` by name, as the playbook
-  says for a workflow edit.
-- **Stage 8, the attack and the differential.** Write
-  `tests/conformance/in-place/a-value-from-the-configuration-is-cut-only-in-its-own-copy.nvst`
-  (an array and a string from `Core\Config`, cut with an owning member, then read again; both print
-  the original). Then run `bun nv suite tests/conformance/ --no-in-place-too` once.
-- Not run yet, because a stage checks with a build alone: the `fn-`, `concat`, `interpolation` and
-  `spread` conformance cases under `tests/conformance/in-place/`. They are the first real runs of a
-  lent body, a lent local, an owned spread and a moved `Concat`. Run them early in the gate, under a
-  debug binary. Read a crash in a `spread` case as a bug in `nvs_array_spread_owned` or in the move's
-  error-edge releases, and one in a `concat` case as a bug in the `Concat` arm of `candidates`.
+- **Stage 9, the gate.** Run `looper verify` in the background, fix every failure it names in one
+  pass (the expected reds are below), and run it once more. Then the goal-end gates of AGENTS.md
+  § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes in-place-everywhere` and
+  `bun nv ci --check`. The conformance tree, with and without the pass, is already green, so a red
+  conformance case at the gate comes from a later edit.
 - `crates/nvs-stdlib/src/arr.rs` changed, so every `Core\Arr` perf record is stale. Record them at
   the goal's end as the playbook's perf bullet says, after the last edit to that file.
 
