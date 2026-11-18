@@ -343,13 +343,41 @@ fn reject_unanswerable_target(
         let base = env.interner.describe(inner);
         env.diags.report(
             Diagnostic::error(
-                code::E_TYPE_TEST_AGAINST_A_CLASS_REFERENCE,
+                code::E_TYPE_TEST_AGAINST_A_CONVERSION_TYPE,
                 format!("`is` cannot test for `class<{base}>`"),
             )
             .with_primary(span, "tested here")
             .with_help(format!(
                 "write `$c as ?class<{base}>`. The result is `null` when the class is not \
                  `{base}` or a class that extends it"
+            )),
+        );
+        return true;
+    }
+    // A key, a path and a string with holes are a plain string at run time,
+    // so `is` has no row for them either. `as ?` checks the text instead.
+    let checked_text = env
+        .interner
+        .union_members(tested)
+        .into_iter()
+        .find(|&m| {
+            matches!(
+                env.interner.get(m),
+                Ty::PropertyKey(_) | Ty::PropertyPath(_) | Ty::StringHoles { .. }
+            )
+        });
+    if let Some(member) = checked_text {
+        let described = env.interner.describe(member);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_TEST_AGAINST_A_CONVERSION_TYPE,
+                format!("`is` cannot test for `{described}`"),
+            )
+            .with_primary(span, "tested here")
+            .with_help(format!(
+                "a `{described}` is a string while the program runs. Test for the other type \
+                 of the union instead, such as `$x is SomeClass`, or check a string with \
+                 `$s as ?{described}`, which gives `null` when the string is wrong"
             )),
         );
         return true;

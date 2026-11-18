@@ -1,0 +1,38 @@
+--TEST--
+`$x is property<T>`, `is propertyPath<T>` and `is string<K>` are `E0867`, alone or in a union, because each is a plain string at run time, and the help names the other type of the union and `as ?` (`rule:types/type-test`)
+--FILE--
+<?nvs
+final class Filter {}
+
+class Customer {
+    public string $name = "Ada";
+
+    public static function key(property<Customer>|Filter $x): bool {
+        return $x is property<Customer>;
+    }
+
+    public static function path(propertyPath<Customer>|Filter $x): bool {
+        return $x is propertyPath<Customer>|null;
+    }
+
+    public static function holes(string<property<Customer>>|Filter $x): bool {
+        return $x is string<property<Customer>>;
+    }
+}
+--EXPECTF-ERROR--
+error[E0867]: `is` cannot test for `property<Customer>`
+%A
+8 |         return $x is property<Customer>;
+%A
+  = help: a `property<Customer>` is a string while the program runs. Test for the other type of the union instead, such as `$x is SomeClass`, or check a string with `$s as ?property<Customer>`, which gives `null` when the string is wrong
+%A
+error[E0867]: `is` cannot test for `propertyPath<Customer>`
+%A
+12 |         return $x is propertyPath<Customer>|null;
+%A
+error[E0867]: `is` cannot test for `string<property<Customer>>`
+%A
+16 |         return $x is string<property<Customer>>;
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

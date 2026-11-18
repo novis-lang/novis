@@ -935,15 +935,18 @@ codes! {
          property cannot be declared again. Use the parent's type, or give the property another \
          name.",
     );
-    /// `$c is class<Dog>` — a class reference type written where `is` takes
-    /// a type (`rule:types/type-test`'s refusals). A class reference carries
-    /// no tag of its own that says which `T` it was declared with, so the
-    /// test has no run-time row. `$c as ?class<Dog>` is the conversion that
-    /// checks the class it names.
-    pub const E_TYPE_TEST_AGAINST_A_CLASS_REFERENCE: Code = Code::new("E0867").card(
-        "`is` cannot test for a class reference type such as `class<Dog>`. To check which class \
-         a class reference names, write `$c as ?class<Dog>`. The result is `null` when the class \
-         is not `Dog` or a class that extends it.",
+    /// `$c is class<Dog>`, `$x is property<User>`, `$x is propertyPath<User>`
+    /// or `$x is string<K>` — a type only a conversion checks, written where
+    /// `is` takes a type (`rule:types/type-test`'s refusals). A class
+    /// reference carries no tag that says which `T` it was declared with, and
+    /// the other three are a plain string at run time, so none of them has a
+    /// run-time row. `as ?` is the conversion that checks each.
+    pub const E_TYPE_TEST_AGAINST_A_CONVERSION_TYPE: Code = Code::new("E0867").card(
+        "`is` cannot test for `class<T>`, `property<T>`, `propertyPath<T>` or `string<K>`. A \
+         value of these types has nothing at run time that says which type it is. To check a \
+         class reference, write `$c as ?class<Dog>`. To check a string, write \
+         `$s as ?property<User>`. The result is `null` when the check fails. In a union, test \
+         the other type instead, such as `$x is Filter`.",
     );
     /// A `match` arm whose body is a call that returns `void`
     /// (`rule:expressions/a-match-has-at-least-one-arm`). A `match` is an expression,
