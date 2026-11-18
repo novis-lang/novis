@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, tools/nv/cmd/suite.ts, tests/conformance/core/arr-append-derives-the-next-free-key-from-the-entries-it-copies.nvst]
   - id: 2
     title: a Core member owns its subject whenever its signature says so, and every such member does
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/abi.rs, crates/nvs-stdlib/src/lib.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 3
     title: one ownership pass moves every value at its last use, on every path
@@ -368,7 +368,20 @@ releases the subject. That costs nothing, and the next member to keep something 
 The ABI is declared once, by the helper's macro form, and each module's symbol table returns it
 (`crates/nvs-stdlib/src/arr.rs:2270` `address`). The lowering reads it there, so a wrong row can only
 miss a move, never free twice. `every_member_owns_exactly_what_its_signature_says` reads every registry
-row and fails naming a member whose helper disagrees with its signature.
+row and fails naming a member whose helper disagrees with its signature. A nullable first parameter
+does not own: an owning entry takes a subject of its declared kind, and `null` is none of the three.
+
+**Two entries per owning member (my call, 2026-11-18).** The owning form emits the member's own
+symbol, which borrows as every helper does today, and `<symbol>_owned`, which takes the subject's
+reference (`crates/nvs-runtime/src/owned.rs`). The borrowed entry hands `apply` a handle of its own,
+so its count is at least 2 and nothing changes in place. Each module's `address` returns an
+`nvs_runtime::Entry` with both, and `nvs_stdlib::owning_entry` gives the lowering the owning symbol and
+the subject's slot (1 for an instance member). Stage 3's pass calls the owning symbol where it moves
+or lends, and keeps the borrowed one with no retain everywhere else. This replaces "the lowering
+retains, the pass removes the retain": no existing caller changes in stage 2, a call the pass does not
+move costs nothing extra, and a symbol the table does not name can only be called borrowed. **What it
+spends:** each owning member is compiled twice, and the borrowed entry takes one retain and one
+release per call for `apply`'s handle.
 
 **Members that keep part of their subject write only what changes (my call).** `arrays-in-place` does
 every `Core\Arr` member, and `strings-in-place` every `Core\Str` and `Core\Bytes` member. This goal
@@ -470,13 +483,13 @@ disjoint and they run side by side. The session runs the test once all batches e
 
 ### 2. a Core member owns its subject whenever its signature says so, and every such member does
 
-- [ ] `crates/nvs-runtime/src/abi.rs:1096`: the `check` and `apply` form, generic over `NvsArray` and
+- [x] `crates/nvs-runtime/src/abi.rs:1096`: the `check` and `apply` form, generic over `NvsArray` and
   `NvsStr`, emitting its ABI. Its doc comment states the protocol.
-- [ ] Every module's `address` returns the ABI beside the address (`crates/nvs-stdlib/src/lib.rs:18`).
-- [ ] Every member the signature rule names is moved to the owning form. Its `check` is today's body
+- [x] Every module's `address` returns the ABI beside the address (`crates/nvs-stdlib/src/lib.rs:18`).
+- [x] Every member the signature rule names is moved to the owning form. Its `check` is today's body
   over the borrowed subject, and its `apply` builds and releases. This stage changes no member's
   algorithm. Writing subagents take one stdlib module each, and the modules are disjoint files.
-- [ ] `crates/nvs-stdlib/tests/in_place.rs:1`: the two tests the `owning-signatures` check names. Run
+- [x] `crates/nvs-stdlib/tests/in_place.rs:1`: the two tests the `owning-signatures` check names. Run
   once.
 
 ### 3. one ownership pass moves every value at its last use, on every path
@@ -487,7 +500,9 @@ disjoint and they run side by side. The session runs the test once all batches e
   (`crates/nvs-ir/src/lower/mod.rs:2407`) are deleted, with their call sites at `stmt.rs:189`, `:1541`
   and `crates/nvs-ir/src/lower/call.rs:248`. The lowering emits plain retains. `crates/nvs-ir/src/lib.rs:139`
   becomes the pass's decision bullet.
-- [ ] Owning `Core` parameters are `ArgOwnership::Transferred` at `call.rs:187`, read from the ABI.
+- [ ] A `Core` call whose subject the pass moves calls `nvs_stdlib::owning_entry`'s symbol with the
+  subject `ArgOwnership::Transferred` (`call.rs:187`), only where the call's own ABI slot of the
+  first parameter equals the entry's `slot`. Every other call keeps the borrowed symbol and no retain.
 - [ ] A binding that is never read again is released right after its last use.
 - [ ] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
   dropped for a by-value loop whose body writes only the entry it is on, under the conditions in
@@ -574,43 +589,39 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person. Their calls: fix the cause, nothing for a
-developer to remember, and **every** replacement in place, handled by the compiler and tested. They
-accepted every decision below, and asked that a Novis callee get the in-place path whenever the
-compiler can prove it safe, which is stage 5. Every other choice in § *Standing decisions* is the authoring session's call under the priority ordering,
-and stands until the person picks another. Nothing is built yet.
+The person's calls: fix the cause, nothing for a developer to remember, and every replacement in
+place, handled by the compiler and tested. § *Standing decisions* is the authoring sessions' calls.
 
-A review the person asked for on 2026-11-17 added four forms: a literal that spreads its own target,
-the carry of a `Core\Arr::reduce` callback, a by-value loop that writes only the entry it is on, and a
-generator's local after a resume. The person agreed to add the first three; the fourth was measured
-after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
+Stage 1 is done: the rule, the switch and 684 matrix cases under `tests/conformance/in-place/`, each
+green both ways. The sweep's two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last
+named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
 
-Stage 1 has its rule (`f2a676192e`), the switch (`bdb63ad386`) and the matrix test (`157a84b101`,
-684 cells). All 684 cases exist under `tests/conformance/in-place/`, the last 170
-(`property-element-*`, `property-chain-*`) written on 2026-11-18. `every_replacement_form_has_a_case`
-is green, and stage 1 is done. The matrix no longer owes
-`static-property-interpolation-*`, because a string hole opens with `{$` and cannot hold
-`Store::$text`. Each case is green both ways, and none printed differently. A callee that reads or writes
-the property sees the old value in it, because the store happens when the call returns. The sweep's
-two reds are stale, checked again on 2026-11-18: `env-secret-proofs` was last named by
-`route-parameters`' retire commit, and nightly run 44073672172's head `2934ebe1ae` lacks `0fe2fdef25`.
-An `inout` callee that throws writes nothing back, so `inout-*-try-*` print the old value.
+Stage 2 is done (`729cb594bf`, `e0281341e9`). `nvs_helper!`'s owning form (`crates/nvs-runtime/src/owned.rs`
+states the protocol) emits two entries per member, as § *Standing decisions* now records. Every
+module's `address` returns an `nvs_runtime::Entry`. 117 members are in the form; each `apply` returns
+`check`'s result and drops the subject. `Core\Path::thisDir` is not in it, because its first parameter
+is `?string`. Both `owning-signatures` tests are green. `Core\Secret::reveal` and `Core\Taint::assertTrusted`
+retain and return their argument, then `apply` releases the subject, which balances.
 
 ### Next
 
-Stage 2, its first two items, which one session does before any subagent starts:
+Stage 3, its first three items, in one session: they share `crates/nvs-ir/src/lower/` and the new
+pass.
 
-- `crates/nvs-runtime/src/abi.rs:1096` `nvs_helper!`: an owning form with `check` over the borrowed
-  subject and `apply` over the owned `NvsArray` or `NvsStr`, emitting its ABI. Its doc comment states
-  the owned-subject protocol in § *Standing decisions*.
-- `crates/nvs-stdlib/src/lib.rs:18` and each module's `address` (`crates/nvs-stdlib/src/arr.rs:2270`)
-  return the ABI beside the address.
+- `crates/nvs-ir/src/ownership.rs` (new): liveness over the SSA form, with the error edges and a
+  generator's resume.
+- `crates/nvs-ir/src/lower/stmt.rs:1446` `last_use_move` and its call sites go. The lowering emits
+  plain retains.
+- `crates/nvs-ir/src/lower/call.rs:187`: a moved `Core` subject calls `nvs_stdlib::owning_entry`'s
+  symbol (`crates/nvs-stdlib/src/lib.rs` `owning_entry`) only where the call's ABI slot of the first
+  parameter equals the entry's `slot`. A prepared argument shifts it: `Core\IO::read` and
+  `Core\Config::get` take theirs at 1, `Core\Time\DateTime::format` at 2. `nvs-ir` must reach that
+  table without a dependency cycle; check `crates/nvs-ir/Cargo.toml` before choosing how. The codegen
+  resolves the `_owned` symbol from `nvs_stdlib::symbols()`, which already lists it.
 
-Then the third item goes to writing subagents, one stdlib module each, which are disjoint files. Each
-moves the members the signature rule names to the owning form and changes no algorithm. None of them
-builds; the session builds once they all end. The fourth item's two tests go in
-`crates/nvs-stdlib/tests/in_place.rs` and run once by name. No test is expected to go red: the 684
-matrix cases pass both ways today, and stage 2 changes no lowering.
+Then the loop's own reference and the generator's `reload_field`, and the stage's nine tests, run once.
+No test is expected to go red from stage 2: every existing call still uses the borrowed symbol. The
+gate will run the whole suite over stage 2's 117 conversions for the first time.
 
 ### Backlog
 
