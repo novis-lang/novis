@@ -1,0 +1,22 @@
+--TEST--
+An array's array element replaced in a loop by a spread of itself grows once per pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $rows = [];
+$rows["a"] = [1, 2];
+$rows["b"] = [3, 4];
+// Each pass adds 9 to the end, so three passes give `1,2,9,9,9`.
+for (int $i = 0; $i < 3; $i++) {
+    $rows["a"] = [...$rows["a"], 9];
+}
+echo Lib::show($rows["a"]), "\n";
+echo Lib::show($rows["b"]), "\n";
+--EXPECT--
+1,2,9,9,9
+3,4

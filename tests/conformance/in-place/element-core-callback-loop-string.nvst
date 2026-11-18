@@ -1,0 +1,20 @@
+--TEST--
+A string array element replaced by a `Core` function with a callback in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "a";
+$words["b"] = "cart";
+string $before = $words["a"];
+// Each pass doubles every `a`, so three passes leave eight of them.
+for (int $i = 0; $i < 3; $i++) {
+    $words["a"] = Core\Regex::replaceWith($words["a"], "a", fn(Core\Regex\Match $m): string => "aa");
+}
+echo $words["a"], "\n";
+echo $before, "\n";
+// The other element is not changed, so `$words["b"]` is still `cart`.
+echo $words["b"], "\n";
+--EXPECT--
+aaaaaaaa
+a
+cart

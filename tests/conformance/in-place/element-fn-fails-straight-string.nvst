@@ -1,0 +1,25 @@
+--TEST--
+A string element replaced by a Novis function that can throw, called so it does not, has its new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+array<string> $words = [];
+$words["a"] = "ab";
+string $before = $words["a"];
+// `c` is not `!`, so the call returns `abc`.
+$words["a"] = Lib::add($words["a"], "c");
+echo $words["a"], "\n";
+echo $before, "\n";
+--EXPECT--
+abc
+ab

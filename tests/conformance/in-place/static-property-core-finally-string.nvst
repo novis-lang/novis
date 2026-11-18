@@ -1,0 +1,21 @@
+--TEST--
+A static string property replaced by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "shop";
+}
+
+string $before = Store::$text;
+try {
+    // `Core\Str::upper` changes every letter to upper case, so `Store::$text` is `SHOP`.
+    Store::$text = Core\Str::upper(Store::$text);
+} finally {
+    echo "finally: ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+echo $before, "\n";
+--EXPECT--
+finally: SHOP
+SHOP
+shop

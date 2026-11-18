@@ -1,0 +1,29 @@
+--TEST--
+A static string property replaced inside a `try` by a Novis function that also writes that property has the returned value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Sets the property to `z` and prints both strings. Then it adds `$x` to `$text` and returns it.
+    public static function grow(string $text, string $x): string {
+        Store::$text = "z";
+        echo "callee: ", $text, " and ", Store::$text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+try {
+    // The statement stores the returned `abc` over the `z` the call wrote.
+    Store::$text = Lib::grow(Store::$text, "c");
+} finally {
+    echo "finally: ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+--EXPECT--
+callee: ab and z
+finally: abc
+abc

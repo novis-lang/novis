@@ -1,0 +1,22 @@
+--TEST--
+A static array property replaced by `Core\Arr::map` has its new value, and a copy made before has its old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+array<int> $before = Store::$items;
+// `Core\Arr::map` doubles every value, so `Store::$items` is `2,4`.
+Store::$items = Core\Arr::map(Store::$items, fn(int $v): int => $v * 2);
+echo Store::show(Store::$items), "\n";
+// The copy made before the call still has `1,2`.
+echo Store::show($before), "\n";
+--EXPECT--
+2,4
+1,2

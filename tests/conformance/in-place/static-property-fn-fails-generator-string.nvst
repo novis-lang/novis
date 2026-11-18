@@ -1,0 +1,34 @@
+--TEST--
+A string static property replaced by a Novis function that can throw between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+
+    public static function steps(): Iterator<string> {
+        yield Store::$text;
+        // `c` is not `!`, so this call returns `abc`.
+        Store::$text = Lib::add(Store::$text, "c");
+        yield Store::$text;
+    }
+}
+
+// The first value is still `ab` after the generator changed `Store::$text`.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abc

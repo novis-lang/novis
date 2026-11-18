@@ -1,0 +1,17 @@
+--TEST--
+An array's string element replaced in a loop by a concatenation of itself grows once per pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "ab";
+$words["b"] = "cd";
+// Each pass adds `x`, so three passes give `abxxx`.
+for (int $i = 0; $i < 3; $i++) {
+    $words["a"] = $words["a"] . "x";
+}
+echo $words["a"], "\n";
+// The other element does not change, so it is still `cd`.
+echo $words["b"], "\n";
+--EXPECT--
+abxxx
+cd

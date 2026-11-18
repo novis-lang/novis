@@ -1,0 +1,32 @@
+--TEST--
+An array static property replaced by a Novis function inside a `try` has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+try {
+    Store::$items = Lib::add(Store::$items, 3);
+    // The error comes after the call, so `Store::$items` is already `1,2,3`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show(Store::$items), "\n";
+}
+echo Lib::show(Store::$items), "\n";
+--EXPECT--
+stop: 1,2,3
+1,2,3

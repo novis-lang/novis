@@ -1,0 +1,27 @@
+--TEST--
+A string element replaced in a loop by a Novis function that can throw, called so it does not, has every piece the loop added — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+array<string> $words = [];
+$words["a"] = "ab";
+string $before = $words["a"];
+for (int $i = 0; $i < 3; $i++) {
+    $words["a"] = Lib::add($words["a"], "c");
+}
+echo $words["a"], "\n";
+// The copy made before the loop still has `ab`.
+echo $before, "\n";
+--EXPECT--
+abccc
+ab

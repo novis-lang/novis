@@ -1,0 +1,19 @@
+--TEST--
+A static string property replaced by a `Core` function with a callback in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+string $before = Store::$text;
+// Each pass puts the `b` in one more pair of angle brackets.
+for (int $i = 0; $i < 3; $i++) {
+    Store::$text = Core\Regex::replaceWith(Store::$text, "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+}
+echo Store::$text, "\n";
+// The copy made before the loop still has `ab`.
+echo $before, "\n";
+--EXPECT--
+a<<<b>>>
+ab

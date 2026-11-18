@@ -1,0 +1,23 @@
+--TEST--
+A generator's array element replaced by a concatenation of itself between two `yield`s yields its old string and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function steps(): Iterator<string> {
+        array<string> $words = [];
+        $words["a"] = "ab";
+        yield $words["a"];
+        // The `.` operator adds `x` to the end, so the element is `abx`.
+        $words["a"] = $words["a"] . "x";
+        yield $words["a"];
+    }
+}
+
+// The first value is still `ab` after the element changed.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abx

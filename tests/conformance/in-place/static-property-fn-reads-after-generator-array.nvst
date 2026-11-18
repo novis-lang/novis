@@ -1,0 +1,37 @@
+--TEST--
+A Novis function between two `yield`s that reads a static array property after it changes its parameter still sees the old value, and the value yielded before it stays unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    // Appends `$x` to `$items`, then prints `Store::$items` and returns `$items`.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        echo "saw: ", Lib::show(Store::$items), "\n";
+        return $items;
+    }
+
+    public static function steps(): Iterator<array<int>> {
+        Store::$items = [1, 2];
+        yield Store::$items;
+        // The property changes only when the call returns, so the call prints `1,2`.
+        Store::$items = Lib::add(Store::$items, 3);
+        yield Store::$items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+saw: 1,2
+1,2 then 1,2,3

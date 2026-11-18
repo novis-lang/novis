@@ -1,0 +1,19 @@
+--TEST--
+A static string property replaced by an owning `Core` call in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "shop";
+}
+
+string $before = Store::$text;
+// Each pass removes the first character with `Core\Str::slice`.
+for (int $i = 0; $i < 3; $i++) {
+    Store::$text = Core\Str::slice(Store::$text, 1);
+}
+// Three passes remove `s`, `h` and `o`, so the text is `p`.
+echo Store::$text, "\n";
+echo $before, "\n";
+--EXPECT--
+p
+shop

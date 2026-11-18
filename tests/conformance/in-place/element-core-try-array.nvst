@@ -1,0 +1,23 @@
+--TEST--
+An array element replaced by an owning `Core` call inside a `try` has its new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $rows = [];
+$rows["a"] = [1, 2];
+try {
+    // `Core\Arr::append` adds 3, so `$rows["a"]` is `1,2,3` before the error.
+    $rows["a"] = Core\Arr::append($rows["a"], 3);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show($rows["a"]), "\n";
+}
+echo Lib::show($rows["a"]), "\n";
+--EXPECT--
+stop: 1,2,3
+1,2,3

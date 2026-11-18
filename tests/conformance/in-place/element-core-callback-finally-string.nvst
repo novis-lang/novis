@@ -1,0 +1,17 @@
+--TEST--
+A string array element replaced by a `Core` function with a callback inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "ab";
+$words["b"] = "cart";
+try {
+    // The callback puts each `b` in angle brackets, so `$words["a"]` is `a<b>`.
+    $words["a"] = Core\Regex::replaceWith($words["a"], "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+} finally {
+    echo "finally: ", $words["a"], "\n";
+}
+echo $words["a"], ",", $words["b"], "\n";
+--EXPECT--
+finally: a<b>
+a<b>,cart

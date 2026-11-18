@@ -1,0 +1,23 @@
+--TEST--
+An array element replaced by a `Core` function with a callback inside a `try` has its new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $rows = [];
+$rows["a"] = [1, 2, 3, 4];
+try {
+    // `Core\Arr::filter` keeps the even values, so `$rows["a"]` is `2,4` before the error.
+    $rows["a"] = Core\Arr::filter($rows["a"], fn(int $v): bool => $v % 2 == 0);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show($rows["a"]), "\n";
+}
+echo Lib::show($rows["a"]), "\n";
+--EXPECT--
+stop: 2,4
+2,4

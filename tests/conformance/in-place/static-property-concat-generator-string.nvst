@@ -1,0 +1,25 @@
+--TEST--
+A static string property replaced in a generator by a concatenation of itself between two `yield`s yields its old string and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    public static function steps(): Iterator<string> {
+        yield Store::$text;
+        // The `.` operator adds `x` to the end, so the property is `abx`.
+        Store::$text = Store::$text . "x";
+        yield Store::$text;
+    }
+}
+
+// The first value is still `ab` after the property changed.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abx

@@ -1,0 +1,22 @@
+--TEST--
+A static string property replaced by an owning `Core` call before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "shop";
+}
+
+string $before = Store::$text;
+try {
+    // `Core\Str::slice` removes the first character, so `Store::$text` is `hop`.
+    Store::$text = Core\Str::slice(Store::$text, 1);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+echo $before, "\n";
+--EXPECT--
+stop: hop
+hop
+shop

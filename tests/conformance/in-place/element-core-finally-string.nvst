@@ -1,0 +1,17 @@
+--TEST--
+A string array element replaced by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "shop";
+$words["b"] = "cart";
+try {
+    // `Core\Str::slice` drops the first character, so `$words["a"]` is `hop`.
+    $words["a"] = Core\Str::slice($words["a"], 1);
+} finally {
+    echo "finally: ", $words["a"], "\n";
+}
+echo $words["a"], ",", $words["b"], "\n";
+--EXPECT--
+finally: hop
+hop,cart

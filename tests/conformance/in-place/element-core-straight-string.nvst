@@ -1,0 +1,19 @@
+--TEST--
+A string array element replaced by an owning `Core` call has the new value, and a copy read before it keeps the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "shop";
+$words["b"] = "cart";
+string $before = $words["a"];
+// `Core\Str::upper` changes each letter to upper case, so `$words["a"]` is `SHOP`.
+$words["a"] = Core\Str::upper($words["a"]);
+echo $words["a"], "\n";
+// `$before` was read before the change, so it is still `shop`.
+echo $before, "\n";
+// The other element is not changed, so `$words["b"]` is still `cart`.
+echo $words["b"], "\n";
+--EXPECT--
+SHOP
+shop
+cart

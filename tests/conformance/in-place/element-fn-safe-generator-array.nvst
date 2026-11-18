@@ -1,0 +1,32 @@
+--TEST--
+An array element of a generator's local array replaced by a Novis function between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+
+    public static function steps(): Iterator<array<int>> {
+        array<array<int>> $rows = [];
+        $rows["a"] = [1, 2];
+        yield $rows["a"];
+        $rows["a"] = Lib::add($rows["a"], 3);
+        yield $rows["a"];
+    }
+}
+
+// The first value is still `1,2` after the generator changed `$rows["a"]`.
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+1,2 then 1,2,3

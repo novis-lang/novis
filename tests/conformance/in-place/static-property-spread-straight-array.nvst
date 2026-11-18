@@ -1,0 +1,23 @@
+--TEST--
+A static array property replaced by a spread of itself has its new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+array<int> $before = Store::$items;
+// The new array has the values of the property and then 9, so it is `1,2,9`.
+Store::$items = [...Store::$items, 9];
+echo Lib::show(Store::$items), "\n";
+echo Lib::show($before), "\n";
+--EXPECT--
+1,2,9
+1,2

@@ -1,0 +1,27 @@
+--TEST--
+A static array property replaced by an owning `Core` call before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2, 3];
+array<int> $before = Store::$items;
+try {
+    // `Core\Arr::slice` removes the first value, so `Store::$items` is `2,3`.
+    Store::$items = Core\Arr::slice(Store::$items, 1);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Store::show(Store::$items), "\n";
+}
+echo Store::show(Store::$items), "\n";
+echo Store::show($before), "\n";
+--EXPECT--
+stop: 2,3
+2,3
+1,2,3

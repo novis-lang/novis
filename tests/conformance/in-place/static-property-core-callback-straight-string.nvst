@@ -1,0 +1,17 @@
+--TEST--
+A static string property replaced by a `Core` function with a callback has its new value, and a copy made before has its old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "shop";
+}
+
+string $before = Store::$text;
+// `Core\Regex::replaceWith` calls the function for each `o`, so `Store::$text` is `sh0p`.
+Store::$text = Core\Regex::replaceWith(Store::$text, "o", fn(Core\Regex\Match $m): string => "0");
+echo Store::$text, "\n";
+// The copy made before the call still has `shop`.
+echo $before, "\n";
+--EXPECT--
+sh0p
+shop

@@ -1,0 +1,26 @@
+--TEST--
+A string static property replaced by a Novis function in a loop has every piece the loop added — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+string $before = Store::$text;
+for (int $i = 0; $i < 3; $i++) {
+    Store::$text = Lib::add(Store::$text, "c");
+}
+echo Store::$text, "\n";
+// The copy made before the loop still has `ab`.
+echo $before, "\n";
+--EXPECT--
+abccc
+ab

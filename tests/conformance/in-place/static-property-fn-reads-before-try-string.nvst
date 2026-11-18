@@ -1,0 +1,29 @@
+--TEST--
+A Novis function inside a `try` that reads a static string property before it changes its parameter sees the old value, and the `catch` sees the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Prints `Store::$text`, then adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        echo "saw: ", Store::$text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+try {
+    Store::$text = Lib::add(Store::$text, "c");
+    // The error comes after the change, so the `catch` prints `abc`.
+    throw new LogicError("after");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+--EXPECT--
+saw: ab
+after: abc
+abc

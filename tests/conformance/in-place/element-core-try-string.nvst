@@ -1,0 +1,18 @@
+--TEST--
+A string array element replaced by an owning `Core` call inside a `try` has its new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "shop";
+$words["b"] = "cart";
+try {
+    // `Core\Str::upper` makes `$words["a"]` `SHOP` before the error.
+    $words["a"] = Core\Str::upper($words["a"]);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $words["a"], "\n";
+}
+echo $words["a"], ",", $words["b"], "\n";
+--EXPECT--
+stop: SHOP
+SHOP,cart

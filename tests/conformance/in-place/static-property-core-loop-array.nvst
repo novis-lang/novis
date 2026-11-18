@@ -1,0 +1,24 @@
+--TEST--
+A static array property replaced by an owning `Core` call in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+array<int> $before = Store::$items;
+// Each pass adds `$x` to the end with `Core\Arr::append`.
+foreach ([3, 4, 5] as var $x) {
+    Store::$items = Core\Arr::append(Store::$items, $x);
+}
+echo Store::show(Store::$items), "\n";
+// The copy made before the loop still has `1,2`.
+echo Store::show($before), "\n";
+--EXPECT--
+1,2,3,4,5
+1,2

@@ -1,0 +1,29 @@
+--TEST--
+A static string property replaced by a `Core` function with a callback between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "shop";
+
+    public static function steps(): Iterator<string> {
+        yield Store::$text;
+        // `Core\Regex::replaceWith` calls the function for each `o`, so `Store::$text` is `sh0p`.
+        Store::$text = Core\Regex::replaceWith(Store::$text, "o", fn(Core\Regex\Match $m): string => "0");
+        yield Store::$text;
+    }
+}
+
+string $first = "";
+bool $got = false;
+foreach (Store::steps() as string $v) {
+    if (!$got) {
+        $first = $v;
+        $got = true;
+    }
+}
+// The first value is still `shop` after the generator changed the property.
+echo $first, "\n";
+echo Store::$text, "\n";
+--EXPECT--
+shop
+sh0p

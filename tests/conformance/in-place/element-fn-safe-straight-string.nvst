@@ -1,0 +1,22 @@
+--TEST--
+A string element replaced by a Novis function has its new value, and a copy made before has the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+array<string> $words = [];
+$words["a"] = "ab";
+string $before = $words["a"];
+$words["a"] = Lib::add($words["a"], "c");
+echo $words["a"], "\n";
+// The copy made before the call still has `ab`.
+echo $before, "\n";
+--EXPECT--
+abc
+ab

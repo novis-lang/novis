@@ -1,0 +1,22 @@
+--TEST--
+An array element replaced by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $rows = [];
+$rows["a"] = [1, 2, 3];
+try {
+    // `Core\Arr::slice` drops the first value, so `$rows["a"]` is `2,3`.
+    $rows["a"] = Core\Arr::slice($rows["a"], 1);
+} finally {
+    echo "finally: ", Lib::show($rows["a"]), "\n";
+}
+echo Lib::show($rows["a"]), "\n";
+--EXPECT--
+finally: 2,3
+2,3

@@ -1,0 +1,34 @@
+--TEST--
+A static array property replaced inside a `try` by a Novis function that also writes that property has the returned value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    // Sets the property to `7` and prints both arrays. Then it appends `$x` to `$items` and returns it.
+    public static function grow(array<int> $items, int $x): array<int> {
+        Store::$items = [7];
+        echo "callee: ", Lib::show($items), " and ", Lib::show(Store::$items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+try {
+    // The statement stores the returned `1,2,3` over the `7` the call wrote.
+    Store::$items = Lib::grow(Store::$items, 3);
+} finally {
+    echo "finally: ", Lib::show(Store::$items), "\n";
+}
+echo Lib::show(Store::$items), "\n";
+--EXPECT--
+callee: 1,2 and 7
+finally: 1,2,3
+1,2,3

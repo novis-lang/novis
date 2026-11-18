@@ -1,0 +1,16 @@
+--TEST--
+An array's string element replaced inside a `try` by a concatenation of itself has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "ab";
+try {
+    // The `.` operator adds `x` to the end, so the element is `abx`.
+    $words["a"] = $words["a"] . "x";
+} finally {
+    echo "finally: ", $words["a"], "\n";
+}
+echo $words["a"], "\n";
+--EXPECT--
+finally: abx
+abx

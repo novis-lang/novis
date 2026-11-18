@@ -1,0 +1,27 @@
+--TEST--
+A generator's array element replaced by a spread of itself between two `yield`s yields its old array and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        array<array<int>> $rows = [];
+        $rows["a"] = [1, 2];
+        yield $rows["a"];
+        // The new array has the values of the element and then 9, so it is `1,2,9`.
+        $rows["a"] = [...$rows["a"], 9];
+        yield $rows["a"];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+// The first value is still `1,2` after the element changed.
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+1,2 then 1,2,9

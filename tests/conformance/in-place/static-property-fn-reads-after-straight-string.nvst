@@ -1,0 +1,23 @@
+--TEST--
+A Novis function that reads a static string property after it changes its parameter still sees the old value, and the property then has the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then prints `Store::$text` and returns `$text`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", Store::$text, "\n";
+        return $text;
+    }
+}
+
+// The property changes only when the call returns, so the call prints `ab`.
+Store::$text = Lib::add(Store::$text, "c");
+echo Store::$text, "\n";
+--EXPECT--
+saw: ab
+abc

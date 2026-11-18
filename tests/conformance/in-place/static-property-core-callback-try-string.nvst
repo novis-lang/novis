@@ -1,0 +1,22 @@
+--TEST--
+A static string property replaced by a `Core` function with a callback before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "shop";
+}
+
+string $before = Store::$text;
+try {
+    // `Core\Regex::replaceWith` calls the function for each `o`, so `Store::$text` is `sh0p`.
+    Store::$text = Core\Regex::replaceWith(Store::$text, "o", fn(Core\Regex\Match $m): string => "0");
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+echo $before, "\n";
+--EXPECT--
+stop: sh0p
+sh0p
+shop

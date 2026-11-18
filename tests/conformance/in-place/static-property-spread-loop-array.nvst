@@ -1,0 +1,22 @@
+--TEST--
+A static array property replaced in a loop by a spread of itself grows once per pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+// Each pass adds 9 to the end, so three passes give `1,2,9,9,9`.
+for (int $i = 0; $i < 3; $i++) {
+    Store::$items = [...Store::$items, 9];
+}
+echo Lib::show(Store::$items), "\n";
+--EXPECT--
+1,2,9,9,9

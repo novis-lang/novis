@@ -1,0 +1,35 @@
+--TEST--
+An array static property replaced by a Novis function that throws after its change still has its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    // Appends `$x` to `$items`, then throws when `$x` is negative.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        if ($x < 0) {
+            throw new LogicError("negative");
+        }
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+try {
+    // This call throws after its append, so `Store::$items` keeps `1,2`.
+    Store::$items = Lib::add(Store::$items, -1);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show(Store::$items), "\n";
+}
+echo Lib::show(Store::$items), "\n";
+--EXPECT--
+negative: 1,2
+1,2

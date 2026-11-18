@@ -1,0 +1,30 @@
+--TEST--
+A generator's string array element replaced by a `Core` function with a callback between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    public static function steps(): Iterator<string> {
+        array<string> $words = [];
+        $words["a"] = "ab";
+        yield $words["a"];
+        // The callback puts each `b` in angle brackets, so `$words["a"]` is `a<b>`.
+        $words["a"] = Core\Regex::replaceWith($words["a"], "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+        yield $words["a"];
+    }
+}
+
+string $first = "";
+int $n = 0;
+foreach (Gen::steps() as string $v) {
+    if ($n == 0) {
+        $first = $v;
+    }
+    $n++;
+    echo $v, "\n";
+}
+// The first value is still `ab` after the generator changed the element.
+echo $first, "\n";
+--EXPECT--
+ab
+a<b>
+ab

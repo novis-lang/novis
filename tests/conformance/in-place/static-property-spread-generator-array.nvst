@@ -1,0 +1,30 @@
+--TEST--
+A static array property replaced in a generator by a spread of itself between two `yield`s yields its old array and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        Store::$items = [1, 2];
+        yield Store::$items;
+        // The new array has the values of the property and then 9, so it is `1,2,9`.
+        Store::$items = [...Store::$items, 9];
+        yield Store::$items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+// The first value is still `1,2` after the property changed.
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+1,2 then 1,2,9

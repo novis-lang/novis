@@ -1,0 +1,19 @@
+--TEST--
+A string array element replaced by a `Core` function with a callback has the new value, and a copy read before it keeps the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+array<string> $words = [];
+$words["a"] = "shop";
+$words["b"] = "cart";
+string $before = $words["a"];
+// `Core\Regex::replaceWith` calls the function for each `o`, so `$words["a"]` is `sh0p`.
+$words["a"] = Core\Regex::replaceWith($words["a"], "o", fn(Core\Regex\Match $m): string => "0");
+echo $words["a"], "\n";
+// `$before` was read before the change, so it is still `shop`.
+echo $before, "\n";
+// The other element is not changed, so `$words["b"]` is still `cart`.
+echo $words["b"], "\n";
+--EXPECT--
+sh0p
+shop
+cart

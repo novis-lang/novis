@@ -1,0 +1,21 @@
+--TEST--
+An array element replaced by an owning `Core` call has the new value, and a copy read before it keeps the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $rows = [];
+$rows["a"] = [1, 2];
+array<int> $before = $rows["a"];
+// `Core\Arr::append` adds 3 to the end, so `$rows["a"]` is `1,2,3`.
+$rows["a"] = Core\Arr::append($rows["a"], 3);
+echo Lib::show($rows["a"]), "\n";
+// `$before` was read before the change, so it is still `1,2`.
+echo Lib::show($before), "\n";
+--EXPECT--
+1,2,3
+1,2

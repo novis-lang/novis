@@ -1,0 +1,27 @@
+--TEST--
+A string static property replaced by a Novis function inside a `try` has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+try {
+    Store::$text = Lib::add(Store::$text, "c");
+    // The error comes after the call, so `Store::$text` is already `abc`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+--EXPECT--
+stop: abc
+abc

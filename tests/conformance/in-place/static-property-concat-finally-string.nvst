@@ -1,0 +1,18 @@
+--TEST--
+A static string property replaced inside a `try` by a concatenation of itself has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+try {
+    // The `.` operator adds `x` to the end, so the property is `abx`.
+    Store::$text = Store::$text . "x";
+} finally {
+    echo "finally: ", Store::$text, "\n";
+}
+echo Store::$text, "\n";
+--EXPECT--
+finally: abx
+abx

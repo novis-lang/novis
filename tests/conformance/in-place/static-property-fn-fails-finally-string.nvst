@@ -1,0 +1,30 @@
+--TEST--
+A string static property replaced inside a `try` by a Novis function that can throw, called so it does not, has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+string $before = Store::$text;
+try {
+    // `c` is not `!`, so the call returns `abc`.
+    Store::$text = Lib::add(Store::$text, "c");
+} finally {
+    echo "finally: ", Store::$text, "\n";
+}
+echo $before, "\n";
+--EXPECT--
+finally: abc
+ab

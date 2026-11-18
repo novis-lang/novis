@@ -5569,6 +5569,8 @@ const REPLACED_KINDS: Axis = &["array", "string"];
 ///   values that touch the slot need a target on an object or a class.
 /// - A generator takes no `inout` parameter
 ///   (`rule:statements/inout-is-the-by-reference-spelling`).
+/// - A hole in a string opens with `{$`, so an interpolation cannot open with
+///   a static property such as `{Store::$text}`.
 fn replacement_is_written(target: &str, value: &str, context: &str, kind: &str) -> bool {
     let kind_fits = match value {
         "concat" | "interpolation" => kind == "string",
@@ -5577,7 +5579,8 @@ fn replacement_is_written(target: &str, value: &str, context: &str, kind: &str) 
     };
     let reaches = !matches!(value, "fn-reads-before" | "fn-reads-after" | "fn-writes")
         || REACHABLE_TARGETS.contains(&target);
-    kind_fits && reaches && !(target == "inout" && context == "generator")
+    let interpolates = !(value == "interpolation" && target == "static-property");
+    kind_fits && reaches && interpolates && !(target == "inout" && context == "generator")
 }
 
 /// Every form of `target = value(target)` the language allows has a

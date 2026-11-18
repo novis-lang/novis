@@ -1,0 +1,16 @@
+--TEST--
+A static string property replaced by a concatenation of itself has its new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+string $before = Store::$text;
+// The `.` operator adds `x` to the end, so the property is `abx`.
+Store::$text = Store::$text . "x";
+echo Store::$text, "\n";
+echo $before, "\n";
+--EXPECT--
+abx
+ab

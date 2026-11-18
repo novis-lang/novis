@@ -1,0 +1,28 @@
+--TEST--
+A string element of a generator's local array replaced by a Novis function between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+
+    public static function steps(): Iterator<string> {
+        array<string> $words = [];
+        $words["a"] = "ab";
+        yield $words["a"];
+        $words["a"] = Lib::add($words["a"], "c");
+        yield $words["a"];
+    }
+}
+
+// The first value is still `ab` after the generator changed `$words["a"]`.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abc

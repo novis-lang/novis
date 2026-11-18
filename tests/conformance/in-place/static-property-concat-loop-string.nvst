@@ -1,0 +1,15 @@
+--TEST--
+A static string property replaced in a loop by a concatenation of itself grows once per pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+// Each pass adds `x`, so three passes give `abxxx`.
+for (int $i = 0; $i < 3; $i++) {
+    Store::$text = Store::$text . "x";
+}
+echo Store::$text, "\n";
+--EXPECT--
+abxxx

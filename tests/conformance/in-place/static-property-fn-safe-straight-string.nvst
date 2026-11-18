@@ -1,0 +1,24 @@
+--TEST--
+A string static property replaced by a Novis function has its new value, and a copy made before has the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+string $before = Store::$text;
+Store::$text = Lib::add(Store::$text, "c");
+echo Store::$text, "\n";
+// The copy made before the call still has `ab`.
+echo $before, "\n";
+--EXPECT--
+abc
+ab

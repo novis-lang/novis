@@ -1,0 +1,27 @@
+--TEST--
+A Novis function called in a loop that reads a static string property after it changes its parameter still sees the value from the previous pass each time — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then prints `Store::$text` and returns `$text`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", Store::$text, "\n";
+        return $text;
+    }
+}
+
+// Each call prints the property as it was before that call.
+foreach (["c", "d", "e"] as var $x) {
+    Store::$text = Lib::add(Store::$text, $x);
+}
+echo Store::$text, "\n";
+--EXPECT--
+saw: ab
+saw: abc
+saw: abcd
+abcde

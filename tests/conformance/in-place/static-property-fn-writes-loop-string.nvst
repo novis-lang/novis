@@ -1,0 +1,28 @@
+--TEST--
+A static string property replaced in a loop by a Novis function that also writes that property ends with the last returned value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static string $text = "ab";
+}
+
+final class Lib {
+    // Sets the property to `z` and prints both strings. Then it adds `$x` to `$text` and returns it.
+    public static function grow(string $text, string $x): string {
+        Store::$text = "z";
+        echo "callee: ", $text, " and ", Store::$text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+// Each pass adds `c`, so three passes give `abccc`.
+for (int $i = 0; $i < 3; $i++) {
+    Store::$text = Lib::grow(Store::$text, "c");
+}
+echo Store::$text, "\n";
+--EXPECT--
+callee: ab and z
+callee: abc and z
+callee: abcc and z
+abccc

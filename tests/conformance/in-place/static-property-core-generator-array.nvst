@@ -1,0 +1,34 @@
+--TEST--
+A static array property replaced by an owning `Core` call between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+
+    public static function steps(): Iterator<array<int>> {
+        yield Store::$items;
+        // `Core\Arr::append` adds 3 to the end, so `Store::$items` is `1,2,3`.
+        Store::$items = Core\Arr::append(Store::$items, 3);
+        yield Store::$items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+array<int> $first = [];
+bool $got = false;
+foreach (Store::steps() as array<int> $v) {
+    if (!$got) {
+        $first = $v;
+        $got = true;
+    }
+}
+// The first value is still `1,2` after the generator changed the property.
+echo Store::show($first), "\n";
+echo Store::show(Store::$items), "\n";
+--EXPECT--
+1,2
+1,2,3

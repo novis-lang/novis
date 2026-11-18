@@ -1,0 +1,34 @@
+--TEST--
+A Novis function inside a `try` that reads a static array property before it changes its parameter sees the old value, and the `catch` sees the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Store {
+    public static array<int> $items = [];
+}
+
+final class Lib {
+    // Prints `Store::$items`, then appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        echo "saw: ", Lib::show(Store::$items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Store::$items = [1, 2];
+try {
+    Store::$items = Lib::add(Store::$items, 3);
+    // The error comes after the change, so the `catch` prints `1,2,3`.
+    throw new LogicError("after");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show(Store::$items), "\n";
+}
+echo Lib::show(Store::$items), "\n";
+--EXPECT--
+saw: 1,2
+after: 1,2,3
+1,2,3
