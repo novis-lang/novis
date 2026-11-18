@@ -6,7 +6,7 @@
 //! `Path`/`PathBuf` are a *host* abstraction that resolves differently on each
 //! target and would drag `OsStr`'s non-UTF-8 question into a type `rule:types/bytes`
 //! guarantees is text. Everything here is `&str` arithmetic. One member reads
-//! the process rather than the disk: [`nvs_core_path_from_cwd`] asks
+//! the process rather than the disk: [`nvs_core_path_from_cwd()`] asks
 //! `nvs_runtime::capability::working_dir` for the working directory and then
 //! joins with the same grammar as everything else.
 //!
@@ -42,7 +42,7 @@
 //!   PHP's answer is the one input where `dirname` hands back something that
 //!   is not a usable directory.
 //!
-//! [`nvs_core_path_with_extension`] takes exactly what [`nvs_core_path_extension`]
+//! [`nvs_core_path_with_extension()`] takes exactly what [`nvs_core_path_extension()`]
 //! returns — undotted, or `null` for none. That inverse is the whole reason
 //! the first two rows are worth diverging for.
 //!

@@ -86,7 +86,7 @@
 //! and `nvs_types::expr::operators` admits the pair the way it admits
 //! `Markup + Markup` — one rule over both sink carriers rather than one each.
 //!
-//! [`nvs_core_cli_escape`] is the same table reached as a *value* rather than
+//! [`nvs_core_cli_escape()`] is the same table reached as a *value* rather than
 //! as an effect — `rule:security/launderers-are-sink-named`'s named launderer for this sink — and it calls
 //! `nvs_render::text::substitute` exactly as the sink does, so the two cannot
 //! come to disagree.

@@ -3,8 +3,6 @@
 
 # Types
 
-*1 of 58 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -852,9 +850,9 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   string in place by the same count, and an append to an element builds no row: an absent key throws
   as a read does. `.=` of an interpolation or a `.` chain onto a local, a plain property or a static
   property writes each part into the target and builds no joined string. A part that is the target
-  itself makes the append copy. In `$x = f($x)` and `return f($x)`, where `$x` is a local `array` or
-  `string` and the statement names it once, outside a `try` and outside a generator, the call takes the
-  local's own reference. A write in `f` is then in place unless another holder shares the value.
+  itself makes the append copy. A statement that replaces a value with one made from it, such as
+  `$x = f($x)`, changes it in place wherever no other holder can see the old one, as
+  [`types/a-replaced-value-is-changed-in-place`](types.md#types-a-replaced-value-is-changed-in-place) says.
 
 **Every key is a `string`.** There is no integer key. One key type means one key domain: which
 subscripts name the same entry is decided once, at the subscript, and nothing later converts a key
@@ -982,7 +980,7 @@ so a copy would carry its iteration position. `foreach` and `Core\Arr`'s `first`
 
 <a id="types-a-replaced-value-is-changed-in-place"></a>
 
-## A statement that replaces a value with one made from it changes it in place, decided by one compiler pass  *(designed — owned by goal in-place-everywhere)*
+## A statement that replaces a value with one made from it changes it in place, decided by one compiler pass
 
 `rule:types/a-replaced-value-is-changed-in-place`
 

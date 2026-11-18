@@ -13,6 +13,14 @@
       ]
     },
     {
+      "title": "Property names the compiler checks",
+      "text": "A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.",
+      "goals": [
+        "path-array-steps",
+        "attribute-property-names"
+      ]
+    },
+    {
       "title": "Rules a framework can set",
       "text": "A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.",
       "goals": [

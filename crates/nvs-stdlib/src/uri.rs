@@ -357,9 +357,9 @@
 //!
 //! **The two encoders are the class's whole point, and they are the only
 //! [`Qual::Launder`] rows here.** Each names its sink in its own doc comment:
-//! [`nvs_core_uri_encode_component`] launders for the URI grammar — the
+//! [`nvs_core_uri_encode_component()`] launders for the URI grammar — the
 //! escaping of `/ ? # & =` is what stops a segment climbing out of its
-//! position in the path — and [`nvs_core_uri_encode_form_value`] launders for
+//! position in the path — and [`nvs_core_uri_encode_form_value()`] launders for
 //! an `application/x-www-form-urlencoded` body, where the escaped `&` and `=`
 //! are what stops a value opening a pair of its own. Both are the *whole*
 //! escape rather than the unsafe-looking bytes, which is the property the

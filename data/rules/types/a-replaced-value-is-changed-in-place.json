@@ -1,6 +1,6 @@
 {
   "title": "A statement that replaces a value with one made from it changes it in place, decided by one compiler pass",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "types/arrays",
     "core-api/nothing-mutates",
@@ -9,6 +9,5 @@
   "guardedBy": [
     "crates/nvs-ir/src/lower/tests.rs",
     "tests/conformance/in-place"
-  ],
-  "goal": "in-place-everywhere"
+  ]
 }

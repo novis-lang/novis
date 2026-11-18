@@ -8,9 +8,9 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   string in place by the same count, and an append to an element builds no row: an absent key throws
   as a read does. `.=` of an interpolation or a `.` chain onto a local, a plain property or a static
   property writes each part into the target and builds no joined string. A part that is the target
-  itself makes the append copy. In `$x = f($x)` and `return f($x)`, where `$x` is a local `array` or
-  `string` and the statement names it once, outside a `try` and outside a generator, the call takes the
-  local's own reference. A write in `f` is then in place unless another holder shares the value.
+  itself makes the append copy. A statement that replaces a value with one made from it, such as
+  `$x = f($x)`, changes it in place wherever no other holder can see the old one, as
+  `rule:types/a-replaced-value-is-changed-in-place` says.
 
 **Every key is a `string`.** There is no integer key. One key type means one key domain: which
 subscripts name the same entry is decided once, at the subscript, and nothing later converts a key

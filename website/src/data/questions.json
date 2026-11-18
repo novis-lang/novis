@@ -6354,7 +6354,7 @@
   },
   "/reference/core/io/temporarydir/": {
     "feature": "Core\\IO::temporaryDir",
-    "hash": "eb914a4736baeb1a",
+    "hash": "f292a06c4fc0d5bf",
     "questions": [
       "How do I create a temporary folder?",
       "Where should I put temporary files?",

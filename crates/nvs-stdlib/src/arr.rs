@@ -51,8 +51,8 @@
 //!
 //! # A callback that does not want a key is never handed one
 //!
-//! [`nvs_core_arr_map`], [`nvs_core_arr_filter`], [`nvs_core_arr_reduce`],
-//! [`nvs_core_arr_count_by`] and the four predicate members [`find_slot`]
+//! [`nvs_core_arr_map()`], [`nvs_core_arr_filter()`], [`nvs_core_arr_reduce`],
+//! [`nvs_core_arr_count_by()`] and the four predicate members [`find_slot`]
 //! serves each call back into Novis code per entry, and `Core\Arr`'s rule that every
 //! callback receives `($value, $key)` and may declare fewer parameters means the key is
 //! frequently built and then dropped by the trimming in
@@ -78,7 +78,7 @@
 //! left a gap. `nvs-runtime`'s
 //! `a_callback_that_does_not_want_a_key_synthesizes_none` is the guard.
 //!
-//! [`nvs_core_arr_sort`] takes the same rule one step further, because it is
+//! [`nvs_core_arr_sort()`] takes the same rule one step further, because it is
 //! the one member that may not need the keys *at all*: with `preserveKeys`
 //! false and no `by` callable declaring a second parameter, nothing downstream
 //! can observe a key, so its walk collects none rather than collecting and
@@ -1983,7 +1983,7 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
 /// reason this is a union rather than plain `float`.
 const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
 
-/// `Core\Arr::Order` — the enum [`nvs_core_arr_sort`]'s `{ order: ... }` option takes.
+/// `Core\Arr::Order` — the enum [`nvs_core_arr_sort()`]'s `{ order: ... }` option takes.
 ///
 /// Declared here, beside its only consumer, for the same reason [`CLASS`] is.
 /// [`crate::registry`]'s `ENUMS` lists it; the value of each case is written
@@ -2011,7 +2011,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Arr::SetOn` — the enum [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]
+/// `Core\Arr::SetOn` — the enum [`nvs_core_arr_diff()`] and [`nvs_core_arr_intersect()`]
 /// take, and the whole of what twelve PHP `array_diff*`/`array_intersect*`
 /// functions differed by.
 ///
