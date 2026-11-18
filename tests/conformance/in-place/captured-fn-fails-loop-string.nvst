@@ -1,0 +1,31 @@
+--TEST--
+A captured string replaced in a loop inside a closure by a Novis function that can throw, called so it does not, starts from the captured value on each call — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+string $name = "a";
+// No letter is `!`, so each pass adds one letter to the closure's copy.
+callable $f = fn(): string => {
+    array<string> $letters = ["b", "c", "d"];
+    foreach ($letters as string $x) {
+        $name = Lib::add($name, $x);
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+echo $name, "\n";
+--EXPECT--
+abcd
+abcd
+a

@@ -1,0 +1,19 @@
+--TEST--
+A captured string replaced by a `Core` function with a callback inside an anonymous function changes only that call's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// The function changes its own copy of `$name`. Each call starts from `shop`.
+callable $f = fn(): string => {
+    // `Core\Regex::replaceWith` calls the callback for each `o`, so the copy is `sh0p`.
+    $name = Core\Regex::replaceWith($name, "o", fn(Core\Regex\Match $m): string => "0");
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function still has `shop`.
+echo $name, "\n";
+--EXPECT--
+sh0p
+sh0p
+shop

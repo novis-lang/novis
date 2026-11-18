@@ -1,0 +1,40 @@
+--TEST--
+A captured array replaced by a `Core` function with a callback between two `yield`s leaves the value yielded before it and the generator's variable unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        array<int> $items = [1, 2, 3];
+        yield $items;
+        // The function doubles each value of its own copy, so each call returns `2,4,6`.
+        callable(): array<int> $f = fn(): array<int> => {
+            $items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+            return $items;
+        };
+        yield $f();
+        yield $f();
+        yield $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $first = [];
+bool $kept = false;
+foreach (Lib::steps() as array<int> $v) {
+    if (!$kept) {
+        $first = $v;
+        $kept = true;
+    }
+    echo Lib::show($v), "\n";
+}
+// The first value is still `1,2,3` after every change.
+echo "first: ", Lib::show($first), "\n";
+--EXPECT--
+1,2,3
+2,4,6
+2,4,6
+1,2,3
+first: 1,2,3

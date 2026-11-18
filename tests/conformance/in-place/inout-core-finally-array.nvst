@@ -1,0 +1,26 @@
+--TEST--
+An `inout` array parameter replaced by a `Core` result inside a `try` has its new value in the `finally` and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `3` to `$items`. The `finally` prints `1,2,3`.
+    public static function run(inout array<int> $items): void {
+        try {
+            $items = Core\Arr::append($items, 3);
+        } finally {
+            echo "finally: ", Lib::show($items), "\n";
+        }
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run(inout $items);
+// `inout` writes the new value back, so the caller's array is `1,2,3`.
+echo Lib::show($items), "\n";
+--EXPECT--
+finally: 1,2,3
+1,2,3

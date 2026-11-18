@@ -1,0 +1,36 @@
+--TEST--
+A captured string replaced inside a closure by a Novis function that throws after its change keeps its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+string $name = "ab";
+callable $f = fn(): string => {
+    try {
+        $name = Lib::add($name, "c");
+        // This call throws after it adds `!`, so the closure's copy keeps `abc`.
+        $name = Lib::add($name, "!");
+    } catch (LogicError $e) {
+        echo $e->message, ": ", $name, "\n";
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The outer string is still `ab`.
+echo $name, "\n";
+--EXPECT--
+bad text: abc
+abc
+bad text: abc
+abc
+ab

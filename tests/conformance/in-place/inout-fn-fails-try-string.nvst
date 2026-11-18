@@ -1,0 +1,35 @@
+--TEST--
+An `inout` string replaced by a Novis function that throws after its change is not written back to the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s`, then throws when `$x` is `?`.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "?") {
+            throw new LogicError("question");
+        }
+        return $s;
+    }
+
+    public static function run(inout string $name): void {
+        $name = Lib::add($name, "s");
+        echo $name, "\n";
+        // This call throws after its append.
+        $name = Lib::add($name, "?");
+        echo "not reached\n";
+    }
+}
+
+string $name = "shop";
+try {
+    Lib::run(inout $name);
+} catch (LogicError $e) {
+    // The call threw, so the caller's `$name` is still `shop`.
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+shops
+question: shop
+shop

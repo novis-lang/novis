@@ -1,0 +1,20 @@
+--TEST--
+A captured string replaced by an owning `Core` call in a loop inside an anonymous function changes only that call's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "market";
+// Each call starts from `market`. Three passes drop three characters, so the copy is `ket`.
+callable $f = fn(): string => {
+    for (int $i = 0; $i < 3; $i++) {
+        $name = Core\Str::slice($name, 1);
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function still has `market`.
+echo $name, "\n";
+--EXPECT--
+ket
+ket
+market

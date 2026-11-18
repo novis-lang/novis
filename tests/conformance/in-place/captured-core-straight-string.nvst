@@ -1,0 +1,19 @@
+--TEST--
+A captured string replaced by an owning `Core` call inside an anonymous function changes only that call's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// The function changes its own copy of `$name`. Each call starts from `shop`.
+callable $f = fn(): string => {
+    // `Core\Str::slice` drops the first character, so the copy is `hop`.
+    $name = Core\Str::slice($name, 1);
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function still has `shop`.
+echo $name, "\n";
+--EXPECT--
+hop
+hop
+shop

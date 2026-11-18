@@ -1,0 +1,26 @@
+--TEST--
+An `inout` array parameter replaced by a spread of itself inside a `try` has its new value in the `finally` and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `9` to the end of `$items`. The `finally` prints `1,2,9`.
+    public static function run(inout array<int> $items): void {
+        try {
+            $items = [...$items, 9];
+        } finally {
+            echo "finally: ", Lib::show($items), "\n";
+        }
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run(inout $items);
+// `inout` writes the new value back, so the caller's array is `1,2,9`.
+echo Lib::show($items), "\n";
+--EXPECT--
+finally: 1,2,9
+1,2,9

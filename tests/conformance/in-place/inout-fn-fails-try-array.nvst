@@ -1,0 +1,35 @@
+--TEST--
+An `inout` array parameter whose second replacement throws after its change leaves the caller's array unchanged, because a method that throws writes nothing back — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items`, then throws when `$x` is negative.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        if ($x < 0) { throw new LogicError("negative"); }
+        return $items;
+    }
+
+    public static function run(inout array<int> $items): void {
+        $items = Lib::add($items, 3);
+        echo Lib::show($items), "\n";
+        $items = Lib::add($items, -1);
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+try {
+    Lib::run(inout $items);
+} catch (LogicError $e) {
+    // The second `add` threw after its append, so `inout` wrote nothing back.
+    echo $e->message, ": ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3
+negative: 1,2
+1,2

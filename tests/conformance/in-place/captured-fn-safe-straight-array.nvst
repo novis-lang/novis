@@ -1,0 +1,31 @@
+--TEST--
+A captured array replaced by a Novis function inside a closure starts from the captured value on each call, and the outer array is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns the array.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+// The closure changes its own copy of `$items`.
+callable $f = fn(): string => {
+    $items = Lib::add($items, 3);
+    return Lib::show($items);
+};
+// Each call starts from `1,2`, so both calls print `1,2,3`.
+echo $f(), "\n";
+echo $f(), "\n";
+// The outer array still has `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3
+1,2,3
+1,2

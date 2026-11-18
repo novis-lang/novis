@@ -1,0 +1,27 @@
+--TEST--
+A captured string replaced by a Novis function inside a closure starts from the captured value on each call, and the outer string is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+string $name = "ab";
+// The closure changes its own copy of `$name`.
+callable $f = fn(): string => {
+    $name = Lib::add($name, "c");
+    return $name;
+};
+// Each call starts from `ab`, so both calls print `abc`.
+echo $f(), "\n";
+echo $f(), "\n";
+// The outer string is still `ab`.
+echo $name, "\n";
+--EXPECT--
+abc
+abc
+ab

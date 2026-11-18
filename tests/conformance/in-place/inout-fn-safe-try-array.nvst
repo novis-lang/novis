@@ -1,0 +1,35 @@
+--TEST--
+An `inout` array parameter replaced by the result of a Novis method before the method throws leaves the caller's array unchanged, because a method that throws writes nothing back — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    // Replaces `$items` with the result of `add`, prints it, then throws.
+    public static function run(inout array<int> $items): void {
+        $items = Lib::add($items, 3);
+        echo Lib::show($items), "\n";
+        throw new LogicError("stop");
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+try {
+    Lib::run(inout $items);
+} catch (LogicError $e) {
+    // The method threw, so `inout` wrote nothing back.
+    echo $e->message, ": ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3
+stop: 1,2
+1,2

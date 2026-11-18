@@ -1,0 +1,25 @@
+--TEST--
+An `inout` array parameter replaced by `Core\Arr::map` in a loop has the result of every pass, in the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Each pass adds `$x` to every value with `Core\Arr::map`, then the result is printed.
+    public static function run(inout array<int> $items): void {
+        foreach ([1, 10, 100] as var $x) {
+            $items = Core\Arr::map($items, fn(int $v): int => $v + $x);
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run(inout $items);
+// `inout` writes the new value back, so the caller's array is `112,113`.
+echo Lib::show($items), "\n";
+--EXPECT--
+112,113
+112,113

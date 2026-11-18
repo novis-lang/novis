@@ -1,0 +1,21 @@
+--TEST--
+An `inout` string replaced by a concatenation of itself in a loop has the value of the last pass in the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(inout string $name): void {
+        // Each pass adds one `x` at the end, so this prints `shopxxx`.
+        foreach ([1, 2, 3] as var $i) {
+            $name = $name . "x";
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "shop";
+Show::run(inout $name);
+// The call writes `$name` back, so the caller's `$name` is `shopxxx`.
+echo $name, "\n";
+--EXPECT--
+shopxxx
+shopxxx

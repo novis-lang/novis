@@ -1,0 +1,35 @@
+--TEST--
+A captured array replaced by a Novis function inside a closure before an error has the new value in the `catch`, and each call starts from the captured value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns the array.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+callable $f = fn(): string => {
+    try {
+        $items = Lib::add($items, 3);
+        throw new LogicError("stop");
+    } catch (LogicError $e) {
+        echo $e->message, ": ", Lib::show($items), "\n";
+    }
+    return Lib::show($items);
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The outer array still has `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+stop: 1,2,3
+1,2,3
+stop: 1,2,3
+1,2,3
+1,2

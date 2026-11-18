@@ -1,0 +1,26 @@
+--TEST--
+An `inout` string replaced by an owning `Core` function before an error is not written back to the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    // Replaces `$name` with its upper case, then throws.
+    public static function run(inout string $name): void {
+        $name = Core\Str::upper($name);
+        echo $name, "\n";
+        throw new LogicError("stop");
+    }
+}
+
+string $name = "shop";
+try {
+    Show::run(inout $name);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    // The call threw, so the caller's `$name` is still `shop`.
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+SHOP
+stop: shop
+shop

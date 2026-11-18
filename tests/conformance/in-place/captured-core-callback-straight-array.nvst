@@ -1,0 +1,25 @@
+--TEST--
+A captured array replaced by a `Core` function with a callback inside an anonymous function changes only that call's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2, 3];
+// The function changes its own copy of `$items`. Each call starts from `1,2,3`.
+callable $f = fn(): string => {
+    // `Core\Arr::map` doubles each value, so the copy is `2,4,6`.
+    $items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+    return Lib::show($items);
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function still has `1,2,3`.
+echo Lib::show($items), "\n";
+--EXPECT--
+2,4,6
+2,4,6
+1,2,3

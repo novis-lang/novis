@@ -1,0 +1,36 @@
+--TEST--
+A captured string replaced by an owning `Core` call between two `yield`s leaves the value yielded before it and the generator's variable unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    public static function steps(): Iterator<string> {
+        string $name = "shop";
+        yield $name;
+        // The function drops the first character of its own copy, so each call returns `hop`.
+        callable(): string $f = fn(): string => {
+            $name = Core\Str::slice($name, 1);
+            return $name;
+        };
+        yield $f();
+        yield $f();
+        yield $name;
+    }
+}
+
+string $first = "";
+bool $kept = false;
+foreach (Gen::steps() as string $v) {
+    if (!$kept) {
+        $first = $v;
+        $kept = true;
+    }
+    echo $v, "\n";
+}
+// The first value is still `shop` after every change.
+echo "first: ", $first, "\n";
+--EXPECT--
+shop
+hop
+hop
+shop
+first: shop

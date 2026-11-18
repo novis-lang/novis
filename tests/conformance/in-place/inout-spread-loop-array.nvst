@@ -1,0 +1,25 @@
+--TEST--
+An `inout` array parameter replaced by a spread of itself in a loop has the result of every pass, in the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds 3, 4 and 5 to the end of `$items`, one per pass, then prints it.
+    public static function run(inout array<int> $items): void {
+        foreach ([3, 4, 5] as var $x) {
+            $items = [...$items, $x];
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run(inout $items);
+// `inout` writes the new value back, so the caller's array is `1,2,3,4,5`.
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3,4,5
+1,2,3,4,5

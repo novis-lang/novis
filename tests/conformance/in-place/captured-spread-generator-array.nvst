@@ -1,0 +1,32 @@
+--TEST--
+A captured array replaced by a literal that spreads it between two `yield`s gives its new value, and the value yielded before it and the generator's variable are unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    public static function steps(): Iterator<array<int>> {
+        array<int> $items = [1, 2];
+        yield $items;
+        // The function adds `9` to its own copy, so each call returns `1,2,9`.
+        callable(): array<int> $f = fn(): array<int> => {
+            $items = [...$items, 9];
+            return $items;
+        };
+        yield $f();
+        yield $f();
+        yield $items;
+    }
+}
+
+array<array<int>> $seen = [];
+foreach (Gen::steps() as array<int> $v) {
+    $seen[] = $v;
+    echo Core\Str::join(Core\Arr::map($v, fn(int $n): string => $n as string), ","), "\n";
+}
+// The first value is still `1,2` after every change.
+echo "first: ", Core\Str::join(Core\Arr::map($seen[0], fn(int $n): string => $n as string), ","), "\n";
+--EXPECT--
+1,2
+1,2,9
+1,2,9
+1,2
+first: 1,2

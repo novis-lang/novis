@@ -1,0 +1,26 @@
+--TEST--
+A captured string replaced by a concatenation before an error has the new value in the `catch` of each call — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "ab";
+// The function has its own copy of `$name`. Each call starts from `ab`.
+callable $f = fn(): string => {
+    try {
+        // The `.` operator joins two strings, so the copy is `abx`.
+        $name = $name . "x";
+        throw new LogicError("stop");
+    } catch (LogicError $e) {
+        echo $e->message, ": ", $name, "\n";
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function is still `ab`.
+echo $name, "\n";
+--EXPECT--
+stop: abx
+abx
+stop: abx
+abx
+ab

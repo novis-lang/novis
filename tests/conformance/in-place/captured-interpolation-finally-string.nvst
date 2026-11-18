@@ -1,0 +1,25 @@
+--TEST--
+A captured string replaced by an interpolated string inside a `try` has the new value in the `finally` of each call — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "ab";
+// The function has its own copy of `$name`. Each call starts from `ab`.
+callable $f = fn(): string => {
+    try {
+        // `{$name}` inserts the old value, so the copy is `abx`.
+        $name = "{$name}x";
+    } finally {
+        echo "finally: ", $name, "\n";
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function is still `ab`.
+echo $name, "\n";
+--EXPECT--
+finally: abx
+abx
+finally: abx
+abx
+ab

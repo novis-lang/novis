@@ -1,0 +1,36 @@
+--TEST--
+A captured string replaced by a concatenation between two `yield`s gives its new value, and the value yielded before it and the generator's variable are unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    public static function steps(): Iterator<string> {
+        string $name = "ab";
+        yield $name;
+        // The function adds `x` to its own copy, so each call returns `abx`.
+        callable(): string $f = fn(): string => {
+            $name = $name . "x";
+            return $name;
+        };
+        yield $f();
+        yield $f();
+        yield $name;
+    }
+}
+
+string $first = "";
+bool $kept = false;
+foreach (Gen::steps() as string $v) {
+    if (!$kept) {
+        $first = $v;
+        $kept = true;
+    }
+    echo $v, "\n";
+}
+// The first value is still `ab` after every change.
+echo "first: ", $first, "\n";
+--EXPECT--
+ab
+abx
+abx
+ab
+first: ab

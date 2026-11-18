@@ -1,0 +1,30 @@
+--TEST--
+An `inout` array parameter replaced by a `Core` function with a callback before the method throws leaves the caller's array unchanged, because a method that throws writes nothing back — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Replaces `$items` with each value doubled, prints it, then throws.
+    public static function run(inout array<int> $items): void {
+        $items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+        echo Lib::show($items), "\n";
+        throw new LogicError("stop");
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2, 3];
+try {
+    Lib::run(inout $items);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    // The method threw, so `inout` wrote nothing back.
+    echo $e->message, ": ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+2,4,6
+stop: 1,2,3
+1,2,3

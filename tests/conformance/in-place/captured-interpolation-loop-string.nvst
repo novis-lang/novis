@@ -1,0 +1,21 @@
+--TEST--
+A captured string replaced by an interpolated string in a loop inside an anonymous function starts from the captured value on each call — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "ab";
+// The function has its own copy of `$name`. Each call starts from `ab`.
+callable $f = fn(): string => {
+    // Each pass adds `x` after the old value, so three passes give `abxxx`.
+    for (int $i = 0; $i < 3; $i++) {
+        $name = "{$name}x";
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The variable outside the function is still `ab`.
+echo $name, "\n";
+--EXPECT--
+abxxx
+abxxx
+ab

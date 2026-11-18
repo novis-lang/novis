@@ -1,0 +1,35 @@
+--TEST--
+A captured array replaced by a Novis function inside a closure made in a generator leaves the values yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns the array.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+    // Yields `$items`, then the closure's result twice, then `$items` again.
+    public static function steps(): Iterator<array<int>> {
+        array<int> $items = [1, 2];
+        callable(): array<int> $f =fn(): array<int> => {
+            $items = Lib::add($items, 3);
+            return $items;
+        };
+        yield $items;
+        yield $f();
+        yield $f();
+        yield $items;
+    }
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+// The first value is still `1,2` after the closure changed its copy.
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $step) {
+    $seen[] = $step;
+}
+echo Core\Str::join(Core\Arr::map($seen, fn(array<int> $s): string => Lib::show($s)), " "), "\n";
+--EXPECT--
+1,2 1,2,3 1,2,3 1,2

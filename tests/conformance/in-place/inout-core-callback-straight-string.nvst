@@ -1,0 +1,19 @@
+--TEST--
+An `inout` string replaced by a `Core` function with a callback has the new value in the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    // The callback puts an `o` before the last `p`.
+    public static function run(inout string $name): void {
+        $name = Core\Regex::replaceWith($name, "p$", fn(Core\Regex\Match $m): string => "o" . $m->text());
+        echo $name, "\n";
+    }
+}
+
+string $name = "shop";
+Show::run(inout $name);
+// The call writes `$name` back, so the caller's `$name` is `shoop`.
+echo $name, "\n";
+--EXPECT--
+shoop
+shoop

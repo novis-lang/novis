@@ -1,0 +1,37 @@
+--TEST--
+A captured array replaced inside a closure's `try` by a Novis function that can throw, called so it does not, has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items`, then throws when `$x` is negative.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        if ($x < 0) {
+            throw new LogicError("negative");
+        }
+        return $items;
+    }
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+callable $f = fn(): string => {
+    try {
+        // 3 is not negative, so the call returns `1,2,3`.
+        $items = Lib::add($items, 3);
+    } finally {
+        echo "finally: ", Lib::show($items), "\n";
+    }
+    return Lib::show($items);
+};
+echo $f(), "\n";
+echo $f(), "\n";
+echo Lib::show($items), "\n";
+--EXPECT--
+finally: 1,2,3
+1,2,3
+finally: 1,2,3
+1,2,3
+1,2

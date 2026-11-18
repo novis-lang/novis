@@ -1,0 +1,27 @@
+--TEST--
+An `inout` string replaced by a Novis function that cannot throw in a loop has the value of the last pass in the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s` and returns it.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        return $s;
+    }
+
+    public static function run(inout string $name): void {
+        // Each pass appends one `!`, so this prints `shop!!!`.
+        foreach ([1, 2, 3] as var $i) {
+            $name = Lib::add($name, "!");
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "shop";
+Lib::run(inout $name);
+// The call writes `$name` back, so the caller's `$name` is `shop!!!`.
+echo $name, "\n";
+--EXPECT--
+shop!!!
+shop!!!

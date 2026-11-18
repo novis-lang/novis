@@ -1,0 +1,33 @@
+--TEST--
+A captured string replaced by a Novis function inside a closure before an error has the new value in the `catch`, and each call starts from the captured value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s` and returns it.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        return $s;
+    }
+}
+
+string $name = "shop";
+callable $f = fn(): string => {
+    try {
+        // `Lib::add` appends `s`, so the closure's copy is `shops`.
+        $name = Lib::add($name, "s");
+        throw new LogicError("stop");
+    } catch (LogicError $e) {
+        echo $e->message, ": ", $name, "\n";
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The outer string is still `shop`.
+echo $name, "\n";
+--EXPECT--
+stop: shops
+shops
+stop: shops
+shops
+shop

@@ -1,0 +1,22 @@
+--TEST--
+An `inout` string replaced by an owning `Core` function inside a `try` has its new value in the `finally` and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    // Replaces `$name` with its upper case. The `finally` block prints the new value.
+    public static function run(inout string $name): void {
+        try {
+            $name = Core\Str::upper($name);
+        } finally {
+            echo "finally: ", $name, "\n";
+        }
+    }
+}
+
+string $name = "shop";
+Show::run(inout $name);
+// The call writes `$name` back, so the caller's `$name` is `SHOP`.
+echo $name, "\n";
+--EXPECT--
+finally: SHOP
+SHOP

@@ -1,0 +1,19 @@
+--TEST--
+An `inout` string replaced by an owning `Core` function has the new value in the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    // Replaces `$name` with its upper case.
+    public static function run(inout string $name): void {
+        $name = Core\Str::upper($name);
+        echo $name, "\n";
+    }
+}
+
+string $name = "shop";
+Show::run(inout $name);
+// The call writes `$name` back, so the caller's `$name` is `SHOP`.
+echo $name, "\n";
+--EXPECT--
+SHOP
+SHOP

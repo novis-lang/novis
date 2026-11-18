@@ -1,0 +1,23 @@
+--TEST--
+An `inout` array parameter replaced by a `Core` function with a callback has the new value inside the method and in the caller — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Replaces `$items` with each value doubled, then prints it.
+    public static function run(inout array<int> $items): void {
+        $items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2, 3];
+Lib::run(inout $items);
+// `inout` writes the new value back, so the caller's array is `2,4,6`.
+echo Lib::show($items), "\n";
+--EXPECT--
+2,4,6
+2,4,6

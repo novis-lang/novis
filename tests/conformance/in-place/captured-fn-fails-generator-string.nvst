@@ -1,0 +1,36 @@
+--TEST--
+A captured string replaced inside a closure made in a generator by a Novis function that can throw leaves the values yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+
+    public static function steps(): Iterator<string> {
+        string $name = "ab";
+        // `c` is not `!`, so each call returns the closure's copy `abc`.
+        callable(): string $f = fn(): string => {
+            $name = Lib::add($name, "c");
+            return $name;
+        };
+        yield $name;
+        yield $f();
+        yield $f();
+        yield $name;
+    }
+}
+
+// The first value is still `ab` after the closure changed its copy.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abc,abc,ab

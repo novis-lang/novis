@@ -1,0 +1,29 @@
+--TEST--
+A captured string replaced in a loop inside a closure by a Novis function starts from the captured value on each call — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+string $name = "a";
+// Each pass adds one letter to the closure's own copy.
+callable $f = fn(): string => {
+    array<string> $letters = ["b", "c", "d"];
+    foreach ($letters as string $x) {
+        $name = Lib::add($name, $x);
+    }
+    return $name;
+};
+echo $f(), "\n";
+echo $f(), "\n";
+// The outer string is still `a`.
+echo $name, "\n";
+--EXPECT--
+abcd
+abcd
+a
