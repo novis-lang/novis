@@ -223,8 +223,9 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 - [ ] `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-`, once each.
   Every ladder grows linearly.
   - [x] `arrays/read-`: both flat (the `read-ladders` check passes).
-  - [ ] `arrays/in-place-`: 10 flat. `in-place-a-list-built-by-reduce.nvs` grows in instructions alone.
-  - [ ] `in-place-a-list-in-an-element-built-with-append.nvs` grows in bytes: the row is copied.
+  - [x] `arrays/in-place-`: 12 flat. A typed array check reads the array's tag word (`ec7eb683fb`).
+  - [x] `in-place-a-list-in-an-element-built-with-append.nvs`: a local array's element is lent.
+  - [ ] Both checks once more after the rest of stage 3's members.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -239,41 +240,37 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 The person's calls (2026-11-17): fix the cause, nothing for a developer to remember, and every
 replacement in place. Every other choice in § *Standing decisions* is a session's call.
 
-Stages 1 and 2 are done. Stage 3 has its first group (`bbee02e081`): `append`, `prepend`, `slice`,
-`withoutFirst` and `withoutLast` change a sole subject in place, and `last` and `lastKey` read
-`last_slot`. `array.rs` gained `fresh_append_index`, `recount_append_index`, `keep_append_index_of`
-and `is_packed_list`; `arr.rs` has `Retained`, `Appended`, `kept_counter` and `release_all`.
+Stages 1 and 2 are done. Stage 3 has two groups in: `bbee02e081` (`append`, `prepend`, `slice`,
+`withoutFirst`, `withoutLast`, and `last`/`lastKey` reading `last_slot`), and this session's two
+ladder fixes. Every `arrays/in-place-` ladder and both `arrays/read-` ladders are flat.
 
-`bun nv scaling --check arrays/read-` passes. `arrays/in-place-` is 10 flat, 2 growing:
-
-- `in-place-a-list-built-by-reduce.nvs` grows in instructions (slope 2), with allocations and bytes
-  flat. The likely cause: `nvs_runtime::call_callable_giving` runs `dispatch::check_param_types` on
-  every call (`crates/nvs-runtime/src/callable.rs:306`), and an `array<uint>` parameter walks every
-  element of the carry (`helpers.rs` `every_element_has_tag`). So each step costs the carry's length.
-- `in-place-a-list-in-an-element-built-with-append.nvs` grows in bytes (slope 2): `$rows['a'] =
-  Core\Arr::append($rows['a'], $i)` copies the row each step, so the element lend of
-  `rule:types/a-replaced-value-is-changed-in-place` is not taken, or the row is shared. The cause is
-  in `crates/nvs-ir/src/ownership.rs` or its lowering, not in `arr.rs`.
+- **The tag word** (`perf(runtime)`, `rule:types/arrays`): `Table::written` in
+  `crates/nvs-runtime/src/array.rs` is the union of the tags of every value written, set by every
+  writing `Table` method, copied by `separate`, and made `WRITTEN_UNKNOWN` by `row_slot`.
+  `SlotCheck::tags_alone` (`object.rs`) and `every_element_has_tag` (`helpers.rs`) read it through
+  `NvsArray::written_tags` and walk only when it names a tag the type does not admit. Test:
+  `a_typed_check_reads_the_tags_an_array_was_written_with`.
+- **The local element lend** (`perf(ir)`): `Lend::of_element` in `crates/nvs-ir/src/ownership.rs`
+  takes a local container as well as a slot. `make_sole` puts `array.sole` before the read and
+  rewrites the release in each one-edge error landing. Tests: `an_element_of_a_local_array_is_lent`
+  and the conformance case `in-place/a-copy-of-a-local-array-keeps-its-entry-when-the-entry-is-
+  changed-in-place.nvst`. An element read inside a `try` is not lent.
 
 Expected red in stage 4: a conformance case or a stdlib unit test that appends after a key-keeping
 `slice`, `withoutFirst` or `withoutLast` of a map or a cut list now sees the subject's counter
-(§ *A kept key keeps the append counter*). Update the expected output. `env-secret-proofs` in the sweep
-is stale, as the playbook says.
+(§ *A kept key keeps the append counter*). Update the expected output. The perf records of the
+`Core\Arr` members go stale (playbook). The sweep's `env-secret-proofs` red is stale (no log).
 
 ### Next
 
-1. The reduce ladder: confirm the element walk with a run of the ladder at two sizes, then make the
-   element check of a callback's array argument O(1) where it can be. Recommendation: the array keeps
-   the union of the tags of every value written into it (one word, one OR per write, never lowered by
-   a removal), and the check walks only when that union does not fit the declared element tags. Record
-   it in `rule:types/arrays` with what it spends.
-2. The element ladder: find why `$rows['a']` is not lent (`crates/nvs-ir/src/ownership.rs`, the lend
-   of an array-element slot) and fix it there.
-3. The rest of stage 3's members in `arr.rs`, each with the same shape as `slice`: `check` returns a
-   plan, `apply` branches on `subject.is_sole()`. `replaceRange` and `filter`/`withoutNull`/`unique`
-   through `keep_by_mask`, `reverse`/`sort`/`sortByKey` through `permute`, `map` through
-   `rewrite_values`, `mapKeys`/`flip` through `rekey`.
-4. `crates/nvs-stdlib/tests/in_place.rs`'s three tests, then both ladder checks once more.
+1. The rest of stage 3's members in `crates/nvs-stdlib/src/arr.rs`, each with the same shape as
+   `slice`: `check` returns a plan, `apply` branches on `subject.is_sole()`. `replaceRange` and
+   `filter`/`withoutNull`/`unique`/`diff`/`intersect` through `keep_by_mask`,
+   `reverse`/`sort`/`sortByKey` through `permute`, `map` through `rewrite_values`, `mapKeys`/`flip`
+   through `rekey`, `values` a no-op on a list. Then the adding members `appendAll`, `padStart`,
+   `padEnd`, `overlay`, `overlayDeep`, `underlay`.
+2. `crates/nvs-stdlib/tests/in_place.rs`'s three tests, run once by name.
+3. `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-` once more.
 
 ### Backlog
 
