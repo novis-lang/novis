@@ -987,6 +987,26 @@ impl Table {
         }
     }
 
+    /// The append counter an array built from these entries alone would
+    /// have: one past the largest integer key, counted as
+    /// [`Table::note_key`] counts. One step on a list, and a walk over the
+    /// keys on a map.
+    fn fresh_counter(&self) -> Option<i64> {
+        match &self.shape {
+            Shape::Packed(values) => list_counter(values.len()),
+            Shape::Hashed(hashed) => {
+                let mut counter: Option<i64> = None;
+                for entry in hashed.entries.iter().flatten() {
+                    if let Some(number) = integer_key(entry.key.as_bytes()) {
+                        let after = number.saturating_add(1);
+                        counter = Some(counter.map_or(after, |current| current.max(after)));
+                    }
+                }
+                counter
+            }
+        }
+    }
+
     /// The slot of the last live entry: one step on a list, and on a map a
     /// walk backward past the holes at its end.
     fn last_slot(&self) -> Option<usize> {
@@ -2456,6 +2476,49 @@ impl NvsArray {
     #[must_use]
     pub fn slot_of_position(&self, position: usize) -> Option<usize> {
         self.header().table.borrow().slot_of_position(position)
+    }
+
+    /// The integer key the next append would write in an array built from
+    /// these entries alone: one past the largest integer key present, or `0`
+    /// where none is. A removed key leaves no trace here, as it does in
+    /// [`Self::next_append_index`]. One step on a list, and a walk over the
+    /// keys on a map.
+    #[must_use]
+    pub fn fresh_append_index(&self) -> i64 {
+        self.header().table.borrow().fresh_counter().unwrap_or(0)
+    }
+
+    /// Sets the append counter to what [`Self::fresh_append_index`] gives,
+    /// so the array appends where a fresh build of its entries would.
+    /// `Core\Arr::append` calls it before it appends in place. Its cost is
+    /// [`Self::fresh_append_index`]'s.
+    pub fn recount_append_index(&mut self) {
+        self.make_unique();
+        let mut table = self.header().table.borrow_mut();
+        table.next_index = table.fresh_counter();
+    }
+
+    /// Raises the append counter to `other`'s, so an array built from some
+    /// of `other`'s entries appends where `other` cut in place would. Every
+    /// key here is one of `other`'s, so the counter stays above each of
+    /// them. O(1).
+    pub fn keep_append_index_of(&mut self, other: &Self) {
+        let Some(counter) = other.header().table.borrow().next_index else {
+            return;
+        };
+        self.make_unique();
+        self.header()
+            .table
+            .borrow_mut()
+            .note_index(counter.saturating_sub(1));
+    }
+
+    /// Whether the array is in the packed form, whose keys are `"0"` to
+    /// `"n−1"` in order. A `Core\Arr` member that cuts a list only at its end
+    /// reads it, because that cut keeps the list a list.
+    #[must_use]
+    pub fn is_packed_list(&self) -> bool {
+        matches!(self.header().table.borrow().shape, Shape::Packed(_))
     }
 
     /// Keeps the entries at positions `start..end` and releases the rest.

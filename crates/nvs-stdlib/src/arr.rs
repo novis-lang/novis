@@ -90,7 +90,9 @@
 //! `foreach` over `Arr::keys`. A zip's element type would be `array<T|U>`,
 //! which gives up the element typing every other member here is checked by.
 
-use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
+use nvs_runtime::{
+    Ctx, Decimal, Fault, NvsArray, NvsStr, OwnedSubject, SlotKey, Tag, ThrownClass, Value,
+};
 
 use crate::ordering::compare_values;
 use crate::registry::{
@@ -3338,30 +3340,101 @@ nvs_runtime::nvs_helper! {
     /// flattens into one ordinary argument, as [`nvs_core_arr_range`]'s docs
     /// spell out.
     ///
-    /// The walk stops at the window's end rather than running to the last
-    /// entry — a slice of the first two of ten touches two entries, which is
-    /// what makes this the member a paging loop calls.
-    fn nvs_core_arr_slice(_ctx, args: [4])-> Value, owns NvsArray {
+    /// A sole subject keeps its window in place and releases the rest, at
+    /// O(1) for each entry released. A shared one builds the window alone:
+    /// [`NvsArray::slot_of_position`] finds its start, so a slice of two
+    /// entries touches two, which is what makes this the member a paging loop
+    /// calls. A window that keeps its keys keeps the subject's append
+    /// counter, unless it is the front of a list ([`kept_counter`]).
+    fn nvs_core_arr_slice(_ctx, args: [4])-> (usize, usize, bool), owns NvsArray {
         let base = subject(args, "slice")?;
         let preserve = preserve_keys(&args[3], "slice")?;
         let (start, end) = window(base.count(), &args[1], &args[2], "slice")?;
-
+        Ok((start, end, preserve))
+    } apply(plan, subject) {
+        let (start, end, preserve) = plan;
+        if subject.is_sole() {
+            let mut subject = subject;
+            subject.keep_window(start, end, !preserve);
+            return Value::array(subject);
+        }
         let mut out = NvsArray::with_capacity(end.saturating_sub(start));
-        let mut from = 0usize;
-        let mut position = 0usize;
-        while position < end {
-            let Some(slot) = base.next_slot(from) else {
+        let mut at = if start < end { subject.slot_of_position(start) } else { None };
+        for _ in start..end {
+            let Some(slot) = at else {
                 break;
             };
-            from = slot + 1;
-            if position >= start {
-                carry_entry(&base, slot, &mut out, preserve);
-            }
-            position += 1;
+            carry_entry(&subject, slot, &mut out, preserve);
+            at = subject.next_slot(slot + 1);
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        if preserve {
+            kept_counter(&mut out, &subject, start == 0);
+        }
+        Value::array(out)
+    }
+}
+
+/// Gives an array built from some of `subject`'s entries, under their own
+/// keys, the append counter `subject` cut in place would have: the subject's
+/// own, unless the subject is a list cut only at its end, which stays a list
+/// whose counter is its length. So a member's result appends at the same key
+/// whether its subject was shared or sole. O(1).
+fn kept_counter(out: &mut NvsArray, subject: &NvsArray, front_kept: bool) {
+    if !(front_kept && subject.is_packed_list()) {
+        out.keep_append_index_of(subject);
+    }
+}
+
+/// Values an owning member's `check` passes to its `apply`, each with a
+/// reference of its own. A value `apply` does not store is released when
+/// this is dropped.
+#[derive(Debug)]
+pub struct Retained(Vec<Value>);
+
+impl Retained {
+    /// The trailing values of a variadic member, each retained.
+    fn trailing(tail: &Value, member: &str) -> Result<Self, Fault> {
+        let mut values = Vec::new();
+        for_each_trailing(tail, member, |value| {
+            values.push(value);
+            Ok(())
+        })?;
+        for value in &values {
+            #[expect(
+                unsafe_code,
+                reason = "each value belongs to the tail array, which outlives \
+                          the call, and the copy kept here needs a reference of \
+                          its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+        }
+        Ok(Self(values))
+    }
+
+    /// Takes the values out, with their references.
+    fn take(mut self) -> Vec<Value> {
+        std::mem::take(&mut self.0)
+    }
+}
+
+impl Drop for Retained {
+    fn drop(&mut self) {
+        release_all(std::mem::take(&mut self.0));
+    }
+}
+
+/// Releases one reference of each value.
+fn release_all(values: Vec<Value>) {
+    for value in values {
+        #[expect(
+            unsafe_code,
+            reason = "the caller passes references it owns and stores nowhere"
+        )]
+        unsafe {
+            value.release();
+        }
     }
 }
 
@@ -3525,19 +3598,59 @@ nvs_runtime::nvs_helper! {
     /// reason: a subject already holding `i64::MAX` as a key has no next
     /// integer key to derive, so a call adding a value to it throws the
     /// `LogicError` that statement throws, with that statement's message.
-    /// [`append_borrowed_or_refuse`] is where the two meet; the subject is
-    /// untouched either way, since this member builds a result.
-    fn nvs_core_arr_append(_ctx, args: [2])-> Value, owns NvsArray {
+    /// [`append_borrowed_or_refuse`] is where the two meet, and the subject
+    /// is unchanged by a refusal.
+    ///
+    /// A sole subject takes the values in place: its counter is set to the
+    /// fresh build's ([`NvsArray::recount_append_index`]), and each value is
+    /// appended. On a list that is O(1) for each value. On a map the recount
+    /// walks its keys once per call. A shared subject is copied whole.
+    fn nvs_core_arr_append(_ctx, args: [2])-> Appended, owns NvsArray {
         let base = subject(args, "append")?;
+        let values = Retained::trailing(&args[1], "append")?;
+        let added = i64::try_from(values.0.len()).unwrap_or(i64::MAX);
+        if base.fresh_append_index().checked_add(added).is_some() {
+            return Ok(Appended::Values(values));
+        }
+        // The last integer key is reached on the way, so an append may find
+        // its key taken: the result is built here, where the error can be
+        // thrown.
         let mut out = NvsArray::new();
         copy_all(&base, &mut out);
         for_each_trailing(&args[1], "append", |value| {
             append_borrowed_or_refuse(&mut out, value)
         })?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok(Appended::Built(out))
+    } apply(plan, subject) {
+        let values = match plan {
+            Appended::Built(out) => return Value::array(out),
+            Appended::Values(values) => values.take(),
+        };
+        if subject.is_sole() {
+            let mut subject = subject;
+            subject.recount_append_index();
+            for value in values {
+                subject.append(value);
+            }
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(subject.count() + values.len());
+        copy_all(&subject, &mut out);
+        for value in values {
+            out.append(value);
+        }
+        Value::array(out)
     }
+}
+
+/// What [`nvs_core_arr_append`]'s `check` passes to its `apply`.
+#[derive(Debug)]
+pub enum Appended {
+    /// The values to append, none of which can find its key taken.
+    Values(Retained),
+    /// The whole result, built by `check` because the subject's keys reach
+    /// the last integer key.
+    Built(NvsArray),
 }
 
 nvs_runtime::nvs_helper! {
@@ -3563,17 +3676,32 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_append`] therefore keeps the subject's, while prepending
     /// does not. A call with no trailing values is `Core\Arr::values` of the
     /// subject.
-    fn nvs_core_arr_prepend(_ctx, args: [2])-> Value, owns NvsArray {
-        let base = subject(args, "prepend")?;
-        let mut out = NvsArray::new();
-        for_each_trailing(&args[1], "prepend", |value| {
-            append_borrowed(&mut out, value);
-            Ok(())
-        })?;
-        append_values(&base, &mut out)?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+    ///
+    /// A sole list takes the values into its front room and moves no entry,
+    /// so a list built by prepending costs O(1) for each value. A sole map is
+    /// renumbered into a list first, and a shared subject is copied.
+    fn nvs_core_arr_prepend(_ctx, args: [2])-> Retained, owns NvsArray {
+        subject(args, "prepend")?;
+        Retained::trailing(&args[1], "prepend")
+    } apply(values, subject) {
+        let values = values.take();
+        if subject.is_sole() {
+            let mut subject = subject;
+            // A refusal is the request's memory limit, already recorded. The
+            // values are released and the subject is unchanged.
+            if let Err(refused) = subject.prepend(values) {
+                release_all(refused);
+            }
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(subject.count() + values.len());
+        for value in values {
+            out.append(value);
+        }
+        // A refusal is the memory limit's, already recorded, and the request
+        // ends at it.
+        let _ = append_values(&subject, &mut out);
+        Value::array(out)
     }
 }
 
@@ -3598,32 +3726,34 @@ nvs_runtime::nvs_helper! {
     /// says so; a caller who wanted to keep a map's keys has no way to get them
     /// back once a member has thrown them away, so keeping is the direction
     /// that loses nothing.
-    fn nvs_core_arr_without_first(_ctx, args: [1])-> Value, owns NvsArray {
-        // Unreachable from source: an `array<T>` parameter, refused at the
-        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
-        let array = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::withoutFirst expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
-        let subject = borrowed(array);
-
+    ///
+    /// A sole subject releases its first entry in place, in O(1). A list
+    /// becomes a map at the first call and keeps its keys after that. A
+    /// shared subject is copied without its first entry. Either way the
+    /// result keeps the subject's append counter, as `unset` does.
+    fn nvs_core_arr_without_first(_ctx, args: [1])-> (), owns NvsArray {
+        subject(args, "withoutFirst")?;
+        Ok(())
+    } apply(_plan, subject) {
+        // An empty subject gives the fresh empty array, on either path.
+        if subject.is_empty() {
+            return Value::array(NvsArray::new());
+        }
+        if subject.is_sole() {
+            let mut subject = subject;
+            subject.drop_first(1, false);
+            return Value::array(subject);
+        }
         // The one entry this member drops is whatever the cursor names first,
         // so skipping it is a cursor start rather than a comparison per entry.
-        let mut from = match subject.next_slot(0) {
-            Some(first) => first + 1,
-            None => return Ok(Value::array(NvsArray::new())),
-        };
         let mut out = NvsArray::with_capacity(subject.count() - 1);
-        while let Some(slot) = subject.next_slot(from) {
+        let mut at = subject.next_slot(0).and_then(|first| subject.next_slot(first + 1));
+        while let Some(slot) = at {
             copy_entry(&subject, slot, &mut out);
-            from = slot + 1;
+            at = subject.next_slot(slot + 1);
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        kept_counter(&mut out, &subject, false);
+        Value::array(out)
     }
 }
 
@@ -3634,33 +3764,32 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_without_first`]'s own docs own the split from PHP's
     /// mutate-and-return pair and the rule that every surviving key is kept.
     ///
-    /// The last entry cannot be named without walking, since the ordered hash
-    /// has no backward cursor — the same property
-    /// [`nvs_core_arr_reverse`] collects slots for. This one needs no `Vec`:
-    /// it copies each entry only once it has seen that another follows.
-    fn nvs_core_arr_without_last(_ctx, args: [1])-> Value, owns NvsArray {
-        // Unreachable from source: an `array<T>` parameter, refused at the
-        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
-        let array = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::withoutLast expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
-        let subject = borrowed(array);
-
-        let mut out = NvsArray::with_capacity(subject.count().saturating_sub(1));
-        let mut pending = subject.next_slot(0);
-        while let Some(slot) = pending {
-            pending = subject.next_slot(slot + 1);
-            if pending.is_some() {
-                copy_entry(&subject, slot, &mut out);
-            }
+    /// [`NvsArray::last_slot`] names the entry to drop. A sole subject releases
+    /// it in place, in O(1) plus the holes at a map's end, so a stack cut with
+    /// this stays a list. A shared subject is copied up to it. A list's result
+    /// appends at its new length, and a map's keeps the subject's append
+    /// counter ([`kept_counter`]).
+    fn nvs_core_arr_without_last(_ctx, args: [1])-> (), owns NvsArray {
+        subject(args, "withoutLast")?;
+        Ok(())
+    } apply(_plan, subject) {
+        if subject.is_empty() {
+            return Value::array(NvsArray::new());
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        if subject.is_sole() {
+            let mut subject = subject;
+            subject.drop_last(1);
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(subject.count() - 1);
+        let last = subject.last_slot();
+        let mut at = subject.next_slot(0);
+        while let Some(slot) = at.filter(|slot| Some(*slot) != last) {
+            copy_entry(&subject, slot, &mut out);
+            at = subject.next_slot(slot + 1);
+        }
+        kept_counter(&mut out, &subject, true);
+        Value::array(out)
     }
 }
 
@@ -5349,19 +5478,13 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`nvs_core_arr_first`]'s own docs own the `null`-for-empty rule.
     ///
-    /// The last entry cannot be named without walking, since the ordered hash
-    /// has no backward cursor — the same property
-    /// [`nvs_core_arr_without_last`] walks for. This one keeps a slot number
-    /// rather than copying, so the walk allocates nothing.
+    /// [`NvsArray::last_slot`] names the last entry: one step on a list, and
+    /// on a map a walk back past the holes at its end, which compaction
+    /// bounds. So a stack read with this and cut with `withoutLast` costs
+    /// each step O(1).
     fn nvs_core_arr_last(_ctx, args: [1]) {
         let subject = subject(args, "last")?;
-        let mut seen = None;
-        let mut from = 0usize;
-        while let Some(slot) = subject.next_slot(from) {
-            seen = Some(slot);
-            from = slot + 1;
-        }
-        Ok(match seen {
+        Ok(match subject.last_slot() {
             Some(slot) => owned_value_at(&subject, slot),
             None => Value::null(),
         })
@@ -5390,16 +5513,10 @@ nvs_runtime::nvs_helper! {
     /// replacing PHP's `array_key_last`.
     ///
     /// [`nvs_core_arr_first_key`] owns why the answer is a `string`, and
-    /// [`nvs_core_arr_last`] why finding it is a walk.
+    /// [`nvs_core_arr_last`] how the last entry is found.
     fn nvs_core_arr_last_key(_ctx, args: [1]) {
         let subject = subject(args, "lastKey")?;
-        let mut seen = None;
-        let mut from = 0usize;
-        while let Some(slot) = subject.next_slot(from) {
-            seen = Some(slot);
-            from = slot + 1;
-        }
-        Ok(match seen {
+        Ok(match subject.last_slot() {
             Some(slot) => owned_key_at(&subject, slot),
             None => Value::null(),
         })
