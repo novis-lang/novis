@@ -2399,7 +2399,7 @@ impl<'a> Lowering<'a> {
                 // in between. A refused append or a failed nested write
                 // leaves the array with the caller, so its error edge
                 // releases that reference.
-                let retained = !guarded && self.lendable_root(root);
+                let retained = self.lendable_root(root);
                 if retained {
                     self.emit_retain(*cur, root_v);
                 }
@@ -2609,29 +2609,30 @@ impl<'a> Lowering<'a> {
         );
     }
     /// Whether an element write's root `root` is a slot the ownership pass
-    /// can lend to the write: a plain `array` property of one class with no
-    /// `lateinit` step, or an `array` static property. The write then retains
+    /// can lend to the write: an `array` property of one class, or an `array`
+    /// static property. The write then retains
     /// the root's read, and [`Self::write_back_array`] reads the old value
     /// again and releases it around its store, as every other replacement of
-    /// a slot does.
+    /// a slot does. A guarded root is read again after its guard runs, and
+    /// that read is the one retained. A `lateinit` root is initialized in
+    /// blocks of its own, and its read and its store share the block after.
+    ///
+    /// A union receiver keeps the lowering's store, which consumes the
+    /// reference the root's read gave with no retain. It reads the root in
+    /// one block per class and stores it back in another, and the pass lends
+    /// only a read and a store in one block. Nothing between that read and
+    /// the store runs program code, so the slot is never read or replaced
+    /// while the write has its reference.
     fn lendable_root(&self, root: &Expr) -> bool {
         let root = root.unparenthesized();
         match &root.kind {
             ExprKind::PropertyAccess {
                 nullsafe: false, ..
             } => {
-                let Some(ExprInfo::Property {
-                    class,
-                    name,
-                    ty,
-                    guard: None,
-                    ..
-                }) = self.member_record(root.span)
-                else {
+                let Some(ExprInfo::Property { ty, .. }) = self.member_record(root.span) else {
                     return false;
                 };
                 erase_checked_ty(*ty, self.checked_types) == Ty::Array
-                    && !self.exprs.is_lateinit_property(&class.to_string(), name)
             }
             ExprKind::StaticPropertyAccess { .. } => self.static_property_of(root).2 == Ty::Array,
             _ => false,
@@ -2884,7 +2885,7 @@ impl<'a> Lowering<'a> {
         // or the climb's last store, and the ownership pass lends it the
         // slot's instead. A level's read below may throw, so the reference is
         // this statement's temporary until the descent is done.
-        let retained = !guarded && self.lendable_root(root);
+        let retained = self.lendable_root(root);
         if retained {
             self.emit_retain(*cur, root_v);
             self.own_temporary(root_v);

@@ -2399,6 +2399,57 @@ fn an_unset_of_a_plain_slot_is_lent() {
     assert!(call < last_read, "the root is read after the guard\n{guarded}");
 }
 
+/// A guarded root is read again after its guard runs. That second read is
+/// lent to the write and to the removal, so the store reads the slot only
+/// once after the guard.
+#[test]
+fn a_guarded_root_is_lent_after_its_guard() {
+    for (body, guard) in [
+        ("    $this->w->p[0] = 1;", "beforePropertySet"),
+        ("    unset($this->w->p[0]);", "beforePropertyUnset"),
+    ] {
+        let printed = lower_lends(body);
+        let after = &printed[printed.find(guard).unwrap_or(0)..];
+        assert_eq!(slot_reads(after, "W::p"), 1, "{body}\n{printed}");
+        let off = crate::lower::without_in_place(|| lower_lends(body));
+        let after = &off[off.find(guard).unwrap_or(0)..];
+        assert_eq!(slot_reads(after, "W::p"), 2, "{body}\n{off}");
+    }
+}
+
+/// A `lateinit` root is initialized in blocks of its own, and its read and
+/// its store share the block after, so it is lent. A union receiver reads
+/// and stores back in one block per class, so its write keeps the lowering's
+/// store, which takes no retain and reads the slot once.
+#[test]
+fn a_lateinit_root_is_lent_and_a_union_root_keeps_its_store() {
+    let src = "<?nvs\nfinal class A {\n  public array<int> $p = [];\n}\nfinal class B {\n  public array<int> $p = [];\n}\n\
+               final class T implements LateInit {\n  public lateinit array<int> $l;\n  \
+               public function initProperty(string $name): void { $this->l = []; }\n  \
+               public function m(A|B $u): void {\n    $u->p[0] = 1;\n    $this->l[0] = 2;\n  }\n}\n";
+    let printed = |in_place: bool| {
+        let lower = || lower_whole_file_with_src(src);
+        let (program, map, file) = if in_place {
+            lower()
+        } else {
+            crate::lower::without_in_place(lower)
+        };
+        program
+            .functions
+            .iter()
+            .filter(|f| f.name == "T::m")
+            .map(|f| print_function(f, map.file(file)))
+            .collect::<String>()
+    };
+    let lent = printed(true);
+    assert_eq!(slot_reads(&lent, "T::l"), 1, "{lent}");
+    assert_eq!(slot_reads(&lent, "A::p"), 1, "{lent}");
+    assert!(!lent.contains("retain "), "{lent}");
+    let kept = printed(false);
+    assert_eq!(slot_reads(&kept, "T::l"), 2, "{kept}");
+    assert_eq!(slot_reads(&kept, "A::p"), 1, "{kept}");
+}
+
 /// A hooked property is read and written by its hooks, so there is no slot to
 /// lend. A guarded one runs the guard between the call and the store.
 #[test]
