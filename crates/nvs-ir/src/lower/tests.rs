@@ -2105,6 +2105,77 @@ fn a_generator_moves_like_a_function() {
     assert!(printed.contains("slice_owned"), "{printed}");
 }
 
+/// A generator's functions as printed, for the two `generator-local` tests:
+/// `$xs` is parked across a `yield` and changed after it.
+fn lower_generator_local() -> String {
+    let src = "<?nvs\nclass T {\n  static function gen(array<int> $xs): Iterator<uint> {\n    \
+               yield 1;\n    $xs = Core\\Arr::append($xs, 4);\n    \
+               yield Core\\Arr::count($xs);\n    $xs = Core\\Arr::append($xs, 5);\n    \
+               yield Core\\Arr::count($xs);\n  }\n}\n";
+    let (program, map, file) = lower_whole_file_with_src(src);
+    program
+        .functions
+        .iter()
+        .filter(|f| f.name.ends_with("::advance"))
+        .map(|f| print_function(f, map.file(file)))
+        .collect()
+}
+
+/// The value ids `printed` reads back out of a field with `op`.
+fn field_reads(printed: &str, op: &str) -> Vec<String> {
+    printed
+        .lines()
+        .filter(|line| line.contains(&format!("= {op} ")) && line.contains("::xs"))
+        .map(|line| line.trim().split(' ').next().unwrap_or_default().to_owned())
+        .collect()
+}
+
+/// A resume takes the parked array out of the state object with no retain,
+/// so the local is its only reference and the change after the `yield`
+/// calls the owning entry.
+#[test]
+fn a_generator_local_changed_after_a_yield_is_changed_in_place() {
+    let printed = lower_generator_local();
+    let taken = field_reads(&printed, "field.take");
+    // The seeded parameter and the two resumes.
+    assert!(taken.len() >= 3, "{printed}");
+    // The old reload retained its value on the line after the read. A spill
+    // later in the block still retains the value it parks.
+    let lines: Vec<&str> = printed.lines().map(str::trim).collect();
+    for (i, line) in lines.iter().enumerate() {
+        if let Some(v) = taken.iter().find(|v| line.starts_with(&format!("{v} = "))) {
+            assert_ne!(lines[i + 1], format!("retain {v}"), "{printed}");
+        }
+    }
+    assert_eq!(printed.matches("append_owned").count(), 2, "{printed}");
+}
+
+/// While the generator is parked, the state object has the one reference
+/// to each local, and the body has none. So a drop while parked frees each
+/// local once: every spill retains the value it parks once, and every read
+/// of the field outside a resume is the spill's read of the old value,
+/// which it releases.
+#[test]
+fn a_generator_dropped_while_parked_frees_each_local_once() {
+    let printed = lower_generator_local();
+    let parked: Vec<&str> = printed
+        .lines()
+        .filter(|line| line.trim().starts_with("field.set") && line.contains("::xs,"))
+        .map(|line| line.rsplit(", ").next().unwrap_or_default())
+        .collect();
+    assert!(parked.len() >= 2, "{printed}");
+    for v in &parked {
+        assert_eq!(
+            printed.matches(&format!("retain {v}\n")).count(),
+            1,
+            "{v}\n{printed}"
+        );
+    }
+    for old in field_reads(&printed, "field.get") {
+        assert!(printed.contains(&format!("release {old}\n")), "{old}\n{printed}");
+    }
+}
+
 /// A by-value loop whose body writes only the entry it is on walks the array
 /// its variable has now, so the loop takes no reference of its own and the
 /// write is in place.

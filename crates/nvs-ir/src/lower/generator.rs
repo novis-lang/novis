@@ -15,24 +15,27 @@
 use super::*;
 
 impl<'a> Lowering<'a> {
-    /// Reads `name`'s parked value back out of the state object and takes a
-    /// reference of its own — the reload half of a generator suspension. See
-    /// [`lower_generator`], which owns the whole protocol.
+    /// Takes `name`'s parked value out of the state object — the reload half
+    /// of a generator suspension. The field is left `null` and the local owns
+    /// the reference the field had, so a change after the resume is made in
+    /// place. See [`lower_generator`], which owns the whole protocol.
     pub(crate) fn reload_field(&mut self, b: BlockId, name: &str, ty: Ty) -> ValueId {
         let (class, gen_v) = self.gen_target();
-        let (v, _) = self.emit(
-            b,
-            ty,
+        let field = name.to_owned();
+        let kind = if ty.is_refcounted() {
+            InstKind::FieldTake {
+                object: gen_v,
+                class,
+                field,
+            }
+        } else {
             InstKind::FieldGet {
                 object: gen_v,
                 class,
-                field: name.to_owned(),
-            },
-        );
-        if ty.is_refcounted() {
-            self.emit_retain(b, v);
-        }
-        v
+                field,
+            }
+        };
+        self.emit(b, ty, kind).0
     }
     /// Parks `v` in `name`'s field — the spill half. The field takes its own
     /// reference and releases whatever it held before, which at the first
@@ -948,6 +951,7 @@ pub(crate) fn lower_generator_advance(
     let callables = std::mem::take(&mut low.callables);
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
+    let own_entry_loops = std::mem::take(&mut low.own_entry_loops);
     let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -964,7 +968,7 @@ pub(crate) fn lower_generator_advance(
                 edge_spans,
                 debug_slots,
                 debug_catches,
-                own_entry_loops: Vec::new(),
+                own_entry_loops,
                 param_checks: crate::ir::ParamChecks::default(),
                 debug_returns_secret: true,
             },

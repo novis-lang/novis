@@ -276,6 +276,11 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
+        InstKind::FieldTake {
+            object,
+            class,
+            field,
+        } => format!("field.take v{}, {class}::{field}", object.index()),
         InstKind::FieldIsInit {
             object,
             class,

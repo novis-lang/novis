@@ -1034,6 +1034,14 @@ impl Emitter<'_, '_> {
                 let value = self.emit_field_get(inst, *object, class, field)?;
                 self.define(inst, value)?;
             }
+            InstKind::FieldTake {
+                object,
+                class,
+                field,
+            } => {
+                let value = self.emit_field_take(inst, *object, class, field)?;
+                self.define(inst, value)?;
+            }
             InstKind::FieldIsInit {
                 object,
                 class,
@@ -3810,6 +3818,23 @@ impl Emitter<'_, '_> {
             .ty
             .ok_or_else(|| internal("a property read with no representation"))?;
         self.load_value(base, offset, ty)
+    }
+
+    /// A generator's resume reads a parked local: one load out of the field
+    /// slot, then a store of `null` into it, the value `New` left there.
+    /// The loaded value keeps the slot's reference, so nothing is retained.
+    fn emit_field_take(
+        &mut self,
+        inst: &Inst,
+        object: ValueId,
+        class: &str,
+        field: &str,
+    ) -> Result<Value, CodegenError> {
+        let value = self.emit_field_get(inst, object, class, field)?;
+        let offset = self.field_offset(class, field)?;
+        let (base, _) = self.value(object)?;
+        self.store_tag_and_bits(base, offset, Tag::Null, None)?;
+        Ok(value)
     }
 
     /// Whether the slot of `class`'s field `field` holds a value: one load of

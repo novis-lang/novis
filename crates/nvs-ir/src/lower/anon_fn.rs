@@ -297,6 +297,7 @@ pub(crate) fn lower_anon_fn(
     // here rather than in the enclosing function, so it rides out beside the
     // environment class — see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
+    let own_entry_loops = std::mem::take(&mut low.own_entry_loops);
     let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     (
         Function {
@@ -309,7 +310,7 @@ pub(crate) fn lower_anon_fn(
             edge_spans,
             debug_slots,
             debug_catches,
-            own_entry_loops: Vec::new(),
+            own_entry_loops,
             param_checks: crate::ir::ParamChecks {
                 pending: declared,
                 ..crate::ir::ParamChecks::default()

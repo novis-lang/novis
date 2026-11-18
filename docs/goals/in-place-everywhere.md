@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/abi.rs, crates/nvs-stdlib/src/lib.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 3
     title: one ownership pass moves every value at its last use, on every path
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/call.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 4
     title: the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
@@ -532,21 +532,21 @@ disjoint and they run side by side. The session runs the test once all batches e
 - [x] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
   dropped for a by-value loop whose body writes only the entry it is on, under the conditions in
   § *Standing decisions*.
-  - [x] `Function::own_entry_loops`, filled by `lower_foreach` (closures' loops are not yet recorded)
+  - [x] `Function::own_entry_loops`, filled by `lower_foreach`, in a function, an anonymous function and a generator
   - [x] `drop_loop_reference`: the walk reads the current array, and the retain and first releases go
   - [x] a hashed array's copy keeps its holes (`crates/nvs-runtime/src/array.rs` `Hashed::separate`)
   - [x] `tests/conformance/in-place/a-loop-that-writes-its-own-entry-visits-every-entry.nvst`, both ways
-- [ ] `crates/nvs-ir/src/lower/generator.rs:21` `reload_field` takes the parked value and leaves the
+- [x] `crates/nvs-ir/src/lower/generator.rs:21` `reload_field` takes the parked value and leaves the
   field empty, with no retain. A generator that is dropped while parked still frees what its fields
   hold, and one dropped while its body runs frees nothing twice.
-  - [ ] `InstKind::FieldTake` in `ir.rs`, with its operands, its print and its effects
-  - [ ] its codegen beside `emit_field_get` (`crates/nvs-codegen/src/emit.rs:1029`): read, then store a zero
-  - [ ] `reload_field` emits it with no retain, and the two `generator-local` tests
-- [ ] The five tests the `moves` check names, the two the `own-entry-loop` check names and the two the
+  - [x] `InstKind::FieldTake` in `ir.rs`, with its operands and its print (stage 4 adds every effects row)
+  - [x] its codegen `emit_field_take` beside `emit_field_get`: read, then store `null`
+  - [x] `reload_field` emits it with no retain, and the two `generator-local` tests
+- [x] The five tests the `moves` check names, the two the `own-entry-loop` check names and the two the
   `generator-local` check names. Run once.
   - [x] the five `moves` tests, green (`crates/nvs-ir/src/lower/tests.rs` `lower_moves`)
   - [x] the two `own-entry-loop` tests
-  - [ ] the two `generator-local` tests
+  - [x] the two `generator-local` tests
 
 ### 4. the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
 
@@ -631,39 +631,36 @@ Stage 1 is done: the rule, the switch and 684 matrix cases under `tests/conforma
 green both ways. The sweep's two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last
 named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
 
-Stage 3's first five items are done (`af0e518f1e`). `crates/nvs-ir/src/ownership.rs` decides every
-move from the IR. `Walk::excess_releases` moves each path's first release to just before a candidate
-call when every path releases the value twice or more, so `$b = $a; $a = Core\Arr::slice($a, 1);`
-moves when `$b` is not read again. `drop_loop_reference` drops a by-value `foreach`'s own reference
-and points its walk at the variable's header phi, which § *Standing decisions* now records with its
-reason. `Hashed::separate` keeps holes so positions survive a copy under the walk. The five `moves`
-tests and both `own-entry-loop` tests are green, and the new conformance case
-`a-loop-that-writes-its-own-entry-visits-every-entry.nvst` passes both ways.
+Stage 2 is done: 117 owning members, two entries each (`crates/nvs-runtime/src/owned.rs`).
 
-Stage 2 is done (`729cb594bf`, `e0281341e9`). `nvs_helper!`'s owning form (`crates/nvs-runtime/src/owned.rs`
-states the protocol) emits two entries per member, as § *Standing decisions* now records. Every
-module's `address` returns an `nvs_runtime::Entry`. 117 members are in the form; each `apply` returns
-`check`'s result and drops the subject. `Core\Path::thisDir` is not in it, because its first parameter
-is `?string`. Both `owning-signatures` tests are green. `Core\Secret::reveal` and `Core\Taint::assertTrusted`
-retain and return their argument, then `apply` releases the subject, which balances.
+Stage 3 is done, and all nine of its tests are green. `crates/nvs-ir/src/ownership.rs` decides every
+move from the IR, including a release at the last use (`Walk::excess_releases`) and a by-value loop's
+own reference (`drop_loop_reference`) in a function, an anonymous function and a generator.
+`InstKind::FieldTake` (codegen `emit_field_take`) reads a field and stores `null`, and
+`reload_field` (`crates/nvs-ir/src/lower/generator.rs:21`) emits it with no retain. So a resumed
+generator local is the only reference, and the next spill's release of the field is a no-op. A loop
+with a `yield` in it keeps its reference, because its back edge comes from a `field.take`.
 
 ### Next
 
-Stage 3's last item, then stage 4.
+Stage 4 (`lends`), item by item. No instruction states its effects yet.
 
-- **`reload_field`** (`crates/nvs-ir/src/lower/generator.rs:21`) takes the parked value and leaves
-  the field empty. No instruction does that today. Add `InstKind::FieldTake { object, class, field }`
-  in `crates/nvs-ir/src/ir.rs` (beside `FieldGet`, with `for_each_operand`, `print.rs` and the
-  effects row). Its codegen goes beside `emit_field_get` (`crates/nvs-codegen/src/emit.rs:1029`): read
-  the slot, then store the zero the field held after `New`, as `FieldSet` (`emit.rs:1086`) stores.
-  `reload_field` then emits it with no retain. Its two callers are the resume (`generator.rs:196`)
-  and the seeded parameters (`generator.rs:898`). `spill_field` already releases the old field
-  value, which is then null and a no-op. Write the two `generator-local` tests in
-  `crates/nvs-ir/src/lower/tests.rs` beside `a_generator_moves_like_a_function`, and run them once.
-- Then set stage 3 to done in the front matter and start stage 4 (`lends`).
-- **Closures' loops.** The three `Function` literals in `crates/nvs-ir/src/lower/anon_fn.rs` pass
-  `own_entry_loops: Vec::new()`. Take `low.own_entry_loops` before `low.finish()` there, as
-  `lower/mod.rs` does, so a loop in an anonymous function body gets the same decision.
+- **Effects.** Add `InstKind::effects(&self) -> Effects` beside `for_each_operand` at the end of
+  `crates/nvs-ir/src/ir.rs`: `may_run_user_code` (a `Call`, `CallVirtual`, a callable call, a
+  `CoreCall` whose member takes a callback, a hooked read) and the slots it may read or write, by
+  class and field or static name, with "anything" for a dynamic or name-keyed access (`SlotGet`,
+  `SlotSet`, `KeyGet`, `KeySet`). Write it as one exhaustive `match` with no `_` arm, so a new
+  instruction must state its row. `FieldTake` writes its own field.
+- **The lend.** In `crates/nvs-ir/src/ownership.rs`, beside the move walk: find
+  `FieldGet`/`StaticGet`/`ArrayGet` of a slot, a `CoreCall` that takes it as `subject`, and the
+  matching `FieldSet`/`StaticSet`/`ArraySet` of the call's result to the same slot. Where no
+  instruction between them has an effect on the slot or may run user code, remove the retain and
+  the store's release of the old value, and switch the symbol to the `_owned` entry, as the move does
+  (`ownership.rs:148`). `lower_slot_append` (`crates/nvs-ir/src/lower/stmt.rs:619`) and
+  `write_back_array` (`crates/nvs-ir/src/lower/mod.rs:4057`) are the two lowering-side decisions to
+  fold in. `lower_reassignment` (`stmt.rs:1425`) is where a slot's read, retain and store are emitted.
+- **The debug poison** in `crates/nvs-codegen/src/emit.rs`, then the nine `lends` tests and
+  `lend-trap`, run once by name.
 
 **Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
@@ -672,7 +669,8 @@ Accept each after reading it: a removed retain must sit beside a removed release
 also runs stage 2's 117 owning entries for the first time through real calls. A snapshot with a
 by-value `foreach` that writes `$a[$k]` now walks the header phi with no `retain` of the subject, and
 `crates/nvs-runtime`'s array tests that assert a separated hashed array's vector length may change,
-because the copy keeps its holes.
+because the copy keeps its holes. A snapshot of a generator's `advance` now prints `field.take`
+where it printed `field.get` and a `retain` at each resume.
 
 ### Backlog
 

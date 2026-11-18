@@ -1319,6 +1319,26 @@ pub enum InstKind {
         /// The field's own name, `$`-sigil not included.
         field: String,
     },
+    /// Takes a compile-time-known field's value out of its object and leaves
+    /// `null` in the slot, the value [`InstKind::New`] put there. The result
+    /// owns the reference the slot had, so nothing is retained and the slot
+    /// owes no release.
+    ///
+    /// Its one producer is a generator's resume (`lower::generator`'s
+    /// `reload_field`): a local parked across a `yield` comes back as the
+    /// only reference, so a change after the resume is made in place. The
+    /// state object reads the field again only at the next spill, which
+    /// releases what the slot has, and `null` makes that release a no-op. A
+    /// generator dropped while its body runs frees nothing the body owns.
+    /// `class`/`field` are [`Self::FieldGet`]'s labels.
+    FieldTake {
+        /// The receiver, already lowered.
+        object: ValueId,
+        /// The class that declares the field.
+        class: String,
+        /// The field's own name, `$`-sigil not included.
+        field: String,
+    },
     /// Whether a compile-time-known field's slot holds a value — `false` while
     /// it still has `nvs_runtime::Tag::Unset`, the state a `lateinit` property
     /// starts in (`rule:classes/an-unwritten-property-read-throws`).
@@ -3898,6 +3918,7 @@ impl InstKind {
             | InstKind::ExtensionCall { args, .. } => args.iter().copied().for_each(&mut f),
             InstKind::ClassDescOf { object }
             | InstKind::FieldGet { object, .. }
+            | InstKind::FieldTake { object, .. }
             | InstKind::FieldIsInit { object, .. }
             | InstKind::SlotGet { object, .. }
             | InstKind::SlotProbe { object, .. }
