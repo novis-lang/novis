@@ -419,6 +419,27 @@ CI. A value that a cache, the configuration or another request can reach always 
 (the immortal count, or the cache's own reference), so it is never changed in place. The attack in
 stage 8 checks that.
 
+**Where the poison is written (my call, 2026-11-18).** "Between the read and the store" cannot mean
+the call too. A callback the lend allows, and a lent Novis body before its first change, may read the
+slot and must see the old value, so a poison across the call would trap a correct program. The poison
+covers the two windows where any read is a wrong effect decision:
+
+- **Before the call:** from just after the slot's read to just before the call, the slot's tag byte
+  holds a poison tag, and the codegen restores the tag right before the call. Only where nothing in
+  that window has an error edge, because a failure there would leave the slot poisoned for a `catch`.
+- **After the call:** from the call's normal exit to the store, the slot may point at memory the call
+  freed, so the poison tag is written there too, and the store overwrites it. Lend::of already
+  refuses a failing instruction in that window.
+
+The pass records it as one instruction, `InstKind::LendPoison` with the slot and on or off, emitted
+only where it lends; the emitter skips it in a release build. In a debug build, `FieldGet` and
+`StaticGet` compare the tag byte with the poison tag and call a runtime trap that fails with a fatal
+naming the read's statement. A runtime helper that reads the slot by name sees an unknown tag and
+panics in debug, which still fails the suite at once. An element's poison waits for the element's
+entry to have a tag of its own to write. The trap test forces a wrong lend through a debug-only
+`NOVIS_LEND_IGNORE_EFFECTS`, read by the pass under `cfg(debug_assertions)`. **What it spends:**
+nothing in release; in debug one tag compare per slot read.
+
 **What it spends.** One retain and one release per call where the subject is still read after the call
 (it is borrowed today). Nothing per request. Compile time grows by one liveness pass per function,
 which the `compile` ladders under `benches/scaling/compiler/` keep linear.
@@ -643,24 +664,36 @@ points the `array.get` at the sole array, and flips the write to `array.set.lent
 release the entry the call took. The runtime is `nvs_array_sole`, `nvs_array_set_lent` and
 `nvs_array_set_index_lent` (`NvsArray::sole` and `set_lent`, `crates/nvs-runtime/src/array.rs`); a
 refused `sole` is a no-op, because the member then refuses to run. All nine `lends` tests are written
-and were run once by name, and the 80 slot and element `core` matrix cases pass on the debug binary.
-A local's element is not lent yet: the sole array would have to replace the local's value on its
-error edges too.
+and were run once by name (again after `179ba0c5be`), and the 80 slot and element `core` matrix
+cases pass on the debug binary. A local's element is not lent yet: the sole array would have to
+replace the local's value on its error edges too.
+
+Since `179ba0c5be`, `.=` on a plain `string` property or static property is a lend too.
+`lower_slot_append` (`crates/nvs-ir/src/lower/stmt.rs:619`) emits the load, a retain, `str.append`,
+a second load, the store and a release, and `Lend::of` takes any instruction whose
+`InstKind::consumes` (beside `effects`, `ir.rs`) names the subject, switching no symbol.
+`a_slot_append_is_lent` (`lower/tests.rs`) checks both ways, and ran once by name.
 
 ### Next
 
 The rest of stage 4, in this order:
 
-- **Fold in `lower_slot_append`** (`stmt.rs:619`): emit a plain load, retain and store for `.=`, and
-  let `Lend::of` remove the retain. `StrAppend` is not a `CoreCall`, so `Lend::of` needs a second
-  call shape: the instruction that consumes the slot's value, named by an `InstKind` method beside
-  `effects`. Then `write_back_array`'s own decision.
-- **The debug poison** in `crates/nvs-codegen/src/emit.rs`: in a debug build, after a lent slot's
-  read, store a poison value into it, and trap with the statement's span on a read of the poison.
-  The pass must record which reads it lent (a flag on the `CoreCall` or a new instruction), so the
-  emitter knows where to poison. An element's poison goes into the entry, which `set_lent` then
-  overwrites. Then `a_debug_build_traps_a_read_of_a_lent_slot` in
-  `crates/nvs-cli/tests/in_place.rs`, run once by name.
+- **The debug poison**, as § *Standing decisions* "Where the poison is written" says. In
+  `ownership.rs`, `run_function` emits `InstKind::LendPoison` around each lent read and call (a
+  new variant: `effects` is `NONE`, and `print.rs`, `for_each_operand` and every exhaustive match
+  need an arm). In `crates/nvs-codegen/src/emit.rs`, the variant writes or restores the tag byte
+  (`store_tag_and_bits` and `NvsValue::TAG_OFFSET`, as `emit_field_take` and `emit_field_is_init`
+  use them), and `emit_field_get` (`emit.rs:3832`) and `emit_static_get` compare under
+  `cfg!(debug_assertions)`. The poison tag is a new `nvs_runtime::Tag` value. Then
+  `a_debug_build_traps_a_read_of_a_lent_slot` in `crates/nvs-cli/tests/in_place.rs`, which sets
+  `NOVIS_LEND_IGNORE_EFFECTS` and runs `$this->p = Core\Arr::slice($this->p, T::count())` where
+  `T::count` reads `$this->p`; run once by name.
+- **`write_back_array`'s decision** (`crates/nvs-ir/src/lower/mod.rs:4066`): its property and
+  static arms re-point the slot with no retain. As the lend's, they would emit a retain of the
+  slot's read before the `array.set` and a second read and release around the store, and
+  `Lend::of` would take `ArraySet` through `InstKind::consumes`. Every element write goes through
+  it, so read every snapshot that changes; a chain flattened by `lower_reassignment` stores each
+  level, and the lend must hold at each.
 - **A local's element**, if it fits: after `array.sole`, every later read of the local's old value,
   the error edges' releases included, reads the sole array.
 
@@ -675,7 +708,9 @@ because the copy keeps its holes. A snapshot of a generator's `advance` now prin
 where it printed `field.get` and a `retain` at each resume. A snapshot of `$this->p = M($this->p)`
 or `C::$s = M(C::$s)` with an owning `M` now prints `_owned`, and no second read of the slot and no
 release of it after the store. One of `$this->g['a'] = M($this->g['a'])` prints `array.sole` and a
-store after the slot's read, and `array.set.lent`.
+store after the slot's read, and `array.set.lent`. A snapshot of `$this->o .= $x` is unchanged
+with the pass on; with it off (`--no-in-place`), the conformance output is the same, but the IR
+shows a `retain` before `str.append` and a second read and release around the store.
 
 ### Backlog
 

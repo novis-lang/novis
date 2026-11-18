@@ -52,6 +52,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 - **`cargo test --lib` runs none of `nvs-cli`'s tests.** The crate has only the `nvs` binary, so a
   test in `crates/nvs-cli/src/` runs under `cargo test --bin nvs`. A goal check that names such a
   test with `--lib` finds zero tests and fails. See `crates/nvs-cli/Cargo.toml`.
+- **The Edit tool refuses a whole file for one byte that is not UTF-8.** A goal file carried one
+  Latin-1 `§` (byte `a7`), and no edit of its handoff was possible until it was fixed. Find the line
+  with a Python `decode('utf-8')` per line, and replace the bytes with a script under `.agent-tmp/`
+  that reads and writes bytes. See `docs/goals/`.
 - **The Edit tool drops a trailing space at the end of `new_string`.** A `replace_all` of
   `natural(&mut ` to `open_natural(&mut ` wrote `open_natural(&mutpermutation`, and the build failed
   at five sites. End both strings on a character that is not a space, such as the argument after
