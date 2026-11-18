@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/lang/attributes/chapter.md, docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/agent/prose.md, docs/rules/testing/feature-proofs.md, website/src/content/docs/syntax/attributes/routes.mdx, benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs, tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/01-capture-values-that-try-to-leave-their-route.nvs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: attribute-sites
@@ -385,49 +385,38 @@ heading, `about.md`, `details.md` and the website section, and runs the `feature
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. `attribute-sites`, `call-checked`, `call-checked-rust`, `editor`,
-`editor-rust` and `feature-proofs` are green.
+Every stage is done, and the goal is reached. `looper verify` is green over the whole goal, and so are
+`bun nv verify --doc`, `bun nv owners --closes route-parameters` (no gap) and `bun nv ci --check`.
 
-Stage 4: the chapter heading at `docs/examples/lang/attributes/chapter.md:14` makes the feature
-`lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route`. Its folder
-holds `about.md`, `details.md` and three examples; its two attacks and its bench (`complexity
-constant`, `calls 3`) are written, and the routes page has its section *A method that takes a route*.
-The fifteen `.nvst` cases and the five `links.rs` tests carry its `covers:` marker, placed as the last
-line of each case's `--FILE--` so no expected line number moved. Perf is recorded for the eight
-attributes features on a release binary built from the tree.
+The gate fixed three things. rustfmt and `bun nv nvs-fmt` laid out this goal's code, its bench and
+four files of other committed work. `20-types.md`, `docs/rules/routing.md` and `llms-full.txt` were
+rendered from sources already committed. The types chapter's 22 perf records and the attribute-reading
+bench were measured again on a release binary built from the tree. That bench now declares
+`allocations 7`. The new bench has its share in `data/perf/bench-budget.json`. The routes and
+property-names pages are stamped, and the routes page has a question about the new section.
 
-The sweep's reds: `env-secret-proofs` is stale (its newest `git log -S` hit is a retire commit), and
-the nightly `supply chain` failure (`chrono` through `rxing`) is fixed on disk by `0fe2fdef25`.
-
-The working tree carries edits this goal did not make, in `crates/nvs-lsp/`, `crates/nvs-runtime/`,
-`crates/nvs-types/src/check.rs`, `crates/nvs-types/src/expr/members.rs`, `docs/rules/types*`,
-`website/` and the two untracked `string<K>` union cases. Leave them unstaged.
-`docs/reference/lang/20-types.md` re-renders from them, and was restored, not committed.
+The sweep's reds: `env-secret-proofs` is stale (it has no log, and no goal on the chain defines it),
+and the nightly `supply chain` failure is fixed by `0fe2fdef25`.
 
 ### Next
 
-Stage 5: run `looper verify` with `run_in_background`, fix every failure in one pass, run it once
-more. Then the goal-end gates of AGENTS.md: `bun nv verify --doc`, `bun nv owners --closes
-route-parameters`, `bun nv ci --check`.
-Expected reds, both owed to the other session's uncommitted runtime edits, not this goal:
-- `lang:attributes/reading-attributes-back-core-attributes-get-and-all`'s bench declares
-  `allocations 8` and did 7 on that binary, so its perf was not recorded. If the drop holds once
-  those edits land, lower the declaration to 7.
-- `lang:types/*` perf reads stale once `20-types.md` is rendered from those edits.
-The new bench has no entry in `data/perf/bench-budget.json`: `bun nv scaling --budget --write`
-writes it, and rewrites the whole file, so run it in the gate on the release binary. The pages that
-cover the attributes features may need `bun nv site --stamp`.
+Nothing in this goal. The driver runs the acceptance checks and retires it.
 
 ### Backlog
 
 - `website/src/content/docs/guides/how-to-use/requests.mdx:51` and `:57` say a link is built from a
   route's `name`. `Core\Router::url` takes the route method. Not this goal's page; it belongs to
   whichever goal next edits that guide.
+- `bun nv scaling --budget` names 48 benches over their share, none of them this goal's: 41 under
+  `benches/members/novis/` (the Spreadsheet ones among them), `core/Arr/hasKey`, `core/Cap/has`,
+  the three `core/Metrics` writes, and `lang/expressions/the-pipeline-operator.nvs` and its twin
+  (300006 statements against 774). No gate runs this check. Each needs a lower N or a reason beside
+  its `// bench: iterations` line, and it belongs to the goal that next touches those benches.
