@@ -813,16 +813,22 @@ impl<'a> Lowering<'a> {
         let (root_v, _) = self.lower_expr(root, None, env, cur);
         let last = keys.pop();
         let inner: Vec<_> = keys.into_iter().map(Some).collect();
+        // A plain slot's array takes a reference of its own for the call, and
+        // the ownership pass lends it the slot's instead.
+        let retained = self.lendable_root(root);
+        if retained {
+            self.emit_retain(*cur, root_v);
+        }
         let written = self.emit_write_through(
             Helper::ArrayStrAppendThrough,
-            root_v,
+            (root_v, retained),
             &inner,
             last,
             suffix,
             env,
             cur,
         );
-        self.write_back_array(root, written, false, env, cur);
+        self.write_back_array(root, written, retained, env, cur);
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
         true
@@ -2387,12 +2393,13 @@ impl<'a> Lowering<'a> {
                 if elem_ty.is_refcounted() && extra_owner {
                     self.emit_retain(*cur, v);
                 }
-                // One level into a plain slot: the array is the slot's, so
-                // the write takes a reference of its own, and the ownership
-                // pass lends it the slot's instead when nothing can see the
-                // slot in between. A refused append leaves the array with
-                // the caller, so its error edge releases that reference.
-                let retained = inner_keys.is_empty() && !guarded && self.lendable_root(root);
+                // A write into a plain slot: the array is the slot's, so the
+                // write takes a reference of its own, and the ownership pass
+                // lends it the slot's instead when nothing can see the slot
+                // in between. A refused append or a failed nested write
+                // leaves the array with the caller, so its error edge
+                // releases that reference.
+                let retained = !guarded && self.lendable_root(root);
                 if retained {
                     self.emit_retain(*cur, root_v);
                 }
@@ -2419,7 +2426,7 @@ impl<'a> Lowering<'a> {
                 } else {
                     self.emit_write_through(
                         Helper::ArrayWriteThrough,
-                        root_v,
+                        (root_v, retained),
                         &inner_keys,
                         outer_key,
                         v,
@@ -2459,6 +2466,11 @@ impl<'a> Lowering<'a> {
     /// is an append. That array is a temporary of its own. **What it spends:**
     /// one small array per write at depth three or more, freed by the same
     /// statement.
+    ///
+    /// `retained` says the caller retained the root for the call, as a write
+    /// into a slot the ownership pass may lend does. A failure leaves the
+    /// root with the caller, so the root is this statement's temporary across
+    /// the call and its error edge releases that reference.
     #[expect(
         clippy::too_many_arguments,
         reason = "the call's own operands plus the lowering context; a struct would buy its two \
@@ -2467,13 +2479,17 @@ impl<'a> Lowering<'a> {
     fn emit_write_through(
         &mut self,
         helper: Helper,
-        root_v: ValueId,
+        (root_v, retained): (ValueId, bool),
         inner: &[Option<(ValueId, Ty, bool)>],
         last: Option<(ValueId, Ty, bool)>,
         v: ValueId,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
+        let root_slot = self.temporaries_mark();
+        if retained {
+            self.own_temporary(root_v);
+        }
         for (key_v, key_ty, key_aliasing) in inner.iter().flatten().chain(last.iter()) {
             if key_ty.is_refcounted() && !key_aliasing {
                 self.own_temporary(*key_v);
@@ -2506,16 +2522,21 @@ impl<'a> Lowering<'a> {
             Some((key_v, _, _)) => key_v,
             None => self.emit(*cur, Ty::Null, InstKind::ConstNull).0,
         };
-        self.emit_fallible(
-            *cur,
-            Ty::Array,
-            InstKind::HelperCall {
-                helper,
-                args: vec![root_v, inner_v, last_v, v],
-            },
-            env,
-        )
-        .0
+        let written = self
+            .emit_fallible(
+                *cur,
+                Ty::Array,
+                InstKind::HelperCall {
+                    helper,
+                    args: vec![root_v, inner_v, last_v, v],
+                },
+                env,
+            )
+            .0;
+        if retained {
+            self.forget_temporary(root_slot);
+        }
+        written
     }
 
     /// The `PropertyGuard` check before an element write or an element

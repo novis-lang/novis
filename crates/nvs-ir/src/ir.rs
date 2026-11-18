@@ -4311,7 +4311,10 @@ impl InstKind {
     /// [`InstKind::StrAppend`] and [`InstKind::ArraySet`] cannot fail.
     /// [`InstKind::ArrayAppend`] can, and its refusal leaves the array's
     /// reference with the caller, so the slot keeps a value it owns on every
-    /// path. A lent `ArraySet` has already given up its slot's reference.
+    /// path. A [`Helper::ArrayWriteThrough`] or
+    /// [`Helper::ArrayStrAppendThrough`] call consumes its root, its first
+    /// argument, and its failure leaves the root with the caller in the same
+    /// way. A lent `ArraySet` has already given up its slot's reference.
     #[must_use]
     pub fn consumes(&self) -> Option<ValueId> {
         match self {
@@ -4320,6 +4323,10 @@ impl InstKind {
                 array, lent: false, ..
             }
             | InstKind::ArrayAppend { array, .. } => Some(*array),
+            InstKind::HelperCall {
+                helper: Helper::ArrayWriteThrough | Helper::ArrayStrAppendThrough,
+                args,
+            } => args.first().copied(),
             _ => None,
         }
     }

@@ -2238,7 +2238,8 @@ fn lower_lends(body: &str) -> String {
          public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {{}}\n  \
          public function beforePropertyUnset(string $name, array<string> $keys): void {{}}\n}}\n\
          final class T {{\n  public array<int> $p = [];\n  public static array<int> $s = [];\n  \
-         public array<array<int>> $g = [];\n  public N $n;\n  public W $w;\n  \
+         public array<array<int>> $g = [];\n  public array<string> $u = [];\n  \
+         public static array<array<string>> $r = [];\n  public N $n;\n  public W $w;\n  \
          public array<int> $h {{ get => $this->h; set (array<int> $v) {{ $this->h = $v; }} }}\n  \
          public function constructor() {{ $this->n = new N(); $this->w = new W(); $this->h = []; }}\n  \
          public function m(callable(int): bool $cb): void {{\n{body}\n  }}\n  \
@@ -2339,6 +2340,29 @@ fn an_element_write_into_a_plain_slot_is_lent() {
         ("    $this->n->q['a'] = 5;", "N::q"),
     ] {
         let printed = lower_lends(body);
+        assert!(!printed.contains("retain"), "{body}\n{printed}");
+        assert_eq!(slot_reads(&printed, slot), 1, "{body}\n{printed}");
+        let off = crate::lower::without_in_place(|| lower_lends(body));
+        assert!(off.contains("retain"), "{body}\n{off}");
+        assert_eq!(slot_reads(&off, slot), 2, "{body}\n{off}");
+    }
+}
+
+/// A nested write and a `.=` on a `string` element are one helper call that
+/// consumes the root, and a failure leaves the root with the caller. So a
+/// plain property or static property is lent to that call as it is to a
+/// one-level write. With the pass off, the call takes a retain of the root
+/// and the store reads the old value again to release it.
+#[test]
+fn a_nested_write_into_a_plain_slot_is_lent() {
+    for (body, slot) in [
+        ("    $this->g[0][1] = 7;", "T::g"),
+        ("    $this->g[0][] = 8;", "T::g"),
+        ("    $this->u['k'] .= 'x';", "T::u"),
+        ("    T::$r[0]['k'] .= 'y';", "T::$r"),
+    ] {
+        let printed = lower_lends(body);
+        assert!(printed.contains("_through v"), "{body}\n{printed}");
         assert!(!printed.contains("retain"), "{body}\n{printed}");
         assert_eq!(slot_reads(&printed, slot), 1, "{body}\n{printed}");
         let off = crate::lower::without_in_place(|| lower_lends(body));
