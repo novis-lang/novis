@@ -62,8 +62,8 @@
 //! go. `Lend::of` reads each instruction's [`InstKind::effects`] between the
 //! slot's read and its store, never the source: nothing there may run user
 //! code, write a slot on the chain or read the lent slot again. A callback the
-//! member runs is allowed when it is an anonymous function whose own body
-//! writes none of those slots and calls no user code, because a member runs
+//! member runs is allowed when it is an anonymous function whose effect
+//! summary ([`crate::effects`]) writes none of those slots, because a member runs
 //! its callbacks before it changes anything. A hook, a guard and an observer
 //! are calls, so a slot that has one is never lent.
 //!
@@ -96,110 +96,24 @@
 //! effects, which is how the trap's own test reaches it.
 //!
 //! **What it spends:** while compiling, one walk per candidate call over the
-//! code after it, and one pass over each function for its write summary.
+//! code after it, and the effect summaries [`crate::effects`] solves.
 //! Nothing at run time: the program makes one retain and one release fewer for
 //! each move and each lend.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::effects::{Summaries, callback, takes_an_object, types};
 use crate::ids::ValueId;
-use crate::ir::{Function, Inst, InstKind, Slot, Terminator, Touch, UserCode};
+use crate::ir::{Function, Inst, InstKind, Slot, Terminator, UserCode};
 use crate::ty::Ty;
 
 /// Decides every move and every lend in `functions`.
 pub fn run(functions: &mut [Function]) {
-    let writes = summaries(functions);
+    let summaries = Summaries::of(functions);
     let ignore = ignore_effects();
     for f in functions {
-        run_function(f, &writes, ignore);
+        run_function(f, &summaries, ignore);
     }
-}
-
-/// A slot by value, so a summary outlives the function it was read from:
-/// whether it is static, the declaring class, and the property's name.
-type OwnedSlot = (bool, String, String);
-
-fn own(slot: Slot<'_>) -> OwnedSlot {
-    match slot {
-        Slot::Field { class, field } => (false, class.to_owned(), field.to_owned()),
-        Slot::Static { class, name } => (true, class.to_owned(), name.to_owned()),
-    }
-}
-
-/// What one function's own instructions may write.
-enum Writes {
-    /// Any slot: it may run user code or touch a slot by name.
-    Anything,
-    /// These slots and no others.
-    Slots(FxHashSet<OwnedSlot>),
-}
-
-/// Each function's [`Writes`], by name, read from its instructions alone. A
-/// call to user code makes it [`Writes::Anything`], so a summary never
-/// depends on another one.
-fn summaries(functions: &[Function]) -> FxHashMap<String, Writes> {
-    functions
-        .iter()
-        .map(|f| {
-            let tys = types(f);
-            let mut slots = FxHashSet::default();
-            let mut anything = false;
-            for inst in f.blocks.iter().flat_map(|block| &block.insts) {
-                let effects = inst.kind.effects();
-                anything |= match effects.user_code {
-                    UserCode::No => false,
-                    UserCode::ItsCallables => takes_an_object(&inst.kind, &tys),
-                    UserCode::Yes => true,
-                };
-                match effects.writes {
-                    Touch::Nothing => {}
-                    Touch::Slot(slot) => {
-                        slots.insert(own(slot));
-                    }
-                    Touch::Anything => anything = true,
-                }
-            }
-            let writes = if anything {
-                Writes::Anything
-            } else {
-                Writes::Slots(slots)
-            };
-            (f.name.clone(), writes)
-        })
-        .collect()
-}
-
-/// Every value's type in `f`.
-fn types(f: &Function) -> FxHashMap<ValueId, Ty> {
-    f.blocks
-        .iter()
-        .flat_map(|block| &block.insts)
-        .filter_map(|inst| Some((inst.result?, inst.ty?)))
-        .collect()
-}
-
-/// Whether any argument of `kind` may be a callable. A callable is an
-/// object, and a tagged value may hold one.
-fn takes_an_object(kind: &InstKind, tys: &FxHashMap<ValueId, Ty>) -> bool {
-    let mut found = false;
-    kind.for_each_operand(|v| {
-        found |= !matches!(
-            tys.get(&v),
-            Some(
-                Ty::Bool
-                    | Ty::Int
-                    | Ty::Uint
-                    | Ty::Float
-                    | Ty::Decimal
-                    | Ty::Null
-                    | Ty::Str
-                    | Ty::Bytes
-                    | Ty::Array
-                    | Ty::Enum(_)
-            )
-        );
-    });
-    found
 }
 
 /// One instruction's place: the block's index in [`Function::blocks`] and the
@@ -216,7 +130,7 @@ enum Move {
 
 /// Decides every move in one function. Removed instructions are collected and
 /// dropped at the end, so every [`At`] stays valid while the pass runs.
-fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>, ignore: bool) {
+fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
     let index: FxHashMap<u32, usize> = f
         .blocks
         .iter()
@@ -251,7 +165,7 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>, ignore: bo
                 f,
                 defs: &defs,
                 tys: &tys,
-                writes,
+                summaries,
                 removed: &removed,
                 ignore,
             };
@@ -639,7 +553,7 @@ struct Lend<'a> {
     f: &'a Function,
     defs: &'a FxHashMap<ValueId, At>,
     tys: &'a FxHashMap<ValueId, Ty>,
-    writes: &'a FxHashMap<String, Writes>,
+    summaries: &'a Summaries,
     removed: &'a FxHashSet<At>,
     /// [`ignore_effects`], read once per program.
     ignore: bool,
@@ -660,8 +574,8 @@ impl Lend<'_> {
     ///   call may run user code, write the slot or a container on its chain,
     ///   or read the slot. Between the call and the store nothing can fail, so
     ///   the slot is never left without a value it owns.
-    /// - Each callable the call takes is an anonymous function whose body
-    ///   writes none of those slots and runs no user code. Its body runs
+    /// - Each callable the call takes is an anonymous function whose effect
+    ///   summary writes none of those slots. Its body runs
     ///   before anything changes, so a read of the slot sees the old value.
     fn of(&self, (b, c): At) -> Option<Lent> {
         let insts = &self.f.blocks[b].insts;
@@ -1045,7 +959,7 @@ impl Lend<'_> {
     }
 
     /// Whether every callable among `args` is an anonymous function whose
-    /// body writes no slot on `chain` and runs no user code.
+    /// effect summary, its callees' included, writes no slot on `chain`.
     fn callbacks_are_quiet(
         &self,
         args: &[ValueId],
@@ -1060,19 +974,10 @@ impl Lend<'_> {
                 continue;
             }
             let &(ab, ai) = self.defs.get(&arg)?;
-            let InstKind::New {
-                class, ctor: None, ..
-            } = &self.f.blocks[ab].insts[ai].kind
-            else {
+            let body = callback(&self.f.blocks[ab].insts[ai].kind)?;
+            let writes = &self.summaries.get(&body)?.writes;
+            if chain.iter().any(|&s| writes.reaches(s)) {
                 return None;
-            };
-            match self.writes.get(&format!("{class}::invoke"))? {
-                Writes::Anything => return None,
-                Writes::Slots(slots) => {
-                    if chain.iter().any(|&s| slots.contains(&own(s))) {
-                        return None;
-                    }
-                }
             }
         }
         Some(())
@@ -1104,9 +1009,7 @@ impl Lend<'_> {
                 }
             }
             let mut read_by_term = false;
-            block
-                .term
-                .for_each_operand(|v| read_by_term |= v == value);
+            block.term.for_each_operand(|v| read_by_term |= v == value);
             if read_by_term {
                 return false;
             }

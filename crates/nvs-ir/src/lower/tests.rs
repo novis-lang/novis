@@ -2396,7 +2396,10 @@ fn an_unset_of_a_plain_slot_is_lent() {
     let guarded = lower_lends("    unset($this->w->p[0]);");
     let call = guarded.find("beforePropertyUnset").unwrap_or(usize::MAX);
     let last_read = guarded.rfind("W::p  ;").unwrap_or(0);
-    assert!(call < last_read, "the root is read after the guard\n{guarded}");
+    assert!(
+        call < last_read,
+        "the root is read after the guard\n{guarded}"
+    );
 }
 
 /// A guarded root is read again after its guard runs. That second read is
@@ -2532,6 +2535,62 @@ fn a_callback_that_writes_the_slot_keeps_the_retain() {
         "T::p",
     );
     assert_kept("    $this->p = Core\\Arr::filter($this->p, $cb);", "T::p");
+}
+
+/// Two functions that call each other reach one summary: the union of what
+/// each body touches. A function outside the cycle keeps its own, and one
+/// that makes a virtual call may touch anything.
+#[test]
+fn recursive_callees_reach_one_summary() {
+    use crate::effects::{Summaries, Touches};
+    let (p, _, _) = lower_program(concat!(
+        "<?nvs\n",
+        "class B {\n",
+        "  public function m(): void {}\n",
+        "}\n",
+        "class C extends B {\n",
+        "  public function m(): void {}\n",
+        "}\n",
+        "final class T {\n",
+        "  public static array<int> $x = [];\n",
+        "  public static array<int> $y = [];\n",
+        "  public static function a(int $n): void {\n",
+        "    if ($n > 0) { T::b($n - 1); }\n",
+        "    T::$x = [];\n",
+        "  }\n",
+        "  public static function b(int $n): void {\n",
+        "    array<int> $v = T::$y;\n",
+        "    T::a($n);\n",
+        "  }\n",
+        "  public static function c(): void {\n",
+        "    T::$y = [];\n",
+        "  }\n",
+        "  public static function d(B $b): void {\n",
+        "    $b->m();\n",
+        "  }\n",
+        "}\n",
+    ));
+    let summaries = Summaries::of(&p.functions);
+    let a = summaries.get("T::a").expect("T::a");
+    let b = summaries.get("T::b").expect("T::b");
+    assert_eq!(a, b);
+    let x = crate::ir::Slot::Static {
+        class: "T",
+        name: "x",
+    };
+    let y = crate::ir::Slot::Static {
+        class: "T",
+        name: "y",
+    };
+    assert!(a.writes.reaches(x) && !a.writes.reaches(y), "{a:?}");
+    // `b`'s read of `y` reaches `a` through the call. A store reads the old
+    // value it releases, so `a` reads `x` too.
+    assert!(a.reads.reaches(y), "{a:?}");
+    let c = summaries.get("T::c").expect("T::c");
+    assert!(c.writes.reaches(y) && !c.writes.reaches(x), "{c:?}");
+    assert!(!c.reads.reaches(x), "{c:?}");
+    let d = summaries.get("T::d").expect("T::d");
+    assert_eq!(d.writes, Touches::Anything, "{d:?}");
 }
 
 /// A second holder that is never read again is released right after its

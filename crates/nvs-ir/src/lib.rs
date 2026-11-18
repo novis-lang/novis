@@ -623,6 +623,7 @@
 //! an index. It waits for a measured program whose overridden calls show up in
 //! a profile.
 
+pub(crate) mod effects;
 pub mod ids;
 pub mod ir;
 pub mod lower;
