@@ -9,5 +9,10 @@ The type tells you how the path reaches the next part. A type like `Customer` is
 like `?Customer` is an object or `null`. A type like `array<Line>` is an array of objects. A library
 can use this to build a database join for each part of the path.
 
+After an array, a path can take the part `@key` or `@value`. `@key` gives an entry named `@key`
+with the type `int|string`. `@value` gives an entry named `@value` with the type of the array's
+elements, such as `Author`. Both entries are public. A property name never starts with `@`, so a
+library can test the first character to tell these parts apart.
+
 **The examples below** show each part of a path, a join built for each part, and a check of the property to
 sort by that a request sends.

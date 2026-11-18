@@ -3298,16 +3298,99 @@ crate::nvs_helper! {
     }
 }
 
+/// What the segment before a failed one named, so a throw says why the path
+/// cannot go on, in the words the checker's diagnostic uses.
+#[derive(Clone, Copy)]
+enum PathBefore<'a> {
+    /// Nothing yet: the path starts at this class.
+    Root(&'a [u8]),
+    /// The property `name` of `class`.
+    Property { class: &'a [u8], name: &'a [u8] },
+    /// `@value` of the array type `array`.
+    Value(&'a [u8]),
+    /// `@key`, which ends a path.
+    Key,
+}
+
 /// Where a `rule:types/property-path` path stops being one, as
 /// [`property_path_miss`] finds it.
-struct PathMiss<'a> {
-    /// The segment that failed.
-    segment: &'a [u8],
-    /// The class it was looked up on.
-    class: &'a [u8],
-    /// Whether the segment names a property the path could not step past,
-    /// rather than naming nothing.
-    found: bool,
+enum PathMiss<'a> {
+    /// A segment with no text.
+    Empty,
+    /// An `@` word that is neither `@key` nor `@value`.
+    UnknownStep(&'a [u8]),
+    /// A property segment that `class` does not have.
+    NoProperty { class: &'a [u8], segment: &'a [u8] },
+    /// `@key` or `@value` after something that is not an array.
+    NotArray { before: PathBefore<'a>, segment: &'a [u8] },
+    /// Any segment after one the path cannot step past.
+    DeadEnd(PathBefore<'a>),
+}
+
+impl PathMiss<'_> {
+    /// Why the path fails, as one clause a throw puts after its prefix.
+    /// [`PathMiss::Empty`] is left to each caller, which names the place.
+    fn reason(&self) -> String {
+        let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).into_owned();
+        match *self {
+            Self::Empty => "it has an empty part".to_owned(),
+            Self::UnknownStep(segment) => format!(
+                "`{}` is not a step: an array's steps are `@key` and `@value`",
+                text(segment)
+            ),
+            Self::NoProperty { class, segment } => {
+                format!("`{}` has no public property `${}`", text(class), text(segment))
+            }
+            Self::NotArray { before: PathBefore::Key, .. } | Self::DeadEnd(PathBefore::Key) => {
+                "`@key` ends a property path, so nothing can follow it".to_owned()
+            }
+            Self::NotArray { before: PathBefore::Root(class), segment } => format!(
+                "`{}` is a class, so the path cannot start with `{}`",
+                text(class),
+                text(segment)
+            ),
+            Self::NotArray { before: PathBefore::Property { name, .. }, segment } => format!(
+                "`${}` is not an array, so the path cannot take `{}` after it",
+                text(name),
+                text(segment)
+            ),
+            Self::NotArray { before: PathBefore::Value(_), segment } => format!(
+                "`@value` is not an array, so the path cannot take `{}` after it",
+                text(segment)
+            ),
+            Self::DeadEnd(PathBefore::Property { class, name }) => format!(
+                "`{}`'s property `${}` is not an object, so the path cannot continue after it",
+                text(class),
+                text(name)
+            ),
+            Self::DeadEnd(PathBefore::Value(array)) => format!(
+                "`@value` of `{}` is not an object, so the path cannot continue after it",
+                text(array)
+            ),
+            Self::DeadEnd(PathBefore::Root(class)) => {
+                format!("`{}` has no property path here", text(class))
+            }
+        }
+    }
+}
+
+/// Whether `segment` is one of an array's two steps.
+fn is_array_step(segment: &[u8]) -> bool {
+    segment == b"@key" || segment == b"@value"
+}
+
+/// The class whose properties a property segment names on the node at `at`:
+/// the node's own class, or for an array whose `@value` leads to a class, that
+/// class, which the shorthand `authors.name` steps into. An array node is the
+/// one kind of node with a `@value` row.
+fn path_owner(graph: &[u8], at: usize) -> &[u8] {
+    let (label, value) = path_node_step(graph, at, b"@value");
+    match value {
+        Some(Some(element)) if path_node_step(graph, element, b"@value").1.is_none() => {
+            path_node_step(graph, element, b"").0
+        }
+        _ => label,
+    }
 }
 
 /// What one segment names on the node at `at` of an encoded graph: the
@@ -3345,30 +3428,47 @@ fn path_node_step<'a>(
 
 /// The first segment of `path` that is not a step of the encoded `graph`, or
 /// `None` when the whole path is valid. One node's roster is read per segment,
-/// so the cost is linear in the path the caller sent.
+/// so the cost is linear in the path the caller sent. The checks run in the
+/// order `nvs_types`' written-path check makes them, so a path fails at run
+/// time for the reason it fails while compiling.
 fn property_path_miss<'a>(path: &'a [u8], graph: &'a [u8]) -> Option<PathMiss<'a>> {
-    let mut node = 0;
-    let mut segments = path.split(|&b| b == b'.').peekable();
-    while let Some(segment) = segments.next() {
-        let (class, step) = path_node_step(graph, node, segment);
-        match step {
-            None => {
-                return Some(PathMiss {
-                    segment,
-                    class,
-                    found: false,
-                });
-            }
-            Some(None) if segments.peek().is_some() => {
-                return Some(PathMiss {
-                    segment,
-                    class,
-                    found: true,
-                });
-            }
-            Some(None) => {}
-            Some(Some(next)) => node = next,
+    let mut node = Some(0);
+    let mut before = PathBefore::Root(path_node_step(graph, 0, b"").0);
+    for segment in path.split(|&b| b == b'.') {
+        if segment.is_empty() {
+            return Some(PathMiss::Empty);
         }
+        let step = segment.first() == Some(&b'@');
+        if step && !is_array_step(segment) {
+            return Some(PathMiss::UnknownStep(segment));
+        }
+        let Some(at) = node else {
+            return Some(if step {
+                PathMiss::NotArray { before, segment }
+            } else {
+                PathMiss::DeadEnd(before)
+            });
+        };
+        let (label, next) = path_node_step(graph, at, segment);
+        let Some(next) = next else {
+            return Some(if step {
+                PathMiss::NotArray { before, segment }
+            } else {
+                PathMiss::NoProperty {
+                    class: path_owner(graph, at),
+                    segment,
+                }
+            });
+        };
+        before = match segment {
+            b"@key" => PathBefore::Key,
+            b"@value" => PathBefore::Value(label),
+            _ => PathBefore::Property {
+                class: path_owner(graph, at),
+                name: segment,
+            },
+        };
+        node = next;
     }
     None
 }
@@ -3390,12 +3490,12 @@ pub fn property_path_segments<'a>(
     let mut out = Vec::new();
     let mut segments = path.split(|&b| b == b'.').peekable();
     while let Some(segment) = segments.next() {
-        let (mut class, step) = path_node_step(graph, node, segment);
-        if segment.first() != Some(&b'@')
-            && let (_, Some(Some(element))) = path_node_step(graph, node, b"@value")
-        {
-            class = path_node_step(graph, element, b"").0;
-        }
+        let (label, step) = path_node_step(graph, node, segment);
+        let class = if segment.first() == Some(&b'@') {
+            label
+        } else {
+            path_owner(graph, node)
+        };
         match step? {
             None if segments.peek().is_some() => return None,
             None => {}
@@ -3436,21 +3536,7 @@ crate::nvs_helper! {
         let operand = rendered_operand(args[0]);
         let message = match args[0].as_str_bytes().and_then(|path| property_path_miss(path, graph)) {
             Some(miss) => {
-                let class = String::from_utf8_lossy(miss.class);
-                let segment = String::from_utf8_lossy(miss.segment);
-                if segment.is_empty() {
-                    format!("{operand} is not a property path of `{root}`: it has an empty part")
-                } else if miss.found {
-                    format!(
-                        "{operand} is not a property path of `{root}`: `{class}`'s property \
-                         `${segment}` is not an object, so the path cannot continue after it"
-                    )
-                } else {
-                    format!(
-                        "{operand} is not a property path of `{root}`: `{class}` has no public \
-                         property `${segment}`"
-                    )
-                }
+                format!("{operand} is not a property path of `{root}`: {}", miss.reason())
             }
             None => format!("{operand} is not a property path of `{root}`"),
         };
@@ -3548,19 +3634,10 @@ crate::nvs_helper! {
             }
             Some(HolesMiss::Path(name, miss)) => {
                 let name = String::from_utf8_lossy(name);
-                let class = String::from_utf8_lossy(miss.class);
-                let segment = String::from_utf8_lossy(miss.segment);
-                if segment.is_empty() {
+                if matches!(miss, PathMiss::Empty) {
                     format!("the hole `{{{name}}}` has an empty part")
-                } else if miss.found {
-                    format!(
-                        "in the hole `{{{name}}}`, `{class}`'s property `${segment}` is not an \
-                         object, so the path cannot continue after it"
-                    )
                 } else {
-                    format!(
-                        "in the hole `{{{name}}}`, `{class}` has no public property `${segment}`"
-                    )
+                    format!("in the hole `{{{name}}}`, {}", miss.reason())
                 }
             }
             None => "it is not a string".to_owned(),

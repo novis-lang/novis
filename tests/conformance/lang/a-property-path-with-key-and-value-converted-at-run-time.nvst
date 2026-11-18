@@ -1,0 +1,94 @@
+--TEST--
+A string converted while the program runs takes `@key` and `@value` after an array, as a written path does, with `as propertyPath<T>` and in the holes of `as string<propertyPath<T>>`; a misplaced step gives `null` with `as ?propertyPath<T>` and throws with `as propertyPath<T>`, and the error says what the compiler says — `rule:types/property-path`
+--FILE--
+<?nvs
+// A path from a string can take `@key` and `@value` after an array.
+// A step in the wrong place throws an error that names it.
+class Author {
+    public string $name = "Ada";
+    public string $value = "high";
+}
+
+class Book {
+    public array<string> $tags = [];
+    public array<Author> $authors = [];
+    public array<array<Author>> $grid = [];
+    public ?array<Author> $editors = null;
+    public int $pages = 1;
+}
+
+class Check {
+    public static function path(string $text): void {
+        ?propertyPath<Book> $maybe = $text as ?propertyPath<Book>;
+        if ($maybe == null) {
+            echo "null: ";
+        }
+        try {
+            propertyPath<Book> $path = $text as propertyPath<Book>;
+            echo "valid: ", $path as string, "\n";
+        } catch (Throwable $e) {
+            echo $e->message, "\n";
+        }
+    }
+
+    public static function holes(string $text): void {
+        try {
+            string<propertyPath<Book>> $c = $text as string<propertyPath<Book>>;
+            echo "valid: ", $c as string, "\n";
+        } catch (Throwable $e) {
+            echo $e->message, "\n";
+        }
+    }
+}
+
+// These paths are valid.
+Check::path("tags.@key");
+Check::path("tags.@value");
+Check::path("authors.@value.name");
+Check::path("authors.name");
+Check::path("authors.value");
+Check::path("grid.@value.@key");
+Check::path("grid.@value.@value.name");
+Check::path("grid.@value.name");
+Check::path("editors.@key");
+Check::path("editors.name");
+Check::holes("{tags.@value} = 'new' AND {authors.@key} < 3");
+Check::holes("{grid.@value.@value.name} <> ''");
+
+// These paths are not valid.
+Check::path("pages.@key");
+Check::path("@value");
+Check::path("authors.@key.name");
+Check::path("authors.@index");
+Check::path("tags.@value.name");
+Check::path("tags.@value.@key");
+Check::path("authors.@value.name.@value");
+Check::path("tags.name");
+Check::path("authors.title");
+Check::holes("{authors.@key.name} = 1");
+Check::holes("{tags.name} = 1");
+// covers: lang:types/property-paths
+--EXPECT--
+valid: tags.@key
+valid: tags.@value
+valid: authors.@value.name
+valid: authors.name
+valid: authors.value
+valid: grid.@value.@key
+valid: grid.@value.@value.name
+valid: grid.@value.name
+valid: editors.@key
+valid: editors.name
+valid: {tags.@value} = 'new' AND {authors.@key} < 3
+valid: {grid.@value.@value.name} <> ''
+null: a `string` of 10 bytes is not a property path of `Book`: `$pages` is not an array, so the path cannot take `@key` after it
+null: a `string` of 6 bytes is not a property path of `Book`: `Book` is a class, so the path cannot start with `@value`
+null: a `string` of 17 bytes is not a property path of `Book`: `@key` ends a property path, so nothing can follow it
+null: a `string` of 14 bytes is not a property path of `Book`: `@index` is not a step: an array's steps are `@key` and `@value`
+null: a `string` of 16 bytes is not a property path of `Book`: `@value` of `array<string>` is not an object, so the path cannot continue after it
+null: a `string` of 16 bytes is not a property path of `Book`: `@value` is not an array, so the path cannot take `@key` after it
+null: a `string` of 26 bytes is not a property path of `Book`: `$name` is not an array, so the path cannot take `@value` after it
+null: a `string` of 9 bytes is not a property path of `Book`: `array<string>` has no public property `$name`
+null: a `string` of 13 bytes is not a property path of `Book`: `Author` has no public property `$title`
+a `string` of 23 bytes is not a string with holes of `Book`: in the hole `{authors.@key.name}`, `@key` ends a property path, so nothing can follow it
+a `string` of 15 bytes is not a string with holes of `Book`: in the hole `{tags.name}`, `array<string>` has no public property `$name`

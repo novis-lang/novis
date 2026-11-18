@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/expr_table.rs, docs/rules/types/string-holes.md, tests/conformance/lang/a-property-path-steps-through-objects-nullable-objects-and-arrays.nvst, tests/conformance/lang/a-misspelled-property-path-does-not-compile.nvst]
   - id: 2
     title: the run-time walk and Core\Reflect::steps take the two steps
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/helpers.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/core-classes/str-parts-and-reflect-steps.md]
   - id: 3
     title: the editor completes, explains and jumps through the two steps
@@ -146,21 +146,21 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** a path converted at run time and `Core\Reflect::steps` read the new array nodes.
 
-- [ ] `crates/nvs-runtime/src/helpers.rs:3420` and `:3526`: a throw for a bad segment on an array node
+- [x] `crates/nvs-runtime/src/helpers.rs:3420` and `:3526`: a throw for a bad segment on an array node
   says what the checker says. The walk itself (`:3322`) needs no change; confirm with the case below.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:2257` `nvs_core_reflect_steps`: a `@key` or `@value` segment
+- [x] `crates/nvs-stdlib/src/reflect.rs:2257` `nvs_core_reflect_steps`: a `@key` or `@value` segment
   gives the row in § *Standing decisions*; a shorthand segment on an array node is looked up on the
   element class its `@value` row leads to. `STEPS_DOC` (`:435`) and the reference card say so, held to
   `docs/agent/prose.md`.
-- [ ] `docs/rules/core-classes/str-parts-and-reflect-steps.md:11`: the two rows. `bun nv rules --render`.
-- [ ] `tests/conformance/lang/a-property-path-with-key-and-value-converted-at-run-time.nvst:1`: the
+- [x] `docs/rules/core-classes/str-parts-and-reflect-steps.md:11`: the two rows. `bun nv rules --render`.
+- [x] `tests/conformance/lang/a-property-path-with-key-and-value-converted-at-run-time.nvst:1`: the
   stage 1 paths through `as propertyPath<T>` and `as string<K>`, and the wrong ones through
   `as ?propertyPath<T>` (`null`) and `as propertyPath<T>` (the throw, printed).
-- [ ] `tests/conformance/core/reflect-steps-gives-a-row-for-an-array-step.nvst:1`: name, `isPublic` and
+- [x] `tests/conformance/core/reflect-steps-gives-a-row-for-an-array-step.nvst:1`: name, `isPublic` and
   type of each row for `keywords.@key`, `keywords.@value`, `authors.@value.name` and `authors.name`.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:6719`: a Rust test beside
+- [x] `crates/nvs-stdlib/src/reflect.rs:6719`: a Rust test beside
   `steps_reads_each_segment_from_the_class_the_walk_reached`, for a path through an array node.
-- [ ] The `cases` check runs once.
+- [x] The `cases` check runs once.
 
 ### 3. the editor completes, explains and jumps through the two steps
 
@@ -208,30 +208,32 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### State
 
-Stage 1 is done. The rule fragment has the steps and the Declined entry. `path_step_class` is now
-`path_step` (`crates/nvs-types/src/expr/members.rs:916`), returning a `PathTarget` (`:880`): a class,
-or an array with its `array<E>` and `E` type ids. `PathTarget::property_class` gives the class a
-property segment is looked up on, the shorthand included. The LSP callers read it that way and behave
-as before. `check_path_segments` (`:1075`) walks targets, and `report_path_dead_end` (`:1203`) has
-every misplaced-step message. The graph has an array node per distinct array type, labelled with the
-rendered type, with `@key`, `@value` and the element class's rows copied in. The two stage 1 cases and
-the edited `a-misspelled-property-path-does-not-compile.nvst` are green, run by name.
+Stages 1 and 2 are done, and the `cases` check is green with all four cases.
 
-One stage 2 piece already landed so nothing regressed: `property_path_segments`
-(`crates/nvs-runtime/src/helpers.rs:3385`) gives a shorthand segment on an array node the class of the
-node `@value` leads to, so `reflect-steps-gives-each-segment-of-a-path.nvst` stays green. A `@key` or
-`@value` segment still carries the array's label, so `Core\Reflect::steps` on such a path dies with
-"found no class `array<…>`" until stage 2 gives those two rows.
+The run-time walk (`crates/nvs-runtime/src/helpers.rs` `property_path_miss`) now returns a
+`PathMiss` enum with a `PathBefore`, in the checker's check order, and `PathMiss::reason` gives the
+clause both throws (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`) print. Every message
+matches `report_path_dead_end` and `check_path_segments` in `crates/nvs-types/src/expr/members.rs`,
+except a dead end after `@value`, which cannot name the element type (the graph does not carry it) and
+says "`@value` of `array<string>` is not an object". `path_owner` gives the class a property segment
+is read on, the shorthand included; `property_path_segments` uses it too.
+
+`Core\Reflect::steps` (`crates/nvs-stdlib/src/reflect.rs` `nvs_core_reflect_steps`) builds the `@key`
+and `@value` rows through `array_step_type`, which reads `E` off the node's `array<E>` label.
+`STEPS_DOC`, `docs/examples/core/Reflect/steps/about.md` and the rule fragment say so. The new Rust
+test `steps_gives_a_row_for_each_array_step_and_the_element_class_for_the_shorthand` is green.
 
 The sweep's `env-secret-proofs` red is stale: its log does not exist, and the newest `git log -S` hit
 is `in-place-everywhere`'s retire commit.
 
 ### Next
 
-Stage 2 from its first item: the throw messages (`crates/nvs-runtime/src/helpers.rs`
-`nvs_property_path_mismatch` and the string-holes mismatch below it) for an array node, then
-`nvs_core_reflect_steps` (`crates/nvs-stdlib/src/reflect.rs:2257`) for the `@key` and `@value` rows,
-then the rule, the two cases and the Rust test. Expect red until written: the `cases` check (two of
-its four cases do not exist yet) and the `editor` check (stage 3).
+Stages 3 and 4 may run side by side. Stage 3 from its first item: `crates/nvs-lsp/src/completion.rs`
+`path_steps`, `definition.rs` `property_segment_at`, `hover.rs` `property_segment`, then the three
+`.lspt` cases. Stage 4: the `property-paths` `about.md`, `docs/reference/lang/20-types.md`, the example
+and the attack. Expect red until written: the `editor` check. The website's `core.json` and
+`llms-full.txt` embed the `steps` card and `about.md`, so `bun nv render --website` is owed before the
+gate (stage 4 runs it). `Core\Reflect`'s perf records are stale after this change: record them last,
+per the playbook.
 
 ### Backlog

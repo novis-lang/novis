@@ -1812,7 +1812,11 @@ mismatch: it has no `K` to check its holes against.
 `Core\Reflect::steps(propertyPath<T> $path): array<Core\Reflect\PropertyInfo>` gives one row per
 segment of a path ([`types/property-path`](types.md#types-property-path)), in order: the description `Core\Reflect` already
 returns for a property ([`core-classes/reflect`](core-classes.md#core-classes-reflect)), with its name, visibility and declared type, so a
-library sees whether a step is one object, a nullable one or an array. No new class is added. A path
+library sees whether a step is one object, a nullable one or an array. An array's `@key` is a row
+named `@key`, public, typed `int|string`; its `@value` is a row named `@value`, public, typed with the
+element's declared type, such as `Author`. A shorthand segment, `authors.name`, is the element class's
+own row. A library tells an array step from a property by the `@`, which no property name starts
+with. No new class is added. A path
 is only its text at run time, so `T` is bound from the argument's type and the call site passes the
 classes the path can reach from `T`, the same encoding `as propertyPath<T>` checks against. A call
 through a callable value binds no `T`, and throws a `LogicError`. Inside a method a

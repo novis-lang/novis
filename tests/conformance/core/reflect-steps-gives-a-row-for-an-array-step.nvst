@@ -1,0 +1,43 @@
+--TEST--
+`Core\Reflect::steps` gives a public row named `@key` typed `int|string` for an array's key step, a public row named `@value` typed with the element's declared type for its value step, and the element class's own row for a property after the array, written out or as the shorthand — `rule:core-classes/str-parts-and-reflect-steps`
+--FILE--
+<?nvs
+// `@key` and `@value` each give a row whose name starts with `@`.
+class Author {
+    public string $name = "Ada";
+}
+
+class Book {
+    public array<string> $keywords = [];
+    public array<Author> $authors = [];
+}
+
+class Report {
+    public static function show(propertyPath<Book> $path): void {
+        echo $path as string, "\n";
+        foreach (Core\Reflect::steps($path) as var $step) {
+            echo "  ", $step->name(), ": ", $step->type() ?? "no type";
+            echo $step->isPublic() ? " (public)" : " (not public)", "\n";
+        }
+    }
+}
+
+Report::show("keywords.@key");
+Report::show("keywords.@value");
+Report::show("authors.@value.name");
+// `authors.name` is a shorter way to write `authors.@value.name`.
+Report::show("authors.name");
+--EXPECT--
+keywords.@key
+  keywords: array<string> (public)
+  @key: int|string (public)
+keywords.@value
+  keywords: array<string> (public)
+  @value: string (public)
+authors.@value.name
+  authors: array<Author> (public)
+  @value: Author (public)
+  name: string (public)
+authors.name
+  authors: array<Author> (public)
+  name: string (public)

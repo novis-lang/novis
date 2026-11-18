@@ -442,7 +442,10 @@ const STEPS_DOC: MethodDoc = MethodDoc {
     }],
     ret: "One `Core\\Reflect\\PropertyInfo` for each part of the path, in order. Each one has \
           the property's name, whether it is public, and its declared type. The type shows \
-          whether the next part is reached through an object, a nullable object or an array.",
+          whether the next part is reached through an object, a nullable object or an array. \
+          The part `@key` gives a row named `@key` with the type `int|string`. The part \
+          `@value` gives a row named `@value` with the type of the array's elements. Both \
+          rows are public.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`steps` was called through a callable value, so the class the path starts at is \
@@ -1800,6 +1803,23 @@ const ATTRIBUTE_FIELD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// The declared type of an array step's row in `Core\Reflect::steps`, or
+/// `None` when `segment` is a property. `array` is the label of the array node
+/// the step is taken on, the type rendered as `array<E>`: `@key` is
+/// `int|string`, and `@value` is `E`.
+fn array_step_type<'a>(array: &'a str, segment: &[u8]) -> Option<&'a str> {
+    match segment {
+        b"@key" => Some("int|string"),
+        b"@value" => Some(
+            array
+                .strip_prefix("array<")
+                .and_then(|rest| rest.strip_suffix('>'))
+                .unwrap_or(array),
+        ),
+        _ => None,
+    }
+}
+
 /// A `string` argument of `member`, as text.
 ///
 /// A [`Fault::fatal`] for the wrong tag, on `crate::json`'s own `text_of`
@@ -2244,7 +2264,10 @@ nvs_runtime::nvs_helper! {
     /// run-time check reads them (`crate::registry::PATH_GRAPH_MEMBERS`). The
     /// walk over it gives each segment's class, and the row is built from that
     /// class's descriptor as [`describe`] builds it, so a step's row and a
-    /// description's row are the same row.
+    /// description's row are the same row. An array's `@key` and `@value`
+    /// read no descriptor: [`array_step_type`] gives their type from the
+    /// array node's label, and a shorthand segment on an array node is looked
+    /// up on the element class the walk names.
     ///
     /// An empty `args[1]` is a call through a callable value, which binds no
     /// `T`, and throws. A path the walk rejects, or a class the running program
@@ -2274,6 +2297,17 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         for (class, segment) in segments {
             let class = String::from_utf8_lossy(class);
+            if let Some(ty) = array_step_type(&class, segment) {
+                out.append(crate::instance::build(
+                    &PROPERTY_INFO,
+                    [
+                        Value::text(&String::from_utf8_lossy(segment)),
+                        Value::bool(true),
+                        Value::text(ty),
+                    ],
+                ));
+                continue;
+            }
             let Some(desc) = ctx.class_desc(&class) else {
                 return Err(Fault::fatal(format!("{member} found no class `{class}` in the running program")));
             };
@@ -6784,5 +6818,74 @@ mod tests {
             answer.release();
             path.release();
         }
+    }
+
+    #[test]
+    fn steps_gives_a_row_for_each_array_step_and_the_element_class_for_the_shorthand() {
+        let mut classes = ClassTable::new();
+        let book = classes.define("Book", &["authors"], &[]);
+        classes.set_public_fields(book, vec![true]);
+        classes.set_field_types(book, vec!["array<Author>".to_owned()]);
+        let author = classes.define("Author", &["name"], &[]);
+        classes.set_public_fields(author, vec![true]);
+        classes.set_field_types(author, vec!["string".to_owned()]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), book));
+
+        // The array node starts at byte 0x17, after `Book`'s node, and
+        // `Author`'s at 0x44, after the array node's `@key`, `@value` and the
+        // copy of `Author`'s `name` row the shorthand reads.
+        let graph = "Book\nauthors\t00000017\n\narray<Author>\n@key\t-\n@value\t00000044\nname\t-\n\n\
+                     Author\nname\t-\n\n";
+        let mut rows_of = |text: &str| {
+            let path = Value::text(text);
+            let answer = call(
+                super::nvs_core_reflect_steps,
+                &mut ctx,
+                &[path, Value::text(graph)],
+            )
+            .expect("a path the graph accepts has a row per segment");
+            #[expect(
+                unsafe_code,
+                reason = "`steps` answered an array this frame owns one reference to, and the \
+                          `ManuallyDrop` borrows it without taking that reference over"
+            )]
+            let rows = std::mem::ManuallyDrop::new(unsafe {
+                NvsArray::from_raw(answer.array_ptr().expect("`steps` answers an array"))
+            });
+            let mut read = Vec::new();
+            for at in 0..rows.count() {
+                let row = rows.value_at(at).expect("every position holds a row");
+                read.push(format!(
+                    "{}: {}",
+                    attribute_text(&mut ctx, super::nvs_core_reflect_property_info_name, row),
+                    attribute_text(&mut ctx, super::nvs_core_reflect_property_info_type, row),
+                ));
+            }
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the path and the one reference `steps` handed back"
+            )]
+            unsafe {
+                answer.release();
+                path.release();
+            }
+            read
+        };
+        assert_eq!(
+            rows_of("authors.@key"),
+            ["authors: array<Author>", "@key: int|string"],
+            "`@key` is a row typed as an array key"
+        );
+        assert_eq!(
+            rows_of("authors.@value.name"),
+            ["authors: array<Author>", "@value: Author", "name: string"],
+            "`@value` is a row typed as the element, and `name` is read on `Author`"
+        );
+        assert_eq!(
+            rows_of("authors.name"),
+            ["authors: array<Author>", "name: string"],
+            "the shorthand's segment is read on the element class"
+        );
     }
 }
