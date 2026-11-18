@@ -1031,9 +1031,10 @@ pub struct TreeState {
     /// the tree ([`Ctx::between_requests`]), or else with the tree. The
     /// connection leaves a tree other work still holds, so that tree ends when
     /// the request's after-response work does. Empty for every request
-    /// that calls no extension. A call holds its own handle on it, so the lock
-    /// is never held while a guest runs.
-    pub(super) extensions: std::sync::Mutex<Option<ExtensionHost>>,
+    /// that calls no extension, which is ended with no lock ([`Extensions`]).
+    /// A call holds its own handle on it, so the lock is never held while a
+    /// guest runs.
+    pub(super) extensions: Extensions,
     /// How many child isolates of this tree are running now — one per
     /// [`TaskSlot`] alive, which [`Ctx::claim_task`] hands out against
     /// `[limits] max_tasks` and the child's context gives back as it drops
@@ -1083,6 +1084,7 @@ impl TreeState {
     ) -> Result<ExtensionHost, E> {
         let mut slot = self
             .extensions
+            .host
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(host) = slot.as_ref() {
@@ -1090,16 +1092,49 @@ impl TreeState {
         }
         let host = make()?;
         *slot = Some(std::sync::Arc::clone(&host));
+        self.extensions
+            .kept
+            .store(true, std::sync::atomic::Ordering::Release);
         Ok(host)
     }
 
     /// Takes [`Self::extensions`] out, so the caller drops it outside the lock.
     pub(super) fn end_extensions(&self) -> Option<ExtensionHost> {
-        self.extensions
+        if !self
+            .extensions
+            .kept
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return None;
+        }
+        let mut slot = self
+            .extensions
+            .host
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.extensions
+            .kept
+            .store(false, std::sync::atomic::Ordering::Release);
+        slot.take()
     }
+}
+
+/// [`TreeState::extensions`]: the extension host's state for one request, and
+/// whether it has any.
+///
+/// [`TreeState::end_extensions`] reads `kept` first, so a request that called
+/// no extension is ended with one atomic load and takes no lock. That is the
+/// path of nearly every request, and the first lock of a `std::sync::Mutex`
+/// allocates its system mutex on macOS. A served request ends a fresh tree
+/// each time, so that lock would be one more allocation per request there.
+///
+/// **What it spends:** one byte per tree.
+#[derive(Debug, Default)]
+pub(super) struct Extensions {
+    /// Whether `host` has a value. Written only while `host` is locked.
+    kept: std::sync::atomic::AtomicBool,
+    /// The host's state, set at the request's first call into an extension.
+    host: std::sync::Mutex<Option<ExtensionHost>>,
 }
 
 /// [`TreeState::started`]: the instant the tree was made, which is what its

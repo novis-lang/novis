@@ -5946,11 +5946,58 @@ mod tests {
         NOTED.with(|noted| noted.borrow_mut().push((bytes, trace)));
     }
 
-    /// The frames of `trace` above the allocator, as function names: the
-    /// allocator's own frames and the standard library's below the first
-    /// other one are skipped.
+    /// One frame of a backtrace.
     #[cfg(debug_assertions)]
-    fn frames_above_the_allocator(trace: &std::backtrace::Backtrace) -> Vec<String> {
+    struct Frame {
+        /// The function, as the platform writes its name. Windows writes the
+        /// whole path. Linux and macOS write some functions by their own name
+        /// alone, which is all a debug build's line tables keep.
+        name: String,
+        /// The source file the frame is in, made absolute. `None` for a
+        /// function built with no line tables, such as most of a dependency.
+        file: Option<PathBuf>,
+    }
+
+    /// The frames of `trace`, innermost first.
+    #[cfg(debug_assertions)]
+    fn frames_of(trace: &std::backtrace::Backtrace) -> Vec<Frame> {
+        // A backtrace writes a file under the current folder as `./path`.
+        let here = std::env::current_dir().unwrap_or_default();
+        let mut frames = Vec::<Frame>::new();
+        for line in trace.to_string().lines() {
+            let line = line.trim_start();
+            if let Some(at) = line.strip_prefix("at ") {
+                // `path:line:column`, and a Windows path starts with `C:`.
+                let mut file = at;
+                for _ in 0..2 {
+                    if let Some((before, number)) = file.rsplit_once(':')
+                        && number.parse::<u32>().is_ok()
+                    {
+                        file = before;
+                    }
+                }
+                if let Some(frame) = frames.last_mut()
+                    && frame.file.is_none()
+                {
+                    frame.file = Some(here.join(file));
+                }
+            } else if let Some((number, name)) = line.split_once(": ")
+                && number.parse::<usize>().is_ok()
+            {
+                frames.push(Frame {
+                    name: name.trim().to_owned(),
+                    file: None,
+                });
+            }
+        }
+        frames
+    }
+
+    /// The frames of `trace` above the allocator: the frames of the
+    /// allocator, of the hook it calls and of the standard library are
+    /// skipped.
+    #[cfg(debug_assertions)]
+    fn frames_above_the_allocator(trace: &std::backtrace::Backtrace) -> Vec<Frame> {
         const SKIPPED: &[&str] = &[
             "std::",
             "core::",
@@ -5964,19 +6011,51 @@ mod tests {
             "nvs_runtime::_::",
             "nvs_runtime::budget::",
             "<nvs_runtime::budget::",
-            "nvs::serve::tests::note_allocation",
             "backtrace",
         ];
-        trace
-            .to_string()
-            .lines()
-            .filter_map(|line| {
-                let (number, name) = line.trim_start().split_once(": ")?;
-                number.parse::<usize>().ok()?;
-                Some(name.trim().to_owned())
+        const LIBRARY: &[&str] = &["/library/std/", "/library/core/", "/library/alloc/"];
+        let allocator = std::path::Path::new("crates/nvs-runtime/src/budget.rs");
+        frames_of(trace)
+            .into_iter()
+            .filter(|frame| {
+                let skipped = SKIPPED
+                    .iter()
+                    .any(|skipped| frame.name.starts_with(skipped))
+                    || own_name(&frame.name) == "note_allocation";
+                let in_library = frame.file.as_deref().is_some_and(|file| {
+                    let written = file.to_string_lossy().replace('\\', "/");
+                    file.ends_with(allocator)
+                        || LIBRARY.iter().any(|library| written.contains(library))
+                });
+                !skipped && !in_library
             })
-            .filter(|name| !SKIPPED.iter().any(|skipped| name.starts_with(skipped)))
             .collect()
+    }
+
+    /// A function's own name: the last part of its path, with no type
+    /// parameters. Every platform writes this part the same way, so
+    /// `<a::B as c::D<E>>::f::<G>` and `f<G>` are both `f`.
+    #[cfg(debug_assertions)]
+    fn own_name(name: &str) -> String {
+        let mut outside = String::with_capacity(name.len());
+        let mut depth = 0_usize;
+        let mut previous = ' ';
+        for c in name.chars() {
+            match c {
+                '<' => depth += 1,
+                // The `>` of a function type's `->` closes nothing.
+                '>' if previous != '-' => depth = depth.saturating_sub(1),
+                _ if depth == 0 => outside.push(c),
+                _ => {}
+            }
+            previous = c;
+        }
+        outside
+            .trim_end_matches(':')
+            .rsplit("::")
+            .next()
+            .unwrap_or_default()
+            .to_owned()
     }
 
     /// The serving thread's counters, read as a request reaches the handler.
@@ -6084,14 +6163,14 @@ mod tests {
             let shown = frames
                 .iter()
                 .take(6)
-                .cloned()
+                .map(|frame| frame.name.as_str())
                 .collect::<Vec<_>>()
                 .join("\n    ");
             let site = frames.iter().find_map(|frame| {
                 let rows = HELLO_ROWS
                     .iter()
                     .enumerate()
-                    .filter(|(_, row)| names(frame, row.site))
+                    .filter(|(_, row)| row.names(frame))
                     .collect::<Vec<_>>();
                 (!rows.is_empty()).then_some(rows)
             });
@@ -6125,31 +6204,34 @@ mod tests {
         );
     }
 
-    /// Whether the function name `frame` names the function `site`, and not
-    /// one whose name only starts with it.
-    #[cfg(debug_assertions)]
-    fn names(frame: &str, site: &str) -> bool {
-        frame.match_indices(site).any(|(at, _)| {
-            !frame[at + site.len()..]
-                .chars()
-                .next()
-                .is_some_and(|after| after.is_alphanumeric() || after == '_')
-        })
-    }
-
     /// One allocation of a served `hello` request: the function that makes
     /// it, whether it is still made, and why.
     #[cfg(debug_assertions)]
     struct Row {
-        /// The innermost function that names the allocation in a backtrace.
-        /// A generic function of a dependency is named without its path,
-        /// because each platform writes its type parameters differently.
+        /// The innermost function that makes the allocation, by its path.
         site: &'static str,
+        /// The source file `site` is in, from the repository root. Empty for
+        /// a function of a dependency, whose frame may have no file.
+        file: &'static str,
         /// Whether the request still makes it.
         kept: bool,
         /// Why the answer needs it, or how it was removed.
-        #[expect(dead_code, reason = "read by a person; the test reads the other two")]
+        #[expect(dead_code, reason = "read by a person; the test reads the other three")]
         why: &'static str,
+    }
+
+    #[cfg(debug_assertions)]
+    impl Row {
+        /// Whether `frame` is a frame of this row's function: it has the
+        /// same own name, and it is in the same file when the row names one.
+        fn names(&self, frame: &Frame) -> bool {
+            own_name(&frame.name) == own_name(self.site)
+                && (self.file.is_empty()
+                    || frame
+                        .file
+                        .as_deref()
+                        .is_some_and(|file| file.ends_with(self.file)))
+        }
     }
 
     /// Every allocation of one warm served `hello` request, in the order the
@@ -6158,151 +6240,181 @@ mod tests {
     const HELLO_ROWS: &[Row] = &[
         Row {
             site: "nvs::script::program_over",
+            file: "crates/nvs-cli/src/script.rs",
             kept: true,
             why: "the program is a boxed closure the isolate owns, over the shared unit",
         },
         Row {
             site: "nvs_runtime::ctx::inbound::Head::with_capacity",
+            file: "crates/nvs-runtime/src/ctx/inbound.rs",
             kept: true,
             why: "the program's own copy of the method and the path",
         },
         Row {
             site: "nvs_runtime::ctx::inbound::Head::with_capacity",
+            file: "crates/nvs-runtime/src/ctx/inbound.rs",
             kept: true,
             why: "the offsets into that copy",
         },
         Row {
             site: "nvs_runtime::ctx::inbound::Inbound::new",
+            file: "crates/nvs-runtime/src/ctx/inbound.rs",
             kept: true,
             why: "the head the program reads, shared by the carrier and the program",
         },
         Row {
             site: "nvs_host::isolate::Isolate::answering",
+            file: "crates/nvs-host/src/isolate.rs",
             kept: true,
             why: "the carrier, boxed into the isolate",
         },
         Row {
             site: "nvs_runtime::ctx::inbound::SseSlot::new",
+            file: "crates/nvs-runtime/src/ctx/inbound.rs",
             kept: true,
             why: "the event-stream cell; nothing on the request path is made on first use",
         },
         Row {
             site: "nvs_runtime::stream::BodySlot::new",
+            file: "crates/nvs-runtime/src/stream.rs",
             kept: true,
             why: "the streamed-body cell, on the same terms",
         },
         Row {
             site: "nvs_runtime::ctx::Ctx::reroot",
+            file: "crates/nvs-runtime/src/ctx/safepoint.rs",
             kept: true,
             why: "a fresh tree for the connection's context, so no state reaches the next request",
         },
         Row {
             site: "nvs_runtime::ctx::Ctx::new",
+            file: "crates/nvs-runtime/src/ctx/wiring.rs",
             kept: true,
             why: "the isolate's tree state, which its limits and its safepoint word live in",
         },
         Row {
             site: "nvs_runtime::ctx::Ctx::new",
+            file: "crates/nvs-runtime/src/ctx/wiring.rs",
             kept: true,
             why: "the isolate's deadline word, which the watchdog reads",
         },
         Row {
             site: "nvs_runtime::ctx::Ctx::sharing",
+            file: "crates/nvs-runtime/src/ctx/wiring.rs",
             kept: true,
             why: "the isolate's own list of live objects",
         },
         Row {
             site: "nvs_host::isolate::Isolate::start",
+            file: "crates/nvs-host/src/isolate.rs",
             kept: true,
             why: "the isolate's task, with its context",
         },
         Row {
             site: "nvs_host::isolate::Isolate::start",
+            file: "crates/nvs-host/src/isolate.rs",
             kept: true,
             why: "the wake the connection is woken by when the program ends",
         },
         Row {
             site: "nvs_host::isolate::start_as_task",
+            file: "crates/nvs-host/src/isolate.rs",
             kept: true,
             why: "the cell the completion is filed in",
         },
         Row {
             site: "nvs_host::isolate::start_as_task",
+            file: "crates/nvs-host/src/isolate.rs",
             kept: true,
             why: "the flag that says the program ended",
         },
         Row {
-            site: "spawn_child_ordered",
+            site: "nvs_host::scheduler::spawn_child_ordered",
+            file: "crates/nvs-host/src/scheduler.rs",
             kept: true,
             why: "the child task's entry on the scheduler",
         },
         Row {
             site: "nvs_host::isolate::start_as_task",
+            file: "crates/nvs-host/src/isolate.rs",
             kept: true,
             why: "the child task's body",
         },
         Row {
             site: "nvs_host::scheduler::Scheduler::drain_pending",
+            file: "crates/nvs-host/src/scheduler.rs",
             kept: false,
             why: "the spawns are started in place, with no list split in two",
         },
         Row {
             site: "nvs_host::watchdog::Local::publish",
+            file: "crates/nvs-host/src/watchdog.rs",
             kept: true,
             why: "the handle the watchdog stops the request with",
         },
         Row {
             site: "nvs_runtime::ctx::output::write_to",
+            file: "crates/nvs-runtime/src/ctx/output.rs",
             kept: true,
             why: "the answer's bytes",
         },
         Row {
             site: "nvs_host::scheduler::Wake::wake",
+            file: "crates/nvs-host/src/scheduler.rs",
             kept: false,
             why: "the list of wakes keeps its buffer",
         },
         Row {
             site: "nvs_host::scheduler::Scheduler::run",
+            file: "crates/nvs-host/src/scheduler.rs",
             kept: false,
             why: "the list of ended tasks is drained in place",
         },
         Row {
             site: "nvs_server::serve::answer",
+            file: "crates/nvs-server/src/serve.rs",
             kept: false,
             why: "the default content type is a static header value",
         },
         Row {
-            site: "try_reserve_one",
+            site: "http::header::map::HeaderMap::try_reserve_one",
+            file: "",
             kept: true,
             why: "the response's header indices",
         },
         Row {
-            site: "try_reserve_one",
+            site: "http::header::map::HeaderMap::try_reserve_one",
+            file: "",
             kept: true,
             why: "the response's header entries",
         },
         Row {
             site: "nvs_runtime::trace_context::TraceContext::traceparent",
+            file: "crates/nvs-runtime/src/trace_context.rs",
             kept: false,
             why: "the value is written on the stack",
         },
         Row {
             site: "nvs_server::trace::respond",
+            file: "crates/nvs-server/src/trace.rs",
             kept: true,
             why: "the traceresponse header's value",
         },
         Row {
-            site: "promote_to_shared",
+            site: "bytes::bytes_mut::BytesMut::promote_to_shared",
+            file: "",
             kept: true,
             why: "hyper shares its read buffer with the head it parsed",
         },
         Row {
-            site: "poll_read_from_io",
+            site: "hyper::proto::h1::io::Buffered::poll_read_from_io",
+            file: "",
             kept: true,
             why: "hyper reads ahead for a client that hangs up, while the head shares the buffer",
         },
         Row {
             site: "nvs_server::serve::serve_connection",
+            file: "crates/nvs-server/src/serve.rs",
             kept: true,
             why: "the path for the access line, which outlives the request's head",
         },
