@@ -2986,6 +2986,45 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
+    /// A unit loaded from the cache has the same copy table as the unit the
+    /// first run compiled. The rows are read off the IR the front end lowers
+    /// on every run, so the second run lowers the program again, as a new
+    /// process does.
+    #[test]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn the_copy_table_survives_the_compile_cache() {
+        let dir = scratch("copy-table");
+        let source = dir.join("program.nvs");
+        fs::write(
+            &source,
+            "<?nvs\narray<int> $a = [1, 2];\n\
+             array<int> $b = Core\\Arr::append($a, 3);\n\
+             echo Core\\Arr::count($a), Core\\Arr::count($b);\n",
+        )
+        .expect("a scratch directory of this test's own is writable");
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let (program, digest) = lowered(&source);
+        let (cold, first) =
+            unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(first, Provenance::Compiled);
+        assert!(
+            cold.copies()
+                .iter()
+                .any(|copy| copy.reason == nvs_ir::copies::Reason::StillUsed),
+            "the append keeps a copy of `$a`, which is read again: {:?}",
+            cold.copies()
+        );
+
+        let (again, digest) = lowered(&source);
+        let (warm, second) =
+            unit_for(&again, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(second, Provenance::Loaded);
+        assert_eq!(warm.copies(), cold.copies());
+        assert_eq!(ran(&warm), "23");
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
     /// A program lowered under the debug switch is compiled even where the cache holds the same
     /// source's artifact, because the key does not cover the switch
     /// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).

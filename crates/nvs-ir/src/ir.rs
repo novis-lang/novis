@@ -35,9 +35,19 @@ pub struct Program {
     /// ([`crate::lower::without_in_place`]). The artifact cache neither writes
     /// nor reads such a program, because its key does not cover the switch.
     pub in_place: bool,
+    /// Every copy the ownership pass keeps, in the order it found them
+    /// ([`crate::copies`]). Empty when the pass did not run.
+    pub copies: Vec<crate::copies::KeptCopy>,
 }
 
 impl Program {
+    /// The program's copy table: [`Self::copies`] with each row's file, line,
+    /// file hash and fix read from `map` ([`crate::copies::table`]).
+    #[must_use]
+    pub fn copy_table(&self, map: &nvs_diagnostics::SourceMap) -> Vec<crate::copies::CopySite> {
+        crate::copies::table(&self.copies, map)
+    }
+
     /// The source span of every statement in the program, indexed by the
     /// number a compiled coverage probe passes to `nvs_runtime::nvs_probe_stmt`.
     ///

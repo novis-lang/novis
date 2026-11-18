@@ -2828,6 +2828,58 @@ fn a_callee_that_reads_the_slot_after_its_change_copies_at_that_change_only() {
     assert!(retain < append, "{printed}");
 }
 
+/// Every copy the pass keeps is a row of the program's copy table, on the
+/// line of the statement that copies: a lent body's change before a failure
+/// and before a read of the slot, and a local passed to an owning member and
+/// read again. A lent call keeps no copy. Only the read that can move above
+/// the change has a fix, and its edit moves that one line.
+#[test]
+fn every_copy_the_pass_keeps_is_in_the_table() {
+    use crate::copies::Reason;
+    let src = "<?nvs\nfinal class T {\n  public array<int> $p = [];\n  \
+               public function fails(array<int> $items, int $x): array<int> {\n    \
+               $items[] = $x;\n    if ($x > 5) { throw new LogicError('no'); }\n    return $items;\n  }\n  \
+               public function reads(array<int> $items, int $x): array<int> {\n    \
+               $items[] = $x;\n    echo Core\\Arr::count($this->p);\n    return $items;\n  }\n  \
+               public function m(int $x): void {\n    \
+               $this->p = $this->fails($this->p, $x);\n    \
+               $this->p = $this->reads($this->p, $x);\n    \
+               array<int> $l = [1, 2];\n    \
+               array<int> $k = Core\\Arr::append($l, $x);\n    \
+               echo Core\\Arr::count($l), Core\\Arr::count($k);\n  }\n}\n";
+    let (program, map, _) = lower_whole_file_with_src(src);
+    let table = program.copy_table(&map);
+    let at = |line: u32, reason: Reason| {
+        table
+            .iter()
+            .find(|row| row.line == line && row.reason == reason)
+            .unwrap_or_else(|| panic!("no {reason:?} row on line {line}: {table:#?}"))
+    };
+    assert!(at(5, Reason::FailureAfterChange).edit.is_none(), "{table:#?}");
+    let read = at(10, Reason::ReadAfterChange);
+    let edit = read.edit.as_ref().expect("the read can move above the change");
+    assert_eq!(edit.text, "    echo Core\\Arr::count($this->p);\n");
+    assert_eq!(&src[edit.insert_at as usize..][..18], "    $items[] = $x;");
+    assert_eq!(
+        &src[edit.delete.0 as usize..edit.delete.1 as usize],
+        edit.text
+    );
+    at(18, Reason::StillUsed);
+    assert!(
+        table.iter().all(|row| row.line != 15 && row.line != 16),
+        "a lent call keeps no copy: {table:#?}"
+    );
+    assert!(
+        table
+            .iter()
+            .all(|row| row.edit.is_none() || row.reason.warns()),
+        "{table:#?}"
+    );
+    assert!(table.iter().all(|row| !row.text_hash.is_empty() && row.file == "t.nvs"));
+    let off = crate::lower::without_in_place(|| lower_whole_file_with_src(src).0);
+    assert!(off.copies.is_empty(), "the pass did not run");
+}
+
 /// A callee that writes the slot it would be lent keeps the call's retain:
 /// its write cannot free the array it is changing, and the caller's store
 /// still releases the slot's old value.

@@ -88,7 +88,18 @@ impl Touches {
         }
     }
 
-    fn join(&mut self, other: &Touches) {
+    /// Whether this and `other` may reach one slot in common.
+    pub(crate) fn meets(&self, other: &Touches) -> bool {
+        match (self, other) {
+            (Touches::Slots(a), Touches::Slots(b)) => a.iter().any(|s| b.contains(s)),
+            (Touches::Slots(a), Touches::Anything) | (Touches::Anything, Touches::Slots(a)) => {
+                !a.is_empty()
+            }
+            (Touches::Anything, Touches::Anything) => true,
+        }
+    }
+
+    pub(crate) fn join(&mut self, other: &Touches) {
         match (&mut *self, other) {
             (Touches::Anything, _) => {}
             (_, Touches::Anything) => *self = Touches::Anything,

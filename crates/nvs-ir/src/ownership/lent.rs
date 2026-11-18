@@ -31,8 +31,9 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::{At, terminator_targets};
-use crate::effects::{OwnedSlot, Summaries, Touches, callback, types};
+use super::{At, stmt_at, terminator_targets};
+use crate::copies::{Fix, KeptCopy, Reason};
+use crate::effects::{OwnedSlot, Summaries, Summary, Touches, callback, types};
 use crate::ids::{BlockId, ValueId};
 use crate::ir::{Function, Inst, InstKind, Terminator};
 
@@ -45,13 +46,15 @@ enum Use {
 
 /// The lent body of `callee` for its parameter `param`, named
 /// `<callee>#lent<param>`, or `None` when its shape is not covered. `slots`
-/// are the slots its calls lend it.
+/// are the slots its calls lend it. With it come the copies it keeps: one
+/// per change that separates, with its [`Fix`] where one exists
+/// ([`Reach::fix`]).
 pub(super) fn body(
     callee: &Function,
     param: usize,
     slots: &FxHashSet<OwnedSlot>,
     summaries: &Summaries,
-) -> Option<Function> {
+) -> Option<(Function, Vec<KeptCopy>)> {
     let index: FxHashMap<u32, usize> = callee
         .blocks
         .iter()
@@ -107,6 +110,7 @@ pub(super) fn body(
     let entry = index[&callee.entry.index()];
     let mut retain_before: FxHashSet<At> = FxHashSet::default();
     let mut release_before_return: FxHashSet<usize> = FxHashSet::default();
+    let mut kept = Vec::new();
     for &(b, i) in &changes {
         let reached = walk.from((b, i));
         if !reached.fails && !reached.reads {
@@ -121,6 +125,18 @@ pub(super) fn body(
             return None;
         }
         retain_before.insert((b, i));
+        let reason = if reached.reads {
+            Reason::ReadAfterChange
+        } else {
+            Reason::FailureAfterChange
+        };
+        if let Some((_, span)) = stmt_at(callee, (b, i)) {
+            kept.push(KeptCopy {
+                span,
+                reason,
+                fix: walk.fix((b, i), reason),
+            });
+        }
         release_before_return.extend(reached.returns.iter().copied());
         if let Some(landing) = callee.blocks[b].insts[i].on_error {
             let landing = index[&landing.index()];
@@ -147,7 +163,7 @@ pub(super) fn body(
             block.insts.push(plain(InstKind::Release { operand: p }));
         }
     }
-    Some(lent)
+    Some((lent, kept))
 }
 
 /// An instruction with no result and no error edge.
@@ -251,6 +267,91 @@ impl Reach<'_> {
         reached.returns.sort_unstable();
         reached.returns.dedup();
         reached
+    }
+
+    /// The fix for the change at `(b, i)`, which copies for `reason`: move
+    /// the first statement after it that reads a lent slot, or that can
+    /// fail, above the change's own statement.
+    ///
+    /// The fix is offered only where the move cannot change what the code
+    /// does. Both statements are in one block, and the moved one ends before
+    /// the block's terminator. It reads no value made from the change's
+    /// statement on, and no value it makes is read after it. It writes no
+    /// lent slot and no slot the statements it passes read or write, and it
+    /// reads no slot they write.
+    fn fix(&self, (b, i): At, reason: Reason) -> Option<Fix> {
+        let insts = &self.f.blocks[b].insts;
+        let offender = (i + 1..insts.len()).find(|&j| match reason {
+            Reason::ReadAfterChange => self.reads_a_slot(&insts[j].kind),
+            _ => {
+                insts[j].on_error.is_some()
+                    && !matches!(insts[j].kind, InstKind::Safepoint)
+            }
+        })?;
+        let (start, change) = stmt_at(self.f, (b, i))?;
+        let (from, moved) = stmt_at(self.f, (b, offender))?;
+        if from <= i {
+            return None;
+        }
+        let to = (from + 1..insts.len())
+            .find(|&j| matches!(insts[j].kind, InstKind::StmtMarker(_)))?;
+        let made_between: FxHashSet<ValueId> =
+            insts[start..from].iter().filter_map(|inst| inst.result).collect();
+        let made_in: FxHashSet<ValueId> =
+            insts[from..to].iter().filter_map(|inst| inst.result).collect();
+        let mut reads_between = false;
+        for inst in &insts[from..to] {
+            inst.kind
+                .for_each_operand(|v| reads_between |= made_between.contains(&v));
+        }
+        if reads_between || self.read_outside(&made_in, b, from, to) {
+            return None;
+        }
+        let window = self.effects_of(&insts[start..from]);
+        let stmt = self.effects_of(&insts[from..to]);
+        let lent = Touches::Slots(self.slots.clone());
+        if stmt.writes.meets(&lent)
+            || stmt.writes.meets(&window.reads)
+            || stmt.writes.meets(&window.writes)
+            || stmt.reads.meets(&window.writes)
+        {
+            return None;
+        }
+        Some(Fix {
+            moved,
+            before: change,
+        })
+    }
+
+    /// Whether anything outside block `b`'s instructions `from..to`, a
+    /// release aside, reads one of `values`.
+    fn read_outside(&self, values: &FxHashSet<ValueId>, b: usize, from: usize, to: usize) -> bool {
+        let mut found = false;
+        for (ib, block) in self.f.blocks.iter().enumerate() {
+            for (j, inst) in block.insts.iter().enumerate() {
+                if (ib == b && (from..to).contains(&j))
+                    || matches!(inst.kind, InstKind::Release { .. })
+                {
+                    continue;
+                }
+                inst.kind.for_each_operand(|v| found |= values.contains(&v));
+            }
+            block.term.for_each_operand(|v| found |= values.contains(&v));
+        }
+        found
+    }
+
+    /// Everything `insts` may read and write, their callees included.
+    fn effects_of(&self, insts: &[Inst]) -> Summary {
+        let mut all = Summary::default();
+        for inst in insts {
+            let one = self.summaries.of_inst(&inst.kind, &self.tys, |v| {
+                self.defs.get(&v).and_then(|kind| callback(kind))
+            });
+            all.reads.join(&one.reads);
+            all.writes.join(&one.writes);
+        }
+        all
     }
 
     /// Whether `kind` may read one of the slots the body is lent.

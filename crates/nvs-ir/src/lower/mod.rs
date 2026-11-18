@@ -1489,9 +1489,11 @@ fn lower_program_as(
 
     // The lowering decides no move; the ownership pass decides every one, and
     // the off switch skips it whole.
-    if in_place_on() {
-        crate::ownership::run(&mut functions);
-    }
+    let copies = if in_place_on() {
+        crate::ownership::run(&mut functions)
+    } else {
+        Vec::new()
+    };
     crate::ir::Program {
         functions,
         classes,
@@ -1499,6 +1501,7 @@ fn lower_program_as(
         shape_codecs,
         enums: enum_shapes(enums),
         in_place: in_place_on(),
+        copies,
     }
 }
 

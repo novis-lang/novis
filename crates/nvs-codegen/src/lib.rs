@@ -440,6 +440,9 @@ pub struct Unit {
     /// Every extension class the unit calls a method of, sorted and each once — see
     /// [`Unit::extension_classes`].
     extension_classes: Box<[String]>,
+    /// Every copy the ownership pass kept, as [`Program::copies`] lists them
+    /// — see [`Unit::copies`].
+    copies: Box<[nvs_ir::copies::KeptCopy]>,
 }
 
 /// Every extension class a call in `program` names, sorted and each once: the classes of its
@@ -848,6 +851,16 @@ impl Unit {
     #[must_use]
     pub fn extension_classes(&self) -> &[String] {
         &self.extension_classes
+    }
+
+    /// Every copy the ownership pass kept in this unit's program
+    /// (`nvs_ir::copies`). A unit loaded from the artifact cache has the
+    /// same rows, because they are read off the IR the front end lowered.
+    ///
+    /// **Memory:** one row per kept copy, per unit.
+    #[must_use]
+    pub fn copies(&self) -> &[nvs_ir::copies::KeptCopy] {
+        &self.copies
     }
 
     /// This unit's **entry script frame**, ready to run: the top-level
@@ -1422,6 +1435,8 @@ pub struct Descriptors {
     statics: std::sync::Arc<[Option<nvs_runtime::FieldDefault>]>,
     /// [`extension_classes`] of the program, read off the IR for the reason `statics` is.
     extension_classes: Box<[String]>,
+    /// [`Program::copies`], read off the IR for the reason `statics` is.
+    copies: Box<[nvs_ir::copies::KeptCopy]>,
     /// [`class_desc_symbol`]'s name for each descriptor, to the address a
     /// relocation against it resolves to. Built once here rather than searched
     /// per relocation: a loader asks this for every undefined symbol in the
@@ -1474,6 +1489,7 @@ impl Descriptors {
                 .map(|prop| prop.default_value.clone())
                 .collect(),
             extension_classes: extension_classes(program),
+            copies: program.copies.clone().into_boxed_slice(),
         }
     }
 
@@ -1605,6 +1621,7 @@ impl Descriptors {
             debug_sites: None,
             debug_functions: Vec::new(),
             extension_classes: self.extension_classes,
+            copies: self.copies,
         }
     }
 }
@@ -1677,6 +1694,8 @@ struct UnitBuilder<M> {
     literals: emit::Literals,
     /// [`extension_classes`] of the program [`Self::compile_all`] compiles.
     extension_classes: Box<[String]>,
+    /// [`Program::copies`] of the program [`Self::compile_all`] compiles.
+    copies: Box<[nvs_ir::copies::KeptCopy]>,
     entries: Vec<(String, cranelift_module::FuncId)>,
     /// Set only by [`disassemble`]: the accumulated text of every function's
     /// generated code. `None` is the ordinary compile, which asks Cranelift
@@ -2731,6 +2750,7 @@ impl<M: Backend> UnitBuilder<M> {
             static_defaults: Vec::new(),
             literals: emit::Literals::default(),
             extension_classes: Box::default(),
+            copies: Box::default(),
             entries: Vec::new(),
             disasm,
             clif: None,
@@ -2747,6 +2767,7 @@ impl<M: Backend> UnitBuilder<M> {
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.extension_classes = extension_classes(program);
+        self.copies = program.copies.clone().into_boxed_slice();
         self.classes = Classes::build(&program.classes, &program.shape_codecs, &program.enums);
         // Publish every descriptor before any body is emitted, for the same
         // reason the function declarations below come first: a lowering may
@@ -3026,6 +3047,7 @@ impl UnitBuilder<JitPages> {
             debug_sites: self.debug_sites,
             debug_functions: self.debug_functions,
             extension_classes: self.extension_classes,
+            copies: self.copies,
         })
     }
 

@@ -125,6 +125,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::copies::{KeptCopy, Reason};
 use crate::effects::{OwnedSlot, Summaries, Summary, callback, own, takes_an_object, types};
 use crate::ids::ValueId;
 use crate::ir::{Function, Inst, InstKind, Slot, Terminator, UserCode};
@@ -132,15 +133,41 @@ use crate::ty::Ty;
 
 mod lent;
 
-/// Decides every move and every lend in `functions`, and appends the lent
-/// body of each function and parameter a call lends a slot to.
-pub fn run(functions: &mut Vec<Function>) {
+/// Decides every move and every lend in `functions`, appends the lent body
+/// of each function and parameter a call lends a slot to, and returns every
+/// copy it keeps ([`crate::copies`]).
+pub fn run(functions: &mut Vec<Function>) -> Vec<KeptCopy> {
     let summaries = Summaries::of(functions);
     let ignore = ignore_effects();
-    for f in functions.iter_mut() {
-        run_function(f, &summaries, ignore);
+    let mut refused: Vec<(usize, ValueId, KeptCopy)> = Vec::new();
+    for (at, f) in functions.iter_mut().enumerate() {
+        refused.extend(
+            run_function(f, &summaries, ignore)
+                .into_iter()
+                .map(|(value, copy)| (at, value, copy)),
+        );
     }
-    lend_to_callees(functions, &summaries, ignore);
+    let (lent, mut copies) = lend_to_callees(functions, &summaries, ignore);
+    copies.splice(
+        0..0,
+        refused
+            .into_iter()
+            .filter(|(at, value, _)| !lent.contains(&(*at, *value)))
+            .map(|(_, _, copy)| copy),
+    );
+    copies
+}
+
+/// The span of the statement the instruction at `(b, c)` belongs to: the
+/// nearest [`InstKind::StmtMarker`] before it in its block.
+fn stmt_at(f: &Function, (b, c): At) -> Option<(usize, nvs_diagnostics::Span)> {
+    let insts = &f.blocks[b].insts;
+    (0..=c.min(insts.len().checked_sub(1)?))
+        .rev()
+        .find_map(|i| match insts[i].kind {
+            InstKind::StmtMarker(id) => Some((i, *f.stmt_spans.get(id.index() as usize)?)),
+            _ => None,
+        })
 }
 
 /// One call that may lend a slot to its known Novis callee: the caller's
@@ -150,6 +177,8 @@ struct Site {
     call: At,
     callee: usize,
     param: usize,
+    /// The argument it lends.
+    value: ValueId,
     lent: Lent,
 }
 
@@ -158,7 +187,14 @@ struct Site {
 /// parameter ([`lent::body`]). The call is pointed at the lent body, and the
 /// body is built once per function and parameter, after every function's
 /// own moves, so it copies the callee as it runs.
-fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore: bool) {
+///
+/// Returns each caller's index and argument it lent, and the copies the lent
+/// bodies keep.
+fn lend_to_callees(
+    functions: &mut Vec<Function>,
+    summaries: &Summaries,
+    ignore: bool,
+) -> (FxHashSet<(usize, ValueId)>, Vec<KeptCopy>) {
     let by_name: FxHashMap<&str, usize> = functions
         .iter()
         .enumerate()
@@ -226,6 +262,7 @@ fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore:
                             call: (b, c),
                             callee,
                             param: offset + k,
+                            value: arg,
                             lent,
                         });
                         break;
@@ -244,16 +281,22 @@ fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore:
     }
     let mut bodies: FxHashMap<(usize, usize), Option<String>> = FxHashMap::default();
     let mut built = Vec::new();
+    let mut copies = Vec::new();
     let mut keys: Vec<_> = slots.keys().copied().collect();
     keys.sort_unstable();
     for key in keys {
         let body = lent::body(&functions[key.0], key.1, &slots[&key], summaries);
-        bodies.insert(key, body.as_ref().map(|f| f.name.clone()));
-        built.extend(body);
+        bodies.insert(key, body.as_ref().map(|(f, _)| f.name.clone()));
+        if let Some((body, kept)) = body {
+            built.push(body);
+            copies.extend(kept);
+        }
     }
+    let mut lent_values = FxHashSet::default();
     let mut per_caller: FxHashMap<usize, Vec<(At, Lent, String)>> = FxHashMap::default();
     for site in sites {
         if let Some(Some(name)) = bodies.get(&(site.callee, site.param)) {
+            lent_values.insert((site.caller, site.value));
             per_caller
                 .entry(site.caller)
                 .or_default()
@@ -277,6 +320,7 @@ fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore:
         rebuild(f, &removed, before, after, &FxHashMap::default());
     }
     functions.extend(built);
+    (lent_values, copies)
 }
 
 /// A local lent to the Novis call at `call`, where the move into it was
@@ -344,7 +388,17 @@ enum Move {
 
 /// Decides every move in one function. Removed instructions are collected and
 /// dropped at the end, so every [`At`] stays valid while the pass runs.
-fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
+///
+/// Returns each `array`, `string` or `bytes` value whose move it refused,
+/// with the copy that keeps ([`refusal`]). A later lend to a Novis callee
+/// may still take it.
+fn run_function(
+    f: &mut Function,
+    summaries: &Summaries,
+    ignore: bool,
+) -> Vec<(ValueId, KeptCopy)> {
+    let mut kept = Vec::new();
+    let mut lent_calls: FxHashSet<At> = FxHashSet::default();
     let index: FxHashMap<u32, usize> = f
         .blocks
         .iter()
@@ -384,6 +438,7 @@ fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
                 ignore,
             };
             if let Some(lent) = lend.of((b, c)) {
+                lent_calls.insert((b, c));
                 removed.extend(lent.gone);
                 if let Some(poison) = lent.poison {
                     place_poison(f, (b, c), &poison, &mut before, &mut after);
@@ -423,19 +478,23 @@ fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
                     value,
                     call: (b, c),
                 };
-                let Some(releases) = walk
+                let releases = walk
                     .releases_after(error_edge_owned, 1)
                     .map(|found| found.into_iter().map(|(at, _)| at).collect::<Vec<_>>())
-                else {
+                    .filter(|releases| {
+                        let avoid = walk.reachable_avoiding(entry, !error_edge_owned);
+                        !releases
+                            .iter()
+                            .any(|&(rb, ri)| !(rb == b && ri > c) && avoid.contains(&rb))
+                    });
+                let Some(releases) = releases else {
+                    if !lent_calls.contains(&(b, c))
+                        && let Some(copy) = refusal(f, (b, c), value, &tys, &defs)
+                    {
+                        kept.push((value, copy));
+                    }
                     continue;
                 };
-                let avoid = walk.reachable_avoiding(entry, !error_edge_owned);
-                if releases
-                    .iter()
-                    .any(|&(rb, ri)| !(rb == b && ri > c) && avoid.contains(&rb))
-                {
-                    continue;
-                }
                 removed.extend(releases);
                 match how {
                     Move::Novis { retain } => {
@@ -460,6 +519,38 @@ fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
         }
     }
     rebuild(f, &removed, before, after, &released_before);
+    kept
+}
+
+/// The copy the call at `call` keeps of `value`, whose move it refused: a
+/// value read from a property is [`Reason::SlotKept`], or
+/// [`Reason::CalleeUnknown`] for a call that may run another body, and any
+/// other value is [`Reason::StillUsed`]. `None` for a value that is not an
+/// `array`, a `string` or `bytes`, which a change never copies, or a call
+/// with no statement.
+fn refusal(
+    f: &Function,
+    call: At,
+    value: ValueId,
+    tys: &FxHashMap<ValueId, Ty>,
+    defs: &FxHashMap<ValueId, At>,
+) -> Option<KeptCopy> {
+    if !matches!(tys.get(&value), Some(Ty::Array | Ty::Str | Ty::Bytes)) {
+        return None;
+    }
+    let from_slot = defs
+        .get(&value)
+        .is_some_and(|&(db, di)| slot_of(&f.blocks[db].insts[di].kind).is_some());
+    let reason = match (&f.blocks[call.0].insts[call.1].kind, from_slot) {
+        (InstKind::CallVirtual { .. }, true) => Reason::CalleeUnknown,
+        (_, true) => Reason::SlotKept,
+        (_, false) => Reason::StillUsed,
+    };
+    Some(KeptCopy {
+        span: stmt_at(f, call)?.1,
+        reason,
+        fix: None,
+    })
 }
 
 /// Puts a lent property's poison around the call at `(b, c)`
