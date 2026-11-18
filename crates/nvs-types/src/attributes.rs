@@ -298,13 +298,14 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // empty scope: the constant-payload check
     // (`rule:attributes/payload-is-a-compile-time-constant`) has just proved
     // there is no variable in this payload, so no binding can be read and none
-    // can be captured. An array literal is then retyped to its field's array
-    // type where every element fits it, the check a retrieval makes, so a
-    // payload accepted here is the payload `Core\Attributes::get<Name>` finds.
+    // can be captured. Each field is then read at the type its alias names for
+    // it, so `'clear'` at `'clear'|'keep'` is that single-value type, the check
+    // a retrieval makes, and a payload accepted here is the payload
+    // `Core\Attributes::get<Name>` finds.
     let mut live = Live::default();
     let scope = LocalScope::new();
     let actual = check_anon_object(&attr.fields, None, &mut live, &scope, ctx, env);
-    let actual = crate::retrieval::with_requested_arrays(
+    let actual = crate::retrieval::with_requested_literals(
         &attr.fields,
         actual,
         shape,

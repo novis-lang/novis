@@ -568,7 +568,7 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
         let scope = LocalScope::new();
         let written = site_ctx(&table.scopes[site.scope]);
         let actual = check_anon_object(&site.attr.fields, None, &mut live, &scope, &written, env);
-        let actual = with_requested_arrays(
+        let actual = with_requested_literals(
             &site.attr.fields,
             actual,
             want,
@@ -585,26 +585,24 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
     matched
 }
 
-/// `actual`, the payload's inferred shape, with each array-literal field
-/// retyped to the type `want` requests for that field, where every element of
-/// the literal fits it.
+/// `actual`, the payload's inferred shape, with each field retyped to what its
+/// literal is when read at the type `want` requests for that field.
 ///
-/// [`check_anon_object`] has no expectation here, and an array literal with
-/// none is an `array<mixed>`, which satisfies a requested `array<mixed>` and
-/// nothing narrower. Each element is a constant that still names what it is,
-/// so `[Mode::Off, Mode::On]` is checked element by element against a
-/// requested `array<Mode>` and satisfies it, while a case of another enum in
-/// the same array keeps it from doing so. Elements are compared with
-/// [`field_fits`], which has no `int` → `float` row, because [`fold_payload`]
-/// stores each element as written and converts none of them.
+/// [`check_anon_object`] has no expectation here, so every literal has its
+/// base type: `'clear'` is a `string`, `Mode::Off` a `Mode`, and an array
+/// literal an `array<mixed>`. None of those satisfies a requested `'clear'|'keep'`,
+/// `Mode::Off|Mode::On` or `array<Mode>`, though the constant written still
+/// names a value of it. [`literal_type`] reads each field against its request,
+/// the way an assignment of the same literal to that shape reads it
+/// (`rule:types/single-value-types`).
 ///
-/// The elements were already checked once by [`check_anon_object`], so the
+/// The fields were already checked once by [`check_anon_object`], so the
 /// diagnostics this second check reports are withdrawn.
 ///
 /// [`crate::attributes`] calls it too, against the alias a named payload is
 /// checked against, so a payload is accepted where it is written exactly when a
 /// retrieval of that alias finds it.
-pub(crate) fn with_requested_arrays(
+pub(crate) fn with_requested_literals(
     fields: &[AnonObjectField],
     actual: TypeId,
     want: TypeId,
@@ -623,18 +621,19 @@ pub(crate) fn with_requested_arrays(
     let before = env.diags.len();
     let mut retyped = false;
     for field in fields {
-        if !matches!(field.value.kind, ExprKind::ArrayLiteral(_)) {
-            continue;
-        }
         let name = span_text(env.src, field.name).to_owned();
         let Some(target) = requested.iter().find(|f| f.name == name).map(|f| f.ty) else {
             continue;
         };
-        if !literal_fits(&field.value, target, live, scope, ctx, env) {
+        let Some(slot) = inferred.iter_mut().find(|f| f.name == name) else {
+            continue;
+        };
+        if field_fits(slot.ty, target, env.interner, env.graph, env.signatures) {
             continue;
         }
-        if let Some(slot) = inferred.iter_mut().find(|f| f.name == name) {
-            slot.ty = target;
+        let read = literal_type(&field.value, target, live, scope, ctx, env);
+        if read != slot.ty {
+            slot.ty = read;
             retyped = true;
         }
     }
@@ -646,30 +645,57 @@ pub(crate) fn with_requested_arrays(
     }
 }
 
-/// Whether the payload constant `value` fits `want` in place: an array literal
-/// at an `array<T>` when each element fits `T`, nested literals included, and
-/// any other value by its own inferred type. A spread fits nothing, since a
-/// payload has no binding to spread.
-fn literal_fits(
+/// The type of the payload constant `value` read at `want`, or its own
+/// inferred type where it is not a value of `want`.
+///
+/// - An array literal at an `array<T>` is `want` when each element read at `T`
+///   fits `T`, nested literals included. A spread fits nothing, since a payload
+///   has no binding to spread.
+/// - An anonymous object at a shape is its own shape with each field read the
+///   same way, by [`with_requested_literals`].
+/// - Any other constant is placed at `want` the way an assignment places it,
+///   and that placement is kept only when it is a single-value type: `'clear'`
+///   at `'clear'|'keep'` is `'clear'`, and `Mode::Off` at `Mode::Off|Mode::On`
+///   is `Mode::Off`. A placement into a base type is not kept, because
+///   [`fold_payload`] stores each constant as written and converts none of
+///   them: `2` at a `float` stays an `int`, and [`field_fits`] has no `int` →
+///   `float` row.
+fn literal_type(
     value: &Expr,
     want: TypeId,
     live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> bool {
-    if let ExprKind::ArrayLiteral(items) = &value.kind {
-        let base = env.interner.without_null(want);
-        if let Ty::Array(element) = *env.interner.get(base) {
-            return items.iter().all(|item| {
-                !item.spread
-                    && !item.by_ref
-                    && literal_fits(&item.value, element, live, scope, ctx, env)
+) -> TypeId {
+    let own = check_expr(value, None, live, scope, ctx, env);
+    if field_fits(own, want, env.interner, env.graph, env.signatures) {
+        return own;
+    }
+    let base = env.interner.without_null(want);
+    match (&value.kind, env.interner.get(base).clone()) {
+        (ExprKind::ArrayLiteral(items), Ty::Array(element)) => {
+            let fits = items.iter().all(|item| {
+                if item.spread || item.by_ref {
+                    return false;
+                }
+                let read = literal_type(&item.value, element, live, scope, ctx, env);
+                field_fits(read, element, env.interner, env.graph, env.signatures)
             });
+            if fits { want } else { own }
+        }
+        (ExprKind::AnonObject(fields), Ty::Shape(_)) => {
+            with_requested_literals(fields, own, base, live, scope, ctx, env)
+        }
+        _ => {
+            let placed = check_expr(value, Some(want), live, scope, ctx, env);
+            if env.interner.single_value_base(placed) == placed {
+                own
+            } else {
+                placed
+            }
         }
     }
-    let ty = check_expr(value, None, live, scope, ctx, env);
-    field_fits(ty, want, env.interner, env.graph, env.signatures)
 }
 
 /// One matched payload as the constant `rule:attributes/retrieval-folds-while-checking`

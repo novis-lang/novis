@@ -1,0 +1,34 @@
+--TEST--
+A literal in a named attribute's payload that is not one of the single-value types its alias names for the field is `E0401` at the payload, at the top level, inside an array and inside a nested shape — `rule:types/single-value-types` and `rule:attributes/attach-sites-and-forms`
+--FILE--
+<?nvs
+type Link = { onRemove?: 'keep'|'clear'|'cascade' };
+type Sort = { order: array<'asc'|'desc'>, page: { size: 10|20|50 } };
+
+class Post
+{
+    #[Link(onRemove: 'drop')]
+    public string $author = '';
+
+    #[Sort(order: ['asc', 'up'], page: { size: 20 })]
+    public string $title = '';
+
+    #[Sort(order: ['asc'], page: { size: 30 })]
+    public string $body = '';
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `{ onRemove?: "keep"|"clear"|"cascade" }`, found `{ onRemove: string }`
+  --> case.nvs:7:11
+%A
+error[E0401]: expected `{ order: array<"asc"|"desc">, page: { size: 10|20|50 } }`, found `{ order: array<mixed>, page: { size: 20 } }`
+   --> case.nvs:10:11
+%A
+error[E0401]: expected `{ order: array<"asc"|"desc">, page: { size: 10|20|50 } }`, found `{ order: array<"asc"|"desc">, page: { size: int } }`
+   --> case.nvs:13:11
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

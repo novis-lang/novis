@@ -70,7 +70,10 @@ The **bare** `#[{...}]` names no shape and is checked only as a well-formed anon
 a `type` alias whose right-hand side is a shape type; the payload object is then checked against it by the
 width subtyping every shape-typed position already uses. An array literal in a field is checked
 against that field's declared array type, element by element and nested literals included, so
-`#[Tags(ids: [1, 2])]` fits `{ids: array<int>}`. That is the check a retrieval makes
+`#[Tags(ids: [1, 2])]` fits `{ids: array<int>}`. A string, `int`, `bool` or enum-case literal is read
+at the single-value type its field names, as an assignment reads it ([`types/single-value-types`](types.md#types-single-value-types)),
+so `#[Link(onRemove: 'clear')]` fits `{onRemove: 'keep'|'clear'}`, in an array element and a nested
+shape too. That is the check a retrieval makes
 ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so a payload accepted where it is written is the payload
 `Core\Attributes::get<Tags>` finds. Neither has the `int` to `float` row, because the payload is
 stored as written.
