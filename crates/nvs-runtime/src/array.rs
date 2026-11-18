@@ -1540,6 +1540,38 @@ impl NvsArray {
         }
     }
 
+    /// Makes this handle the sole owner where the request can afford the copy,
+    /// for [`nvs_array_sole`]. A refused copy changes nothing: the breach is
+    /// recorded, so the next `Core` member the request calls stops it.
+    pub fn sole(&mut self) {
+        if self.refcount() == 1 {
+            return;
+        }
+        let ask =
+            size_of::<ArrayHeader>().saturating_add(self.header().table.borrow().separation_cost());
+        if crate::budget::affords(ask) {
+            self.make_unique();
+        }
+    }
+
+    /// Writes `value` over the entry at `key` without releasing what the
+    /// entry had, for [`nvs_array_set_lent`]. The caller already took that
+    /// reference: it lent the entry to an owning `Core` member, and `value`
+    /// is what the member returned.
+    ///
+    /// The array is the sole owner and `key` is there, because the entry was
+    /// read from this array after [`Self::sole`], and nothing ran between.
+    /// So the write allocates nothing, and the memory ceiling is not asked: a
+    /// refused write would leave the entry naming a value it no longer owns.
+    pub fn set_lent(&mut self, key: Lent, value: Value) {
+        debug_assert_eq!(self.refcount(), 1, "a lent entry's array is shared");
+        let displaced = match key {
+            Lent::Key(key) => self.header().table.borrow_mut().set(key, value),
+            Lent::Index(index) => self.header().table.borrow_mut().set_index(index, value),
+        };
+        debug_assert!(displaced.is_some(), "a lent entry's key is absent");
+    }
+
     /// Appends `value` under the next integer key, taking over its reference
     /// and separating first if this handle is not the only owner, or hands the
     /// reference back where the next integer key is already live.
@@ -2767,6 +2799,106 @@ pub unsafe extern "C" fn nvs_array_set_index(
             return handle.into_raw();
         }
         handle.set_index(index, value.read());
+        handle.into_raw()
+    }
+}
+
+/// The key of a lent write, [`NvsArray::set_lent`].
+#[derive(Debug)]
+pub enum Lent {
+    /// A string key, whose reference the write takes over.
+    Key(NvsStr),
+    /// An integer key.
+    Index(i64),
+}
+
+/// Makes `array` the only owner of its storage, copying it where another
+/// holder shares it — `nvs_ir::InstKind::ArraySole`. Consumes one reference
+/// and returns the one reference to the sole array.
+///
+/// The ownership pass puts this before an element's read when it lends the
+/// element to an owning `Core` member, so the member's reference is the
+/// entry's only one. A copy the memory ceiling refuses returns `array`
+/// unchanged. The breach is then recorded, so the member refuses to run and
+/// never takes the entry.
+///
+/// # Safety
+///
+/// `array` must refer to a live Novis array allocation whose reference the
+/// caller owns.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes raw pointers whose ownership the signature \
+              cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_array_sole(array: *mut ArrayHeader) -> *mut ArrayHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees it owns one reference to `array`"
+    )]
+    let mut handle = unsafe { NvsArray::from_raw(array) };
+    handle.sole();
+    handle.into_raw()
+}
+
+/// [`nvs_array_set`] for an entry that was lent to an owning `Core` member:
+/// it writes `value` at `key` and does not release the entry's old value,
+/// because the member took that reference ([`NvsArray::set_lent`]).
+/// Consumes one reference to `array`, `key` and `value`, and returns the one
+/// reference to `array`.
+///
+/// # Safety
+///
+/// As [`nvs_array_set`], and `array` is solely owned and has `key`.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes raw pointers whose ownership the signature \
+              cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_array_set_lent(
+    array: *mut ArrayHeader,
+    key: *mut StrHeader,
+    value: *const Value,
+) -> *mut ArrayHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees it owns one reference to each argument \
+                  and that `value` points at a readable 16-byte slot"
+    )]
+    unsafe {
+        let mut handle = NvsArray::from_raw(array);
+        handle.set_lent(Lent::Key(NvsStr::from_raw(key)), value.read());
+        handle.into_raw()
+    }
+}
+
+/// [`nvs_array_set_lent`] at the integer key `index`, as
+/// [`nvs_array_set_index`] is to [`nvs_array_set`].
+///
+/// # Safety
+///
+/// As [`nvs_array_set_index`], and `array` is solely owned and has `index`.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes raw pointers whose ownership the signature \
+              cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_array_set_index_lent(
+    array: *mut ArrayHeader,
+    index: i64,
+    value: *const Value,
+) -> *mut ArrayHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees it owns one reference to `array` and \
+                  that `value` points at a readable 16-byte slot"
+    )]
+    unsafe {
+        let mut handle = NvsArray::from_raw(array);
+        handle.set_lent(Lent::Index(index), value.read());
         handle.into_raw()
     }
 }

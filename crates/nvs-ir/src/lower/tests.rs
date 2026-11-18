@@ -2297,6 +2297,34 @@ fn a_property_chain_is_lent() {
     );
 }
 
+/// An element is lent once the array holding it is made sole and stored
+/// back, and the write puts the result over the entry without releasing it.
+/// Two different keys name two entries, and a read of the array between
+/// could share it, so neither is lent.
+#[test]
+fn an_element_is_lent_through_its_containers() {
+    for body in [
+        "    $this->g['a'] = Core\\Arr::slice($this->g['a'], 1);",
+        "    $this->g[0] = Core\\Arr::reverse($this->g[0]);",
+    ] {
+        let printed = lower_lends(body);
+        assert!(printed.contains("_owned("), "{body}\n{printed}");
+        assert!(printed.contains("= array.sole v"), "{body}\n{printed}");
+        assert!(printed.contains("= array.set.lent v"), "{body}\n{printed}");
+        let sole = printed.find("array.sole").unwrap_or(usize::MAX);
+        let get = printed.find("array.get").unwrap_or(0);
+        assert!(sole < get, "the array is sole before the read\n{printed}");
+    }
+    for body in [
+        "    $this->g['a'] = Core\\Arr::slice($this->g['b'], 1);",
+        "    $this->g['a'] = Core\\Arr::slice($this->g['a'], Core\\Arr::count($this->g) as int);",
+    ] {
+        let printed = lower_lends(body);
+        assert!(!printed.contains("array.sole"), "{body}\n{printed}");
+        assert!(!printed.contains("array.set.lent"), "{body}\n{printed}");
+    }
+}
+
 /// A hooked property is read and written by its hooks, so there is no slot to
 /// lend. A guarded one runs the guard between the call and the store.
 #[test]

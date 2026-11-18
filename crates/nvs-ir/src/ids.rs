@@ -129,6 +129,15 @@ impl IdGen {
         id
     }
 
+    /// A generator whose next value id is `next`, for a pass that adds values
+    /// to a function already lowered.
+    pub(crate) fn values_from(next: u32) -> Self {
+        Self {
+            next_value: next,
+            ..Self::default()
+        }
+    }
+
     /// Allocates the next SSA value id.
     pub fn next_value(&mut self) -> ValueId {
         let id = ValueId(self.next_value);

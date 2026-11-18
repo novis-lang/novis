@@ -2192,6 +2192,23 @@ pub enum InstKind {
         key: ValueId,
         /// The new value, already lowered.
         value: ValueId,
+        /// Whether the entry at `key` was lent to an owning `Core` member,
+        /// which took its reference. The write then does not release the
+        /// entry's old value, and allocates nothing: the ownership pass sets
+        /// this only after an [`InstKind::ArraySole`] made `array` sole and
+        /// the entry was read from it. The lowering always writes `false`.
+        lent: bool,
+    },
+    /// Makes `array` the only owner of its storage, copying it where another
+    /// holder shares it. It consumes one reference to `array` and defines the
+    /// one reference to the sole array, which the ownership pass stores back
+    /// into the slot `array` was read from. The pass puts it before the read
+    /// of an element it lends, so the element's reference is the array's
+    /// alone. A copy the memory ceiling refuses changes nothing, and the lent
+    /// call then refuses to run (`nvs_runtime::nvs_array_sole`).
+    ArraySole {
+        /// The array, read from a slot.
+        array: ValueId,
     },
     /// Appends `value` to `array` at PHP's own "next available integer key"
     /// — `$a[] = expr;`, `rule:types/arrays`'s append syntax
@@ -3987,7 +4004,10 @@ impl InstKind {
                 f(*array);
                 f(*key);
             }
-            InstKind::ArraySet { array, key, value } => {
+            InstKind::ArraySole { array } => f(*array),
+            InstKind::ArraySet {
+                array, key, value, ..
+            } => {
                 f(*array);
                 f(*key);
                 f(*value);
@@ -4192,6 +4212,7 @@ impl InstKind {
             | InstKind::ArrayNew { .. }
             | InstKind::ArrayGet { .. }
             | InstKind::ArraySet { .. }
+            | InstKind::ArraySole { .. }
             | InstKind::ArrayAppend { .. }
             | InstKind::ArraySpread { .. }
             | InstKind::ArrayUnset { .. }

@@ -1304,7 +1304,31 @@ impl Emitter<'_, '_> {
                     None,
                 );
             }
-            InstKind::ArraySet { array, key, value } => {
+            InstKind::ArraySole { array } => {
+                let (array, _) = self.value(*array)?;
+                let callee = self.runtime_ref("nvs_array_sole", RuntimeSig::PtrToPtr)?;
+                let call = self.b.ins().call(callee, &[array]);
+                let result = self.b.inst_results(call)[0];
+                self.define(inst, result)?;
+            }
+            InstKind::ArraySet {
+                array,
+                key,
+                value,
+                lent,
+            } => {
+                // A lent entry's key is never tagged: the ownership pass lends
+                // only through a `string` or `int` key.
+                if *lent {
+                    let (symbol, sig) = match self.value(*key)?.1 {
+                        Ty::Int => ("nvs_array_set_index_lent", RuntimeSig::ArraySetIndex),
+                        Ty::Str => ("nvs_array_set_lent", RuntimeSig::ArraySet),
+                        _ => return Err(internal("a lent array write through a tagged key")),
+                    };
+                    let result = self.emit_array_write(symbol, sig, *array, Some(*key), *value)?;
+                    self.define(inst, result)?;
+                    return self.current_block();
+                }
                 // A tagged key is a `uint` subscript's, and its tag picks.
                 if self.value(*key)?.1 == Ty::Tagged {
                     let (result, done) = self.emit_tagged_key_array_set(*array, *key, *value)?;

@@ -3922,8 +3922,17 @@ impl<'a> Lowering<'a> {
         key: ValueId,
         value: ValueId,
     ) -> ValueId {
-        self.emit(b, Ty::Array, InstKind::ArraySet { array, key, value })
-            .0
+        self.emit(
+            b,
+            Ty::Array,
+            InstKind::ArraySet {
+                array,
+                key,
+                value,
+                lent: false,
+            },
+        )
+        .0
     }
     /// Appends an [`InstKind::ArrayAppend`] to `b`, yielding the array that
     /// now holds the entry — see [`Self::emit_array_set`], whose protocol this

@@ -3985,6 +3985,18 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::array::nvs_array_set_index as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_array_sole",
+            (crate::array::nvs_array_sole as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_array_set_lent",
+            (crate::array::nvs_array_set_lent as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_array_set_index_lent",
+            (crate::array::nvs_array_set_index_lent as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_array_append",
             (crate::array::nvs_array_append as *const ()).cast::<u8>(),
         ),

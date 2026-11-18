@@ -370,8 +370,15 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             };
             format!("array.get{suffix} v{}, v{}", array.index(), key.index())
         }
-        InstKind::ArraySet { array, key, value } => format!(
-            "array.set v{}, v{}, v{}",
+        InstKind::ArraySole { array } => format!("array.sole v{}", array.index()),
+        InstKind::ArraySet {
+            array,
+            key,
+            value,
+            lent,
+        } => format!(
+            "array.set{} v{}, v{}, v{}",
+            if *lent { ".lent" } else { "" },
             array.index(),
             key.index(),
             value.index()

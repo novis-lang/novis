@@ -67,6 +67,14 @@
 //! its callbacks before it changes anything. A hook, a guard and an observer
 //! are calls, so a slot that has one is never lent.
 //!
+//! An element of an array such a slot holds, `slot[k] = M(slot[k], …)` with
+//! the same `string` or `int` key, is lent the same way. The array must be
+//! the entry's only holder, so the pass makes it sole right after the
+//! slot's read ([`InstKind::ArraySole`]) and stores it back, and the write
+//! puts the result over the entry without releasing the old value, which
+//! the call took ([`InstKind::ArraySet`]'s `lent`). **What it spends:** a
+//! shared array is copied at the read, where the write would have copied it.
+//!
 //! **What it spends:** while compiling, one walk per candidate call over the
 //! code after it, and one pass over each function for its write summary.
 //! Nothing at run time: the program makes one retain and one release fewer for
@@ -75,7 +83,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::ValueId;
-use crate::ir::{Function, InstKind, Slot, Terminator, Touch, UserCode};
+use crate::ir::{Function, Inst, InstKind, Slot, Terminator, Touch, UserCode};
 use crate::ty::Ty;
 
 /// Decides every move and every lend in `functions`.
@@ -212,6 +220,9 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
                 .filter_map(move |(i, inst)| Some((inst.result?, (b, i))))
         })
         .collect();
+    let mut ids =
+        crate::ids::IdGen::values_from(defs.keys().map(|v| v.index() + 1).max().unwrap_or(0));
+    let mut after: FxHashMap<At, Vec<Inst>> = FxHashMap::default();
     for b in 0..f.blocks.len() {
         for c in 0..f.blocks[b].insts.len() {
             let lend = Lend {
@@ -221,10 +232,13 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
                 writes,
                 removed: &removed,
             };
-            if let Some((owned, gone)) = lend.of((b, c)) {
-                removed.extend(gone);
+            if let Some(lent) = lend.of((b, c)) {
+                removed.extend(lent.gone);
                 if let InstKind::CoreCall { symbol, .. } = &mut f.blocks[b].insts[c].kind {
-                    *symbol = owned;
+                    *symbol = lent.symbol;
+                }
+                if let Some(element) = lent.element {
+                    make_sole(f, &element, &mut ids, &mut after);
                 }
             }
         }
@@ -287,7 +301,7 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
         let insts = std::mem::take(&mut block.insts);
         for (i, inst) in insts.into_iter().enumerate() {
             for &operand in released_before.get(&(b, i)).into_iter().flatten() {
-                block.insts.push(crate::ir::Inst {
+                block.insts.push(Inst {
                     result: None,
                     ty: None,
                     kind: InstKind::Release { operand },
@@ -298,7 +312,76 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
             if !removed.contains(&(b, i)) {
                 block.insts.push(inst);
             }
+            block
+                .insts
+                .extend(after.remove(&(b, i)).into_iter().flatten());
         }
+    }
+}
+
+/// Rewrites an element's lend: after the container's read, the array is
+/// made sole and stored back into its slot, the element is read from the
+/// sole array, and the write into the second read of the slot is lent.
+fn make_sole(
+    f: &mut Function,
+    element: &Element,
+    ids: &mut crate::ids::IdGen,
+    after: &mut FxHashMap<At, Vec<Inst>>,
+) {
+    let (cb, ci) = element.container;
+    let read = &f.blocks[cb].insts[ci];
+    let (Some(container), Some(store)) = (
+        read.result,
+        match &read.kind {
+            InstKind::FieldGet {
+                object,
+                class,
+                field,
+            } => Some((Some(*object), class.clone(), field.clone())),
+            InstKind::StaticGet { class, name } => Some((None, class.clone(), name.clone())),
+            _ => None,
+        },
+    ) else {
+        unreachable!("`Lend::of_element` lends only an array read from a slot");
+    };
+    let sole = ids.next_value();
+    let (object, class, name) = store;
+    let store = match object {
+        Some(object) => InstKind::FieldSet {
+            object,
+            class,
+            field: name,
+            value: sole,
+        },
+        None => InstKind::StaticSet {
+            class,
+            name,
+            value: sole,
+        },
+    };
+    after.entry(element.container).or_default().extend([
+        Inst {
+            result: Some(sole),
+            ty: Some(Ty::Array),
+            kind: InstKind::ArraySole { array: container },
+            on_error: None,
+            raise_site: None,
+        },
+        Inst {
+            result: None,
+            ty: None,
+            kind: store,
+            on_error: None,
+            raise_site: None,
+        },
+    ]);
+    let (gb, gi) = element.get;
+    if let InstKind::ArrayGet { array, .. } = &mut f.blocks[gb].insts[gi].kind {
+        *array = sole;
+    }
+    let (sb, si) = element.set;
+    if let InstKind::ArraySet { lent, .. } = &mut f.blocks[sb].insts[si].kind {
+        *lent = true;
     }
 }
 
@@ -428,9 +511,27 @@ fn drop_loop_reference(
     removed.insert((pre, retain));
 }
 
+/// What a lend changes: the owning symbol the call switches to, the
+/// instructions it removes, and for an element, the instructions it rewrites.
+struct Lent {
+    symbol: &'static str,
+    gone: Vec<At>,
+    element: Option<Element>,
+}
+
+/// Where an element's lend rewrites the function. The container's read gets
+/// an [`InstKind::ArraySole`] and a store of the sole array after it, the
+/// element's read reads the sole array, and the write is lent.
+struct Element {
+    container: At,
+    get: At,
+    set: At,
+}
+
 /// One function's view for the lend: `slot = M(slot, …)`, where `M` is an
-/// owning `Core` member and the slot a plain property, a static property or a
-/// property reached through a chain of plain properties.
+/// owning `Core` member and the slot a plain property, a static property, a
+/// property reached through a chain of plain properties, or an element of an
+/// array one of those holds ([`Lend::of_element`]).
 ///
 /// The lowering emits the slot's read, the call on the borrowed entry, a
 /// second read of the slot's old value, the store of the result and a
@@ -464,7 +565,7 @@ impl Lend<'_> {
     /// - Each callable the call takes is an anonymous function whose body
     ///   writes none of those slots and runs no user code. Its body runs
     ///   before anything changes, so a read of the slot sees the old value.
-    fn of(&self, (b, c): At) -> Option<(&'static str, Vec<At>)> {
+    fn of(&self, (b, c): At) -> Option<Lent> {
         let insts = &self.f.blocks[b].insts;
         let call = &insts[c];
         let InstKind::CoreCall {
@@ -492,25 +593,17 @@ impl Lend<'_> {
         if rb != b || read >= c {
             return None;
         }
+        if matches!(insts[read].kind, InstKind::ArrayGet { .. }) {
+            let (gone, element) = self.of_element((b, c), subject, result, read, args)?;
+            return Some(Lent {
+                symbol: entry.symbol,
+                gone,
+                element: Some(element),
+            });
+        }
         let (slot, object) = slot_of(&insts[read].kind)?;
         // The containers on the chain, and where the first of them is read.
-        let mut chain = vec![slot];
-        let mut start = read;
-        let mut on = object;
-        while let Some(o) = on {
-            let Some(&(ob, oi)) = self.defs.get(&o) else {
-                break;
-            };
-            let Some((container, outer)) = slot_of(&self.f.blocks[ob].insts[oi].kind) else {
-                break;
-            };
-            if ob != b {
-                return None;
-            }
-            chain.push(container);
-            start = start.min(oi);
-            on = outer;
-        }
+        let (chain, mut start) = self.chain(b, slot, object, read)?;
         // The store, and the second read of the old value between.
         let mut gone = Vec::new();
         let mut old = None;
@@ -569,10 +662,173 @@ impl Lend<'_> {
             }
         }
         gone.push(old_release?);
-        // Nothing from the first container's read to the call touches the
-        // slots, and the subject is read only by its retain and releases.
+        self.window_is_quiet(b, start, c, &[read], subject, &chain)?;
+        gone.extend(self.subject_counts((b, c), subject)?);
+        self.callbacks_are_quiet(args, subject, &chain)?;
+        Some(Lent {
+            symbol: entry.symbol,
+            gone,
+            element: None,
+        })
+    }
+
+    /// The lend of an array element, `slot[k] = M(slot[k], …)`, where the
+    /// subject is the [`InstKind::ArrayGet`] at `get`. The slot holding the
+    /// array is plain, and `k` is the same `string` or `int` key in the read
+    /// and in the write.
+    ///
+    /// The array must be the entry's only holder, so the pass makes it sole
+    /// right after its read ([`InstKind::ArraySole`]) and stores it back. The
+    /// write then puts the result over the entry without releasing it,
+    /// because the call took that reference ([`InstKind::ArraySet`]'s
+    /// `lent`). Between the sole array's read and the write nothing may read
+    /// or write the slot, run user code or fail after the call, exactly as
+    /// for a plain slot, so nothing can share the array again.
+    fn of_element(
+        &self,
+        (b, c): At,
+        subject: ValueId,
+        result: ValueId,
+        get: usize,
+        args: &[ValueId],
+    ) -> Option<(Vec<At>, Element)> {
+        let insts = &self.f.blocks[b].insts;
+        let InstKind::ArrayGet {
+            array: container,
+            key,
+            absent: crate::ir::AbsentKey::Throws,
+        } = insts[get].kind
+        else {
+            return None;
+        };
+        if !matches!(self.tys.get(&key), Some(Ty::Str | Ty::Int)) {
+            return None;
+        }
+        let (cb, ci) = *self.defs.get(&container)?;
+        if cb != b || ci >= get || self.uses(container) != 1 {
+            return None;
+        }
+        let (slot, object) = slot_of(&insts[ci].kind)?;
+        let (chain, mut start) = self.chain(b, slot, object, ci)?;
+        // The second read of the array, the write into it, and the store.
+        let mut reread = None;
+        let mut set = None;
+        let mut store = None;
+        for (j, inst) in insts.iter().enumerate().skip(c + 1) {
+            if self.removed.contains(&(b, j)) {
+                continue;
+            }
+            if let Some((_, written)) = set
+                && let Some((stored, into, value)) = store_of(&inst.kind)
+                && value == written
+                && stored == slot
+                && let Some(from) = self.same_object(into, object, b, &chain)
+            {
+                start = start.min(from);
+                store = Some(j);
+                break;
+            }
+            if let Some((_, again)) = reread
+                && set.is_none()
+                && let InstKind::ArraySet {
+                    array,
+                    key: written_key,
+                    value,
+                    lent: false,
+                } = inst.kind
+                && array == again
+                && value == result
+            {
+                if !self.same_key(key, written_key) || self.uses(again) != 1 {
+                    return None;
+                }
+                let written = inst.result?;
+                if self.uses(written) != 1 {
+                    return None;
+                }
+                set = Some((j, written));
+                continue;
+            }
+            if inst.on_error.is_some() || reads(&inst.kind, result) {
+                return None;
+            }
+            if reread.is_none()
+                && let Some((read_slot, from)) = slot_of(&inst.kind)
+                && read_slot == slot
+                && let Some(earliest) = self.same_object(from, object, b, &chain)
+            {
+                start = start.min(earliest);
+                reread = Some((j, inst.result?));
+                continue;
+            }
+            if matches!(inst.kind, InstKind::Release { operand } if operand == subject) {
+                continue;
+            }
+            if reads(&inst.kind, subject) || !self.quiet(&inst.kind, &chain, true) {
+                return None;
+            }
+        }
+        store?;
+        let (set, _) = set?;
+        self.window_is_quiet(b, start, c, &[ci, get], subject, &chain)?;
+        let gone = self.subject_counts((b, c), subject)?;
+        self.callbacks_are_quiet(args, subject, &chain)?;
+        Some((
+            gone,
+            Element {
+                container: (b, ci),
+                get: (b, get),
+                set: (b, set),
+            },
+        ))
+    }
+
+    /// The slots on the chain from `slot` out, and the index of the first
+    /// container's read, starting at `read`. Every container is read in
+    /// block `b`.
+    fn chain<'s>(
+        &'s self,
+        b: usize,
+        slot: Slot<'s>,
+        object: Option<ValueId>,
+        read: usize,
+    ) -> Option<(Vec<Slot<'s>>, usize)> {
+        let mut chain = vec![slot];
+        let mut start = read;
+        let mut on = object;
+        while let Some(o) = on {
+            let Some(&(ob, oi)) = self.defs.get(&o) else {
+                break;
+            };
+            let Some((container, outer)) = slot_of(&self.f.blocks[ob].insts[oi].kind) else {
+                break;
+            };
+            if ob != b {
+                return None;
+            }
+            chain.push(container);
+            start = start.min(oi);
+            on = outer;
+        }
+        Some((chain, start))
+    }
+
+    /// Whether nothing from `start` to the call at `c` touches the slots on
+    /// `chain`, other than the reads at `skip`, and the subject is read only
+    /// by its retain and releases.
+    fn window_is_quiet(
+        &self,
+        b: usize,
+        start: usize,
+        c: usize,
+        skip: &[usize],
+        subject: ValueId,
+        chain: &[Slot<'_>],
+    ) -> Option<()> {
+        let insts = &self.f.blocks[b].insts;
+        let read = *skip.last()?;
         for (i, inst) in insts.iter().enumerate().take(c).skip(start) {
-            if i == read || self.removed.contains(&(b, i)) {
+            if skip.contains(&i) || self.removed.contains(&(b, i)) {
                 continue;
             }
             if i > read && reads(&inst.kind, subject) {
@@ -584,24 +840,30 @@ impl Lend<'_> {
                 }
                 continue;
             }
-            if !self.quiet(&inst.kind, &chain, true) {
+            if !self.quiet(&inst.kind, chain, true) {
                 return None;
             }
         }
-        // Every retain and release of the subject in the function pairs up,
-        // so removing all of them keeps the counts.
+        Some(())
+    }
+
+    /// Every retain and release of the subject in the function, outside the
+    /// call at `call`, when they pair up, so removing all of them keeps the
+    /// counts. `None` when another instruction reads the subject.
+    fn subject_counts(&self, call: At, subject: ValueId) -> Option<Vec<At>> {
+        let mut found = Vec::new();
         let mut retains = 0;
         for (ib, block) in self.f.blocks.iter().enumerate() {
             for (i, inst) in block.insts.iter().enumerate() {
-                if (ib, i) == (b, c) || self.removed.contains(&(ib, i)) {
+                if (ib, i) == call || self.removed.contains(&(ib, i)) {
                     continue;
                 }
                 match inst.kind {
                     InstKind::Retain { operand } if operand == subject => {
                         retains += 1;
-                        gone.push((ib, i));
+                        found.push((ib, i));
                     }
-                    InstKind::Release { operand } if operand == subject => gone.push((ib, i)),
+                    InstKind::Release { operand } if operand == subject => found.push((ib, i)),
                     ref kind if reads(kind, subject) => return None,
                     _ => {}
                 }
@@ -614,11 +876,21 @@ impl Lend<'_> {
                 return None;
             }
         }
-        let releases = gone.len() - 2 - retains;
+        let releases = found.len() - retains;
         if retains > 1 || (retains == 0 && releases > 0) {
             return None;
         }
-        // The callables the call runs.
+        Some(found)
+    }
+
+    /// Whether every callable among `args` is an anonymous function whose
+    /// body writes no slot on `chain` and runs no user code.
+    fn callbacks_are_quiet(
+        &self,
+        args: &[ValueId],
+        subject: ValueId,
+        chain: &[Slot<'_>],
+    ) -> Option<()> {
         for &arg in args {
             if arg == subject || !takes_an_object(&InstKind::Retain { operand: arg }, self.tys) {
                 continue;
@@ -639,7 +911,42 @@ impl Lend<'_> {
                 }
             }
         }
-        Some((entry.symbol, gone))
+        Some(())
+    }
+
+    /// How many instructions and terminators read `value`.
+    fn uses(&self, value: ValueId) -> usize {
+        let mut count = 0;
+        for (ib, block) in self.f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if !self.removed.contains(&(ib, i)) && reads(&inst.kind, value) {
+                    count += 1;
+                }
+            }
+            block
+                .term
+                .for_each_operand(|v| count += usize::from(v == value));
+        }
+        count
+    }
+
+    /// Whether `x` and `y` are the same key: one value, or two constants of
+    /// the same text or number.
+    fn same_key(&self, x: ValueId, y: ValueId) -> bool {
+        if x == y {
+            return true;
+        }
+        let (Some(&(xb, xi)), Some(&(yb, yi))) = (self.defs.get(&x), self.defs.get(&y)) else {
+            return false;
+        };
+        match (
+            &self.f.blocks[xb].insts[xi].kind,
+            &self.f.blocks[yb].insts[yi].kind,
+        ) {
+            (InstKind::ConstStr(a), InstKind::ConstStr(b)) => a == b,
+            (InstKind::ConstInt(a), InstKind::ConstInt(b)) => a == b,
+            _ => false,
+        }
     }
 
     /// Whether `kind` runs no user code, writes no slot on `chain`, and, with
