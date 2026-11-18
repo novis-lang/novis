@@ -2500,12 +2500,17 @@ nvs_runtime::nvs_helper! {
     /// fresh reference — so it is stored without a retain and never released.
     /// That is the difference from `filter`, which stores a value belonging to
     /// the subject array and therefore has to retain one first.
-    fn nvs_core_arr_map(ctx, args: [2])-> Value, owns NvsArray {
+    ///
+    /// `check` calls the callback for every entry and keeps the results. A
+    /// sole subject then takes them in its own slots, keys and order
+    /// unchanged. A shared one builds the result from them. **What it
+    /// spends:** the results, one value per entry, for the length of the call.
+    fn nvs_core_arr_map(ctx, args: [2])-> Retained, owns NvsArray {
         let base = held_subject(args, "map")?;
         // Read once for the whole walk — [`nvs_core_arr_filter`]'s comment.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
-        let mut out = NvsArray::with_capacity(base.count());
+        let mut out = Retained(Vec::with_capacity(base.count()));
         // The live slots, as an iterator, so the walk goes through
         // `nvs_runtime::bounded_loop` and the deadline poll arrives with the
         // shape rather than being remembered here — `rule:http-server/time-is-bounded-inside-a-helper`'s first
@@ -2523,23 +2528,20 @@ nvs_runtime::nvs_helper! {
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            // Read before the call, and on a list this is the position itself:
-            // preserving a key is not the same as rendering one — [`store_at`].
-            let key = base
-                .slot_key(slot)
-                .expect("next_slot only names live entries");
 
             let mapped = if wants_key {
                 // One reference for the duration of the call, released right
-                // after — `call_callable` takes its own. `key` itself is still
-                // owed to [`store_at`] below.
+                // after — `call_callable` takes its own.
                 #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                let key_arg = Value::str(key.to_str());
+                let key_arg = Value::str(
+                    base.key_at(slot)
+                        .expect("next_slot only names live entries"),
+                );
                 let mapped = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
-                              `key.to_str()` just produced"
+                              `key_at` just produced"
                 )]
                 unsafe {
                     key_arg.release();
@@ -2548,17 +2550,39 @@ nvs_runtime::nvs_helper! {
             } else {
                 nvs_runtime::call_callable(ctx, args[1], &[value])
             };
-            // Unwrapped into a local of its own *before* `key` is moved: a
-            // throw partway through then frees the partial result and this
-            // entry's key by dropping two named locals, which `NvsArray` and
-            // `SlotKey`'s own `NvsStr` both do by releasing.
-            let mapped = mapped?;
-            store_at(&mut out, key, mapped);
+            // A throw partway through drops `out`, which releases every
+            // result kept so far.
+            out.0.push(mapped?);
             Ok(())
         })?;
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok(out)
+    } apply(mapped, subject) {
+        let mapped = mapped.take();
+        if subject.is_sole() && mapped.len() == subject.count() {
+            let mut subject = subject;
+            // The length is the count, so nothing is given back.
+            if let Err(refused) = subject.rewrite_values(mapped) {
+                release_all(refused);
+            }
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(mapped.len());
+        let mut at = subject.next_slot(0);
+        for value in mapped {
+            let Some(slot) = at else {
+                release_all(vec![value]);
+                continue;
+            };
+            // On a list the key is the position itself, so nothing is
+            // rendered ([`store_at`]).
+            let key = subject
+                .slot_key(slot)
+                .expect("next_slot only names live entries");
+            store_at(&mut out, key, value);
+            at = subject.next_slot(slot + 1);
+        }
+        kept_counter(&mut out, &subject, true);
+        Value::array(out)
     }
 }
 
@@ -2587,11 +2611,14 @@ nvs_runtime::nvs_helper! {
     /// reference of its own — [`nvs_core_arr_filter`]'s obligation, not
     /// `map`'s, because the callback's own answer is a *key* here and is
     /// released as soon as its bytes are read.
-    fn nvs_core_arr_map_keys(ctx, args: [2])-> Value, owns NvsArray {
+    ///
+    /// `check` calls the callback for every entry and keeps the new keys. A
+    /// sole subject then takes them in its own storage, and its index is
+    /// rebuilt in the same table. A shared one builds the result.
+    fn nvs_core_arr_map_keys(ctx, args: [2])-> Vec<NvsStr>, owns NvsArray {
         let base = held_subject(args, "mapKeys")?;
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
-        // Room for every entry, the most the new keys can name.
-        let mut out = NvsArray::with_capacity(base.count());
+        let mut keys = Vec::with_capacity(base.count());
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
@@ -2616,10 +2643,25 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 named.release();
             }
-            // Unwrapped *before* the retain below: a throw there would
-            // otherwise leave one reference owed to a result this frame is
-            // about to drop.
-            let fresh = fresh?;
+            keys.push(fresh?);
+        }
+        Ok(keys)
+    } apply(keys, subject) {
+        if subject.is_sole() && keys.len() == subject.count() {
+            let mut subject = subject;
+            // The length is the count, so nothing is given back.
+            let _ = subject.rekey(keys);
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(keys.len());
+        let mut at = subject.next_slot(0);
+        for key in keys {
+            let Some(slot) = at else {
+                break;
+            };
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
             #[expect(
                 unsafe_code,
                 reason = "the value is owned by the subject array, which \
@@ -2629,11 +2671,10 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 value.retain();
             }
-            out.set(fresh, value);
+            out.set(key, value);
+            at = subject.next_slot(slot + 1);
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Value::array(out)
     }
 }
 
@@ -3975,52 +4016,14 @@ nvs_runtime::nvs_helper! {
     /// ordered hash has no backward cursor, so this collects the slots first
     /// and then writes them out in reverse. One `Vec<usize>` of scratch, which
     /// `rule:programs/memory-priority`'s ordering buys without discussion.
-    fn nvs_core_arr_reverse(_ctx, args: [2]) -> Value, owns NvsArray {
-        // Unreachable from source: an `array<T>` parameter, refused at the
-        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
-        let array = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::reverse expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
-        let preserve_keys = preserve_keys(&args[1], "reverse")?;
-        let subject = borrowed(array);
-
-        let mut slots: Vec<usize> = Vec::new();
-        let mut from = 0usize;
-        while let Some(slot) = subject.next_slot(from) {
-            slots.push(slot);
-            from = slot + 1;
-        }
-
-        let mut out = NvsArray::with_capacity(slots.len());
-        for slot in slots.into_iter().rev() {
-            let value = subject
-                .value_at(slot)
-                .expect("next_slot only names live entries");
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the subject array, which \
-                          outlives this call, so the copy stored here needs a \
-                          reference of its own"
-            )]
-            unsafe {
-                value.retain();
-            }
-            if preserve_keys {
-                let key = subject
-                    .key_at(slot)
-                    .expect("next_slot only names live entries");
-                out.set(key, value);
-            } else {
-                out.append(value);
-            }
-        }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+    ///
+    /// A sole subject is reversed in its own storage ([`apply_permutation`]).
+    fn nvs_core_arr_reverse(_ctx, args: [2]) -> bool, owns NvsArray {
+        subject(args, "reverse")?;
+        preserve_keys(&args[1], "reverse")
+    } apply(preserve_keys, subject) {
+        let plan: Vec<usize> = (0..subject.count()).rev().collect();
+        apply_permutation(&plan, !preserve_keys, subject)
     }
 }
 
@@ -4041,7 +4044,10 @@ nvs_runtime::nvs_helper! {
     /// same key. A value of any other type is the checker having let an
     /// `array<int|string>` position take something else, and is reported as
     /// such rather than skipped the way PHP's warning-and-continue does.
-    fn nvs_core_arr_flip(_ctx, args: [1])-> Value, owns NvsArray {
+    ///
+    /// A sole subject takes its old keys as values and the new keys in its
+    /// own storage, and its index is rebuilt in the same table.
+    fn nvs_core_arr_flip(_ctx, args: [1])-> Vec<NvsStr>, owns NvsArray {
         // Unreachable from source: an `array<int|string>` parameter, refused
         // at the checker — [`nvs_core_arr_count`]'s guard states the
         // judgement. The *element* rule is a different question and the guard
@@ -4055,25 +4061,44 @@ nvs_runtime::nvs_helper! {
         })?;
         let subject = borrowed(array);
 
-        // Room for every entry, the most the values can name.
-        let mut out = NvsArray::with_capacity(subject.count());
+        let mut keys = Vec::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
-            let key = subject
-                .key_at(slot)
-                .expect("next_slot only names live entries");
             let value = subject
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            // The old key becomes the new *value*, and `key_at`'s fresh
-            // reference is exactly the one `set` takes over.
-            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-            out.set(NvsStr::new(&key_bytes(&value, "flip")?), Value::str(key));
+            keys.push(NvsStr::new(&key_bytes(&value, "flip")?));
             from = slot + 1;
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok(keys)
+    } apply(keys, subject) {
+        // The old keys become the values. Each `key_at` gives a fresh
+        // reference, which the array takes over.
+        let mut old = Vec::with_capacity(keys.len());
+        let mut at = subject.next_slot(0);
+        while let Some(slot) = at {
+            #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
+            old.push(Value::str(
+                subject
+                    .key_at(slot)
+                    .expect("next_slot only names live entries"),
+            ));
+            at = subject.next_slot(slot + 1);
+        }
+        if subject.is_sole() && keys.len() == old.len() {
+            let mut subject = subject;
+            // Both lengths are the count, so neither call gives anything back.
+            if let Err(refused) = subject.rewrite_values(old) {
+                release_all(refused);
+            }
+            let _ = subject.rekey(keys);
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(keys.len());
+        for (key, value) in keys.into_iter().zip(old) {
+            out.set(key, value);
+        }
+        Value::array(out)
     }
 }
 
@@ -4251,39 +4276,25 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_map`], whose values are the callback's and are already
     /// owned. `NvsArray::append` is what assigns the new keys, so this member
     /// states no key rule of its own.
-    fn nvs_core_arr_values(_ctx, args: [1])-> Value, owns NvsArray {
-        // Unreachable from source: an `array<T>` parameter, refused at the
-        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
-        let array = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::values expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
-        let subject = borrowed(array);
-
-        let mut out = NvsArray::with_capacity(subject.count());
-        let mut from = 0usize;
-        while let Some(slot) = subject.next_slot(from) {
-            let value = subject
-                .value_at(slot)
-                .expect("next_slot only names live entries");
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the subject array, which \
-                          outlives this call, so the copy stored here needs a \
-                          reference of its own"
-            )]
-            unsafe {
-                value.retain();
-            }
-            out.append(value);
-            from = slot + 1;
+    ///
+    /// A sole list is returned as it is. A sole map becomes the list of its
+    /// values in its own storage, and a shared subject is copied.
+    fn nvs_core_arr_values(_ctx, args: [1])-> (), owns NvsArray {
+        subject(args, "values")?;
+        Ok(())
+    } apply(_plan, subject) {
+        if subject.is_sole() {
+            let mut subject = subject;
+            subject.keep_window(0, usize::MAX, true);
+            return Value::array(subject);
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        let mut out = NvsArray::with_capacity(subject.count());
+        let mut at = subject.next_slot(0);
+        while let Some(slot) = at {
+            carry_entry(&subject, slot, &mut out, false);
+            at = subject.next_slot(slot + 1);
+        }
+        Value::array(out)
     }
 }
 
@@ -4844,7 +4855,7 @@ nvs_runtime::nvs_helper! {
     /// interface, exactly as `<` on two of its instances is a compile error.
     /// Objects are never the key sort's row, so they always take
     /// [`merge_sort`], whose comparison is the fallible one they need.
-    fn nvs_core_arr_sort(ctx, args: [5])-> Value, owns NvsArray {
+    fn nvs_core_arr_sort(ctx, args: [5])-> (Vec<usize>, bool), owns NvsArray {
         let base = held_subject(args, "sort")?;
         let by = optional_callback(&args[1], "sort", "by")?;
         let descending = match args[2].as_int() {
@@ -4879,15 +4890,14 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        // Whether anything at all is going to look at a key: the result keeps
-        // them, or a `by` callable declared a parameter to receive one. A sort
-        // that renumbers and extracts by value alone — `sort($list)`, the
-        // common call — reads none, so this walk collects none.
+        // Whether the decorating walk reads a key: only for a `by` callable
+        // that declared a parameter to receive one. The result's keys are
+        // [`apply_permutation`]'s, so `sort($list)` reads none here.
         let by_wants_key = match by {
             Some(by) => nvs_runtime::callable_arity(by)? >= 2,
             None => false,
         };
-        let needs_keys = preserve_keys || by_wants_key;
+        let needs_keys = by_wants_key;
 
         // Every entry, in insertion order. Both halves are *borrowed* from the
         // subject: a `SlotKey::Str` is released by its own `NvsStr` drop, and
@@ -4979,28 +4989,42 @@ nvs_runtime::nvs_helper! {
         if !sorted {
             merge_sort(&mut permutation, &mut compare)?;
         }
-
-        let mut out = NvsArray::with_capacity(permutation.len());
-        for index in permutation {
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the subject array, which \
-                          outlives this call, so the copy stored here needs a \
-                          reference of its own"
-            )]
-            unsafe {
-                values[index].retain();
-            }
-            if preserve_keys {
-                store_at(&mut out, keys[index].clone(), values[index]);
-            } else {
-                out.append(values[index]);
-            }
-        }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok((permutation, preserve_keys))
+    } apply(plan, subject) {
+        let (permutation, preserve_keys) = plan;
+        apply_permutation(&permutation, !preserve_keys, subject)
     }
+}
+
+/// Puts the entry at position `plan[i]` at position `i`. This is the `apply`
+/// of `reverse`, `sort` and `sortByKey`, whose `check` decides the order
+/// before anything changes. `renumber` makes the result a list. Otherwise
+/// each entry keeps its key, and the result keeps the subject's append
+/// counter.
+///
+/// A sole subject is reordered in its own storage, in O(n) swaps. A shared
+/// one builds the result in the new order.
+fn apply_permutation(plan: &[usize], renumber: bool, subject: NvsArray) -> Value {
+    let mut subject = subject;
+    if subject.is_sole() && subject.permute(plan, renumber) {
+        return Value::array(subject);
+    }
+    let mut slots = Vec::with_capacity(subject.count());
+    let mut at = subject.next_slot(0);
+    while let Some(slot) = at {
+        slots.push(slot);
+        at = subject.next_slot(slot + 1);
+    }
+    let mut out = NvsArray::with_capacity(plan.len());
+    for from in plan {
+        if let Some(slot) = slots.get(*from) {
+            carry_entry(&subject, *slot, &mut out, !renumber);
+        }
+    }
+    if !renumber {
+        out.keep_append_index_of(&subject);
+    }
+    Value::array(out)
 }
 
 nvs_runtime::nvs_helper! {
@@ -5054,7 +5078,7 @@ nvs_runtime::nvs_helper! {
     /// are ordered, so a call with both has two answers. No `Core` options bag
     /// has a way to make two options exclusive at the checker, so the call is
     /// where it is refused.
-    fn nvs_core_arr_sort_by_key(ctx, args: [4])-> Value, owns NvsArray {
+    fn nvs_core_arr_sort_by_key(ctx, args: [4])-> Vec<usize>, owns NvsArray {
         let base = held_subject(args, "sortByKey")?;
         let descending = match args[1].as_int() {
             Some(0) => false,
@@ -5094,20 +5118,14 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        // Every entry, in insertion order. Each key is a reference of this
-        // frame's own, released by its `NvsStr` drop; each value is borrowed
-        // from the subject, which outlives the call.
-        let mut keys: Vec<NvsStr> = Vec::new();
-        let mut values: Vec<Value> = Vec::new();
+        // Every key, in insertion order. Each is a reference of this frame's
+        // own, released by its `NvsStr` drop.
+        let mut keys: Vec<NvsStr> = Vec::with_capacity(base.count());
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
             keys.push(
                 base.key_at(slot)
-                    .expect("next_slot only names live entries"),
-            );
-            values.push(
-                base.value_at(slot)
                     .expect("next_slot only names live entries"),
             );
         }
@@ -5172,22 +5190,9 @@ nvs_runtime::nvs_helper! {
             merge_sort(&mut permutation, &mut compare)?;
         }
 
-        let mut out = NvsArray::with_capacity(permutation.len());
-        for index in permutation {
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the subject array, which \
-                          outlives this call, so the copy stored here needs a \
-                          reference of its own"
-            )]
-            unsafe {
-                values[index].retain();
-            }
-            out.set(keys[index].clone(), values[index]);
-        }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok(permutation)
+    } apply(permutation, subject) {
+        apply_permutation(&permutation, false, subject)
     }
 }
 
