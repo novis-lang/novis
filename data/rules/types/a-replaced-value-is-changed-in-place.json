@@ -1,0 +1,13 @@
+{
+  "title": "A statement that replaces a value with one made from it changes it in place, decided by one compiler pass",
+  "status": "designed",
+  "seeAlso": [
+    "types/arrays",
+    "core-api/nothing-mutates",
+    "statements/inout-is-the-by-reference-spelling"
+  ],
+  "guardedBy": [
+    "crates/nvs-ir/src/lower/tests.rs"
+  ],
+  "goal": "in-place-everywhere"
+}

@@ -696,8 +696,8 @@ no answer fails the build rather than being assumed neutral.
 No `Core` member mutates an argument and none takes a reference. There is no `inout $out`, no
 out-parameter and no in-place variant of anything; the result is the return value.
 
-Copy-on-write makes this free rather than expensive: an argument whose refcount is 1 is mutated in place by
-the implementation, so the copy is paid only when another holder can still see the original. What a
+When that is cheap is not this rule's to say: `$a = Core\Arr::sort($a)` changing `$a` in place is the
+compiler's decision, and [`types/a-replaced-value-is-changed-in-place`](types.md#types-a-replaced-value-is-changed-in-place) says when it makes it. What a
 second, by-reference spelling would buy is the aliasing rules this removes, and it would cost a second name
 for one operation ([`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature)).
 
@@ -707,9 +707,10 @@ argument passing has `inout` ([`statements/inout-is-the-by-reference-spelling`](
 uses.
 
 **Declined:**
-- **A by-reference mutator for the hot paths, such as `Arr::sortInPlace`.** Copy-on-write already mutates
-  in place when the refcount is 1, so the second spelling buys only aliasing rules and breaks
-  [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature) for no measurable gain.
+- **A by-reference mutator for the hot paths, such as `Arr::sortInPlace`.** The replacing statement is
+  already changed in place wherever the compiler can prove it safe
+  ([`types/a-replaced-value-is-changed-in-place`](types.md#types-a-replaced-value-is-changed-in-place)), so the second spelling buys only aliasing rules and
+  breaks [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature).
 
 <sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 

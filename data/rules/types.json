@@ -19,6 +19,7 @@
     "types/constant-in-type-position",
     "types/enum-case-type",
     "types/arrays",
+    "types/a-replaced-value-is-changed-in-place",
     "types/array-combination",
     "types/preserve-keys",
     "types/mixed-subscript",
