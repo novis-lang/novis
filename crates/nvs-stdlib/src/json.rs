@@ -7487,7 +7487,17 @@ pub(crate) mod tests {
     fn a_typed_decode_agrees_with_the_generic_decode_on_every_document() {
         let (class, shape) = every_type_shape();
         let member = r"Core\Json::decodeAs";
-        let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+        // Under Miri, 2,000 documents ran past the test runner's five-minute
+        // stop. There the draw starts from a seed whose first 61 documents
+        // reach every state of every key (missing, `null`, each wrong value and
+        // each right one), lists of none to three objects, an undeclared key
+        // and a reversed order, and three of them decode.
+        let (seed, cases, least) = if cfg!(miri) {
+            (0x257f_7a0f_e074_a0f1, 61, 1)
+        } else {
+            (0x2545_f491_4f6c_dd1d, 2_000, 10)
+        };
+        let mut state: u64 = seed;
         let mut next = |below: usize| -> usize {
             state ^= state << 13;
             state ^= state >> 7;
@@ -7495,7 +7505,7 @@ pub(crate) mod tests {
             usize::try_from(state % u64::try_from(below.max(1)).unwrap_or(1)).unwrap_or(0)
         };
         let mut decoded = 0;
-        for case in 0..2_000 {
+        for case in 0..cases {
             let list = next(4) == 0;
             let text = if list {
                 let count = next(4);
@@ -7556,7 +7566,7 @@ pub(crate) mod tests {
             decoded += usize::from(typed.starts_with("ok {"));
         }
         // The seed reaches the success path too, not only the issues.
-        assert!(decoded >= 10, "only {decoded} objects decoded");
+        assert!(decoded >= least, "only {decoded} objects decoded");
     }
 
     /// An object whose fields are all scalars arrives from the parse already
