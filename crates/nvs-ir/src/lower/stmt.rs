@@ -822,7 +822,7 @@ impl<'a> Lowering<'a> {
             env,
             cur,
         );
-        self.write_back_array(root, written, env, cur);
+        self.write_back_array(root, written, false, env, cur);
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
         true
@@ -2387,11 +2387,28 @@ impl<'a> Lowering<'a> {
                 if elem_ty.is_refcounted() && extra_owner {
                     self.emit_retain(*cur, v);
                 }
+                // One level into a plain slot: the array is the slot's, so
+                // the write takes a reference of its own, and the ownership
+                // pass lends it the slot's instead when nothing can see the
+                // slot in between. A refused append leaves the array with
+                // the caller, so its error edge releases that reference.
+                let retained = inner_keys.is_empty() && !guarded && self.lendable_root(root);
+                if retained {
+                    self.emit_retain(*cur, root_v);
+                }
                 let written = if inner_keys.is_empty() {
                     // One level: the array instruction consumes its key, so a
                     // borrowed one is retained for it.
                     match outer_key {
-                        None => self.emit_array_append(*cur, root_v, v, env),
+                        None => {
+                            let mark = self.temporaries_mark();
+                            if retained {
+                                self.own_temporary(root_v);
+                            }
+                            let written = self.emit_array_append(*cur, root_v, v, env);
+                            self.forget_temporaries_since(mark);
+                            written
+                        }
                         Some((key_v, _, key_aliasing)) => {
                             if key_aliasing {
                                 self.emit_retain(*cur, key_v);
@@ -2410,7 +2427,7 @@ impl<'a> Lowering<'a> {
                         cur,
                     )
                 };
-                self.write_back_array(root, written, env, cur);
+                self.write_back_array(root, written, retained, env, cur);
                 self.unstage_to(addresses);
                 self.release_temporaries_since(temporaries, *cur);
                 (v, elem_ty)
@@ -2569,6 +2586,35 @@ impl<'a> Lowering<'a> {
             fallback,
             env,
         );
+    }
+    /// Whether an element write's root `root` is a slot the ownership pass
+    /// can lend to the write: a plain `array` property of one class with no
+    /// `lateinit` step, or an `array` static property. The write then retains
+    /// the root's read, and [`Self::write_back_array`] reads the old value
+    /// again and releases it around its store, as every other replacement of
+    /// a slot does.
+    fn lendable_root(&self, root: &Expr) -> bool {
+        let root = root.unparenthesized();
+        match &root.kind {
+            ExprKind::PropertyAccess {
+                nullsafe: false, ..
+            } => {
+                let Some(ExprInfo::Property {
+                    class,
+                    name,
+                    ty,
+                    guard: None,
+                    ..
+                }) = self.member_record(root.span)
+                else {
+                    return false;
+                };
+                erase_checked_ty(*ty, self.checked_types) == Ty::Array
+                    && !self.exprs.is_lateinit_property(&class.to_string(), name)
+            }
+            ExprKind::StaticPropertyAccess { .. } => self.static_property_of(root).2 == Ty::Array,
+            _ => false,
+        }
     }
     /// The receiver, the property name and the `PropertyGuard` calls of an
     /// element write whose root `root` is a guarded property, or `None` when
@@ -2840,7 +2886,7 @@ impl<'a> Lowering<'a> {
             }
             written = self.emit_array_set(*cur, arrays[i], *level_key, written);
         }
-        self.write_back_array(root, written, env, cur);
+        self.write_back_array(root, written, false, env, cur);
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
     }

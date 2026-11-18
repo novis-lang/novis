@@ -746,25 +746,7 @@ impl Lend<'_> {
         let store = store?;
         let (old_at, old) = old?;
         gone.push((b, old_at));
-        // The old value is released once, after the store, and read by
-        // nothing else.
-        let mut old_release = None;
-        for (ib, block) in self.f.blocks.iter().enumerate() {
-            for (i, inst) in block.insts.iter().enumerate() {
-                if (ib, i) == (b, old_at) || !reads(&inst.kind, old) {
-                    continue;
-                }
-                if ib != b
-                    || i <= store
-                    || old_release.is_some()
-                    || !matches!(inst.kind, InstKind::Release { operand } if operand == old)
-                {
-                    return None;
-                }
-                old_release = Some((ib, i));
-            }
-        }
-        gone.push(old_release?);
+        gone.push(self.old_release(b, old_at, old, store)?);
         self.window_is_quiet(b, start, c, &[read], subject, &chain)?;
         gone.extend(self.subject_counts((b, c), subject)?);
         self.callbacks_are_quiet(args, subject, &chain)?;
@@ -780,6 +762,28 @@ impl Lend<'_> {
                 ty: *self.tys.get(&subject)?,
             }),
         })
+    }
+
+    /// The release of `old`, the slot's old value read at `old_at`, when it is
+    /// released once, after the store at `store`, and read by nothing else.
+    fn old_release(&self, b: usize, old_at: usize, old: ValueId, store: usize) -> Option<At> {
+        let mut found = None;
+        for (ib, block) in self.f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if (ib, i) == (b, old_at) || !reads(&inst.kind, old) {
+                    continue;
+                }
+                if ib != b
+                    || i <= store
+                    || found.is_some()
+                    || !matches!(inst.kind, InstKind::Release { operand } if operand == old)
+                {
+                    return None;
+                }
+                found = Some((ib, i));
+            }
+        }
+        found
     }
 
     /// The lend of an array element, `slot[k] = M(slot[k], …)`, where the
@@ -821,8 +825,13 @@ impl Lend<'_> {
         let (slot, object) = slot_of(&insts[ci].kind)?;
         let (chain, mut start) = self.chain(b, slot, object, ci)?;
         // The second read of the array, the write into it, and the store.
+        // The lowering retains the second read for the write and reads the
+        // slot's old value again around the store (`write_back_array`); the
+        // write is lent the slot's reference instead, so those three go.
         let mut reread = None;
+        let mut retain = None;
         let mut set = None;
+        let mut old = None;
         let mut store = None;
         for (j, inst) in insts.iter().enumerate().skip(c + 1) {
             if self.removed.contains(&(b, j)) {
@@ -840,6 +849,24 @@ impl Lend<'_> {
             }
             if let Some((_, again)) = reread
                 && set.is_none()
+                && retain.is_none()
+                && matches!(inst.kind, InstKind::Retain { operand } if operand == again)
+            {
+                retain = Some(j);
+                continue;
+            }
+            if set.is_some()
+                && old.is_none()
+                && let Some((read_slot, from)) = slot_of(&inst.kind)
+                && read_slot == slot
+                && let Some(earliest) = self.same_object(from, object, b, &chain)
+            {
+                start = start.min(earliest);
+                old = Some((j, inst.result?));
+                continue;
+            }
+            if let Some((_, again)) = reread
+                && set.is_none()
                 && let InstKind::ArraySet {
                     array,
                     key: written_key,
@@ -849,7 +876,9 @@ impl Lend<'_> {
                 && array == again
                 && value == result
             {
-                if !self.same_key(key, written_key) || self.uses(again) != 1 {
+                if !self.same_key(key, written_key)
+                    || self.uses(again) != 1 + usize::from(retain.is_some())
+                {
                     return None;
                 }
                 let written = inst.result?;
@@ -878,10 +907,21 @@ impl Lend<'_> {
                 return None;
             }
         }
-        store?;
+        let store = store?;
         let (set, _) = set?;
+        let mut gone = match (retain, old) {
+            (None, None) => Vec::new(),
+            (Some(retain), Some((old_at, old))) => {
+                vec![
+                    (b, retain),
+                    (b, old_at),
+                    self.old_release(b, old_at, old, store)?,
+                ]
+            }
+            _ => return None,
+        };
         self.window_is_quiet(b, start, c, &[ci, get], subject, &chain)?;
-        let gone = self.subject_counts((b, c), subject)?;
+        gone.extend(self.subject_counts((b, c), subject)?);
         self.callbacks_are_quiet(args, subject, &chain)?;
         Some((
             gone,

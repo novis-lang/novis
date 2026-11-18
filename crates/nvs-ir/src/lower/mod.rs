@@ -4035,7 +4035,14 @@ impl<'a> Lowering<'a> {
     /// Re-points whatever holds `base` at `written`, the array an
     /// [`InstKind::ArraySet`]/[`InstKind::ArrayAppend`] just yielded.
     ///
-    /// **No retain and no release.** Those two instructions consume one
+    /// With `retained`, the write took a reference of its own to a plain
+    /// property's or static property's array (`Lowering::lendable_root`), so
+    /// the store reads the slot's old value before it and releases it after,
+    /// as every replacement of a slot does. The ownership pass lends the slot
+    /// to the write and removes all three where nothing can see the slot in
+    /// between. With the pass off, the write copies the array.
+    ///
+    /// **Otherwise no retain and no release.** Those two instructions consume one
     /// reference to the array they were given and produce one to the array
     /// they yield (see [`InstKind::ArraySet`]'s own doc comment); the
     /// reference consumed is the holder's, and the one produced replaces it in
@@ -4073,6 +4080,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         base: &Expr,
         written: ValueId,
+        retained: bool,
         env: &mut Env,
         cur: &mut BlockId,
     ) {
@@ -4136,7 +4144,7 @@ impl<'a> Lowering<'a> {
                         env,
                         cur,
                         |this, env, cur| {
-                            this.write_back_array(base, written, env, cur);
+                            this.write_back_array(base, written, retained, env, cur);
                             (written, Ty::Void)
                         },
                     );
@@ -4177,7 +4185,22 @@ impl<'a> Lowering<'a> {
                 // below stores through a 128-bit "pointer" and cranelift
                 // rejects the function rather than anything panicking here.
                 let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+                let old = retained.then(|| {
+                    self.emit(
+                        *cur,
+                        Ty::Array,
+                        InstKind::FieldGet {
+                            object: object_v,
+                            class: class_label.clone(),
+                            field: field_name.clone(),
+                        },
+                    )
+                    .0
+                });
                 self.emit_field_set(*cur, object_v, class_label, field_name.clone(), written);
+                if let Some(old) = old {
+                    self.emit_release(*cur, old);
+                }
                 // `rule:classes/property-observer-pipeline`: an element write
                 // and an element `unset` report the whole array once it is
                 // stored. The root's read reported nothing (see
@@ -4204,7 +4227,21 @@ impl<'a> Lowering<'a> {
             // step that needs one.
             ExprKind::StaticPropertyAccess { .. } => {
                 let (class, name, _) = self.static_property_of(base);
+                let old = retained.then(|| {
+                    self.emit(
+                        *cur,
+                        Ty::Array,
+                        InstKind::StaticGet {
+                            class: class.clone(),
+                            name: name.clone(),
+                        },
+                    )
+                    .0
+                });
                 self.emit_static_set(*cur, class, name, written);
+                if let Some(old) = old {
+                    self.emit_release(*cur, old);
+                }
             }
             other => guarded_by!(
                 code::E_ELEMENT_WRITE_ROOT_NOT_A_PLACE,

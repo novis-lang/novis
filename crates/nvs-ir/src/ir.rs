@@ -4308,12 +4308,18 @@ impl InstKind {
     /// `Core` entry: the lowering retains the slot's value before it, and the
     /// lend removes that retain.
     ///
-    /// Only [`InstKind::StrAppend`] has one. It cannot fail, so the slot is
-    /// never left without a value it owns.
+    /// [`InstKind::StrAppend`] and [`InstKind::ArraySet`] cannot fail.
+    /// [`InstKind::ArrayAppend`] can, and its refusal leaves the array's
+    /// reference with the caller, so the slot keeps a value it owns on every
+    /// path. A lent `ArraySet` has already given up its slot's reference.
     #[must_use]
     pub fn consumes(&self) -> Option<ValueId> {
         match self {
             InstKind::StrAppend { target, .. } => Some(*target),
+            InstKind::ArraySet {
+                array, lent: false, ..
+            }
+            | InstKind::ArrayAppend { array, .. } => Some(*array),
             _ => None,
         }
     }

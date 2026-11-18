@@ -2325,6 +2325,28 @@ fn an_element_is_lent_through_its_containers() {
     }
 }
 
+/// A write of one element of a plain property or static property is lent
+/// the slot's reference: the write takes no retain, and the store reads the
+/// slot only once. With the pass off, the write retains the array and the
+/// store reads the old value again to release it.
+#[test]
+fn an_element_write_into_a_plain_slot_is_lent() {
+    for (body, slot) in [
+        ("    $this->p[] = 1;", "T::p"),
+        ("    $this->p['k'] = 2;", "T::p"),
+        ("    T::$s[] = 3;", "T::$s"),
+        ("    self::$s[0] = 4;", "T::$s"),
+        ("    $this->n->q['a'] = 5;", "N::q"),
+    ] {
+        let printed = lower_lends(body);
+        assert!(!printed.contains("retain"), "{body}\n{printed}");
+        assert_eq!(slot_reads(&printed, slot), 1, "{body}\n{printed}");
+        let off = crate::lower::without_in_place(|| lower_lends(body));
+        assert!(off.contains("retain"), "{body}\n{off}");
+        assert_eq!(slot_reads(&off, slot), 2, "{body}\n{off}");
+    }
+}
+
 /// A hooked property is read and written by its hooks, so there is no slot to
 /// lend. A guarded one runs the guard between the call and the store.
 #[test]
