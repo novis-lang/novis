@@ -3751,7 +3751,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// What [`nvs_core_arr_append`]'s `check` passes to its `apply`.
+/// What [`nvs_core_arr_append()`]'s `check` passes to its `apply`.
 #[derive(Debug)]
 pub enum Appended {
     /// The values to append, none of which can find its key taken.
