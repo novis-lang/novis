@@ -1,0 +1,24 @@
+<?nvs
+// Reads the last entry of a list with `Core\Arr::last` after each of n appends, as a log reader does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $list = [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $size) {
+            $list[] = $i;
+            uint $next = Core\Arr::last($list) ?? 0;
+            $total = $total + $next;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

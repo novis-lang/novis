@@ -1,0 +1,30 @@
+<?nvs
+// Builds a list of n numbers inside a generator that adds one number and then yields, as a reader of rows does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function rows(uint $size): Iterator<uint>
+    {
+        array<uint> $seen = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $seen = Core\Arr::append($seen, $i);
+            yield Core\Arr::count($seen);
+            $i = $i + 1;
+        }
+    }
+
+    public static function run(uint $size): uint
+    {
+        uint $total = 0;
+        foreach (Bench::rows($size) as uint $count) {
+            $total = $total + $count;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

@@ -1,0 +1,31 @@
+<?nvs
+// Takes n jobs off the front of a queue inside a `try`, as a job runner that catches a failed job does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $queue = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $queue[] = $i;
+            $i = $i + 1;
+        }
+        uint $total = 0;
+        try {
+            while (!Core\Arr::isEmpty($queue)) {
+                uint $next = Core\Arr::first($queue) ?? 0;
+                $total = $total + $next;
+                $queue = Core\Arr::withoutFirst($queue);
+            }
+        } catch (RuntimeError $failed) {
+            $total = 0;
+        }
+        return $total + Core\Arr::count($queue);
+    }
+}
+
+echo Bench::run(1000), "\n";

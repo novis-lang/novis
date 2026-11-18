@@ -1,0 +1,32 @@
+<?nvs
+// Takes n items off the top of a stack in an object property with `Core\Arr::withoutLast`, as a parser does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Stack
+{
+    public array<uint> $items = [];
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Stack $stack = new Stack();
+        uint $i = 0;
+        while ($i < $size) {
+            $stack->items[] = $i;
+            $i = $i + 1;
+        }
+        uint $total = 0;
+        while (!Core\Arr::isEmpty($stack->items)) {
+            uint $next = Core\Arr::last($stack->items) ?? 0;
+            $total = $total + $next;
+            $stack->items = Core\Arr::withoutLast($stack->items);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

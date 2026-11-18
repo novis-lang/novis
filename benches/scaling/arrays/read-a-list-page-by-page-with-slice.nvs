@@ -1,0 +1,29 @@
+<?nvs
+// Reads a list of n numbers in pages of 50 with `Core\Arr::slice`, as a page of search results does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $list = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $list[] = $i;
+            $i = $i + 1;
+        }
+        uint $total = 0;
+        int $at = 0;
+        while ($at < $size as int) {
+            array<uint> $page = Core\Arr::slice($list, $at, 50);
+            uint $next = Core\Arr::first($page) ?? 0;
+            $total = $total + $next;
+            $at = $at + 50;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

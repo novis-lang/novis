@@ -1,0 +1,21 @@
+<?nvs
+// Builds a list of n numbers with `Core\Arr::append`, as code does when it collects results.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $list = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $list = Core\Arr::append($list, $i);
+            $i = $i + 1;
+        }
+        return Core\Arr::count($list);
+    }
+}
+
+echo Bench::run(1000), "\n";

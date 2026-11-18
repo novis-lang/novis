@@ -1,0 +1,28 @@
+<?nvs
+// Takes n jobs off the front of a queue in a static property with `Core\Arr::slice`, as a shared job list does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static array<uint> $queue = [];
+
+    public static function run(uint $size): uint
+    {
+        uint $i = 0;
+        while ($i < $size) {
+            Bench::$queue[] = $i;
+            $i = $i + 1;
+        }
+        uint $total = 0;
+        while (!Core\Arr::isEmpty(Bench::$queue)) {
+            uint $next = Core\Arr::first(Bench::$queue) ?? 0;
+            $total = $total + $next;
+            Bench::$queue = Core\Arr::slice(Bench::$queue, 1);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

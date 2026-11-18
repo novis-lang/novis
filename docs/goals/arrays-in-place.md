@@ -6,7 +6,7 @@ context: [docs/rules/types/a-replaced-value-is-changed-in-place.md, docs/rules/t
 stages:
   - id: 1
     title: the ladders show every quadratic array shape
-    status: open
+    status: done
     context: [benches/scaling/README.md, benches/scaling/arrays/sort.nvs]
   - id: 2
     title: a list has room at both ends, and a map finds its first live entry in one step
@@ -141,17 +141,18 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 **Split:** one writing subagent writes the fourteen ladders, copying the shape of
 `benches/scaling/arrays/sort.nvs`.
 
-- [ ] Three ladders under `benches/scaling/arrays/` for the forms `in-place-everywhere` added on
+- [x] Three ladders under `benches/scaling/arrays/` for the forms `in-place-everywhere` added on
   2026-11-17, each `// scaling: expect linear`, start 1000, max 32000:
   `in-place-a-list-built-with-a-spread.nvs` (`$list = [...$list, $x]`),
   `in-place-a-list-built-by-reduce.nvs` (a `Core\Arr::reduce` callback that returns
   `Core\Arr::append($carry, $x)`) and `in-place-a-list-built-inside-a-generator.nvs` (a generator that
-  appends to a local and then yields). They are red until `in-place-everywhere` is reached.
-- [ ] Two ladders for the reads, each `// scaling: expect linear`, start 1000, max 32000:
+  appends to a local and then yields). The spread ladder is linear. The other two call `append`, so
+  they are red until stage 3.
+- [x] Two ladders for the reads, each `// scaling: expect linear`, start 1000, max 32000:
   `read-the-last-entry-of-a-growing-list.nvs` (`Core\Arr::last` once per entry) and
   `read-a-list-page-by-page-with-slice.nvs` (`Core\Arr::slice($a, $at, 50)` over the whole list). They
   are red until stage 3.
-- [ ] Nine ladders under `benches/scaling/arrays/`, each `// scaling: expect linear`, start 1000, max
+- [x] Nine ladders under `benches/scaling/arrays/`, each `// scaling: expect linear`, start 1000, max
   32000: `in-place-a-queue-in-a-local-with-without-first.nvs`,
   `in-place-a-queue-in-a-static-property-with-slice.nvs`,
   `in-place-a-stack-in-an-object-property-with-without-last.nvs`, `in-place-a-queue-inside-a-try.nvs`,
@@ -212,13 +213,29 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 Written on 2026-11-17 from a conversation with the person, and narrowed the same day when
 `in-place-everywhere` took the protocol, the ABI, the moves and the lends. Their calls: fix the cause,
 nothing for a developer to remember, and every replacement in place. Every other choice in
-§ *Standing decisions* is the authoring session's call. Nothing is built yet.
+§ *Standing decisions* is the authoring session's call.
 
 A review the person asked for on 2026-11-17 added the two reads that walk (`last` and `lastKey`, and a
 late `slice` window) and five ladders. The person agreed to add them.
 
+Stage 1 is done: the fourteen ladders are under `benches/scaling/arrays/`, and each one runs at its
+start size and prints the expected result. One ramp of the list-building ladders found
+`in-place-a-list-built-with-a-spread.nvs` linear, and `-with-append`, `-with-prepend`, `-by-reduce`,
+`-inside-a-generator` and `-in-an-element-built-with-append` quadratic in bytes (slope 2.00), because
+`Core\Arr::append` and `prepend` still copy their subject. Every ladder but the spread one is expected
+red until stage 3: `bun nv scaling --check arrays/in-place-` and `arrays/read-`.
+
+A nullable read such as `Core\Arr::first($q) ?? 0` added straight to a `uint` is `mixed` (`E0401`),
+so the ladders read it into a `uint` variable first.
+
+The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only
+retired goals' commits. No goal defines it.
+
 ### Next
 
-Stage 1, and stage 2 as a side goal at any time. Stage 3 waits for `in-place-everywhere`.
+Stage 2, which touches `crates/nvs-runtime/src/array.rs` alone: `Shape::Packed` (`:276`) gains its
+front offset, `Hashed` keeps its first live slot (`unset` `:1879`, compaction `:1082`, `next_slot`
+`:1930`), then the in-place operations, the two readers, and the six tests the `runtime-room` and
+`runtime-reads` checks name. `in-place-everywhere` is reached, so stage 3 may follow at once.
 
 ### Backlog

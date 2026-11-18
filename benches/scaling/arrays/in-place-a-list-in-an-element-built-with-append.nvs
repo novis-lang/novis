@@ -1,0 +1,21 @@
+<?nvs
+// Builds a list of n numbers in one entry of a map with `Core\Arr::append`, as code does when it groups rows.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<array<uint>> $rows = ['a' => []];
+        uint $i = 0;
+        while ($i < $size) {
+            $rows['a'] = Core\Arr::append($rows['a'], $i);
+            $i = $i + 1;
+        }
+        return Core\Arr::count($rows['a']);
+    }
+}
+
+echo Bench::run(1000), "\n";

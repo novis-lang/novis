@@ -1,0 +1,21 @@
+<?nvs
+// Keeps the last 50 of n numbers with `Core\Arr::slice` of `Core\Arr::append`, as a list of recent events does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $window = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $window = Core\Arr::slice(Core\Arr::append($window, $i), -50);
+            $i = $i + 1;
+        }
+        return Core\Arr::first($window) ?? 0;
+    }
+}
+
+echo Bench::run(1000), "\n";

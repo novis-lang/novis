@@ -1,0 +1,21 @@
+<?nvs
+// Builds a list of n numbers with `[...$list, $x]`, as code does when it adds one row at a time.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $list = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $list = [...$list, $i];
+            $i = $i + 1;
+        }
+        return Core\Arr::count($list);
+    }
+}
+
+echo Bench::run(1000), "\n";

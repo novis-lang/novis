@@ -1,0 +1,27 @@
+<?nvs
+// Takes n jobs off the front of a queue in a variable with `Core\Arr::withoutFirst`, as a job runner does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $queue = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $queue[] = $i;
+            $i = $i + 1;
+        }
+        uint $total = 0;
+        while (!Core\Arr::isEmpty($queue)) {
+            uint $next = Core\Arr::first($queue) ?? 0;
+            $total = $total + $next;
+            $queue = Core\Arr::withoutFirst($queue);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

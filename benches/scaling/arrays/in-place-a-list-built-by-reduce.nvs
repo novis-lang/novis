@@ -1,0 +1,24 @@
+<?nvs
+// Builds a list of n numbers in a `Core\Arr::reduce` callback that returns `Core\Arr::append($carry, $x)`.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $items = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $items[] = $i;
+            $i = $i + 1;
+        }
+        array<uint> $empty = [];
+        array<uint> $list = Core\Arr::reduce($items, fn(array<uint> $carry, uint $x): array<uint>
+            => Core\Arr::append($carry, $x), $empty);
+        return Core\Arr::count($list);
+    }
+}
+
+echo Bench::run(1000), "\n";

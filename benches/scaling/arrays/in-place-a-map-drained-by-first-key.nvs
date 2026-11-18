@@ -1,0 +1,27 @@
+<?nvs
+// Removes the first entry of a map of n names with `unset` and `Core\Arr::firstKey`, as a cache that drops its oldest entry does.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $map = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $map['name' . ($i as string)] = $i;
+            $i = $i + 1;
+        }
+        uint $total = 0;
+        while (!Core\Arr::isEmpty($map)) {
+            string $key = Core\Arr::firstKey($map) ?? '';
+            $total = $total + $map[$key];
+            unset($map[$key]);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";
