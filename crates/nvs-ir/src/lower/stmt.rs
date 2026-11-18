@@ -1425,6 +1425,8 @@ impl<'a> Lowering<'a> {
     /// This is the one function that decides a move (`rule:types/arrays`).
     /// Every condition below holds, or the answer is `None`:
     ///
+    /// - In-place changes are on, so the lowering is not inside
+    ///   [`super::without_in_place`].
     /// - The function is not a generator, and no `try` of this function
     ///   encloses the statement. A `catch` or `finally` would read the local
     ///   after the callee consumed it.
@@ -1447,7 +1449,7 @@ impl<'a> Lowering<'a> {
         value: &Expr,
         env: &Env,
     ) -> Option<(nvs_diagnostics::Span, String)> {
-        if self.generator.is_some() || !self.try_stack.is_empty() {
+        if !self.in_place || self.generator.is_some() || !self.try_stack.is_empty() {
             return None;
         }
         let args = match &value.kind {
@@ -1513,6 +1515,7 @@ impl<'a> Lowering<'a> {
             // its reference on, so a value that writes the local takes the
             // general store instead, which reads the binding after the value.
             if let Some(&(current, Ty::Str)) = env.get(&name)
+                && self.in_place
                 && self.concat_spine_opens_with(value, &name)
                 && !self.writes_local(value, &name)
             {

@@ -1582,9 +1582,9 @@ impl Compiler {
                 )
             };
             let lowered = if self.debug.is_some() {
-                nvs_ir::lower::with_debug_slots(lower)
+                nvs_ir::lower::with_debug_slots(|| crate::in_place::lower(lower))
             } else {
-                lower()
+                crate::in_place::lower(lower)
             };
             let id: Arc<str> =
                 nvs_config::cache::program_id(&crate::cache::unit_digests(&files), self.env())

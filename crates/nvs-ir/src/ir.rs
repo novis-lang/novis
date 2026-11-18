@@ -31,6 +31,10 @@ pub struct Program {
     /// declarations and the `Core` ones its table is seeded with alike, in no
     /// particular order. See [`Enum`].
     pub enums: Vec<Enum>,
+    /// False when the program was lowered with in-place changes switched off
+    /// ([`crate::lower::without_in_place`]). The artifact cache neither writes
+    /// nor reads such a program, because its key does not cover the switch.
+    pub in_place: bool,
 }
 
 impl Program {

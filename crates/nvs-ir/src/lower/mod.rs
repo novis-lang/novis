@@ -901,6 +901,41 @@ impl Tests {
 }
 
 thread_local! {
+    /// Whether this thread is lowering with in-place changes switched off.
+    /// Set only inside [`without_in_place`].
+    static IN_PLACE_OFF: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `lower` with in-place changes switched off: no value is moved into a
+/// call and no binding hands its own reference to a concatenation, so every
+/// owning call sees a shared subject and builds its result
+/// (`rule:types/a-replaced-value-is-changed-in-place`). It exists for the
+/// differential checks alone, which run every case both ways and compare
+/// the output; `nvs run`, `nvs test` and `nvs serve` reach it through their
+/// hidden `--no-in-place`.
+///
+/// Scoped to this thread and to the call, as [`with_debug_slots`] is. The
+/// program it returns says so ([`crate::ir::Program::in_place`]), so the
+/// artifact cache neither writes nor reads it.
+pub fn without_in_place<R>(lower: impl FnOnce() -> R) -> R {
+    /// Puts the switch back as it was, on a return and on a panic.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            IN_PLACE_OFF.with(|off| off.set(self.0));
+        }
+    }
+    let _restore = Restore(IN_PLACE_OFF.with(|off| off.replace(true)));
+    lower()
+}
+
+/// Whether this thread lowers with in-place changes on: false only inside
+/// [`without_in_place`].
+fn in_place_on() -> bool {
+    !IN_PLACE_OFF.with(std::cell::Cell::get)
+}
+
+thread_local! {
     /// Whether this thread is lowering under the debug switch. Set only
     /// inside [`with_debug_slots`].
     static DEBUG_SLOTS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -1458,6 +1493,7 @@ fn lower_program_as(
         statics: static_props(layouts, exprs, checked_types),
         shape_codecs,
         enums: enum_shapes(enums),
+        in_place: in_place_on(),
     }
 }
 
@@ -2486,6 +2522,9 @@ pub(crate) struct Lowering<'a> {
     /// `Some` under [`with_debug_slots`]: the variables given a slot so far.
     /// [`Self::emit_stmt_marker`] fills it, and [`Self::finish`] hands it out.
     debug: Option<DebugSlots>,
+    /// False under [`without_in_place`]: [`Self::last_use_move`] moves
+    /// nothing, and a self-concatenation takes the general store.
+    in_place: bool,
 }
 
 /// One by-reference argument staged at a call site, and where its written-back
@@ -2751,6 +2790,7 @@ impl<'a> Lowering<'a> {
             debug: DEBUG_SLOTS
                 .with(std::cell::Cell::get)
                 .then(DebugSlots::default),
+            in_place: in_place_on(),
         }
     }
 

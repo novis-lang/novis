@@ -298,6 +298,12 @@ export class PlanSweep {
 
   // ---- what the sweep builds ---------------------------------------------------------------------
 
+  /** The `nvs` the sweep's suites run, built if no suite built it yet: `bun nv suite --no-in-place-too`
+   * runs the same binary a second time. */
+  nvs(): Promise<string | { fail: string }> {
+    return this.binary();
+  }
+
   /** The covws `nvs`, built once by the workspace build `nv verify` also runs. */
   private binary(): Promise<string | { fail: string }> {
     this.cli ??= (async () => {

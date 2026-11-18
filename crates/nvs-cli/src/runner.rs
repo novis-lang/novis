@@ -150,6 +150,8 @@ mod mutation;
 // `rule:testing/a-directory-of-programs-is-one-test-program` for the directory.
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[command(flatten)]
+    pub(crate) in_place: crate::in_place::Switch,
     /// The program or directory of programs to run, or the case files and
     /// directories.
     #[arg(required = true)]
@@ -1547,8 +1549,8 @@ fn compile(
         )
     };
     let program = match debug {
-        true => nvs_ir::lower::with_debug_slots(lower),
-        false => lower(),
+        true => nvs_ir::lower::with_debug_slots(|| crate::in_place::lower(lower)),
+        false => crate::in_place::lower(lower),
     };
     let probes = match coverage {
         true => crate::coverage::Probes::of(&program),

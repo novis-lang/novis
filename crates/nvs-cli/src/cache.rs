@@ -1694,8 +1694,10 @@ pub(crate) fn unit_for(
     // build's tests, so a hit would run the other build's code and a write would hand this build's
     // code to every later run (`nvs_codegen::compile_checked_types`). A program lowered under the
     // debug switch is the same case: the key does not cover the switch either
-    // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`).
-    let Some(cache) = cache.filter(|_| !nvs_codegen::is_checking_types() && !program.is_debug())
+    // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`), and so is one lowered
+    // with in-place changes switched off (`nvs_ir::lower::without_in_place`).
+    let Some(cache) = cache
+        .filter(|_| !nvs_codegen::is_checking_types() && !program.is_debug() && program.in_place)
     else {
         return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
     };

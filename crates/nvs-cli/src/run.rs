@@ -15,6 +15,8 @@ use crate::config;
 pub(crate) struct Args {
     /// The file to run.
     file: PathBuf,
+    #[command(flatten)]
+    pub(crate) in_place: crate::in_place::Switch,
     /// Print the lowered IR instead of compiling it.
     #[arg(long)]
     dump_ir: bool,

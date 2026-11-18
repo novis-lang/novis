@@ -187,6 +187,8 @@ pub(crate) mod mounts;
 // rather than an exception to it.
 #[derive(clap::Args)]
 pub(crate) struct Args {
+    #[command(flatten)]
+    pub(crate) in_place: crate::in_place::Switch,
     /// The file every request runs. It is optional when the configuration
     /// has `[[server.mount]]` blocks: the server then serves every file
     /// that those blocks mount.

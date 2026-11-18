@@ -251,6 +251,7 @@ mod events;
 mod ext;
 mod extensions;
 mod fmt;
+mod in_place;
 mod info;
 mod init;
 mod lsp;
@@ -757,6 +758,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
         cli.no_init,
         no_init.as_deref(),
     );
+    in_place::set(in_place_switch(cli.command.as_ref()));
     match cli.command {
         Some(Command::Serve(args)) => args.hosted(&cli.config, init),
         Some(Command::Run(args)) => args.hosted(&cli.config, init),
@@ -764,6 +766,17 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             eprintln!("error: only `serve` and `run` may be stored as a service");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// The hidden `--no-in-place` of the command, which only `run`, `test` and
+/// `serve` take; every other command lowers with in-place changes on.
+fn in_place_switch(command: Option<&Command>) -> in_place::Switch {
+    match command {
+        Some(Command::Run(args)) => args.in_place,
+        Some(Command::Test(args)) => args.in_place,
+        Some(Command::Serve(args)) => args.in_place,
+        _ => in_place::Switch::default(),
     }
 }
 
@@ -914,6 +927,7 @@ fn main() -> ExitCode {
     // decided once from [`initializes`] and handed down by the arms that resolve a tree.
     let no_init = std::env::var_os(config::NO_INIT);
     let init = config::init_gate(initializes(&command), cli.no_init, no_init.as_deref());
+    in_place::set(in_place_switch(Some(&command)));
 
     match command {
         Command::Ast(args) => args.run(),
@@ -2122,9 +2136,9 @@ fn run_run(
         )
     };
     let program = if debug.is_some() {
-        nvs_ir::lower::with_debug_slots(lower)
+        nvs_ir::lower::with_debug_slots(|| crate::in_place::lower(lower))
     } else {
-        lower()
+        crate::in_place::lower(lower)
     };
     // The compile's own line, before the program runs, so it is printed
     // whatever the program then does.
@@ -3132,6 +3146,12 @@ fn run_test(
     // And has its probes on when `--probes` turned them on here.
     if nvs_runtime::every_site_probed() {
         options.nvs_env.push((PROBES.to_owned(), "1".to_owned()));
+    }
+    // And lowers with in-place changes off when `--no-in-place` switched them off here.
+    if in_place::is_off() {
+        options
+            .nvs_env
+            .push((in_place::VARIABLE.to_owned(), "1".to_owned()));
     }
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();

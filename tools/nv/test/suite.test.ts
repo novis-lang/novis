@@ -63,6 +63,20 @@ describe("bun nv suite", () => {
     expect(got.lines).toEqual(["SHORT suite: only 2 passing case(s), wanted at least 3"]);
   });
 
+  test("nv suite --no-in-place-too asks the judge for the second run, and only under nvs test", async () => {
+    let asked = false;
+    const code = await suite([TREE, "--no-in-place-too"], {
+      judge: async (_c, _full, offToo) => {
+        asked = offToo;
+        return { fail: offToo ? "suite: with in-place changes off: tests/demo/one.nvst failed" : "", short: "" };
+      },
+      say: () => {},
+    });
+    expect(asked).toBe(true);
+    expect(code).toBe(1);
+    expect(suiteCheck(["lsp-test", TREE, "--no-in-place-too"])).toEqual({ error: "--no-in-place-too runs only under nvs test" });
+  });
+
   test("nv suite takes only trees directly under tests/ and whole numbers", () => {
     expect(suiteCheck([])).toEqual({ error: "name at least one tree" });
     expect(suiteCheck(["tests/demo/one.nvst"])).toEqual({ error: "tests/demo/one.nvst is not a tree under tests/" });
