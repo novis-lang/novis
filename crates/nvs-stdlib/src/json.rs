@@ -2379,7 +2379,10 @@ fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
 ///
 /// Cost: one decrement of a plain counter per value, here and not in the
 /// batch, so a value borrows no `RefCell`. Once every 256 values the batch is
-/// borrowed and the shared word is read. [`deadline_finished`] takes the
+/// borrowed and the shared word is read. The counter is here, and not in a
+/// consumer, because [`fill`] and the [`build`] it calls for a generic value
+/// share one poll: two counters would let 510 values pass between two reads.
+/// [`deadline_finished`] takes the
 /// batch out once the parse ends, so a caller can end the poll while what the
 /// parse built still borrows this poll.
 #[derive(Debug)]
@@ -2932,7 +2935,7 @@ pub(crate) unsafe fn decode_checked(
     list: bool,
     member: &str,
 ) -> Result<Value, Fault> {
-    let unparsed =|why: &dyn fmt::Display| {
+    let unparsed = |why: &dyn fmt::Display| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
@@ -3836,6 +3839,13 @@ impl<'a> Builder<'a> {
     /// list a slot holds, moves to [`Builder::kept`], and every other value is
     /// released. `false` where the request cannot afford the place an array
     /// needs.
+    ///
+    /// Every contract keeps its arrays, even one with no property that
+    /// declares an array: a mistyped document puts a generic array in any
+    /// slot, by writing `[1]` or `{}` for an `int`. Freeing it here would free
+    /// its address for a later array, which [`Lists`] would then call a JSON
+    /// list, so a later issue could name "a list" where the document had an
+    /// object.
     fn close(&mut self, base: usize) -> bool {
         let Self { slots, kept, .. } = self;
         slots

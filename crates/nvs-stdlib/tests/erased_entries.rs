@@ -71,10 +71,11 @@ const DRIVERS: &[(&str, &str, Driver)] = &[
     ),
     (
         "nvs-runtime/src/object.rs",
-        "construct",
+        "constructor_of",
         Driver::TypedBy(
-            "the codec's field check, for a JSON or database row's constructor arguments; the \
-             test runner passes none",
+            "the codec's field check, for a JSON or database row's constructor arguments that \
+             `construct` or `construct_found` passes to the constructor it found; the test \
+             runner passes none",
         ),
     ),
     (
