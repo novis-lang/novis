@@ -2,7 +2,7 @@
 // Measures counting the values in a heap, as a worker does when it reports how many jobs are waiting.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

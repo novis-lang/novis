@@ -2,7 +2,7 @@
 // Measures reading one attribute off a method, as a router does for every handler
 // it knows about when the program starts.
 // bench: iterations 256
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 1
 // bench: complexity constant
 

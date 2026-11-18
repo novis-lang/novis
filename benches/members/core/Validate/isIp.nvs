@@ -2,7 +2,7 @@
 // Checks that an address from a settings form is an IP address, as a program does before it saves it.
 // bench: iterations 4096
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

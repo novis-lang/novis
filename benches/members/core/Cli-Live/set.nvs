@@ -3,7 +3,7 @@
 // every step it reports while it works.
 // bench: iterations 256
 // bench: calls 2
-// bench: allocations 9
+// bench: allocations 8
 // bench: complexity linear
 
 class Bench

@@ -2,7 +2,7 @@
 // Measures checking whether a heap is empty, as a worker does before it takes the next job.
 // bench: iterations 2048
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

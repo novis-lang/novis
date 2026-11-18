@@ -2,7 +2,7 @@
 // Measures reading the memory a program is using. A program does this around a
 // piece of work to find out what the work costs.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: statements 3
 // bench: complexity constant

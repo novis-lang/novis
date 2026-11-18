@@ -2,7 +2,7 @@
 // Checks that a display name from a sign-up form has no control character, as a program does before it saves it.
 // bench: iterations 4096
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 // bench: complexity linear
 
 class Bench

@@ -2,8 +2,8 @@
 // Measures reading the whole list of attributes off one method, as a router does
 // for every handler it knows about when the program starts.
 // bench: iterations 256
-// bench: calls 0
-// bench: allocations 6
+// bench: calls 1
+// bench: allocations 5
 // bench: complexity constant
 
 type Middleware = { name: string };

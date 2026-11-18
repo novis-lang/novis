@@ -3,7 +3,7 @@
 // bench: iterations 256
 // bench: complexity constant
 // bench: allocations 0
-// bench: calls 0
+// bench: calls 1
 
 class Bench
 {

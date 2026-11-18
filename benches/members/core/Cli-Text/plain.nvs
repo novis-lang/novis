@@ -3,7 +3,7 @@
 // for every value it prints that came from outside the program.
 // bench: iterations 256
 // bench: calls 1
-// bench: allocations 5
+// bench: allocations 4
 // bench: complexity linear
 
 class Bench

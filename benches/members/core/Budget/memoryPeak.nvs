@@ -2,7 +2,7 @@
 // Measures reading the highest amount of memory a program has used. A program
 // does this at the end of a request to write the figure to its log.
 // bench: iterations 1024
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: statements 3
 // bench: complexity constant
