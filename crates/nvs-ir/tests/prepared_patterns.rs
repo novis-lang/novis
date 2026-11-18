@@ -60,8 +60,9 @@ fn prepared(program: &Program) -> Vec<Option<Prepared>> {
         .collect()
 }
 
-/// Every call to `symbol`, as its argument list — `nvs_ir::ir::InstKind::CoreCall`
-/// is the one shape a Tier 0 `Core` member is reached through.
+/// Every call to `symbol` or its owning entry, as its argument list —
+/// `nvs_ir::ir::InstKind::CoreCall` is the one shape a Tier 0 `Core` member is
+/// reached through.
 fn core_calls<'a>(program: &'a Program, symbol: &str) -> Vec<&'a [nvs_ir::ids::ValueId]> {
     program
         .functions
@@ -73,7 +74,9 @@ fn core_calls<'a>(program: &'a Program, symbol: &str) -> Vec<&'a [nvs_ir::ids::V
                 symbol: called,
                 args,
                 ..
-            } if *called == symbol => Some(args.as_slice()),
+            } if *called == symbol || called.strip_suffix("_owned") == Some(symbol) => {
+                Some(args.as_slice())
+            }
             _ => None,
         })
         .collect()

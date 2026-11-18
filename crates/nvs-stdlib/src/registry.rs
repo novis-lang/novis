@@ -3158,7 +3158,8 @@ pub fn constructor_symbol(class: &str) -> Option<&'static str> {
 }
 
 /// The `Core\Class::member` the member at linker symbol `symbol` is written as,
-/// or `None` for a symbol no row of [`CLASSES`] or [`CONSTRUCTORS`] names: a
+/// for its own symbol and for its owning entry's `<symbol>_owned`, or `None`
+/// for a symbol no row of [`CLASSES`] or [`CONSTRUCTORS`] names: a
 /// construct such as `spawn script`, or a helper the compiler calls on its own.
 ///
 /// What `rule:testing/debug-probes`'s call probes report a `Core` call as, so a
@@ -3176,7 +3177,14 @@ pub fn member_label(symbol: &str) -> Option<&'static str> {
                 .iter()
                 .flat_map(|class| class.members().map(move |method| (class.name, method)))
                 .chain(CONSTRUCTORS.iter().map(|(class, method)| (*class, *method)))
-                .map(|(class, method)| (method.symbol, format!("{class}::{}", method.name)))
+                .flat_map(|(class, method)| {
+                    let label = format!("{class}::{}", method.name);
+                    // A member's owning entry is the same member, so a call
+                    // the compiler moved its subject into has the same label.
+                    let owned = crate::owning_entry(method.symbol)
+                        .map(|owned| (owned.symbol, label.clone()));
+                    std::iter::once((method.symbol, label)).chain(owned)
+                })
                 .collect()
         })
         .get(symbol)

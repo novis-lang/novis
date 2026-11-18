@@ -97,7 +97,8 @@ echo Core\\Arr::count(Core\\Arr::range(1, 5, {step: 0}));
     assert_eq!(status, nvs_runtime::THROWN);
 }
 
-/// How many `Core\Str::format` calls the lowered `source` makes.
+/// How many `Core\Str::format` calls the lowered `source` makes, through the
+/// member's own entry or its owning one.
 fn format_calls(source: &str) -> usize {
     lower(source)
         .functions
@@ -106,7 +107,7 @@ fn format_calls(source: &str) -> usize {
         .flat_map(|block| block.insts.iter())
         .filter(|inst| {
             matches!(inst.kind, nvs_ir::ir::InstKind::CoreCall { symbol, .. }
-                if symbol.ends_with("core_str_format"))
+                if symbol.ends_with("core_str_format") || symbol.ends_with("core_str_format_owned"))
         })
         .count()
 }

@@ -674,6 +674,13 @@ mod tests {
                 // One placeholder of a literal `Core\Str::format` template —
                 // see `format::PIECE_SYMBOL`.
                 + 1
+                // The `<symbol>_owned` entry of each member written in
+                // `nvs_helper!`'s owning form.
+                + registry::CLASSES
+                    .iter()
+                    .flat_map(CoreClass::members)
+                    .filter(|method| owning_entry(method.symbol).is_some())
+                    .count()
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }
