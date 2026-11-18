@@ -93,8 +93,12 @@
 //! the entry's only holder, so the pass makes it sole right after the
 //! slot's read ([`InstKind::ArraySole`]) and stores it back, and the write
 //! puts the result over the entry without releasing the old value, which
-//! the call took ([`InstKind::ArraySet`]'s `lent`). **What it spends:** a
-//! shared array is copied at the read, where the write would have copied it.
+//! the call took ([`InstKind::ArraySet`]'s `lent`). An array a local owns,
+//! `$a[k] = M($a[k], …)`, is lent the same way: it is made sole just before
+//! the element's read, and the write and the error landings between take the
+//! sole array in the local's place, so nothing may read the local between
+//! the two. **What it spends:** a shared array is copied at the read, where
+//! the write would have copied it.
 //!
 //! `slot = f(slot, …)` with a known Novis callee `f` is the same lend, made
 //! after every function's own moves ([`lend_to_callees`]). The callee must
@@ -540,7 +544,7 @@ fn run_function(
                     *symbol = owned;
                 }
                 if let Some(element) = lent.element {
-                    make_sole(f, &element, &mut ids, &mut after);
+                    make_sole(f, &element, &mut ids, &mut before, &mut after);
                 }
             }
         }
@@ -711,14 +715,44 @@ fn rebuild(
 
 /// Rewrites an element's lend: after the container's read, the array is
 /// made sole and stored back into its slot, the element is read from the
-/// sole array, and the write into the second read of the slot is lent.
+/// sole array, and the write into the second read of the slot is lent. A
+/// local's array is made sole just before the element's read, and the write
+/// and the landings' releases take the sole array.
 fn make_sole(
     f: &mut Function,
     element: &Element,
     ids: &mut crate::ids::IdGen,
+    before: &mut FxHashMap<At, Vec<Inst>>,
     after: &mut FxHashMap<At, Vec<Inst>>,
 ) {
-    let (cb, ci) = element.container;
+    let (cb, ci) = match element.container {
+        Container::Slot(at) => at,
+        Container::Local(container) => {
+            let sole = ids.next_value();
+            before.entry(element.get).or_default().push(Inst {
+                result: Some(sole),
+                ty: Some(Ty::Array),
+                kind: InstKind::ArraySole { array: container },
+                on_error: None,
+                raise_site: None,
+            });
+            let (gb, gi) = element.get;
+            if let InstKind::ArrayGet { array, .. } = &mut f.blocks[gb].insts[gi].kind {
+                *array = sole;
+            }
+            let (sb, si) = element.set;
+            if let InstKind::ArraySet { array, lent, .. } = &mut f.blocks[sb].insts[si].kind {
+                *array = sole;
+                *lent = true;
+            }
+            for &(lb, li) in &element.landings {
+                if let InstKind::Release { operand } = &mut f.blocks[lb].insts[li].kind {
+                    *operand = sole;
+                }
+            }
+            return;
+        }
+    };
     let read = &f.blocks[cb].insts[ci];
     let (Some(container), Some(store)) = (
         read.result,
@@ -749,7 +783,7 @@ fn make_sole(
             value: sole,
         },
     };
-    after.entry(element.container).or_default().extend([
+    after.entry((cb, ci)).or_default().extend([
         Inst {
             result: Some(sole),
             ty: Some(Ty::Array),
@@ -958,13 +992,24 @@ fn poison_of(kind: &InstKind, ty: Ty, on: bool) -> Option<Inst> {
     })
 }
 
-/// Where an element's lend rewrites the function. The container's read gets
-/// an [`InstKind::ArraySole`] and a store of the sole array after it, the
+/// Where an element's lend rewrites the function. A slot's read gets an
+/// [`InstKind::ArraySole`] and a store of the sole array after it. A local's
+/// array is made sole just before the element's read, and the write and the
+/// `landings` releases of the local's array take the sole array instead. The
 /// element's read reads the sole array, and the write is lent.
 struct Element {
-    container: At,
+    container: Container,
     get: At,
     set: At,
+    landings: Vec<At>,
+}
+
+/// The array an element is lent from: read from a slot at an index, or a
+/// value a local owns.
+#[derive(Clone, Copy)]
+enum Container {
+    Slot(At),
+    Local(ValueId),
 }
 
 /// One function's view for the lend: `slot = M(slot, …)`, where `M` is an
@@ -1183,6 +1228,13 @@ impl Lend<'_> {
     /// `lent`). Between the sole array's read and the write nothing may read
     /// or write the slot, run user code or fail after the call, exactly as
     /// for a plain slot, so nothing can share the array again.
+    ///
+    /// An array a local owns, `$a[k] = M($a[k], …)`, is made sole just before
+    /// the element's read, and the write consumes the sole array in the
+    /// local's place. Nothing from that read to the write may read the
+    /// local's array, and each landing between them must be reached from its
+    /// one instruction and release the array, so it releases the sole array
+    /// instead ([`Self::landing_releases`]).
     fn of_element(
         &self,
         (b, c): At,
@@ -1203,17 +1255,43 @@ impl Lend<'_> {
         if !matches!(self.tys.get(&key), Some(Ty::Str | Ty::Int)) {
             return None;
         }
-        let (cb, ci) = *self.defs.get(&container)?;
-        if cb != b || ci >= get || self.uses(container) != 1 {
-            return None;
-        }
-        let (slot, object) = slot_of(&insts[ci].kind)?;
-        let (chain, mut start) = self.chain(b, slot, object, ci)?;
-        // The second read of the array, the write into it, and the store.
-        // The lowering retains the second read for the write and reads the
-        // slot's old value again around the store (`write_back_array`); the
-        // write is lent the slot's reference instead, so those three go.
-        let mut reread = None;
+        // The slot the array is read from, or `None` for an array a local
+        // owns, which the write itself consumes.
+        let from_slot = match self.defs.get(&container) {
+            Some(&(cb, ci)) => slot_of(&self.f.blocks[cb].insts[ci].kind)
+                .map(|(slot, object)| (cb, ci, slot, object)),
+            None => None,
+        };
+        let (from_slot, chain, mut start) = match from_slot {
+            Some((cb, ci, slot, object)) => {
+                if cb != b || ci >= get || self.uses(container) != 1 {
+                    return None;
+                }
+                let (chain, start) = self.chain(b, slot, object, ci)?;
+                (Some((ci, slot, object)), chain, start)
+            }
+            None => {
+                if !matches!(self.tys.get(&container), Some(Ty::Array))
+                    || (get + 1..=c).any(|i| {
+                        !self.removed.contains(&(b, i)) && reads(&insts[i].kind, container)
+                    })
+                {
+                    return None;
+                }
+                (None, Vec::new(), get)
+            }
+        };
+        // For a slot: the second read of the array, the write into it, and
+        // the store. The lowering retains the second read for the write and
+        // reads the slot's old value again around the store
+        // (`write_back_array`); the write is lent the slot's reference
+        // instead, so those three go. For a local: the write into the local's
+        // own array, which ends the scan.
+        let mut reread = if from_slot.is_none() {
+            Some((get, container))
+        } else {
+            None
+        };
         let mut retain = None;
         let mut set = None;
         let mut old = None;
@@ -1222,7 +1300,8 @@ impl Lend<'_> {
             if self.removed.contains(&(b, j)) {
                 continue;
             }
-            if let Some((_, written)) = set
+            if let Some((_, slot, object)) = from_slot
+                && let Some((_, written)) = set
                 && let Some((stored, into, value)) = store_of(&inst.kind)
                 && value == written
                 && stored == slot
@@ -1232,7 +1311,8 @@ impl Lend<'_> {
                 store = Some(j);
                 break;
             }
-            if let Some((_, again)) = reread
+            if from_slot.is_some()
+                && let Some((_, again)) = reread
                 && set.is_none()
                 && retain.is_none()
                 && matches!(inst.kind, InstKind::Retain { operand } if operand == again)
@@ -1240,7 +1320,8 @@ impl Lend<'_> {
                 retain = Some(j);
                 continue;
             }
-            if set.is_some()
+            if let Some((_, slot, object)) = from_slot
+                && set.is_some()
                 && old.is_none()
                 && let Some((read_slot, from)) = slot_of(&inst.kind)
                 && read_slot == slot
@@ -1261,13 +1342,17 @@ impl Lend<'_> {
                 && array == again
                 && value == result
             {
-                if !self.same_key(key, written_key)
-                    || self.uses(again) != 1 + usize::from(retain.is_some())
-                {
+                if !self.same_key(key, written_key) || inst.on_error.is_some() {
                     return None;
                 }
                 let written = inst.result?;
-                if self.uses(written) != 1 {
+                if from_slot.is_none() {
+                    set = Some((j, written));
+                    break;
+                }
+                if self.uses(again) != 1 + usize::from(retain.is_some())
+                    || self.uses(written) != 1
+                {
                     return None;
                 }
                 set = Some((j, written));
@@ -1276,7 +1361,8 @@ impl Lend<'_> {
             if inst.on_error.is_some() || reads(&inst.kind, result) {
                 return None;
             }
-            if reread.is_none()
+            if let Some((_, slot, object)) = from_slot
+                && reread.is_none()
                 && let Some((read_slot, from)) = slot_of(&inst.kind)
                 && read_slot == slot
                 && let Some(earliest) = self.same_object(from, object, b, &chain)
@@ -1288,34 +1374,114 @@ impl Lend<'_> {
             if matches!(inst.kind, InstKind::Release { operand } if operand == subject) {
                 continue;
             }
-            if reads(&inst.kind, subject) || !self.quiet(&inst.kind, &chain, true) {
+            if reads(&inst.kind, subject)
+                || (from_slot.is_none() && reads(&inst.kind, container))
+                || !self.quiet(&inst.kind, &chain, true)
+            {
                 return None;
             }
         }
-        let store = store?;
         let (set, _) = set?;
-        let mut gone = match (retain, old) {
-            (None, None) => Vec::new(),
-            (Some(retain), Some((old_at, old))) => {
-                vec![
-                    (b, retain),
-                    (b, old_at),
-                    self.old_release(b, old_at, old, store)?,
-                ]
+        let (mut gone, container, landings) = match from_slot {
+            Some((ci, ..)) => {
+                let store = store?;
+                let gone = match (retain, old) {
+                    (None, None) => Vec::new(),
+                    (Some(retain), Some((old_at, old))) => {
+                        vec![
+                            (b, retain),
+                            (b, old_at),
+                            self.old_release(b, old_at, old, store)?,
+                        ]
+                    }
+                    _ => return None,
+                };
+                (gone, Container::Slot((b, ci)), Vec::new())
             }
-            _ => return None,
+            None => (
+                Vec::new(),
+                Container::Local(container),
+                self.landing_releases(b, get, c, container)?,
+            ),
         };
-        self.window_is_quiet(b, start, c, &[ci, get], subject, &chain)?;
+        let skip = match container {
+            Container::Slot((_, ci)) => vec![ci, get],
+            Container::Local(_) => vec![get],
+        };
+        self.window_is_quiet(b, start, c, &skip, subject, &chain)?;
         gone.extend(self.subject_counts((b, c), subject)?);
         self.callbacks_are_quiet(args, subject, &chain)?;
         Some((
             gone,
             Element {
-                container: (b, ci),
+                container,
                 get: (b, get),
                 set: (b, set),
+                landings,
             },
         ))
+    }
+
+    /// The release of the local array `container` in the landing of each
+    /// instruction from the element's read at `get` to the call at `c` that
+    /// can fail. `None` unless each such landing is reached from that
+    /// instruction alone and releases `container` once, with no other read,
+    /// so the release can free the sole array in its place.
+    fn landing_releases(
+        &self,
+        b: usize,
+        get: usize,
+        c: usize,
+        container: ValueId,
+    ) -> Option<Vec<At>> {
+        let mut found = Vec::new();
+        for i in get..=c {
+            if self.removed.contains(&(b, i)) {
+                continue;
+            }
+            let Some(landing) = self.f.blocks[b].insts[i].on_error else {
+                continue;
+            };
+            let edges: usize = self
+                .f
+                .blocks
+                .iter()
+                .map(|block| {
+                    block
+                        .insts
+                        .iter()
+                        .filter(|inst| inst.on_error == Some(landing))
+                        .count()
+                        + terminator_targets(&block.term)
+                            .iter()
+                            .filter(|&&t| t == landing)
+                            .count()
+                })
+                .sum();
+            let lb = self.f.blocks.iter().position(|block| block.id == landing)?;
+            let block = &self.f.blocks[lb];
+            let mut read_by_term = false;
+            block
+                .term
+                .for_each_operand(|v| read_by_term |= v == container);
+            let mut release = None;
+            for (li, inst) in block.insts.iter().enumerate() {
+                if self.removed.contains(&(lb, li)) || !reads(&inst.kind, container) {
+                    continue;
+                }
+                if release.is_some()
+                    || !matches!(inst.kind, InstKind::Release { operand } if operand == container)
+                {
+                    return None;
+                }
+                release = Some((lb, li));
+            }
+            if edges != 1 || read_by_term {
+                return None;
+            }
+            found.push(release?);
+        }
+        Some(found)
     }
 
     /// The slots on the chain from `slot` out, and the index of the first
@@ -1529,7 +1695,7 @@ impl Lend<'_> {
         };
         !user_code
             && !chain.iter().any(|&s| effects.writes.reaches(s))
-            && !(reading && effects.reads.reaches(chain[0]))
+            && !(reading && chain.first().is_some_and(|&s| effects.reads.reaches(s)))
     }
 
     /// Whether `x` and `y` are the same object: the same value, or two reads

@@ -2314,6 +2314,38 @@ fn an_element_is_lent_through_its_containers() {
     }
 }
 
+/// An element of an array a local owns is lent as one a slot holds: the
+/// array is made sole just before the element's read, and the write into the
+/// sole array is lent. A read of the local between the two, or a different
+/// key, keeps the borrowed call.
+#[test]
+fn an_element_of_a_local_array_is_lent() {
+    for body in [
+        "    array<array<int>> $a = ['a' => []];\n    \
+         $a['a'] = Core\\Arr::append($a['a'], 1);\n    $this->g = $a;",
+        "    array<array<int>> $a = [[]];\n    int $i = 0;\n    \
+         while ($i < 3) {\n      $a[0] = Core\\Arr::append($a[0], $i);\n      $i = $i + 1;\n    }\n    \
+         $this->g = $a;",
+    ] {
+        let printed = lower_lends(body);
+        assert!(printed.contains("_owned("), "{body}\n{printed}");
+        let sole = printed.find("= array.sole v").expect(&printed);
+        let get = printed[sole..].find("array.get v").map(|at| at + sole);
+        assert!(get.is_some(), "the array is sole before the read\n{printed}");
+        assert!(printed.contains("= array.set.lent v"), "{body}\n{printed}");
+    }
+    for body in [
+        "    array<array<int>> $a = ['a' => [], 'b' => []];\n    \
+         $a['a'] = Core\\Arr::append($a['b'], 1);\n    $this->g = $a;",
+        "    array<array<int>> $a = ['a' => []];\n    \
+         $a['a'] = Core\\Arr::append($a['a'], Core\\Arr::count($a) as int);\n    $this->g = $a;",
+    ] {
+        let printed = lower_lends(body);
+        assert!(!printed.contains("array.sole"), "{body}\n{printed}");
+        assert!(!printed.contains("array.set.lent"), "{body}\n{printed}");
+    }
+}
+
 /// A write of one element of a plain property or static property is lent
 /// the slot's reference: the write takes no retain, and the store reads the
 /// slot only once. With the pass off, the write retains the array and the

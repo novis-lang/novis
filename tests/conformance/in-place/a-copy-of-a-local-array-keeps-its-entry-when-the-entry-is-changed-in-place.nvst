@@ -1,0 +1,33 @@
+--TEST--
+An element of a local array changed in place by an owning `Core` call in a loop leaves a copy of the array taken before the loop as it was, and a failed read in a `try` leaves the array as it was — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $rows = ['a' => [1]];
+array<array<int>> $copy = $rows;
+int $i = 2;
+while ($i < 5) {
+    // `Core\Arr::append` adds `$i` to the end of `$rows['a']`.
+    $rows['a'] = Core\Arr::append($rows['a'], $i);
+    $i = $i + 1;
+}
+echo Lib::show($rows['a']), "\n";
+// `$copy` was taken before the loop, so it is still `1`.
+echo Lib::show($copy['a']), "\n";
+try {
+    // `$rows` has no key `z`, so the read throws an error and nothing changes.
+    $rows['z'] = Core\Arr::append($rows['z'], 9);
+} catch (Throwable $e) {
+    echo Core\Arr::count($rows), "\n";
+}
+echo Lib::show($rows['a']), "\n";
+--EXPECT--
+1,2,3,4
+1
+1
+1,2,3,4
