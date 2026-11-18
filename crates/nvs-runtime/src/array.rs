@@ -1131,6 +1131,37 @@ impl Table {
         self.next_index = list_counter(self.len());
     }
 
+    /// Releases the live entries at positions `start..end`, puts `new` in
+    /// their place and renumbers the whole table, so the result is a list. A
+    /// window at the front is [`Table::keep_window`] then [`Table::prepend`],
+    /// and moves no entry after it. Elsewhere the entries before the window
+    /// stay where they are and the ones after it move once. The caller has
+    /// reserved the room. O(the entries released, added and after the
+    /// window), and a map is renumbered first, in O(n).
+    fn replace_window(&mut self, start: usize, end: usize, new: Vec<Value>) {
+        let end = end.min(self.len());
+        let start = start.min(end);
+        if start == 0 {
+            self.keep_window(end, usize::MAX, true);
+            self.prepend(new);
+            return;
+        }
+        self.written |= written_of(&new);
+        self.renumber();
+        if let Shape::Packed(values) = &mut self.shape {
+            for value in values.drain(start..end) {
+                release_taken(value);
+            }
+            let added = new.len();
+            values.extend(new);
+            if let Some(tail) = values.make_contiguous().get_mut(start..) {
+                tail.rotate_right(added);
+            }
+            free_room(values);
+        }
+        self.next_index = list_counter(self.len());
+    }
+
     /// Reorders the live entries so position `i` holds the entry that was at
     /// position `plan[i]`. `false`, and nothing changed, where `plan` is not
     /// a permutation of the positions. O(n), with n bytes to check the plan.
@@ -2609,6 +2640,33 @@ impl NvsArray {
             return Err(values);
         }
         self.header().table.borrow_mut().prepend(values);
+        Ok(())
+    }
+
+    /// Puts `values` in place of the entries at positions `start..end`,
+    /// taking over each reference and releasing each entry replaced, and
+    /// makes the result a list renumbered from `"0"`. This is
+    /// `Core\Arr::replaceRange` on a sole array. The entries before the
+    /// window do not move, and a window at the front moves no entry at all.
+    /// **Cost:** O(the entries replaced, added and after the window) on a
+    /// list, and O(n) on a map, which is renumbered first.
+    ///
+    /// The growth is asked of the request's memory ceiling first. A refusal
+    /// hands `values` back and changes nothing.
+    pub fn replace_window(
+        &mut self,
+        start: usize,
+        end: usize,
+        values: Vec<Value>,
+    ) -> Result<(), Vec<Value>> {
+        if !self.reserve_within_budget(values.len()) {
+            return Err(values);
+        }
+        self.make_unique();
+        self.header()
+            .table
+            .borrow_mut()
+            .replace_window(start, end, values);
         Ok(())
     }
 

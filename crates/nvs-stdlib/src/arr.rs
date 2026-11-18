@@ -2416,43 +2416,39 @@ nvs_runtime::nvs_helper! {
     /// `0`, `""` or an empty array behaves here exactly as it would in a
     /// condition.
     ///
-    /// The first `Core` member to call back into Novis code, and therefore the
-    /// first that can fail partway through. Nothing special is needed for
-    /// that: `NvsArray` and `NvsStr` both release on drop, so the partial
-    /// result and the entry's own key are freed by the early return itself.
-    fn nvs_core_arr_filter(ctx, args: [2])-> Value, owns NvsArray {
+    /// A predicate that throws stops the walk before anything changes, so the
+    /// subject goes back to its caller as it was.
+    ///
+    /// `check` calls the predicate for every entry and records the verdicts.
+    /// [`keep_masked`] then keeps the entries in place on a sole subject.
+    fn nvs_core_arr_filter(ctx, args: [2])-> Vec<bool>, owns NvsArray {
         let base = held_subject(args, "filter")?;
         // Read once for the whole walk rather than per entry: a predicate
         // declaring one parameter is never handed a key, so none is rendered
         // for it, as this module's doc says.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
-        // Room for every entry, the most a predicate can keep.
-        let mut kept = NvsArray::with_capacity(base.count());
+        let mut mask = Vec::with_capacity(base.count());
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            // Read *before* the call, since the predicate may reshape the
-            // subject under the cursor. On a list this is the position itself
-            // and allocates nothing — see [`store_at`].
-            let key = base
-                .slot_key(slot)
-                .expect("next_slot only names live entries");
 
             let verdict = if wants_key {
                 // One reference for the duration of the call, released right
-                // after: `call_callable` takes its own, and `key` itself is
-                // still owed to either `kept` or its own drop below.
+                // after: `call_callable` takes its own.
                 #[expect(clippy::disallowed_methods, reason = "an array key is a `string`")]
-                let key_arg = Value::str(key.to_str());
+                let key_arg = Value::str(
+                    base.key_at(slot)
+                        .expect("next_slot only names live entries"),
+                );
                 let verdict = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
-                              `key.to_str()` just produced"
+                              `key_at` just produced"
                 )]
                 unsafe {
                     key_arg.release();
@@ -2472,23 +2468,11 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 verdict.release();
             }
-
-            if truthy {
-                #[expect(
-                    unsafe_code,
-                    reason = "the entry is owned by the subject array, which \
-                              outlives this call, so the copy stored here \
-                              needs a reference of its own"
-                )]
-                unsafe {
-                    value.retain();
-                }
-                store_at(&mut kept, key, value);
-            }
+            mask.push(truthy);
         }
-        Ok(Value::array(kept))
-    } apply(result, _subject) {
-        result
+        Ok(mask)
+    } apply(mask, subject) {
+        keep_masked(&mask, subject)
     }
 }
 
@@ -3385,6 +3369,37 @@ fn kept_counter(out: &mut NvsArray, subject: &NvsArray, front_kept: bool) {
     }
 }
 
+/// Keeps the entry at position `i` where `mask[i]` is `true`, under its own
+/// key. This is the `apply` of `filter`, `withoutNull`, `unique`, `diff` and
+/// `intersect`, whose `check` decides the mask before anything changes.
+///
+/// A sole subject keeps its entries in its own storage and releases the rest,
+/// in O(n). A shared one builds the kept entries alone. The result keeps the
+/// subject's append counter, unless it is a list cut only at its end
+/// ([`kept_counter`]). **What it spends:** the mask, one byte per entry for
+/// the length of the call.
+fn keep_masked(mask: &[bool], subject: NvsArray) -> Value {
+    let mut subject = subject;
+    if subject.is_sole() && subject.keep_by_mask(mask, false) {
+        return Value::array(subject);
+    }
+    let kept = mask.iter().filter(|keep| **keep).count();
+    let mut out = NvsArray::with_capacity(kept);
+    let mut at = subject.next_slot(0);
+    for keep in mask {
+        let Some(slot) = at else {
+            break;
+        };
+        if *keep {
+            copy_entry(&subject, slot, &mut out);
+        }
+        at = subject.next_slot(slot + 1);
+    }
+    let only_the_end = mask.iter().skip_while(|keep| **keep).all(|keep| !*keep);
+    kept_counter(&mut out, &subject, only_the_end);
+    Value::array(out)
+}
+
 /// Values an owning member's `check` passes to its `apply`, each with a
 /// reference of its own. A value `apply` does not store is released when
 /// this is dropped.
@@ -3411,6 +3426,29 @@ impl Retained {
             }
         }
         Ok(Self(values))
+    }
+
+    /// Every value of `array` in order, each retained.
+    fn values_of(array: &NvsArray) -> Self {
+        let mut values = Vec::with_capacity(array.count());
+        let mut at = array.next_slot(0);
+        while let Some(slot) = at {
+            let value = array
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            #[expect(
+                unsafe_code,
+                reason = "the value belongs to an argument array, which \
+                          outlives the call, and the copy kept here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            values.push(value);
+            at = array.next_slot(slot + 1);
+        }
+        Self(values)
     }
 
     /// Takes the values out, with their references.
@@ -3466,40 +3504,50 @@ nvs_runtime::nvs_helper! {
     /// offset at the end appends. An omitted `$replacement` makes the member a
     /// removal; `registry::Const::EmptyArray` is the constant that call site
     /// materializes, and its docs own what the omission costs.
-    fn nvs_core_arr_replace_range(_ctx, args: [4])-> Value, owns NvsArray {
+    ///
+    /// A sole subject has the window replaced in its own storage
+    /// ([`NvsArray::replace_window`]): the entries before the window do not
+    /// move, and a window at the front moves none. A shared one is built in
+    /// three walks: the head, the replacement, then the tail.
+    fn nvs_core_arr_replace_range(_ctx, args: [4])-> (usize, usize, Retained), owns NvsArray {
         let base = subject(args, "replaceRange")?;
         let replacement = array_at(&args[3], "replaceRange", "the replacement")?;
         let (start, end) = window(base.count(), &args[1], &args[2], "replaceRange")?;
-
-        // Three walks, one per part, exactly as `crate::str`'s member is three
-        // pushes: the head, the replacement, then the tail. The window itself
-        // is walked only to step over it.
-        let mut out = NvsArray::new();
-        let mut from = 0usize;
+        Ok((start, end, Retained::values_of(&replacement)))
+    } apply(plan, subject) {
+        let (start, end, values) = plan;
+        let values = values.take();
+        if subject.is_sole() {
+            let mut subject = subject;
+            // A refusal is the request's memory limit, already recorded. The
+            // values are released and the subject is unchanged.
+            if let Err(refused) = subject.replace_window(start, end, values) {
+                release_all(refused);
+            }
+            return Value::array(subject);
+        }
+        let mut out = NvsArray::with_capacity(
+            subject.count().saturating_sub(end - start).saturating_add(values.len()),
+        );
+        let mut at = subject.next_slot(0);
         let mut position = 0usize;
-        while position < start {
-            let Some(slot) = base.next_slot(from) else {
+        while let Some(slot) = at {
+            if position == start {
                 break;
-            };
-            from = slot + 1;
-            carry_entry(&base, slot, &mut out, false);
+            }
+            carry_entry(&subject, slot, &mut out, false);
+            at = subject.next_slot(slot + 1);
             position += 1;
         }
-        append_values(&replacement, &mut out)?;
-        while position < end {
-            let Some(slot) = base.next_slot(from) else {
-                break;
-            };
-            from = slot + 1;
-            position += 1;
+        for value in values {
+            out.append(value);
         }
-        while let Some(slot) = base.next_slot(from) {
-            from = slot + 1;
-            carry_entry(&base, slot, &mut out, false);
+        at = subject.slot_of_position(end);
+        while let Some(slot) = at {
+            carry_entry(&subject, slot, &mut out, false);
+            at = subject.next_slot(slot + 1);
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Value::array(out)
     }
 }
 
@@ -3802,7 +3850,9 @@ nvs_runtime::nvs_helper! {
     /// declared `?T`, not anything here. Keys are kept exactly as `filter`
     /// keeps them, and `values` is the member that renumbers. **Memory:** one
     /// result array per call, as `filter` makes, and no callback.
-    fn nvs_core_arr_without_null(_ctx, args: [1])-> Value, owns NvsArray {
+    ///
+    /// A sole subject releases its `null` entries in place ([`keep_masked`]).
+    fn nvs_core_arr_without_null(_ctx, args: [1])-> Vec<bool>, owns NvsArray {
         // Unreachable from source: an `array<?T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -3814,20 +3864,18 @@ nvs_runtime::nvs_helper! {
         })?;
         let subject = borrowed(array);
 
-        let mut out = NvsArray::with_capacity(subject.count());
+        let mut mask = Vec::with_capacity(subject.count());
         let mut from = 0;
         while let Some(slot) = subject.next_slot(from) {
             let value = subject
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            if value.tag() != Some(Tag::Null) {
-                copy_entry(&subject, slot, &mut out);
-            }
+            mask.push(value.tag() != Some(Tag::Null));
             from = slot + 1;
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok(mask)
+    } apply(mask, subject) {
+        keep_masked(&mask, subject)
     }
 }
 
@@ -5657,7 +5705,9 @@ nvs_runtime::nvs_helper! {
     /// scanning would make this quadratic, and a quadratic `Core` member over
     /// request-shaped input is a denial of service rather than a slow path.
     /// The cost is one `HashSet` entry per *distinct* value.
-    fn nvs_core_arr_unique(ctx, args: [2])-> Value, owns NvsArray {
+    ///
+    /// A sole subject releases each repeat in place ([`keep_masked`]).
+    fn nvs_core_arr_unique(ctx, args: [2])-> Vec<bool>, owns NvsArray {
         let subject = held_subject(args, "unique")?;
         let by = optional_callback(&args[1], "unique", "by")?;
         let by_wants_key = match by {
@@ -5671,8 +5721,7 @@ nvs_runtime::nvs_helper! {
         // which own nothing themselves.
         let mut extracted = Extracted(Vec::new());
         let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
-        // Room for every entry, the most that can be distinct.
-        let mut out = NvsArray::with_capacity(subject.count());
+        let mut mask = Vec::with_capacity(subject.count());
         let mut from = 0usize;
         while let Some(slot) = subject.next_slot(from) {
             let value = subject
@@ -5693,26 +5742,11 @@ nvs_runtime::nvs_helper! {
                 }
             };
 
-            if !seen.insert(Identity(compared)) {
-                continue;
-            }
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the subject array, which \
-                          outlives this call, so the copy stored here needs a \
-                          reference of its own"
-            )]
-            unsafe {
-                value.retain();
-            }
-            let key = subject
-                .slot_key(slot)
-                .expect("next_slot only names live entries");
-            store_at(&mut out, key, value);
+            mask.push(seen.insert(Identity(compared)));
         }
-        Ok(Value::array(out))
-    } apply(result, _subject) {
-        result
+        Ok(mask)
+    } apply(mask, subject) {
+        keep_masked(&mask, subject)
     }
 }
 
@@ -6150,7 +6184,7 @@ fn set_member(
     args: &[Value],
     member: &str,
     keep_when_present: bool,
-) -> Result<Value, Fault> {
+) -> Result<Vec<bool>, Fault> {
     let subject = held_subject(args, member)?;
     let other = args[1].array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
@@ -6209,8 +6243,7 @@ fn set_member(
         }
     }
 
-    // Room for every entry of the subject, the most the comparison keeps.
-    let mut out = NvsArray::with_capacity(subject.count());
+    let mut mask = Vec::with_capacity(subject.count());
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
         // In the form the subject holds it, so a list renders a key only
@@ -6264,20 +6297,9 @@ fn set_member(
             }
         };
 
-        if present == keep_when_present {
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the subject array, which \
-                          outlives this call, so the copy stored here needs a \
-                          reference of its own"
-            )]
-            unsafe {
-                value.retain();
-            }
-            store_at(&mut out, key, value);
-        }
+        mask.push(present == keep_when_present);
     }
-    Ok(Value::array(out))
+    Ok(mask)
 }
 
 nvs_runtime::nvs_helper! {
@@ -6293,10 +6315,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// `$a`'s keys and order are kept, as PHP keeps them. [`set_member`] owns
     /// the walk, the `on`/`by`/`comparator` composition and the cost.
-    fn nvs_core_arr_diff(ctx, args: [5])-> Value, owns NvsArray {
+    ///
+    /// A sole subject releases what `$b` has in place ([`keep_masked`]).
+    fn nvs_core_arr_diff(ctx, args: [5])-> Vec<bool>, owns NvsArray {
         set_member(ctx, args, "diff", false)
-    } apply(result, _subject) {
-        result
+    } apply(mask, subject) {
+        keep_masked(&mask, subject)
     }
 }
 
@@ -6307,10 +6331,13 @@ nvs_runtime::nvs_helper! {
     ///
     /// The same question [`nvs_core_arr_diff`] asks with the other answer
     /// kept, and the same strict-identity rule.
-    fn nvs_core_arr_intersect(ctx, args: [5])-> Value, owns NvsArray {
+    ///
+    /// A sole subject releases what `$b` does not have in place
+    /// ([`keep_masked`]).
+    fn nvs_core_arr_intersect(ctx, args: [5])-> Vec<bool>, owns NvsArray {
         set_member(ctx, args, "intersect", true)
-    } apply(result, _subject) {
-        result
+    } apply(mask, subject) {
+        keep_masked(&mask, subject)
     }
 }
 
