@@ -3,14 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Property names the compiler checks",
-      "text": "A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.",
-      "goals": [
-        "path-array-steps",
-        "attribute-property-names"
-      ]
-    },
-    {
       "title": "Less work for each request",
       "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
       "goals": [
@@ -47,6 +39,13 @@
       "text": "`nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.",
       "goals": [
         "aimed-mutation"
+      ]
+    },
+    {
+      "title": "Property names the compiler checks",
+      "text": "A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.",
+      "goals": [
+        "attribute-property-names"
       ]
     }
   ]
