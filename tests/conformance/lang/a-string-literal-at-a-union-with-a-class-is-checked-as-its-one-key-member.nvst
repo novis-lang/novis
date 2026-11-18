@@ -1,0 +1,68 @@
+--TEST--
+A string literal at a parameter whose union holds a class and one `string<K>`, `property<T>` or `propertyPath<T>` member is checked as at that member alone, and is that member's type when the call runs; a union that also holds `string` takes the literal as a `string` — `rule:types/property-key`
+--FILE--
+<?nvs
+// covers: lang:types/strings-with-holes
+// A literal at a union with one checked string type is checked as that type.
+final class Filter
+{
+    public string $text = "built";
+}
+
+class Customer
+{
+    public string $name = "Ada";
+}
+
+class Order
+{
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor()
+    {
+        $this->customer = new Customer();
+    }
+
+    public static function find(string<propertyPath<static>>|Filter $condition): string
+    {
+        if ($condition is Filter) {
+            return "filter " . $condition->text;
+        }
+        return "text " . ($condition as string);
+    }
+
+    public static function sortBy(?propertyPath<static>|Filter $path): string
+    {
+        if ($path == null) {
+            return "none";
+        }
+        return $path is Filter ? "filter" : "path " . ($path as string);
+    }
+
+    public static function column(property<Customer>|Filter $field): string
+    {
+        return $field is Filter ? "filter" : "key " . ($field as string);
+    }
+
+    public static function free(string<property<Customer>>|string|Filter $text): string
+    {
+        return $text is string ? "string " . $text : "other";
+    }
+}
+
+// Each literal is checked as the union's one checked string type.
+echo Order::find("{customer.name} = ? AND {total} > 3"), "\n";
+echo Order::find(new Filter()), "\n";
+echo Order::sortBy("customer.name"), "\n";
+echo Order::sortBy(null), "\n";
+echo Order::column("name"), "\n";
+// The union also holds `string`, so this literal is a plain `string`.
+echo Order::free("{anything}"), "\n";
+--EXPECT--
+text {customer.name} = ? AND {total} > 3
+filter built
+path customer.name
+none
+key name
+string {anything}

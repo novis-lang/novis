@@ -821,15 +821,49 @@ pub(crate) enum KeyKind {
     Path,
 }
 
+/// The type a string literal at a parameter declared `ty` is checked against
+/// (`rule:types/property-key`): `ty` without `null`, or, where that is a union,
+/// its one `property<T>`, `propertyPath<T>` or `string<K>` member. A union with
+/// two such members, or with a member that takes a string itself (`string`,
+/// `mixed`, a single-value string), comes back whole, so a literal there stays
+/// a `string`.
+fn literal_parameter_member(ty: TypeId, env: &mut Env<'_>) -> TypeId {
+    let ty = env.interner.without_null(ty);
+    let Ty::Union(members) = env.interner.get(ty) else {
+        return ty;
+    };
+    let mut checked = None;
+    for &member in members {
+        match env.interner.get(member) {
+            Ty::PropertyKey(_) | Ty::PropertyPath(_) | Ty::StringHoles { .. } => {
+                if checked.replace(member).is_some() {
+                    return ty;
+                }
+            }
+            Ty::String
+            | Ty::TaintedString
+            | Ty::SecretString
+            | Ty::SecretTaintedString
+            | Ty::SingleValueString(_)
+            | Ty::Mixed
+            | Ty::SecretMixed
+            | Ty::Error => return ty,
+            _ => {}
+        }
+    }
+    checked.unwrap_or(ty)
+}
+
 /// The key type, its class and its kind where `ty`, a parameter's declared
-/// type, is `property<T>`, `propertyPath<T>` or either of them nullable, over a
-/// class `T`. `None` for every other type, a union with `string` included,
-/// since such a parameter takes any string (`rule:types/property-key`).
+/// type, is `property<T>` or `propertyPath<T>` over a class `T`, nullable or
+/// in a union [`literal_parameter_member`] picks it from. `None` for every
+/// other type, a union with `string` included, since such a parameter takes
+/// any string (`rule:types/property-key`).
 pub(crate) fn key_parameter_class(
     ty: TypeId,
     env: &mut Env<'_>,
 ) -> Option<(TypeId, QName, KeyKind)> {
-    let key = env.interner.without_null(ty);
+    let key = literal_parameter_member(ty, env);
     let (argument, kind) = match property_key_argument(key, env.interner) {
         Some(argument) => (argument, KeyKind::Name),
         None => (property_path_argument(key, env.interner)?, KeyKind::Path),
@@ -1081,11 +1115,11 @@ pub fn string_holes_key(ty: TypeId, interner: &TypeInterner) -> Option<(TypeId, 
 }
 
 /// The parameter type and its [`HoleKind`] where `ty`, a parameter's declared
-/// type, is `string<K>` or `?string<K>`, for a literal written there
-/// (`rule:types/string-holes`). `None` for every other type, a union with
-/// `string` included.
+/// type, is `string<K>`, nullable or in a union [`literal_parameter_member`]
+/// picks it from, for a literal written there (`rule:types/string-holes`).
+/// `None` for every other type, a union with `string` included.
 pub(crate) fn holes_parameter(ty: TypeId, env: &mut Env<'_>) -> Option<(TypeId, HoleKind)> {
-    let holes = env.interner.without_null(ty);
+    let holes = literal_parameter_member(ty, env);
     let (key, _) = string_holes_key(holes, env.interner)?;
     Some((holes, hole_kind(key, env.interner)?))
 }

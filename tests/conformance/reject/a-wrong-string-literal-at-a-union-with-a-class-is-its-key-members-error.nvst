@@ -1,0 +1,59 @@
+--TEST--
+A string literal at a parameter whose union holds a class and one `string<K>`, `property<T>` or `propertyPath<T>` member reports that member's error for a wrong name, and a union with two such members keeps the literal a `string` — `rule:types/property-key`
+--FILE--
+<?nvs
+// A wrong name in a literal at such a union is reported at the name.
+final class Filter
+{
+}
+
+class Order
+{
+    public string $name = "o1";
+    public int $total = 40;
+
+    public static function find(string<propertyPath<static>>|Filter $condition): uint
+    {
+        return 0;
+    }
+
+    public static function column(?property<Order>|Filter $field): uint
+    {
+        return 0;
+    }
+
+    public static function either(property<Order>|propertyPath<Order> $field): uint
+    {
+        return 0;
+    }
+}
+
+// `missing` is not a property of `Order`.
+uint $a = Order::find("{missing} = ?");
+// `totl` is misspelled.
+uint $b = Order::column("totl");
+// Two checked string types: the literal stays a `string`.
+uint $c = Order::either("name");
+--EXPECTF-ERROR--
+error[E0405]: `Order` has no public property `$missing`
+   --> %s:29:25
+   |
+29 | uint $a = Order::find("{missing} = ?");
+   |                         ^^^^^^^ this part of the path is checked here
+   = help: each part of a property path names a public property of the class the path has reached: `Order` has `$name`, `$total`
+
+error[E0405]: `Order` has no public property `$totl`
+   --> %s:31:25
+   |
+31 | uint $b = Order::column("totl");
+   |                         ^^^^^^ this name is checked here
+   = help: a property name written in the code is checked when the program compiles. The public properties of `Order` are: `$name`, `$total`
+
+error[E0401]: expected `propertyPath<Order>|property<Order>`, found `string`
+   --> %s:33:25
+   |
+33 | uint $c = Order::either("name");
+   |                         ^^^^^^ this is `string`
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

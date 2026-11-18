@@ -30,7 +30,10 @@ of `T`'s properties. The editor offers `T`'s names inside such a literal
 still shown the names.
 
 A parameter typed **`property<T>` alone**, or `?property<T>`, takes a key, and a **string literal**
-written there is converted while compiling. A right one is accepted with no `as`, and a wrong one is
+written there is converted while compiling. So does a parameter whose union has `property<T>` as its
+only member that takes a string, such as `property<T>|Filter`: a literal there is checked as at
+`property<T>` alone and is a `property<T>`. A union with a second such member, or with `string`,
+`mixed` or a single-value string, keeps the literal a `string`. A right one is accepted with no `as`, and a wrong one is
 the unknown-member diagnostic at the literal: the check `"email" as property<User>` makes where it is
 written, and not a second one. A string built at run time still needs `as`, so no program acquires a
 key from a value the compiler has not seen. In a variable, a return and an array a literal stays a
@@ -80,6 +83,12 @@ is one the erased access performs anyway.
   The argument position has its type written in the signature.
 - **Checking a literal at a `property<T>|string` parameter as well.** That parameter says any string is
   fine, and a warning there would be noise at every call that passes free text.
+- **Choosing a member for a literal at a union with two keys, such as `property<T>|propertyPath<T>`.**
+  A literal that one member accepts and the other does not would get its type from the order of the
+  check, so the literal stays a `string` and needs `as`.
+- **A second method beside each method that takes a key, one for the literal and one for an object.**
+  A union with a class, such as `string<propertyPath<static>>|Filter`, takes both, and the literal is
+  still checked.
 - **A key that may name a `private` property, with visibility checked at the access.** The conversion
   would succeed on a name the caller may not use, and the throw would land at a site that looks
   correct. Visibility belongs to the set, so it is checked where the set is entered.

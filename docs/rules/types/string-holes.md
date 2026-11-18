@@ -10,7 +10,9 @@ styles, because a brace with no `$` after it is already plain text in a string
 (`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
 A literal at a parameter typed `string<K>` alone is checked where it is written, as a literal at a
 `property<T>` parameter is (`rule:types/property-key`): a wrong hole is the
-unknown-member diagnostic for its segment, placed on that segment. A double-quoted string that
+unknown-member diagnostic for its segment, placed on that segment. A union where `string<K>` is the
+only member that takes a string, such as `string<propertyPath<static>>|Filter`, checks the literal in
+the same way, so one method takes a written condition and a condition object. A double-quoted string that
 interpolates `{$…}` is not a literal, so it needs `as string<K>`, which checks every hole at run time
 and throws at the first bad one. `as ?string<K>` yields `null` there. `string<K> → string` is total and
 gives the text as written, braces and escapes included.

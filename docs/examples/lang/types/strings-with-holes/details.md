@@ -12,6 +12,11 @@ strings is the error `E0861`. The error points at the wrong hole.
 Only a parameter takes a string literal with no `as`. A local variable typed `string<K>` needs `as`
 for a literal too, or the program does not compile (`E0401`).
 
+A parameter can be a union of `string<K>` and other types, such as `string<propertyPath<Order>>|Filter`.
+A string literal there is checked as a `string<K>`. This works when `string<K>` is the only type in the
+union that takes a string. If the union also has `string`, `mixed` or a second `string<K>`, the literal
+is a plain `string`.
+
 `as` checks any other string while the program runs. If a hole is wrong, it throws a
 `RuntimeError`, and the message names the hole and what is wrong with it. `as ?string<K>` gives
 `null` instead.

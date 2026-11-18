@@ -1157,7 +1157,10 @@ of `T`'s properties. The editor offers `T`'s names inside such a literal
 still shown the names.
 
 A parameter typed **`property<T>` alone**, or `?property<T>`, takes a key, and a **string literal**
-written there is converted while compiling. A right one is accepted with no `as`, and a wrong one is
+written there is converted while compiling. So does a parameter whose union has `property<T>` as its
+only member that takes a string, such as `property<T>|Filter`: a literal there is checked as at
+`property<T>` alone and is a `property<T>`. A union with a second such member, or with `string`,
+`mixed` or a single-value string, keeps the literal a `string`. A right one is accepted with no `as`, and a wrong one is
 the unknown-member diagnostic at the literal: the check `"email" as property<User>` makes where it is
 written, and not a second one. A string built at run time still needs `as`, so no program acquires a
 key from a value the compiler has not seen. In a variable, a return and an array a literal stays a
@@ -1207,6 +1210,12 @@ is one the erased access performs anyway.
   The argument position has its type written in the signature.
 - **Checking a literal at a `property<T>|string` parameter as well.** That parameter says any string is
   fine, and a warning there would be noise at every call that passes free text.
+- **Choosing a member for a literal at a union with two keys, such as `property<T>|propertyPath<T>`.**
+  A literal that one member accepts and the other does not would get its type from the order of the
+  check, so the literal stays a `string` and needs `as`.
+- **A second method beside each method that takes a key, one for the literal and one for an object.**
+  A union with a class, such as `string<propertyPath<static>>|Filter`, takes both, and the literal is
+  still checked.
 - **A key that may name a `private` property, with visibility checked at the access.** The conversion
   would succeed on a name the caller may not use, and the throw would land at a site that looks
   correct. Visibility belongs to the set, so it is checked where the set is entered.
@@ -1323,8 +1332,8 @@ contravariant ([`types/property-key-variance`](types.md#types-property-key-varia
 their text is equal, with ordering refused. `propertyPath` is a keyword only in type position, as
 `property` is.
 
-**`as` is its source, and a literal at a key parameter is the other** ([`types/property-key`](types.md#types-property-key)): a string literal at a parameter typed `propertyPath<T>` alone is
-converted while compiling.
+**`as` is its source, and a literal at a key parameter is the other** ([`types/property-key`](types.md#types-property-key)): a string literal at a parameter typed `propertyPath<T>` alone, or in a
+union where it is the only member that takes a string, is converted while compiling.
 A `string` converts with `as propertyPath<T>`, which throws at the first bad segment and names it, and
 `as ?propertyPath<T>` yields `null` there. A written-out operand is decided where it is written: a
 wrong segment is the unknown-member diagnostic an ordinary `$order->custmer` gets, placed on that
@@ -1378,7 +1387,9 @@ styles, because a brace with no `$` after it is already plain text in a string
 (`tests/conformance/lang/a-string-literal-escapes-and-interpolates-exactly-what-each-quote-allows.nvst:61`).
 A literal at a parameter typed `string<K>` alone is checked where it is written, as a literal at a
 `property<T>` parameter is ([`types/property-key`](types.md#types-property-key)): a wrong hole is the
-unknown-member diagnostic for its segment, placed on that segment. A double-quoted string that
+unknown-member diagnostic for its segment, placed on that segment. A union where `string<K>` is the
+only member that takes a string, such as `string<propertyPath<static>>|Filter`, checks the literal in
+the same way, so one method takes a written condition and a condition object. A double-quoted string that
 interpolates `{$…}` is not a literal, so it needs `as string<K>`, which checks every hole at run time
 and throws at the first bad one. `as ?string<K>` yields `null` there. `string<K> → string` is total and
 gives the text as written, braces and escapes included.

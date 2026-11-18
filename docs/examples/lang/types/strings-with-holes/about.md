@@ -6,7 +6,9 @@ hole may contain: `property<T>`, `propertyPath<T>`, or a set of strings such as 
 string written in a call to a `string<K>` parameter is checked when the program compiles. `as` checks
 any other string while the program runs, and throws an error if a hole is wrong.
 
-**Good to know:** `{{` is one `{` and `}}` is one `}`. Only the holes are checked. A tainted string
+**Good to know:** a parameter such as `string<propertyPath<Order>>|Filter` takes a string or a
+`Filter` object. A string written there is checked too. `{{` is one `{` and `}}` is one `}`. Only the
+holes are checked. A tainted string
 (text from outside the program) stays tainted after `as string<K>`, so a condition from a request
 cannot be the text of a database query. `Core\Str::parts` splits the string into its text and holes.
 
