@@ -275,6 +275,12 @@ their passes too, one peer after another, because a row asks for its passes one 
 **The numbers are relations.** The absolute figures depend on the machine. The record names the machine
 so the page can say which, and the page shows each peer against the best in each case.
 
+**A record is taken from a clean tree.** Both halves run in a detached worktree at `HEAD`, made with
+`git worktree add --detach .agent-tmp/worktrees/compare HEAD`, so another session's half-written edit
+is never in an image. The record's two `commit` values then name a tree that exists, and the worktree's
+`benches/compare.json` is copied over the tree's. Other work may go on while it records, because the
+peers take turns within a run.
+
 ## The direct measure: every HTTP peer with no proxy
 
 `--direct` answers what a request costs each server in CPU time, which the proxied figures hide behind

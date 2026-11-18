@@ -14,7 +14,7 @@ stages:
     context: [docs/agent/prose.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: record-reads
@@ -115,37 +115,37 @@ the programs, the settings or the page's ranking changes to improve one.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. `benches/compare.json` is one run at `068051b52c`, which the website shows,
-and `bun nv ci --check` (the `page-builds` check) is green on stage 2.
+Every stage is done, and the goal is reached. `looper verify` was green on its first run, with
+nothing to fix. The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes
+compare-recorded` (no gap) and `bun nv ci --check`, whose advisories pass on every workspace.
 
-- The Go sentences are a `note` on `html-page` in `CASE_TEXT` (`website/src/lib/compare.ts:56`).
-  `CaseCharts.astro:29` renders a note as its own paragraph, with backticked names as `<code>`.
-- The isolate paragraph is under `<CaseCharts />` (`compare.mdx:70`), with "isolate" defined.
-- The record changed four prose figures in `compare.mdx`: the small deploy is 1.1 s and 56%, and the
-  big deploy is 2.9 s and 91%. No other prose figure or ranking differed from the record.
-- `benches/compare/README.md:69` gives the `html/template` CPU per page (245 µs, against 35 µs for
-  Bun and 56 µs for Novis) and why Go keeps it.
-- The page's questions are re-stamped unchanged in `website/src/data/questions.json`.
+- The standing decision to record from a detached worktree now lives in `benches/compare/README.md`
+  § *One record*, under "A record is taken from a clean tree". The other decisions already had a
+  home there: line 69 says why Go keeps `html/template`, and § *The direct measure* says `--direct`
+  is never recorded.
+- `RUSTSEC-2026-0206` and `RUSTSEC-2025-0141` stay in `deny.toml`. They match crates in
+  `extensions/pdf` and `website/guides/highlight-extension`, which the root run does not see, so its
+  warning is expected and the per-workspace runs need the entries.
+
+`benches/compare.json` is one run at `068051b52c`, which the website shows. The Go note is on
+`html-page` in `website/src/lib/compare.ts:56`, and the isolate paragraph is at `compare.mdx:70`.
 
 The sweep's reds: `env-secret-proofs` is stale, because its newest `git log -S` hit is
 json-one-touch's retire commit and it has no log. The nightly `supply chain` red (RUSTSEC-2026-0543,
-`chrono` through `rxing`) is already fixed on disk by `0fe2fdef25`, which postdates that run. The
-same run warned that RUSTSEC-2026-0206 and RUSTSEC-2025-0141 in `deny.toml` matched no crate. Those
-are warnings, not failures, and stage 3 may judge them.
+`chrono` through `rxing`) is fixed on disk by `0fe2fdef25`, which postdates that run.
 
 ### Next
 
-Stage 3: `looper verify` with `run_in_background`, fix every failure in one pass, run it once more,
-then the goal-end gates of AGENTS.md § *In the loop*. No test is expected to go red. The change
-touched only the website, the README and the goal.
+Nothing. The goal is reached, and the driver runs its acceptance checks and retires it. No test is
+expected to go red.
 
 ### Backlog
 
