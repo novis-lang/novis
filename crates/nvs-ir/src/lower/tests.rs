@@ -5508,3 +5508,144 @@ fn every_borrow_judgment_passes_the_one_operand_lowering() {
         "a borrow judged outside the one operand lowering: {outside:?}"
     );
 }
+
+/// One axis of [`every_replacement_form_has_a_case`]: a row's slug, as the
+/// case's file name spells it.
+type Axis = &'static [&'static str];
+
+/// Where the replaced value lives: every storage the grammar lets a statement
+/// both read and assign.
+const REPLACED_TARGETS: Axis = &[
+    "local",
+    "parameter",
+    "inout",
+    "captured",
+    "this-property",
+    "local-property",
+    "static-property",
+    "element",
+    "property-element",
+    "property-chain",
+];
+
+/// The targets a callee can reach without being handed them: storage on an
+/// object or a class. A callee that reads or writes the slot needs one.
+const REACHABLE_TARGETS: Axis = &[
+    "this-property",
+    "local-property",
+    "static-property",
+    "property-element",
+    "property-chain",
+];
+
+/// What makes the new value from the old: an owning `Core` member with and
+/// without a callback, a Novis function by what it does around its change,
+/// and the three operators that open with their own target.
+const REPLACING_VALUES: Axis = &[
+    "core",
+    "core-callback",
+    "fn-safe",
+    "fn-fails",
+    "fn-reads-before",
+    "fn-reads-after",
+    "fn-writes",
+    "concat",
+    "interpolation",
+    "spread",
+];
+
+/// Where the statement stands: each changes which paths read the target
+/// after the statement.
+const REPLACING_CONTEXTS: Axis = &["straight", "loop", "try", "finally", "generator"];
+
+/// The two kinds of value a replacement changes in place.
+const REPLACED_KINDS: Axis = &["array", "string"];
+
+/// Whether the grammar and the type rules allow the cell, and so whether it
+/// is owed a case.
+///
+/// - `.` and an interpolation make a `string`, and a spread makes an `array`.
+/// - A callee reads or writes only a slot it can reach, so the three `fn-`
+///   values that touch the slot need a target on an object or a class.
+/// - A generator takes no `inout` parameter
+///   (`rule:statements/inout-is-the-by-reference-spelling`).
+fn replacement_is_written(target: &str, value: &str, context: &str, kind: &str) -> bool {
+    let kind_fits = match value {
+        "concat" | "interpolation" => kind == "string",
+        "spread" => kind == "array",
+        _ => true,
+    };
+    let reaches = !matches!(value, "fn-reads-before" | "fn-reads-after" | "fn-writes")
+        || REACHABLE_TARGETS.contains(&target);
+    kind_fits && reaches && !(target == "inout" && context == "generator")
+}
+
+/// Every form of `target = value(target)` the language allows has a
+/// conformance case under `tests/conformance/in-place/`, named
+/// `<target>-<value>-<context>-<kind>.nvst`
+/// (`rule:types/a-replaced-value-is-changed-in-place`).
+///
+/// The matrix is the product of the axes above, less the cells
+/// [`replacement_is_written`] rules out. Each case prints the target after
+/// the statement, and in a `try` after an error too, so the differential
+/// run of `bun nv suite --no-in-place-too` compares every form both ways.
+/// The test fails naming each missing case, and each file in the directory
+/// that names no cell of the matrix.
+#[test]
+fn every_replacement_form_has_a_case() {
+    let dir = nvs_repo::path("tests/conformance/in-place");
+    let mut owed = std::collections::BTreeSet::new();
+    for target in REPLACED_TARGETS {
+        for value in REPLACING_VALUES {
+            for context in REPLACING_CONTEXTS {
+                for kind in REPLACED_KINDS {
+                    if replacement_is_written(target, value, context, kind) {
+                        owed.insert(format!("{target}-{value}-{context}-{kind}.nvst"));
+                    }
+                }
+            }
+        }
+    }
+    let written: std::collections::BTreeSet<String> = std::fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .filter(|name| name.ends_with(".nvst"))
+                .collect()
+        })
+        .unwrap_or_default();
+    let missing: Vec<&String> = owed.difference(&written).collect();
+    // A case the matrix does not name is allowed only when it is not shaped
+    // like a cell: the attack case of stage 8 lives here too.
+    let stray: Vec<&String> = written
+        .difference(&owed)
+        .filter(|name| {
+            REPLACED_TARGETS
+                .iter()
+                .any(|target| name.starts_with(&format!("{target}-")))
+                && REPLACED_KINDS
+                    .iter()
+                    .any(|kind| name.ends_with(&format!("-{kind}.nvst")))
+        })
+        .collect();
+    assert!(
+        missing.is_empty() && stray.is_empty(),
+        "{} of {} replacement forms have no case under {}, and {} case(s) name no form.\n\
+         missing:\n  {}\nnaming no form:\n  {}",
+        missing.len(),
+        owed.len(),
+        dir.display(),
+        stray.len(),
+        missing
+            .iter()
+            .map(|name| name.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  "),
+        stray
+            .iter()
+            .map(|name| name.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  "),
+    );
+}
