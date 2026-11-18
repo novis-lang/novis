@@ -2331,7 +2331,10 @@ fn an_element_of_a_local_array_is_lent() {
         assert!(printed.contains("_owned("), "{body}\n{printed}");
         let sole = printed.find("= array.sole v").expect(&printed);
         let get = printed[sole..].find("array.get v").map(|at| at + sole);
-        assert!(get.is_some(), "the array is sole before the read\n{printed}");
+        assert!(
+            get.is_some(),
+            "the array is sole before the read\n{printed}"
+        );
         assert!(printed.contains("= array.set.lent v"), "{body}\n{printed}");
     }
     for body in [

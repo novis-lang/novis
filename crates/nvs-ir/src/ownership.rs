@@ -1350,8 +1350,7 @@ impl Lend<'_> {
                     set = Some((j, written));
                     break;
                 }
-                if self.uses(again) != 1 + usize::from(retain.is_some())
-                    || self.uses(written) != 1
+                if self.uses(again) != 1 + usize::from(retain.is_some()) || self.uses(written) != 1
                 {
                     return None;
                 }

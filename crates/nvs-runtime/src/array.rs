@@ -5449,7 +5449,10 @@ mod tests {
     fn admits(check: &crate::object::SlotCheck, array: NvsArray) -> Result<(), String> {
         let ptr = array.into_raw();
         let answer = check.admits(Value::from_array_ptr(ptr));
-        #[expect(unsafe_code, reason = "`ptr` is the reference `into_raw` gave up just above")]
+        #[expect(
+            unsafe_code,
+            reason = "`ptr` is the reference `into_raw` gave up just above"
+        )]
         drop(unsafe { NvsArray::from_raw(ptr) });
         answer
     }

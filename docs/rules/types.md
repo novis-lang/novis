@@ -853,13 +853,22 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   itself makes the append copy. A statement that replaces a value with one made from it, such as
   `$x = f($x)`, changes it in place wherever no other holder can see the old one, as
   [`types/a-replaced-value-is-changed-in-place`](types.md#types-a-replaced-value-is-changed-in-place) says.
+- **A typed check of the elements takes one step when the array's tags fit.** Every array keeps
+  the union of the tags of every value ever written into it, and a removal never lowers it. A check
+  that an argument, a property or a callback's parameter is `array<int>`, `array<?string>` or any
+  element type a tag alone decides reads that word, and walks the entries only when it names a tag
+  the type does not admit. So a `reduce` whose carry is an `array<uint>` costs each step its own
+  work, not the carry's length. A write through a nested row's slot makes the word unknown, and the
+  check of that array walks. **What it spends:** one word per array and one OR per write.
 
 **Every key is a `string`.** There is no integer key. One key type means one key domain: which
 subscripts name the same entry is decided once, at the subscript, and nothing later converts a key
 between two kinds.
 
 - `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
-  a counter the array keeps.
+  a counter the array keeps. A `Core\Arr` member whose result keeps the subject's keys keeps that
+  counter too, as `unset` does, whether the subject was shared or not. A list cut only at its end
+  appends at its new length, and `Core\Arr::append` appends one past the largest integer key present.
 - An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is
   `$a["8"]`. That is key normalisation, not a conversion, and needs no `as`. `"08"` stays a distinct
   key from `"8"`.
@@ -953,6 +962,15 @@ between two kinds.
 An array has no internal cursor. A cursor inside a copy-on-write value would be copied with the array,
 so a copy would carry its iteration position. `foreach` and `Core\Arr`'s `first`, `last`, `firstKey` and
 `lastKey` cover every use.
+
+**A list has room at both ends, and a map knows where its live entries start.** Dropping a list's
+first entries releases them and moves its front, and a prepend writes into the room in front and grows
+by doubling where there is none. A map keeps the slot of its first live entry, so `first`, `firstKey`
+and the start of a `foreach` take one step past any number of removed entries. `last` and `lastKey`
+take one step on a list, and on a map walk back past the holes at its end, which compaction bounds.
+The room and the holes are freed when they outnumber the live entries. **Memory:** a word per list and
+per map. A list that was prepended to holds up to twice its entries, and one cut down a step at a time
+up to four times; a list never prepended to or cut holds nothing more.
 
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
