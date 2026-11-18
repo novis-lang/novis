@@ -6,7 +6,7 @@ context: [benches/compare/README.md, website/src/content/docs/in-depth/compare.m
 stages:
   - id: 1
     title: the cases and the feature rows are recorded from a clean tree
-    status: open
+    status: done
     context: [tools/nv/cmd/bench-compare.ts]
   - id: 2
     title: the page says what each figure measures, and its prose has the record's figures
@@ -90,16 +90,16 @@ the programs, the settings or the page's ranking changes to improve one.
 **Split:** an `Explore` subagent first reports how `website/src/data/compare.json` is made from
 `benches/compare.json`, as the command and its `path:line`.
 
-- [ ] `git worktree add --detach .agent-tmp/worktrees/compare HEAD`, then `bun install` in it.
-- [ ] In the worktree, `bun nv bench-compare --record benches/compare.json`, then
+- [x] `git worktree add --detach .agent-tmp/worktrees/compare HEAD`, then `bun install` in it.
+- [x] In the worktree, `bun nv bench-compare --record benches/compare.json`, then
   `bun nv bench-compare --scenarios --record benches/compare.json`. Each is the item's own run.
-- [ ] Copy the worktree's `benches/compare.json` over the tree's, and bring the website's copy up to
+- [x] Copy the worktree's `benches/compare.json` over the tree's, and bring the website's copy up to
   date with the command the subagent named.
-- [ ] Read the record's two `commit` values, and confirm with `git cat-file -e <commit>:<path>` that
+- [x] Read the record's two `commit` values, and confirm with `git cat-file -e <commit>:<path>` that
   neither goal file exists at either. Write both commits into `### State`.
-- [ ] In the tree, `bun nv bench-compare --direct` once. Write the three peers' CPU per request into
+- [x] In the tree, `bun nv bench-compare --direct` once. Write the three peers' CPU per request into
   `### State`.
-- [ ] `git worktree remove .agent-tmp/worktrees/compare`, never with a forced form.
+- [x] `git worktree remove .agent-tmp/worktrees/compare`, never with a forced form.
 
 ### 2. the page says what each figure measures, and its prose has the record's figures
 
@@ -123,14 +123,39 @@ the programs, the settings or the page's ranking changes to improve one.
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person. Their calls: Go's low figure on the HTML
-page looked like a benchmark bug to them, and nothing else is given up to improve these cases. The
-wording of the page's two additions, and every other choice in § *Standing decisions*, is the
-authoring session's call. Nothing is recorded yet.
+Stage 1 is done in one recording. `benches/compare.json` is the run, and `bun nv render --website`
+(`tools/nv/renderers/website-compare.ts:16`) wrote `website/src/data/compare.json` from it. Both of
+the record's `commit` values, the cases' and the rows' (`scenarios.commit`), are `068051b52c`, and
+neither `request-fixed-cost.md` nor `json-one-touch.md` exists at it.
+
+Cases, requests/s with p99 ms, one cpu per backend:
+
+| case | Novis | PHP | Bun | Go |
+|---|---|---|---|---|
+| hello | 34,600 / 5.4 | 8,456 / 82.8 | 36,700 / 4.6 | 38,458 / 3.6 |
+| json-api | 19,071 / 15.9 | 5,457 / 91.2 | 29,465 / 10.6 | 19,390 / 7.4 |
+| html-page | 12,707 / 14.7 | 4,894 / 89.7 | 21,265 / 8.6 | 3,651 / 43.0 |
+| wait | 13,093 / 437 | 3,730 / 1,392 | 13,994 / 406 | 13,743 / 407 |
+
+Novis is third on `hello` and `json-api` (2% behind Go), second on `html-page`; no row failed.
+
+`bun nv bench-compare --direct`, CPU per request (user + system):
+
+| case | Novis | Bun | Go |
+|---|---|---|---|
+| json-api | 35.1 µs (26.2 + 8.8) | 16.5 µs (7.4 + 9.2) | 45.1 µs (27.8 + 17.3) |
+| html-page | 56.2 µs (45.4 + 10.8) | 34.8 µs (21.2 + 13.5) | 244.7 µs (212.2 + 32.6) |
+
+The direct run also measured `hello`, but this session kept only the output's last lines, and that
+line was cut. Stage 2 needs only `html-page`. Go's 244.7 µs on `html-page` agrees with the
+290 µs that § *Why* measured for `html/template`.
 
 ### Next
 
-Stage 1, once its gate holds.
+Stage 2: `website/src/lib/compare.ts:59` and `website/src/content/docs/in-depth/compare.mdx:68` gain
+the two additions, and every figure and ranking in their prose is checked against the tables above.
+Then `benches/compare/README.md:64` gains the `html/template` sentence: about 245 µs of CPU for each
+page measured directly, against 35 µs for Bun.
 
 ### Backlog
 
