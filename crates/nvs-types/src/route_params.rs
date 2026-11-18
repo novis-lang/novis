@@ -51,11 +51,7 @@ pub struct RouteSlots {
 /// `Target` — every signature that marks nothing. A mark
 /// [`check_marker_sites`] refuses is never read here: the program does not
 /// compile, so what the slots say about it is never used.
-pub(crate) fn declared_slots(
-    params: &[Param],
-    ctx: &Ctx<'_>,
-    env: &Env<'_>,
-) -> Option<RouteSlots> {
+pub(crate) fn declared_slots(params: &[Param], ctx: &Ctx<'_>, env: &Env<'_>) -> Option<RouteSlots> {
     let marked = |name: &str| {
         params.iter().position(|param| {
             !param.is_promoted()
@@ -133,12 +129,16 @@ enum Mark {
 /// mark cannot be read from.
 fn check_param(param: &Param, attr: &Attribute, mark: Mark, env: &mut Env<'_>) {
     let (written, wanted, fits): (&str, &str, fn(&TypeAtom) -> bool) = match mark {
-        Mark::Target => ("#[Core\\Router\\Target]", "a route is a `callable`", |atom| {
-            matches!(atom, TypeAtom::Callable | TypeAtom::CallableSig { .. })
-        }),
-        Mark::Params => ("#[Core\\Router\\Params]", "route values are an `array`", |atom| {
-            matches!(atom, TypeAtom::Array(_))
-        }),
+        Mark::Target => (
+            "#[Core\\Router\\Target]",
+            "a route is a `callable`",
+            |atom| matches!(atom, TypeAtom::Callable | TypeAtom::CallableSig { .. }),
+        ),
+        Mark::Params => (
+            "#[Core\\Router\\Params]",
+            "route values are an `array`",
+            |atom| matches!(atom, TypeAtom::Array(_)),
+        ),
     };
     let name = strip_sigil(span_text(env.src, param.name)).to_owned();
     if param.variadic {
@@ -202,7 +202,8 @@ fn is_nullable(ty: &Type, fits: fn(&TypeAtom) -> bool) -> bool {
         TypeKind::Union(members) => {
             members.iter().any(|member| is_nullable(member, fits))
                 && members.iter().all(|member| {
-                    is_nullable(member, fits) || matches!(member.kind, TypeKind::Atom(TypeAtom::Null))
+                    is_nullable(member, fits)
+                        || matches!(member.kind, TypeKind::Atom(TypeAtom::Null))
                 })
         }
         _ => false,

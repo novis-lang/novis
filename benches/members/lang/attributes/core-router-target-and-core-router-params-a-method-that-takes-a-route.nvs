@@ -20,7 +20,8 @@ class Links
     public static function to(
         #[Core\Router\Target] callable $route,
         #[Core\Router\Params] array<mixed> $params,
-    ): string {
+    ): string
+    {
         return Core\Router::url($route, $params);
     }
 }

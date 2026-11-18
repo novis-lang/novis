@@ -1108,8 +1108,11 @@ impl SymbolIndex {
             return;
         }
         // In the order the graph loaded them, which is the serial analysis's.
-        let order: FxHashMap<&PathBuf, usize> =
-            reads.iter().enumerate().map(|(at, key)| (key, at)).collect();
+        let order: FxHashMap<&PathBuf, usize> = reads
+            .iter()
+            .enumerate()
+            .map(|(at, key)| (key, at))
+            .collect();
         records.sort_by_key(|(key, _)| order.get(key).copied().unwrap_or(usize::MAX));
         self.merge(Analysis {
             entry: entry.to_path_buf(),
@@ -1514,16 +1517,15 @@ impl SymbolIndex {
     ) -> Option<Analysed> {
         let (mut session, mut trees) = documents.caches();
         let files = &self.files;
-        let (analysed, analysis) =
-            analyse_entry(
-                documents,
-                &mut session,
-                &mut trees,
-                entry,
-                version,
-                |key| files.contains_key(key),
-                true,
-            )?;
+        let (analysed, analysis) = analyse_entry(
+            documents,
+            &mut session,
+            &mut trees,
+            entry,
+            version,
+            |key| files.contains_key(key),
+            true,
+        )?;
         drop((session, trees));
         self.merge(analysis);
         Some(analysed)

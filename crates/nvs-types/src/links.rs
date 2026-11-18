@@ -291,7 +291,16 @@ pub(crate) fn record_site(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    record(call, SiteKind::Link, member, CORE_SLOTS, args, slots, ctx, env);
+    record(
+        call,
+        SiteKind::Link,
+        member,
+        CORE_SLOTS,
+        args,
+        slots,
+        ctx,
+        env,
+    );
 }
 
 /// Records one call of `owner::method`, whose signature `sig` has a
@@ -1200,9 +1209,8 @@ mod tests {
             std::fs::write(path, text).expect("write a file");
         }
         let entry = dir.join("main.nvs");
-        let src = format!(
-            "<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n{roots}\n{body}"
-        );
+        let src =
+            format!("<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n{roots}\n{body}");
         std::fs::write(&entry, src).expect("write the entry");
 
         let mut map = SourceMap::new();
@@ -1446,7 +1454,11 @@ mod tests {
             roots,
             &files,
         );
-        assert!(!good.diags.has_errors(), "a good call failed: {:?}", good.diags);
+        assert!(
+            !good.diags.has_errors(),
+            "a good call failed: {:?}",
+            good.diags
+        );
         let bad = check_with(
             &format!("{LINKS}Links::entry(Blog\\Pages::show, []);\n"),
             roots,

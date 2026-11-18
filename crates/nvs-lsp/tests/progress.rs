@@ -293,7 +293,8 @@ fn a_client_that_does_not_show_progress_is_sent_none() {
 fn an_edit_that_queues_entries_after_the_start_begins_a_run_of_its_own() {
     let (dir, params) = workspace("edit", true);
     let library = dir.join("a.nvs");
-    let text = "<?nvs\nclass A\n{\n    public function f(): int\n    {\n        return 1;\n    }\n}\n";
+    let text =
+        "<?nvs\nclass A\n{\n    public function f(): int\n    {\n        return 1;\n    }\n}\n";
     fs::write(&library, text).expect("a fixture file");
     fs::write(
         dir.join("b.nvs"),

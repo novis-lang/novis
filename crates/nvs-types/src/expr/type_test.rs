@@ -356,16 +356,12 @@ fn reject_unanswerable_target(
     }
     // A key, a path and a string with holes are a plain string at run time,
     // so `is` has no row for them either. `as ?` checks the text instead.
-    let checked_text = env
-        .interner
-        .union_members(tested)
-        .into_iter()
-        .find(|&m| {
-            matches!(
-                env.interner.get(m),
-                Ty::PropertyKey(_) | Ty::PropertyPath(_) | Ty::StringHoles { .. }
-            )
-        });
+    let checked_text = env.interner.union_members(tested).into_iter().find(|&m| {
+        matches!(
+            env.interner.get(m),
+            Ty::PropertyKey(_) | Ty::PropertyPath(_) | Ty::StringHoles { .. }
+        )
+    });
     if let Some(member) = checked_text {
         let described = env.interner.describe(member);
         env.diags.report(

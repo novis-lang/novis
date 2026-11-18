@@ -3538,7 +3538,9 @@ hole may contain: `property<T>`, `propertyPath<T>`, or a set of strings such as 
 string written in a call to a `string<K>` parameter is checked when the program compiles. `as` checks
 any other string while the program runs, and throws an error if a hole is wrong.
 
-**Good to know:** `{{` is one `{` and `}}` is one `}`. Only the holes are checked. A tainted string
+**Good to know:** a parameter such as `string<propertyPath<Order>>|Filter` takes a string or a
+`Filter` object. A string written there is checked too. `{{` is one `{` and `}}` is one `}`. Only the
+holes are checked. A tainted string
 (text from outside the program) stays tainted after `as string<K>`, so a condition from a request
 cannot be the text of a database query. `Core\Str::parts` splits the string into its text and holes.
 
@@ -3558,6 +3560,11 @@ strings is the error `E0861`. The error points at the wrong hole.
 
 Only a parameter takes a string literal with no `as`. A local variable typed `string<K>` needs `as`
 for a literal too, or the program does not compile (`E0401`).
+
+A parameter can be a union of `string<K>` and other types, such as `string<propertyPath<Order>>|Filter`.
+A string literal there is checked as a `string<K>`. This works when `string<K>` is the only type in the
+union that takes a string. If the union also has `string`, `mixed` or a second `string<K>`, the literal
+is a plain `string`.
 
 `as` checks any other string while the program runs. If a hole is wrong, it throws a
 `RuntimeError`, and the message names the hole and what is wrong with it. `as ?string<K>` gives

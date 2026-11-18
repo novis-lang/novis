@@ -235,7 +235,13 @@ pub fn check_program_partial(
         packages,
         extensions,
     };
-    check_files(&inputs, Some((bodies, absent, cache)), interner, exprs, diags)
+    check_files(
+        &inputs,
+        Some((bodies, absent, cache)),
+        interner,
+        exprs,
+        diags,
+    )
 }
 
 /// The inputs [`check_program_loaded`] and [`check_program_partial`] share,
