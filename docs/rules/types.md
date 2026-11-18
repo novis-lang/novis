@@ -759,6 +759,11 @@ to the language.
   ([`attributes/inert-metadata`](attributes.md#attributes-inert-metadata)), so enforcing one would be a second checking pass beside the
   type checker. It would also lose what a real type has: narrowing, the checked `as`, and static
   knowledge for code generation.
+- **A type or marker for a set the configuration lists**, such as the database connection names in
+  `nvs.toml`, at a parameter or an attribute field. Whether the program compiles would then depend on
+  the settings file of each deployment, and not on its source. A set the program fixes is a union of
+  single-value strings, and an attribute's shape names one like any other type
+  ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
 - **A `oneof(…)` or `literal(…)` type constructor.** The union syntax and its canonicalisation
   already exist and single-value atoms compose with them, so a keyword would be a second way to write
   a set of allowed values ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
