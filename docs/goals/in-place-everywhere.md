@@ -426,7 +426,9 @@ after the change, so a change made in place on a value the consumer still has sh
 literal written in a `foreach` header has `mixed` items, so a loop uses `as var $x` or a typed local.
 Arrays are `array<int>` joined with `,` to print. Each case
 is 15 to 35 lines, cites `rule:types/a-replaced-value-is-changed-in-place` in its `--TEST--` line,
-passes under `nvs test` and `nvs test --no-in-place` by path, and runs no `cargo`.
+passes under `nvs test` and `nvs test --no-in-place` by path, and runs no `cargo`. A block-body
+anonymous function is `callable $f = fn(): string => { …; return …; };`, and a plain `callable` call
+gives `mixed`, so a generator that yields one declares `callable(): string $f`.
 
 ## Stages
 
@@ -458,7 +460,7 @@ disjoint and they run side by side. The session runs the test once all batches e
 - [ ] The cases, through the subagents: 689 cells. Each batch's brief is § *Standing decisions*'
   **The case brief**, written to a scratch file the subagents read.
   - [x] `local` and `parameter` (110 cases)
-  - [ ] `inout` and `captured` (44 and 55; no `inout` in a generator)
+  - [x] `inout` and `captured` (44 and 55; no `inout` in a generator)
   - [ ] `this-property` and `local-property` (85 each)
   - [ ] `static-property` and `element` (85 and 55)
   - [ ] `property-element` and `property-chain` (85 each), then the test is green
@@ -580,32 +582,29 @@ the carry of a `Core\Arr::reduce` callback, a by-value loop that writes only the
 generator's local after a resume. The person agreed to add the first three; the fourth was measured
 after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
 
-Session of 2026-11-18. The sweep's two reds were stale: `env-secret-proofs` has no log and was last
-named by `route-parameters`' retire commit, and the nightly `supply chain` run predates `0fe2fdef25`,
-which removed chrono. Stage 1's first three items landed: the designed rule
-`rule:types/a-replaced-value-is-changed-in-place` (`f2a676192e`), the hidden `--no-in-place` and
-`bun nv suite --no-in-place-too` (`bdb63ad386`), and `every_replacement_form_has_a_case`
-(`157a84b101`), which owes 689 cells. The `local` and `parameter` cells are written, 110 cases, each
-green under `nvs test` and `nvs test --no-in-place` (`92eebe1ad5`). Eight writing subagents took one
-target, one kind and two or three contexts each, about 37k tokens apiece.
-
-Every subagent found that `foreach ([1, 2, 3] as int $x)` does not compile: E0401 says a literal in a
-`foreach` header has `mixed` items. That is not this goal's; see § *Backlog*.
+Stage 1 has its rule (`f2a676192e`), the switch (`bdb63ad386`) and the matrix test (`157a84b101`,
+689 cells). The `local`, `parameter`, `inout` and `captured` cells are written, 209 cases, each green
+both ways (`92eebe1ad5`, `1b024fd514`); none printed differently. The sweep's two reds are stale:
+`env-secret-proofs` was last named by `route-parameters`' retire commit, and the nightly's head lacks
+`0fe2fdef25`. An `inout` callee that throws writes nothing back, so `inout-*-try-*` print the old value.
 
 ### Next
 
-Stage 1's last item, from the checkpoint `inout` and `captured`. Write the brief from § *Standing
-decisions*' **The case brief** to `.agent-tmp/in-place-brief.md`, adding the run commands
-(`target/debug/nvs.exe test <paths>` and the same with `--no-in-place`, no `cargo`, no commit) and a
-report of at most 15 lines. Send one writing subagent per target, kind and two or three contexts, as
-this session did: about 15 cases each. `every_replacement_form_has_a_case` lists what is missing.
-After the five property-like targets, the `fn-reads-before`, `fn-reads-after` and `fn-writes` values
-need a Novis method that reads or writes the same property or static property.
-Expect `every_replacement_form_has_a_case` to stay red until the last checkpoint. Stage 2 can run
-beside stage 1.
+Stage 1's last item, from the checkpoint `this-property` and `local-property` (85 each). Write the
+brief from § *Standing decisions*' **The case brief** to `.agent-tmp/in-place-brief.md`, adding the
+run commands (`target/debug/nvs.exe test <paths>` and the same with `--no-in-place`, no `cargo`, no
+commit), the file names of each batch, and a report of at most 15 lines. Send about six writing
+subagents per checkpoint, one target and one or two values each, 15 to 25 cases apiece; that fit
+in about 45k tokens per subagent. The `fn-reads-before`, `fn-reads-after` and `fn-writes` values need
+a Novis method that reads or writes the same property or static property while it changes its
+parameter. `every_replacement_form_has_a_case` lists what is missing, and stays red until the last
+checkpoint. Stage 2 can run beside stage 1.
 
 ### Backlog
 
 - `foreach ([1, 2, 3] as int $x)` is E0401 because the literal's items are `mixed`. An element type
   inferred from the literal would accept it. Whether the checker should infer it belongs to a goal on
   `var` inference, not this one.
+- `$f() as string` on a plain `callable`'s `mixed` result is E0401 "expected `string`, found `tainted
+  string`". A `mixed` with no taint should not convert to a tainted string. It belongs to a goal on
+  taint, not this one.
