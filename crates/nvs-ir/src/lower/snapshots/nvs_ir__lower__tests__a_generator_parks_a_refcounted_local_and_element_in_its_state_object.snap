@@ -52,8 +52,7 @@ fn G::two$gen::advance(object) -> bool {
     release v0
     return v16
   bb4:
-    v8 = field.get v0, G::two$gen::tag  ; string
-    retain v8
+    v8 = field.take v0, G::two$gen::tag  ; string
     ; stmt s2 @6:5-6:16
     retain v8
     v9 = field.get v0, G::two$gen::gen#current  ; string
@@ -70,8 +69,7 @@ fn G::two$gen::advance(object) -> bool {
     v12 = const.bool true  ; bool
     return v12
   bb5:
-    v13 = field.get v0, G::two$gen::tag  ; string
-    retain v13
+    v13 = field.take v0, G::two$gen::tag  ; string
     v14 = const.int -1  ; int
     field.set v0, G::two$gen::gen#state, v14
     release v0

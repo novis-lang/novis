@@ -466,8 +466,9 @@ type At = (usize, usize);
 
 /// What a call's move does once the check passes.
 enum Move {
-    /// A Novis callee: remove this retain.
-    Novis { retain: At },
+    /// A Novis callee: remove this retain, and the release of it in each
+    /// landing between it and the call ([`staged_retain`]).
+    Novis { retain: At, landings: Vec<At> },
     /// An owning `Core` member: call this symbol instead.
     Core { owned: &'static str },
     /// A literal's first spread: take the subject's reference
@@ -587,8 +588,9 @@ fn run_function(
                 };
                 removed.extend(releases);
                 match how {
-                    Move::Novis { retain } => {
+                    Move::Novis { retain, landings } => {
                         removed.insert(retain);
+                        removed.extend(landings);
                     }
                     Move::Core { owned } => {
                         if let InstKind::CoreCall { symbol, .. } = &mut f.blocks[b].insts[c].kind {
@@ -1633,11 +1635,12 @@ fn candidates(
                     receiver != &Some(value) && args.iter().filter(|&&a| a == value).count() == 1
                 })
                 .filter_map(|&value| {
-                    let retain = retain_before(insts, c, value, b, removed)?;
+                    let (retain, landings) = staged_retain(f, b, c, value, removed)?;
                     Some((
                         value,
                         Move::Novis {
                             retain: (b, retain),
+                            landings,
                         },
                     ))
                 })
@@ -1668,12 +1671,13 @@ fn candidates(
             if mentions != 1 {
                 return Vec::new();
             }
-            retain_before(insts, c, value, b, removed)
-                .map(|retain| {
+            staged_retain(f, b, c, value, removed)
+                .map(|(retain, landings)| {
                     vec![(
                         value,
                         Move::Novis {
                             retain: (b, retain),
+                            landings,
                         },
                     )]
                 })
@@ -1719,6 +1723,82 @@ fn retain_before(
     None
 }
 
+/// The retain of `value` the lowering staged before the call at `(b, c)`,
+/// and the release of it in the landing of each instruction between the two
+/// that can fail. A later argument that can fail, as in `f($s, $n - 1)`,
+/// sits there. Its landing must be reached by that instruction alone and
+/// release `value` twice, once for the retain and once for the variable, so
+/// removing the retain and one of those releases leaves the variable's.
+/// `None` when something between reads `value`, or a landing is not that.
+fn staged_retain(
+    f: &Function,
+    b: usize,
+    c: usize,
+    value: ValueId,
+    removed: &FxHashSet<At>,
+) -> Option<(usize, Vec<At>)> {
+    let insts = &f.blocks[b].insts;
+    let mut landings = Vec::new();
+    for i in (0..c).rev() {
+        if removed.contains(&(b, i)) {
+            continue;
+        }
+        let inst = &insts[i];
+        if let InstKind::Retain { operand } = inst.kind
+            && operand == value
+        {
+            return Some((i, landings));
+        }
+        if reads(&inst.kind, value) {
+            return None;
+        }
+        if let Some(landing) = inst.on_error {
+            landings.push(staged_release(f, landing, value, removed)?);
+        }
+    }
+    None
+}
+
+/// The first release of `value` in `landing`, when one error edge alone
+/// reaches it and it releases `value` at least twice.
+fn staged_release(
+    f: &Function,
+    landing: crate::ids::BlockId,
+    value: ValueId,
+    removed: &FxHashSet<At>,
+) -> Option<At> {
+    let edges: usize = f
+        .blocks
+        .iter()
+        .map(|block| {
+            block
+                .insts
+                .iter()
+                .filter(|inst| inst.on_error == Some(landing))
+                .count()
+                + terminator_targets(&block.term)
+                    .iter()
+                    .filter(|&&target| target == landing)
+                    .count()
+        })
+        .sum();
+    if edges != 1 {
+        return None;
+    }
+    let lb = f.blocks.iter().position(|block| block.id == landing)?;
+    let releases: Vec<usize> = f.blocks[lb]
+        .insts
+        .iter()
+        .enumerate()
+        .filter(|&(i, inst)| {
+            !removed.contains(&(lb, i))
+                && matches!(inst.kind, InstKind::Release { operand } if operand == value)
+        })
+        .map(|(i, _)| i)
+        .collect();
+    (releases.len() >= 2).then(|| (lb, releases[0]))
+}
+
 /// Whether `kind` reads `value`.
 fn reads(kind: &InstKind, value: ValueId) -> bool {
     let mut found = false;
@@ -1738,7 +1818,8 @@ struct Walk<'a> {
 impl Walk<'_> {
     /// Every release of the value on the paths from the call, or `None` when a
     /// path reads it another way, releases it twice or ends without releasing
-    /// it. `error_edge` says whether the call's own error edge is one of
+    /// it. A path that comes back to the value's own definition, as a loop's
+    /// back edge to its header phi does, ends there. `error_edge` says whether the call's own error edge is one of
     /// those paths: it is for a Novis callee, which owns its arguments on
     /// every path.
     ///
@@ -1754,9 +1835,18 @@ impl Walk<'_> {
         if error_edge && let Some(landing) = self.f.blocks[cb].insts[ci].on_error {
             self.edge(cb, landing, 0, &mut seen, &mut work)?;
         }
-        while let Some((b, start, mut released)) = work.pop() {
+        'paths: while let Some((b, start, mut released)) = work.pop() {
             let block = &self.f.blocks[b];
             for (i, inst) in block.insts.iter().enumerate().skip(start) {
+                if inst.result == Some(self.value) {
+                    // A loop's back edge reached the value's definition: every
+                    // read from here on is of the next value, so the path ends,
+                    // and it must have released this one as a return must.
+                    if released < need {
+                        return None;
+                    }
+                    continue 'paths;
+                }
                 if self.removed.contains(&(b, i)) || matches!(inst.kind, InstKind::Phi { .. }) {
                     continue;
                 }
@@ -1846,6 +1936,11 @@ impl Walk<'_> {
         'paths: while let Some((b, start, _)) = work.pop() {
             let block = &self.f.blocks[b];
             for (i, inst) in block.insts.iter().enumerate().skip(start) {
+                if inst.result == Some(self.value) {
+                    // The value's definition, reached again with no release
+                    // on the way: the path ends without releasing it.
+                    return None;
+                }
                 if self.removed.contains(&(b, i)) || matches!(inst.kind, InstKind::Phi { .. }) {
                     continue;
                 }

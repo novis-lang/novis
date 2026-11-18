@@ -1,20 +1,23 @@
 ---
 source: crates/nvs-ir/src/lower/tests.rs
-expression: "print_function(&f, map.file(file))"
+expression: "print_shipped_method(\"<?nvs\\nclass T {\\n  public string $p = \\\"\\\";\\n  function m(): void {\\n    \\\n             $this->p .= \\\"x\\\";\\n  }\\n}\\n\",)"
 ---
-fn m(object) -> void {
+fn T::m(object) -> void {
   bb0:
     v0 = param 0  ; object
     safepoint
     ; stmt s0 @5:5-5:21
     v1 = const.str "x"  ; string
     v2 = field.get v0, T::p  ; string
+    lend.poison v0, T::p
+    lend.restore v0, T::p
     v3 = str.append v2, v1  ; string
+    lend.poison v0, T::p
     field.set v0, T::p, v3
     release v1
     release v0
     return
   bb1:
     release v0
-    propagate "m() at t.nvs:1"
+    propagate "T::m() at t.nvs:1"
 }

@@ -1957,14 +1957,14 @@ fn appending_to_a_string_local_appends_in_place_rather_than_concatenating() {
 /// `$this->p .= "x";` on a plain `string` property is load, append, store:
 /// the suffix is lowered first, then `field.get` reads the slot,
 /// `str.append` grows it, and `field.set` writes it back, with no retain,
-/// no `concat` and no second read of the slot.
+/// no `concat` and no second read of the slot. The ownership pass lends the
+/// slot, so a debug build also poisons it around the append.
 #[test]
 fn appending_to_a_plain_property_grows_it_in_place() {
-    let (f, map, file) = lower_first_method(
+    assert_snapshot!(print_shipped_method(
         "<?nvs\nclass T {\n  public string $p = \"\";\n  function m(): void {\n    \
              $this->p .= \"x\";\n  }\n}\n",
-    );
-    assert_snapshot!(print_function(&f, map.file(file)));
+    ));
 }
 
 /// `unset($a[0]);` — the other subscript that renders.
@@ -2057,13 +2057,20 @@ fn a_value_read_after_on_one_path_keeps_its_retain() {
 }
 
 /// A Novis callee owns its argument on its error exit, so a `catch` that
-/// reads the value keeps the retain. An owning `Core` member leaves its
-/// subject with the caller on an error, so the same `catch` does not stop it.
+/// reads the value keeps it: the value is not moved, and the known callee
+/// takes it lent, through its lent body, which never frees it. An owning
+/// `Core` member leaves its subject with the caller on an error, so the same
+/// `catch` does not stop a move into it.
 #[test]
 fn a_value_a_catch_reads_is_kept_on_the_error_edge() {
     let kept = "    try {\n      $xs = T::f($xs);\n    } catch (Throwable $e) {\n      return $xs;\n    }\n    return $xs;";
     let printed = lower_moves(kept, XS);
-    assert!(printed.contains("retain v"), "{printed}");
+    let m = function_named(&printed, "T::m");
+    assert!(m.contains("call T::f#lent1("), "{m}");
+    assert!(
+        !m.contains("call T::f("),
+        "the plain body would free it: {m}"
+    );
     let moved = "    try {\n      $xs = Core\\Arr::slice($xs, 1);\n    } catch (Throwable $e) {\n      return $xs;\n    }\n    return $xs;";
     let printed = lower_moves(moved, XS);
     assert!(printed.contains("slice_owned"), "{printed}");
@@ -2992,6 +2999,30 @@ fn a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy() {
     );
 }
 
+/// A call that may throw after the change, and can move above it, warns with
+/// `W1033`, its span on the change and a second label on the call.
+#[test]
+fn a_failure_after_the_change_warns_with_its_own_code() {
+    let src = "<?nvs\nfinal class T {\n  public array<int> $p = [];\n  \
+               public function add(array<int> $items, int $x): array<int> {\n    \
+               $items[] = $x;\n    $this->check($x);\n    return $items;\n  }\n  \
+               private function check(int $x): void {\n    \
+               if ($x > 5) { throw new LogicError('no'); }\n  }\n  \
+               public function m(int $x): void {\n    \
+               $this->p = $this->add($this->p, $x);\n  }\n}\n";
+    let (program, map, _) = lower_whole_file_with_src(src);
+    let warnings = crate::copies::warnings(&program.copies, &map);
+    assert_eq!(warnings.len(), 1, "{warnings:#?}");
+    let warning = &warnings[0];
+    assert_eq!(
+        warning.code,
+        Some(nvs_diagnostics::code::W_COPY_FAILURE_AFTER_CHANGE)
+    );
+    let line = |span: nvs_diagnostics::Span| src[..span.start as usize].matches('\n').count() + 1;
+    assert_eq!(line(warning.primary_span().expect("a primary label")), 5);
+    assert_eq!(line(warning.labels[1].span), 6);
+}
+
 /// A callee that writes the slot it would be lent keeps the call's retain:
 /// its write cannot free the array it is changing, and the caller's store
 /// still releases the slot's old value.
@@ -3154,12 +3185,13 @@ fn a_second_write_reads_the_array_the_first_one_yielded() {
 /// back to. The yielded array goes straight into the property slot with a
 /// bare `field.set` and no retain or release: the reference the write
 /// consumed was the slot's own, and the one it produced replaces it there.
+/// The ownership pass lends the slot, so a debug build also poisons it
+/// around the write.
 #[test]
 fn writing_an_element_through_a_property_base_stores_the_result_back() {
-    let (f, map, file) = lower_first_method(
+    assert_snapshot!(print_shipped_method(
         "<?nvs\nclass T {\n  public array<int> $rows;\n  function m(): void {\n    $this->rows[0] = 5;\n  }\n  function constructor() { $this->rows = []; }\n}\n",
-    );
-    assert_snapshot!(print_function(&f, map.file(file)));
+    ));
 }
 
 /// `$grid[0][1] = 5;` lowers to one `array_write_through`, whose result is
@@ -3542,6 +3574,19 @@ fn lower_whole_file_with_src(src: &str) -> (crate::ir::Program, SourceMap, Sourc
         &layouts,
     );
     (program, map, file)
+}
+
+/// `T::m` of the whole program `src`, after the ownership pass, printed: the
+/// shape the compiler ships, which `lower_first_method` does not run the pass
+/// to show.
+fn print_shipped_method(src: &str) -> String {
+    let (program, map, file) = lower_whole_file_with_src(src);
+    let f = program
+        .functions
+        .iter()
+        .find(|f| f.name == "T::m")
+        .expect("the fixture has a `T::m`");
+    print_function(f, map.file(file))
 }
 
 /// The class table is carried straight through from `nvs-types`, sorted
