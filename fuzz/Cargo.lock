@@ -1916,6 +1916,7 @@ dependencies = [
  "blake3",
  "nvs-diagnostics",
  "nvs-render",
+ "nvs-stdlib",
  "nvs-syntax",
  "nvs-types",
  "rustc-hash",
