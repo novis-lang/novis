@@ -76,9 +76,7 @@ impl OwnedSubject for NvsArray {
                   handle now owns"
     )]
     unsafe fn take(value: &Value) -> Option<Self> {
-        value
-            .array_ptr()
-            .map(|ptr| unsafe { Self::from_raw(ptr) })
+        value.array_ptr().map(|ptr| unsafe { Self::from_raw(ptr) })
     }
 
     fn share(value: &Value) -> Option<Self> {
@@ -109,9 +107,7 @@ impl OwnedSubject for NvsStr {
                   handle now owns"
     )]
     unsafe fn take(value: &Value) -> Option<Self> {
-        value
-            .buffer_ptr()
-            .map(|ptr| unsafe { Self::from_raw(ptr) })
+        value.buffer_ptr().map(|ptr| unsafe { Self::from_raw(ptr) })
     }
 
     fn share(value: &Value) -> Option<Self> {

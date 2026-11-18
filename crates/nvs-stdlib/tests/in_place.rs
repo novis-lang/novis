@@ -136,7 +136,11 @@ fn an_owning_helper_leaves_a_refused_subject_with_its_caller() {
     let refused = call(repeat, &mut ctx, &[passed, Value::uint(u64::MAX)]);
     assert_eq!(refused.err(), Some(THROWN));
     drop(ctx.take_pending());
-    assert_eq!(kept.refcount(), 2, "a refused call leaves the subject with its caller");
+    assert_eq!(
+        kept.refcount(),
+        2,
+        "a refused call leaves the subject with its caller"
+    );
     assert_eq!(passed.as_text(), Some("ab"));
     #[expect(
         unsafe_code,
@@ -152,8 +156,15 @@ fn an_owning_helper_leaves_a_refused_subject_with_its_caller() {
     let result = call(repeat, &mut ctx, &[passed, Value::uint(2)]);
     let result = result.unwrap_or_else(|status| panic!("repeat returned status {status}"));
     assert_eq!(result.as_text(), Some("abab"));
-    assert_eq!(kept.refcount(), 1, "a call that succeeds consumes the subject it was passed");
-    #[expect(unsafe_code, reason = "the result carries one fresh reference the caller owns")]
+    assert_eq!(
+        kept.refcount(),
+        1,
+        "a call that succeeds consumes the subject it was passed"
+    );
+    #[expect(
+        unsafe_code,
+        reason = "the result carries one fresh reference the caller owns"
+    )]
     unsafe {
         result.release();
     }

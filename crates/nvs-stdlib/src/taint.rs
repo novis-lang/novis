@@ -148,9 +148,7 @@ const ASSERT_TRUSTED_BYTES_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     match symbol {
         "nvs_core_taint_assert_trusted" => Some(nvs_core_taint_assert_trusted::entry()),
-        "nvs_core_taint_assert_trusted_bytes" => {
-            Some(nvs_core_taint_assert_trusted_bytes::entry())
-        }
+        "nvs_core_taint_assert_trusted_bytes" => Some(nvs_core_taint_assert_trusted_bytes::entry()),
         _ => None,
     }
 }

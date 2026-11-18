@@ -2296,7 +2296,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_arr_without_first" => return Some(nvs_core_arr_without_first::entry()),
         "nvs_core_arr_without_last" => return Some(nvs_core_arr_without_last::entry()),
         "nvs_core_arr_without_null" => return Some(nvs_core_arr_without_null::entry()),
-        "nvs_core_arr_from_keys_and_values" => return Some(nvs_core_arr_from_keys_and_values::entry()),
+        "nvs_core_arr_from_keys_and_values" => {
+            return Some(nvs_core_arr_from_keys_and_values::entry());
+        }
         "nvs_core_arr_from" => (nvs_core_arr_from as *const ()).cast(),
         "nvs_core_arr_pad_start" => return Some(nvs_core_arr_pad_start::entry()),
         "nvs_core_arr_pad_end" => return Some(nvs_core_arr_pad_end::entry()),
