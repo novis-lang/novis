@@ -1317,6 +1317,16 @@ impl PartialEq for NvsStr {
 
 impl Eq for NvsStr {}
 
+/// Hashes the digest an array index files this string under, so a set of
+/// keys hashes each string's bytes once, and an array index built from the
+/// same keys reads the cached word. Equal bytes give an equal digest, which
+/// is what [`PartialEq`] above needs.
+impl std::hash::Hash for NvsStr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u64(KeyRef::of(self).digest());
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The primitives compiled code calls
 // ---------------------------------------------------------------------------

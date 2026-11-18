@@ -2613,12 +2613,16 @@ nvs_runtime::nvs_helper! {
     /// released as soon as its bytes are read.
     ///
     /// `check` calls the callback for every entry and keeps the new keys. A
-    /// sole subject then takes them in its own storage, and its index is
-    /// rebuilt in the same table. A shared one builds the result.
+    /// key named twice is kept once, and both entries share it, so what
+    /// `check` holds is bounded by the result's distinct keys. A sole subject
+    /// then takes them in its own storage, and its index is rebuilt in the
+    /// same table. A shared one builds the result. **What it spends:** one
+    /// set entry per distinct key for the length of the call.
     fn nvs_core_arr_map_keys(ctx, args: [2])-> Vec<NvsStr>, owns NvsArray {
         let base = held_subject(args, "mapKeys")?;
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
         let mut keys = Vec::with_capacity(base.count());
+        let mut distinct: std::collections::HashSet<NvsStr> = std::collections::HashSet::new();
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
@@ -2643,7 +2647,15 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 named.release();
             }
-            keys.push(fresh?);
+            let fresh = fresh?;
+            // A key named before shares the first copy, so a callback that
+            // names one long key for every entry holds one copy of it.
+            if let Some(first) = distinct.get(&fresh) {
+                keys.push(first.clone());
+            } else {
+                distinct.insert(fresh.clone());
+                keys.push(fresh);
+            }
         }
         Ok(keys)
     } apply(keys, subject) {
