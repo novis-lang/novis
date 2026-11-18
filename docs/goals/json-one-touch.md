@@ -17,7 +17,7 @@ stages:
     context: [benches/members/core/Request/jsonAs.nvs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: key-match
@@ -203,9 +203,9 @@ one line each.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
@@ -215,20 +215,20 @@ Written on 2026-11-17 from a conversation with the person, who asked why Novis i
 in the comparison. Their calls: write goals for it, and give up nothing else for these cases. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stage 1 is done in one session. Stage 2 is done in two. Stage 3 is done in one. Stage 4 has used no
-session.
+Stage 1 is done in one session. Stage 2 is done in two. Stage 3 is done in one. Stage 4 is done in
+one. The goal is reached.
 
-Stage 3 is in two commits: `Deadline` (`json.rs:2386`) counts in a `Cell` and reads the word via
-`DeadlineBatch::poll`; `decode_checked` serves both `jsonAs` members; `Spares` (`:5320`) keeps its
-pairs and spare vectors in `Levels`. `keep_arrays` is declined (§ *Standing decisions*).
+The gate's first `looper verify` had one red: `erased_entries` named `constructor_of`
+(`object.rs:5491`), the door stage 2 moved out of `construct`, with no row. The row moved with the
+door. The second run is green, and so are `bun nv verify --doc`, `bun nv owners --closes
+json-one-touch` and `bun nv ci --check`. No perf record is stale.
+
+The decisions only this file held now sit in `json.rs`'s doc comments: the module doc's
+`decodeAs` section (key matching, the count law, `Spares`), `Deadline` (one counter for `fill` and
+`build`) and `Builder::close` (`keep_arrays` for every contract).
 
 Ledger: `decodeAs` 4 allocations and 317 bytes per op (was 6 and 368), `jsonAs` 16 and 1832 (was
-27 and 2195). No record is stale, and `bun nv scaling --check json/` is green. On `json-api`, Novis
-serves 23,639 requests/sec on one core, and `nvs_core_request_json_as` with callees is 37.07%.
-
-Build and clippy are green; the new deadline test and `one-touch`'s three pass, run once by name.
-May go red at the gate: an example `.out` under `docs/examples/` that pins a `count:` for either
-member, and the two expired-deadline tests in `json.rs` and `json/each.rs`.
+27 and 2195). On `json-api`, Novis serves 23,639 requests/sec on one core.
 
 The sweep's reds are stale: `env-secret-proofs` has no log and no goal defines it, and the nightly
 `supply chain` run 44073672172 built `2934ebe1ae`, before `chrono` was removed. The tree's edits to
@@ -236,11 +236,8 @@ The sweep's reds are stale: `env-secret-proofs` has no log and no goal defines i
 
 ### Next
 
-Stage 4, the gate, one session: start `looper verify` with `run_in_background`, fix every failure
-it names in one pass, and run it once more. Then the goal-end gates: `bun nv verify --doc`,
-`bun nv owners --closes json-one-touch`, and `bun nv ci --check`. A fix that edits `json.rs` or
-`request.rs` stales the perf records again: list them with `bun nv proofs --gate --limit 0 --nvs
-target/release/nvs.exe`, grepped for `perf: stale`, and record them after `bun nv relink --build`.
+Nothing. The driver runs the acceptance checks and retires the goal; the next goal on the chain is
+`compare-recorded`.
 
 ### Backlog
 
