@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a request sends paths that use `@key` and `@value` in places where they are not allowed.
+// Some also try to reach a private property through an array. Every path should fail to convert.
+// covers: lang:types/property-paths
+
+class Author
+{
+    public string $name = 'ada';
+    private string $email = 'ada@example.com';
+
+    public function email(): string
+    {
+        return $this->email;
+    }
+}
+
+class Book
+{
+    public array<string> $tags = [];
+    public array<Author> $authors = [];
+    public int $pages = 1;
+
+    public function constructor()
+    {
+        $this->authors = [new Author()];
+    }
+}
+
+// 1. Paths from the web address: `@key` after a property that is not an array, a step after `@key`,
+//    `@` words that are not steps, and a private property after `@value`.
+array<tainted string> $sent = Core\Request::queryArray('path');
+int $refused = 0;
+foreach ($sent as tainted string $field) {
+    ?propertyPath<Book> $path = $field as ?propertyPath<Book>;
+    if ($path == null) {
+        $refused = $refused + 1;
+    } else {
+        echo '1: BAD, converted a path of length ', Core\Str::length($field), "\n";
+    }
+}
+echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " paths\n";
+
+// 2. A condition with a hole that reads the private property after `@value`. It throws.
+//    It is caught, so the step after it still runs.
+tainted string $where = Core\Request::query('where') ?? '{authors.@value.email} = 1';
+try {
+    tainted string<propertyPath<Book>> $condition =$where as string<propertyPath<Book>>;
+    echo '2: BAD, converted ', $condition as string, "\n";
+} catch (RuntimeError $e) {
+    echo "2: caught the conversion\n";
+}
+
+// 3. A path with `@value` 100000 times. An `Author` is not an array, so the conversion throws.
+//    The error message should stay short.
+string $long = 'authors' . Core\Str::repeat('.@value', 100000);
+try {
+    propertyPath<Book> $reached = $long as propertyPath<Book>;
+    echo "3: BAD, converted the long path\n";
+} catch (RuntimeError $e) {
+    uint $size = Core\Str::length($e->message);
+    echo $size < 1000 ? '3: caught, with a short message' : '3: BAD, the message repeats the path', "\n";
+}
+
+Book $book = new Book();
+echo 'after: ', $book->authors[0]->email(), "\n";

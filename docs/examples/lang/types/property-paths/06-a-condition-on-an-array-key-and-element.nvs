@@ -1,0 +1,42 @@
+<?nvs
+// Shows a condition whose paths go into an array with `@key` and `@value`.
+
+class Author
+{
+    public string $name = 'Ada';
+}
+
+class Book
+{
+    public array<string> $tags = [];
+    public array<Author> $authors = [];
+
+    // Each hole of `$condition` is a path of the class the call names.
+    public static function find(string<propertyPath<static>> $condition): void
+    {
+        echo $condition, "\n";
+        // Inside the method, `$condition` is a `string`. This line checks its holes against `Book`.
+        var $checked = $condition as string<propertyPath<self>>;
+        bool $hole = false;
+        // `Core\Str::parts` gives the text and the holes in turn. The first part is text.
+        foreach (Core\Str::parts($checked) as var $part) {
+            if ($hole) {
+                echo '  path ', $part as string, "\n";
+                // `Core\Reflect::steps` gives one row for each step of the path.
+                foreach (Core\Reflect::steps($part as propertyPath<self>) as var $step) {
+                    echo '    ', $step->name(), ': ', $step->type() ?? 'no type', "\n";
+                }
+            }
+            $hole = !$hole;
+        }
+    }
+}
+
+// `@key` is the key of an element. `@value` is the element.
+Book::find("{tags.@value} = 'new' AND {tags.@key} < 3");
+
+// `@value` of `authors` is an `Author`, so the path can go on to `name`.
+Book::find("{authors.@value.name} = 'Ada'");
+
+// `authors.name` is a shorter way to write `authors.@value.name`.
+Book::find("{authors.name} = 'Ada'");

@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/hover.rs, tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt]
   - id: 4
     title: the reference, the example and the attack say what the steps do
-    status: open
+    status: done
     context: [docs/examples/lang/types/property-paths/about.md, docs/reference/lang/20-types.md, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -186,16 +186,16 @@ user reads*. Run `bun nv proofs --id lang:types/property-paths` first and last.
 **Split:** one writing subagent writes the example and the attack while the session writes the
 reference and `about.md`. Their files are disjoint, and no one builds until both end.
 
-- [ ] `docs/examples/lang/types/property-paths/about.md:1`: one paragraph. After an array property, `@key`
+- [x] `docs/examples/lang/types/property-paths/about.md:1`: one paragraph. After an array property, `@key`
   is an element's key and `@value` is the element. A property named `key` or `value` keeps its name.
-- [ ] `docs/reference/lang/20-types.md:3245`: the same, with `Core\Reflect::steps`'s two rows.
-- [ ] `docs/examples/lang/types/property-paths/06-a-condition-on-an-array-key-and-element.nvs:1`: a
+- [x] `docs/reference/lang/20-types.md:3245`: the same, with `Core\Reflect::steps`'s two rows.
+- [x] `docs/examples/lang/types/property-paths/06-a-condition-on-an-array-key-and-element.nvs:1`: a
   `find` method that takes `string<propertyPath<static>>`, called with `@key`, `@value` and the
   shorthand, printing `Core\Reflect::steps` for each hole.
-- [ ] `tests/hostile/lang/types/property-paths/03-array-steps-from-a-request.nvs:1`: request text tries
+- [x] `tests/hostile/lang/types/property-paths/03-array-steps-from-a-request.nvs:1`: request text tries
   `@key` after a non-array, a step after `@key`, `@` words that are not steps and a private property
   after `@value`. Each gives `null` from `as ?propertyPath<T>`.
-- [ ] `bun nv proofs --id lang:types/property-paths` reports the feature complete, and
+- [x] `bun nv proofs --id lang:types/property-paths` reports the feature complete, and
   `bun nv proofs --comments` passes on the two new files.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -208,30 +208,24 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### State
 
-Stages 1, 2 and 3 are done. The `cases` and `editor` checks are green.
+Stages 1 to 4 are done. The `cases` and `editor` checks are green, and
+`bun nv proofs --id lang:types/property-paths` reports the feature complete.
 
-The editor steps with the checker's rule. `property_segment_at` (`crates/nvs-lsp/src/definition.rs`)
-walks `@key`, `@value` and properties through `nvs_types::path_step`, and a `PathSegment` carries an
-`ArrayStep` for a step. A step answers the array property it follows: `definition::at` jumps there,
-and `named_at` skips a step, so references and rename never treat `@key` as the property. Hover
-(`hover.rs` `property_segment`) shows `int|string` and "The key of an element of `$keywords`.", or
-the element type and "An element of `$authors`."; after another `@value` it names the array type.
-Completion (`completion.rs` `path_steps`, `path_after`) offers `@key` and `@value` as keywords, then
-the element class's properties; `open_hole` accepts `@` in a `string<propertyPath<T>>` hole.
-`completion_files::Value::step` builds the two items.
+Stage 4 landed: `about.md` and `details.md` of `docs/examples/lang/types/property-paths/` describe
+`@key`, `@value`, the shorthand and `Core\Reflect::steps`'s two rows, and `bun nv render` and
+`bun nv render --website` wrote the chapter, `core.json` and `llms-full.txt`. The example
+`06-a-condition-on-an-array-key-and-element.nvs` and the attack `03-array-steps-from-a-request.nvs`
+(with its `.nvsr`) run green under `bun nv proofs --run`. Every stale perf record (`Core\Reflect`'s
+members and the `lang:types/*` features) was recorded on the release binary, and none is stale.
 
 The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only
 this goal's handoff and `in-place-everywhere`'s retire commit.
 
 ### Next
 
-Stage 4 from its first item: `docs/examples/lang/types/property-paths/about.md:1`,
-`docs/reference/lang/20-types.md:3245`, the example `06-a-condition-on-an-array-key-and-element.nvs`
-and the attack `tests/hostile/lang/types/property-paths/03-array-steps-from-a-request.nvs`, per the
-stage's split. Run `bun nv proofs --id lang:types/property-paths` first and last. The website's
-`core.json` and `llms-full.txt` embed the `steps` card and `about.md`, so `bun nv render --website`
-is owed before the gate. `Core\Reflect`'s perf records are stale after stage 2: record them last,
-per the playbook. Expect red at the gate until stage 4 lands: the proofs gate for
-`lang:types/property-paths`.
+Stage 5: `bun nv affected --run` (`looper verify` in the loop), fix every failure in one pass, run it
+once more. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes path-array-steps`,
+`bun nv ci --check`. Pages covering `lang:types/property-paths` may need `bun nv site --stamp`, which
+`ci --check` names. No red is expected from this goal's tests.
 
 ### Backlog

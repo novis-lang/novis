@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/books
+--QUERY--
+path[]=pages.%40key&path[]=pages.%40value&path[]=tags.%40key.x&path[]=authors.%40key.name&path[]=authors.%40key.%40key&path[]=authors.%40Key&path[]=authors.%40index&path[]=authors.%40&path[]=authors.%40%40value&path[]=%40value&path[]=authors.%40value.email&path[]=authors.email&where=%7Bauthors.%40value.email%7D%20%3D%201
+--HEADERS--
+host: shop.example.com

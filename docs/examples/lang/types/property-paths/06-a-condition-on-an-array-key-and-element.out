@@ -1,0 +1,16 @@
+{tags.@value} = 'new' AND {tags.@key} < 3
+  path tags.@value
+    tags: array<string>
+    @value: string
+  path tags.@key
+    tags: array<string>
+    @key: int|string
+{authors.@value.name} = 'Ada'
+  path authors.@value.name
+    authors: array<Author>
+    @value: Author
+    name: string
+{authors.name} = 'Ada'
+  path authors.name
+    authors: array<Author>
+    name: string

@@ -37682,7 +37682,7 @@
                 "descHtml": "A property path, such as <code>customer.address.city</code> of type <code>propertyPath&lt;Order&gt;</code>."
               }
             ],
-            "returnHtml": "One <code>Core\\Reflect\\PropertyInfo</code> for each part of the path, in order. Each one has the property's name, whether it is public, and its declared type. The type shows whether the next part is reached through an object, a nullable object or an array.",
+            "returnHtml": "One <code>Core\\Reflect\\PropertyInfo</code> for each part of the path, in order. Each one has the property's name, whether it is public, and its declared type. The type shows whether the next part is reached through an object, a nullable object or an array. The part <code>@key</code> gives a row named <code>@key</code> with the type <code>int|string</code>. The part <code>@value</code> gives a row named <code>@value</code> with the type of the array's elements. Both rows are public.",
             "errors": [
               {
                 "error": "LogicError",
