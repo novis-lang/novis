@@ -1,0 +1,31 @@
+--TEST--
+a literal value in a `#[Core\Router\Params]` argument outside the closed set the written route's capture declares does not compile, and a value inside it does (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Blog {
+    // `lang` may only be "en", "de" or "fr".
+    #[Core\Route(path: "/{lang}/blog", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function index("en"|"de"|"fr" $lang): string { return $lang; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// "fr" is one of the allowed values, so this call compiles.
+echo Links::entry(Blog::index, ["lang" => "fr"]), "\n";
+
+// "xx" is not an allowed value, so this call does not compile.
+echo Links::entry(Blog::index, ["lang" => "xx"]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0772]: `Blog::index` admits `en`, `de`, `fr` for `lang`, and this call to `Links::entry` supplies `xx`
+   --> case.nvs:20:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,30 @@
+--TEST--
+a `#[Core\Router\Params]` argument may name a capture or a `#[Query]` parameter of the written route, and any other key does not compile (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id, #[Core\Query] string $sort): string { return "show"; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// `sort` is a query parameter, so this key is allowed.
+echo Links::entry(Shop::show, ["id" => 1, "sort" => "name"]), "\n";
+
+// `nope` is not in the path and is not a query parameter. This call does not compile.
+echo Links::entry(Shop::show, ["id" => 1, "nope" => "x"]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0759]: `Shop::show`'s path `/shop/{id}` has no `nope`, and `Shop::show` declares no `#[Query]` parameter of that name
+   --> case.nvs:19:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

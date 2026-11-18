@@ -1,0 +1,28 @@
+--TEST--
+a `#[Core\Router\Target]` argument keeps the visibility check, so a private route method passed from outside its class does not compile (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    // This route method is private to `Shop`.
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    private static function show(uint $id): string { return "show"; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// `Shop::show` is private, and this code is outside `Shop`. This call does not compile.
+echo Links::entry(Shop::show, ["id" => 1]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Shop::show()` is `private`, so only `Shop`'s own bodies reach it
+   --> case.nvs:17:25
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

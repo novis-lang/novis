@@ -57,6 +57,23 @@
 //! `E0754` before the program runs
 //! (`rule:core-api/parameters-are-callable-by-name`). So the two states above
 //! stay the only two. A `$params` the call leaves out is `[]`.
+//!
+//! # A method that takes a route
+//!
+//! `rule:routing/a-route-target-parameter-is-checked-like-a-link`: a user
+//! method whose parameter carries `#[Core\Router\Target]` takes a route as a
+//! link does, and [`record_target_site`] records a call that writes the route.
+//! [`resolve`] asks the same four questions of it, and names the method the
+//! call wrote in every message. It records nothing over the call, so the
+//! `Call` stands, `nvs_ir` lowers an ordinary call, and the method receives a
+//! real callable value.
+//!
+//! **The visibility check stays.** A link calls nothing, so it may name a
+//! `private` method. A `Target` method can call what it receives, so
+//! [`crate::expr::calls`] does not mark the argument, and a `private` route
+//! method is passed only from inside its own class. A class under an
+//! `autoload links` root records nothing here: it is never compiled, so no
+//! callable value of it can exist, and name resolution reports it (`E0897`).
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -102,6 +119,9 @@ const IS: &str = "is";
 /// `Env` it borrowed through does not outlive that file.
 #[derive(Clone, Debug)]
 pub(crate) struct LinkSite {
+    /// Whether this is a `Core` link, which [`resolve`] folds, or a call of a
+    /// user method's `#[Core\Router\Target]` parameter, which it only checks.
+    kind: SiteKind,
     /// The call's own span — the key [`ExprInfo::RouteLink`] is recorded
     /// against, so it lands on the entry [`crate::expr::calls`] already wrote.
     span: Span,
@@ -133,6 +153,44 @@ pub(crate) struct LinkSite {
     /// coverage against and `rule:routing/link-target-and-params-are-checked`
     /// asks for nothing.
     args: Option<Vec<LinkArg>>,
+}
+
+/// Which call recorded a [`LinkSite`].
+#[derive(Clone, Debug)]
+enum SiteKind {
+    /// `Core\Router::url`, `::urlAbsolute`, `::urlSigned` or
+    /// `Core\Router\Match::is`. [`LinkSite::member`] says which.
+    Link,
+    /// A call of a user method with a `#[Core\Router\Target]` parameter
+    /// (`rule:routing/a-route-target-parameter-is-checked-like-a-link`).
+    /// [`resolve`] asks the link's four questions and records nothing, so the
+    /// call stays an ordinary call.
+    Target {
+        /// The method the call wrote, `Links::entry`, which every message
+        /// names in place of `Core\Router::url`.
+        called: String,
+        /// The `#[Core\Router\Params]` parameter's name with its `$`, which
+        /// the coverage message names in place of `$params`.
+        params: String,
+    },
+}
+
+impl LinkSite {
+    /// The argument a message calls the parameters array.
+    fn params_word(&self) -> String {
+        match &self.kind {
+            SiteKind::Link => "`$params`".to_owned(),
+            SiteKind::Target { params, .. } => format!("`{params}`"),
+        }
+    }
+
+    /// What a message calls the call itself.
+    fn this(&self) -> String {
+        match &self.kind {
+            SiteKind::Link => "this link".to_owned(),
+            SiteKind::Target { called, .. } => format!("this call to `{called}`"),
+        }
+    }
 }
 
 /// One entry of a link's `$params` whose key folded to a literal.
@@ -203,7 +261,23 @@ pub fn is_match_is(owner: &QName, member: &str) -> bool {
     owner.to_string() == MATCH_OWNER && member == IS
 }
 
-/// Records one link site, or nothing where
+/// Where a site's two arguments are, by parameter index.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SiteSlots {
+    /// The parameter that takes the route.
+    pub(crate) target: usize,
+    /// The parameter that takes the route's parameters, if the member has one.
+    pub(crate) params: Option<usize>,
+}
+
+/// The slots of `Core\Router::url` and its siblings: the route first, then
+/// `$params`.
+const CORE_SLOTS: SiteSlots = SiteSlots {
+    target: 0,
+    params: Some(1),
+};
+
+/// Records one `Core` link site, or nothing where
 /// `rule:routing/link-target-and-params-are-checked` leaves the call to run time.
 ///
 /// Reports nothing: every refusal this pass makes is a question about the table
@@ -217,15 +291,68 @@ pub(crate) fn record_site(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    record(call, SiteKind::Link, member, CORE_SLOTS, args, slots, ctx, env);
+}
+
+/// Records one call of `owner::method`, whose signature `sig` has a
+/// `#[Core\Router\Target]` parameter, or nothing where the call passes the
+/// route as a value
+/// (`rule:routing/a-route-target-parameter-is-checked-like-a-link`).
+///
+/// A signature with no [`crate::signatures::MethodSig::route_slots`] records
+/// nothing, so the caller asks for every resolved call.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn record_target_site(
+    call: &Expr,
+    owner: &QName,
+    method: &str,
+    sig: &crate::signatures::MethodSig,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let Some(route) = sig.route_slots else {
+        return;
+    };
+    let params = route
+        .params
+        .and_then(|at| sig.param_names.get(at))
+        .map_or_else(String::new, |name| format!("${name}"));
+    let kind = SiteKind::Target {
+        called: format!("{owner}::{method}"),
+        params,
+    };
+    let site_slots = SiteSlots {
+        target: route.target,
+        params: route.params,
+    };
+    record(call, kind, method, site_slots, args, slots, ctx, env);
+}
+
+/// [`record_site`] and [`record_target_site`]'s shared walk: finds the two
+/// arguments through the parameters they fill, and pushes the site.
+#[allow(clippy::too_many_arguments)]
+fn record(
+    call: &Expr,
+    kind: SiteKind,
+    member: &str,
+    at: SiteSlots,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let CallArgs::List(list) = args else {
         return;
     };
+    let is_target = matches!(kind, SiteKind::Target { .. });
     // Each argument is found through the parameter it fills, so a `route:` is
     // read where it was written. Nothing fills `$route` in a call too short to
     // have written it — the arity check's refusal, already made — or in one
     // whose `...` has no variadic tail to land in, which is refused where it
     // was mapped.
-    let Some(target) = argument_filling(0, list, slots).map(|arg| &arg.value) else {
+    let Some(target) = argument_filling(at.target, list, slots).map(|arg| &arg.value) else {
         return;
     };
     // A reference written here resolved to its method while the arguments
@@ -245,7 +372,10 @@ pub(crate) fn record_site(
         }
         // `urlSigned` never takes another module's route, which name
         // resolution reports, and `is` compares a route this program matched.
-        _ if member == IS || member == SIGNED => return,
+        // A `Target` method receives a callable value, and a class under a
+        // links root is never compiled, so name resolution reports it there
+        // too (`E0897`).
+        _ if is_target || member == IS || member == SIGNED => return,
         _ => {
             let Some((class, method)) = written_reference(target, ctx, env) else {
                 return;
@@ -253,8 +383,9 @@ pub(crate) fn record_site(
             (format!("{class}::{method}"), Some((class, method)))
         }
     };
-    if member == IS {
+    if !is_target && member == IS {
         env.links.push(LinkSite {
+            kind,
             span: call.span,
             member: member.to_owned(),
             handler,
@@ -266,8 +397,8 @@ pub(crate) fn record_site(
         });
         return;
     }
-    let params_at = written_at(1, list, slots);
-    let settings_at = match member == SIGNED {
+    let params_at = at.params.and_then(|param| written_at(param, list, slots));
+    let settings_at = match !is_target && member == SIGNED {
         true => {
             let Some(at) = written_at(2, list, slots) else {
                 return;
@@ -276,12 +407,17 @@ pub(crate) fn record_site(
         }
         false => None,
     };
-    // A `$params` the call left out is `[]`, whose keys are known: none.
+    // A `Core` link's `$params` the call left out is `[]`, whose keys are
+    // known: none. A user parameter cannot default to an empty array
+    // (`E0451`), so a `Target` call that leaves its `Params` out, or a method
+    // with no `Params`, has no keys to check, and only its route is checked.
     let args = match params_at {
-        Some(at) => literal_args(&list[at].value, ctx, env),
-        None => Some(Vec::new()),
+        Some(written) => literal_args(&list[written].value, ctx, env),
+        None if !is_target => Some(Vec::new()),
+        None => None,
     };
     env.links.push(LinkSite {
+        kind,
         span: call.span,
         member: member.to_owned(),
         handler,
@@ -468,6 +604,19 @@ pub(crate) fn resolve(
             report_no_route(site, diags);
             continue;
         };
+        // A `Target` call is checked and left alone: the `Call` stands, so the
+        // method receives a real callable value.
+        if matches!(site.kind, SiteKind::Target { .. }) {
+            if let Some(args) = &site.args
+                && let Some(pieces) = crate::routes::link_pieces(&row.path)
+            {
+                let _ = covered(&pieces, args, site, row, diags)
+                    && declared(&pieces, args, site, row, diags)
+                    && within_set(args, site, row, diags)
+                    && converts(args, site, row, diags);
+            }
+            continue;
+        }
         let Some(ExprInfo::Call(call)) = exprs.lookup(site.span) else {
             // Unreachable: a site is recorded only for a call that resolved,
             // and that call recorded its `Call` at the same span.
@@ -598,8 +747,16 @@ fn foreign_route(
 /// `E0754` for a site whose method has no `#[Route]`, worded for the member
 /// that wrote it.
 fn report_no_route(site: &LinkSite, diags: &mut Diagnostics) {
-    let (message, help) = match site.member == IS {
-        true => (
+    let (message, help) = match &site.kind {
+        SiteKind::Target { called, .. } => (
+            format!(
+                "`{called}` takes a route, and `{}` has no `#[Route]`",
+                site.handler
+            ),
+            "this parameter needs a method that has a route. Add a `#[Route]` to this method, \
+             or pass the method that has the route",
+        ),
+        SiteKind::Link if site.member == IS => (
             format!(
                 "`Core\\Router\\Match::is` compares the route with `{}`, and that method has no \
                  `#[Route]`",
@@ -608,7 +765,7 @@ fn report_no_route(site: &LinkSite, diags: &mut Diagnostics) {
             "`is` checks whether the request matched a route of the method you pass. Add a \
              `#[Route]` to this method, or pass the method that has the route",
         ),
-        false => (
+        SiteKind::Link => (
             format!(
                 "`Core\\Router::{}` links to `{}`, and that method has no `#[Route]`",
                 site.member, site.handler
@@ -714,7 +871,13 @@ fn declared(
                 row.handler, row.path, row.handler
             ),
         )
-        .with_primary(site.span, "this key would become a query string")
+        .with_primary(
+            site.span,
+            match site.kind {
+                SiteKind::Link => "this key would become a query string",
+                SiteKind::Target { .. } => "no parameter of the route has this name",
+            },
+        )
         .with_help(
             "a key that is not a capture goes into the link's query string. No parameter reads \
              this key. Correct the name, or declare the parameter with `#[Query]` on the handler",
@@ -756,9 +919,13 @@ fn covered(
         Diagnostic::error(
             code::E_ROUTE_LINK_MISSING_PARAM,
             format!(
-                "`{}`'s path `{}` captures {named}, and this `$params` supplies {}",
+                "`{}`'s path `{}` captures {named}, and {} supplies {}",
                 row.handler,
                 row.path,
+                match &site.kind {
+                    SiteKind::Link => "this `$params`".to_owned(),
+                    SiteKind::Target { .. } => format!("{} in {}", site.params_word(), site.this()),
+                },
                 if args.is_empty() {
                     "no keys at all".to_owned()
                 } else {
@@ -772,11 +939,18 @@ fn covered(
                 }
             ),
         )
-        .with_primary(site.span, "this link cannot be built")
-        .with_help(
-            "`$params` must give a value for every capture of the route. Only a `{name?}` \
-             capture may be left out. Its whole segment is then left out of the link",
-        ),
+        .with_primary(
+            site.span,
+            match site.kind {
+                SiteKind::Link => "this link cannot be built",
+                SiteKind::Target { .. } => "no link to this route can be built from these keys",
+            },
+        )
+        .with_help(format!(
+            "{} must give a value for every capture of the route. Only a `{{name?}}` capture \
+             may be left out. Its whole segment is then left out of the link",
+            site.params_word()
+        )),
     );
     false
 }
@@ -838,8 +1012,10 @@ fn within_set(
             Diagnostic::error(
                 code::E_ROUTE_LINK_VALUE_NOT_IN_SET,
                 format!(
-                    "`{}` admits {named} for `{}`, and this link supplies `{written}`",
-                    row.handler, arg.key
+                    "`{}` admits {named} for `{}`, and {} supplies `{written}`",
+                    row.handler,
+                    arg.key,
+                    site.this()
                 ),
             )
             .with_primary(site.span, "no request could carry this value")
@@ -899,9 +1075,11 @@ fn converts(
             Diagnostic::error(
                 code::E_ROUTE_LINK_VALUE_NOT_IN_SET,
                 format!(
-                    "`{}` declares `{}` as `{ty}`, and this link gives it a value that does \
-                     not convert to `{ty}`",
-                    row.handler, arg.key
+                    "`{}` declares `{}` as `{ty}`, and {} gives it a value that does not \
+                     convert to `{ty}`",
+                    row.handler,
+                    arg.key,
+                    site.this()
                 ),
             )
             .with_primary(site.span, "no request could carry this value")
@@ -1005,12 +1183,26 @@ mod tests {
     /// Writes an entry with `body` after its `autoload links` line, and the
     /// target module beside it, then resolves and checks the program from disk.
     fn check(body: &str) -> Checked {
+        check_with(body, "", &[])
+    }
+
+    /// [`check`], with `roots` written after the `autoload links` line and
+    /// each of `files` written at its path under the scratch folder.
+    fn check_with(body: &str, roots: &str, files: &[(&str, &str)]) -> Checked {
         let dir = nvs_repo::scratch("links-target");
         let view = dir.join("Shop").join("src").join("View");
         std::fs::create_dir_all(&view).expect("create the target's folder");
         std::fs::write(view.join("Index.nvs"), TARGET).expect("write the target");
+        for (path, text) in files {
+            let path = dir.join(path);
+            std::fs::create_dir_all(path.parent().expect("a file has a folder"))
+                .expect("create a file's folder");
+            std::fs::write(path, text).expect("write a file");
+        }
         let entry = dir.join("main.nvs");
-        let src = format!("<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n\n{body}");
+        let src = format!(
+            "<?nvs\nautoload links 'Framework\\Shop' from './Shop/src';\n{roots}\n{body}"
+        );
         std::fs::write(&entry, src).expect("write the entry");
 
         let mut map = SourceMap::new();
@@ -1195,6 +1387,139 @@ mod tests {
                 .any(|path| is_target(path)),
             "the target is not in the probe trace: {:?}",
             checked.autoload.probe_trace().probed()
+        );
+    }
+
+    /// A class with two `Target` methods, one with `Params` and one without,
+    /// and a plain method that marks nothing.
+    const LINKS: &str = "class Links\n{\n\
+        public static function entry(#[Core\\Router\\Target] callable $route, \
+        #[Core\\Router\\Params] array<mixed> $params): string { return ''; }\n\
+        public static function only(#[Core\\Router\\Target] callable $route): string \
+        { return ''; }\n\
+        public static function plain(callable $route): string { return ''; }\n\
+        }\n";
+
+    /// A local class with one routed method that takes a capture, and one
+    /// method with no route.
+    const SHOP: &str = "class Shop\n{\n\
+        #[Core\\Route(path: '/shop/{id}', method: Core\\Http\\Method::Get)]\n\
+        #[Core\\Access(allow: Core\\Audience::Public)]\n\
+        public static function show(uint $id): string { return ''; }\n\
+        public static function format(): string { return ''; }\n\
+        }\n";
+
+    /// Every resolved call to `Links::method`, with the span it was recorded at.
+    fn calls_to<'a>(
+        checked: &'a Checked,
+        method: &str,
+    ) -> Vec<(nvs_diagnostics::Span, &'a crate::expr_table::ResolvedCall)> {
+        checked
+            .exprs
+            .since_at(0)
+            .filter_map(|(span, info)| match info {
+                ExprInfo::Call(call)
+                    if call.class.to_string() == "Links" && call.method == method =>
+                {
+                    Some((span, call))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `rule:routing/a-route-target-parameter-is-checked-like-a-link`: the
+    /// route is declared in a file the walk reaches after the call, and the
+    /// call is still checked against it.
+    #[test]
+    fn a_route_target_is_checked_against_a_route_declared_in_a_later_file() {
+        let pages = "<?nvs\nnamespace Blog;\n\nclass Pages\n{\n\
+            #[Core\\Route(path: '/blog/{id}', method: Core\\Http\\Method::Get)]\n\
+            #[Core\\Access(allow: Core\\Audience::Public)]\n\
+            public static function show(uint $id): string { return ''; }\n\
+            }\n";
+        let files = [("blog/Pages.nvs", pages)];
+        let roots = "autoload 'Blog' from './blog';\n";
+        let good = check_with(
+            &format!("{LINKS}Links::entry(Blog\\Pages::show, ['id' => 3]);\n"),
+            roots,
+            &files,
+        );
+        assert!(!good.diags.has_errors(), "a good call failed: {:?}", good.diags);
+        let bad = check_with(
+            &format!("{LINKS}Links::entry(Blog\\Pages::show, []);\n"),
+            roots,
+            &files,
+        );
+        assert!(
+            bad.has(code::E_ROUTE_LINK_MISSING_PARAM),
+            "an uncovered capture gave {:?}",
+            bad.codes()
+        );
+    }
+
+    /// The check records nothing over the call: its span still looks up an
+    /// ordinary `Call`, and no `RouteLink` exists.
+    #[test]
+    fn a_route_target_call_stays_an_ordinary_call() {
+        let checked = check(&format!(
+            "{SHOP}{LINKS}Links::entry(Shop::show, ['id' => 3]);\n"
+        ));
+        assert!(!checked.diags.has_errors(), "{:?}", checked.diags);
+        let calls = calls_to(&checked, "entry");
+        assert_eq!(calls.len(), 1, "want one call to `Links::entry`");
+        let (span, _) = calls[0];
+        assert!(
+            matches!(checked.exprs.lookup(span), Some(ExprInfo::Call(_))),
+            "the call's span looks up {:?}",
+            checked.exprs.lookup(span)
+        );
+        assert!(checked.handlers().is_empty(), "a `RouteLink` was recorded");
+    }
+
+    /// A class under a links root is never compiled, so a `Target` argument
+    /// that names one is `E0897`.
+    #[test]
+    fn a_route_target_naming_a_links_root_class_does_not_compile() {
+        let checked = check(&format!(
+            "{LINKS}Links::entry(Framework\\Shop\\View\\Index::show, ['id' => 3]);\n"
+        ));
+        assert!(
+            checked.has(code::E_LINKS_ONLY_CLASS),
+            "{:?}",
+            checked.codes()
+        );
+    }
+
+    /// A `Target` with no `Params` is checked for its route and nothing else:
+    /// a method with no route is `E0754`, and a route with a capture compiles.
+    #[test]
+    fn a_route_target_without_params_checks_only_the_route() {
+        let good = check(&format!("{SHOP}{LINKS}Links::only(Shop::show);\n"));
+        assert!(!good.diags.has_errors(), "{:?}", good.diags);
+        let bad = check(&format!("{SHOP}{LINKS}Links::only(Shop::format);\n"));
+        assert_eq!(bad.codes(), [code::E_LINK_METHOD_HAS_NO_ROUTE]);
+    }
+
+    /// A method with neither attribute has no route slots, and takes any
+    /// method as before.
+    #[test]
+    fn a_method_without_route_attributes_has_no_route_slots() {
+        let checked = check(&format!(
+            "{SHOP}{LINKS}Links::plain(Shop::format);\nLinks::only(Shop::show);\n"
+        ));
+        assert!(!checked.diags.has_errors(), "{:?}", checked.diags);
+        let plain = calls_to(&checked, "plain");
+        assert!(plain.iter().all(|(_, call)| call.route_slots.is_none()));
+        assert!(!plain.is_empty(), "want a call to `Links::plain`");
+        let only = calls_to(&checked, "only");
+        assert!(
+            only.iter().all(|(_, call)| call.route_slots
+                == Some(crate::route_params::RouteSlots {
+                    target: 0,
+                    params: None
+                })),
+            "`Links::only`'s slots are wrong"
         );
     }
 }

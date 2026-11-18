@@ -1,0 +1,30 @@
+--TEST--
+a written method reference passed to a `#[Core\Router\Target]` parameter must name a method with a `#[Route]`, or the call does not compile (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string { return "show"; }
+
+    // This method has no route.
+    public static function plain(uint $id): string { return "plain"; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// `Shop::plain` has no route, so this call does not compile.
+echo Links::entry(Shop::plain, ["id" => 1]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0754]: `Links::entry` takes a route, and `Shop::plain` has no `#[Route]`
+   --> case.nvs:19:19
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

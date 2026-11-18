@@ -4,7 +4,7 @@ an `array` parameter of the same method:
 
 ```nvs
 public static function entry(#[Core\Router\Target] callable $route,
-                             #[Core\Router\Params] array $params = []): string
+                             #[Core\Router\Params] array $params): string
 ```
 
 **Where each may be written.** On a parameter of a method, static or instance, or of a constructor.
@@ -22,9 +22,9 @@ program's finished route table: the method has a `#[Route]` (`E0754`), a `Params
 every capture (`E0755`), each of its keys is a capture or a `#[Query]` parameter (`E0759`), and a literal
 value is one the capture's conversion and closed set accept (`E0772`). A reference that names no method
 is reported as it is at a link. A named argument is read where it was written. A computed `Params` is
-not checked. A call that leaves the `Params` argument out is checked as `[]` when the parameter's
-default is `[]`, and is not checked for any other default. Each message names the method the call
-wrote.
+not checked. A parameter cannot default to an empty array (`E0451`), so a `Params` the call leaves
+out, which only a nullable default allows, is not checked, and neither is a `Target` with no `Params`:
+both are checked for their route alone. Each message names the method the call wrote.
 
 **The call stays an ordinary call.** The check records nothing over the call, so the argument is a real
 callable value and the method body receives it. A reference passed as a value — a variable, or a

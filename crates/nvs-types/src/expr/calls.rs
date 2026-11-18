@@ -183,6 +183,10 @@ pub(crate) fn infer_method_call(
         let name = name.clone();
         crate::links::record_site(expr, &name, args, &slots, ctx, env);
     }
+    // `rule:routing/a-route-target-parameter-is-checked-like-a-link`.
+    if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        crate::links::record_target_site(expr, qname, name, sig, args, &slots, ctx, env);
+    }
     if let Some((qname, name)) = unknown
         && let Some(call) = unresolved_call(&qname, &name, args, &arg_types, expected, env)
     {
@@ -966,6 +970,11 @@ pub(crate) fn infer_static_call(
         let name = name.clone();
         crate::links::record_site(expr, &name, args, &slots, ctx, env);
     }
+    // `rule:routing/a-route-target-parameter-is-checked-like-a-link`: a user
+    // method's `Target` call is recorded the same way, and checked only.
+    if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        crate::links::record_target_site(expr, qname, name, sig, args, &slots, ctx, env);
+    }
     // `rule:routing/a-gate-answers-around-every-handler`'s mark: a program that
     // calls `dispatch` anywhere has its gate answer the server's refusals, and
     // a gate that cannot be a `Responder` is warned about once every route is in.
@@ -1220,6 +1229,11 @@ pub(crate) fn infer_new(
         );
     }
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // `rule:routing/a-route-target-parameter-is-checked-like-a-link`, for a
+    // constructor's `Target` parameter.
+    if let (Some(qname), Some(sig)) = (&target_qname, &sig) {
+        crate::links::record_target_site(expr, qname, "constructor", sig, args, &slots, ctx, env);
+    }
     if let Some(qname) = &target_qname {
         reject_abstract_instantiation(target, qname, expr.span, env);
         reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
@@ -1563,6 +1577,11 @@ fn note_retrieval_target(
 /// (`rule:routing/link-target-and-params-are-checked`). The target is found as
 /// [`crate::links::record_site`] finds it: the first argument, or the one
 /// written `route:`.
+///
+/// A user method's `#[Core\Router\Target]` argument is not marked, so it keeps
+/// the visibility check. The method receives a callable it can call, and an
+/// unchecked reference would let any class call another class's `private`
+/// method (`rule:routing/a-route-target-parameter-is-checked-like-a-link`).
 fn note_link_target(resolved: Option<(&QName, &str)>, args: &CallArgs, env: &mut Env<'_>) {
     let (Some((owner, member)), CallArgs::List(list)) = (resolved, args) else {
         return;

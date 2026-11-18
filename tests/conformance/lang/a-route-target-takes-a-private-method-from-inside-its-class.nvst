@@ -1,0 +1,38 @@
+--TEST--
+inside its own class, a private static route method and a public instance route method both pass to a `#[Core\Router\Target]` parameter and link to their paths (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+class Shop {
+    // This route method is private to `Shop`.
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    private static function show(uint $id): string { return "show"; }
+
+    // This route method belongs to an object of `Shop`.
+    #[Core\Route(path: "/page/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(uint $id): string { return "page"; }
+
+    // Code inside `Shop` may pass its own private method. This returns "/shop/3".
+    public static function link(): string {
+        return Links::entry(Shop::show, ["id" => 3]);
+    }
+
+    // An instance method may pass an instance route method. This returns "/page/4".
+    public function self(): string {
+        return Links::entry(Shop::page, ["id" => 4]);
+    }
+}
+
+echo Shop::link(), "\n";
+echo new Shop()->self(), "\n";
+--EXPECT--
+/shop/3
+/page/4

@@ -1,0 +1,27 @@
+--TEST--
+a literal value in a `#[Core\Router\Params]` argument that the written route's capture type cannot convert does not compile (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string { return "show"; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// `id` is a `uint`. The text "abc" does not convert to a number, so this call does not compile.
+echo Links::entry(Shop::show, ["id" => "abc"]), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0772]: `Shop::show` declares `id` as `uint`, and this call to `Links::entry` gives it a value that does not convert to `uint`
+   --> case.nvs:16:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

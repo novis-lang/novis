@@ -1,0 +1,27 @@
+--TEST--
+a `#[Core\Router\Target]` parameter forwarded as a variable to another such method is not checked while compiling and links to its route when the call runs (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string { return "show"; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+
+    // `$route` is a variable here, so the compiler does not check it.
+    // The route is found when the program runs.
+    public static function forward(#[Core\Router\Target] callable $route): string {
+        return Links::entry($route, ["id" => 9]);
+    }
+}
+
+// This prints "/shop/9".
+echo Links::forward(Shop::show), "\n";
+--EXPECT--
+/shop/9

@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/derive.rs, crates/nvs-types/src/paths.rs, crates/nvs-types/src/attributes.rs, crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-diagnostics/src/code/mod.rs, crates/nvs-diagnostics/src/code/types_e08.rs, docs/rules/expressions/method-reference.md]
   - id: 2
     title: a written route at a Target argument is checked against the finished route table, and the call stays an ordinary call
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/check.rs, tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst, tests/conformance/lang/a-test-links-a-method-reference-passed-as-a-value.nvst, docs/rules/routing/a-link-reaches-another-module.md, docs/rules/core-classes/router-signed-url.md]
   - id: 3
     title: the editor completes the keys, hovers the reference and counts the call as a use of the route method
@@ -148,9 +148,16 @@ capture (`E0755`), each of its keys is a capture or a `#[Query]` parameter (`E07
 value is one the capture's conversion and closed set accept (`E0772`). A method with no route, and a
 reference that names no method, are reported as they are at a link. A named argument is read where it
 was written, as `route:` is (links.rs module doc, lines 53-59). A computed `$params` is not checked. A
-call that leaves the `Params` argument out is checked as `[]` when the parameter's default is `[]`,
-and is not checked for any other default. Each message names the method the call wrote, not
+call that leaves the `Params` argument out is not checked for its keys, and neither is a `Target`
+with no `Params`: only the route is. Each message names the method the call wrote, not
 `Core\Router::url`.
+
+**An omitted `Params` (my call, found in stage 2).** The person's call checked an omitted `Params` as
+`[]` when its default is `[]`. No user parameter can default to an empty array: `= []` and a class
+constant that is `[]` are both `E0451` (`crates/nvs-types/src/defaults.rs` `ConstArg::EmptyArray`'s
+doc gives the per-call-site cost). So that branch could never run, and it was not built. A `Params`
+the call leaves out has a nullable default, which says nothing about the keys, and is not checked.
+Making `= []` legal for parameters is a language change outside this goal.
 
 **The call stays an ordinary call (the person's call).** A `Target` site is recorded as
 `crates/nvs-types/src/links.rs:212` `record_site` records a link, and checked after the walk in
@@ -280,26 +287,26 @@ for the run cases, `tests/conformance/lang/a-test-links-a-method-reference-passe
 Each case uses the neutral names `Shop`, `Blog` and `Links`. The session writes the five Rust tests and
 runs both checks once.
 
-- [ ] `crates/nvs-types/src/links.rs:104`: `LinkSite` gains its kind (a `Core` link or a `Target`
+- [x] `crates/nvs-types/src/links.rs:104`: `LinkSite` gains its kind (a `Core` link or a `Target`
   call, with the called method's name for messages). `:212` `record_site` takes the target and params
   parameter indexes and finds both through `argument_filling` (`crates/nvs-types/src/expr/args.rs:461`),
   so a named argument is read where it was written. A `Target` site whose reference names a links-root
-  class records nothing; `E0897` is already reported there. An omitted `Params` argument is `[]` only
-  when the parameter's default is `[]`.
-- [ ] `crates/nvs-types/src/expr/calls.rs:180` (instance), `:963` (static) and `:1222` (`new`): where
+  class records nothing; `E0897` is already reported there. An omitted `Params` argument is not
+  checked (see *An omitted `Params`*).
+- [x] `crates/nvs-types/src/expr/calls.rs:180` (instance), `:963` (static) and `:1222` (`new`): where
   the resolved signature has `route_slots`, the site is recorded after `check_args_typed`, as the
   link branch at `:963` records one. `:1566` `note_link_target` is unchanged, and its doc says why a
   `Target` argument is not marked: it keeps the visibility check.
-- [ ] `crates/nvs-types/src/links.rs:443` `resolve`: a `Target` site runs the same four checks and
+- [x] `crates/nvs-types/src/links.rs:443` `resolve`: a `Target` site runs the same four checks and
   records nothing. The messages at `:621` (`E0754`), `:710` (`E0759`), `:757` (`E0755`), `:839` and
   `:900` (`E0772`) name the called method for a `Target` site, in end-user prose. The module doc
   (`:1-60`) gains a section *A method that takes a route* saying the call stays an ordinary call and
   why the visibility check stays.
-- [ ] `crates/nvs-types/src/links.rs:941`: the five Rust tests the `call-checked-rust` check names, in
+- [x] `crates/nvs-types/src/links.rs:941`: the five Rust tests the `call-checked-rust` check names, in
   the existing `mod tests` beside `a_link_to_a_links_root_route_is_checked_like_a_local_one` (`:1050`),
   which already builds a links root. `a_route_target_call_stays_an_ordinary_call` checks that the
   call's span looks up `ExprInfo::Call`, never `RouteLink`.
-- [ ] The ten `.nvst` cases the `call-checked` check names, and both checks run once.
+- [x] The ten `.nvst` cases the `call-checked` check names, and both checks run once.
 
 ### 3. the editor completes the keys, hovers the reference and counts the call as a use of the route method
 
@@ -379,13 +386,15 @@ heading, `about.md`, `details.md` and the website section, and runs the `feature
 
 ### State
 
-Stage 1 is done, and `attribute-sites` is green. `Core\Router\Target` and `Core\Router\Params` are
-on `crate::derive::ATTRIBUTES` with their cards, `crates/nvs-types/src/route_params.rs` reads them
-into `MethodSig::route_slots` (`RouteSlots { target, params }`) and reports `E0899` and `E1000`,
-and `ResolvedCall::route_slots` copies the slots at `crates/nvs-types/src/expr/calls.rs`
-`resolved_call`. `E1000` opened `crates/nvs-diagnostics/src/code/types_e10.rs`, and `E11xx` is now
-the reserve row. The rule is `docs/rules/routing/a-route-target-parameter-is-checked-like-a-link.md`,
-rendered. Nothing checks a call yet: the rule's *What a call checks* paragraph is stage 2's.
+Stages 1 and 2 are done. `attribute-sites`, `call-checked` and `call-checked-rust` are green.
+`crates/nvs-types/src/links.rs` `record_target_site` records a call of a method with
+`route_slots` from the three call paths in `crates/nvs-types/src/expr/calls.rs` (instance, static,
+`new`), and `resolve` runs the four checks on a `SiteKind::Target` site and records nothing, so the
+`Call` stands. Each message names the called method (`LinkSite::this`, `LinkSite::params_word`).
+`note_link_target` is unchanged, so the reference keeps its visibility check (`E0471` for another
+class's private method). Stage 2 found that no user parameter can default to an empty array
+(`E0451`), so an omitted `Params` is not checked: see the decision *An omitted `Params`*, and the
+rule fragment says the same.
 
 The sweep's reds: `env-secret-proofs` is stale (its newest `git log -S` hit is a retire commit), and
 the nightly `supply chain` failure (`chrono` unmaintained, through `rxing`) is already fixed on disk
@@ -397,11 +406,14 @@ The working tree carries edits this goal did not make, in `crates/nvs-lsp/src/in
 
 ### Next
 
-Stage 2 from its first item: `LinkSite`'s kind at `crates/nvs-types/src/links.rs:104`, then
-`record_site` (`:212`) taking the two indexes from `RouteSlots`, then the three call paths in
-`crates/nvs-types/src/expr/calls.rs` (`:180`, `:963`, `:1222`) reading `sig.route_slots`, then
-`resolve` (`links.rs:443`). The `call-checked` and `call-checked-rust` cases do not exist yet and
-are expected to fail until the stage writes them. No existing test is expected to go red from stage 1.
+Stages 3 and 4 touch disjoint files and may run side by side (see *Lanes*). Stage 3 from its first
+item: `crates/nvs-lsp/src/arguments.rs:152` `route_key_at` and `:237`, which ask
+`nvs_types::is_link` / `is_match_is` today, read `ResolvedCall::route_slots` for the target and
+params indexes. Stage 4's pages quote the error text in the ten new `.nvst` cases under
+`tests/conformance/{reject,lang}/a-route-*.nvst`, and its examples cannot use `$params = []` (write
+the `Params` parameter as required). The `editor`, `editor-rust` and `feature-proofs` checks are
+red until their stages write them. No existing test is expected to go red: the `Core` link path
+keeps its slots `(0, Some(1))` and its omitted `$params` is still `[]`.
 
 ### Backlog
 

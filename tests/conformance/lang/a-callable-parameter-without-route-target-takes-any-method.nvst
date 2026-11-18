@@ -1,0 +1,20 @@
+--TEST--
+a plain `callable` parameter with no `#[Core\Router\Target]` takes a method that has no `#[Route]` and calls it (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    // This method has no route.
+    public static function plain(uint $id): string { return "plain " . $id; }
+}
+
+class Links {
+    // `$action` is a plain `callable`. It takes any method, with or without a route.
+    public static function call(callable $action, uint $id): void {
+        echo $action($id), "\n";
+    }
+}
+
+// This calls `Shop::plain` with 5 and prints "plain 5".
+Links::call(Shop::plain, 5);
+--EXPECT--
+plain 5

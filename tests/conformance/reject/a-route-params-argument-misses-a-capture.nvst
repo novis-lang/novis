@@ -1,0 +1,27 @@
+--TEST--
+a literal array passed to a `#[Core\Router\Params]` parameter must supply every capture of the written route's path, or the call does not compile (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string { return "show"; }
+}
+
+class Links {
+    // `$route` must be a route method. `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// The path needs `id`, and the array is empty, so this call does not compile.
+echo Links::entry(Shop::show, []), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0755]: `Shop::show`'s path `/shop/{id}` captures `id`, and `$params` in this call to `Links::entry` supplies no keys at all
+   --> case.nvs:16:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
