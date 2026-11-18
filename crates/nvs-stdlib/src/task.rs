@@ -301,7 +301,7 @@ const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_task_all" => (nvs_core_task_all as *const ()).cast(),
-        "nvs_core_task_map" => (nvs_core_task_map as *const ()).cast(),
+        "nvs_core_task_map" => return Some(nvs_core_task_map::entry()),
         "nvs_core_task_after_response" => (nvs_core_task_after_response as *const ()).cast(),
         _ => return None,
     }))
@@ -523,7 +523,7 @@ nvs_runtime::nvs_helper! {
     /// the same rule `Core\Arr::map` documents — and the same reason to read
     /// `callable_arity` once before the walk rather than build a key per element
     /// for `nvs_runtime::call_callable` to trim away.
-    fn nvs_core_task_map(ctx, args: [4]) {
+    fn nvs_core_task_map(ctx, args: [4]) -> Value, owns NvsArray {
         // Unreachable from source: the subject is a `CoreTy::Array` parameter,
         // so anything else is `E0401: expected array<T>, found …` at the call.
         // A wrong tag here is compiled code disagreeing with the registry.
@@ -589,6 +589,8 @@ nvs_runtime::nvs_helper! {
             crate::arr::store_at(&mut out, key, answer);
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 

@@ -363,7 +363,7 @@ const NEEDS_REHASH_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_password_hash" => (nvs_core_password_hash as *const ()).cast(),
+        "nvs_core_password_hash" => return Some(nvs_core_password_hash::entry()),
         "nvs_core_password_verify" => (nvs_core_password_verify as *const ()).cast(),
         "nvs_core_password_needs_rehash" => (nvs_core_password_needs_rehash as *const ()).cast(),
         _ => return None,
@@ -452,7 +452,7 @@ nvs_runtime::nvs_helper! {
     /// The salt is sixteen bytes from [`crate::random::draw`], so the answer
     /// differs on every call for the same password; that is what makes two
     /// users who chose the same password indistinguishable in the store.
-    fn nvs_core_password_hash(ctx, args: [1]) {
+    fn nvs_core_password_hash(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         let password = text_of(args, 0, "hash")?;
 
         let mut salt = [0_u8; SALT_LEN];
@@ -476,6 +476,8 @@ nvs_runtime::nvs_helper! {
         })?;
 
         Ok(Value::text(&hash.to_string()))
+    } apply(result, _subject) {
+        result
     }
 }
 

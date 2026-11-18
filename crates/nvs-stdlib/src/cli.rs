@@ -1081,7 +1081,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_cli_arguments" => (nvs_core_cli_arguments as *const ()).cast(),
         "nvs_core_cli_write" => (nvs_core_cli_write as *const ()).cast(),
-        "nvs_core_cli_escape" => (nvs_core_cli_escape as *const ()).cast(),
+        "nvs_core_cli_escape" => return Some(nvs_core_cli_escape::entry()),
         "nvs_core_cli_is_tty" => (nvs_core_cli_is_tty as *const ()).cast(),
         "nvs_core_cli_width" => (nvs_core_cli_width as *const ()).cast(),
         "nvs_core_cli_height" => (nvs_core_cli_height as *const ()).cast(),
@@ -1099,11 +1099,11 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_cli_progress" => (nvs_core_cli_progress as *const ()).cast(),
         "nvs_core_cli_progress_advance" => (nvs_core_cli_progress_advance as *const ()).cast(),
         "nvs_core_cli_live_set" => (nvs_core_cli_live_set as *const ()).cast(),
-        "nvs_core_cli_ask" => (nvs_core_cli_ask as *const ()).cast(),
+        "nvs_core_cli_ask" => return Some(nvs_core_cli_ask::entry()),
         "nvs_core_cli_confirm" => (nvs_core_cli_confirm as *const ()).cast(),
         "nvs_core_cli_select" => (nvs_core_cli_select as *const ()).cast(),
         "nvs_core_cli_multi_select" => (nvs_core_cli_multi_select as *const ()).cast(),
-        "nvs_core_cli_secret" => (nvs_core_cli_secret as *const ()).cast(),
+        "nvs_core_cli_secret" => return Some(nvs_core_cli_secret::entry()),
         _ => return None,
     }))
 }
@@ -1324,7 +1324,7 @@ nvs_runtime::nvs_helper! {
     /// terminal and for nothing else. The answer is still not safe in an HTML
     /// document, in a shell argument or in a SQL identifier, and each of those
     /// has its own launderer for exactly that reason.
-    fn nvs_core_cli_escape(_ctx, args: [1]) {
+    fn nvs_core_cli_escape(_ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         // A fatal rather than a throw, because nothing may catch a broken ABI:
         // the row's parameter is `CoreTy::Text`, so `E0401` refuses anything
         // that is not a `string` before a single instruction of this body runs,
@@ -1336,6 +1336,8 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         Ok(Value::text(&nvs_render::text::substitute(text)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1597,7 +1599,7 @@ nvs_runtime::nvs_helper! {
     /// answer's qualifier does not depend on the question's: a prompt built
     /// from a literal and a prompt built from a request parameter both answer
     /// something untrusted.
-    fn nvs_core_cli_ask(ctx, args: [3]) {
+    fn nvs_core_cli_ask(ctx, args: [3]) -> Value, owns nvs_runtime::NvsStr {
         let question = question_of(&args[0], "ask")?;
         let (fallback, validate) = (args[1], args[2]);
         loop {
@@ -1651,6 +1653,8 @@ nvs_runtime::nvs_helper! {
                 value.release();
             }
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1876,7 +1880,7 @@ nvs_runtime::nvs_helper! {
     /// There is no `default`: a password nobody typed is not a password, so an
     /// unattended run throws [`not_interactive`] rather than proceeding with
     /// something a configuration file could have chosen.
-    fn nvs_core_cli_secret(ctx, args: [1]) {
+    fn nvs_core_cli_secret(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         let question = question_of(&args[0], "secret")?;
         let answer = match ask_terminal(ctx, &question, Echo::Hidden) {
             Answer::Line(line) => line,
@@ -1886,6 +1890,8 @@ nvs_runtime::nvs_helper! {
             ref quiet => return unanswered(quiet, "secret", Value::null()),
         };
         Ok(Value::text(&answer))
+    } apply(result, _subject) {
+        result
     }
 }
 

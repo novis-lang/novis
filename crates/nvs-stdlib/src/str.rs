@@ -1691,20 +1691,20 @@ const WRAP_OPTIONS: &[CoreOption] = &[
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_str_length" => (nvs_core_str_length as *const ()).cast(),
-        "nvs_core_str_at" => (nvs_core_str_at as *const ()).cast(),
+        "nvs_core_str_at" => return Some(nvs_core_str_at::entry()),
         "nvs_core_str_is_empty" => (nvs_core_str_is_empty as *const ()).cast(),
         "nvs_core_str_contains" => (nvs_core_str_contains as *const ()).cast(),
         "nvs_core_str_starts_with" => (nvs_core_str_starts_with as *const ()).cast(),
         "nvs_core_str_ends_with" => (nvs_core_str_ends_with as *const ()).cast(),
-        "nvs_core_str_slice" => (nvs_core_str_slice as *const ()).cast(),
+        "nvs_core_str_slice" => return Some(nvs_core_str_slice::entry()),
         "nvs_core_str_index_of" => (nvs_core_str_index_of as *const ()).cast(),
         "nvs_core_str_last_index_of" => (nvs_core_str_last_index_of as *const ()).cast(),
         "nvs_core_str_count_of" => (nvs_core_str_count_of as *const ()).cast(),
         "nvs_core_str_compare" => (nvs_core_str_compare as *const ()).cast(),
-        "nvs_core_str_before" => (nvs_core_str_before as *const ()).cast(),
-        "nvs_core_str_after" => (nvs_core_str_after as *const ()).cast(),
-        "nvs_core_str_reverse" => (nvs_core_str_reverse as *const ()).cast(),
-        "nvs_core_str_wrap" => (nvs_core_str_wrap as *const ()).cast(),
+        "nvs_core_str_before" => return Some(nvs_core_str_before::entry()),
+        "nvs_core_str_after" => return Some(nvs_core_str_after::entry()),
+        "nvs_core_str_reverse" => return Some(nvs_core_str_reverse::entry()),
+        "nvs_core_str_wrap" => return Some(nvs_core_str_wrap::entry()),
         "nvs_core_str_join" => (nvs_core_str_join as *const ()).cast(),
         "nvs_core_str_split" => (nvs_core_str_split as *const ()).cast(),
         "nvs_core_str_parts" => (nvs_core_str_parts as *const ()).cast(),
@@ -1714,22 +1714,22 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_str_code_points" => (nvs_core_str_code_points as *const ()).cast(),
         "nvs_core_str_from_code_point" => (nvs_core_str_from_code_point as *const ()).cast(),
         "nvs_core_str_from_code_points" => (nvs_core_str_from_code_points as *const ()).cast(),
-        "nvs_core_str_replace" => (nvs_core_str_replace as *const ()).cast(),
-        "nvs_core_str_replace_all" => (nvs_core_str_replace_all as *const ()).cast(),
-        "nvs_core_str_replace_range" => (nvs_core_str_replace_range as *const ()).cast(),
-        "nvs_core_str_trim" => (nvs_core_str_trim as *const ()).cast(),
-        "nvs_core_str_trim_start" => (nvs_core_str_trim_start as *const ()).cast(),
-        "nvs_core_str_trim_end" => (nvs_core_str_trim_end as *const ()).cast(),
-        "nvs_core_str_pad_start" => (nvs_core_str_pad_start as *const ()).cast(),
-        "nvs_core_str_pad_end" => (nvs_core_str_pad_end as *const ()).cast(),
-        "nvs_core_str_repeat" => (nvs_core_str_repeat as *const ()).cast(),
-        "nvs_core_str_lower" => (nvs_core_str_lower as *const ()).cast(),
-        "nvs_core_str_upper" => (nvs_core_str_upper as *const ()).cast(),
-        "nvs_core_str_upper_first" => (nvs_core_str_upper_first as *const ()).cast(),
-        "nvs_core_str_lower_first" => (nvs_core_str_lower_first as *const ()).cast(),
-        "nvs_core_str_fold" => (nvs_core_str_fold as *const ()).cast(),
-        "nvs_core_str_normalize" => (nvs_core_str_normalize as *const ()).cast(),
-        "nvs_core_str_format" => (nvs_core_str_format as *const ()).cast(),
+        "nvs_core_str_replace" => return Some(nvs_core_str_replace::entry()),
+        "nvs_core_str_replace_all" => return Some(nvs_core_str_replace_all::entry()),
+        "nvs_core_str_replace_range" => return Some(nvs_core_str_replace_range::entry()),
+        "nvs_core_str_trim" => return Some(nvs_core_str_trim::entry()),
+        "nvs_core_str_trim_start" => return Some(nvs_core_str_trim_start::entry()),
+        "nvs_core_str_trim_end" => return Some(nvs_core_str_trim_end::entry()),
+        "nvs_core_str_pad_start" => return Some(nvs_core_str_pad_start::entry()),
+        "nvs_core_str_pad_end" => return Some(nvs_core_str_pad_end::entry()),
+        "nvs_core_str_repeat" => return Some(nvs_core_str_repeat::entry()),
+        "nvs_core_str_lower" => return Some(nvs_core_str_lower::entry()),
+        "nvs_core_str_upper" => return Some(nvs_core_str_upper::entry()),
+        "nvs_core_str_upper_first" => return Some(nvs_core_str_upper_first::entry()),
+        "nvs_core_str_lower_first" => return Some(nvs_core_str_lower_first::entry()),
+        "nvs_core_str_fold" => return Some(nvs_core_str_fold::entry()),
+        "nvs_core_str_normalize" => return Some(nvs_core_str_normalize::entry()),
+        "nvs_core_str_format" => return Some(nvs_core_str_format::entry()),
         _ => return None,
     }))
 }
@@ -2020,7 +2020,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A negative index counts from the end, which is R8's range rule applied
     /// to a range of one.
-    fn nvs_core_str_at(_ctx, args: [2]) {
+    fn nvs_core_str_at(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = text(&args[0], "at", "the subject")?;
         let index = integer(&args[1], "at", "the index")?;
         let unit = crate::granularity::DEFAULT;
@@ -2031,6 +2031,8 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         produced(found)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2593,7 +2595,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::trim(string $s, { characters?: string }): string` — replacing
     /// PHP's `trim`. [`trimmed`] owns the two divergences from it, and
     /// `crate::registry`'s `TRIM_OPTIONS` owns the default set.
-    fn nvs_core_str_trim(_ctx, args: [2]) {
+    fn nvs_core_str_trim(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = text(&args[0], "trim", "the subject")?;
         let characters = text(&args[1], "trim", "the `characters` option")?;
         let kept = trimmed(subject, characters, true, true, r"Core\Str::trim")?;
@@ -2603,6 +2605,8 @@ nvs_runtime::nvs_helper! {
             return unchanged(args[0]);
         }
         produced(kept)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2619,20 +2623,24 @@ pub(crate) fn unchanged(argument: Value) -> HelperResult {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::trimStart(string $s, { characters?: string }): string` —
     /// replacing PHP's `ltrim`. See [`nvs_core_str_trim`].
-    fn nvs_core_str_trim_start(_ctx, args: [2]) {
+    fn nvs_core_str_trim_start(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = text(&args[0], "trimStart", "the subject")?;
         let characters = text(&args[1], "trimStart", "the `characters` option")?;
         produced(trimmed(subject, characters, true, false, r"Core\Str::trimStart")?)
+    } apply(result, _subject) {
+        result
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::trimEnd(string $s, { characters?: string }): string` —
     /// replacing PHP's `rtrim`/`chop`. See [`nvs_core_str_trim`].
-    fn nvs_core_str_trim_end(_ctx, args: [2]) {
+    fn nvs_core_str_trim_end(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = text(&args[0], "trimEnd", "the subject")?;
         let characters = text(&args[1], "trimEnd", "the `characters` option")?;
         produced(trimmed(subject, characters, false, true, r"Core\Str::trimEnd")?)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3048,7 +3056,7 @@ nvs_runtime::nvs_helper! {
     /// * **An empty `$search` replaces nothing**, rather than inserting the
     ///   replacement between every character or looping forever. PHP returns
     ///   the subject unchanged too.
-    fn nvs_core_str_replace(ctx, args: [5]) {
+    fn nvs_core_str_replace(ctx, args: [5]) -> Value, owns NvsStr {
         let subject = text(&args[0], "replace", "the subject")?;
         let search = text(&args[1], "replace", "the search string")?;
         let replacement = text(&args[2], "replace", "the replacement")?;
@@ -3081,6 +3089,8 @@ nvs_runtime::nvs_helper! {
             out.push_str(rest);
             Ok(())
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3121,7 +3131,7 @@ nvs_runtime::nvs_helper! {
     /// in every use this library has, and an Aho-Corasick automaton would
     /// spend more building itself than it saves. Revisit against a measured
     /// call site, not against this comment.
-    fn nvs_core_str_replace_all(ctx, args: [3]) {
+    fn nvs_core_str_replace_all(ctx, args: [3]) -> Value, owns NvsStr {
         let subject = text(&args[0], "replaceAll", "the subject")?;
         // Unreachable from source: parameter 1 is `array<string>` in `CLASS`
         // above, so a non-container table is `E0401: expected array<string>,
@@ -3209,6 +3219,8 @@ nvs_runtime::nvs_helper! {
             out.push_str(&subject[kept_from..]);
             Ok(())
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3274,10 +3286,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// An offset past the end is `""` rather than a throw — PHP 8's answer, and
     /// the one that composes with a loop.
-    fn nvs_core_str_slice(_ctx, args: [3]) {
+    fn nvs_core_str_slice(_ctx, args: [3]) -> Value, owns NvsStr {
         let subject = text(&args[0], "slice", "the subject")?;
         let (start, end) = window(&args[0], subject, &args[1], &args[2], "slice")?;
         produced(subject.get(start..end).unwrap_or(""))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3303,7 +3317,7 @@ nvs_runtime::nvs_helper! {
     /// An empty window is an insertion at that position, which is how a
     /// `$length` of `0` — or a negative one that reaches back past the offset —
     /// reads. PHP's answer too.
-    fn nvs_core_str_replace_range(_ctx, args: [4]) {
+    fn nvs_core_str_replace_range(_ctx, args: [4]) -> Value, owns NvsStr {
         let subject = text(&args[0], "replaceRange", "the subject")?;
         let replacement = text(&args[3], "replaceRange", "the replacement")?;
         let (start, end) = window(&args[0], subject, &args[1], &args[2], "replaceRange")?;
@@ -3316,6 +3330,8 @@ nvs_runtime::nvs_helper! {
             out.push_str(replacement);
             out.push_str(&subject[end..]);
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3772,7 +3788,7 @@ nvs_runtime::nvs_helper! {
     /// The needle itself is not included, and a needle that does not occur is
     /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5). `{ last: true }` cuts at
     /// the last occurrence instead of the first.
-    fn nvs_core_str_before(ctx, args: [3]) {
+    fn nvs_core_str_before(ctx, args: [3]) -> Value, owns NvsStr {
         let subject = text(&args[0], "before", "the subject")?;
         let needle = text(&args[1], "before", "the needle")?;
         let last = boolean(&args[2], "before", "the `last` option")?;
@@ -3781,6 +3797,8 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
             Some((at, _)) => produced(&subject[..at]),
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3791,7 +3809,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The needle is not included, which is the one place this diverges from
     /// `strstr`, whose answer starts with the needle. Absence is `null`, not `false`.
-    fn nvs_core_str_after(ctx, args: [3]) {
+    fn nvs_core_str_after(ctx, args: [3]) -> Value, owns NvsStr {
         let subject = text(&args[0], "after", "the subject")?;
         let needle = text(&args[1], "after", "the needle")?;
         let last = boolean(&args[2], "after", "the `last` option")?;
@@ -3800,6 +3818,8 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
             Some((at, matched)) => produced(&subject[at + matched..]),
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3817,13 +3837,15 @@ nvs_runtime::nvs_helper! {
     /// character of the subject, outside the memory limit. A reversal is the
     /// same bytes in a different order, so the length is the subject's and
     /// [`built`] writes them once.
-    fn nvs_core_str_reverse(_ctx, args: [1]) {
+    fn nvs_core_str_reverse(_ctx, args: [1]) -> Value, owns NvsStr {
         let subject = text(&args[0], "reverse", "the subject")?;
         built(subject.len(), |out| {
             for piece in crate::granularity::DEFAULT.pieces(subject).rev() {
                 out.push_str(piece);
             }
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3841,7 +3863,7 @@ nvs_runtime::nvs_helper! {
     ///   character *and* after it, which does not terminate. PHP raises
     ///   `ValueError` for the same pair; a zero width without cutting is fine
     ///   and breaks at every space.
-    fn nvs_core_str_wrap(_ctx, args: [4]) {
+    fn nvs_core_str_wrap(_ctx, args: [4]) -> Value, owns NvsStr {
         let subject = text(&args[0], "wrap", "the subject")?;
         let width = count(&args[1], "wrap", "the width")?;
         let break_with = text(&args[2], "wrap", "the `breakWith` option")?;
@@ -3863,6 +3885,8 @@ nvs_runtime::nvs_helper! {
         built(subject.len(), |out| {
             wrapped(subject, width, break_with, cut, |piece| out.push_str(piece));
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3951,7 +3975,7 @@ nvs_runtime::nvs_helper! {
     /// one of them; `str-pad-members-place-one-run-they-both-agree-on.nvst`
     /// asserts the run is a function of the shortfall alone and pins the two
     /// sides against each other.
-    fn nvs_core_str_pad_start(_ctx, args: [3]) {
+    fn nvs_core_str_pad_start(_ctx, args: [3]) -> Value, owns NvsStr {
         let subject = text(&args[0], "padStart", "the subject")?;
         let length = count(&args[1], "padStart", "the target length")?;
         let padding = text(&args[2], "padStart", "the padding")?;
@@ -3960,6 +3984,8 @@ nvs_runtime::nvs_helper! {
             write_run(out, padding, run);
             out.push_str(subject);
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3967,7 +3993,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::padEnd(string $s, uint $length, string $padding = " "): string`
     /// — replacing PHP's `str_pad` with `STR_PAD_RIGHT`. See
     /// [`nvs_core_str_pad_start`] for the shared rules.
-    fn nvs_core_str_pad_end(_ctx, args: [3]) {
+    fn nvs_core_str_pad_end(_ctx, args: [3]) -> Value, owns NvsStr {
         let subject = text(&args[0], "padEnd", "the subject")?;
         let length = count(&args[1], "padEnd", "the target length")?;
         let padding = text(&args[2], "padEnd", "the padding")?;
@@ -3976,6 +4002,8 @@ nvs_runtime::nvs_helper! {
             out.push_str(subject);
             write_run(out, padding, run);
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4051,7 +4079,7 @@ nvs_runtime::nvs_helper! {
     /// below is about how large the result is, so an empty subject passes it
     /// for every count there is, and the loop would then run a caller-supplied
     /// `uint` of iterations appending nothing.
-    fn nvs_core_str_repeat(_ctx, args: [2]) {
+    fn nvs_core_str_repeat(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = text(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
         // The size goes through the one shared check first, so a repeat too
@@ -4069,6 +4097,8 @@ nvs_runtime::nvs_helper! {
                 out.push_str(subject);
             }
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4081,7 +4111,7 @@ nvs_runtime::nvs_helper! {
     /// written through [`case_mapped`] so the memory limit sees every byte:
     /// `İ`, two bytes, becomes three. Only `Σ` depends on its neighbours, and
     /// [`word_final_sigma`] decides it.
-    fn nvs_core_str_lower(_ctx, args: [1]) {
+    fn nvs_core_str_lower(_ctx, args: [1]) -> Value, owns NvsStr {
         let subject = text(&args[0], "lower", "the subject")?;
         case_mapped(
             subject,
@@ -4094,6 +4124,8 @@ nvs_runtime::nvs_helper! {
                 c.to_lowercase()
             }),
         )
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4103,9 +4135,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// Written through [`case_mapped`]: Unicode's uppercase mapping can triple
     /// a text (`ΐ`, two bytes, becomes three characters and six bytes).
-    fn nvs_core_str_upper(_ctx, args: [1]) {
+    fn nvs_core_str_upper(_ctx, args: [1]) -> Value, owns NvsStr {
         let subject = text(&args[0], "upper", "the subject")?;
         case_mapped(subject, subject.chars().flat_map(char::to_uppercase))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4116,15 +4150,19 @@ nvs_runtime::nvs_helper! {
     /// what separates this from title casing (`ucwords`, which `Core\Str`
     /// leaves out entirely because word segmentation is
     /// locale-dependent).
-    fn nvs_core_str_upper_first(_ctx, args: [1]) {
+    fn nvs_core_str_upper_first(_ctx, args: [1]) -> Value, owns NvsStr {
         map_first(text(&args[0], "upperFirst", "the subject")?, true)
+    } apply(result, _subject) {
+        result
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
-    fn nvs_core_str_lower_first(_ctx, args: [1]) {
+    fn nvs_core_str_lower_first(_ctx, args: [1]) -> Value, owns NvsStr {
         map_first(text(&args[0], "lowerFirst", "the subject")?, false)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4150,10 +4188,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// Written through [`case_mapped`], since folding expands too (`ΐ` becomes
     /// three characters).
-    fn nvs_core_str_fold(_ctx, args: [1]) {
+    fn nvs_core_str_fold(_ctx, args: [1]) -> Value, owns NvsStr {
         use caseless::Caseless as _;
         let subject = text(&args[0], "fold", "the subject")?;
         case_mapped(subject, subject.chars().default_case_fold())
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4181,7 +4221,7 @@ nvs_runtime::nvs_helper! {
     /// or a compatibility decomposition, so all four forms are the identity
     /// there, and the check costs a scan where the general path costs a
     /// `String`.
-    fn nvs_core_str_normalize(_ctx, args: [2]) {
+    fn nvs_core_str_normalize(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = text(&args[0], "normalize", "the subject")?;
         // The form is read before the fast path rather than after it, so a
         // value that is no case is a fatal for every subject and not only for
@@ -4196,6 +4236,8 @@ nvs_runtime::nvs_helper! {
             NormalForm::Nfkc => normalized(subject.nfkc(), subject.len())?,
             NormalForm::Nfkd => normalized(subject.nfkd(), subject.len())?,
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4388,7 +4430,7 @@ nvs_runtime::nvs_helper! {
     /// The template grammar, every refusal and the one thing still owed
     /// (`rule:expressions/intrinsic-constant-arguments`'s compile-time check of a *literal* template) are
     /// [`crate::format`]'s, which is the whole of this member.
-    fn nvs_core_str_format(_ctx, args: [2]) {
+    fn nvs_core_str_format(_ctx, args: [2]) -> Value, owns NvsStr {
         let template = text(&args[0], "format", "the template")?;
         // Parameter 1 is `CoreTy::Variadic`, and
         // `nvs_ir::lower::lower_call_args` *builds* the array this slot holds
@@ -4434,6 +4476,8 @@ nvs_runtime::nvs_helper! {
         )]
         let formatted = Value::str(rendered);
         Ok(formatted)
+    } apply(result, _subject) {
+        result
     }
 }
 

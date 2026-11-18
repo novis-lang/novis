@@ -295,12 +295,12 @@ const SECRET_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_config_get" => (nvs_core_config_get as *const ()).cast(),
+        "nvs_core_config_get" => return Some(nvs_core_config_get::entry()),
         "nvs_core_config_set" => (nvs_core_config_set as *const ()).cast(),
         "nvs_core_config_restore" => (nvs_core_config_restore as *const ()).cast(),
         "nvs_core_config_all" => (nvs_core_config_all as *const ()).cast(),
         "nvs_core_config_setting" => (nvs_core_config_setting as *const ()).cast(),
-        "nvs_core_config_secret" => (nvs_core_config_secret as *const ()).cast(),
+        "nvs_core_config_secret" => return Some(nvs_core_config_secret::entry()),
         _ => return None,
     }))
 }
@@ -322,7 +322,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Config::get(string $name): ?string` — replacing `ini_get`. Its
     /// argument 0 is the prepared word, and a secret directive needs
     /// [`PREPARED_SECRET`] there, as the module doc says.
-    fn nvs_core_config_get(ctx, args: [2]) {
+    fn nvs_core_config_get(ctx, args: [2]) -> Value, owns NvsStr, at 1 {
         let name = text(&args[1], "get")?;
         if nvs_config::secret::is_secret_key(name) && args[0].as_int() != Some(PREPARED_SECRET) {
             return Err(Fault::thrown_as(
@@ -347,6 +347,8 @@ nvs_runtime::nvs_helper! {
             Some(value) => Ok(Value::text(&value)),
             None => Ok(Value::null()),
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -453,7 +455,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A secret is a deployment credential, as an environment variable is, so
     /// the door asks `env` before it reads one.
-    fn nvs_core_config_secret(ctx, args: [1]) {
+    fn nvs_core_config_secret(ctx, args: [1]) -> Value, owns NvsStr {
         let name = text(&args[0], "secret")?;
         nvs_runtime::capability::require(
             ctx,
@@ -465,6 +467,8 @@ nvs_runtime::nvs_helper! {
             .config()
             .and_then(|config| config.secret(name))
             .map_or_else(Value::null, Value::text))
+    } apply(result, _subject) {
+        result
     }
 }
 

@@ -657,14 +657,16 @@ const NANOS_SLOT: usize = 0;
 /// One arm per class rather than one match over all of them: `Core\Time` is one
 /// domain but several classes, and a class's symbols stay beside the class.
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
-    duration_address(symbol)
-        .or_else(|| time_address(symbol))
-        .or_else(|| instant_address(symbol))
-        .or_else(|| datetime_address(symbol))
+    datetime_address(symbol)
         .or_else(|| date_address(symbol))
         .or_else(|| time_of_day_address(symbol))
-        .or_else(|| zone_address(symbol))
-        .map(nvs_runtime::Entry::borrowed)
+        .or_else(|| {
+            duration_address(symbol)
+                .or_else(|| time_address(symbol))
+                .or_else(|| instant_address(symbol))
+                .or_else(|| zone_address(symbol))
+                .map(nvs_runtime::Entry::borrowed)
+        })
 }
 
 /// [`DURATION`]'s symbols.
@@ -2098,9 +2100,9 @@ const DATETIME_NANOS_SLOT: usize = 1;
 const DATETIME_ZONE_SLOT: usize = 2;
 
 /// [`DATETIME`]'s symbols.
-fn datetime_address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
-        "nvs_core_time_datetime_format" => (nvs_core_time_datetime_format as *const ()).cast(),
+fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
+        "nvs_core_time_datetime_format" => return Some(nvs_core_time_datetime_format::entry()),
         "nvs_core_time_datetime_plus" => (nvs_core_time_datetime_plus as *const ()).cast(),
         "nvs_core_time_datetime_minus" => (nvs_core_time_datetime_minus as *const ()).cast(),
         "nvs_core_time_datetime_next" => (nvs_core_time_datetime_next as *const ()).cast(),
@@ -2130,7 +2132,7 @@ fn datetime_address(symbol: &str) -> Option<*const u8> {
             (nvs_core_time_datetime_is_leap_year as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================
@@ -2738,16 +2740,16 @@ const DATE_MONTH_SLOT: usize = 1;
 const DATE_DAY_SLOT: usize = 2;
 
 /// [`DATE`]'s symbols.
-fn date_address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_time_date_at" => (nvs_core_time_date_at as *const ()).cast(),
-        "nvs_core_time_date_format" => (nvs_core_time_date_format as *const ()).cast(),
+        "nvs_core_time_date_format" => return Some(nvs_core_time_date_format::entry()),
         "nvs_core_time_date_plus" => (nvs_core_time_date_plus as *const ()).cast(),
         "nvs_core_time_date_minus" => (nvs_core_time_date_minus as *const ()).cast(),
         "nvs_core_time_date_with" => (nvs_core_time_date_with as *const ()).cast(),
         "nvs_core_time_date_compare_to" => (nvs_core_time_date_compare_to as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================
@@ -3059,16 +3061,16 @@ const CLOCK_SECOND_SLOT: usize = 2;
 const CLOCK_NANOS_SLOT: usize = 3;
 
 /// [`TIME_OF_DAY`]'s symbols.
-fn time_of_day_address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+fn time_of_day_address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_time_of_day_at" => (nvs_core_time_of_day_at as *const ()).cast(),
-        "nvs_core_time_of_day_format" => (nvs_core_time_of_day_format as *const ()).cast(),
+        "nvs_core_time_of_day_format" => return Some(nvs_core_time_of_day_format::entry()),
         "nvs_core_time_of_day_plus" => (nvs_core_time_of_day_plus as *const ()).cast(),
         "nvs_core_time_of_day_minus" => (nvs_core_time_of_day_minus as *const ()).cast(),
         "nvs_core_time_of_day_with" => (nvs_core_time_of_day_with as *const ()).cast(),
         "nvs_core_time_of_day_compare_to" => (nvs_core_time_of_day_compare_to as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================
@@ -4272,7 +4274,7 @@ nvs_runtime::nvs_helper! {
     /// site wrote, which this core compiles once and keeps, and
     /// [`crate::cldr::PREPARED_NONE`] for one the program assembled, which is
     /// compiled here and kept nowhere. This module's own docs own that split.
-    fn nvs_core_time_datetime_format(_ctx, args: [3]) {
+    fn nvs_core_time_datetime_format(_ctx, args: [3]) -> Value, owns nvs_runtime::NvsStr, at 2 {
         let ready = crate::cldr::prepared_arg(&args[0]);
         let at = zoned_of(args, 1, "format")?;
         let pattern = text_of(args, 2, "Core\\Time\\DateTime::format")?;
@@ -4284,6 +4286,8 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
         Ok(Value::text(&crate::cldr::render(&pieces, &at)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4860,7 +4864,7 @@ nvs_runtime::nvs_helper! {
     /// rendering that reads nothing but the three civil fields the value
     /// holds, which is what makes rendering it without an instant possible at
     /// all.
-    fn nvs_core_time_date_format(_ctx, args: [2]) {
+    fn nvs_core_time_date_format(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let at = date_of(args, 0, "format")?;
         let pattern = text_of(args, 1, r"Core\Time\Date::format")?;
         let pieces = crate::cldr::compile(pattern)
@@ -4873,6 +4877,8 @@ nvs_runtime::nvs_helper! {
         // year range `Date::at` accepts — [`crate::cldr::render_utc`] owns the
         // reasoning and the two dates that used to abort the request here.
         Ok(Value::text(&crate::cldr::render_utc(&pieces, at.to_datetime(civil::Time::midnight()))))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -5091,7 +5097,7 @@ nvs_runtime::nvs_helper! {
     /// `$t->format(string $pattern): string` — [`crate::cldr`]'s patterns
     /// narrowed the other way, to the letters a clock carries
     /// ([`crate::cldr::time_fields_only`]).
-    fn nvs_core_time_of_day_format(_ctx, args: [2]) {
+    fn nvs_core_time_of_day_format(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let at = clock_of(args, 0, "format")?;
         let pattern = text_of(args, 1, r"Core\Time\TimeOfDay::format")?;
         let pieces = crate::cldr::compile(pattern)
@@ -5109,6 +5115,8 @@ nvs_runtime::nvs_helper! {
         // here for symmetry.
         Ok(Value::text(&crate::cldr::render_utc(&pieces, civil::Date::constant(1970, 1, 1).to_datetime(at))
                 ))
+    } apply(result, _subject) {
+        result
     }
 }
 

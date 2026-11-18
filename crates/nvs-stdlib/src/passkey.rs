@@ -677,15 +677,11 @@ struct Attested<'a> {
 /// domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_passkey_register_options" => {
-            (nvs_core_passkey_register_options as *const ()).cast()
-        }
+        "nvs_core_passkey_register_options" => return Some(nvs_core_passkey_register_options::entry()),
         "nvs_core_passkey_verify_registration" => {
             (nvs_core_passkey_verify_registration as *const ()).cast()
         }
-        "nvs_core_passkey_sign_in_options" => {
-            (nvs_core_passkey_sign_in_options as *const ()).cast()
-        }
+        "nvs_core_passkey_sign_in_options" => return Some(nvs_core_passkey_sign_in_options::entry()),
         "nvs_core_passkey_credential_id_of" => {
             (nvs_core_passkey_credential_id_of as *const ()).cast()
         }
@@ -1222,7 +1218,7 @@ nvs_runtime::nvs_helper! {
     /// The options ask for user verification, for a discoverable credential where the device can
     /// make one, and for no attestation. ES256 is listed before Ed25519 because nearly every
     /// authenticator has it.
-    fn nvs_core_passkey_register_options(ctx, args: [5]) {
+    fn nvs_core_passkey_register_options(ctx, args: [5]) -> Value, owns NvsStr {
         let who = "Core\\Passkey::registerOptions";
         let rp_id = text_at(args, 0, who, "rpId")?;
         let rp_name = text_at(args, 1, who, "rpName")?;
@@ -1274,6 +1270,8 @@ nvs_runtime::nvs_helper! {
         let options = options.to_string();
         nvs_runtime::affordable(Some(options.len()), who)?;
         Ok(Value::text(&options))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1308,7 +1306,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Passkey::signInOptions(string $rpId, array<Passkey\Credential> $allowed = []):
     /// string` — the JSON a browser's `PublicKeyCredential.parseRequestOptionsFromJSON()` reads,
     /// with a fresh challenge saved in the session.
-    fn nvs_core_passkey_sign_in_options(ctx, args: [2]) {
+    fn nvs_core_passkey_sign_in_options(ctx, args: [2]) -> Value, owns NvsStr {
         let who = "Core\\Passkey::signInOptions";
         let rp_id = text_at(args, 0, who, "rpId")?;
         if rp_id.is_empty() {
@@ -1334,6 +1332,8 @@ nvs_runtime::nvs_helper! {
         let options = options.to_string();
         nvs_runtime::affordable(Some(options.len()), who)?;
         Ok(Value::text(&options))
+    } apply(result, _subject) {
+        result
     }
 }
 

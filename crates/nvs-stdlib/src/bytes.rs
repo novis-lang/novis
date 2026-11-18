@@ -653,14 +653,14 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_bytes_length" => (nvs_core_bytes_length as *const ()).cast(),
         "nvs_core_bytes_at" => (nvs_core_bytes_at as *const ()).cast(),
-        "nvs_core_bytes_slice" => (nvs_core_bytes_slice as *const ()).cast(),
+        "nvs_core_bytes_slice" => return Some(nvs_core_bytes_slice::entry()),
         "nvs_core_bytes_index_of" => (nvs_core_bytes_index_of as *const ()).cast(),
         "nvs_core_bytes_compare" => (nvs_core_bytes_compare as *const ()).cast(),
         "nvs_core_bytes_contains" => (nvs_core_bytes_contains as *const ()).cast(),
         "nvs_core_bytes_starts_with" => (nvs_core_bytes_starts_with as *const ()).cast(),
         "nvs_core_bytes_ends_with" => (nvs_core_bytes_ends_with as *const ()).cast(),
         "nvs_core_bytes_fill" => (nvs_core_bytes_fill as *const ()).cast(),
-        "nvs_core_bytes_repeat" => (nvs_core_bytes_repeat as *const ()).cast(),
+        "nvs_core_bytes_repeat" => return Some(nvs_core_bytes_repeat::entry()),
         "nvs_core_bytes_join" => (nvs_core_bytes_join as *const ()).cast(),
         "nvs_core_bytes_pack" => (nvs_core_bytes_pack as *const ()).cast(),
         "nvs_core_bytes_unpack" => (nvs_core_bytes_unpack as *const ()).cast(),
@@ -935,7 +935,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// An offset past the end is the empty buffer rather than a throw, which
     /// is PHP 8's answer and the one that composes with a loop.
-    fn nvs_core_bytes_slice(_ctx, args: [3]) {
+    fn nvs_core_bytes_slice(_ctx, args: [3]) -> Value, owns NvsStr {
         let subject = raw(&args[0], "slice", "the subject")?;
         let total = subject.len();
         let start = offset(total, integer(&args[1], "slice", "the offset")?);
@@ -959,6 +959,8 @@ nvs_runtime::nvs_helper! {
         // `get` rather than an index: a window that closes before it opens is
         // `None` here, and the empty buffer is what R8 says it answers.
         produced(subject.get(start..end).unwrap_or(&[]))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1092,7 +1094,7 @@ nvs_runtime::nvs_helper! {
     /// caller-supplied `uint` of iterations appending nothing, which is an
     /// unbounded spin on the request path for an answer already known.
     /// `Core\Str::repeat` carries the same guard for the same reason.
-    fn nvs_core_bytes_repeat(_ctx, args: [2]) {
+    fn nvs_core_bytes_repeat(_ctx, args: [2]) -> Value, owns NvsStr {
         let subject = raw(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
         let size = affordable(subject.len().checked_mul(times), "repeat")?;
@@ -1103,6 +1105,8 @@ nvs_runtime::nvs_helper! {
             octets.extend_from_slice(subject);
         }
         produced_fallibly(&octets, "repeat")
+    } apply(result, _subject) {
+        result
     }
 }
 

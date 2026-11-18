@@ -1045,7 +1045,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$row->string(string $name): ?string` — the text family alone, which
     /// [`ROW`]'s own docs state the rule for.
-    fn nvs_core_db_row_string(_ctx, args: [2]) {
+    fn nvs_core_db_row_string(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let (name, found) = typed_column(args, "string")?;
         let Some(value) = found else {
             return Ok(Value::null());
@@ -1053,7 +1053,9 @@ nvs_runtime::nvs_helper! {
         if value.as_str_bytes().is_none() {
             return Err(wrong_column_type("string", name, value, "`string`"));
         }
-        Ok(owned(value))
+        Ok(super::owned(value))
+    } apply(result, _subject) {
+        result
     }
 }
 

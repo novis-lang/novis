@@ -1466,7 +1466,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// As [`record`], plus [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
     /// something that is not a key.
-    fn nvs_core_session_get_secret(ctx, args: [2]) {
+    fn nvs_core_session_get_secret(ctx, args: [2]) -> Value, owns NvsStr {
         let held = record(ctx, "getSecret")?;
         let key = crate::string_arg(&args[0], format_args!("{NAME}::getSecret's $key"))?;
 
@@ -1475,6 +1475,8 @@ nvs_runtime::nvs_helper! {
         let answer = opened_from(ctx, &held, key, &ring, &who)?;
         drop(held);
         Ok(answer.unwrap_or_else(Value::null))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1790,7 +1792,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_session_regenerate" => (nvs_core_session_regenerate as *const ()).cast(),
         "nvs_core_session_destroy" => (nvs_core_session_destroy as *const ()).cast(),
         "nvs_core_session_set_secret" => (nvs_core_session_set_secret as *const ()).cast(),
-        "nvs_core_session_get_secret" => (nvs_core_session_get_secret as *const ()).cast(),
+        "nvs_core_session_get_secret" => return Some(nvs_core_session_get_secret::entry()),
         _ => return None,
     }))
 }

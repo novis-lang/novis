@@ -1178,9 +1178,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_uri_compare_to" => (nvs_core_uri_compare_to as *const ()).cast(),
         "nvs_core_uri_sign" => (nvs_core_uri_sign as *const ()).cast(),
         "nvs_core_uri_verify_signature" => (nvs_core_uri_verify_signature as *const ()).cast(),
-        "nvs_core_uri_encode_component" => (nvs_core_uri_encode_component as *const ()).cast(),
+        "nvs_core_uri_encode_component" => return Some(nvs_core_uri_encode_component::entry()),
         "nvs_core_uri_decode_component" => (nvs_core_uri_decode_component as *const ()).cast(),
-        "nvs_core_uri_encode_form_value" => (nvs_core_uri_encode_form_value as *const ()).cast(),
+        "nvs_core_uri_encode_form_value" => return Some(nvs_core_uri_encode_form_value::entry()),
         "nvs_core_uri_decode_form_value" => (nvs_core_uri_decode_form_value as *const ()).cast(),
         "nvs_core_uri_parse_query" => (nvs_core_uri_parse_query as *const ()).cast(),
         "nvs_core_uri_build_query" => (nvs_core_uri_build_query as *const ()).cast(),
@@ -3199,10 +3199,12 @@ nvs_runtime::nvs_helper! {
     /// fragment. A `tainted` argument comes back plain because after this
     /// member no byte of it can be read as a delimiter — which is `rule:security/unclassified-parameter-refuses-tainted`
     /// 's whole condition for claiming the mark.
-    fn nvs_core_uri_encode_component(_ctx, args: [1]) {
+    fn nvs_core_uri_encode_component(_ctx, args: [1]) -> Value, owns NvsStr {
         let text = text_of(args, "encodeComponent")?;
 
         encoded(text.as_bytes(), Form::Component)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3243,10 +3245,12 @@ nvs_runtime::nvs_helper! {
     /// `application/x-www-form-urlencoded` body. Both bytes that structure one
     /// are escaped — the `&` between pairs and the `=` inside a pair — so an
     /// encoded value cannot open a pair of its own.
-    fn nvs_core_uri_encode_form_value(_ctx, args: [1]) {
+    fn nvs_core_uri_encode_form_value(_ctx, args: [1]) -> Value, owns NvsStr {
         let text = text_of(args, "encodeFormValue")?;
 
         encoded(text.as_bytes(), Form::FormValue)
+    } apply(result, _subject) {
+        result
     }
 }
 

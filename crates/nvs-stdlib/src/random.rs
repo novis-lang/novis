@@ -587,16 +587,16 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_random_bytes" => (nvs_core_random_bytes as *const ()).cast(),
         "nvs_core_random_token" => (nvs_core_random_token as *const ()).cast(),
         "nvs_core_random_pick" => (nvs_core_random_pick as *const ()).cast(),
-        "nvs_core_random_sample" => (nvs_core_random_sample as *const ()).cast(),
-        "nvs_core_random_shuffle" => (nvs_core_random_shuffle as *const ()).cast(),
+        "nvs_core_random_sample" => return Some(nvs_core_random_sample::entry()),
+        "nvs_core_random_shuffle" => return Some(nvs_core_random_shuffle::entry()),
         SEEDED_NEW_SYMBOL => (nvs_core_random_seeded_new as *const ()).cast(),
         "nvs_core_random_seeded_int" => (nvs_core_random_seeded_int as *const ()).cast(),
         "nvs_core_random_seeded_float" => (nvs_core_random_seeded_float as *const ()).cast(),
         "nvs_core_random_seeded_bytes" => (nvs_core_random_seeded_bytes as *const ()).cast(),
         "nvs_core_random_seeded_token" => (nvs_core_random_seeded_token as *const ()).cast(),
         "nvs_core_random_seeded_pick" => (nvs_core_random_seeded_pick as *const ()).cast(),
-        "nvs_core_random_seeded_sample" => (nvs_core_random_seeded_sample as *const ()).cast(),
-        "nvs_core_random_seeded_shuffle" => (nvs_core_random_seeded_shuffle as *const ()).cast(),
+        "nvs_core_random_seeded_sample" => return Some(nvs_core_random_seeded_sample::entry()),
+        "nvs_core_random_seeded_shuffle" => return Some(nvs_core_random_seeded_shuffle::entry()),
         _ => return None,
     }))
 }
@@ -1206,7 +1206,7 @@ nvs_runtime::nvs_helper! {
     /// that many distinct entries to draw, so the alternatives are inventing a
     /// duplicate or silently answering short — a failure either way, and only
     /// the throw says so.
-    fn nvs_core_random_sample(ctx, args: [2]) {
+    fn nvs_core_random_sample(ctx, args: [2]) -> Value, owns NvsArray {
         let subject = subject(NAME, args, 0, "sample")?;
         let count = count(NAME, &args[1], "sample", "the sample size")?;
 
@@ -1218,6 +1218,8 @@ nvs_runtime::nvs_helper! {
                 ))
             })
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1233,10 +1235,12 @@ nvs_runtime::nvs_helper! {
     /// **Keys are discarded**, exactly as PHP's own `shuffle` renumbers: a
     /// shuffle is about position, and a key that survived it would name an
     /// entry that is no longer where the caller left it.
-    fn nvs_core_random_shuffle(ctx, args: [1]) {
+    fn nvs_core_random_shuffle(ctx, args: [1]) -> Value, owns NvsArray {
         let subject = subject(NAME, args, 0, "shuffle")?;
 
         Ok(draw(ctx, |rng| shuffle_from(rng, &subject)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1374,7 +1378,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Random\Seeded::sample(array<T> $a, uint $count): array<T>` — the
     /// draw [`nvs_core_random_sample`] makes, from this instance's own
     /// sequence, in the order it drew them.
-    fn nvs_core_random_seeded_sample(_ctx, args: [3]) {
+    fn nvs_core_random_seeded_sample(_ctx, args: [3]) -> Value, owns NvsArray, at 1 {
         let subject = subject(SEEDED_NAME, args, 1, "sample")?;
         let count = count(SEEDED_NAME, &args[2], "sample", "the sample size")?;
 
@@ -1386,16 +1390,20 @@ nvs_runtime::nvs_helper! {
                 ))
             })
         })?
+    } apply(result, _subject) {
+        result
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Random\Seeded::shuffle(array<T> $a): array<T>` — the draw
     /// [`nvs_core_random_shuffle`] makes, from this instance's own sequence.
-    fn nvs_core_random_seeded_shuffle(_ctx, args: [2]) {
+    fn nvs_core_random_seeded_shuffle(_ctx, args: [2]) -> Value, owns NvsArray, at 1 {
         let subject = subject(SEEDED_NAME, args, 1, "shuffle")?;
 
         sequence(args, "shuffle", |rng| shuffle_from(rng, &subject))
+    } apply(result, _subject) {
+        result
     }
 }
 

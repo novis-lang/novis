@@ -67,15 +67,17 @@ fn every_member_owns_exactly_what_its_signature_says() {
     let mut wrong = Vec::new();
     for class in CLASSES {
         // An instance member's receiver is argument slot 0, so its first
-        // parameter is slot 1.
+        // parameter is slot 1 or later. A member the lowering hands a prepared
+        // argument first, such as `Core\IO::read`'s own-file word, has its
+        // first parameter one slot later again.
         for (members, slot) in [(class.methods, 0), (class.instance, 1)] {
             for method in members {
                 let owns = signature_owns(method);
                 match (owns, nvs_stdlib::owning_entry(method.symbol)) {
                     (false, None) => {}
-                    (true, Some(entry)) if entry.slot == slot => {}
+                    (true, Some(entry)) if entry.slot >= slot => {}
                     (true, Some(entry)) => wrong.push(format!(
-                        "{}::{} takes its subject from slot {}, and its first parameter is slot {slot}",
+                        "{}::{} takes its subject from slot {}, before its first parameter's slot {slot}",
                         class.name, method.name, entry.slot
                     )),
                     (true, None) => wrong.push(format!(

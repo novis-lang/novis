@@ -140,11 +140,11 @@ pub(crate) const CHUNKS_ADVANCE_SYMBOL: &str = "nvs_core_http_chunks_advance";
 pub(crate) const CHUNKS_CURRENT_SYMBOL: &str = "nvs_core_http_chunks_current";
 
 /// The address of one of this module's symbols — [`super::address`]'s tail.
-pub(super) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_http_client_stream" => (nvs_core_http_client_stream as *const ()).cast(),
         "nvs_core_http_stream_status" => (nvs_core_http_stream_status as *const ()).cast(),
-        "nvs_core_http_stream_header" => (nvs_core_http_stream_header as *const ()).cast(),
+        "nvs_core_http_stream_header" => return Some(nvs_core_http_stream_header::entry()),
         "nvs_core_http_stream_headers" => (nvs_core_http_stream_headers as *const ()).cast(),
         "nvs_core_http_stream_events" => (nvs_core_http_stream_events as *const ()).cast(),
         "nvs_core_http_stream_lines" => (nvs_core_http_stream_lines as *const ()).cast(),
@@ -163,7 +163,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         CHUNKS_ADVANCE_SYMBOL => (nvs_core_http_chunks_advance as *const ()).cast(),
         CHUNKS_CURRENT_SYMBOL => (nvs_core_http_chunks_current as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// `Core\Http\Stream`'s own card — `rule:core-api/reference-card`.
@@ -1205,10 +1205,12 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// That member's `LogicError` for `Set-Cookie`, and its two fatals.
-    fn nvs_core_http_stream_header(_ctx, args: [2]) {
+    fn nvs_core_http_stream_header(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let receiver = crate::instance::receiver(args[0], &STREAM, "header")?;
         let name = field_name(&args[1], STREAM_NAME, "header")?;
         joined_field(receiver, STREAM_HEADERS_AT, name, STREAM_NAME)
+    } apply(result, _subject) {
+        result
     }
 }
 

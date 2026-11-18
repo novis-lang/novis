@@ -443,8 +443,8 @@ const KEY_OWN_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_jwe_encrypt" => (nvs_core_jwe_encrypt as *const ()).cast(),
-        "nvs_core_jwe_decrypt" => (nvs_core_jwe_decrypt as *const ()).cast(),
+        "nvs_core_jwe_encrypt" => return Some(nvs_core_jwe_encrypt::entry()),
+        "nvs_core_jwe_decrypt" => return Some(nvs_core_jwe_decrypt::entry()),
         "nvs_core_jwe_key_shared" => (nvs_core_jwe_key_shared as *const ()).cast(),
         "nvs_core_jwe_key_password" => (nvs_core_jwe_key_password as *const ()).cast(),
         "nvs_core_jwe_key_recipient" => (nvs_core_jwe_key_recipient as *const ()).cast(),
@@ -936,7 +936,7 @@ nvs_runtime::nvs_helper! {
     /// There is no `alg` argument to get wrong: which branch below runs is
     /// which static built `$key`, and the header states it rather than being
     /// asked for it.
-    fn nvs_core_jwe_encrypt(ctx, args: [2]) {
+    fn nvs_core_jwe_encrypt(ctx, args: [2]) -> Value, owns NvsStr {
         let payload = text_at(args, 0, "encrypt", "$payload")?;
         let (picked, held, kind) = opened(args[1], "encrypt")?;
         let material = material_of(&held, "encrypt")?;
@@ -976,6 +976,8 @@ nvs_runtime::nvs_helper! {
 
         let token = sealed(&cek, &iv, &protected, &encrypted_key, payload.as_bytes())?;
         Ok(Value::text(&token))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -988,7 +990,7 @@ nvs_runtime::nvs_helper! {
     /// and the payload is answered only under a tag that held — so the most
     /// expensive path, a PBES2 derivation, is reached only by a token that
     /// already claims to be one.
-    fn nvs_core_jwe_decrypt(ctx, args: [2]) {
+    fn nvs_core_jwe_decrypt(ctx, args: [2]) -> Value, owns NvsStr {
         let token = text_at(args, 0, "decrypt", "$token")?;
         // Unreachable from source: the row declares `array<Jwe\Key>`, so
         // `nvs_types` refuses another tag at `E0401`.
@@ -1066,6 +1068,8 @@ nvs_runtime::nvs_helper! {
             ));
         };
         Ok(Value::text(text))
+    } apply(result, _subject) {
+        result
     }
 }
 

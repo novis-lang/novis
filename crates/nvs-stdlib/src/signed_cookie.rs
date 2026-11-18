@@ -275,11 +275,11 @@ const OPEN_DOC: MethodDoc = MethodDoc {
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
-    Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_signed_cookie_seal" => (nvs_core_signed_cookie_seal as *const ()).cast(),
-        "nvs_core_signed_cookie_open" => (nvs_core_signed_cookie_open as *const ()).cast(),
-        _ => return None,
-    }))
+    match symbol {
+        "nvs_core_signed_cookie_seal" => Some(nvs_core_signed_cookie_seal::entry()),
+        "nvs_core_signed_cookie_open" => Some(nvs_core_signed_cookie_open::entry()),
+        _ => None,
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -291,7 +291,7 @@ nvs_runtime::nvs_helper! {
     /// The newest key is the ring's first live slot, which for the list a
     /// program writes is `$keys[0]`; the module doc's own section is the home
     /// of why the newest end is the front and not the back.
-    fn nvs_core_signed_cookie_seal(ctx, args: [3]) {
+    fn nvs_core_signed_cookie_seal(ctx, args: [3]) -> Value, owns nvs_runtime::NvsStr {
         let name = crate::string_arg(&args[0], format_args!("{NAME}::seal"))?;
         let value = crate::string_arg(&args[1], format_args!("{NAME}::seal"))?;
         let ring = crate::keyring::borrow(args, 2, SEAL)?;
@@ -302,6 +302,8 @@ nvs_runtime::nvs_helper! {
         let sealed =
             crate::crypto::seal_under(ctx, &cipher, &bound_to(name), value.as_bytes(), SEAL)?;
         Ok(Value::text(&URL_SAFE_NO_PAD.encode(&sealed)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -321,7 +323,7 @@ nvs_runtime::nvs_helper! {
     /// that holds proves who sealed the bytes, not that they are text: any
     /// holder of a key in the ring can seal a cookie. A plaintext that is not
     /// UTF-8 gets the same refusal as a cookie that does not authenticate.
-    fn nvs_core_signed_cookie_open(_ctx, args: [3]) {
+    fn nvs_core_signed_cookie_open(_ctx, args: [3]) -> Value, owns nvs_runtime::NvsStr {
         let name = crate::string_arg(&args[0], format_args!("{NAME}::open"))?;
         let cookie = crate::string_arg(&args[1], format_args!("{NAME}::open"))?;
         let ring = crate::keyring::borrow(args, 2, OPEN)?;
@@ -348,6 +350,8 @@ nvs_runtime::nvs_helper! {
              any key in $keys — it has been altered, it was sealed for another name or is not \
              a cookie this application sealed, or the key it was sealed under has been retired"
         ))
+    } apply(result, _subject) {
+        result
     }
 }
 

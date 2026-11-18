@@ -2270,47 +2270,45 @@ const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_arr_count" => (nvs_core_arr_count as *const ()).cast(),
-        "nvs_core_arr_filter" => (nvs_core_arr_filter as *const ()).cast(),
-        "nvs_core_arr_map" => (nvs_core_arr_map as *const ()).cast(),
-        "nvs_core_arr_map_keys" => (nvs_core_arr_map_keys as *const ()).cast(),
-        "nvs_core_arr_group_by" => (nvs_core_arr_group_by as *const ()).cast(),
+        "nvs_core_arr_filter" => return Some(nvs_core_arr_filter::entry()),
+        "nvs_core_arr_map" => return Some(nvs_core_arr_map::entry()),
+        "nvs_core_arr_map_keys" => return Some(nvs_core_arr_map_keys::entry()),
+        "nvs_core_arr_group_by" => return Some(nvs_core_arr_group_by::entry()),
         "nvs_core_arr_reduce" => (nvs_core_arr_reduce as *const ()).cast(),
         "nvs_core_arr_is_empty" => (nvs_core_arr_is_empty as *const ()).cast(),
         "nvs_core_arr_has_key" => (nvs_core_arr_has_key as *const ()).cast(),
         "nvs_core_arr_is_list" => (nvs_core_arr_is_list as *const ()).cast(),
-        "nvs_core_arr_keys" => (nvs_core_arr_keys as *const ()).cast(),
-        "nvs_core_arr_values" => (nvs_core_arr_values as *const ()).cast(),
+        "nvs_core_arr_keys" => return Some(nvs_core_arr_keys::entry()),
+        "nvs_core_arr_values" => return Some(nvs_core_arr_values::entry()),
         "nvs_core_arr_reverse" => return Some(nvs_core_arr_reverse::entry()),
-        "nvs_core_arr_flip" => (nvs_core_arr_flip as *const ()).cast(),
-        "nvs_core_arr_sort" => (nvs_core_arr_sort as *const ()).cast(),
-        "nvs_core_arr_sort_by_key" => (nvs_core_arr_sort_by_key as *const ()).cast(),
+        "nvs_core_arr_flip" => return Some(nvs_core_arr_flip::entry()),
+        "nvs_core_arr_sort" => return Some(nvs_core_arr_sort::entry()),
+        "nvs_core_arr_sort_by_key" => return Some(nvs_core_arr_sort_by_key::entry()),
         "nvs_core_arr_range" => (nvs_core_arr_range as *const ()).cast(),
-        "nvs_core_arr_slice" => (nvs_core_arr_slice as *const ()).cast(),
-        "nvs_core_arr_replace_range" => (nvs_core_arr_replace_range as *const ()).cast(),
-        "nvs_core_arr_flatten" => (nvs_core_arr_flatten as *const ()).cast(),
-        "nvs_core_arr_flatten_deep" => (nvs_core_arr_flatten_deep as *const ()).cast(),
-        "nvs_core_arr_column" => (nvs_core_arr_column as *const ()).cast(),
-        "nvs_core_arr_chunk" => (nvs_core_arr_chunk as *const ()).cast(),
-        "nvs_core_arr_append" => (nvs_core_arr_append as *const ()).cast(),
-        "nvs_core_arr_prepend" => (nvs_core_arr_prepend as *const ()).cast(),
-        "nvs_core_arr_without_first" => (nvs_core_arr_without_first as *const ()).cast(),
-        "nvs_core_arr_without_last" => (nvs_core_arr_without_last as *const ()).cast(),
-        "nvs_core_arr_without_null" => (nvs_core_arr_without_null as *const ()).cast(),
-        "nvs_core_arr_from_keys_and_values" => {
-            (nvs_core_arr_from_keys_and_values as *const ()).cast()
-        }
+        "nvs_core_arr_slice" => return Some(nvs_core_arr_slice::entry()),
+        "nvs_core_arr_replace_range" => return Some(nvs_core_arr_replace_range::entry()),
+        "nvs_core_arr_flatten" => return Some(nvs_core_arr_flatten::entry()),
+        "nvs_core_arr_flatten_deep" => return Some(nvs_core_arr_flatten_deep::entry()),
+        "nvs_core_arr_column" => return Some(nvs_core_arr_column::entry()),
+        "nvs_core_arr_chunk" => return Some(nvs_core_arr_chunk::entry()),
+        "nvs_core_arr_append" => return Some(nvs_core_arr_append::entry()),
+        "nvs_core_arr_prepend" => return Some(nvs_core_arr_prepend::entry()),
+        "nvs_core_arr_without_first" => return Some(nvs_core_arr_without_first::entry()),
+        "nvs_core_arr_without_last" => return Some(nvs_core_arr_without_last::entry()),
+        "nvs_core_arr_without_null" => return Some(nvs_core_arr_without_null::entry()),
+        "nvs_core_arr_from_keys_and_values" => return Some(nvs_core_arr_from_keys_and_values::entry()),
         "nvs_core_arr_from" => (nvs_core_arr_from as *const ()).cast(),
-        "nvs_core_arr_pad_start" => (nvs_core_arr_pad_start as *const ()).cast(),
-        "nvs_core_arr_pad_end" => (nvs_core_arr_pad_end as *const ()).cast(),
+        "nvs_core_arr_pad_start" => return Some(nvs_core_arr_pad_start::entry()),
+        "nvs_core_arr_pad_end" => return Some(nvs_core_arr_pad_end::entry()),
         "nvs_core_arr_fill" => (nvs_core_arr_fill as *const ()).cast(),
-        "nvs_core_arr_fill_keys" => (nvs_core_arr_fill_keys as *const ()).cast(),
-        "nvs_core_arr_overlay" => (nvs_core_arr_overlay as *const ()).cast(),
-        "nvs_core_arr_overlay_deep" => (nvs_core_arr_overlay_deep as *const ()).cast(),
-        "nvs_core_arr_underlay" => (nvs_core_arr_underlay as *const ()).cast(),
-        "nvs_core_arr_append_all" => (nvs_core_arr_append_all as *const ()).cast(),
-        "nvs_core_arr_diff" => (nvs_core_arr_diff as *const ()).cast(),
-        "nvs_core_arr_intersect" => (nvs_core_arr_intersect as *const ()).cast(),
-        "nvs_core_arr_count_by" => (nvs_core_arr_count_by as *const ()).cast(),
+        "nvs_core_arr_fill_keys" => return Some(nvs_core_arr_fill_keys::entry()),
+        "nvs_core_arr_overlay" => return Some(nvs_core_arr_overlay::entry()),
+        "nvs_core_arr_overlay_deep" => return Some(nvs_core_arr_overlay_deep::entry()),
+        "nvs_core_arr_underlay" => return Some(nvs_core_arr_underlay::entry()),
+        "nvs_core_arr_append_all" => return Some(nvs_core_arr_append_all::entry()),
+        "nvs_core_arr_diff" => return Some(nvs_core_arr_diff::entry()),
+        "nvs_core_arr_intersect" => return Some(nvs_core_arr_intersect::entry()),
+        "nvs_core_arr_count_by" => return Some(nvs_core_arr_count_by::entry()),
         "nvs_core_arr_first" => (nvs_core_arr_first as *const ()).cast(),
         "nvs_core_arr_last" => (nvs_core_arr_last as *const ()).cast(),
         "nvs_core_arr_first_key" => (nvs_core_arr_first_key as *const ()).cast(),
@@ -2321,7 +2319,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_arr_all" => (nvs_core_arr_all as *const ()).cast(),
         "nvs_core_arr_contains" => (nvs_core_arr_contains as *const ()).cast(),
         "nvs_core_arr_key_of" => (nvs_core_arr_key_of as *const ()).cast(),
-        "nvs_core_arr_unique" => (nvs_core_arr_unique as *const ()).cast(),
+        "nvs_core_arr_unique" => return Some(nvs_core_arr_unique::entry()),
         "nvs_core_arr_min" => (nvs_core_arr_min as *const ()).cast(),
         "nvs_core_arr_max" => (nvs_core_arr_max as *const ()).cast(),
         "nvs_core_arr_sum" => (nvs_core_arr_sum as *const ()).cast(),
@@ -2418,7 +2416,7 @@ nvs_runtime::nvs_helper! {
     /// first that can fail partway through. Nothing special is needed for
     /// that: `NvsArray` and `NvsStr` both release on drop, so the partial
     /// result and the entry's own key are freed by the early return itself.
-    fn nvs_core_arr_filter(ctx, args: [2]) {
+    fn nvs_core_arr_filter(ctx, args: [2])-> Value, owns NvsArray {
         let base = held_subject(args, "filter")?;
         // Read once for the whole walk rather than per entry: a predicate
         // declaring one parameter is never handed a key, so none is rendered
@@ -2485,6 +2483,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(kept))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2512,7 +2512,7 @@ nvs_runtime::nvs_helper! {
     /// fresh reference — so it is stored without a retain and never released.
     /// That is the difference from `filter`, which stores a value belonging to
     /// the subject array and therefore has to retain one first.
-    fn nvs_core_arr_map(ctx, args: [2]) {
+    fn nvs_core_arr_map(ctx, args: [2])-> Value, owns NvsArray {
         let base = held_subject(args, "map")?;
         // Read once for the whole walk — [`nvs_core_arr_filter`]'s comment.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
@@ -2569,6 +2569,8 @@ nvs_runtime::nvs_helper! {
             Ok(())
         })?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2597,7 +2599,7 @@ nvs_runtime::nvs_helper! {
     /// reference of its own — [`nvs_core_arr_filter`]'s obligation, not
     /// `map`'s, because the callback's own answer is a *key* here and is
     /// released as soon as its bytes are read.
-    fn nvs_core_arr_map_keys(ctx, args: [2]) {
+    fn nvs_core_arr_map_keys(ctx, args: [2])-> Value, owns NvsArray {
         let base = held_subject(args, "mapKeys")?;
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
         // Room for every entry, the most the new keys can name.
@@ -2642,6 +2644,8 @@ nvs_runtime::nvs_helper! {
             out.set(fresh, value);
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2681,7 +2685,7 @@ nvs_runtime::nvs_helper! {
     /// are copied only when the bucket is new. The entry's key is built only
     /// for a callback that declares a second parameter, and the bucket stores
     /// it in the form the subject has it, so a list renders no keys.
-    fn nvs_core_arr_group_by(ctx, args: [2]) {
+    fn nvs_core_arr_group_by(ctx, args: [2])-> Value, owns NvsArray {
         let base = held_subject(args, "groupBy")?;
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
         let mut buckets: Vec<(NvsStr, NvsArray)> = Vec::new();
@@ -2739,6 +2743,8 @@ nvs_runtime::nvs_helper! {
             out.set(name, Value::array(bucket));
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3217,7 +3223,7 @@ nvs_runtime::nvs_helper! {
     /// PHP's `array_keys($a, $search)` search form is not reproduced: that is
     /// `Core\Arr::keyOf` for one and a `filter` for many, and folding two
     /// unrelated questions into one name is what `rule:core-api/shape-rules` R20 refuses.
-    fn nvs_core_arr_keys(_ctx, args: [1]) {
+    fn nvs_core_arr_keys(_ctx, args: [1])-> Value, owns NvsArray {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -3241,6 +3247,8 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3331,7 +3339,7 @@ nvs_runtime::nvs_helper! {
     /// The walk stops at the window's end rather than running to the last
     /// entry — a slice of the first two of ten touches two entries, which is
     /// what makes this the member a paging loop calls.
-    fn nvs_core_arr_slice(_ctx, args: [4]) {
+    fn nvs_core_arr_slice(_ctx, args: [4])-> Value, owns NvsArray {
         let base = subject(args, "slice")?;
         let preserve = preserve_keys(&args[3], "slice")?;
         let (start, end) = window(base.count(), &args[1], &args[2], "slice")?;
@@ -3350,6 +3358,8 @@ nvs_runtime::nvs_helper! {
             position += 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3381,7 +3391,7 @@ nvs_runtime::nvs_helper! {
     /// offset at the end appends. An omitted `$replacement` makes the member a
     /// removal; `registry::Const::EmptyArray` is the constant that call site
     /// materializes, and its docs own what the omission costs.
-    fn nvs_core_arr_replace_range(_ctx, args: [4]) {
+    fn nvs_core_arr_replace_range(_ctx, args: [4])-> Value, owns NvsArray {
         let base = subject(args, "replaceRange")?;
         let replacement = array_at(&args[3], "replaceRange", "the replacement")?;
         let (start, end) = window(base.count(), &args[1], &args[2], "replaceRange")?;
@@ -3413,6 +3423,8 @@ nvs_runtime::nvs_helper! {
             carry_entry(&base, slot, &mut out, false);
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3435,7 +3447,7 @@ nvs_runtime::nvs_helper! {
     /// always a list, since a run has no key of its own to keep. That is the
     /// same question [`nvs_core_arr_slice`] answers and it is answered the
     /// same way, which is why the two share [`carry_entry`].
-    fn nvs_core_arr_chunk(_ctx, args: [3]) {
+    fn nvs_core_arr_chunk(_ctx, args: [3])-> Value, owns NvsArray {
         let base = subject(args, "chunk")?;
         // Unreachable from source: parameter 1 is `CoreTy::Uint` in `CLASS`
         // above, so anything else is `E0401: expected 'uint', found …` at the
@@ -3475,6 +3487,8 @@ nvs_runtime::nvs_helper! {
             out.append(Value::array(run));
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3511,7 +3525,7 @@ nvs_runtime::nvs_helper! {
     /// `LogicError` that statement throws, with that statement's message.
     /// [`append_borrowed_or_refuse`] is where the two meet; the subject is
     /// untouched either way, since this member builds a result.
-    fn nvs_core_arr_append(_ctx, args: [2]) {
+    fn nvs_core_arr_append(_ctx, args: [2])-> Value, owns NvsArray {
         let base = subject(args, "append")?;
         let mut out = NvsArray::new();
         copy_all(&base, &mut out);
@@ -3519,6 +3533,8 @@ nvs_runtime::nvs_helper! {
             append_borrowed_or_refuse(&mut out, value)
         })?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3545,7 +3561,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_append`] therefore keeps the subject's, while prepending
     /// does not. A call with no trailing values is `Core\Arr::values` of the
     /// subject.
-    fn nvs_core_arr_prepend(_ctx, args: [2]) {
+    fn nvs_core_arr_prepend(_ctx, args: [2])-> Value, owns NvsArray {
         let base = subject(args, "prepend")?;
         let mut out = NvsArray::new();
         for_each_trailing(&args[1], "prepend", |value| {
@@ -3554,6 +3570,8 @@ nvs_runtime::nvs_helper! {
         })?;
         append_values(&base, &mut out)?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3578,7 +3596,7 @@ nvs_runtime::nvs_helper! {
     /// says so; a caller who wanted to keep a map's keys has no way to get them
     /// back once a member has thrown them away, so keeping is the direction
     /// that loses nothing.
-    fn nvs_core_arr_without_first(_ctx, args: [1]) {
+    fn nvs_core_arr_without_first(_ctx, args: [1])-> Value, owns NvsArray {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -3602,6 +3620,8 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3616,7 +3636,7 @@ nvs_runtime::nvs_helper! {
     /// has no backward cursor — the same property
     /// [`nvs_core_arr_reverse`] collects slots for. This one needs no `Vec`:
     /// it copies each entry only once it has seen that another follows.
-    fn nvs_core_arr_without_last(_ctx, args: [1]) {
+    fn nvs_core_arr_without_last(_ctx, args: [1])-> Value, owns NvsArray {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -3637,6 +3657,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3649,7 +3671,7 @@ nvs_runtime::nvs_helper! {
     /// declared `?T`, not anything here. Keys are kept exactly as `filter`
     /// keeps them, and `values` is the member that renumbers. **Memory:** one
     /// result array per call, as `filter` makes, and no callback.
-    fn nvs_core_arr_without_null(_ctx, args: [1]) {
+    fn nvs_core_arr_without_null(_ctx, args: [1])-> Value, owns NvsArray {
         // Unreachable from source: an `array<?T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -3673,6 +3695,8 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3729,12 +3753,14 @@ nvs_runtime::nvs_helper! {
     /// the keys, which this member has already said it does not keep. `$size`
     /// is a `uint`, so PHP's "negative length pads on the left" overload is a
     /// member name here rather than a sign.
-    fn nvs_core_arr_pad_start(_ctx, args: [3]) {
+    fn nvs_core_arr_pad_start(_ctx, args: [3])-> Value, owns NvsArray {
         let (subject, missing, value) = padding(args, "padStart")?;
         let mut out = NvsArray::new();
         append_copies(&mut out, value, missing, "Core\\Arr::padStart")?;
         append_values(&subject, &mut out)?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3746,12 +3772,14 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_pad_start`]'s own docs own why the result is always a
     /// list and why neither member takes a `preserveKeys` option. The two are
     /// the same walk with the padding on the other side.
-    fn nvs_core_arr_pad_end(_ctx, args: [3]) {
+    fn nvs_core_arr_pad_end(_ctx, args: [3])-> Value, owns NvsArray {
         let (subject, missing, value) = padding(args, "padEnd")?;
         let mut out = NvsArray::new();
         append_values(&subject, &mut out)?;
         append_copies(&mut out, value, missing, "Core\\Arr::padEnd")?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3834,7 +3862,7 @@ nvs_runtime::nvs_helper! {
     /// same key. A value of any other type is the checker having let an
     /// `array<int|string>` position take something else, and is reported as
     /// such rather than skipped the way PHP's warning-and-continue does.
-    fn nvs_core_arr_flip(_ctx, args: [1]) {
+    fn nvs_core_arr_flip(_ctx, args: [1])-> Value, owns NvsArray {
         // Unreachable from source: an `array<int|string>` parameter, refused
         // at the checker — [`nvs_core_arr_count`]'s guard states the
         // judgement. The *element* rule is a different question and the guard
@@ -3865,6 +3893,8 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3884,7 +3914,7 @@ nvs_runtime::nvs_helper! {
     /// unwrapping *one* level is exactly what a nested element type can state,
     /// so this member keeps `T` all the way to its answer. It is
     /// [`nvs_core_arr_flatten_deep`] that cannot, and its own docs say why.
-    fn nvs_core_arr_flatten(_ctx, args: [1]) {
+    fn nvs_core_arr_flatten(_ctx, args: [1])-> Value, owns NvsArray {
         let base = subject(args, "flatten")?;
         let mut out = NvsArray::new();
         let mut from = 0usize;
@@ -3897,6 +3927,8 @@ nvs_runtime::nvs_helper! {
             append_values(&inner, &mut out)?;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3924,7 +3956,7 @@ nvs_runtime::nvs_helper! {
     /// the host stack's limit. An array cannot contain itself — it is a
     /// copy-on-write value, so `$a[] = $a` stores a copy — which is what makes
     /// the walk terminate with no visited set.
-    fn nvs_core_arr_flatten_deep(_ctx, args: [1]) {
+    fn nvs_core_arr_flatten_deep(_ctx, args: [1])-> Value, owns NvsArray {
         let base = subject(args, "flattenDeep")?;
         let mut out = NvsArray::new();
         let mut stack = vec![(base, 0usize)];
@@ -3946,6 +3978,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3986,7 +4020,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// `{indexBy}` collapses duplicates, the last row winning: that is
     /// `NvsArray::set`'s rule and `flip`'s, not this member's opinion.
-    fn nvs_core_arr_column(_ctx, args: [3]) {
+    fn nvs_core_arr_column(_ctx, args: [3])-> Value, owns NvsArray {
         let base = subject(args, "column")?;
         let column = key_bytes(&args[1], "column")?;
         let index_by = match args[2].tag() {
@@ -4024,6 +4058,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4036,7 +4072,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_map`], whose values are the callback's and are already
     /// owned. `NvsArray::append` is what assigns the new keys, so this member
     /// states no key rule of its own.
-    fn nvs_core_arr_values(_ctx, args: [1]) {
+    fn nvs_core_arr_values(_ctx, args: [1])-> Value, owns NvsArray {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -4067,6 +4103,8 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4113,7 +4151,7 @@ nvs_runtime::nvs_helper! {
     /// key collapses in its first occurrence's position. Every entry holds the
     /// same value, so which of two duplicates "wins" is not observable; what is
     /// observable is the count, and it counts distinct keys the way PHP's does.
-    fn nvs_core_arr_fill_keys(_ctx, args: [2]) {
+    fn nvs_core_arr_fill_keys(_ctx, args: [2])-> Value, owns NvsArray {
         // Unreachable from source: parameter 0 is
         // `CoreTy::Array(CoreTy::Union(ARRAY_KEY))` in `CLASS` above, so a
         // non-container argument is `E0401: expected 'array<string|int>',
@@ -4151,6 +4189,8 @@ nvs_runtime::nvs_helper! {
             out.set(NvsStr::new(&bytes), args[1]);
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4290,7 +4330,7 @@ nvs_runtime::nvs_helper! {
     /// entry. Duplicate keys collapse with the **last** value winning, in the
     /// **first** occurrence's position — `flip`'s rule, and for the same reason:
     /// re-`set`ting an existing key overwrites in place.
-    fn nvs_core_arr_from_keys_and_values(_ctx, args: [2]) {
+    fn nvs_core_arr_from_keys_and_values(_ctx, args: [2])-> Value, owns NvsArray {
         let keys = array_at(&args[0], "fromKeysAndValues", "the keys")?;
         let values = array_at(&args[1], "fromKeysAndValues", "the values")?;
         if keys.count() != values.count() {
@@ -4332,6 +4372,8 @@ nvs_runtime::nvs_helper! {
             value_from = value_slot + 1;
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4352,7 +4394,7 @@ nvs_runtime::nvs_helper! {
     /// that is neither an `int` nor a `string` and has no `by` to name it is a
     /// throw rather than PHP's warn-and-skip, which is `flip`'s treatment of
     /// the identical situation.
-    fn nvs_core_arr_count_by(ctx, args: [2]) {
+    fn nvs_core_arr_count_by(ctx, args: [2])-> Value, owns NvsArray {
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::countBy expected {:?}, got tag {}",
@@ -4402,6 +4444,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4619,7 +4663,7 @@ nvs_runtime::nvs_helper! {
     /// interface, exactly as `<` on two of its instances is a compile error.
     /// Objects are never the key sort's row, so they always take
     /// [`merge_sort`], whose comparison is the fallible one they need.
-    fn nvs_core_arr_sort(ctx, args: [5]) {
+    fn nvs_core_arr_sort(ctx, args: [5])-> Value, owns NvsArray {
         let base = held_subject(args, "sort")?;
         let by = optional_callback(&args[1], "sort", "by")?;
         let descending = match args[2].as_int() {
@@ -4773,6 +4817,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4827,7 +4873,7 @@ nvs_runtime::nvs_helper! {
     /// are ordered, so a call with both has two answers. No `Core` options bag
     /// has a way to make two options exclusive at the checker, so the call is
     /// where it is refused.
-    fn nvs_core_arr_sort_by_key(ctx, args: [4]) {
+    fn nvs_core_arr_sort_by_key(ctx, args: [4])-> Value, owns NvsArray {
         let base = held_subject(args, "sortByKey")?;
         let descending = match args[1].as_int() {
             Some(0) => false,
@@ -4959,6 +5005,8 @@ nvs_runtime::nvs_helper! {
             out.set(keys[index].clone(), values[index]);
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -5488,7 +5536,7 @@ nvs_runtime::nvs_helper! {
     /// scanning would make this quadratic, and a quadratic `Core` member over
     /// request-shaped input is a denial of service rather than a slow path.
     /// The cost is one `HashSet` entry per *distinct* value.
-    fn nvs_core_arr_unique(ctx, args: [2]) {
+    fn nvs_core_arr_unique(ctx, args: [2])-> Value, owns NvsArray {
         let subject = held_subject(args, "unique")?;
         let by = optional_callback(&args[1], "unique", "by")?;
         let by_wants_key = match by {
@@ -5542,6 +5590,8 @@ nvs_runtime::nvs_helper! {
             store_at(&mut out, key, value);
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -5781,7 +5831,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`overlay_into`] owns the walk and the key order; [`COMBINED`] owns
     /// why the return type is spelled `array<T|U>` rather than `array<mixed>`.
-    fn nvs_core_arr_overlay(_ctx, args: [2]) {
+    fn nvs_core_arr_overlay(_ctx, args: [2])-> Value, owns NvsArray {
         let base = subject(args, "overlay")?;
         // Room for the base, the least the result has.
         let mut out = NvsArray::with_capacity(base.count());
@@ -5791,6 +5841,8 @@ nvs_runtime::nvs_helper! {
             Ok(())
         })?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -5804,7 +5856,7 @@ nvs_runtime::nvs_helper! {
     /// `array_merge_recursive` has no replacement at all — promoting two
     /// colliding scalars into a two-element array is a data-shape change
     /// rather than a merge.
-    fn nvs_core_arr_overlay_deep(_ctx, args: [2]) {
+    fn nvs_core_arr_overlay_deep(_ctx, args: [2])-> Value, owns NvsArray {
         let base = subject(args, "overlayDeep")?;
         // Room for the base, the least the result has.
         let mut out = NvsArray::with_capacity(base.count());
@@ -5814,6 +5866,8 @@ nvs_runtime::nvs_helper! {
             Ok(())
         })?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -5827,7 +5881,7 @@ nvs_runtime::nvs_helper! {
     /// insertion-ordered, so the difference is observable in `foreach`, in
     /// `Core\Json::encode` and in every `Arr::first`. Two behaviours, two
     /// names — `rule:core-api/shape-rules` R15.
-    fn nvs_core_arr_underlay(_ctx, args: [2]) {
+    fn nvs_core_arr_underlay(_ctx, args: [2])-> Value, owns NvsArray {
         let base = subject(args, "underlay")?;
         // Room for the base, the least the result has.
         let mut out = NvsArray::with_capacity(base.count());
@@ -5837,6 +5891,8 @@ nvs_runtime::nvs_helper! {
             Ok(())
         })?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -5851,7 +5907,7 @@ nvs_runtime::nvs_helper! {
     /// a call site actually meant when its arguments were lists, and naming
     /// it separately is what lets `overlay` be the other half without either
     /// one deciding by key type at run time.
-    fn nvs_core_arr_append_all(_ctx, args: [2]) {
+    fn nvs_core_arr_append_all(_ctx, args: [2])-> Value, owns NvsArray {
         let base = subject(args, "appendAll")?;
         // The result is a list of every argument's entries, so its room is
         // counted first and taken once.
@@ -5864,6 +5920,8 @@ nvs_runtime::nvs_helper! {
         append_values(&base, &mut out)?;
         for_each_layer(&args[1], "appendAll", |layer| append_values(layer, &mut out))?;
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -6114,8 +6172,10 @@ nvs_runtime::nvs_helper! {
     ///
     /// `$a`'s keys and order are kept, as PHP keeps them. [`set_member`] owns
     /// the walk, the `on`/`by`/`comparator` composition and the cost.
-    fn nvs_core_arr_diff(ctx, args: [5]) {
+    fn nvs_core_arr_diff(ctx, args: [5])-> Value, owns NvsArray {
         set_member(ctx, args, "diff", false)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -6126,8 +6186,10 @@ nvs_runtime::nvs_helper! {
     ///
     /// The same question [`nvs_core_arr_diff`] asks with the other answer
     /// kept, and the same strict-identity rule.
-    fn nvs_core_arr_intersect(ctx, args: [5]) {
+    fn nvs_core_arr_intersect(ctx, args: [5])-> Value, owns NvsArray {
         set_member(ctx, args, "intersect", true)
+    } apply(result, _subject) {
+        result
     }
 }
 

@@ -715,12 +715,14 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$entry->string(string $name): ?tainted string` — the attribute's one
     /// value as text.
-    fn nvs_core_ldap_entry_string(_ctx, args: [2]) {
+    fn nvs_core_ldap_entry_string(_ctx, args: [2]) -> Value, owns NvsStr, at 1 {
         let (name, values) = values_named(args, "string")?;
         let Some(values) = values else {
             return Ok(Value::null());
         };
         text_value(only_value(&values, "string", name)?, "string", name)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1017,8 +1019,8 @@ nvs_runtime::nvs_helper! {
 
 /// The address of one of this module's symbols, or `None` for a symbol that
 /// belongs to another module. See [`crate::address`].
-pub(super) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_ldap_connection_whoami" => (nvs_core_ldap_connection_whoami as *const ()).cast(),
         "nvs_core_ldap_connection_search" => (nvs_core_ldap_connection_search as *const ()).cast(),
         "nvs_core_ldap_connection_read" => (nvs_core_ldap_connection_read as *const ()).cast(),
@@ -1040,7 +1042,7 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_entry_dn" => (nvs_core_ldap_entry_dn as *const ()).cast(),
         "nvs_core_ldap_entry_has" => (nvs_core_ldap_entry_has as *const ()).cast(),
         "nvs_core_ldap_entry_is_deleted" => (nvs_core_ldap_entry_is_deleted as *const ()).cast(),
-        "nvs_core_ldap_entry_string" => (nvs_core_ldap_entry_string as *const ()).cast(),
+        "nvs_core_ldap_entry_string" => return Some(nvs_core_ldap_entry_string::entry()),
         "nvs_core_ldap_entry_strings" => (nvs_core_ldap_entry_strings as *const ()).cast(),
         "nvs_core_ldap_entry_bytes" => (nvs_core_ldap_entry_bytes as *const ()).cast(),
         "nvs_core_ldap_filter_equals" => (nvs_core_ldap_filter_equals as *const ()).cast(),
@@ -1064,5 +1066,5 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_ad_bit_and" => (nvs_core_ldap_ad_bit_and as *const ()).cast(),
         "nvs_core_ldap_ad_bit_or" => (nvs_core_ldap_ad_bit_or as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }

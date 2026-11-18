@@ -290,7 +290,7 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_csrf_token" => (nvs_core_csrf_token as *const ()).cast(),
-        "nvs_core_csrf_issue" => (nvs_core_csrf_issue as *const ()).cast(),
+        "nvs_core_csrf_issue" => return Some(nvs_core_csrf_issue::entry()),
         "nvs_core_csrf_verify" => (nvs_core_csrf_verify as *const ()).cast(),
         _ => return None,
     }))
@@ -328,12 +328,14 @@ nvs_runtime::nvs_helper! {
     /// be stored beside the session and a second tab does not invalidate the
     /// first one's form. The module doc's own section is the home of why the
     /// session is an argument.
-    fn nvs_core_csrf_issue(ctx, args: [2]) {
+    fn nvs_core_csrf_issue(ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         let session = crate::string_arg(&args[0], format_args!("{NAME}::issue's $session"))?;
         let key = keyed(args, 1, "issue")?;
         let nonce = drawn_nonce(ctx);
         let token = key.issue(&nonce, session, "Core\\Csrf::issue")?;
         Ok(Value::text(&token))
+    } apply(result, _subject) {
+        result
     }
 }
 

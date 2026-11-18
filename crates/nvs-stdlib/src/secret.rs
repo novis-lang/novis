@@ -126,11 +126,11 @@ const REVEAL_BYTES_DOC: MethodDoc = MethodDoc {
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
-    Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_secret_reveal" => (nvs_core_secret_reveal as *const ()).cast(),
-        "nvs_core_secret_reveal_bytes" => (nvs_core_secret_reveal_bytes as *const ()).cast(),
-        _ => return None,
-    }))
+    match symbol {
+        "nvs_core_secret_reveal" => Some(nvs_core_secret_reveal::entry()),
+        "nvs_core_secret_reveal_bytes" => Some(nvs_core_secret_reveal_bytes::entry()),
+        _ => None,
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -142,7 +142,7 @@ nvs_runtime::nvs_helper! {
     /// `nvs_ir::ty::Ty` does not), so there is nothing here to strip. What the
     /// call buys is the checker's admission, and what it costs is the line the
     /// author had to write.
-    fn nvs_core_secret_reveal(_ctx, args: [2]) {
+    fn nvs_core_secret_reveal(_ctx, args: [2]) -> nvs_runtime::Value, owns nvs_runtime::NvsStr {
         // The answer is the argument itself, and the slot's own reference
         // belongs to the caller for the length of the call — so the reference
         // handed back is a new one.
@@ -155,13 +155,15 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         Ok(args[0])
+    } apply(result, _subject) {
+        result
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Secret::revealBytes(bytes $value, string $reason): bytes` — the
     /// identity at run time, for [`nvs_core_secret_reveal`]'s reason.
-    fn nvs_core_secret_reveal_bytes(_ctx, args: [2]) {
+    fn nvs_core_secret_reveal_bytes(_ctx, args: [2]) -> nvs_runtime::Value, owns nvs_runtime::NvsStr {
         #[expect(
             unsafe_code,
             reason = "the argument slot holds a live reference for the length of \
@@ -171,6 +173,8 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         Ok(args[0])
+    } apply(result, _subject) {
+        result
     }
 }
 

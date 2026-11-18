@@ -407,7 +407,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_http_response_text" => (nvs_core_http_response_text as *const ()).cast(),
         "nvs_core_http_response_bytes" => (nvs_core_http_response_bytes as *const ()).cast(),
         "nvs_core_http_response_json_as" => (nvs_core_http_response_json_as as *const ()).cast(),
-        "nvs_core_http_response_header" => (nvs_core_http_response_header as *const ()).cast(),
+        "nvs_core_http_response_header" => return Some(nvs_core_http_response_header::entry()),
         "nvs_core_http_response_headers" => (nvs_core_http_response_headers as *const ()).cast(),
         "nvs_core_http_response_tls" => (nvs_core_http_response_tls as *const ()).cast(),
         "nvs_core_http_tls_info_version" => (nvs_core_http_tls_info_version as *const ()).cast(),
@@ -424,9 +424,10 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         // [`stream`] and [`socket`] are modules of this one for [`transport`]'s
         // reason.
         other => {
-            return stream::address(other)
-                .or_else(|| socket::address(other))
-                .map(nvs_runtime::Entry::borrowed);
+            if let Some(entry) = stream::address(other) {
+                return Some(entry);
+            }
+            return socket::address(other).map(nvs_runtime::Entry::borrowed);
         }
     }))
 }
@@ -5177,10 +5178,12 @@ nvs_runtime::nvs_helper! {
     /// the member for a receiver that is not a `Core\Http\Response` or a
     /// `$name` that is not text, both unreachable from source exactly as in
     /// [`nvs_core_http_response_status`].
-    fn nvs_core_http_response_header(_ctx, args: [2]) {
+    fn nvs_core_http_response_header(_ctx, args: [2]) -> Value, owns NvsStr, at 1 {
         let object = crate::instance::receiver(args[0], &RESPONSE, "header")?;
         let name = field_name(&args[1], RESPONSE_NAME, "header")?;
         joined_field(object, HEADERS_SLOT, name, RESPONSE_NAME)
+    } apply(result, _subject) {
+        result
     }
 }
 

@@ -2779,7 +2779,7 @@ nvs_runtime::nvs_helper! {
     /// lower-cases what it is asked and the two cannot disagree. A test
     /// asserting `Authorization` therefore reads the header a subject wrote as
     /// `authorization`, which is the same header and not a second one.
-    fn nvs_core_test_sent_header(_ctx, args: [2]) {
+    fn nvs_core_test_sent_header(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let receiver = crate::instance::receiver(args[0], &SENT_REQUEST, "header")?;
         let name = args[1].as_text().ok_or_else(|| {
             // Unreachable from source: the row's parameter is `CoreTy::Text`.
@@ -2811,6 +2811,8 @@ nvs_runtime::nvs_helper! {
             value.retain();
         }
         Ok(value)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2845,7 +2847,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_test_sent_socket" => (nvs_core_test_sent_socket as *const ()).cast(),
         "nvs_core_test_sent_method" => (nvs_core_test_sent_method as *const ()).cast(),
         "nvs_core_test_sent_url" => (nvs_core_test_sent_url as *const ()).cast(),
-        "nvs_core_test_sent_header" => (nvs_core_test_sent_header as *const ()).cast(),
+        "nvs_core_test_sent_header" => return Some(nvs_core_test_sent_header::entry()),
         "nvs_core_test_sent_body" => (nvs_core_test_sent_body as *const ()).cast(),
         "nvs_core_test_script_answers" => (nvs_core_test_script_answers as *const ()).cast(),
         "nvs_core_test_server_url" => (nvs_core_test_server_url as *const ()).cast(),
@@ -2870,7 +2872,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_test_response_status" => (nvs_core_test_response_status as *const ()).cast(),
         "nvs_core_test_response_body" => (nvs_core_test_response_body as *const ()).cast(),
         "nvs_core_test_response_bytes" => (nvs_core_test_response_bytes as *const ()).cast(),
-        "nvs_core_test_response_header" => (nvs_core_test_response_header as *const ()).cast(),
+        "nvs_core_test_response_header" => return Some(nvs_core_test_response_header::entry()),
         "nvs_core_test_response_headers" => (nvs_core_test_response_headers as *const ()).cast(),
         "nvs_core_test_response_cookies" => (nvs_core_test_response_cookies as *const ()).cast(),
         "nvs_core_test_response_json" => (nvs_core_test_response_json as *const ()).cast(),
@@ -3274,7 +3276,7 @@ nvs_runtime::nvs_helper! {
     /// A `LogicError` for `Set-Cookie`. A [`Fault::fatal`] for a receiver that
     /// is not a `Core\Test\Response` or a `$name` that is not text, both
     /// unreachable from source.
-    fn nvs_core_test_response_header(_ctx, args: [2]) {
+    fn nvs_core_test_response_header(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let object = crate::instance::receiver(args[0], &RESPONSE, "header")?;
         let name = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
@@ -3293,6 +3295,8 @@ nvs_runtime::nvs_helper! {
             ));
         }
         crate::http::joined_field(object, HEADERS_SLOT, name, RESPONSE_NAME)
+    } apply(result, _subject) {
+        result
     }
 }
 

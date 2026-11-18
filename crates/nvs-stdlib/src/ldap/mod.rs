@@ -1015,8 +1015,10 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_ldap_connect" => (nvs_core_ldap_connect as *const ()).cast(),
         "nvs_core_ldap_open" => (nvs_core_ldap_open as *const ()).cast(),
         _ => {
-            return search::address(symbol)
-                .or_else(|| dn::address(symbol))
+            if let Some(entry) = search::address(symbol) {
+                return Some(entry);
+            }
+            return dn::address(symbol)
                 .or_else(|| sid::address(symbol))
                 .or_else(|| flags::address(symbol))
                 .or_else(|| value::address(symbol))

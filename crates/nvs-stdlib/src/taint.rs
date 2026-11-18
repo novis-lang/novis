@@ -146,13 +146,13 @@ const ASSERT_TRUSTED_BYTES_DOC: MethodDoc = MethodDoc {
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See `crate::address_of`.
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
-    Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_taint_assert_trusted" => (nvs_core_taint_assert_trusted as *const ()).cast(),
+    match symbol {
+        "nvs_core_taint_assert_trusted" => Some(nvs_core_taint_assert_trusted::entry()),
         "nvs_core_taint_assert_trusted_bytes" => {
-            (nvs_core_taint_assert_trusted_bytes as *const ()).cast()
+            Some(nvs_core_taint_assert_trusted_bytes::entry())
         }
-        _ => return None,
-    }))
+        _ => None,
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -172,7 +172,7 @@ nvs_runtime::nvs_helper! {
     /// (`nvs_types::ty::Ty` carries it and `nvs_ir::ty::Ty` does not), so
     /// there is nothing here to strip. What the call buys is the checker's
     /// admission, and what it costs is the line the author had to write.
-    fn nvs_core_taint_assert_trusted(_ctx, args: [2]) {
+    fn nvs_core_taint_assert_trusted(_ctx, args: [2]) -> nvs_runtime::Value, owns nvs_runtime::NvsStr {
         // The answer is the argument itself, and the slot's own reference
         // belongs to the caller for the length of the call — so the reference
         // handed back is a new one.
@@ -185,13 +185,15 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         Ok(args[0])
+    } apply(result, _subject) {
+        result
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Taint::assertTrustedBytes(tainted bytes $value, string $reason): bytes`
     /// — the identity at run time, for `nvs_core_taint_assert_trusted`'s reason.
-    fn nvs_core_taint_assert_trusted_bytes(_ctx, args: [2]) {
+    fn nvs_core_taint_assert_trusted_bytes(_ctx, args: [2]) -> nvs_runtime::Value, owns nvs_runtime::NvsStr {
         #[expect(
             unsafe_code,
             reason = "the argument slot holds a live reference for the length of \
@@ -201,6 +203,8 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         Ok(args[0])
+    } apply(result, _subject) {
+        result
     }
 }
 

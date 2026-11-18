@@ -1784,22 +1784,22 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_request_mount_captures" => (nvs_core_request_mount_captures as *const ()).cast(),
         "nvs_core_request_is_head" => (nvs_core_request_is_head as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
-        "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
+        "nvs_core_request_query" => return Some(nvs_core_request_query::entry()),
         "nvs_core_request_query_as" => (nvs_core_request_query_as as *const ()).cast(),
         "nvs_core_request_query_array" => (nvs_core_request_query_array as *const ()).cast(),
-        "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
+        "nvs_core_request_header" => return Some(nvs_core_request_header::entry()),
         "nvs_core_request_client_ip" => (nvs_core_request_client_ip as *const ()).cast(),
         "nvs_core_request_scheme" => (nvs_core_request_scheme as *const ()).cast(),
         "nvs_core_request_host" => (nvs_core_request_host as *const ()).cast(),
         "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
-        "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
+        "nvs_core_request_cookie" => return Some(nvs_core_request_cookie::entry()),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
         "nvs_core_request_bytes" => (nvs_core_request_bytes as *const ()).cast(),
         "nvs_core_request_json" => (nvs_core_request_json as *const ()).cast(),
         "nvs_core_request_json_as" => (nvs_core_request_json_as as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
-        "nvs_core_request_post" => (nvs_core_request_post as *const ()).cast(),
+        "nvs_core_request_post" => return Some(nvs_core_request_post::entry()),
         "nvs_core_request_post_array" => (nvs_core_request_post_array as *const ()).cast(),
         "nvs_core_request_post_as" => (nvs_core_request_post_as as *const ()).cast(),
         "nvs_core_request_part_name" => (nvs_core_request_part_name as *const ()).cast(),
@@ -2465,10 +2465,12 @@ nvs_runtime::nvs_helper! {
     /// The parse is [`crate::uri::parse_query`]'s and not a second one; the
     /// module doc owns what that costs per call and why a bracketed name is
     /// `null` here and `queryArray`'s instead.
-    fn nvs_core_request_query(ctx, args: [1]) {
+    fn nvs_core_request_query(ctx, args: [1]) -> Value, owns NvsStr {
         let name = name_argument(&args[0], "query")?;
         let parsed = query_fields_of(ctx, "query")?;
         Ok(single_field(parsed.get(name.as_bytes())))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2679,13 +2681,15 @@ nvs_runtime::nvs_helper! {
     /// either kind, the parsed form. Both stay resident until the request ends,
     /// both are bounded by `[limits] request_body` — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// 's cap on form field text — and both are O(in-flight).
-    fn nvs_core_request_post(ctx, args: [1]) {
+    fn nvs_core_request_post(ctx, args: [1]) -> Value, owns NvsStr {
         let name = name_argument(&args[0], "post")?;
         // Read before the claim, because it borrows the carrier immutably and
         // reading a header has no effect on the body.
         let declared = joined_field(inbound_of(ctx, "post")?, b"content-type");
         let parsed = form_of(ctx, declared, "post")?;
         Ok(single_field(parsed.get(name.as_bytes())))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2838,7 +2842,7 @@ nvs_runtime::nvs_helper! {
     /// The case rule and the join rule are the module doc's, and both are
     /// readings of what arrived rather than properties of the carrier —
     /// [`nvs_runtime::Inbound`] holds the lines and interprets none of them.
-    fn nvs_core_request_header(ctx, args: [1]) {
+    fn nvs_core_request_header(ctx, args: [1]) -> Value, owns NvsStr {
         // Unreachable from source: the row's parameter is `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs.
         let name = args[0].as_text().ok_or_else(|| {
@@ -2852,6 +2856,8 @@ nvs_runtime::nvs_helper! {
             None => Value::null(),
             Some(value) => field_text(&value, "header", "the value of this header")?,
         })
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2999,7 +3005,7 @@ nvs_runtime::nvs_helper! {
     /// bytes `addCookie` wrote: that member percent-encodes nothing and refuses
     /// a value it could not write verbatim, so a decode here would be a
     /// substitution in the direction `rule:errors/cookie-name-bytes` closes.
-    fn nvs_core_request_cookie(ctx, args: [1]) {
+    fn nvs_core_request_cookie(ctx, args: [1]) -> Value, owns NvsStr {
         // Unreachable from source: the row's parameter is `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs.
         let name = args[0].as_text().ok_or_else(|| {
@@ -3013,6 +3019,8 @@ nvs_runtime::nvs_helper! {
             None => Value::null(),
             Some(value) => field_text(value, "cookie", "the value of this cookie")?,
         })
+    } apply(result, _subject) {
+        result
     }
 }
 

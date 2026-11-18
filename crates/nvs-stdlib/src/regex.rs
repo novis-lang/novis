@@ -812,10 +812,10 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_regex_match_groups" => (nvs_core_regex_match_groups as *const ()).cast(),
         "nvs_core_regex_match_offset" => (nvs_core_regex_match_offset as *const ()).cast(),
         "nvs_core_regex_match_text" => (nvs_core_regex_match_text as *const ()).cast(),
-        "nvs_core_regex_replace" => (nvs_core_regex_replace as *const ()).cast(),
-        "nvs_core_regex_replace_with" => (nvs_core_regex_replace_with as *const ()).cast(),
+        "nvs_core_regex_replace" => return Some(nvs_core_regex_replace::entry()),
+        "nvs_core_regex_replace_with" => return Some(nvs_core_regex_replace_with::entry()),
         "nvs_core_regex_split" => (nvs_core_regex_split as *const ()).cast(),
-        "nvs_core_regex_quote" => (nvs_core_regex_quote as *const ()).cast(),
+        "nvs_core_regex_quote" => return Some(nvs_core_regex_quote::entry()),
         _ => return None,
     }))
 }
@@ -2284,7 +2284,7 @@ nvs_runtime::nvs_helper! {
     /// so [`grow`] asks the memory budget before every allocation of it. A
     /// template that reads no group searches with `find_iter`, which builds
     /// no capture set per match.
-    fn nvs_core_regex_replace(ctx, args: [4]) {
+    fn nvs_core_regex_replace(ctx, args: [4]) -> Value, owns NvsStr {
         let subject = text(&args[0], "replace", "the subject")?;
         let given = pattern_of(&args[1], "replace")?;
         let pattern = text(&given.text, "replace", "the pattern")?;
@@ -2352,6 +2352,8 @@ nvs_runtime::nvs_helper! {
         grow(&mut out, subject.len() - cursor, "Core\\Regex::replace")?;
         out.push_str(&subject[cursor..]);
         produced(&out)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2433,7 +2435,7 @@ nvs_runtime::nvs_helper! {
     /// borrow of an engine across a call that can reach `Core\Regex` again;
     /// collecting first spends one [`Captured`] per match for the length of
     /// the call, which is memory footprint spent to buy simplicity.
-    fn nvs_core_regex_replace_with(ctx, args: [4]) {
+    fn nvs_core_regex_replace_with(ctx, args: [4]) -> Value, owns NvsStr {
         let subject = text(&args[0], "replaceWith", "the subject")?;
         let given = pattern_of(&args[1], "replaceWith")?;
         let pattern = text(&given.text, "replaceWith", "the pattern")?;
@@ -2489,6 +2491,8 @@ nvs_runtime::nvs_helper! {
         grow(&mut out, subject.len() - cursor, "Core\\Regex::replaceWith")?;
         out.push_str(&subject[cursor..]);
         produced(&out)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2641,9 +2645,11 @@ nvs_runtime::nvs_helper! {
     /// matches nothing else — which
     /// `tests/conformance/core/regex-quote-makes-a-literal-match-itself-exactly-once-and-no-other-subject.nvst`
     /// pins wherever a metacharacter sits in the literal.
-    fn nvs_core_regex_quote(_ctx, args: [1]) {
+    fn nvs_core_regex_quote(_ctx, args: [1]) -> Value, owns NvsStr {
         let unescaped = text(&args[0], "quote", "the text")?;
         produced(&regex::escape(unescaped))
+    } apply(result, _subject) {
+        result
     }
 }
 

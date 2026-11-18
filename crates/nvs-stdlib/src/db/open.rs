@@ -1239,7 +1239,7 @@ nvs_runtime::nvs_helper! {
     /// argument for why: with no connection there is no dialect, and the
     /// character class below is the one answer that is safe under all five at
     /// once.
-    fn nvs_core_db_quote_identifier(_ctx, args: [1]) {
+    fn nvs_core_db_quote_identifier(_ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         // Unreachable from source: parameter 0 is a `string` in `CLASS` above,
         // so a non-text argument is refused at `E0401` first — the same
         // judgement `Core\Arr::count`'s guard states.
@@ -1273,6 +1273,8 @@ nvs_runtime::nvs_helper! {
             ));
         }
         Ok(Value::text(name))
+    } apply(result, _subject) {
+        result
     }
 }
 

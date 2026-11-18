@@ -781,7 +781,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_cache_get" => (nvs_core_cache_get as *const ()).cast(),
         "nvs_core_cache_forget" => (nvs_core_cache_forget as *const ()).cast(),
         "nvs_core_cache_put_secret" => (nvs_core_cache_put_secret as *const ()).cast(),
-        "nvs_core_cache_get_secret" => (nvs_core_cache_get_secret as *const ()).cast(),
+        "nvs_core_cache_get_secret" => return Some(nvs_core_cache_get_secret::entry()),
         "nvs_core_cache_secret_entry_of" => (nvs_core_cache_secret_entry_of as *const ()).cast(),
         _ => return None,
     }))
@@ -2878,7 +2878,7 @@ nvs_runtime::nvs_helper! {
     /// running when this call's `wait` was up, and a thrown `IOError` on the
     /// shared tier for a store that cannot be reached. What a `fill` itself
     /// throws reaches the request that ran it and no other.
-    fn nvs_core_cache_get_secret(ctx, args: [5]) {
+    fn nvs_core_cache_get_secret(ctx, args: [5]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let tier = tier_of(args, "getSecret")?;
         let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
 
@@ -2929,6 +2929,8 @@ nvs_runtime::nvs_helper! {
             held.value.release();
         }
         refreshed.map(Option::unwrap_or_default)
+    } apply(result, _subject) {
+        result
     }
 }
 

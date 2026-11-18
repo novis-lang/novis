@@ -2153,8 +2153,8 @@ const METADATA_IS_DIR_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_io_read" => (nvs_core_io_read as *const ()).cast(),
-        "nvs_core_io_read_text" => (nvs_core_io_read_text as *const ()).cast(),
+        "nvs_core_io_read" => return Some(nvs_core_io_read::entry()),
+        "nvs_core_io_read_text" => return Some(nvs_core_io_read_text::entry()),
         "nvs_core_io_write" => (nvs_core_io_write as *const ()).cast(),
         "nvs_core_io_append" => (nvs_core_io_append as *const ()).cast(),
         "nvs_core_io_write_stream" => (nvs_core_io_write_stream as *const ()).cast(),
@@ -2164,7 +2164,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_io_is_readable" => (nvs_core_io_is_readable as *const ()).cast(),
         "nvs_core_io_is_writable" => (nvs_core_io_is_writable as *const ()).cast(),
         "nvs_core_io_list" => (nvs_core_io_list as *const ()).cast(),
-        "nvs_core_io_canonicalize" => (nvs_core_io_canonicalize as *const ()).cast(),
+        "nvs_core_io_canonicalize" => return Some(nvs_core_io_canonicalize::entry()),
         "nvs_core_io_size" => (nvs_core_io_size as *const ()).cast(),
         "nvs_core_io_modified_at" => (nvs_core_io_modified_at as *const ()).cast(),
         "nvs_core_io_stat" => (nvs_core_io_stat as *const ()).cast(),
@@ -2180,7 +2180,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_io_remove" => (nvs_core_io_remove as *const ()).cast(),
         "nvs_core_io_remove_dir" => (nvs_core_io_remove_dir as *const ()).cast(),
         "nvs_core_io_temporary_dir" => (nvs_core_io_temporary_dir as *const ()).cast(),
-        "nvs_core_io_within" => (nvs_core_io_within as *const ()).cast(),
+        "nvs_core_io_within" => return Some(nvs_core_io_within::entry()),
         "nvs_core_io_lines" => (nvs_core_io_lines as *const ()).cast(),
         "nvs_core_io_walk" => (nvs_core_io_walk as *const ()).cast(),
         "nvs_core_io_open" => (nvs_core_io_open as *const ()).cast(),
@@ -2270,10 +2270,12 @@ nvs_runtime::nvs_helper! {
     /// would be a second number an operator has to keep in step with that one.
     /// [`slurp`] is where it is asked and
     /// [`nvs_runtime::Ctx::intake_limit`] owns the unit it is read in.
-    fn nvs_core_io_read(ctx, args: [2]) {
+    fn nvs_core_io_read(ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let path = Path::new(text(&args[1], "read", "path")?);
         let raw = ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::read"))?;
         text_of(&raw, "Core\\IO::read", READ_HINT)
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -2309,12 +2311,14 @@ nvs_runtime::nvs_helper! {
     /// `Core\Encoding` already owns what an exact conversion is. The decode runs *after* the
     /// capability check for the ordinary reason — a file this program was never
     /// granted must refuse the same way whatever its bytes are.
-    fn nvs_core_io_read_text(ctx, args: [3]) {
+    fn nvs_core_io_read_text(ctx, args: [3]) -> Value, owns nvs_runtime::NvsStr, at 1 {
         let path = Path::new(text(&args[1], "readText", "path")?);
         let raw =
             ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::readText"))?;
         let text = crate::encoding::decode_argument(ctx, &args[1..], "Core\\IO::readText", &raw)?;
         Ok(Value::text(&text))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4031,11 +4035,13 @@ nvs_runtime::nvs_helper! {
     /// is the wrong answer for the one use this member has that
     /// `Core\Path::normalize` cannot serve: comparing two resolutions for
     /// equality. The door's own doc comment is the home of that reasoning.
-    fn nvs_core_io_canonicalize(ctx, args: [1]) {
+    fn nvs_core_io_canonicalize(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         let path = Path::new(text(&args[0], "canonicalize", "path")?);
         let resolved =
             nvs_runtime::capability::resolve_existing(ctx, path, "Core\\IO::canonicalize")?;
         Ok(Value::text(&resolved.to_string_lossy()))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -4119,7 +4125,7 @@ nvs_runtime::nvs_helper! {
     /// path it resolved to. A symlink under the base pointing out of it is
     /// refused, and saying where it pointed would answer with one message the
     /// question the refusal exists to prevent being asked.
-    fn nvs_core_io_within(ctx, args: [2]) {
+    fn nvs_core_io_within(ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         const MEMBER: &str = "Core\\IO::within";
 
         let given = Path::new(text(&args[0], "within", "base")?);
@@ -4153,6 +4159,8 @@ nvs_runtime::nvs_helper! {
             )));
         }
         Ok(Value::text(&resolved.to_string_lossy()))
+    } apply(result, _subject) {
+        result
     }
 }
 

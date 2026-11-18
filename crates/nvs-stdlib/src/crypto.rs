@@ -1406,15 +1406,15 @@ const KEY_PAIR_PUBLIC_KEY_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_crypto_generate_key" => (nvs_core_crypto_generate_key as *const ()).cast(),
-        "nvs_core_crypto_seal" => (nvs_core_crypto_seal as *const ()).cast(),
-        "nvs_core_crypto_open" => (nvs_core_crypto_open as *const ()).cast(),
+        "nvs_core_crypto_seal" => return Some(nvs_core_crypto_seal::entry()),
+        "nvs_core_crypto_open" => return Some(nvs_core_crypto_open::entry()),
         "nvs_core_crypto_derive_key" => (nvs_core_crypto_derive_key as *const ()).cast(),
-        "nvs_core_crypto_expand_key" => (nvs_core_crypto_expand_key as *const ()).cast(),
+        "nvs_core_crypto_expand_key" => return Some(nvs_core_crypto_expand_key::entry()),
         "nvs_core_crypto_generate_key_pair" => {
             (nvs_core_crypto_generate_key_pair as *const ()).cast()
         }
         "nvs_core_crypto_agree" => (nvs_core_crypto_agree as *const ()).cast(),
-        "nvs_core_crypto_sign" => (nvs_core_crypto_sign as *const ()).cast(),
+        "nvs_core_crypto_sign" => return Some(nvs_core_crypto_sign::entry()),
         "nvs_core_crypto_verify" => (nvs_core_crypto_verify as *const ()).cast(),
         "nvs_core_crypto_public_key_read" => (nvs_core_crypto_public_key_read as *const ()).cast(),
         "nvs_core_crypto_public_key_write" => {
@@ -3128,7 +3128,7 @@ nvs_runtime::nvs_helper! {
     /// cipher's, and for the interop construction it is drawn here rather than
     /// inside [`gcm_seal_under`], whose caller in `Core\Jwe` has a nonce
     /// already written down in a header.
-    fn nvs_core_crypto_seal(ctx, args: [3]) {
+    fn nvs_core_crypto_seal(ctx, args: [3]) -> Value, owns NvsStr {
         let message = bytes_of(args, 0, "seal")?;
         let sealed = match keyed(args, "seal")? {
             Keyed::Extended(cipher) => {
@@ -3141,6 +3141,8 @@ nvs_runtime::nvs_helper! {
             }
         };
         Ok(Value::bytes(NvsStr::new(&sealed)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3156,7 +3158,7 @@ nvs_runtime::nvs_helper! {
     /// one of those ways: the nonce widths differ and the tag would not verify
     /// even if they agreed, so it lands on the same refusal rather than on
     /// plausible bytes.
-    fn nvs_core_crypto_open(_ctx, args: [3]) {
+    fn nvs_core_crypto_open(_ctx, args: [3]) -> Value, owns NvsStr {
         let sealed = bytes_of(args, 0, "open")?;
 
         // A buffer too short to hold a nonce and a tag, a tag that does not
@@ -3175,6 +3177,8 @@ nvs_runtime::nvs_helper! {
         })?;
 
         Ok(Value::bytes(NvsStr::new(&plain)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3214,13 +3218,15 @@ nvs_runtime::nvs_helper! {
     /// a password handed to the derivation for uniform material — is named in
     /// both reference cards and in the module doc rather than reported here,
     /// because no type tells the two secrets apart.
-    fn nvs_core_crypto_expand_key(_ctx, args: [3]) {
+    fn nvs_core_crypto_expand_key(_ctx, args: [3]) -> Value, owns NvsStr {
         let material = bytes_of(args, 0, "expandKey")?;
         let salt = bytes_of(args, 1, "expandKey")?;
         let info = text_of(args, 2, "expandKey")?;
 
         let key = expand_key(material, salt, info.as_bytes());
         Ok(Value::bytes(NvsStr::new(&key)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -3309,7 +3315,7 @@ nvs_runtime::nvs_helper! {
     /// `rule:security/algorithm-comes-from-the-key` crossing from the read to
     /// the signature as a type. [`sign`] owns what each kind answers, including
     /// ECDSA's `r ‖ s` rather than DER.
-    fn nvs_core_crypto_sign(_ctx, args: [2]) {
+    fn nvs_core_crypto_sign(_ctx, args: [2]) -> Value, owns NvsStr {
         let message = bytes_of(args, 0, "sign")?;
         let key = pair_of(args, 1, "sign")?.signing().ok_or_else(signs_nothing)?;
 
@@ -3323,6 +3329,8 @@ nvs_runtime::nvs_helper! {
         })?;
         nvs_runtime::affordable(Some(signature.len()), "Core\\Crypto::sign")?;
         Ok(Value::bytes(NvsStr::new(&signature)))
+    } apply(result, _subject) {
+        result
     }
 }
 

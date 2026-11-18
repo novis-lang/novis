@@ -524,16 +524,16 @@ const SEPARATOR: &str = std::path::MAIN_SEPARATOR_STR;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_path_basename" => (nvs_core_path_basename as *const ()).cast(),
-        "nvs_core_path_dirname" => (nvs_core_path_dirname as *const ()).cast(),
-        "nvs_core_path_extension" => (nvs_core_path_extension as *const ()).cast(),
-        "nvs_core_path_with_extension" => (nvs_core_path_with_extension as *const ()).cast(),
-        "nvs_core_path_join" => (nvs_core_path_join as *const ()).cast(),
+        "nvs_core_path_basename" => return Some(nvs_core_path_basename::entry()),
+        "nvs_core_path_dirname" => return Some(nvs_core_path_dirname::entry()),
+        "nvs_core_path_extension" => return Some(nvs_core_path_extension::entry()),
+        "nvs_core_path_with_extension" => return Some(nvs_core_path_with_extension::entry()),
+        "nvs_core_path_join" => return Some(nvs_core_path_join::entry()),
         "nvs_core_path_split" => (nvs_core_path_split as *const ()).cast(),
-        "nvs_core_path_normalize" => (nvs_core_path_normalize as *const ()).cast(),
+        "nvs_core_path_normalize" => return Some(nvs_core_path_normalize::entry()),
         "nvs_core_path_is_absolute" => (nvs_core_path_is_absolute as *const ()).cast(),
-        "nvs_core_path_relative_to" => (nvs_core_path_relative_to as *const ()).cast(),
-        "nvs_core_path_from_cwd" => (nvs_core_path_from_cwd as *const ()).cast(),
+        "nvs_core_path_relative_to" => return Some(nvs_core_path_relative_to::entry()),
+        "nvs_core_path_from_cwd" => return Some(nvs_core_path_from_cwd::entry()),
         "nvs_core_path_this_file" => (nvs_core_path_this_file as *const ()).cast(),
         "nvs_core_path_this_dir" => (nvs_core_path_this_dir as *const ()).cast(),
         _ => return None,
@@ -863,7 +863,7 @@ nvs_runtime::nvs_helper! {
     /// nothing but a root has no name at all: `basename('/')` is `''`. That
     /// empty answer is PHP's too, and it is a `string` rather than R5's `null`
     /// because the published signature says so — a root is not an *absent* name.
-    fn nvs_core_path_basename(_ctx, args: [2]) {
+    fn nvs_core_path_basename(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         let path = text(&args[0], "basename", "the path")?;
         let without_extension = boolean(&args[1], "basename", "the `withoutExtension` option")?;
 
@@ -875,6 +875,8 @@ nvs_runtime::nvs_helper! {
             true => produced(stem_and_extension(name).0),
             false => produced(name),
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -894,13 +896,15 @@ nvs_runtime::nvs_helper! {
     /// total answer; a throw would only make an arithmetic result fatal.
     /// Asking to go up further than there are components stops at the root,
     /// exactly as walking one level at a time would.
-    fn nvs_core_path_dirname(_ctx, args: [2]) {
+    fn nvs_core_path_dirname(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         let path = text(&args[0], "dirname", "the path")?;
         let levels = count(&args[1], "dirname", "the `levels` option")?;
 
         let parts = parse(path);
         let keep = parts.components.len().saturating_sub(levels);
         produced(&render(&parts, &parts.components[..keep]))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -912,7 +916,7 @@ nvs_runtime::nvs_helper! {
     /// `null` where there is none — including a dotfile and a trailing dot,
     /// which are this module's first two divergences from PHP and are stated
     /// once, on [`stem_and_extension`].
-    fn nvs_core_path_extension(_ctx, args: [1]) {
+    fn nvs_core_path_extension(_ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         let path = text(&args[0], "extension", "the path")?;
 
         let parts = parse(path);
@@ -920,6 +924,8 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
             Some(extension) => produced(extension),
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -939,7 +945,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A path with no last component has no name to rewrite, so `'/'` and `''`
     /// throw rather than inventing one (`rule:core-api/shape-rules` R4).
-    fn nvs_core_path_with_extension(_ctx, args: [2]) {
+    fn nvs_core_path_with_extension(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         let path = text(&args[0], "withExtension", "the path")?;
         let extension = maybe_text(&args[1], "withExtension", "the extension")?;
 
@@ -981,6 +987,8 @@ nvs_runtime::nvs_helper! {
         let last = components.len() - 1;
         components[last] = &renamed;
         produced(&render(&parts, &components))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1004,7 +1012,7 @@ nvs_runtime::nvs_helper! {
     /// The tail arrives as one `array<string>` argument rather than as N of
     /// them — `registry::CoreTy::Variadic` owns why — so this is an ordinary
     /// two-slot helper.
-    fn nvs_core_path_join(_ctx, args: [2]) {
+    fn nvs_core_path_join(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         let base = text(&args[0], "join", "the base")?;
         // Unreachable from source for a stronger reason than a checker
         // refusal: parameter 1 is `CoreTy::Variadic`, and its doc comment
@@ -1044,6 +1052,8 @@ nvs_runtime::nvs_helper! {
             components.extend(parse(segment).components);
         }
         produced(&render(&parts, &components))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1090,11 +1100,13 @@ nvs_runtime::nvs_helper! {
     /// part of the input. The launderer is `Core\IO::within`, which is where
     /// the base is known. `realpath`'s other half — following symlinks, and answering
     /// `false` for a path that does not exist — belongs there too.
-    fn nvs_core_path_normalize(_ctx, args: [1]) {
+    fn nvs_core_path_normalize(_ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         let path = text(&args[0], "normalize", "the path")?;
 
         let parts = parse(path);
         produced(&render(&parts, &resolved(&parts)))
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1138,7 +1150,7 @@ nvs_runtime::nvs_helper! {
     /// outside any filesystem: a drive letter, and a UNC server, which is a
     /// host name. A share name is the remote host's own, so it is compared
     /// like any other component.
-    fn nvs_core_path_relative_to(_ctx, args: [2]) {
+    fn nvs_core_path_relative_to(_ctx, args: [2]) -> Value, owns nvs_runtime::NvsStr {
         let path = text(&args[0], "relativeTo", "the path")?;
         let base = text(&args[1], "relativeTo", "the base")?;
 
@@ -1159,6 +1171,8 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
             Some(components) => produced(&relative(&components)),
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -1179,7 +1193,7 @@ nvs_runtime::nvs_helper! {
     /// argument are one path to [`parse`], and [`resolved`] removes `.` and
     /// `..`, exactly as `normalize` does. An argument that begins at a root
     /// replaces the directory, as a second `join` segment would not.
-    fn nvs_core_path_from_cwd(ctx, args: [1]) {
+    fn nvs_core_path_from_cwd(ctx, args: [1]) -> Value, owns nvs_runtime::NvsStr {
         const MEMBER: &str = r"Core\Path::fromCwd";
 
         let path = text(&args[0], "fromCwd", "the path")?;
@@ -1197,6 +1211,8 @@ nvs_runtime::nvs_helper! {
         let joined = format!("{cwd}{SEPARATOR}{path}");
         let parts = parse(&joined);
         produced(&render(&parts, &resolved(&parts)))
+    } apply(result, _subject) {
+        result
     }
 }
 

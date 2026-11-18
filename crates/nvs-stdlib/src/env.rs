@@ -499,8 +499,8 @@ const CONTEXT_DOC: EnumDoc = EnumDoc {
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_env_get" => (nvs_core_env_get as *const ()).cast(),
-        "nvs_core_env_secret" => (nvs_core_env_secret as *const ()).cast(),
+        "nvs_core_env_get" => return Some(nvs_core_env_get::entry()),
+        "nvs_core_env_secret" => return Some(nvs_core_env_secret::entry()),
         "nvs_core_env_all" => (nvs_core_env_all as *const ()).cast(),
         "nvs_core_env_mode" => (nvs_core_env_mode as *const ()).cast(),
         "nvs_core_env_context" => (nvs_core_env_context as *const ()).cast(),
@@ -559,7 +559,7 @@ nvs_runtime::nvs_helper! {
     /// opinion about what a value means. The empty string is a value on those
     /// same terms and not the absence above, so `null` reports exactly one
     /// thing, and `?? ""` is what tells an unset name from one set to nothing.
-    fn nvs_core_env_get(ctx, args: [1]) {
+    fn nvs_core_env_get(ctx, args: [1]) -> Value, owns NvsStr {
         let name = text(&args[0], "get")?;
         match nvs_runtime::capability::env_var(ctx, name, r"Core\Env::get")? {
             None => Ok(Value::null()),
@@ -577,6 +577,8 @@ nvs_runtime::nvs_helper! {
                 ))),
             },
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
@@ -588,7 +590,7 @@ nvs_runtime::nvs_helper! {
     /// unrepresentable name are both `null` here too. The qualifier is the
     /// checker's alone: at run time a `secret string` is the same string, and
     /// the throw names the variable and never its bytes.
-    fn nvs_core_env_secret(ctx, args: [1]) {
+    fn nvs_core_env_secret(ctx, args: [1]) -> Value, owns NvsStr {
         let name = text(&args[0], "secret")?;
         match nvs_runtime::capability::env_var(ctx, name, r"Core\Env::secret")? {
             None => Ok(Value::null()),
@@ -603,6 +605,8 @@ nvs_runtime::nvs_helper! {
                 ))),
             },
         }
+    } apply(result, _subject) {
+        result
     }
 }
 
