@@ -1,0 +1,16 @@
+--TEST--
+A local string replaced by a `Core` function before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+try {
+    // `Core\Str::slice` drops the first character, so `$name` is `hop`.
+    $name = Core\Str::slice($name, 1);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+stop: hop
+hop

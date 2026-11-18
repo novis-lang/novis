@@ -1,0 +1,24 @@
+--TEST--
+A generator's local array replaced by `Core\Arr::map` between two `yield`s yields its old value and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        array<int> $items = [1, 2, 3];
+        yield $items;
+        // `Core\Arr::map` multiplies each value by 10, so `$items` is `10,20,30`.
+        $items = Core\Arr::map($items, fn(int $v): int => $v * 10);
+        yield $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+foreach (Lib::steps() as array<int> $items) {
+    echo Lib::show($items), "\n";
+}
+--EXPECT--
+1,2,3
+10,20,30

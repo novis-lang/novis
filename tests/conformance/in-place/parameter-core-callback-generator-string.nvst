@@ -1,0 +1,23 @@
+--TEST--
+A generator's string parameter replaced by a `Core` function with a callback between two `yield`s gives its new value, and the caller's string is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    // Gives `$name`, then doubles every `b` in it and gives the new value.
+    public static function doubleB(string $name): Iterator<string> {
+        yield $name;
+        $name = Core\Regex::replaceWith($name, "b", fn(Core\Regex\Match $m): string => $m->text() . $m->text());
+        yield $name;
+    }
+}
+
+string $name = "abc";
+foreach (Gen::doubleB($name) as string $v) {
+    echo $v, "\n";
+}
+// The caller's `$name` is still `abc`.
+echo $name, "\n";
+--EXPECT--
+abc
+abbc
+abc

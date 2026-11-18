@@ -1,0 +1,25 @@
+--TEST--
+A method that replaces its array parameter with a `Core` result made with a callback in a loop changes only its own copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Doubles each number in `$items` three times, then prints it.
+    public static function run(array<int> $items): void {
+        foreach ([1, 2, 3] as var $pass) {
+            $items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run($items);
+// The caller's array is still `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+8,16
+1,2

@@ -1,0 +1,10 @@
+--TEST--
+A local string replaced by itself joined with more text has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// `.` joins two strings, so `$name` is `shops`.
+$name = $name . "s";
+echo $name, "\n";
+--EXPECT--
+shops

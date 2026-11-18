@@ -1,0 +1,10 @@
+--TEST--
+A local string replaced by a `Core` function with a callback has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// `Core\Regex::replaceWith` calls the function for each `o`, so `$name` is `sh0p`.
+$name = Core\Regex::replaceWith($name, "o", fn(Core\Regex\Match $m): string => "0");
+echo $name, "\n";
+--EXPECT--
+sh0p

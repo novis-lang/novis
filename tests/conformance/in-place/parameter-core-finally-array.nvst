@@ -1,0 +1,29 @@
+--TEST--
+A parameter array replaced by a `Core` function inside a `try` has its new value in the `finally`, and the caller's array is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Replaces `$items` with a copy that has 3 at the end. The `finally` prints `1,2,3`.
+    public static function grow(array<int> $items): array<int> {
+        try {
+            $items = Core\Arr::append($items, 3);
+        } finally {
+            echo "finally: ", Lib::show($items), "\n";
+        }
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+array<int> $out = Lib::grow($items);
+echo Lib::show($out), "\n";
+// The caller's array still has `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+finally: 1,2,3
+1,2,3
+1,2

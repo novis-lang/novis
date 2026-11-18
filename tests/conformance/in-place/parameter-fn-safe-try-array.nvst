@@ -1,0 +1,35 @@
+--TEST--
+A method that replaces its array parameter with the result of a Novis method and then throws still has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    // Replaces `$items` with the result of `add`, then throws. The `catch` prints `1,2,3`.
+    public static function run(array<int> $items): void {
+        try {
+            $items = Lib::add($items, 3);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", Lib::show($items), "\n";
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run($items);
+// The caller's array is still `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+stop: 1,2,3
+1,2,3
+1,2

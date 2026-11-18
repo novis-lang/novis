@@ -1,0 +1,23 @@
+--TEST--
+A local array replaced by `Core\Arr::map` inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2, 3];
+try {
+    // `Core\Arr::map` multiplies each value by 10, so `$items` is `10,20,30`.
+    $items = Core\Arr::map($items, fn(int $v): int => $v * 10);
+    echo "try: ", Lib::show($items), "\n";
+} finally {
+    echo "finally: ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+try: 10,20,30
+finally: 10,20,30
+10,20,30

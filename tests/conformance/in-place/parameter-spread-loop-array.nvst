@@ -1,0 +1,25 @@
+--TEST--
+A method that replaces its array parameter with a spread of itself in a loop changes only its own copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds 3, 4 and 5 to the end of `$items`, one per pass, then prints it.
+    public static function run(array<int> $items): void {
+        foreach ([3, 4, 5] as var $x) {
+            $items = [...$items, $x];
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run($items);
+// The caller's array is still `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3,4,5
+1,2

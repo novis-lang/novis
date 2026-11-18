@@ -1,0 +1,30 @@
+--TEST--
+A generator's local array replaced by a Novis function that changes its parameter yields its old value and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns the array.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function steps(): Iterator<array<int>> {
+        array<int> $items = [1, 2];
+        yield $items;
+        $items = Lib::add($items, 3);
+        yield $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+// The first value is `1,2` and the second is `1,2,3`.
+foreach (Lib::steps() as array<int> $items) {
+    echo Lib::show($items), "\n";
+}
+--EXPECT--
+1,2
+1,2,3

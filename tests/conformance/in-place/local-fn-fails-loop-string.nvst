@@ -1,0 +1,24 @@
+--TEST--
+A local string replaced in a loop by a Novis function that may throw, called so it does not, has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s`, then throws when `$x` is `!`.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad letter");
+        }
+        return $s;
+    }
+}
+
+string $name = "a";
+array<string> $letters = ["b", "c", "d"];
+// Each pass appends one letter, so `$name` is `abcd`.
+foreach ($letters as string $x) {
+    $name = Lib::add($name, $x);
+}
+echo $name, "\n";
+--EXPECT--
+abcd

@@ -1,0 +1,16 @@
+--TEST--
+A local string replaced by a `Core` function with a callback before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+try {
+    // `Core\Regex::replaceWith` calls the function for each `o`, so `$name` is `sh0p`.
+    $name = Core\Regex::replaceWith($name, "o", fn(Core\Regex\Match $m): string => "0");
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+stop: sh0p
+sh0p

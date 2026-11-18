@@ -1,0 +1,23 @@
+--TEST--
+A method that replaces its array parameter with a spread of itself changes only its own copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Replaces `$items` with a new array that has `3` at the end, then prints it.
+    public static function run(array<int> $items): void {
+        $items = [...$items, 3];
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run($items);
+// The caller's array is still `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3
+1,2

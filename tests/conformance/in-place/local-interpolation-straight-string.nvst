@@ -1,0 +1,10 @@
+--TEST--
+A local string replaced by an interpolated string that starts with it has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// `{$name}` inserts the old value, so `$name` is `shops`.
+$name = "{$name}s";
+echo $name, "\n";
+--EXPECT--
+shops

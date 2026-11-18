@@ -1,0 +1,12 @@
+--TEST--
+A local string replaced by a `Core` function in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shopping";
+// Each pass drops the first character, so three passes leave `pping`.
+for (int $i = 0; $i < 3; $i++) {
+    $name = Core\Str::slice($name, 1);
+}
+echo $name, "\n";
+--EXPECT--
+pping

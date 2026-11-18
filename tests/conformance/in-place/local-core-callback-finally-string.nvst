@@ -1,0 +1,18 @@
+--TEST--
+A local string replaced by a `Core` function with a callback inside a `try` has its new value in the `finally` block — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "ab";
+try {
+    // The callback puts each `b` in angle brackets, so `$name` is `a<b>`.
+    $name = Core\Regex::replaceWith($name, "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+    echo $name, "\n";
+} finally {
+    // The `finally` block sees the new value `a<b>`.
+    echo "finally: ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+a<b>
+finally: a<b>
+a<b>

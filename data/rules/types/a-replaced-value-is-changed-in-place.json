@@ -7,7 +7,8 @@
     "statements/inout-is-the-by-reference-spelling"
   ],
   "guardedBy": [
-    "crates/nvs-ir/src/lower/tests.rs"
+    "crates/nvs-ir/src/lower/tests.rs",
+    "tests/conformance/in-place"
   ],
   "goal": "in-place-everywhere"
 }

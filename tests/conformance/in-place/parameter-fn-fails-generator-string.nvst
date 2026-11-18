@@ -1,0 +1,32 @@
+--TEST--
+A generator's string parameter replaced by a Novis function that can throw between two `yield`s gives its new value, and the caller's string is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$s`, then throws when `$x` is empty.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "") {
+            throw new LogicError("empty");
+        }
+        return $s;
+    }
+
+    // Gives `$name`, then adds `c` to it and gives the new value.
+    public static function grow(string $name): Iterator<string> {
+        yield $name;
+        $name = Lib::add($name, "c");
+        yield $name;
+    }
+}
+
+string $name = "ab";
+foreach (Lib::grow($name) as string $v) {
+    echo $v, "\n";
+}
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+ab
+abc
+ab

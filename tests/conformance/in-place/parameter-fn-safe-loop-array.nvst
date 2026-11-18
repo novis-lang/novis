@@ -1,0 +1,31 @@
+--TEST--
+A method that replaces its array parameter with the result of a Novis method in a loop changes only its own copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    // Appends 3, 4 and 5 with `add`, one per pass, then prints `$items`.
+    public static function run(array<int> $items): void {
+        foreach ([3, 4, 5] as var $x) {
+            $items = Lib::add($items, $x);
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run($items);
+// The caller's array is still `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2,3,4,5
+1,2

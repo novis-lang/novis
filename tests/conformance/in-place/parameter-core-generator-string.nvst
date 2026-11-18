@@ -1,0 +1,23 @@
+--TEST--
+A generator's string parameter replaced by an owning `Core` function between two `yield`s gives its new value, and the caller's string is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    // Gives `$name`, then repeats it twice and gives the new value.
+    public static function twice(string $name): Iterator<string> {
+        yield $name;
+        $name = Core\Str::repeat($name, 2);
+        yield $name;
+    }
+}
+
+string $name = "ab";
+foreach (Gen::twice($name) as string $v) {
+    echo $v, "\n";
+}
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+ab
+abab
+ab

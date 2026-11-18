@@ -1,0 +1,24 @@
+--TEST--
+A generator's local array replaced by a spread of itself between two `yield`s yields its old value and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        array<int> $items = [1, 2];
+        yield $items;
+        // The new array has the values of `$items` and then 9, so it is `1,2,9`.
+        $items = [...$items, 9];
+        yield $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+foreach (Lib::steps() as array<int> $items) {
+    echo Lib::show($items), "\n";
+}
+--EXPECT--
+1,2
+1,2,9

@@ -1,0 +1,26 @@
+--TEST--
+A string parameter replaced by a concatenation before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(string $name): void {
+        try {
+            // `.` joins `$name` and `c`, then the next line throws.
+            $name = $name . "c";
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            // The `catch` prints `abc`.
+            echo $e->message, ": ", $name, "\n";
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "ab";
+Show::run($name);
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+stop: abc
+abc
+ab

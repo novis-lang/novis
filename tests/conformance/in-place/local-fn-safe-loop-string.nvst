@@ -1,0 +1,21 @@
+--TEST--
+A local string replaced by a Novis function in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s` and returns it.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        return $s;
+    }
+}
+
+string $name = "a";
+array<string> $letters = ["b", "c", "d"];
+// Each pass appends one letter, so `$name` is `abcd`.
+foreach ($letters as string $x) {
+    $name = Lib::add($name, $x);
+}
+echo $name, "\n";
+--EXPECT--
+abcd

@@ -1,0 +1,10 @@
+--TEST--
+A local string replaced by a `Core` function made from it has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// `Core\Str::slice` drops the first character, so `$name` is `hop`.
+$name = Core\Str::slice($name, 1);
+echo $name, "\n";
+--EXPECT--
+hop

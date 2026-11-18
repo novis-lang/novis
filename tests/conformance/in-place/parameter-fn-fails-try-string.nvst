@@ -1,0 +1,37 @@
+--TEST--
+A string parameter replaced by a Novis function that throws after its change still has its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s`, then throws when `$x` is `?`.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "?") {
+            throw new LogicError("question");
+        }
+        return $s;
+    }
+
+    public static function run(string $name): void {
+        try {
+            $name = Lib::add($name, "c");
+            echo $name, "\n";
+            // This call throws after its append, so `$name` keeps `abc`.
+            $name = Lib::add($name, "?");
+            echo "not reached\n";
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $name, "\n";
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "ab";
+Lib::run($name);
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+abc
+question: abc
+abc
+ab

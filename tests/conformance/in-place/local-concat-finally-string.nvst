@@ -1,0 +1,18 @@
+--TEST--
+A local string replaced by a concatenation inside a `try` has its new value in the `finally` block — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "ab";
+try {
+    // The `.` operator joins two strings, so `$name` is `abc`.
+    $name = $name . "c";
+    echo $name, "\n";
+} finally {
+    // The `finally` block sees the new value `abc`.
+    echo "finally: ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+abc
+finally: abc
+abc

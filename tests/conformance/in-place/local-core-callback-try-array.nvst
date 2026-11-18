@@ -1,0 +1,22 @@
+--TEST--
+A local array replaced by `Core\Arr::map` inside a `try` has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2, 3];
+try {
+    $items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+    // The error comes after the map, so `$items` is `2,4,6` in the `catch`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+stop: 2,4,6
+2,4,6

@@ -1,0 +1,25 @@
+--TEST--
+A local array replaced by a Novis function that appends to its parameter has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+array<int> $before = $items;
+$items = Lib::add($items, 3);
+echo Lib::show($items), "\n";
+// The copy made before the call still has `1,2`.
+echo Lib::show($before), "\n";
+--EXPECT--
+1,2,3
+1,2

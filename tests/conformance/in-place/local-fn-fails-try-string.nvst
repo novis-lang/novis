@@ -1,0 +1,30 @@
+--TEST--
+A local string replaced by a Novis function that throws after its change still has its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s`, then throws when `$x` is `!`.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad letter");
+        }
+        return $s;
+    }
+}
+
+string $name = "shop";
+try {
+    $name = Lib::add($name, "s");
+    echo $name, "\n";
+    // This call throws after its append, so `$name` keeps `shops`.
+    $name = Lib::add($name, "!");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+shops
+bad letter: shops
+shops

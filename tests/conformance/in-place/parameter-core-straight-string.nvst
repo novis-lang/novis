@@ -1,0 +1,19 @@
+--TEST--
+A string parameter replaced by a `Core` function changes only the method's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(string $name): void {
+        // `Core\Str::repeat` returns `$name` twice, so this prints `abab`.
+        $name = Core\Str::repeat($name, 2);
+        echo $name, "\n";
+    }
+}
+
+string $name = "ab";
+Show::run($name);
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+abab
+ab

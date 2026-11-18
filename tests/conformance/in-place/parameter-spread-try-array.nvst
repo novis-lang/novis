@@ -1,0 +1,29 @@
+--TEST--
+A method that replaces its array parameter with a spread of itself and then throws still has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `3` to the end of `$items`, then throws. The `catch` prints `1,2,3`.
+    public static function run(array<int> $items): void {
+        try {
+            $items = [...$items, 3];
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", Lib::show($items), "\n";
+        }
+        echo Lib::show($items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+Lib::run($items);
+// The caller's array is still `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+stop: 1,2,3
+1,2,3
+1,2

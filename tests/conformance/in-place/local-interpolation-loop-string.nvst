@@ -1,0 +1,12 @@
+--TEST--
+A local string replaced by an interpolated string in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "a";
+// Each pass inserts the old value and appends `x`, so three passes give `axxx`.
+for (int $i = 0; $i < 3; $i++) {
+    $name = "{$name}x";
+}
+echo $name, "\n";
+--EXPECT--
+axxx

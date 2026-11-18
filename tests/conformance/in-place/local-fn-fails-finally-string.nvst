@@ -1,0 +1,29 @@
+--TEST--
+A local string replaced by a Novis function that can throw inside a `try` has its new value in the `finally` block — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+string $name = "ab";
+try {
+    // `c` is not `!`, so this call returns `abc`.
+    $name = Lib::add($name, "c");
+    echo $name, "\n";
+} finally {
+    // The `finally` block sees the new value `abc`.
+    echo "finally: ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+abc
+finally: abc
+abc

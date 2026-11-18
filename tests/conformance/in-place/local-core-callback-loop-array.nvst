@@ -1,0 +1,22 @@
+--TEST--
+A local array replaced by `Core\Arr::map` in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+array<int> $before = $items;
+// Each pass adds `$x` to every value with `Core\Arr::map`.
+foreach ([1, 10, 100] as var $x) {
+    $items = Core\Arr::map($items, fn(int $v): int => $v + $x);
+}
+echo Lib::show($items), "\n";
+// The copy made before the loop still has `1,2`.
+echo Lib::show($before), "\n";
+--EXPECT--
+112,113
+1,2

@@ -1,0 +1,26 @@
+--TEST--
+A string parameter replaced by a `Core` function with a callback before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(string $name): void {
+        try {
+            // The callback puts each digit in `<` and `>`, then the next line throws.
+            $name = Core\Regex::replaceWith($name, "\\d", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            // The `catch` prints `a<1>b<2>`.
+            echo $e->message, ": ", $name, "\n";
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "a1b2";
+Show::run($name);
+// The caller's `$name` is still `a1b2`.
+echo $name, "\n";
+--EXPECT--
+stop: a<1>b<2>
+a<1>b<2>
+a1b2

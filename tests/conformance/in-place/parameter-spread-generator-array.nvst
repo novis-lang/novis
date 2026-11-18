@@ -1,0 +1,28 @@
+--TEST--
+A generator's parameter array replaced by a spread between two `yield`s yields its old value and then its new one, and the caller's array is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Yields `$items`, replaces it with a new array that ends in 9, and yields it again.
+    public static function steps(array<int> $items): Iterator<array<int>> {
+        yield $items;
+        $items = [...$items, 9];
+        yield $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+// This loop prints `1,2` and then `1,2,9`.
+foreach (Lib::steps($items) as array<int> $step) {
+    echo Lib::show($step), "\n";
+}
+// The caller's array still has `1,2`.
+echo Lib::show($items), "\n";
+--EXPECT--
+1,2
+1,2,9
+1,2

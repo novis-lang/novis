@@ -1,0 +1,20 @@
+--TEST--
+A local array replaced by `Core\Arr::map` over itself has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2, 3];
+array<int> $before = $items;
+// `Core\Arr::map` returns a new array with each value doubled.
+$items = Core\Arr::map($items, fn(int $v): int => $v * 2);
+echo Lib::show($items), "\n";
+// The copy made before the call still has `1,2,3`.
+echo Lib::show($before), "\n";
+--EXPECT--
+2,4,6
+1,2,3

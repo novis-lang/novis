@@ -1,0 +1,16 @@
+--TEST--
+A local string replaced by itself joined with more text before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+try {
+    // `.` joins two strings, so `$name` is `shops`.
+    $name = $name . "s";
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+stop: shops
+shops

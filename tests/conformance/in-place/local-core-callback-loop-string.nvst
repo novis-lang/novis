@@ -1,0 +1,12 @@
+--TEST--
+A local string replaced by a `Core` function with a callback in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+string $name = "shop";
+// Each pass replaces the last `p` with `op`, so three passes give `shoooop`.
+for (int $i = 0; $i < 3; $i++) {
+    $name = Core\Regex::replaceWith($name, "p$", fn(Core\Regex\Match $m): string => "o" . $m->text());
+}
+echo $name, "\n";
+--EXPECT--
+shoooop

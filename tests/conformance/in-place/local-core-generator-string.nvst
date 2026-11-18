@@ -1,0 +1,22 @@
+--TEST--
+A local string replaced by a `Core` function between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Gen {
+    public static function steps(): Iterator<string> {
+        string $name = "ab";
+        yield $name;
+        // `Core\Str::upper` returns the string in capital letters, so `$name` is `AB`.
+        $name = Core\Str::upper($name);
+        yield $name;
+    }
+}
+
+// The first value is still `ab` after the generator changed `$name`.
+array<string> $seen = [];
+foreach (Gen::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,AB

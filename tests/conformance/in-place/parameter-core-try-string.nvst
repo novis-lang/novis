@@ -1,0 +1,26 @@
+--TEST--
+A string parameter replaced by a `Core` function before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(string $name): void {
+        try {
+            // `Core\Str::repeat` returns `$name` twice, then the next line throws.
+            $name = Core\Str::repeat($name, 2);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            // The `catch` prints `abab`.
+            echo $e->message, ": ", $name, "\n";
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "ab";
+Show::run($name);
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+stop: abab
+abab
+ab

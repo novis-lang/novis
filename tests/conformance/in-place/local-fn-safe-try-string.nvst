@@ -1,0 +1,24 @@
+--TEST--
+A local string replaced by a Novis function before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s` and returns it.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        return $s;
+    }
+}
+
+string $name = "shop";
+try {
+    // `Lib::add` appends `s`, so `$name` is `shops`.
+    $name = Lib::add($name, "s");
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $name, "\n";
+}
+echo $name, "\n";
+--EXPECT--
+stop: shops
+shops

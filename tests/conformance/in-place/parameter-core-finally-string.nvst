@@ -1,0 +1,24 @@
+--TEST--
+A string parameter replaced by an owning `Core` function inside a `try` has its new value in the `finally`, and the caller's string is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Repeats `$name` twice inside a `try`. The `finally` block prints the new value.
+    public static function twice(string $name): string {
+        try {
+            $name = Core\Str::repeat($name, 2);
+        } finally {
+            echo "finally: ", $name, "\n";
+        }
+        return $name;
+    }
+}
+
+string $name = "ab";
+echo Lib::twice($name), "\n";
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+finally: abab
+abab
+ab

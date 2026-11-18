@@ -1,0 +1,22 @@
+--TEST--
+A local array replaced by a spread of itself in a loop has every value the loop added — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+array<int> $before = $items;
+// Each pass adds `$x` at the end of `$items`.
+foreach ([3, 4, 5] as var $x) {
+    $items = [...$items, $x];
+}
+echo Lib::show($items), "\n";
+// The copy made before the loop still has `1,2`.
+echo Lib::show($before), "\n";
+--EXPECT--
+1,2,3,4,5
+1,2

@@ -1,0 +1,23 @@
+--TEST--
+A local array replaced by a spread of itself inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+try {
+    // The new array has the values of `$items` and then 9, so it is `1,2,9`.
+    $items = [...$items, 9];
+    echo "try: ", Lib::show($items), "\n";
+} finally {
+    echo "finally: ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+try: 1,2,9
+finally: 1,2,9
+1,2,9

@@ -1,0 +1,30 @@
+--TEST--
+A string parameter replaced in a loop by a Novis function that can throw, called so it does not, changes only the method's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s`, then throws when `$x` is `?`.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "?") {
+            throw new LogicError("question");
+        }
+        return $s;
+    }
+
+    public static function run(string $name): void {
+        // Each pass appends one `x`, so this prints `abxxx`.
+        foreach ([1, 2, 3] as var $i) {
+            $name = Lib::add($name, "x");
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "ab";
+Lib::run($name);
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+abxxx
+ab

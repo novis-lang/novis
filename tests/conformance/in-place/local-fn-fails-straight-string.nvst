@@ -1,0 +1,21 @@
+--TEST--
+A local string replaced by a Novis function that may throw, called so it does not, has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    // Appends `$x` to `$s`, then throws when `$x` is `!`.
+    public static function add(string $s, string $x): string {
+        $s .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad letter");
+        }
+        return $s;
+    }
+}
+
+string $name = "shop";
+// `Lib::add` appends `s`, so `$name` is `shops`.
+$name = Lib::add($name, "s");
+echo $name, "\n";
+--EXPECT--
+shops

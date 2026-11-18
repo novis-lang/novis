@@ -1,0 +1,21 @@
+--TEST--
+A string parameter replaced by a concatenation in a loop changes only the method's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(string $name): void {
+        // Each pass adds one `x` at the end, so this prints `abxxx`.
+        foreach ([1, 2, 3] as var $i) {
+            $name = $name . "x";
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "ab";
+Show::run($name);
+// The caller's `$name` is still `ab`.
+echo $name, "\n";
+--EXPECT--
+abxxx
+ab

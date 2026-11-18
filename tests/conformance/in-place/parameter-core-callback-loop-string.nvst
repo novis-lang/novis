@@ -1,0 +1,21 @@
+--TEST--
+A string parameter replaced by a `Core` function with a callback in a loop changes only the method's copy — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Show {
+    public static function run(string $name): void {
+        // Each pass puts each digit in `<` and `>` once more.
+        foreach ([1, 2, 3] as var $i) {
+            $name = Core\Regex::replaceWith($name, "\\d", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+        }
+        echo $name, "\n";
+    }
+}
+
+string $name = "a1b2";
+Show::run($name);
+// The caller's `$name` is still `a1b2`.
+echo $name, "\n";
+--EXPECT--
+a<<<1>>>b<<<2>>>
+a1b2

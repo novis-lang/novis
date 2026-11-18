@@ -1,0 +1,20 @@
+--TEST--
+A local array replaced by a `Core` function made from it has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+array<int> $before = $items;
+// `Core\Arr::append` returns a new array with `3` at the end.
+$items = Core\Arr::append($items, 3);
+echo Lib::show($items), "\n";
+// The copy made before the call still has `1,2`.
+echo Lib::show($before), "\n";
+--EXPECT--
+1,2,3
+1,2

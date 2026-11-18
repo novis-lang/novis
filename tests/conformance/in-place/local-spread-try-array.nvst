@@ -1,0 +1,22 @@
+--TEST--
+A local array replaced by a spread of itself inside a `try` has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $items = [1, 2];
+try {
+    $items = [...$items, 9];
+    // The error comes after the spread, so `$items` is `1,2,9` in the `catch`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show($items), "\n";
+}
+echo Lib::show($items), "\n";
+--EXPECT--
+stop: 1,2,9
+1,2,9
