@@ -130,8 +130,8 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Rules a framework can set.** *Working on it now.* A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.
-2. **Less work for each request.** Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.
+1. **Less work for each request.** *Working on it now.* Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.
+2. **Rules a framework can set.** A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.
 3. **The website shows every change.** When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
 4. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
 5. **Faster mutation tests.** `nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.
