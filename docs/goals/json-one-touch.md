@@ -148,6 +148,9 @@ one line each.
 - [ ] `crates/nvs-runtime/src/object.rs:5447` `construct`: a second entry that takes the constructor
   already found and a slice whose first place is the receiver's. The existing entry keeps its
   signature and calls it. `Contract` (`json.rs:2866`) finds the constructor once per class.
+  - [x] `construct_found` and `constructor_of` in `object.rs`, and `construct` calls them.
+  - [x] `Fields::args` keeps the receiver's place first, and `finish` calls `construct_found`.
+  - [ ] The constructor is found once per class for a whole decode, not once per object.
 - [ ] A list of objects (`json.rs:3498`, `:5856` `decode_list`): each element `fill` built is taken as
   it is, with no `Positions` frame per element.
 - [ ] The three tests the `one-touch` check names. The second builds documents from a fixed seed over
@@ -185,21 +188,40 @@ Written on 2026-11-17 from a conversation with the person, who asked why Novis i
 in the comparison. Their calls: write goals for it, and give up nothing else for these cases. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stage 1 is done in one session (stage 2 has used none). `fill` reads with `Reader::next_keyed`
-(`reader.rs` `Keyed`, `Key`), and `declared` (`json.rs`, beside `fill_slot`) matches a key on its
-bytes from `Filling::Object`'s `from`. The `key-match` tests pass, run once by name. No existing
-test is expected to go red. Two properties with one key do not compile (`types_e08.rs`), so the
-wrapping search never changes which property matches.
+Stage 1 is done in one session. Stage 2 has used one session of its two.
 
-The sweep's reds were stale: `env-secret-proofs` has no log, and the nightly `supply chain` run
-44073672172 built `2934ebe1ae`, before `chrono` was removed.
+Stage 2's first session landed the runtime half of the `construct` item. `nvs_runtime::constructor_of`
+(`object.rs:5491`) finds a constructor, and `construct_found` (`:5533`) runs it over a slice whose
+first place is the receiver's. `construct` calls both. `Fields::args` keeps the receiver's place
+first, and `Fields::finish` (`json.rs:5118`) calls `construct_found`, so each decoded object
+allocates one vector fewer (today n × (4 + s)). `build_shape` skips that place. The json side's
+`constructor_of` (`json.rs:3655`) counts lookups in the test-only `CONSTRUCTORS_FOUND`, for the
+`a_constructor_is_found_once_for_a_whole_decode` test. Build and clippy are green. No test ran. No
+existing test is expected to go red. `a_decode_as_builds_no_array_for_the_object_it_fills`
+(`json.rs` tests) compares allocation counts and may need its figure changed at the gate.
+
+The sweep's reds are stale: `env-secret-proofs` has no log and no goal defines it, and the nightly
+`supply chain` run 44073672172 built `2934ebe1ae`, before `chrono` was removed.
 
 ### Next
 
-Stage 2. Stage 1 moved the anchors in `json.rs`: today `scalar_of` is `:2551`, `build_object`
-`:3762`, `keep_arrays` `:3733`, `check_codec` `:4081` and `decode_list` `:5907`, and `construct` is
-`object.rs:5447`. Find the rest with `bun nv peek --locate`. The tests helper `read_ints` reads an
-`int` shape and may serve the `one-touch` tests.
+Stage 2's second and last session. Read `fill` (`json.rs:3409`), `Builder` (`:3683`),
+`build_object` (`:3789`), `convert_field` (`:5520`), `decode_list` (`:5949`) and `decode_element`
+(`:6043`) first. A plan the first session worked out:
+
+- The constructor cache: a few `(class, Constructor)` pairs on the `Builder`, searched by address.
+  `Fields::finish` does not see the `Builder`, so it lands with the slot rewrite below.
+- One touch: when `fill` stores a value for `Next::Field`, convert it then (`convert_field`'s
+  rules, `nullable` and `outside`), into a `Vec<Value>` slot stack in constructor order with the
+  receiver's place first. Keep each issue with its field index, and at the closing brace give
+  them in declared order, with the missing-field issues at their places. A nested class that writes
+  its own decoder is kept raw and decoded at the closing brace, in declared order, as today. A
+  dropped `Found::Value` that is an array still goes to `kept` (`keep_arrays`), because `Lists`
+  knows lists by address.
+- A list field: `Filling::List` converts each element as it is pushed, into an `NvsArray` and its
+  issues, and gives one value at its `]`.
+- If the second session cannot land the rewrite whole, its open items move to `### Backlog` as
+  declined, as § *Limits* says.
 
 ### Backlog
 
