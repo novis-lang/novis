@@ -589,6 +589,12 @@ disjoint and they run side by side. The session runs the test once all batches e
   - [x] An element, through containers made sole before the element's read.
   - [x] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
   - [ ] `write_back_array`'s decision is the lend's.
+    - [x] A one-level write or append into a plain `array` property or static property
+      (`Lowering::lendable_root`).
+    - [ ] A nested write (`ArrayWriteThrough`) and a nested `.=` (`ArrayStrAppendThrough`).
+    - [ ] An `unset`, one level and nested.
+    - [ ] A guarded root, a union receiver and a `lateinit` root, or a recorded reason each keeps
+      the lowering's store.
 - [x] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
 - [x] The tests the `lends` and `lend-trap` checks name. Run once.
 
@@ -665,29 +671,40 @@ place, handled by the compiler and tested. § *Standing decisions* is the author
 Stages 1 to 3 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and its
 newest naming commit is `route-parameters`' retire.
 
-Stage 4: `Lend::of` (`crates/nvs-ir/src/ownership.rs`) reads `InstKind::effects` and lends a plain
-property, a static property, a chain of them, an element of an array such a slot holds
-(`Lend::of_element`, `make_sole`, `array.set.lent`), and the target of `.=` (`lower_slot_append`,
-through `InstKind::consumes`). A local's element is not lent: the sole array would have to replace
-the local's value on its error edges too. The debug poison is done: `run_function` emits
-`InstKind::LendPoison` (`lend.poison`, `lend.restore`) around a plain or chained lend, and
-`emit_lend_poison` and `emit_lend_check` (`crates/nvs-codegen/src/emit.rs`, beside
-`emit_field_get`) write and compare the tag byte in a debug build. All ten `lends` tests and
-`a_debug_build_traps_a_read_of_a_lent_slot` (`crates/nvs-cli/tests/in_place.rs`) passed once by
-name, and the 125 slot `core` and `concat` matrix cases pass on the debug binary with the poison on.
+Stage 4: `Lend::of` (`crates/nvs-ir/src/ownership.rs`) lends a plain property, a static property,
+a chain, an element (`Lend::of_element`, `make_sole`), the target of `.=`, and now the root of a
+one-level element write or append, all through `InstKind::consumes` (`StrAppend`, `ArraySet`,
+`ArrayAppend`). For the last, `lower_reassignment`'s `Index` arm retains the root's read where
+`Lowering::lendable_root` holds (plain `array` property of one class, no guard, no `lateinit`, or
+an `array` static), owning it as a temporary across a fallible append, and
+`write_back_array(…, retained, …)` reads and releases the old value around the store.
+`Lend::of_element` removes those three too. A local's element is not lent. The debug poison is done
+(`InstKind::LendPoison`, `emit_lend_poison`, `emit_lend_check`). The ten `lends` tests,
+`an_element_write_into_a_plain_slot_is_lent` and the `lend-trap` test passed once by name, and a
+scratch program of property and static element writes printed the same with and without
+`--no-in-place` on the debug binary.
 
 ### Next
 
-The rest of stage 4, in this order:
+The rest of stage 4, in this order. Every caller below still passes `retained: false`:
 
-- **`write_back_array`'s decision** (`crates/nvs-ir/src/lower/mod.rs:4066`): its property and
-  static arms re-point the slot with no retain. As the lend's, they would emit a retain of the
-  slot's read before the `array.set` and a second read and release around the store, and
-  `Lend::of` would take `ArraySet` through `InstKind::consumes`. Every element write goes through
-  it, so read every snapshot that changes; a chain flattened by `lower_reassignment` stores each
-  level, and the lend must hold at each.
+- **A nested write** (`emit_write_through`, `Helper::ArrayWriteThrough`, and
+  `Helper::ArrayStrAppendThrough` at `lower_element_str_append`'s `write_back_array` call): the
+  root is an argument of a fallible `HelperCall`. `InstKind::consumes` would name the call's first
+  argument for those two helpers. Check first in `nvs_runtime` that a failure leaves the root with
+  the caller, as a refused append does, and own the retain as a temporary across the call.
+- **`unset`** (the `write_back_array` call after the climb's `emit_array_set`s): a nested one reads
+  the root with `array.get`s between its read and the outer `array.set`, and `window_is_quiet`
+  refuses any reader of the subject but a retain or release. A borrowing `ArrayGet` would need to
+  be allowed there; a one-level `unset` is `ArrayUnset`, which `consumes` does not name yet.
+- **A guarded root, a union receiver, a `lateinit` root.** A union writes back in each branch, so
+  the read and the store are in different blocks. Decide each: lend it, or record in the module doc
+  why the lowering's store stays, and tick the item.
 - **A local's element**, if it fits: after `array.sole`, every later read of the local's old value,
   the error edges' releases included, reads the sole array.
+
+**What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
+property copies its array, so a loop of such writes is quadratic. Only the differential run uses it.
 
 **Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
@@ -704,7 +721,9 @@ store after the slot's read, and `array.set.lent`. A snapshot of `$this->o .= $x
 with the pass on; with it off (`--no-in-place`), the conformance output is the same, but the IR
 shows a `retain` before `str.append` and a second read and release around the store. A snapshot
 of a lent property or static property now prints `lend.poison` after the slot's read and after the
-call, and `lend.restore` before the call.
+call, and `lend.restore` before the call. A snapshot of `$this->p[k] = v`, `$this->p[] = v` or
+`C::$s[k] = v` now also prints `lend.poison` around the `array.set` or `array.append`, and with the
+pass off a `retain` of the root and a second read and release around the store.
 
 ### Backlog
 
