@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/tests.rs, crates/nvs-codegen/src/emit.rs]
   - id: 5
     title: a Novis function takes a lent or moved value whenever the compiler proves it safe
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/tests.rs, crates/nvs-ir/src/lower/call.rs]
   - id: 6
     title: concatenation, interpolation and a literal that spreads its target append in place on every target
@@ -625,23 +625,23 @@ disjoint and they run side by side. The session runs the test once all batches e
   - [x] Releases on failure-only paths go; a separated change retains first and releases before its
     returns.
   - [x] `lend_to_callees` collects the sites, builds each body once and rewrites the calls.
-- [ ] `ownership.rs` lends a slot, and a local that a `catch` reads, to a Novis callee under the three
+- [x] `ownership.rs` lends a slot, and a local that a `catch` reads, to a Novis callee under the three
   conditions in § *Standing decisions*.
   - [x] A property or a static property, through `Lend::of_call`, with the callee's summary in place
     of the callback check.
-  - [ ] A local inside a `try` whose `catch` reads it.
+  - [x] A local inside a `try` whose `catch` reads it.
 - [x] A callee that may write the lent slot keeps the call's retain (§ *Standing decisions*, "A callee
   that may write the lent slot is not lent").
-- [ ] `Core\Arr::reduce` (`crates/nvs-stdlib/src/arr.rs:4452`) hands its carry to the callback. `call_callable`
+- [x] `Core\Arr::reduce` (`crates/nvs-stdlib/src/arr.rs:4452`) hands its carry to the callback. `call_callable`
   (`crates/nvs-runtime/src/callable.rs:193`) gains the form that takes an argument the caller gives
   away, with no retain for it, and `reduce`'s guard no longer holds the carry during the call.
-- [ ] The ten tests the `user-callees` check names and the two the `carry` check names. Run once.
+- [x] The ten tests the `user-callees` check names and the two the `carry` check names. Run once.
 
 ### 6. concatenation, interpolation and a literal that spreads its target append in place on every target
 
-- [ ] `crates/nvs-ir/src/lower/expr.rs:3402` `concat_spine_opens_with` accepts an `ExprKind::Interpolated`
+- [ ] `crates/nvs-ir/src/lower/expr.rs:3410` `concat_spine_opens_with` accepts an `ExprKind::Interpolated`
   whose first part is the target. A concatenation is one instruction that the pass lends its first
-  operand to, for every target the pass can lend. `lower_string_self_concat` (`stmt.rs:1395`) and
+  operand to, for every target the pass can lend. `lower_string_self_concat` (`stmt.rs:1421`) and
   `lower_carrier_self_append` are folded into it.
 - [ ] `crates/nvs-ir/src/lower/expr.rs:6904`: a literal whose first item is a spread takes that source
   as an owning operand of its first `ArraySpread`. `crates/nvs-runtime/src/array.rs` `nvs_array_spread`
@@ -687,34 +687,35 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has its summary, its lent body, the lend of a property or a static
-property to a known Novis callee, and the decision on a callee that writes the slot. The sweep's
-`env-secret-proofs` red is stale: no goal defines it, and the newest commit that names it is this
-goal's own handoff.
+Stages 1 to 5 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and the
+newest commit that names it is this goal's own handoff.
 
-`crates/nvs-ir/src/ownership/lent.rs` builds `<callee>#lent<i>`. `ownership::lend_to_callees` runs
-after every function's own pass, collects each `slot = f(slot, …)` through `Lend::of_call`, builds
-each body once with the union of the slots its sites lend, and rewrites the call's target. The lent
-body names its parameter by `InstKind::Param`, so a static method's first argument is `#lent1`
-(parameter 0 is its class descriptor). `Function`, `BasicBlock`, `Inst`, `InstKind`,
-`Terminator` and `TestedClass` now derive `Clone`. Nine `user-callees` tests pass, each run once
-by name.
+Stage 5's last two items landed this session. `ownership::lend_local` lends a local whose move
+into a known Novis callee was refused only because the call's error edge reads it: the retain and
+the normal path's releases go, the error edge keeps the local, and the call takes the callee's lent
+body with an empty slot set. `lend_to_callees` tries it after `Lend::of_call` for each argument.
+`nvs_runtime::call_callable_giving` passes one argument with no retain and releases it itself where
+it never reaches the callee, and `Core\Arr::reduce` gives each carry that way. The ten
+`user-callees` tests and the two `carry` tests pass, each run once by name.
 
 ### Next
 
-- **A local inside a `try` whose `catch` reads it** (stage 5's open sub-item). In `run_function`,
-  a `Move::Novis` that `Walk::releases_after(true, 1)` refuses because the error edge reads the
-  local can instead take the lent body: the call keeps no retain, the normal path's release of the
-  local goes, and the error edge keeps the local. Add it as a second kind of `Site` in
-  `lend_to_callees` with an empty slot set, and write
-  `a_local_inside_a_try_is_lent_to_a_callee_that_cannot_fail_after_its_change` beside the other
-  nine in `crates/nvs-ir/src/lower/tests.rs` (after `recursive_callees_reach_one_summary`).
-- **`CoreArr::reduce`'s carry** (`crates/nvs-runtime/src/callable.rs:193` `call_callable`, and the
-  `reduce` test at `crates/nvs-stdlib/src/arr.rs:10719`), with the two `carry` tests in
-  `crates/nvs-stdlib/tests/in_place.rs`. It fits a session of its own.
+- **Stage 6, the concatenation.** `concat_spine_opens_with` (`crates/nvs-ir/src/lower/expr.rs:3410`)
+  accepts an `ExprKind::Interpolated` whose first part is the target. Fold `lower_string_self_concat`
+  (`crates/nvs-ir/src/lower/stmt.rs:1421`) and `lower_carrier_self_append` (`stmt.rs:1514`) into one
+  instruction the pass lends its first operand to, on a local, a property, a static property and an
+  element. Write `every_concatenation_target_appends_in_place` and
+  `an_interpolation_that_opens_with_its_target_appends_in_place` in `crates/nvs-ir/src/lower/tests.rs`.
+- **Stage 6, the spread.** A literal whose first item is a spread of its own target takes that
+  source as an owning operand of its first `ArraySpread`, and `nvs_array_spread`
+  (`crates/nvs-runtime/src/array.rs:3037`) into an empty array returns a sole list source itself.
+  Write the two tests the `spread` check names.
 - Not run yet, because a stage checks with a build alone: the `fn-` conformance cases under
-  `tests/conformance/in-place/`. They are the first real runs of a lent body. Run them early in the
-  gate, under a debug binary, and read any crash as a lent body bug in `lent.rs`.
+  `tests/conformance/in-place/`. They are the first real runs of a lent body, and the
+  `local-fn-*-try-*` ones the first of a lent local. Run them early in the gate, under a debug
+  binary, and read any crash as a lent body bug in `lent.rs` or in `lend_local`.
+- `crates/nvs-stdlib/src/arr.rs` changed, so every `Core\Arr` perf record is stale. Record them at
+  the goal's end as the playbook's perf bullet says, after the last edit to that file.
 
 **What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
 property copies its array, so a loop of such writes is quadratic. Only the differential run uses it.
@@ -743,6 +744,9 @@ read, and a guarded one reads the root again after the guard. A `Core` call with
 calls a known function writing none of the slot's chain is now lent where it kept its retain.
 A snapshot of `$this->p = $this->f($this->p)` with a known `f` now calls `T::f#lent1`, prints
 `lend.poison` around it, and has no retain of the slot's read; the program gains that lent body.
+A snapshot of a call that passes a local inside a `try` whose `catch` reads it, to a known Novis
+callee, now calls `<callee>#lent<i>` with no retain, and the normal path has no release of the
+local. A `reduce` test that counts the carry's references during the callback now sees one fewer.
 
 ### Backlog
 
