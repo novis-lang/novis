@@ -6955,6 +6955,21 @@ pub struct ShapeCheck {
 }
 
 impl SlotCheck {
+    /// The tags this check admits, as [`crate::array::written_bit`]'s bits,
+    /// where a value's tag alone decides it. `None` where some value needs a
+    /// look past its tag: an enum's case values, a class, a shape, or an
+    /// array's own elements. `mixed` admits every bit.
+    fn tags_alone(&self) -> Option<u64> {
+        match self {
+            Self::Any => Some(u64::MAX),
+            Self::Values(..) | Self::Class(_) | Self::Shape(_) | Self::Array(_) => None,
+            Self::Tag(tag) => Some(crate::array::written_bit(*tag as u8)),
+            Self::AnyOf(arms) => arms
+                .iter()
+                .try_fold(0, |union, arm| Some(union | arm.tags_alone()?)),
+        }
+    }
+
     /// `Ok` when `value` is what this check describes. Otherwise the error is
     /// a description of the part of `value` that does not pass, worded to
     /// follow "so" in [`write_erased_property`]'s message.
@@ -6995,6 +7010,13 @@ impl SlotCheck {
                 let Some(array) = value.as_array() else {
                     return Err(describe_written(value));
                 };
+                // The array's tag word answers in one step when every tag
+                // ever written is one the element type admits by its tag alone.
+                if let Some(admitted) = element.tags_alone()
+                    && array.written_tags() & !admitted == 0
+                {
+                    return Ok(());
+                }
                 let mut from = 0;
                 while let Some(slot) = array.next_slot(from) {
                     if let Some(item) = array.value_at(slot) {

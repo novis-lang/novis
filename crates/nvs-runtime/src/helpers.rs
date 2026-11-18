@@ -2559,6 +2559,17 @@ unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64
         reason = "the caller guarantees the allocation is live for this walk"
     )]
     let array = unsafe { crate::array::ArrayRef::borrowed(array) };
+    // A level that is not an array is decided by the tag alone, so the
+    // array's tag word answers it without a walk when it names no other tag.
+    let nibble = u8::try_from(tags & 0xf).unwrap_or(u8::MAX);
+    if nibble == crate::callable::CALLABLE_PARAM_TAG_ANY {
+        return true;
+    }
+    if Tag::from_byte(nibble).is_some_and(|tag| tag != Tag::Array)
+        && array.written_tags() & !crate::array::written_bit(nibble) == 0
+    {
+        return true;
+    }
     // One borrow of the table for the whole walk. Each value is borrowed, so
     // nothing is released, and `element_has_tag` only reads.
     array.every_value(|value| element_has_tag(value, tags))

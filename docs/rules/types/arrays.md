@@ -11,6 +11,13 @@ The container is an insertion-ordered hash with copy-on-write value semantics.
   itself makes the append copy. A statement that replaces a value with one made from it, such as
   `$x = f($x)`, changes it in place wherever no other holder can see the old one, as
   `rule:types/a-replaced-value-is-changed-in-place` says.
+- **A typed check of the elements takes one step when the array's tags fit.** Every array keeps
+  the union of the tags of every value ever written into it, and a removal never lowers it. A check
+  that an argument, a property or a callback's parameter is `array<int>`, `array<?string>` or any
+  element type a tag alone decides reads that word, and walks the entries only when it names a tag
+  the type does not admit. So a `reduce` whose carry is an `array<uint>` costs each step its own
+  work, not the carry's length. A write through a nested row's slot makes the word unknown, and the
+  check of that array walks. **What it spends:** one word per array and one OR per write.
 
 **Every key is a `string`.** There is no integer key. One key type means one key domain: which
 subscripts name the same entry is decided once, at the subscript, and nothing later converts a key

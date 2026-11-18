@@ -280,8 +280,39 @@ pub(crate) struct Table {
     /// sets the counter outright, and every later one may only raise it. PHP
     /// 8.3 introduced that marker, and PHP 8.5 is the differential oracle.
     next_index: Option<i64>,
+    /// The tags of every value ever written into this table, one bit per tag
+    /// ([`written_bit`]). A removal never clears a bit, so the word may name a
+    /// tag no live value has, and never misses one a live value has. A
+    /// typed-array check reads it and walks the entries only when it names a
+    /// tag the element type does not admit — see
+    /// [`NvsArray::written_tags`].
+    written: u64,
     /// How the entries themselves are held.
     shape: Shape,
+}
+
+/// The bit [`Table::written`] keeps for a value with tag byte `byte`. A byte
+/// past the word's range shares [`WRITTEN_UNKNOWN`], which no element type
+/// admits.
+#[must_use]
+pub(crate) const fn written_bit(byte: u8) -> u64 {
+    if byte < 63 {
+        1 << byte
+    } else {
+        WRITTEN_UNKNOWN
+    }
+}
+
+/// The bit [`Table::written`] gets where a writer holds a slot by reference
+/// and its tag is not known here. No element type but `mixed` admits it, so
+/// such an array is checked by a walk.
+pub(crate) const WRITTEN_UNKNOWN: u64 = 1 << 63;
+
+/// The tag union of `values`, for a table that takes them all.
+fn written_of(values: &[Value]) -> u64 {
+    values
+        .iter()
+        .fold(0, |union, value| union | written_bit(value.tag_byte()))
 }
 
 /// The two representations of one array's entries.
@@ -336,6 +367,7 @@ impl Default for Table {
     fn default() -> Self {
         Self {
             next_index: None,
+            written: 0,
             shape: Shape::Packed(VecDeque::new()),
         }
     }
@@ -614,6 +646,7 @@ impl Table {
     /// dropped rather than stored in that case — the packed form has no use for
     /// it, which is the whole saving.
     fn set(&mut self, key: NvsStr, value: Value) -> Option<Value> {
+        self.written |= written_bit(value.tag_byte());
         self.note_key(key.as_bytes());
         if let Shape::Packed(values) = &mut self.shape
             && let Some(slot) = packed_index(key.as_bytes()).filter(|slot| *slot <= values.len())
@@ -628,6 +661,9 @@ impl Table {
     /// Hands `value` back where `key` is absent. The append counter needs no
     /// note, since it saw `key` when the entry was inserted.
     fn overwrite(&mut self, key: KeyRef<'_>, value: Value) -> Result<Value, Value> {
+        // A bit for a write that finds no key is harmless: the word may name
+        // more than the table has.
+        self.written |= written_bit(value.tag_byte());
         match &mut self.shape {
             Shape::Packed(values) => {
                 match packed_index(key.bytes()).and_then(|slot| values.get_mut(slot)) {
@@ -662,6 +698,7 @@ impl Table {
     /// next one. The counter is advanced from the integer itself, so a write
     /// that *does* degrade still leaves `$a[]` appending where PHP's would.
     fn set_index(&mut self, index: i64, value: Value) -> Option<Value> {
+        self.written |= written_bit(value.tag_byte());
         self.note_index(index);
         if let Shape::Packed(values) = &mut self.shape
             && let Some(slot) = usize::try_from(index)
@@ -699,8 +736,11 @@ impl Table {
     }
 
     /// The slot of the entry one step of a nested write names, so the walk
-    /// can write the row it holds without taking it out of the table.
+    /// can write the row it holds without taking it out of the table. The
+    /// writer may store any tag there, so the table's tag word learns
+    /// [`WRITTEN_UNKNOWN`] and a typed check of this array walks it.
     fn row_slot(&mut self, step: PathKey<'_>) -> Option<&mut Value> {
+        self.written |= WRITTEN_UNKNOWN;
         match &mut self.shape {
             Shape::Packed(values) => {
                 let slot = match step {
@@ -746,6 +786,7 @@ impl Table {
         if self.next_is_occupied() {
             return Err(value);
         }
+        self.written |= written_bit(value.tag_byte());
         let counter = self.next_index.unwrap_or(0);
         if let Shape::Packed(values) = &mut self.shape
             && usize::try_from(counter).is_ok_and(|next| next == values.len())
@@ -919,6 +960,7 @@ impl Table {
     /// back the value it replaced for the caller to release. The key, the
     /// order and the shape do not change.
     fn replace_at(&mut self, slot: usize, value: Value) -> Value {
+        self.written |= written_bit(value.tag_byte());
         let stored = match &mut self.shape {
             Shape::Packed(values) => values.get_mut(slot),
             Shape::Hashed(hashed) => hashed
@@ -958,6 +1000,7 @@ impl Table {
         };
         Self {
             next_index: self.next_index,
+            written: self.written,
             shape,
         }
     }
@@ -1077,6 +1120,7 @@ impl Table {
     /// moves nothing; one without grows by doubling. The caller has reserved
     /// the room.
     fn prepend(&mut self, front: Vec<Value>) {
+        self.written |= written_of(&front);
         self.renumber();
         if let Shape::Packed(values) = &mut self.shape {
             values.reserve(front.len());
@@ -1158,6 +1202,7 @@ impl Table {
         if new.len() != self.len() {
             return Err(new);
         }
+        self.written |= written_of(&new);
         match &mut self.shape {
             Shape::Packed(values) => {
                 for (stored, value) in values.iter_mut().zip(new) {
@@ -1788,6 +1833,7 @@ impl NvsArray {
             refcount: Cell::new(1),
             table: RefCell::new(Table {
                 next_index: None,
+                written: 0,
                 shape: Shape::Packed(VecDeque::with_capacity(capacity)),
             }),
         });
@@ -2607,6 +2653,17 @@ impl NvsArray {
     pub fn rekey(&mut self, keys: Vec<NvsStr>) -> Result<(), Vec<NvsStr>> {
         self.make_unique();
         self.header().table.borrow_mut().rekey(keys)
+    }
+
+    /// One bit for each tag of a value ever written into this array
+    /// ([`written_bit`]). A removal clears no bit, so a set bit may name a
+    /// tag no live value has, and every live value's tag is set. A typed
+    /// check of the elements is answered here, in one step, whenever every set
+    /// bit is a tag the element type admits. It walks the entries otherwise.
+    /// **What it spends:** one word per array, and one OR per write.
+    #[must_use]
+    pub(crate) fn written_tags(&self) -> u64 {
+        self.header().table.borrow().written
     }
 
     /// Whether `test` is true for every value, in insertion order. Each value
@@ -5328,6 +5385,56 @@ mod tests {
         map.drop_last(1);
         assert_eq!(map.last_slot(), Some(6));
         assert_eq!(map.count(), 6);
+    }
+
+    /// `check` over `array`, which keeps its own reference.
+    fn admits(check: &crate::object::SlotCheck, array: NvsArray) -> Result<(), String> {
+        let ptr = array.into_raw();
+        let answer = check.admits(Value::from_array_ptr(ptr));
+        #[expect(unsafe_code, reason = "`ptr` is the reference `into_raw` gave up just above")]
+        drop(unsafe { NvsArray::from_raw(ptr) });
+        answer
+    }
+
+    #[test]
+    fn a_typed_check_reads_the_tags_an_array_was_written_with() {
+        use crate::object::SlotCheck;
+        let ints = SlotCheck::Array(Box::new(SlotCheck::Tag(Tag::Int)));
+
+        let list = list_of(1000);
+        assert_eq!(list.written_tags(), written_bit(Tag::Int as u8));
+        assert_eq!(admits(&ints, list), Ok(()));
+
+        // A string still in the array fails the check, by the walk.
+        let mut mixed = list_of(3);
+        mixed.append(Value::text("x"));
+        assert!(admits(&ints, mixed).is_err());
+
+        // A string written and then removed sets its bit for good, so the
+        // check walks, and the walk finds every live value an `int`.
+        let mut was_mixed = list_of(3);
+        was_mixed.append(Value::text("x"));
+        was_mixed.unset(b"3");
+        assert_ne!(was_mixed.written_tags() & written_bit(Tag::Str as u8), 0);
+        assert_eq!(admits(&ints, was_mixed), Ok(()));
+
+        // A separated copy keeps the word, and a write through a row's slot
+        // makes it unknown.
+        let mut rows = NvsArray::new();
+        rows.append(Value::array(list_of(2)));
+        let mut separated = rows.clone();
+        separated.set_index(5, Value::int(1));
+        assert_eq!(
+            separated.written_tags(),
+            written_bit(Tag::Array as u8) | written_bit(Tag::Int as u8)
+        );
+        assert_eq!(rows.written_tags(), written_bit(Tag::Array as u8));
+        drop(separated);
+        assert_eq!(
+            rows.write_through(&[PathKey::Index(0)], PathKey::Append, Value::int(7)),
+            Ok(())
+        );
+        assert_ne!(rows.written_tags() & WRITTEN_UNKNOWN, 0);
     }
 
     #[test]
