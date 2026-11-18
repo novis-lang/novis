@@ -3,22 +3,21 @@
   "internal": [],
   "themes": [
     {
+      "title": "Rules a framework can set",
+      "text": "A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.",
+      "goals": [
+        "route-parameters",
+        "session-per-key"
+      ]
+    },
+    {
       "title": "Less work for each request",
       "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
       "goals": [
         "in-place-everywhere",
         "arrays-in-place",
         "strings-in-place",
-        "cheaper-forms",
-        "compare-recorded"
-      ]
-    },
-    {
-      "title": "Rules a framework can set",
-      "text": "A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.",
-      "goals": [
-        "route-parameters",
-        "session-per-key"
+        "cheaper-forms"
       ]
     },
     {
