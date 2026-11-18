@@ -4500,10 +4500,13 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_arr_reduce(ctx, args: [3]) {
         let base = held_subject(args, "reduce")?;
 
-        // The carry is the one value this frame owns across the whole walk.
+        // The carry is the one value this frame owns between two calls.
         // `$initial` belongs to the caller, so it takes a reference of its own
-        // here and the guard below owns exactly one from then on: each round
-        // swaps in the callback's fresh answer and releases what it replaced.
+        // here. Each round gives that reference to the callback, which owns
+        // it as a compiled function owns a parameter, and keeps the fresh
+        // answer instead. So a callback that changes its carry changes it in
+        // place, and a shared `$initial` is copied once, at the first change
+        // (`rule:types/a-replaced-value-is-changed-in-place`).
         #[expect(
             unsafe_code,
             reason = "`$initial` belongs to the caller, and what this frame \
@@ -4527,6 +4530,12 @@ nvs_runtime::nvs_helper! {
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
+            // The guard is empty while the callback owns the carry, so a
+            // throwing callback frees it once, in its own error exit.
+            let given = carry
+                .0
+                .pop()
+                .expect("the carry is pushed back after every call");
 
             let next = if wants_key {
                 // One reference for the duration of the call, released right
@@ -4538,7 +4547,8 @@ nvs_runtime::nvs_helper! {
                         .expect("next_slot only names live entries")
                         .to_str(),
                 );
-                let next = nvs_runtime::call_callable(ctx, args[1], &[carry.0[0], value, key_arg]);
+                let next =
+                    nvs_runtime::call_callable_giving(ctx, args[1], &[given, value, key_arg], 0);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
@@ -4549,19 +4559,11 @@ nvs_runtime::nvs_helper! {
                 }
                 next
             } else {
-                nvs_runtime::call_callable(ctx, args[1], &[carry.0[0], value])
+                nvs_runtime::call_callable_giving(ctx, args[1], &[given, value], 0)
             };
-            // Unwrapped after the key is released and while the guard still
-            // holds the current carry, so a throwing callback frees both.
-            let next = next?;
-            let previous = std::mem::replace(&mut carry.0[0], next);
-            #[expect(
-                unsafe_code,
-                reason = "the reference this frame owned until the line above"
-            )]
-            unsafe {
-                previous.release();
-            }
+            // Unwrapped after the key is released, so a throwing callback
+            // frees the key here and the carry in its own error exit.
+            carry.0.push(next?);
         }
 
         // Taken *out* of the guard, so its `Drop` frees nothing: the reference
@@ -4569,7 +4571,7 @@ nvs_runtime::nvs_helper! {
         Ok(carry
             .0
             .pop()
-            .expect("the carry is pushed once and only replaced in place"))
+            .expect("the carry is pushed back after every call"))
     }
 }
 

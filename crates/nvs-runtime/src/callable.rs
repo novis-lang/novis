@@ -191,7 +191,29 @@ pub(crate) enum TagCheck {
 /// checker only admits an `rule:types/callable-values` callable value where a `callable` is
 /// expected, and no `Core` member offers fewer than its published signature says it does.
 pub fn call_callable(ctx: &mut Ctx, callable: Value, args: &[Value]) -> Result<Value, Fault> {
-    call_callable_with(ctx, callable, args, TagCheck::Required)
+    call_callable_with(ctx, callable, args, TagCheck::Required, None)
+}
+
+/// [`call_callable`], where the caller gives away its reference to
+/// `args[given]` instead of lending it. The callee owns that argument on every
+/// path, as a compiled function owns each parameter, so it takes no retain
+/// here, and a change the callee makes to it is in place when nothing else
+/// shares it. Where the argument never reaches the callee, because the call
+/// fails before it or the callable declares fewer parameters, this function
+/// releases it. Either way the caller holds no reference to it afterwards.
+/// `Core\Arr::reduce` gives its carry this way
+/// (`rule:types/a-replaced-value-is-changed-in-place`).
+///
+/// # Errors
+///
+/// As [`call_callable`].
+pub fn call_callable_giving(
+    ctx: &mut Ctx,
+    callable: Value,
+    args: &[Value],
+    given: usize,
+) -> Result<Value, Fault> {
+    call_callable_with(ctx, callable, args, TagCheck::Required, Some(given))
 }
 
 /// How many slots, the receiver included, [`call_callable_with`] builds in its
@@ -209,6 +231,32 @@ fn call_callable_with(
     callable: Value,
     args: &[Value],
     tags: TagCheck,
+    given: Option<usize>,
+) -> Result<Value, Fault> {
+    let mut handed = false;
+    let result = call_prepared(ctx, callable, args, tags, given, &mut handed);
+    if !handed && let Some(&value) = given.and_then(|g| args.get(g)) {
+        #[expect(
+            unsafe_code,
+            reason = "the caller gave this reference away, and it never \
+                      reached the callee"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+    result
+}
+
+/// The body of [`call_callable_with`]. `handed` is set once the argument at
+/// `given` is passed to the callee, which then owns it.
+fn call_prepared(
+    ctx: &mut Ctx,
+    callable: Value,
+    args: &[Value],
+    tags: TagCheck,
+    given: Option<usize>,
+    handed: &mut bool,
 ) -> Result<Value, Fault> {
     let row = invoke_row(callable)?;
     let arity = callable_arity(callable)?;
@@ -264,7 +312,12 @@ fn call_callable_with(
                   to, so each payload is live for the length of this call"
     )]
     unsafe {
-        for slot in slots.iter() {
+        for (at, slot) in slots.iter().enumerate() {
+            // Slot 0 is the receiver, so argument `g` is slot `g + 1`.
+            if given.is_some_and(|g| g + 1 == at) {
+                *handed = true;
+                continue;
+            }
             slot.retain();
         }
     }
@@ -624,7 +677,7 @@ fn call_callable_from_nvs(
             ),
         ));
     }
-    call_callable_with(ctx, callable, passed, tags)
+    call_callable_with(ctx, callable, passed, tags, None)
 }
 
 /// `rule:types/callable-values`'s run-time half: a compiled `$f(...)`
