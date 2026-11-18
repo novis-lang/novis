@@ -262,6 +262,13 @@ Every stage is done, and `looper verify` is green over the whole goal. The gate 
 `bun nv verify --doc`, `bun nv owners --closes arrays-in-place` and `bun nv ci --check` are green.
 The sweep's `env-secret-proofs` red is stale: no log, and nothing defines it.
 
+The first DONE was refused on `floor-debt`. One proof was red:
+`tests/hostile/core/Arr/mapKeys/01-functions-written-to-break-the-rekeying.nvs`. In step 3, the
+in-place `mapKeys` held one 5000-byte key per entry in `check` and hit the memory limit. `check` now
+keeps one copy of each distinct key (`bf7a411598`), through `impl Hash for NvsStr` over the cached
+digest. The proof runs as its directives say, and every stale `Core\Arr` perf record is measured
+again. No test is expected to go red.
+
 ### Next
 
 1. The driver runs the acceptance checks and retires the goal.
