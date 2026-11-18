@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "An editor that uses less memory",
-      "text": "The language server checks each file once, however many files load it. Every check reads the same parsed copy of a file. When you type in a file, only that file is checked again.",
-      "goals": [
-        "lsp-memory"
-      ]
-    },
-    {
       "title": "Less work for each request",
       "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
       "goals": [
