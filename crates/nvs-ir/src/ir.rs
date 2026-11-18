@@ -4308,7 +4308,8 @@ impl InstKind {
     /// `Core` entry: the lowering retains the slot's value before it, and the
     /// lend removes that retain.
     ///
-    /// [`InstKind::StrAppend`] and [`InstKind::ArraySet`] cannot fail.
+    /// [`InstKind::StrAppend`], [`InstKind::ArraySet`] and
+    /// [`InstKind::ArrayUnset`] cannot fail.
     /// [`InstKind::ArrayAppend`] can, and its refusal leaves the array's
     /// reference with the caller, so the slot keeps a value it owns on every
     /// path. A [`Helper::ArrayWriteThrough`] or
@@ -4322,7 +4323,8 @@ impl InstKind {
             InstKind::ArraySet {
                 array, lent: false, ..
             }
-            | InstKind::ArrayAppend { array, .. } => Some(*array),
+            | InstKind::ArrayAppend { array, .. }
+            | InstKind::ArrayUnset { array, .. } => Some(*array),
             InstKind::HelperCall {
                 helper: Helper::ArrayWriteThrough | Helper::ArrayStrAppendThrough,
                 args,

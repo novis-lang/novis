@@ -2371,6 +2371,34 @@ fn a_nested_write_into_a_plain_slot_is_lent() {
     }
 }
 
+/// An `unset` of an element of a plain property or static property is lent
+/// the slot's reference, one level and nested: the removal or the climb's
+/// last store takes no retain of the root, and the store reads the slot only
+/// once. A guarded root is read again after its guard runs, so the guard
+/// cannot free the array the removal changes.
+#[test]
+fn an_unset_of_a_plain_slot_is_lent() {
+    for (body, slot) in [
+        ("    unset($this->p[0]);", "T::p"),
+        ("    unset(T::$s[1]);", "T::$s"),
+        ("    unset($this->g[0][1]);", "T::g"),
+        ("    unset($this->n->q['a']);", "N::q"),
+    ] {
+        let printed = lower_lends(body);
+        assert_eq!(slot_reads(&printed, slot), 1, "{body}\n{printed}");
+        let off = crate::lower::without_in_place(|| lower_lends(body));
+        assert_eq!(slot_reads(&off, slot), 2, "{body}\n{off}");
+        assert!(
+            off.matches("retain ").count() > printed.matches("retain ").count(),
+            "{body}\n{off}"
+        );
+    }
+    let guarded = lower_lends("    unset($this->w->p[0]);");
+    let call = guarded.find("beforePropertyUnset").unwrap_or(usize::MAX);
+    let last_read = guarded.rfind("W::p  ;").unwrap_or(0);
+    assert!(call < last_read, "the root is read after the guard\n{guarded}");
+}
+
 /// A hooked property is read and written by its hooks, so there is no slot to
 /// lend. A guarded one runs the guard between the call and the store.
 #[test]

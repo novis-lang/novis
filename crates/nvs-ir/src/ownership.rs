@@ -71,6 +71,13 @@
 //! its target ([`InstKind::consumes`]), so the lend switches no symbol and
 //! removes the retain the lowering put before it.
 //!
+//! An element write, an element `.=` and an element `unset` whose root is
+//! such a slot are the same lend, one level and nested. The instruction that
+//! consumes the root is the write, the removal, the nested helper call, or
+//! the last store of a nested `unset`'s climb. A nested `unset` reads rows
+//! from the root before that store. Such a read borrows the root, and is
+//! allowed where its row is read only before the store.
+//!
 //! An element of an array such a slot holds, `slot[k] = M(slot[k], …)` with
 //! the same `string` or `int` key, is lent the same way. The array must be
 //! the entry's only holder, so the pass makes it sole right after the
@@ -965,7 +972,8 @@ impl Lend<'_> {
 
     /// Whether nothing from `start` to the call at `c` touches the slots on
     /// `chain`, other than the reads at `skip`, and the subject is read only
-    /// by its retain and releases.
+    /// by its retain, its releases and element reads whose rows are read only
+    /// before the call, such as a nested `unset`'s descent.
     fn window_is_quiet(
         &self,
         b: usize,
@@ -982,10 +990,12 @@ impl Lend<'_> {
                 continue;
             }
             if i > read && reads(&inst.kind, subject) {
-                if !matches!(
-                    inst.kind,
-                    InstKind::Retain { .. } | InstKind::Release { .. }
-                ) {
+                if !self.borrows_a_row(inst, subject, (b, c))
+                    && !matches!(
+                        inst.kind,
+                        InstKind::Retain { .. } | InstKind::Release { .. }
+                    )
+                {
                     return None;
                 }
                 continue;
@@ -1014,6 +1024,7 @@ impl Lend<'_> {
                         found.push((ib, i));
                     }
                     InstKind::Release { operand } if operand == subject => found.push((ib, i)),
+                    _ if self.borrows_a_row(inst, subject, call) => {}
                     ref kind if reads(kind, subject) => return None,
                     _ => {}
                 }
@@ -1068,6 +1079,41 @@ impl Lend<'_> {
     }
 
     /// How many instructions and terminators read `value`.
+    /// Whether `inst` is an element read of `subject` whose row is read only
+    /// before the call at `call`, such as a nested `unset`'s descent. It
+    /// borrows the subject, and the call changes the subject only after the
+    /// row's last read.
+    fn borrows_a_row(&self, inst: &Inst, subject: ValueId, call: At) -> bool {
+        matches!(inst.kind, InstKind::ArrayGet { array, .. } if array == subject)
+            && inst
+                .result
+                .is_some_and(|row| self.used_only_before(row, call))
+    }
+
+    /// Whether every read of `value` is in the call's block before the call
+    /// at `(b, c)`. A row read from the lent subject is then never read after
+    /// the call changes the subject in place.
+    fn used_only_before(&self, value: ValueId, (b, c): At) -> bool {
+        for (ib, block) in self.f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if !self.removed.contains(&(ib, i))
+                    && reads(&inst.kind, value)
+                    && (ib != b || i >= c)
+                {
+                    return false;
+                }
+            }
+            let mut read_by_term = false;
+            block
+                .term
+                .for_each_operand(|v| read_by_term |= v == value);
+            if read_by_term {
+                return false;
+            }
+        }
+        true
+    }
+
     fn uses(&self, value: ValueId) -> usize {
         let mut count = 0;
         for (ib, block) in self.f.blocks.iter().enumerate() {

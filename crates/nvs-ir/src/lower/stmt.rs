@@ -2805,21 +2805,13 @@ impl<'a> Lowering<'a> {
         let temporaries = self.temporaries_mark();
         let addresses = self.staged_mark();
         self.stage_target_address(root, env, cur);
-        let silenced = self.silence_root_get(target);
-        let (root_v, root_ty) = self.lower_expr(root, None, env, cur);
-        self.silenced_gets.truncate(silenced);
-        assert!(
-            root_ty == Ty::Array,
-            "nvs-ir: an `unset` target's root lowered to {root_ty:?} rather than an array — \
-             `nvs_types` refuses a base that declares no element type as `E0482`, so this body \
-             was not checked with the same table"
-        );
-        // Every key, left to right and each exactly once, before anything is
-        // retained or descended into. A freshly built one — a rendered
-        // subscript, a literal — is this frame's own reference with nowhere
-        // else to be found, and the descent below is fallible at every level,
-        // so each goes on `Self::owned_temporaries` for as long as something
-        // can throw over it.
+        // Every key, left to right and each exactly once, before the root is
+        // read, as an element write lowers them: a key's expression may run
+        // program code that replaces the root. A freshly built key — a
+        // rendered subscript, a literal — is this frame's own reference with
+        // nowhere else to be found, and the descent below is fallible at every
+        // level, so each goes on `Self::owned_temporaries` for as long as
+        // something can throw over it.
         let keys_mark = self.temporaries_mark();
         let mut inner_keys: Vec<(ValueId, bool)> = Vec::with_capacity(levels.len());
         let mut guard_keys: Vec<Option<(ValueId, Ty)>> = Vec::with_capacity(levels.len() + 1);
@@ -2842,21 +2834,69 @@ impl<'a> Lowering<'a> {
             guard_keys.push(Some((key_v, key_ty)));
             inner_keys.push((key_v, key_aliasing));
         }
-        let (key_v, key_aliasing) = self.lower_rendered_array_key(index, env, cur);
+        let (key_v, mut key_aliasing) = self.lower_rendered_array_key(index, env, cur);
         if !key_aliasing {
             self.own_temporary(key_v);
         }
         guard_keys.push(Some((key_v, Ty::Str)));
+        let silenced = self.silence_root_get(target);
+        let (root_v, root_ty) = self.lower_expr(root, None, env, cur);
+        self.silenced_gets.truncate(silenced);
+        assert!(
+            root_ty == Ty::Array,
+            "nvs-ir: an `unset` target's root lowered to {root_ty:?} rather than an array — \
+             `nvs_types` refuses a base that declares no element type as `E0482`, so this body \
+             was not checked with the same table"
+        );
         // `PropertyGuard` sees the removal before the descent, while every
-        // key is still on the stack a throw releases.
-        self.emit_element_guard(root, root_v, &guard_keys, None, env, cur);
+        // key is still on the stack a throw releases. The guard runs program
+        // code, which can replace the property the root and a borrowed key
+        // were read from, so each is held while it runs and the root is read
+        // again after it. A key held here is released or stored as a fresh
+        // one would be.
+        let guarded = self.element_guard_of(root).is_some();
+        let root_v = if guarded {
+            self.emit_retain(*cur, root_v);
+            let held = self.temporaries_mark();
+            self.own_temporary(root_v);
+            let keys = inner_keys
+                .iter_mut()
+                .map(|(key_v, aliasing)| (*key_v, aliasing))
+                .chain(std::iter::once((key_v, &mut key_aliasing)));
+            for (held_key, aliasing) in keys {
+                if *aliasing {
+                    self.emit_retain(*cur, held_key);
+                    self.own_temporary(held_key);
+                    *aliasing = false;
+                }
+            }
+            self.emit_element_guard(root, root_v, &guard_keys, None, env, cur);
+            let silenced = self.silence_root_get(target);
+            let (current, _) = self.lower_expr(root, None, env, cur);
+            self.silenced_gets.truncate(silenced);
+            self.forget_temporary(held);
+            self.emit_release(*cur, root_v);
+            current
+        } else {
+            root_v
+        };
+        // A plain slot's array takes a reference of its own for the removal
+        // or the climb's last store, and the ownership pass lends it the
+        // slot's instead. A level's read below may throw, so the reference is
+        // this statement's temporary until the descent is done.
+        let retained = !guarded && self.lendable_root(root);
+        if retained {
+            self.emit_retain(*cur, root_v);
+            self.own_temporary(root_v);
+        }
         // Down the chain, borrowing each row. A level is an ordinary element
         // *read* — [`AbsentKey::Throws`], so `unset($g["nope"]["1"])` throws
         // exactly as `$g["nope"]["1"]` would (`rule:types/absent-storage-is-never-a-zero-value`, PHP being
         // silent there instead). A write builds an absent row
         // ([`Helper::ArrayWriteThrough`]). A removal that built the row it
         // removes from would leave an entry that neither language puts there.
-        // Nothing is retained yet, so a throw out of any level drops nothing.
+        // No row is retained yet, so a throw out of any level drops only the
+        // keys and a retained root.
         let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
         arrays.push(root_v);
         for (level, (level_key, _)) in levels.iter().zip(&inner_keys) {
@@ -2877,10 +2917,12 @@ impl<'a> Lowering<'a> {
         // Nothing below throws, which is what makes this the first safe place
         // to own anything: one reference per row, because the removal and
         // every store on the climb each consume one. It is also where the keys
-        // stop needing the stack — from here each is either released by hand
-        // (the removal's, which only borrowed it) or consumed by an
-        // `InstKind::ArraySet` on the climb, and an entry surviving into
-        // either would be a second release of the same reference.
+        // and a retained root stop needing the stack — from here each key is
+        // either released by hand (the removal's, which only borrowed it) or
+        // consumed by an `InstKind::ArraySet` on the climb, the root is
+        // consumed by the removal or the climb's last store, and an entry
+        // surviving into either would be a second release of the same
+        // reference.
         self.forget_temporaries_since(keys_mark);
         for row in arrays.iter().skip(1) {
             self.emit_retain(*cur, *row);
@@ -2907,7 +2949,7 @@ impl<'a> Lowering<'a> {
             }
             written = self.emit_array_set(*cur, arrays[i], *level_key, written);
         }
-        self.write_back_array(root, written, false, env, cur);
+        self.write_back_array(root, written, retained, env, cur);
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
     }

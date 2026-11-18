@@ -1,0 +1,43 @@
+--TEST--
+`beforePropertyUnset` that replaces the guarded array, or the property a key was read from, keeps its replacement, and the `unset` removes the key from the array the property has after the guard
+--FILE--
+<?nvs
+// covers: lang:classes/propertyguard, PropertyGuard
+final class Settings implements PropertyGuard {
+    public array<string> $values = [];
+    public array<array<string>> $groups = [];
+    public string $key = "";
+
+    public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {}
+
+    public function beforePropertyUnset(string $name, array<string> $keys): void {
+        echo "  guard unset ", $name, " keys ", Core\Json::encode($keys), "\n";
+        $this->values = ["mode" => Core\Str::repeat("x", 3), "lang" => "en"];
+        $this->groups = ["mail" => ["host" => "example.com", "port" => "25"]];
+        $this->key = Core\Str::repeat("y", 2);
+    }
+}
+
+Settings $s = new Settings();
+for (int $i = 0; $i < 2; $i++) {
+    $s->values = ["mode" => "dark", "theme" => "blue"];
+    unset($s->values["mode"]);
+    echo Core\Json::encode($s->values), "\n";
+}
+
+$s->groups = ["mail" => ["host" => "old", "user" => "a"]];
+unset($s->groups["mail"]["host"]);
+echo Core\Json::encode($s->groups), "\n";
+
+$s->key = Core\Str::repeat("l", 1) . "ang";
+unset($s->values[$s->key]);
+echo Core\Json::encode($s->values), "\n";
+--EXPECT--
+  guard unset values keys ["mode"]
+{"lang":"en"}
+  guard unset values keys ["mode"]
+{"lang":"en"}
+  guard unset groups keys ["mail","host"]
+{"mail":{"port":"25"}}
+  guard unset values keys ["lang"]
+{"mode":"xxx"}
