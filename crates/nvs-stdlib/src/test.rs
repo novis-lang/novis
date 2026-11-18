@@ -3490,7 +3490,7 @@ nvs_runtime::nvs_helper! {
                       object made from it"
         )]
         unsafe {
-            crate::json::decode_as(ctx, class, shape, text, max, list, "Core\\Test\\Response::jsonAs")
+            crate::json::decode_checked(ctx, class, shape, text, max, list, "Core\\Test\\Response::jsonAs")
         }
     }
 }

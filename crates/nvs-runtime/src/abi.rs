@@ -687,6 +687,17 @@ impl DeadlineBatch {
         self.stopped
     }
 
+    /// Reads the deadline now, with no step counted, and returns whether it
+    /// has passed. For a site that counts its own steps in a plain integer
+    /// and calls this once every [`DEADLINE_POLL_BATCH`] of them.
+    #[inline]
+    pub fn poll(&mut self) -> bool {
+        if !self.stopped {
+            self.stopped = self.word.load(std::sync::atomic::Ordering::Relaxed) != 0;
+        }
+        self.stopped
+    }
+
     /// Ends the loop.
     ///
     /// # Errors

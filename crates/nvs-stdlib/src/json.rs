@@ -276,19 +276,29 @@
 //!
 //! # `decodeAs` reads the text against the class
 //!
-//! `Core\Json::decodeAs` and `Core\Request::jsonAs` parse once, through
-//! [`decode_as`], with [`fill`] driven by the class's field list, and build
-//! every instance while they parse. A JSON object the class fills pushes one
-//! slot per field onto a stack the whole decode shares ([`Builder`]). Its keys
-//! are matched against the field list as they are read, borrowed from the
-//! text, so no key string and no array is built for it. At its closing brace,
-//! [`build_object`] runs [`decode_fields`] over those slots and pops them, so
-//! the object's parent finds a built instance, or the object's issues, in its
-//! own slot. No tree of the document is ever made. Every other value is read
-//! by [`build`] unchanged, so each check that loop makes is made at the
-//! same place, with the same message. That covers a key the class does not
-//! declare, a `mixed` field, a class that wrote its own `fromJson`, and a value
-//! of the wrong JSON type, whose issue names what it found.
+//! `Core\Json::decodeAs` and `Core\Request::jsonAs` check the class's codec
+//! once ([`check_codec`]) and parse once, through [`decode_checked`], with
+//! [`fill`] driven by the class's field list, building every instance while
+//! they parse. A JSON object the class fills pushes one slot per field onto a
+//! stack the whole decode shares ([`Builder`]). Each key is compared as bytes
+//! with the declared keys, starting after the one matched last, so a document
+//! in declared order costs one compare per key. Only an undeclared key is
+//! validated as text and kept. At its closing brace, [`build_object`] runs
+//! [`decode_fields`] over those slots and pops them, so the object's parent
+//! finds a built instance, or the object's issues, in its own slot. No tree of
+//! the document is ever made. Every other value is read by [`build`]
+//! unchanged, so each check that loop makes is made at the same place, with
+//! the same message. That covers a key the class does not declare, a `mixed`
+//! field, a class that wrote its own `fromJson`, and a value of the wrong JSON
+//! type, whose issue names what it found.
+//!
+//! **The count law.** A list of n objects of one class, each with s string
+//! properties, allocates n × (1 + s) times plus a constant: the object, whose
+//! storage is inline behind its header, and one string per string property.
+//! [`Spares`] makes that hold: it finds each class's constructor once per
+//! decode, and lends each object an argument vector an earlier object gave
+//! back. Which parameters are filled is a `u64` for a class of up to 64.
+//! `a_typed_decode_allocates_the_object_its_storage_and_its_strings` holds it.
 //!
 //! A constructor may run before a later part of the text fails to parse. That
 //! failure frees every slot still on the stack and every instance built, and
@@ -296,13 +306,17 @@
 //! and is what the call throws, so of two throwing constructors the first in
 //! the document wins.
 //!
-//! **What it spends:** one slot stack per decode, `size_of::<Option<Found>>()`
-//! times the fields of the objects open at once, so depth × fields and never
-//! the document's size. A list field's elements wait in one vector until the
-//! list's object is built. A set of undeclared keys is made only once an object
-//! has one, and lives until that object is read. Generic arrays are built only
-//! for the values above that [`build`] reads, and each one a built object's
-//! slots held is kept until the call returns ([`Builder::kept`]).
+//! **What it spends:** nothing held past the call. Per decode, one slot stack,
+//! `size_of::<Option<Found>>()` times the fields of the objects open at once,
+//! so depth × fields and never the document's size, and one [`Spares`]: a
+//! `(class, constructor)` pair per class it builds and one argument vector
+//! per object open at once. A list field's elements wait in one vector until
+//! the list's object is built. A set of undeclared keys is made only once an
+//! object has one, and lives until that object is read. Generic arrays are
+//! built only for the values above that [`build`] reads, and each one a built
+//! object's slots held is kept until the call returns ([`Builder::kept`]),
+//! because [`Lists`] knows a JSON list by its address. Every value counts one
+//! step of the deadline's poll, a decrement of a plain counter ([`Deadline`]).
 //!
 //! `Core\Request::queryAs`, `postAs` and `Core\Arr::shapeAs` hold their
 //! values already, and [`hydrate`] runs the same walk over those.
@@ -1001,10 +1015,7 @@ impl Reentry {
     /// Counts one value the walk writes, and returns whether the request's
     /// deadline has passed.
     fn deadline_passed(&self) -> bool {
-        self.deadline
-            .borrow_mut()
-            .as_mut()
-            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
+        self.deadline.stopped()
     }
 
     /// Records `fault` and answers the [`Refused`] that stops the walk.
@@ -2363,16 +2374,64 @@ fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
 /// [`nvs_runtime::DeadlineBatch`], and the deadline is read once every
 /// [`nvs_runtime::DEADLINE_POLL_BATCH`] values. A step that finds it passed
 /// fails the parse at once, and the caller turns that into the deadline's
-/// FATAL. Cost: one `RefCell` borrow and one decrement per value. One value
-/// costs at most a copy of its own bytes, so the poll gap is 256 values.
+/// FATAL. One value costs at most a copy of its own bytes, so the poll gap
+/// is 256 values.
 ///
-/// [`deadline_finished`] takes the batch out once the parse ends, so a caller
-/// can end the poll while what the parse built still borrows this cell.
-type Deadline = std::cell::RefCell<Option<nvs_runtime::DeadlineBatch>>;
+/// Cost: one decrement of a plain counter per value, here and not in the
+/// batch, so a value borrows no `RefCell`. Once every 256 values the batch is
+/// borrowed and the shared word is read. [`deadline_finished`] takes the
+/// batch out once the parse ends, so a caller can end the poll while what the
+/// parse built still borrows this poll.
+#[derive(Debug)]
+pub(crate) struct Deadline {
+    /// Values left before the next read of the shared word.
+    until_poll: std::cell::Cell<usize>,
+    /// The batch that reads the word, and `None` once the poll has ended.
+    batch: std::cell::RefCell<Option<nvs_runtime::DeadlineBatch>>,
+}
+
+impl Deadline {
+    /// A poll over `batch`, with a full count before its first read. With
+    /// `None`, no value ever stops the parse.
+    pub(crate) const fn new(batch: Option<nvs_runtime::DeadlineBatch>) -> Self {
+        Self {
+            until_poll: std::cell::Cell::new(nvs_runtime::DEADLINE_POLL_BATCH),
+            batch: std::cell::RefCell::new(batch),
+        }
+    }
+
+    /// Counts one value, and returns whether the deadline has passed.
+    #[inline]
+    fn stopped(&self) -> bool {
+        let left = self.until_poll.get() - 1;
+        if left != 0 {
+            self.until_poll.set(left);
+            return false;
+        }
+        let passed = self
+            .batch
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(nvs_runtime::DeadlineBatch::poll);
+        // Once the deadline has passed, every later value reads the batch
+        // again, and the batch keeps its answer, so each one is `true`.
+        self.until_poll.set(if passed {
+            1
+        } else {
+            nvs_runtime::DEADLINE_POLL_BATCH
+        });
+        passed
+    }
+
+    /// Ends the poll: the batch, and `None` where it has ended already.
+    fn take(&self) -> Option<nvs_runtime::DeadlineBatch> {
+        self.batch.take()
+    }
+}
 
 /// A [`Deadline`] over `ctx`'s deadline, for one parse.
 fn deadline_of(ctx: &nvs_runtime::Ctx) -> Deadline {
-    std::cell::RefCell::new(Some(nvs_runtime::DeadlineBatch::new(ctx)))
+    Deadline::new(Some(nvs_runtime::DeadlineBatch::new(ctx)))
 }
 
 /// Ends the poll of one parse.
@@ -2672,12 +2731,7 @@ fn number_of(number: reader::Number) -> Result<Value, reader::Code> {
 
 /// Whether `deadline` has passed, counting one step of its poll.
 fn stopped(deadline: Option<&Deadline>) -> bool {
-    deadline.is_some_and(|deadline| {
-        deadline
-            .borrow_mut()
-            .as_mut()
-            .is_some_and(nvs_runtime::DeadlineBatch::stopped)
-    })
+    deadline.is_some_and(Deadline::stopped)
 }
 
 /// The arrays one class decode's parse built from a JSON list, by address.
@@ -2851,8 +2905,34 @@ pub(crate) unsafe fn decode_as(
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     unsafe {
         check_codec(class, shape, member)?;
+        decode_checked(ctx, class, shape, text, max, list, member)
     }
-    let unparsed = |why: &dyn fmt::Display| {
+}
+
+/// [`decode_as`] for a caller that has run [`check_codec`] on `class` and
+/// `shape` already, so the call checks the codec once.
+///
+/// # Errors
+///
+/// As [`decode_as`]'s, but for `check_codec`'s.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn decode_checked(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    text: &str,
+    max: u32,
+    list: bool,
+    member: &str,
+) -> Result<Value, Fault> {
+    let unparsed =|why: &dyn fmt::Display| {
         let message = format!("{member}(): {why}");
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
@@ -6420,6 +6500,30 @@ pub(crate) mod tests {
     /// text of a decode.
     fn decoded(text: &str, max: u32) -> Result<Value, String> {
         read(text, max).map_err(|why| why.to_string())
+    }
+
+    /// A parse's poll reads the deadline on the 256th value and not before,
+    /// and once it has found it passed, every later value is `true`.
+    #[test]
+    fn a_deadline_poll_reads_once_per_batch_and_stays_stopped() {
+        let ctx = nvs_runtime::Ctx::buffered();
+        let deadline = deadline_of(&ctx);
+        ctx.expire_deadline();
+        let batch = nvs_runtime::DEADLINE_POLL_BATCH;
+        assert!(
+            (1..batch).all(|_| !deadline.stopped()),
+            "a value before the 256th read the word"
+        );
+        assert!(deadline.stopped(), "the 256th value did not read the word");
+        assert!(
+            (0..batch * 2).all(|_| deadline.stopped()),
+            "a value after the stop was not stopped"
+        );
+        drop(deadline.take());
+        assert!(
+            (0..batch).all(|_| !deadline.stopped()),
+            "a poll that has ended stopped a value"
+        );
     }
 
     /// `rule:http-server/time-is-bounded-inside-a-helper`: every member that

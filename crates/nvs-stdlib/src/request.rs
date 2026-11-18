@@ -3308,7 +3308,7 @@ nvs_runtime::nvs_helper! {
             reason = "the same descriptor and contract, still owned by the compiled unit"
         )]
         unsafe {
-            crate::json::decode_as(ctx, class, shape, text, max, list, "Core\\Request::jsonAs")
+            crate::json::decode_checked(ctx, class, shape, text, max, list, "Core\\Request::jsonAs")
         }
     }
 }
