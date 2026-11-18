@@ -9,7 +9,7 @@ stages:
     status: done
   - id: 2
     title: a value is checked when it is read, and an object is built straight from its slots
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs]
   - id: 3
     title: the per-value bookkeeping is paid only where it is used, and the ledger records the counts
@@ -77,9 +77,18 @@ wrote its own decoder keeps its path (`json.rs:2867`). The memory ceiling is ask
 allocation as today, and the deadline is polled every 256 values as today.
 
 **The count law (my call).** Decoding a list of n objects of one class, each with s string
-properties, allocates n × (2 + s) times plus a number that does not grow with n: the object, its
-storage, and one string per string property. The test takes the difference between n = 100 and
-n = 10, so the constant never has to be known. Today the same difference is n × (5 + s).
+properties, allocates n × (1 + s) times plus a number that does not grow with n: the object, whose
+storage is inline behind its header (`object.rs`), and one string per string property. The test
+takes the difference between n = 100 and n = 10, so the constant never has to be known. Before this
+goal the same difference was n × (5 + s). The law was first written n × (2 + s), on the guess that
+the storage was a second allocation; the measurement showed one.
+
+**Spares, not slots (stage 2's call).** The per-object argument vector and filled set are gone
+without the slot rewrite: a `Spares` per decode keeps each class's constructor, found once, and
+gives each object an argument vector an earlier object gave back. The filled set is a `u64` for a
+class of up to 64 parameters. That meets the count law and changes no value, issue or order, so
+the rewrite that checks a value as it is read was declined (`### Backlog`). The second read of
+each slot stays; it costs time and no allocation.
 
 **Key matching (my call).** A key is compared as bytes. The search starts at the property after the
 one matched last and wraps, so a document that keeps the declared order costs one compare per key. No
@@ -93,13 +102,16 @@ it. A value of the wrong type stores the issue the second pass would have report
 place in the list of issues. The slots are in constructor order with the receiver's place first, so
 `construct` takes the slice and builds no vector. Which slots were filled is a bit set held in the
 `Builder`, 64 properties wide, and a vector only for a class with more. The constructor is found once
-per contract and kept beside it for the decode.
+per contract and kept beside it for the decode. Stage 2 built the last two sentences in `Spares` and
+declined the rest, as § *Spares, not slots* says.
 
 **Not in this goal.** The reader's grammar and its byte loop, a SIMD reader, the encoder, and the copy
 of each string value into a Novis string. That copy is needed: the document's bytes are freed when
 the request ends.
 
-**What it spends.** Nothing held. Each decoded object allocates three times fewer than today.
+**What it spends.** Nothing held past the decode. Per decode, one `(class, constructor)` pair per
+class it builds and one argument vector per object open at once. Each decoded object makes four
+allocations fewer than before.
 
 **Limits: what stops this goal.** Counts decide and never the clock. An item gets one attempt. An
 item whose change would alter a value, an issue, a path, a message or the order of constructor calls
@@ -136,26 +148,22 @@ and can run beside it as a side goal. Its stages share `json.rs` and run in orde
 generic one, and every caller of `nvs_runtime::construct` and of `decode_fields`, as `path:line` and
 one line each.
 
-- [ ] `json.rs:3524` the scalar arm of `fill` and `:2551` `scalar_of`: a declared scalar is checked
-  against its property's type here, with the conversion `scalar` (`:5701`) makes today. A mismatch
-  stores its issue for that slot.
-- [ ] `json.rs:3642` `Builder::open` and `:3667` `close`: the slots are in constructor order with the
-  receiver's place first, and the filled set is the bit set of § *One touch*.
-- [ ] `json.rs:3711` `build_object`: presence, defaults, nullability and the allowed set
-  (`:5552` `outside`) are checked over the slots in place, in declared order, so the issues come out
-  in today's order. It no longer goes through `Fields` (`:4890`) for an object `fill` read. `Fields`
-  and `walk` (`:4851`) stay for `hydrate`'s callers.
 - [ ] `crates/nvs-runtime/src/object.rs:5447` `construct`: a second entry that takes the constructor
   already found and a slice whose first place is the receiver's. The existing entry keeps its
   signature and calls it. `Contract` (`json.rs:2866`) finds the constructor once per class.
   - [x] `construct_found` and `constructor_of` in `object.rs`, and `construct` calls them.
   - [x] `Fields::args` keeps the receiver's place first, and `finish` calls `construct_found`.
-  - [ ] The constructor is found once per class for a whole decode, not once per object.
-- [ ] A list of objects (`json.rs:3498`, `:5856` `decode_list`): each element `fill` built is taken as
+  - [x] The constructor is found once per class for a whole decode, not once per object.
+- [x] A list of objects (`json.rs:3498`, `:5856` `decode_list`): each element `fill` built is taken as
   it is, with no `Positions` frame per element.
-- [ ] The three tests the `one-touch` check names. The second builds documents from a fixed seed over
+  - [x] Already true: `decode_each` reads a root list as `Sequence::Read`, and `decode_element` takes
+    a built element through `taken`, so no frame is pushed per element.
+- [x] The three tests the `one-touch` check names. The second builds documents from a fixed seed over
   every property type, missing and extra keys, wrong types, nulls and nesting, and compares the typed
   decode with `read_polled` and `hydrate` (`:2869`). Run once by name.
+  - [x] Written beside `a_decode_as_builds_no_array_for_the_object_it_fills`, on `row_class` and
+    `every_type_shape`.
+  - [x] Run once by name: three pass.
 
 ### 3. the per-value bookkeeping is paid only where it is used, and the ledger records the counts
 
@@ -188,40 +196,50 @@ Written on 2026-11-17 from a conversation with the person, who asked why Novis i
 in the comparison. Their calls: write goals for it, and give up nothing else for these cases. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stage 1 is done in one session. Stage 2 has used one session of its two.
+Stage 1 is done in one session. Stage 2 is done in two. Stage 3 has used no session.
 
-Stage 2's first session landed the runtime half of the `construct` item. `nvs_runtime::constructor_of`
-(`object.rs:5491`) finds a constructor, and `construct_found` (`:5533`) runs it over a slice whose
-first place is the receiver's. `construct` calls both. `Fields::args` keeps the receiver's place
-first, and `Fields::finish` (`json.rs:5118`) calls `construct_found`, so each decoded object
-allocates one vector fewer (today n × (4 + s)). `build_shape` skips that place. The json side's
-`constructor_of` (`json.rs:3655`) counts lookups in the test-only `CONSTRUCTORS_FOUND`, for the
-`a_constructor_is_found_once_for_a_whole_decode` test. Build and clippy are green. No test ran. No
-existing test is expected to go red. `a_decode_as_builds_no_array_for_the_object_it_fills`
-(`json.rs` tests) compares allocation counts and may need its figure changed at the gate.
+Stage 2's second session met the count law without the slot rewrite (§ *Spares, not slots*).
+`Spares` (`json.rs:5237`) is one per decode, on the `Builder` for a typed read and made by
+`hydrate` and `decode_as` for the others. It finds each constructor once and lends each `Fields`
+frame an argument vector, which `Fields::finish` gives back. `Filled` (`:5288`) is a `u64` for
+up to 64 parameters. `walk`, `decode_fields`, `decode_object`, `decode_document` and
+`decode_each` take `&mut Spares`, and `build_shape` takes a slice. A list of n rows with two
+string properties now makes n × 3 allocations, which is n × (1 + s): the object is one allocation.
+
+The `one-touch` check's three tests pass, run once by name, and
+`a_decode_as_builds_no_array_for_the_object_it_fills` still passes. Build and clippy are green. No
+test is expected to go red. The agreement test draws 2,000 documents from a fixed seed and compares
+`decode_as` with `read_polled` and `hydrate`, written as JSON or as the fault and its slots.
 
 The sweep's reds are stale: `env-secret-proofs` has no log and no goal defines it, and the nightly
 `supply chain` run 44073672172 built `2934ebe1ae`, before `chrono` was removed.
 
 ### Next
 
-Stage 2's second and last session. Read `fill` (`json.rs:3409`), `Builder` (`:3683`),
-`build_object` (`:3789`), `convert_field` (`:5520`), `decode_list` (`:5949`) and `decode_element`
-(`:6043`) first. A plan the first session worked out:
+Stage 3, one session. Its items in order:
 
-- The constructor cache: a few `(class, Constructor)` pairs on the `Builder`, searched by address.
-  `Fields::finish` does not see the `Builder`, so it lands with the slot rewrite below.
-- One touch: when `fill` stores a value for `Next::Field`, convert it then (`convert_field`'s
-  rules, `nullable` and `outside`), into a `Vec<Value>` slot stack in constructor order with the
-  receiver's place first. Keep each issue with its field index, and at the closing brace give
-  them in declared order, with the missing-field issues at their places. A nested class that writes
-  its own decoder is kept raw and decoded at the closing brace, in declared order, as today. A
-  dropped `Found::Value` that is an array still goes to `kept` (`keep_arrays`), because `Lists`
-  knows lists by address.
-- A list field: `Filling::List` converts each element as it is pushed, into an `NvsArray` and its
-  issues, and gives one value at its `]`.
-- If the second session cannot land the rewrite whole, its open items move to `### Backlog` as
-  declined, as § *Limits* says.
+- `json.rs:2674` `stopped`: the count to the next poll as a plain integer in the `Builder`.
+- `json.rs:3667` `Builder::close` and `:3772` `keep_arrays`: run only for a contract with a
+  property that can hold a generic array.
+- `request.rs:3285` and `json.rs:2853`: `check_codec` (`json.rs:4127`) once per `jsonAs` call.
+- `json.rs:277` § *`decodeAs` reads the text against the class*, rewritten whole with the count law
+  n × (1 + s), and its *What it spends* naming `Spares`. Edit docs before measuring: a comment edit
+  in `json.rs` stales the perf records (playbook, *A goal that changes a `Core` member's source*).
+- Then the ledger: `bun nv relink --build`, `--record-perf` for `Core\Json` and `Core\Request`,
+  `bun nv scaling --check json/`, and `bun nv bench-compare --profile json-api`.
 
 ### Backlog
 
+Declined at stage 2's second session, under § *Limits*: the count law was met without them, they
+would only save the second read of each slot, which costs time and no allocation, and the rewrite
+puts at risk the order of issues that § *A program sees no difference* holds.
+
+- `json.rs:3524` the scalar arm of `fill` and `:2551` `scalar_of`: a declared scalar is checked
+  against its property's type here, with the conversion `scalar` (`:5701`) makes today. A mismatch
+  stores its issue for that slot.
+- `json.rs:3642` `Builder::open` and `:3667` `close`: the slots are in constructor order with the
+  receiver's place first, and the filled set is the bit set of § *One touch*.
+- `json.rs:3711` `build_object`: presence, defaults, nullability and the allowed set
+  (`:5552` `outside`) are checked over the slots in place, in declared order, so the issues come out
+  in today's order. It no longer goes through `Fields` (`:4890`) for an object `fill` read. `Fields`
+  and `walk` (`:4851`) stay for `hydrate`'s callers.
