@@ -409,8 +409,9 @@ store, because the store's verdicts are the shipped binary's.
 
 **The matrix's ruled-out cells (my call).** `.` and interpolation make a `string`, a spread an
 `array`. The three `fn-` values that read or write the slot need a slot a callee can reach: a property,
-a static property, an element of a property or a chain. A generator takes no `inout` parameter. That
-leaves 689 cells.
+a static property, an element of a property or a chain. A generator takes no `inout` parameter. A
+hole in a string opens with `{$`, so an interpolation cannot open with a static property:
+`"{Store::$text}x"` is E0301 (found on 2026-11-18). That leaves 684 cells.
 
 **The case brief (my call).** Every batch gets the same brief, written to a scratch file it reads.
 The exemplar is `tests/conformance/in-place/local-fn-fails-try-array.nvst`. The value slugs: `core`
@@ -459,12 +460,12 @@ disjoint and they run side by side. The session runs the test once all batches e
   - Kind: array and string.
   Each case prints the target after the statement, and in a `try` after an error too. It is named
   `<target>-<value>-<context>-<kind>.nvst`.
-- [ ] The cases, through the subagents: 689 cells. Each batch's brief is § *Standing decisions*'
+- [ ] The cases, through the subagents: 684 cells. Each batch's brief is § *Standing decisions*'
   **The case brief**, written to a scratch file the subagents read.
   - [x] `local` and `parameter` (110 cases)
   - [x] `inout` and `captured` (44 and 55; no `inout` in a generator)
   - [x] `this-property` and `local-property` (85 each)
-  - [ ] `static-property` and `element` (85 and 55)
+  - [x] `static-property` and `element` (80 and 55; no interpolation of a static property)
   - [ ] `property-element` and `property-chain` (85 each), then the test is green
 
 ### 2. a Core member owns its subject whenever its signature says so, and every such member does
@@ -585,9 +586,11 @@ generator's local after a resume. The person agreed to add the first three; the 
 after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
 
 Stage 1 has its rule (`f2a676192e`), the switch (`bdb63ad386`) and the matrix test (`157a84b101`,
-689 cells). The `local`, `parameter`, `inout` and `captured` cells are written, 209 cases
-(`92eebe1ad5`, `1b024fd514`), and the `this-property` and `local-property` cells, 170 cases
-(`0cd5a69925`). Each is green both ways, and none printed differently. A callee that reads or writes
+684 cells). The `local`, `parameter`, `inout` and `captured` cells are written, 209 cases
+(`92eebe1ad5`, `1b024fd514`), the `this-property` and `local-property` cells, 170 cases
+(`0cd5a69925`), and the `static-property` and `element` cells, 135 cases (`ecfc4b9843`). The matrix no longer owes
+`static-property-interpolation-*`, because a string hole opens with `{$` and cannot hold
+`Store::$text`. Each case is green both ways, and none printed differently. A callee that reads or writes
 the property sees the old value in it, because the store happens when the call returns. The sweep's
 two reds are stale, checked again on 2026-11-18: `env-secret-proofs` was last named by
 `route-parameters`' retire commit, and nightly run 44073672172's head `2934ebe1ae` lacks `0fe2fdef25`.
@@ -595,17 +598,19 @@ An `inout` callee that throws writes nothing back, so `inout-*-try-*` print the 
 
 ### Next
 
-Stage 1's last two checkpoints: `static-property` and `element` (85 and 55), then
-`property-element` and `property-chain` (85 each). Both fit in one session. Write the brief from
-§ *Standing decisions*' **The case brief** to `.agent-tmp/in-place-brief.md`, adding the run
-commands (`target/debug/nvs.exe test <paths>` and the same with `--no-in-place`, no `cargo`, no
-commit, Write only and never `sed -i`), each target's shape, and a report of at most 15 lines. Send
-four writing subagents per 85-cell target, split by value: `core`+`core-callback`,
+Stage 1's last checkpoint: `property-element` and `property-chain` (85 each), then the matrix test is
+green. Write the brief from § *Standing decisions*' **The case brief** to
+`.agent-tmp/in-place-brief.md`, adding the run commands (`target/debug/nvs.exe test <paths>` and the
+same with `--no-in-place`, no `cargo`, no commit, Write only and never `sed -i`), each target's shape
+(`$this->rows["a"]` or `$box->rows["a"]`; `$box->inner->items`), and a report of at most 15 lines.
+Tell them to copy the shape of the `this-property-*`, `local-property-*` and `element-*` siblings.
+Send four writing subagents per target, split by value: `core`+`core-callback`,
 `fn-safe`+`fn-fails`, `fn-reads-before`+`fn-reads-after`, and `fn-writes`+`concat`+`interpolation`+`spread`.
-Each took about 45k tokens and under three minutes. `element` has no `fn-reads-*` or `fn-writes`, so
-three subagents cover it. Then run every new case both ways and `bun nv proofs --comments` on them,
-and `cargo test --lib -- every_replacement_form_has_a_case`, which goes green at the last checkpoint.
-Stage 2 can run beside stage 1.
+Each took about 45k tokens and under two minutes. Then run every new case both ways and
+`bun nv proofs --comments` on them, and `cargo test --lib -- every_replacement_form_has_a_case`,
+which goes green at the last checkpoint. If an interpolation cell will not compile, rule it out in
+`replacement_is_written` (`crates/nvs-ir/src/lower/tests.rs`) as `static-property` was. Stage 2 can
+run beside stage 1.
 
 ### Backlog
 
