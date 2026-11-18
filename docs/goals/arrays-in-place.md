@@ -17,7 +17,7 @@ stages:
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/tests/in_place.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: runtime-room
@@ -238,9 +238,9 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
@@ -249,31 +249,23 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 The person's calls (2026-11-17): fix the cause, nothing for a developer to remember, and every
 replacement in place. Every other choice in § *Standing decisions* is a session's call.
 
-Stages 1, 2 and 3 are done. Every owning `Core\Arr` member that keeps entries changes a sole subject
-in place: the removing ones (`a1982946d1`), the reordering and rewriting ones (`d05a2feabb`) and the
-adding ones (`742e3626f2`). `crates/nvs-stdlib/tests/in_place.rs` (`1cbd827019`) holds the 33 owning
-members in `ARR_ROWS`, and its three tests passed when run by name. `bun nv scaling --check
-arrays/in-place-` is 12 flat and `arrays/read-` is 2 flat, after every member landed.
+Every stage is done, and `looper verify` is green over the whole goal. The gate found three things:
 
-Expected red in stage 4:
+- `padStart` and `padEnd` swallowed the allocator's refusal of their run and returned a short array.
+  Their `check` now builds the run with a fallible reserve and throws (`ecc6d5abd9`), so both
+  `count-shaped-producers-*` conformance cases pass as written.
+- The testing chapter's bench example counts 16 more bytes per op (`272cf2c732`), and an ambiguous
+  rustdoc link to `nvs_core_arr_append` is fixed (`a387d0ac41`).
+- `filter`'s verdict mask is one allocation per call, so its bench declares 10 (`55d45ade4e`). Every
+  stale `Core\Arr` and testing perf record is measured again on the release binary.
 
-- A test that appends after a key-keeping member (`slice`, `withoutFirst`, `withoutLast`, `filter`,
-  `withoutNull`, `unique`, `diff`, `intersect`, `map`, a `preserveKeys` `reverse`/`sort`, `sortByKey`,
-  `overlay`, `overlayDeep`, `underlay`) of a map or a cut list sees the subject's counter
-  (§ *A kept key keeps the append counter*). Update the expected output.
-- An error-text test of `values`, `reverse` or `flip` on a non-array now sees `subject()`'s text. A
-  test that wanted `appendAll`/`padStart`/`padEnd` to throw at the memory limit sees the request end.
-- The `Core\Arr` perf records are stale (playbook). The sweep's `env-secret-proofs` red is stale:
-  no log, and nothing defines it.
+`bun nv verify --doc`, `bun nv owners --closes arrays-in-place` and `bun nv ci --check` are green.
+The sweep's `env-secret-proofs` red is stale: no log, and nothing defines it.
 
 ### Next
 
-1. Stage 4: `looper verify` with `run_in_background`, then end the turn and wait for its report.
-2. Fix every failure it names in one pass (the expected reds above), then `looper verify` once more.
-3. The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes arrays-in-place`, `bun nv ci
-   --check`, with the stale perf records recorded as the playbook says.
+1. The driver runs the acceptance checks and retires the goal.
 
 ### Backlog
 
-- `overlayDeep` on a sole subject still copies each nested map it merges into. A nested map that is
-  itself sole could be changed in place. No ladder shows it yet.
+- Moved to `strings-in-place`'s backlog: `overlayDeep` copies each nested map it merges into.

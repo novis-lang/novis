@@ -218,3 +218,6 @@ Every other choice in § *Standing decisions* is the authoring session's call. N
 Stage 1. Stages 2 and 3 can run as side goals at any time. Stage 4 waits for `in-place-everywhere`.
 
 ### Backlog
+
+- From `arrays-in-place`: `Core\Arr::overlayDeep` on a sole subject still copies each nested map it
+  merges into. A nested map that is itself sole could be changed in place. No ladder shows it yet.

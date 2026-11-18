@@ -193,6 +193,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **An owning member's `apply` cannot throw, so a `let _ =` there drops the allocator's refusal.**
+  `Core\Arr::padStart`/`padEnd` returned a short array for a run the process could not hold, and
+  only two `count-shaped-producers-*` conformance cases saw it, at the gate. Build or reserve what
+  can fail in `check`, and let `apply` only move it. See `crates/nvs-stdlib/src/arr.rs` `Padding`.
 - **A test binary that `bun nv verify` reports as `exit 116` with no panic hit heap corruption.**
   116 is the low byte of Windows' `0xC0000374`, `STATUS_HEAP_CORRUPTION`, and it shows only when
   the tests run in parallel. Bisect the test list with `cargo test -q --lib -- --exact <names>`, a
