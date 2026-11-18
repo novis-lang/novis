@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-ir/src/lower/tests.rs, crates/nvs-ir/src/lower/call.rs]
   - id: 6
     title: concatenation, interpolation and a literal that spreads its target append in place on every target
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 7
     title: every copy the compiler keeps is reported where it is written, with its reason and its fix
@@ -240,11 +240,20 @@ the release binary that day, and none was named above:
 
 - **A literal that opens with a spread of its own target.** `$list = [...$list, $x]` built a list of
   10,000 entries in 667 ms and one of 20,000 in 3.6 s. It is the array form of `$s = $s . 'x'`. The
-  literal's first spread takes its source as an owning operand, so the pass moves a local into it and
-  lends a slot to it. At run time, a sole source that is a list is the literal itself, and the rest of
+  literal's first spread takes its source as an owning operand, so the pass moves a local into it.
+  At run time, a sole source that is a list is the literal itself, and the rest of
   the literal appends to it. A source that is shared, or that is not a list, builds as it does today,
   because a spread renumbers number keys and only a list keeps its keys under that. **What it
   spends:** one shape test for each such literal.
+  **A slot is not lent to a spread (my call, 2026-11-18).** The literal's items after the spread
+  are appends, and an append can fail at the memory ceiling. Its landing releases the literal, which
+  is then the slot's own array, and the slot would name freed memory until the request's teardown
+  frees it again. A lend needs nothing that can fail between the change and the store. So
+  `$this->list = [...$this->list, $x]` copies, and `$this->list[] = $x` is the in-place form.
+  **The spread is switched, as a `Core` call is (my call, 2026-11-18).** The lowering emits every
+  `ArraySpread` borrowed. Where the pass moves a local into a literal's first spread into its empty
+  array, it sets the instruction's `owned`, and codegen calls `nvs_array_spread_owned`, which takes
+  the subject's reference on success only. So `--no-in-place` needs no case of its own.
 - **A `Core\Arr::reduce` callback is handed its carry.** `reduce` whose callback returns
   `Core\Arr::append($carry, $x)` took 2.9 s for 20,000 entries and 16.1 s for 40,000. `reduce` keeps a
   reference to the carry while the callback runs (`crates/nvs-stdlib/src/arr.rs:4504`), and
@@ -639,14 +648,16 @@ disjoint and they run side by side. The session runs the test once all batches e
 
 ### 6. concatenation, interpolation and a literal that spreads its target append in place on every target
 
-- [ ] `crates/nvs-ir/src/lower/expr.rs:3410` `concat_spine_opens_with` accepts an `ExprKind::Interpolated`
-  whose first part is the target. A concatenation is one instruction that the pass lends its first
-  operand to, for every target the pass can lend. `lower_string_self_concat` (`stmt.rs:1421`) and
-  `lower_carrier_self_append` are folded into it.
-- [ ] `crates/nvs-ir/src/lower/expr.rs:6904`: a literal whose first item is a spread takes that source
-  as an owning operand of its first `ArraySpread`. `crates/nvs-runtime/src/array.rs` `nvs_array_spread`
-  into an empty array returns a sole list source itself, and builds otherwise.
-- [ ] The two tests the `concat` check names and the two the `spread` check names. Run once.
+- [x] A concatenation is one instruction that the pass lends its first operand to, for every target
+  the pass can lend. `InstKind::consumes` names a `Concat` of strings' first piece, and the pass's
+  `candidates` moves a local into it. `lower_string_self_concat` and `concat_spine_opens_with` are
+  gone, so an interpolation is the same case. `lower_carrier_self_append` stays: a carrier is an
+  object that a borrowing `CoreCall` grows at count 1, not a `Concat`.
+- [x] A literal whose first item is a spread takes that source as an owning operand of its first
+  `ArraySpread` (`owned`, set by the pass). `nvs_array_spread_owned` returns a sole list source
+  itself, and builds otherwise.
+- [x] The two tests the `concat` check names and the two the `spread` check names, and
+  `a_literal_that_opens_with_a_spread_of_a_local_takes_its_reference`. Run once, green.
 
 ### 7. every copy the compiler keeps is reported where it is written, with its reason and its fix
 
@@ -687,43 +698,44 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 5 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and the
+Stages 1 to 6 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and the
 newest commit that names it is this goal's own handoff.
 
-Stage 5's last two items landed this session. `ownership::lend_local` lends a local whose move
-into a known Novis callee was refused only because the call's error edge reads it: the retain and
-the normal path's releases go, the error edge keeps the local, and the call takes the callee's lent
-body with an empty slot set. `lend_to_callees` tries it after `Lend::of_call` for each argument.
-`nvs_runtime::call_callable_giving` passes one argument with no retain and releases it itself where
-it never reaches the callee, and `Core\Arr::reduce` gives each carry that way. The ten
-`user-callees` tests and the two `carry` tests pass, each run once by name.
+Stage 6 landed this session in `bc590aaaef`. A `Concat` of strings consumes its first piece, so
+`InstKind::consumes` names it, and the pass lends a slot to it and moves a local into it. The
+lowering's own `$s = $s . e` path and the lowering's `in_place` field are gone, so the off switch
+now reaches concatenation only through the pass. `InstKind::ArraySpread` has `owned`, which the pass
+sets (`Move::Spread`) where a local moves into a literal's first spread into its empty array, and
+codegen then calls `nvs_array_spread_owned` (`crates/nvs-runtime/src/array.rs`). A slot is not
+lent to a spread; the standing decision says why. `cbe10627b3` formats two test files that rustfmt
+had flagged.
 
 ### Next
 
-- **Stage 6, the concatenation.** `concat_spine_opens_with` (`crates/nvs-ir/src/lower/expr.rs:3410`)
-  accepts an `ExprKind::Interpolated` whose first part is the target. Fold `lower_string_self_concat`
-  (`crates/nvs-ir/src/lower/stmt.rs:1421`) and `lower_carrier_self_append` (`stmt.rs:1514`) into one
-  instruction the pass lends its first operand to, on a local, a property, a static property and an
-  element. Write `every_concatenation_target_appends_in_place` and
-  `an_interpolation_that_opens_with_its_target_appends_in_place` in `crates/nvs-ir/src/lower/tests.rs`.
-- **Stage 6, the spread.** A literal whose first item is a spread of its own target takes that
-  source as an owning operand of its first `ArraySpread`, and `nvs_array_spread`
-  (`crates/nvs-runtime/src/array.rs:3037`) into an empty array returns a sole list source itself.
-  Write the two tests the `spread` check names.
-- Not run yet, because a stage checks with a build alone: the `fn-` conformance cases under
-  `tests/conformance/in-place/`. They are the first real runs of a lent body, and the
-  `local-fn-*-try-*` ones the first of a lent local. Run them early in the gate, under a debug
-  binary, and read any crash as a lent body bug in `lent.rs` or in `lend_local`.
+- **Stage 7, the copy table.** Start in `crates/nvs-ir/src/ownership.rs`: each place `Lend::of`,
+  `Lend::of_call` or a move candidate is refused is a kept copy. Record its span, reason and fix
+  there, then carry the table on `Unit` (`crates/nvs-codegen/src/lib.rs`) and through
+  `crates/nvs-cli/src/cache.rs`. The stage's `**Split:**` line gives the `.lspt` cases to a
+  subagent once the table and the two codes land.
+- Not run yet, because a stage checks with a build alone: the `fn-`, `concat`, `interpolation` and
+  `spread` conformance cases under `tests/conformance/in-place/`. They are the first real runs of a
+  lent body, a lent local, an owned spread and a moved `Concat`. Run them early in the gate, under a
+  debug binary. Read a crash in a `spread` case as a bug in `nvs_array_spread_owned` or in the move's
+  error-edge releases, and one in a `concat` case as a bug in the `Concat` arm of `candidates`.
 - `crates/nvs-stdlib/src/arr.rs` changed, so every `Core\Arr` perf record is stale. Record them at
   the goal's end as the playbook's perf bullet says, after the last edit to that file.
 
 **What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
-property copies its array, so a loop of such writes is quadratic. Only the differential run uses it.
+property copies its array, so a loop of such writes is quadratic. `$s = $s . $x` on a local now
+copies too, because the lowering no longer moves it. Only the differential run uses it.
 
 **Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
 retain. `crates/nvs-ir/tests/*.rs` and `crates/nvs-codegen`'s snapshot tests are the likely ones.
-Accept each after reading it: a removed retain must sit beside a removed release. The whole suite
+Accept each after reading it: a removed retain must sit beside a removed release. A snapshot made
+by `lower_first_method` (no pass) of `$s = $s . $x` on a local now prints a `retain` before the
+`concat` and a `release` of the old value after; a whole-program one prints neither. A snapshot of a
+literal that opens with a spread of a dead local prints `array.spread.owned`. The whole suite
 also runs stage 2's 117 owning entries for the first time through real calls. A snapshot with a
 by-value `foreach` that writes `$a[$k]` now walks the header phi with no `retain` of the subject, and
 `crates/nvs-runtime`'s array tests that assert a separated hashed array's vector length may change,
