@@ -75,6 +75,9 @@ export const BY_HAND: Record<string, string> = {
   // The whole compiler per input, which is slow to search. Every `cargo test` runs its seeds and the
   // matrix of each construct in each kind of body (`crates/nvs-fuzz-checks/src/tests.rs`).
   compile: "a search of the whole compiler, started by hand",
+  // Two compiles and two runs per input. Every `cargo test` runs its fixed seed set
+  // (`crates/nvs-fuzz-checks/src/in_place.rs`).
+  in_place: "a differential of in-place changes, started by hand",
 };
 /**
  * The `bash` that sets `j` to the fork mode's job count: half the cores, at most one per GiB the

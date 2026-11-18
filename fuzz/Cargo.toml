@@ -60,6 +60,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "in_place"
+path = "fuzz_targets/in_place.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "json"
 path = "fuzz_targets/json.rs"
 test = false

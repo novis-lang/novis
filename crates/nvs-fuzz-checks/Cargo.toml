@@ -18,7 +18,9 @@ doctest = false
 # a crate of this workspace, so this crate adds no package to the lock file.
 [dependencies]
 # The `compile` check runs the whole compiler, and code generation writes an
-# object file, so nothing it builds is mapped or run.
+# object file, so nothing it builds is mapped or run. The `in_place` check
+# compiles each program in memory and runs it twice, with the ownership pass
+# and without it.
 nvs-codegen.workspace = true
 nvs-diagnostics.workspace = true
 nvs-hir.workspace = true

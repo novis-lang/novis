@@ -37,6 +37,19 @@ pub fn compile(data: &[u8]) {
 ///
 /// The code generation error of a program the checker passed with no error.
 pub fn compile_source(text: &str) -> Result<Compiled, nvs_codegen::CodegenError> {
+    match lower_source(text) {
+        Err(first) => Ok(Compiled::Diagnosed(first)),
+        Ok(program) => {
+            nvs_codegen::compile_object(&program)?;
+            Ok(Compiled::Built)
+        }
+    }
+}
+
+/// Runs the front end and the lowering over `text`, and gives the program or
+/// the first error the front end reported. A panic in any phase is not caught
+/// here.
+pub(crate) fn lower_source(text: &str) -> Result<nvs_ir::Program, String> {
     let mut map = SourceMap::new();
     let id = map.add("fuzz.nvs", text.to_owned());
     let src = map.file(id);
@@ -57,11 +70,11 @@ pub fn compile_source(text: &str) -> Result<Compiled, nvs_codegen::CodegenError>
                 None => d.message.clone(),
             })
             .unwrap_or_default();
-        return Ok(Compiled::Diagnosed(first));
+        return Err(first);
     }
 
     let layouts = nvs_types::build_class_layouts(&files, &module.graph);
-    let program = nvs_ir::lower::lower_file(
+    Ok(nvs_ir::lower::lower_file(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
         &stmts,
         src,
@@ -69,7 +82,5 @@ pub fn compile_source(text: &str) -> Result<Compiled, nvs_codegen::CodegenError>
         &interner,
         &enums,
         &layouts,
-    );
-    nvs_codegen::compile_object(&program)?;
-    Ok(Compiled::Built)
+    ))
 }
