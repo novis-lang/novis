@@ -127,6 +127,15 @@ pub enum Tag {
 }
 
 impl Tag {
+    /// The byte a debug build writes into a lent property's tag while a call
+    /// has its value (`nvs_ir::ir::InstKind::LendPoison`). It denotes no
+    /// [`Tag`], so [`Self::from_byte`] gives `None` for it, a helper that
+    /// reads the slot by name sees a malformed value, and a release skips it.
+    /// A compiled read of the property compares its tag with this byte and
+    /// stops the request ([`crate::nvs_lend_trap`]). It is a byte and not a
+    /// variant because no value ever has it, so no `match` has to name it.
+    pub const LENT_POISON: u8 = 0xEE;
+
     /// The tag a raw byte denotes, or `None` if it denotes none of them.
     ///
     /// Compiled code writes tag bytes, so a [`Value`] read back from the ABI

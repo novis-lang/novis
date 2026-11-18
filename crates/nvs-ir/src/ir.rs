@@ -1339,6 +1339,28 @@ pub enum InstKind {
         /// The field's own name, `$`-sigil not included.
         field: String,
     },
+    /// Writes the poison tag into a lent property's tag byte, or writes the
+    /// slot's own tag back (`rule:types/a-replaced-value-is-changed-in-place`).
+    ///
+    /// Its one producer is the ownership pass, around each slot it lends: on
+    /// from just after the slot's read to just before the call, and on again
+    /// from the call's normal exit to the store, which overwrites it. In a
+    /// debug build a [`Self::FieldGet`] or [`Self::StaticGet`] that finds the
+    /// poison stops the request with a fatal naming the read's statement, so a
+    /// wrong effect decision fails at once. A release build emits nothing for
+    /// it. Only the tag byte changes, so the payload stays the slot's.
+    LendPoison {
+        /// The object the property is on, or `None` for a static property.
+        object: Option<ValueId>,
+        /// The class that declares the property.
+        class: String,
+        /// The property's own name, `$`-sigil not included.
+        name: String,
+        /// The representation the slot has, whose tag `on: false` writes back.
+        ty: Ty,
+        /// `true` writes the poison tag, `false` the slot's own tag.
+        on: bool,
+    },
     /// Whether a compile-time-known field's slot holds a value — `false` while
     /// it still has `nvs_runtime::Tag::Unset`, the state a `lateinit` property
     /// starts in (`rule:classes/an-unwritten-property-read-throws`).
@@ -3942,6 +3964,11 @@ impl InstKind {
             | InstKind::SlotGet { object, .. }
             | InstKind::SlotProbe { object, .. }
             | InstKind::Clone { object } => f(*object),
+            InstKind::LendPoison { object, .. } => {
+                if let Some(object) = object {
+                    f(*object);
+                }
+            }
             InstKind::CallVirtual {
                 lsb,
                 receiver,
@@ -4253,6 +4280,9 @@ impl InstKind {
                     writes: Touch::Slot(slot),
                 }
             }
+            // The pass places it after every decision, and it changes only a
+            // debug build's tag byte.
+            InstKind::LendPoison { .. } => Effects::NONE,
             InstKind::StaticGet { class, name } => Effects::reading(Slot::Static { class, name }),
             InstKind::StaticSet { class, name, .. } => {
                 Effects::writing(Slot::Static { class, name })

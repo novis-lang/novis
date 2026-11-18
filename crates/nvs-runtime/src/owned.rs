@@ -231,3 +231,38 @@ pub unsafe fn run_owned<S: OwnedSubject, P>(
         .ok_or_else(|| Fault::fatal(NOT_THE_SUBJECT))?;
     Ok(apply(plan, subject))
 }
+
+/// Stops the request where a compiled read finds a lent property's poison
+/// tag ([`crate::Tag::LENT_POISON`]). Only a debug build calls it: the read
+/// ran while a call had the property's value, so the ownership pass lent a
+/// slot this read reaches. `source` is the reading statement's carrier, or
+/// null where the read has none.
+///
+/// Returns `FATAL`, and the compiled frame returns it unchanged. The frame
+/// skips its own releases on that return, which leaks only in a debug build
+/// that has already found a compiler bug.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the duration of the call,
+/// and `source` must be null or a carrier a compiled unit baked.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer and its own baked carrier"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_lend_trap(ctx: *mut Ctx, source: *const u8) -> i32 {
+    // The caller's contract, passed on unchanged.
+    let at = unsafe { crate::source::decode(source) }.map_or_else(
+        || "an unknown statement".to_owned(),
+        |s| crate::source::location(&s),
+    );
+    // The caller's contract, passed on unchanged.
+    unsafe {
+        (*ctx).set_pending(format!(
+            "a property was read at {at} while a call had its value, \
+             so the compiler lent a slot this read reaches"
+        ));
+    }
+    crate::FATAL
+}

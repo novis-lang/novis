@@ -353,7 +353,7 @@ pub use object::{
     nvs_object_slot_optional_get, nvs_object_slot_probe, nvs_object_slot_set, nvs_value_is_class,
     read_erased_property_owned, write_erased_property,
 };
-pub use owned::{Entry, Owned, OwnedSubject, run_borrowed, run_owned};
+pub use owned::{Entry, Owned, OwnedSubject, nvs_lend_trap, run_borrowed, run_owned};
 pub use peer::{
     Closing, Delivery, INBOX_CAP, Inbox, Interrupt, PeerError, PeerFrame, PeerSocket, Received,
     TOPIC_CAP, slow_subscribers_closed,

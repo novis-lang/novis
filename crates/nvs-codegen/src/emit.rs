@@ -1033,6 +1033,17 @@ impl Emitter<'_, '_> {
             } => {
                 let value = self.emit_field_get(inst, *object, class, field)?;
                 self.define(inst, value)?;
+                // A debug build's lend check may end in a block of its own.
+                return self.current_block();
+            }
+            InstKind::LendPoison {
+                object,
+                class,
+                name,
+                ty,
+                on,
+            } => {
+                self.emit_lend_poison(*object, class, name, *ty, *on)?;
             }
             InstKind::FieldTake {
                 object,
@@ -1041,6 +1052,7 @@ impl Emitter<'_, '_> {
             } => {
                 let value = self.emit_field_take(inst, *object, class, field)?;
                 self.define(inst, value)?;
+                return self.current_block();
             }
             InstKind::FieldIsInit {
                 object,
@@ -1102,6 +1114,7 @@ impl Emitter<'_, '_> {
             InstKind::StaticGet { class, name } => {
                 let value = self.emit_static_get(inst, class, name)?;
                 self.define(inst, value)?;
+                return self.current_block();
             }
             InstKind::StaticSet { class, name, value } => {
                 self.emit_static_set(class, name, *value)?;
@@ -3841,7 +3854,76 @@ impl Emitter<'_, '_> {
         let ty = inst
             .ty
             .ok_or_else(|| internal("a property read with no representation"))?;
+        self.emit_lend_check(inst, base, offset)?;
         self.load_value(base, offset, ty)
+    }
+
+    /// A debug build's check that a property read does not find the poison
+    /// tag a lend wrote ([`nvs_runtime::Tag::LENT_POISON`]). On a match, a
+    /// cold block calls [`nvs_runtime::nvs_lend_trap`] with the read's
+    /// statement and returns its `FATAL`. A release build emits nothing.
+    /// The read continues in a new block.
+    fn emit_lend_check(
+        &mut self,
+        inst: &Inst,
+        base: Value,
+        offset: i32,
+    ) -> Result<(), CodegenError> {
+        if !cfg!(debug_assertions) {
+            return Ok(());
+        }
+        let tag_offset =
+            offset + i32::try_from(NvsValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+        let tag = self.b.ins().load(types::I8, trusted(), base, tag_offset);
+        let poisoned = self
+            .b
+            .ins()
+            .icmp_imm_u(IntCC::Equal, tag, i64::from(Tag::LENT_POISON));
+        let trap = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(poisoned, trap, &[], cont, &[]);
+        self.b.set_cold_block(trap);
+        self.b.switch_to_block(trap);
+        let site = match &inst.raise_site {
+            Some(source) => self.emit_bytes(&nvs_runtime::source::encode(source))?.0,
+            None => self.b.ins().iconst(types::I64, 0),
+        };
+        let callee = self.runtime_ref("nvs_lend_trap", RuntimeSig::StackCheck)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p, site]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_return(status);
+        self.b.switch_to_block(cont);
+        Ok(())
+    }
+
+    /// A lent property's poison, or its own tag written back
+    /// ([`nvs_ir::ir::InstKind::LendPoison`]). Only the tag byte is written,
+    /// so the payload stays the slot's. A release build emits nothing.
+    fn emit_lend_poison(
+        &mut self,
+        object: Option<ValueId>,
+        class: &str,
+        name: &str,
+        ty: Ty,
+        on: bool,
+    ) -> Result<(), CodegenError> {
+        if !cfg!(debug_assertions) {
+            return Ok(());
+        }
+        let (base, offset) = match object {
+            Some(object) => (self.value(object)?.0, self.field_offset(class, name)?),
+            None => (self.statics_base(), self.static_offset(class, name)?),
+        };
+        let byte = if on {
+            Tag::LENT_POISON
+        } else {
+            tag_of(ty)? as u8
+        };
+        let tag_offset =
+            offset + i32::try_from(NvsValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+        let value = self.b.ins().iconst(types::I8, i64::from(byte));
+        self.b.ins().store(trusted(), value, base, tag_offset);
+        Ok(())
     }
 
     /// A generator's resume reads a parked local: one load out of the field
@@ -4173,6 +4255,7 @@ impl Emitter<'_, '_> {
         let ty = inst
             .ty
             .ok_or_else(|| internal("a static property read with no representation"))?;
+        self.emit_lend_check(inst, base, offset)?;
         self.load_value(base, offset, ty)
     }
 

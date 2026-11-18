@@ -3857,6 +3857,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::throwable::nvs_raise_new as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_lend_trap",
+            (crate::owned::nvs_lend_trap as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_raise_site",
             (crate::throwable::nvs_raise_site as *const ()).cast::<u8>(),
         ),

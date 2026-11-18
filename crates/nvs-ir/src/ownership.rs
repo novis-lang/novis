@@ -79,6 +79,15 @@
 //! the call took ([`InstKind::ArraySet`]'s `lent`). **What it spends:** a
 //! shared array is copied at the read, where the write would have copied it.
 //!
+//! A lent property is poisoned in a debug build ([`InstKind::LendPoison`]):
+//! from just after its read to just before the call, where nothing in that
+//! window can fail, and from the call's normal exit to the store. A compiled
+//! read that finds the poison stops the request and names its statement, so
+//! a wrong effect decision fails the debug suite at once. The call itself is
+//! not covered, because a callback and a lent body may read the old value.
+//! `NOVIS_LEND_IGNORE_EFFECTS` makes a debug build lend with no regard to
+//! effects, which is how the trap's own test reaches it.
+//!
 //! **What it spends:** while compiling, one walk per candidate call over the
 //! code after it, and one pass over each function for its write summary.
 //! Nothing at run time: the program makes one retain and one release fewer for
@@ -93,8 +102,9 @@ use crate::ty::Ty;
 /// Decides every move and every lend in `functions`.
 pub fn run(functions: &mut [Function]) {
     let writes = summaries(functions);
+    let ignore = ignore_effects();
     for f in functions {
-        run_function(f, &writes);
+        run_function(f, &writes, ignore);
     }
 }
 
@@ -199,7 +209,7 @@ enum Move {
 
 /// Decides every move in one function. Removed instructions are collected and
 /// dropped at the end, so every [`At`] stays valid while the pass runs.
-fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
+fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>, ignore: bool) {
     let index: FxHashMap<u32, usize> = f
         .blocks
         .iter()
@@ -227,6 +237,7 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
     let mut ids =
         crate::ids::IdGen::values_from(defs.keys().map(|v| v.index() + 1).max().unwrap_or(0));
     let mut after: FxHashMap<At, Vec<Inst>> = FxHashMap::default();
+    let mut before: FxHashMap<At, Vec<Inst>> = FxHashMap::default();
     for b in 0..f.blocks.len() {
         for c in 0..f.blocks[b].insts.len() {
             let lend = Lend {
@@ -235,9 +246,32 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
                 tys: &tys,
                 writes,
                 removed: &removed,
+                ignore,
             };
             if let Some(lent) = lend.of((b, c)) {
                 removed.extend(lent.gone);
+                if let Some(Poison {
+                    read,
+                    before: early,
+                    ty,
+                }) = lent.poison
+                {
+                    let kind = &f.blocks[b].insts[read].kind;
+                    if early {
+                        after
+                            .entry((b, read))
+                            .or_default()
+                            .extend(poison_of(kind, ty, true));
+                        before
+                            .entry((b, c))
+                            .or_default()
+                            .extend(poison_of(kind, ty, false));
+                    }
+                    after
+                        .entry((b, c))
+                        .or_default()
+                        .extend(poison_of(kind, ty, true));
+                }
                 if let (Some(owned), InstKind::CoreCall { symbol, .. }) =
                     (lent.symbol, &mut f.blocks[b].insts[c].kind)
                 {
@@ -306,6 +340,9 @@ fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
     for (b, block) in f.blocks.iter_mut().enumerate() {
         let insts = std::mem::take(&mut block.insts);
         for (i, inst) in insts.into_iter().enumerate() {
+            block
+                .insts
+                .extend(before.remove(&(b, i)).into_iter().flatten());
             for &operand in released_before.get(&(b, i)).into_iter().flatten() {
                 block.insts.push(Inst {
                     result: None,
@@ -524,6 +561,51 @@ struct Lent {
     symbol: Option<&'static str>,
     gone: Vec<At>,
     element: Option<Element>,
+    poison: Option<Poison>,
+}
+
+/// Where a lent property's poison goes ([`InstKind::LendPoison`]): after the
+/// slot's read at `read` until just before the call, when `before` holds, and
+/// from the call's normal exit to the store. `before` holds only where nothing
+/// in that window can fail, so a `catch` never finds the slot poisoned. `ty`
+/// is the slot's representation, whose tag the restore writes back.
+struct Poison {
+    read: usize,
+    before: bool,
+    ty: Ty,
+}
+
+/// Whether a debug build lends with no regard to effects, so the lend check's
+/// trap can be tested on a lend the pass would refuse. Read once per program
+/// from `NOVIS_LEND_IGNORE_EFFECTS`; a release build never reads it.
+fn ignore_effects() -> bool {
+    cfg!(debug_assertions) && std::env::var_os("NOVIS_LEND_IGNORE_EFFECTS").is_some()
+}
+
+/// The [`InstKind::LendPoison`] for the property the read `kind` reads.
+fn poison_of(kind: &InstKind, ty: Ty, on: bool) -> Option<Inst> {
+    let (object, class, name) = match kind {
+        InstKind::FieldGet {
+            object,
+            class,
+            field,
+        } => (Some(*object), class.clone(), field.clone()),
+        InstKind::StaticGet { class, name } => (None, class.clone(), name.clone()),
+        _ => return None,
+    };
+    Some(Inst {
+        result: None,
+        ty: None,
+        kind: InstKind::LendPoison {
+            object,
+            class,
+            name,
+            ty,
+            on,
+        },
+        on_error: None,
+        raise_site: None,
+    })
 }
 
 /// Where an element's lend rewrites the function. The container's read gets
@@ -552,6 +634,8 @@ struct Lend<'a> {
     tys: &'a FxHashMap<ValueId, Ty>,
     writes: &'a FxHashMap<String, Writes>,
     removed: &'a FxHashSet<At>,
+    /// [`ignore_effects`], read once per program.
+    ignore: bool,
 }
 
 impl Lend<'_> {
@@ -612,10 +696,12 @@ impl Lend<'_> {
         }
         if matches!(insts[read].kind, InstKind::ArrayGet { .. }) {
             let (gone, element) = self.of_element((b, c), subject, result, read, args)?;
+            // An element has no tag of its own to poison yet.
             return Some(Lent {
                 symbol,
                 gone,
                 element: Some(element),
+                poison: None,
             });
         }
         let (slot, object) = slot_of(&insts[read].kind)?;
@@ -682,10 +768,17 @@ impl Lend<'_> {
         self.window_is_quiet(b, start, c, &[read], subject, &chain)?;
         gone.extend(self.subject_counts((b, c), subject)?);
         self.callbacks_are_quiet(args, subject, &chain)?;
+        let before = self.ignore
+            || (read + 1..c).all(|i| self.removed.contains(&(b, i)) || insts[i].on_error.is_none());
         Some(Lent {
             symbol,
             gone,
             element: None,
+            poison: Some(Poison {
+                read,
+                before,
+                ty: *self.tys.get(&subject)?,
+            }),
         })
     }
 
@@ -908,6 +1001,9 @@ impl Lend<'_> {
         subject: ValueId,
         chain: &[Slot<'_>],
     ) -> Option<()> {
+        if self.ignore {
+            return Some(());
+        }
         for &arg in args {
             if arg == subject || !takes_an_object(&InstKind::Retain { operand: arg }, self.tys) {
                 continue;
@@ -969,6 +1065,9 @@ impl Lend<'_> {
     /// Whether `kind` runs no user code, writes no slot on `chain`, and, with
     /// `reading`, does not read the lent slot.
     fn quiet(&self, kind: &InstKind, chain: &[Slot<'_>], reading: bool) -> bool {
+        if self.ignore {
+            return true;
+        }
         let effects = kind.effects();
         let user_code = match effects.user_code {
             UserCode::No => false,

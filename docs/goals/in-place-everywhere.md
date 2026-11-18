@@ -440,6 +440,15 @@ entry to have a tag of its own to write. The trap test forces a wrong lend throu
 `NOVIS_LEND_IGNORE_EFFECTS`, read by the pass under `cfg(debug_assertions)`. **What it spends:**
 nothing in release; in debug one tag compare per slot read.
 
+**How the poison is built (my calls, 2026-11-18).** The poison is the byte `Tag::LENT_POISON`
+(`0xEE`, `crates/nvs-runtime/src/value.rs`), not a `Tag` variant: no value ever has it, so none of
+the 40-odd `match`es on `Tag` names it, `Tag::from_byte` gives `None`, and a release skips it. The
+trap is `nvs_lend_trap` (`crates/nvs-runtime/src/owned.rs`); the cold block returns its `FATAL`
+from the frame without the frame's releases, which leaks only after a compiler bug was found. In a
+debug build the lowering's `emit` gives every `FieldGet` and `StaticGet` its statement as
+`raise_site`, which the trap names. With `NOVIS_LEND_IGNORE_EFFECTS` the poison before the call is
+written even where that window can fail, because the forced lend's read is itself a call.
+
 **What it spends.** One retain and one release per call where the subject is still read after the call
 (it is borrowed today). Nothing per request. Compile time grows by one liveness pass per function,
 which the `compile` ladders under `benches/scaling/compiler/` keep linear.
@@ -580,8 +589,8 @@ disjoint and they run side by side. The session runs the test once all batches e
   - [x] An element, through containers made sole before the element's read.
   - [x] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
   - [ ] `write_back_array`'s decision is the lend's.
-- [ ] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
-- [ ] The tests the `lends` and `lend-trap` checks name. Run once.
+- [x] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
+- [x] The tests the `lends` and `lend-trap` checks name. Run once.
 
 ### 5. a Novis function takes a lent or moved value whenever the compiler proves it safe
 
@@ -653,41 +662,24 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 The person's calls: fix the cause, nothing for a developer to remember, and every replacement in
 place, handled by the compiler and tested. § *Standing decisions* is the authoring sessions' calls.
 
-Stages 1 to 3 are done. The sweep's two reds are stale (checked 2026-11-18): `env-secret-proofs` was
-last named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
+Stages 1 to 3 are done. The sweep's `env-secret-proofs` red is stale: no goal defines it, and its
+newest naming commit is `route-parameters`' retire.
 
-Stage 4: `InstKind::effects` (end of `crates/nvs-ir/src/ir.rs`) states each instruction's row.
-`Lend::of` (`crates/nvs-ir/src/ownership.rs`) lends a plain property, a static property, a chain of
-them, and, since `4fe6079bed`, an element of an array such a slot holds (`Lend::of_element`). For an
-element, `make_sole` puts `array.sole` and a store back into the slot after the container's read,
-points the `array.get` at the sole array, and flips the write to `array.set.lent`, which does not
-release the entry the call took. The runtime is `nvs_array_sole`, `nvs_array_set_lent` and
-`nvs_array_set_index_lent` (`NvsArray::sole` and `set_lent`, `crates/nvs-runtime/src/array.rs`); a
-refused `sole` is a no-op, because the member then refuses to run. All nine `lends` tests are written
-and were run once by name (again after `179ba0c5be`), and the 80 slot and element `core` matrix
-cases pass on the debug binary. A local's element is not lent yet: the sole array would have to
-replace the local's value on its error edges too.
-
-Since `179ba0c5be`, `.=` on a plain `string` property or static property is a lend too.
-`lower_slot_append` (`crates/nvs-ir/src/lower/stmt.rs:619`) emits the load, a retain, `str.append`,
-a second load, the store and a release, and `Lend::of` takes any instruction whose
-`InstKind::consumes` (beside `effects`, `ir.rs`) names the subject, switching no symbol.
-`a_slot_append_is_lent` (`lower/tests.rs`) checks both ways, and ran once by name.
+Stage 4: `Lend::of` (`crates/nvs-ir/src/ownership.rs`) reads `InstKind::effects` and lends a plain
+property, a static property, a chain of them, an element of an array such a slot holds
+(`Lend::of_element`, `make_sole`, `array.set.lent`), and the target of `.=` (`lower_slot_append`,
+through `InstKind::consumes`). A local's element is not lent: the sole array would have to replace
+the local's value on its error edges too. The debug poison is done: `run_function` emits
+`InstKind::LendPoison` (`lend.poison`, `lend.restore`) around a plain or chained lend, and
+`emit_lend_poison` and `emit_lend_check` (`crates/nvs-codegen/src/emit.rs`, beside
+`emit_field_get`) write and compare the tag byte in a debug build. All ten `lends` tests and
+`a_debug_build_traps_a_read_of_a_lent_slot` (`crates/nvs-cli/tests/in_place.rs`) passed once by
+name, and the 125 slot `core` and `concat` matrix cases pass on the debug binary with the poison on.
 
 ### Next
 
 The rest of stage 4, in this order:
 
-- **The debug poison**, as § *Standing decisions* "Where the poison is written" says. In
-  `ownership.rs`, `run_function` emits `InstKind::LendPoison` around each lent read and call (a
-  new variant: `effects` is `NONE`, and `print.rs`, `for_each_operand` and every exhaustive match
-  need an arm). In `crates/nvs-codegen/src/emit.rs`, the variant writes or restores the tag byte
-  (`store_tag_and_bits` and `NvsValue::TAG_OFFSET`, as `emit_field_take` and `emit_field_is_init`
-  use them), and `emit_field_get` (`emit.rs:3832`) and `emit_static_get` compare under
-  `cfg!(debug_assertions)`. The poison tag is a new `nvs_runtime::Tag` value. Then
-  `a_debug_build_traps_a_read_of_a_lent_slot` in `crates/nvs-cli/tests/in_place.rs`, which sets
-  `NOVIS_LEND_IGNORE_EFFECTS` and runs `$this->p = Core\Arr::slice($this->p, T::count())` where
-  `T::count` reads `$this->p`; run once by name.
 - **`write_back_array`'s decision** (`crates/nvs-ir/src/lower/mod.rs:4066`): its property and
   static arms re-point the slot with no retain. As the lend's, they would emit a retain of the
   slot's read before the `array.set` and a second read and release around the store, and
@@ -710,7 +702,9 @@ or `C::$s = M(C::$s)` with an owning `M` now prints `_owned`, and no second read
 release of it after the store. One of `$this->g['a'] = M($this->g['a'])` prints `array.sole` and a
 store after the slot's read, and `array.set.lent`. A snapshot of `$this->o .= $x` is unchanged
 with the pass on; with it off (`--no-in-place`), the conformance output is the same, but the IR
-shows a `retain` before `str.append` and a second read and release around the store.
+shows a `retain` before `str.append` and a second read and release around the store. A snapshot
+of a lent property or static property now prints `lend.poison` after the slot's read and after the
+call, and `lend.restore` before the call.
 
 ### Backlog
 

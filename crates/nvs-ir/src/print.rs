@@ -95,6 +95,21 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    release v{}", operand.index());
         return;
     }
+    if let InstKind::LendPoison {
+        object,
+        ref class,
+        ref name,
+        on,
+        ..
+    } = inst.kind
+    {
+        let what = if on { "lend.poison" } else { "lend.restore" };
+        let _ = match object {
+            Some(object) => writeln!(out, "    {what} v{}, {class}::{name}", object.index()),
+            None => writeln!(out, "    {what} {class}::${name}"),
+        };
+        return;
+    }
     if let InstKind::SeedRaiseSite = inst.kind {
         let where_ = inst.raise_site.as_ref().map_or_else(
             || "-".to_owned(),
@@ -281,6 +296,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.take v{}, {class}::{field}", object.index()),
+        InstKind::LendPoison { .. } => unreachable!("a lend's poison is printed as a marker"),
         InstKind::FieldIsInit {
             object,
             class,

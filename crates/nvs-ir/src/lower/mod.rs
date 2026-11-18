@@ -3435,14 +3435,20 @@ impl<'a> Lowering<'a> {
         self.own_temporary(v);
         v
     }
+    /// Appends one instruction that cannot fail. In a debug build a property
+    /// read carries its statement, which the lend check names when the read
+    /// finds a lent slot's poison ([`InstKind::LendPoison`]).
     pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();
+        let raise_site = (cfg!(debug_assertions)
+            && matches!(kind, InstKind::FieldGet { .. } | InstKind::StaticGet { .. }))
+        .then(|| self.source());
         self.block_insts[b.index() as usize].push(Inst {
             result: Some(v),
             ty: Some(ty),
             kind,
             on_error: None,
-            raise_site: None,
+            raise_site,
         });
         (v, ty)
     }
