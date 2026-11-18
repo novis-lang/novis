@@ -637,6 +637,24 @@ pub struct Function {
     /// parameter, read by a call by name (`rule:types/erased-member-access`).
     /// Empty for a function nothing filled it for.
     pub param_checks: ParamChecks,
+    /// Each by-value array `foreach` over a variable with a key binding,
+    /// which the ownership pass may let walk the variable's current array
+    /// with no reference of its own (`crate::ownership`). The lowering
+    /// records the loop and decides nothing.
+    pub own_entry_loops: Vec<OwnEntryLoop>,
+}
+
+/// One by-value array `foreach` the lowering recorded for the ownership pass.
+#[derive(Clone, Copy, Debug)]
+pub struct OwnEntryLoop {
+    /// The loop's header, where the walk reads the array.
+    pub header: BlockId,
+    /// The array the walk reads, which the loop retained before the header.
+    pub walked: ValueId,
+    /// The subject variable's phi in the header.
+    pub current: ValueId,
+    /// The key binding's value in the body.
+    pub key: ValueId,
 }
 
 /// Each declared parameter's admitted classes and the rest of its type, the

@@ -952,9 +952,11 @@ impl<'a> Lowering<'a> {
         }
         // A by-reference subject is always a variable's binding, so the loop
         // takes its own reference to it, as a by-value loop over a variable does.
-        if value_inout || self.sole_operand_borrowed(subject) {
+        let loop_retained = value_inout || self.sole_operand_borrowed(subject);
+        if loop_retained {
             self.emit_retain(*cur, array_v);
         }
+        let entry_array = array_v;
 
         let seq = self.foreach_seq;
         self.foreach_seq += 1;
@@ -1087,6 +1089,24 @@ impl<'a> Lowering<'a> {
                 },
             );
             body_env.insert(name.clone(), (k_v, Ty::Str));
+            // The ownership pass decides whether the loop needs the reference
+            // it took above. A generator's loop reads its array through a
+            // phi of its own, so it is not recorded.
+            if loop_retained
+                && !value_inout
+                && array_v == entry_array
+                && let ExprKind::Variable(name_span) = &subject.kind
+                && let Some(&(current, Ty::Array)) =
+                    header_env.get(strip_sigil(span_text(self.src, *name_span)))
+                && current != array_v
+            {
+                self.own_entry_loops.push(crate::ir::OwnEntryLoop {
+                    header: header_block,
+                    walked: array_v,
+                    current,
+                    key: k_v,
+                });
+            }
         }
         let (v_v, _) = self.emit(
             body_cur,

@@ -1109,13 +1109,24 @@ impl Hashed {
     /// Shallow by construction, and correctly so — a nested array is itself
     /// copy-on-write, so retaining it shares its storage until whichever
     /// holder writes first separates it in turn.
+    ///
+    /// The copy keeps every hole where it was, so each entry has the same
+    /// position in the copy. A by-value `foreach` whose body writes only the
+    /// entry it is on walks its variable's current array by position
+    /// (`nvs_ir::ownership`), and the first write may separate that array
+    /// under the walk. **What it spends:** the copy carries the holes, which
+    /// compaction keeps to at most one per live entry.
     fn separate(&self) -> Self {
         let mut copy = Self {
-            entries: Vec::with_capacity(self.live),
+            entries: Vec::with_capacity(self.entries.len()),
             index: Index::with_capacity_and_hasher(self.live, Default::default()),
             live: self.live,
         };
-        for entry in self.entries.iter().flatten() {
+        for entry in &self.entries {
+            let Some(entry) = entry else {
+                copy.entries.push(None);
+                continue;
+            };
             #[expect(
                 unsafe_code,
                 reason = "every stored value is well-formed and kept alive by \

@@ -2421,6 +2421,8 @@ pub(crate) struct Lowering<'a> {
     /// [`Self::lower_foreach`] for why those names exist and why the `#` in
     /// them cannot collide with a local.
     foreach_seq: u32,
+    /// The table [`crate::ir::Function::own_entry_loops`] receives.
+    pub(crate) own_entry_loops: Vec<crate::ir::OwnEntryLoop>,
     /// [`Self::foreach_seq`]'s counterpart for `switch`, which reserves one
     /// [`Env`] name of its own for the subject it compares against every case
     /// — see [`Self::lower_switch`].
@@ -2772,6 +2774,7 @@ impl<'a> Lowering<'a> {
             member: member.map(str::to_owned),
             cur_stmt_span: Span::at(src.id(), 0),
             foreach_seq: 0,
+            own_entry_loops: Vec::new(),
             switch_seq: 0,
             ref_locals: FxHashMap::default(),
             inout_elements: Vec::new(),
@@ -4460,6 +4463,7 @@ impl<'a> Lowering<'a> {
         let (src, exprs, checked_types, enums) =
             (self.src, self.exprs, self.checked_types, self.enums);
         let ret = self.ret_ty;
+        let own_entry_loops = std::mem::take(&mut self.own_entry_loops);
         let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = self.finish();
         let (anon_fns, mut classes) =
             drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -4476,6 +4480,7 @@ impl<'a> Lowering<'a> {
                 debug_slots,
                 debug_returns_secret,
                 debug_catches,
+                own_entry_loops,
                 param_checks: crate::ir::ParamChecks::default(),
             },
             anon_fns,

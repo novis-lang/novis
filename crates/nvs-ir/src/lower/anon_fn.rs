@@ -309,6 +309,7 @@ pub(crate) fn lower_anon_fn(
             edge_spans,
             debug_slots,
             debug_catches,
+            own_entry_loops: Vec::new(),
             param_checks: crate::ir::ParamChecks {
                 pending: declared,
                 ..crate::ir::ParamChecks::default()
@@ -834,6 +835,7 @@ pub(crate) fn lower_callable(
                     edge_spans,
                     debug_slots,
                     debug_catches,
+                    own_entry_loops: Vec::new(),
                     param_checks: crate::ir::ParamChecks {
                         pending,
                         ..crate::ir::ParamChecks::default()
@@ -1080,6 +1082,7 @@ pub(crate) fn lower_callable(
             edge_spans,
             debug_slots,
             debug_catches,
+            own_entry_loops: Vec::new(),
             param_checks: crate::ir::ParamChecks {
                 pending,
                 ..crate::ir::ParamChecks::default()

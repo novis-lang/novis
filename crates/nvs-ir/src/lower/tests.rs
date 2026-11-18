@@ -2046,6 +2046,9 @@ fn a_value_is_moved_at_its_last_use() {
     for moved in [
         "    $xs = Core\\Arr::slice($xs, 1);\n    return $xs;",
         "    try {\n      $xs = Core\\Arr::slice($xs, 1);\n    } catch (Throwable $e) {\n    }\n    return $xs;",
+        // A second holder that is never read again is released at its last
+        // use, so the call holds the only reference.
+        "    array<int> $ys = $xs;\n    $xs = Core\\Arr::slice($xs, 1);\n    return $xs;",
     ] {
         let printed = lower_moves(moved, XS);
         assert!(printed.contains("_owned"), "moved: {moved}\n{printed}");
@@ -2100,6 +2103,38 @@ fn a_generator_moves_like_a_function() {
         .map(|f| print_function(f, map.file(file)))
         .collect();
     assert!(printed.contains("slice_owned"), "{printed}");
+}
+
+/// A by-value loop whose body writes only the entry it is on walks the array
+/// its variable has now, so the loop takes no reference of its own and the
+/// write is in place.
+#[test]
+fn a_loop_that_writes_only_its_own_entry_holds_no_reference() {
+    for body in [
+        "    foreach ($xs as string $k => int $v) {\n      $xs[$k] = $v + 1;\n    }\n    return $xs;",
+        "    foreach ($xs as string $k => int $v) {\n      if ($c) {\n        continue;\n      }\n      $xs[$k] = $v * 2;\n    }\n    return $xs;",
+    ] {
+        // `v1` is `$xs`, the array the loop walks.
+        let printed = lower_moves(body, XS);
+        assert!(!printed.contains("retain v1\n"), "{body}\n{printed}");
+    }
+}
+
+/// A loop whose body can change the array another way keeps its own
+/// reference: an append, a write at another key, an assigned key, a write to
+/// the whole variable and a call that takes the array.
+#[test]
+fn a_loop_whose_body_can_change_the_array_another_way_keeps_its_reference() {
+    for body in [
+        "    foreach ($xs as string $k => int $v) {\n      $xs[] = $v;\n    }\n    return $xs;",
+        "    foreach ($xs as string $k => int $v) {\n      $xs['0'] = $v;\n    }\n    return $xs;",
+        "    foreach ($xs as string $k => int $v) {\n      $k = '0';\n      $xs[$k] = $v;\n    }\n    return $xs;",
+        "    foreach ($xs as string $k => int $v) {\n      $xs = [];\n    }\n    return $xs;",
+        "    foreach ($xs as string $k => int $v) {\n      $xs[$k] = $v;\n      $xs = T::f($xs);\n    }\n    return $xs;",
+    ] {
+        let printed = lower_moves(body, XS);
+        assert!(printed.contains("retain v1\n"), "{body}\n{printed}");
+    }
 }
 
 /// The pass reads the IR, so a mention of the variable in a string literal

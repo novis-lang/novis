@@ -808,6 +808,7 @@ pub(crate) fn lower_generator_factory(
         edge_spans,
         debug_slots,
         debug_catches,
+        own_entry_loops: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
         debug_returns_secret: true,
     }
@@ -963,6 +964,7 @@ pub(crate) fn lower_generator_advance(
                 edge_spans,
                 debug_slots,
                 debug_catches,
+                own_entry_loops: Vec::new(),
                 param_checks: crate::ir::ParamChecks::default(),
                 debug_returns_secret: true,
             },
@@ -1121,6 +1123,7 @@ pub(crate) fn lower_generator_current(
         edge_spans,
         debug_slots,
         debug_catches,
+        own_entry_loops: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
         debug_returns_secret: true,
     }
@@ -1273,6 +1276,7 @@ pub(crate) fn lower_generator_unwind(
         edge_spans,
         debug_slots,
         debug_catches,
+        own_entry_loops: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
         debug_returns_secret: true,
     }

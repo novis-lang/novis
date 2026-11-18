@@ -1,0 +1,33 @@
+--TEST--
+A by-value loop that writes only the entry it is on visits every entry once, on a list, on a map with a removed key, and on an array another variable shares — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $list = [1, 2, 3];
+foreach ($list as string $k => int $v) {
+    $list[$k] = $v * 10;
+}
+echo Lib::show($list), "\n";
+
+// The removed key leaves a hole, and `$copy` shares the array, so the first
+// write copies it while the loop walks it.
+array<int> $map = ["a" => 1, "b" => 2, "c" => 3, "d" => 4];
+unset($map["a"]);
+array<int> $copy = $map;
+foreach ($map as string $k => int $v) {
+    if ($v == 3) {
+        continue;
+    }
+    $map[$k] = $v * 10;
+}
+echo Lib::show($map), "\n";
+echo Lib::show($copy), "\n";
+--EXPECT--
+10,20,30
+20,3,40
+2,3,4

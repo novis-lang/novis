@@ -1701,6 +1701,7 @@ pub(crate) fn delegation_forward(
         debug_slots: None,
         debug_returns_secret: true,
         debug_catches: Vec::new(),
+        own_entry_loops: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
     })
 }
