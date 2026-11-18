@@ -193,6 +193,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A test binary that `bun nv verify` reports as `exit 116` with no panic hit heap corruption.**
+  116 is the low byte of Windows' `0xC0000374`, `STATUS_HEAP_CORRUPTION`, and it shows only when
+  the tests run in parallel. Bisect the test list with `cargo test -q --lib -- --exact <names>`, a
+  few runs per half. Miri cannot run on the Windows host, and the test binary run directly exits 127
+  without cargo's `PATH`. The cause was a member that walked a borrowed value with no reference of
+  its own. See `crates/nvs-runtime/src/owned.rs` `run_borrowed`.
 - **A thread's `thread_live_bytes` does not show what a compile keeps.** The JIT compile added
   5.9 MB on the compile thread, but the artifact's object payload, built on the scoped `nvs
   artifact` thread, is freed there too, so the thread read +143 KB per compile. The units' bytes

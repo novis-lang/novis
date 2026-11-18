@@ -735,39 +735,41 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### 9. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
+- [x] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+  - [x] render, rules-render and the test step's fourteen reds, fixed and run by name
+  - [x] the heap corruption in `nvs-stdlib`'s parallel unit tests, fixed
+  - [ ] the steps after `test`: conformance, reference, soundness, clippy and extension
 - [ ] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done; only stage 9, the gate, is left. The sweep's `env-secret-proofs` red is
-stale: no goal defines it, its log file does not exist, and `git log -S` finds it only in this
+Stages 1 to 8 are done, and stage 9, the gate, is under way. The sweep's `env-secret-proofs` red
+is stale: no goal defines it, its log file does not exist, and `git log -S` finds it only in this
 goal's handoffs and a retired goal's retire commit.
 
-Stage 8 landed this session. `crates/nvs-fuzz-checks/src/in_place.rs` draws a program from bytes
-(`program`: a prelude of `Store`, `Box` and `Lib`, then one to five steps over the kind, the
-target, the form and the context, with an optional share and a `try` failure), runs it through
-`compile::lower_source` with and without `without_in_place`, and asserts the same status and
-output, and that the run ends `OK`. `replacement_programs_print_the_same_without_in_place` runs 128
-SplitMix64 seeds in about 3 s and is green. The fuzz target is `fuzz/fuzz_targets/in_place.rs`,
-hand-run (`tools/nv/cmd/fuzz.ts` `BY_HAND`). The Miri item needed no edit: `miri-units` runs every
-`nvs-runtime` unit test, and none is ignored under Miri. The attack case is green, and
-`bun nv suite tests/conformance/ --no-in-place-too` was green over all 4032 cases.
+This session ran `looper verify` four times. Every step up to and including `test` is now fixed;
+the last run's only red was `nvs-stdlib lib` exiting 116, which is fixed and committed but not yet
+seen green by a verify run. What landed, one commit each:
 
-Stage 7's report: the viewer's `copies` (`crates/nvs-cli/src/debug/api.rs` `CopySite`), the lens
-(`crates/nvs-lsp/src/server.rs` `copy_lenses`), the count (`ownership.rs` `count_copies`, index
-schema 8), and the warnings `W1032` and `W1033` (`nvs_ir::copies::warnings`).
+- `ownership.rs`: a walk ends at the value's own definition, so a loop that reassigns a local
+  moves it; `staged_retain` lets a move cross a later argument that can fail.
+- `owned.rs` `run_borrowed` takes its handle before `check`. Before, a callback that wrote the
+  subject's slot freed the array under the walk: heap corruption, `nv`'s "exit 116".
+- `registry::member_label` names each `_owned` entry; five primitives carry the deny list.
+- The test-side fixes are in the commits `fix(stdlib)`, `fix(runtime)` and `test:` of this session.
 
 ### Next
 
-- **Stage 9, the gate.** Run `looper verify` in the background, fix every failure it names in one
-  pass (the expected reds are below), and run it once more. Then the goal-end gates of AGENTS.md
-  § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes in-place-everywhere` and
-  `bun nv ci --check`. The conformance tree, with and without the pass, is already green, so a red
-  conformance case at the gate comes from a later edit.
+- **Stage 9, the gate.** Run `looper verify` in the background. Steps 1 to 18 were fixed this
+  session; the steps after `test` (conformance, reference, soundness, clippy, extension) have not
+  run yet. The two `ownership.rs` changes add moves, so a conformance case or an IR snapshot that
+  now moves where it kept a retain is the likely red: read it, and check that each removed retain
+  sits beside a removed release. Fix every red in one pass and run it once more. Then the goal-end
+  gates of AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
+  in-place-everywhere` and `bun nv ci --check`.
 - `crates/nvs-stdlib/src/arr.rs` changed, so every `Core\Arr` perf record is stale. Record them at
   the goal's end as the playbook's perf bullet says, after the last edit to that file.
 
