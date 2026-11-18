@@ -261,6 +261,14 @@ the release binary that day, and none was named above:
   write at the loop's own key, the key is not assigned, and no instruction in the body may write the
   slot another way by its effects. Nothing is added or removed, so the walk is the same. Any other
   body keeps the reference.
+  **The loop walks the variable's current array (my call, 2026-11-18).** With no reference of its
+  own, the loop cannot keep walking the array it started on: when another holder shares it, the
+  first write copies, and that holder may then free the original under the walk. So the pass also
+  points the walk at the variable's header phi. In SSA the condition is that every back edge's value
+  comes from the header's value through `ArraySet`s at the key binding's value and joins of those.
+  The walk reads each entry before the body runs, so it sees the original values. For positions to
+  hold across a copy, `Hashed::separate` keeps the holes (`crates/nvs-runtime/src/array.rs`). **What
+  it spends:** a copy of a hashed array carries its holes, at most one per live entry.
 - **A generator's local is its only reference after a resume.** A generator that appends to an array
   local and then yields took 184 ms for 10,000 values and 729 ms for 20,000. Every `yield` parks each
   local in the generator's state object, and the resume reads it back with a reference of its own
@@ -518,17 +526,26 @@ disjoint and they run side by side. The session runs the test once all batches e
   first parameter equals the entry's `slot`. Every other call keeps the borrowed symbol and no retain.
   - [x] `InstKind::CoreCall::subject` set at the two written-member sites in `lower/expr.rs`
   - [x] the pass switches `symbol` to the entry's and removes the normal path's releases
-- [ ] A binding that is never read again is released right after its last use.
-- [ ] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
+- [x] A binding that is never read again is released right after its last use.
+  - [x] `Walk::excess_releases` in `ownership.rs`: each path's first release moves before the call
+  - [x] the moved case in `a_value_is_moved_at_its_last_use`, green
+- [x] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
   dropped for a by-value loop whose body writes only the entry it is on, under the conditions in
   § *Standing decisions*.
+  - [x] `Function::own_entry_loops`, filled by `lower_foreach` (closures' loops are not yet recorded)
+  - [x] `drop_loop_reference`: the walk reads the current array, and the retain and first releases go
+  - [x] a hashed array's copy keeps its holes (`crates/nvs-runtime/src/array.rs` `Hashed::separate`)
+  - [x] `tests/conformance/in-place/a-loop-that-writes-its-own-entry-visits-every-entry.nvst`, both ways
 - [ ] `crates/nvs-ir/src/lower/generator.rs:21` `reload_field` takes the parked value and leaves the
   field empty, with no retain. A generator that is dropped while parked still frees what its fields
   hold, and one dropped while its body runs frees nothing twice.
+  - [ ] `InstKind::FieldTake` in `ir.rs`, with its operands, its print and its effects
+  - [ ] its codegen beside `emit_field_get` (`crates/nvs-codegen/src/emit.rs:1029`): read, then store a zero
+  - [ ] `reload_field` emits it with no retain, and the two `generator-local` tests
 - [ ] The five tests the `moves` check names, the two the `own-entry-loop` check names and the two the
   `generator-local` check names. Run once.
   - [x] the five `moves` tests, green (`crates/nvs-ir/src/lower/tests.rs` `lower_moves`)
-  - [ ] the two `own-entry-loop` tests
+  - [x] the two `own-entry-loop` tests
   - [ ] the two `generator-local` tests
 
 ### 4. the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
@@ -614,9 +631,14 @@ Stage 1 is done: the rule, the switch and 684 matrix cases under `tests/conforma
 green both ways. The sweep's two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last
 named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
 
-Stage 3's first three items are done: `crates/nvs-ir/src/ownership.rs` decides every move from the
-IR, and `last_use_move`, `pending_move` and `mentions_of` are gone. The five `moves` tests are green,
-and a hand check printed the same output with and without `--no-in-place`.
+Stage 3's first five items are done (`af0e518f1e`). `crates/nvs-ir/src/ownership.rs` decides every
+move from the IR. `Walk::excess_releases` moves each path's first release to just before a candidate
+call when every path releases the value twice or more, so `$b = $a; $a = Core\Arr::slice($a, 1);`
+moves when `$b` is not read again. `drop_loop_reference` drops a by-value `foreach`'s own reference
+and points its walk at the variable's header phi, which § *Standing decisions* now records with its
+reason. `Hashed::separate` keeps holes so positions survive a copy under the walk. The five `moves`
+tests and both `own-entry-loop` tests are green, and the new conformance case
+`a-loop-that-writes-its-own-entry-visits-every-entry.nvst` passes both ways.
 
 Stage 2 is done (`729cb594bf`, `e0281341e9`). `nvs_helper!`'s owning form (`crates/nvs-runtime/src/owned.rs`
 states the protocol) emits two entries per member, as § *Standing decisions* now records. Every
@@ -627,27 +649,30 @@ retain and return their argument, then `apply` releases the subject, which balan
 
 ### Next
 
-Stage 3's other three items, in one session. They share the pass and `crates/nvs-ir/src/lower/`.
+Stage 3's last item, then stage 4.
 
-- **Release at the last use.** In `crates/nvs-ir/src/ownership.rs`, hoist a binding's scope-end
-  `Release` to right after its last use on every path, before the move walk runs. That makes
-  `$b = $a; $a = Core\Arr::slice($a, 1);` move when `$b` is not read again. Today
-  `a_value_read_after_on_one_path_keeps_its_retain`'s second case keeps it, because two releases
-  follow the call; it changes from kept to moved once this lands. The `lends` check's
-  `a_dead_binding_is_released_at_its_last_use` is stage 4's, and tests this.
-- **The loop's own reference.** `crates/nvs-ir/src/lower/control.rs:955` keeps a retain on the walked
-  array. The pass drops it under § *Standing decisions*' conditions. The lowering must mark which
-  retain is the loop's, for example with a field on `InstKind::Retain` or a side table in
-  `Function`, because the pass cannot tell it from any other retain.
 - **`reload_field`** (`crates/nvs-ir/src/lower/generator.rs:21`) takes the parked value and leaves
-  the field empty.
-- Then the four tests the `own-entry-loop` and `generator-local` checks name, run once.
+  the field empty. No instruction does that today. Add `InstKind::FieldTake { object, class, field }`
+  in `crates/nvs-ir/src/ir.rs` (beside `FieldGet`, with `for_each_operand`, `print.rs` and the
+  effects row). Its codegen goes beside `emit_field_get` (`crates/nvs-codegen/src/emit.rs:1029`): read
+  the slot, then store the zero the field held after `New`, as `FieldSet` (`emit.rs:1086`) stores.
+  `reload_field` then emits it with no retain. Its two callers are the resume (`generator.rs:196`)
+  and the seeded parameters (`generator.rs:898`). `spill_field` already releases the old field
+  value, which is then null and a no-op. Write the two `generator-local` tests in
+  `crates/nvs-ir/src/lower/tests.rs` beside `a_generator_moves_like_a_function`, and run them once.
+- Then set stage 3 to done in the front matter and start stage 4 (`lends`).
+- **Closures' loops.** The three `Function` literals in `crates/nvs-ir/src/lower/anon_fn.rs` pass
+  `own_entry_loops: Vec::new()`. Take `low.own_entry_loops` before `low.finish()` there, as
+  `lower/mod.rs` does, so a loop in an anonymous function body gets the same decision.
 
 **Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
 retain. `crates/nvs-ir/tests/*.rs` and `crates/nvs-codegen`'s snapshot tests are the likely ones.
 Accept each after reading it: a removed retain must sit beside a removed release. The whole suite
-also runs stage 2's 117 owning entries for the first time through real calls.
+also runs stage 2's 117 owning entries for the first time through real calls. A snapshot with a
+by-value `foreach` that writes `$a[$k]` now walks the header phi with no `retain` of the subject, and
+`crates/nvs-runtime`'s array tests that assert a separated hashed array's vector length may change,
+because the copy keeps its holes.
 
 ### Backlog
 
