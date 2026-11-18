@@ -17,7 +17,8 @@ check that the name is right. A name written in the code is checked when the pro
 ## Use this when a name comes from outside
 
 Use `property<T>` for one property of one class. Use `propertyPath<T>` when the name goes through
-related objects, such as `customer.address.city`. Use `string<K>` for a longer text that contains
+related objects, such as `customer.address.city`. After an array property, a path can name an
+element's key with `@key` and the element with `@value`, such as `authors.@value.name`. Use `string<K>` for a longer text that contains
 names, such as a query condition.
 
 ## Do and don't

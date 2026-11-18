@@ -12007,12 +12007,13 @@
   },
   "/reference/core/reflect/steps/": {
     "feature": "Core\\Reflect::steps",
-    "hash": "d3b21555865ad028",
+    "hash": "581ee6ac01ae98b6",
     "questions": [
       "How do I get the property for each part of a dotted field path?",
       "How can a query builder know which tables a field path joins?",
       "How do I see if a step of a path goes through an array?",
-      "Which type does each name in a property path have?"
+      "Which type does each name in a property path have?",
+      "What does Core\\Reflect::steps return for @key and @value?"
     ]
   },
   "/reference/core/reflect/typeof/": {
@@ -18098,12 +18099,13 @@
   },
   "/syntax/classes/property-names/": {
     "feature": "syntax/classes/property-names.mdx",
-    "hash": "c2b127c11002784b",
+    "hash": "1884a1322fe4b562",
     "questions": [
       "Sort a list by a column name from the URL",
       "How do I read a property whose name is in a string?",
       "Check that a field name from a request exists",
       "Use a path like customer.address.city as a value",
+      "Name the key or the element of an array in a property path",
       "Check the field names inside a query condition string"
     ]
   },
