@@ -13,7 +13,7 @@ stages:
     status: done
   - id: 3
     title: every Core\Arr member changes only what its result changes
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/arr.rs, crates/nvs-stdlib/tests/in_place.rs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -114,7 +114,7 @@ one. A stack read with `last` and cut with `withoutLast` is then O(1) for each s
 with `slice` costs each page its own length. **What it spends:** nothing held. A map's first and last
 live slot are found from what it already keeps.
 
-**What each member does with a sole subject (my call).** Every owning member, all 34:
+**What each member does with a sole subject (my call).** Every owning member, all 33:
 
 - **Removes entries in place:** `slice`, `replaceRange`, `withoutFirst`, `withoutLast`, `withoutNull`,
   `filter`, `unique`, `diff`, `intersect`. A renumbering `slice` of a packed list moves its front offset.
@@ -125,8 +125,15 @@ live slot are found from what it already keeps.
   (a no-op on a list), `map` (the results from `check`, written into the existing slots), `mapKeys` and
   `flip` (the new keys from `check`, the index rebuilt in the same table).
 - **Build, because the result keeps no entry of the subject in its place:** `chunk`, `column`, `groupBy`,
-  `countBy`, `keys`, `flatten`, `flattenDeep`, `fillKeys`, `fromKeysAndValues`, `from`. Each releases the
-  subject once it has read it.
+  `countBy`, `keys`, `flatten`, `flattenDeep`, `fillKeys`, `fromKeysAndValues`. Each releases the
+  subject once it has read it. `from` takes no array subject, so it owns none.
+- **The adding members' `check` (2026-11-18).** It validates and retains what `apply` stores: the
+  values, the layers (`Retained::layers`), or the padding value with its count, which
+  `nvs_runtime::affordable` already allowed. `apply` cannot throw, so a growth the memory limit refuses
+  there is recorded and ends the request, as `prepend` already did. A layer that is the subject makes
+  the subject shared. `overlay`, `overlayDeep` and `underlay` copy a shared subject with its append
+  counter (`combine`), so a shared and a sole subject give the same result. `overlayDeep` still copies
+  each nested map it merges into.
 
 On a shared subject, every member builds only what it keeps, so `slice($big, 0, 10)` touches ten entries.
 A member that rewrites a shared subject copies the table in one block, never key by key.
@@ -207,27 +214,27 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
   - [x] `slice`, `withoutFirst` and `withoutLast` keep or release in place, and build on a shared
     subject with [`kept_counter`]'s counter.
   - [x] `replaceRange`, `withoutNull`, `filter`, `unique`, `diff`, `intersect`.
-- [ ] The adding members: `append` (`:3514`), `prepend` (`:3548`), `appendAll`, `padStart`, `padEnd`,
+- [x] The adding members: `append` (`:3514`), `prepend` (`:3548`), `appendAll`, `padStart`, `padEnd`,
   `overlay`, `overlayDeep`, `underlay`.
   - [x] `append` (recounts, then pushes) and `prepend` (front room) change a sole subject in place.
-  - [ ] `appendAll`, `padStart`, `padEnd`, `overlay`, `overlayDeep`, `underlay`.
+  - [x] `appendAll`, `padStart`, `padEnd`, `overlay`, `overlayDeep`, `underlay`.
 - [x] The reordering and rewriting members: `reverse`, `sort`, `sortByKey`, `values`, `map`, `mapKeys`,
   `flip`.
   - [x] `reverse`, `sort` and `sortByKey` through `apply_permutation`.
   - [x] `values` (a sole list as it is), `map` (`rewrite_values`), `mapKeys` and `flip` (`rekey`).
-- [ ] `crates/nvs-stdlib/tests/in_place.rs`: `every_arr_member_has_a_row_here` reads every owning
+- [x] `crates/nvs-stdlib/tests/in_place.rs`: `every_arr_member_has_a_row_here` reads every owning
   `Core\Arr` row and fails naming one with no row in the test's table. Each row says whether the member
   keeps its storage or builds. `every_arr_member_keeps_what_it_does_not_change` checks each row on a
   sole subject. `a_shared_subject_builds_only_the_window_it_keeps` counts the entries a shared `slice`
   touches. Run once by name.
 - [x] The reads that walked use stage 2's two readers: `last` (`:5302`), `lastKey` (`:5340`), the end
   `withoutLast` looks for (`:3619`) and the start of `slice`'s window (`:3340`).
-- [ ] `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-`, once each.
+- [x] `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-`, once each.
   Every ladder grows linearly.
   - [x] `arrays/read-`: both flat (the `read-ladders` check passes).
   - [x] `arrays/in-place-`: 12 flat. A typed array check reads the array's tag word (`ec7eb683fb`).
   - [x] `in-place-a-list-in-an-element-built-with-append.nvs`: a local array's element is lent.
-  - [ ] Both checks once more after the rest of stage 3's members.
+  - [x] Both checks once more after the rest of stage 3's members: 12 and 2 flat.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -242,35 +249,31 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 The person's calls (2026-11-17): fix the cause, nothing for a developer to remember, and every
 replacement in place. Every other choice in § *Standing decisions* is a session's call.
 
-Stages 1 and 2 are done. In stage 3, every member but the six adding ones changes a sole subject in
-place (`a1982946d1` the removing ones, `d05a2feabb` the reordering and rewriting ones). A scratch
-program checked each on a sole subject. The ladders were flat before those two commits.
+Stages 1, 2 and 3 are done. Every owning `Core\Arr` member that keeps entries changes a sole subject
+in place: the removing ones (`a1982946d1`), the reordering and rewriting ones (`d05a2feabb`) and the
+adding ones (`742e3626f2`). `crates/nvs-stdlib/tests/in_place.rs` (`1cbd827019`) holds the 33 owning
+members in `ARR_ROWS`, and its three tests passed when run by name. `bun nv scaling --check
+arrays/in-place-` is 12 flat and `arrays/read-` is 2 flat, after every member landed.
 
-- **Removing:** `keep_masked` (`arr.rs:3422`) takes `check`'s `Vec<bool>`. `replaceRange` uses the
-  new `NvsArray::replace_window` (`array.rs:2656`).
-- **Reordering:** `apply_permutation` (`arr.rs:5007`). **Rewriting:** `map` keeps its results in a
-  `Retained`, `flip` rewrites the values then rekeys, `mapKeys` rekeys, and `values` on a sole map
-  is `keep_window(0, MAX, true)`.
+Expected red in stage 4:
 
-Expected red in stage 4: a conformance case or a stdlib unit test that appends after a key-keeping
-`slice`, `withoutFirst`, `withoutLast`, `filter`, `withoutNull`, `unique`, `diff`, `intersect`,
-`map`, `reverse`/`sort` with `preserveKeys` or `sortByKey` of a map or a cut list now sees the
-subject's counter (§ *A kept key keeps the append counter*): `diff([1, 2, 3, 4], [2, 4])` then
-`[] = 9` writes key `"4"`, not `"3"`. Update the expected output. A test that reads the error text
-of `values`, `reverse` or `flip` for a non-array subject now sees `subject()`'s text. The perf
-records of the `Core\Arr` members go stale (playbook). The sweep's `env-secret-proofs` red is stale:
-it has no log, and its newest `git log -S` hit is a retired goal's commit.
+- A test that appends after a key-keeping member (`slice`, `withoutFirst`, `withoutLast`, `filter`,
+  `withoutNull`, `unique`, `diff`, `intersect`, `map`, a `preserveKeys` `reverse`/`sort`, `sortByKey`,
+  `overlay`, `overlayDeep`, `underlay`) of a map or a cut list sees the subject's counter
+  (§ *A kept key keeps the append counter*). Update the expected output.
+- An error-text test of `values`, `reverse` or `flip` on a non-array now sees `subject()`'s text. A
+  test that wanted `appendAll`/`padStart`/`padEnd` to throw at the memory limit sees the request end.
+- The `Core\Arr` perf records are stale (playbook). The sweep's `env-secret-proofs` red is stale:
+  no log, and nothing defines it.
 
 ### Next
 
-1. The adding members in `crates/nvs-stdlib/src/arr.rs`, with the shape of `prepend`: `check`
-   returns the values in a `Retained` (`Retained::values_of` takes an array's), and `apply`
-   branches on `subject.is_sole()`. `appendAll` (`:6070`) pushes each layer's values onto a sole
-   list, after `values` renumbers a map. `padStart`/`padEnd` (`:3976`, `padding` at `:3929`)
-   prepend or append the copies. `overlay`/`overlayDeep` (`:5994`) and `underlay` (`:6044`) write
-   each layer's entries into the sole subject (`overlay_into`, `underlay_into`).
-2. `crates/nvs-stdlib/tests/in_place.rs`'s three tests, written and run once by name.
-3. `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-` once more.
+1. Stage 4: `looper verify` with `run_in_background`, then end the turn and wait for its report.
+2. Fix every failure it names in one pass (the expected reds above), then `looper verify` once more.
+3. The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes arrays-in-place`, `bun nv ci
+   --check`, with the stale perf records recorded as the playbook says.
 
 ### Backlog
 
+- `overlayDeep` on a sole subject still copies each nested map it merges into. A nested map that is
+  itself sole could be changed in place. No ladder shows it yet.
