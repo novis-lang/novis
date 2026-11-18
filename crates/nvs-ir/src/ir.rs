@@ -2328,6 +2328,12 @@ pub enum InstKind {
         symbol: &'static str,
         /// The already-lowered arguments, positional.
         args: Vec<ValueId>,
+        /// The index in `args` of the member's first declared parameter, for a
+        /// call written in the program, or `None` for a call the lowering
+        /// makes itself. [`crate::ownership`] moves the subject into the
+        /// member's owning entry only where this equals that entry's slot, so
+        /// a prepared argument that shifts the subject is never misread.
+        subject: Option<u32>,
     },
     /// A static call to a method of a loaded extension — `Shop\Ledger::echoInt($n)`
     /// (`rule:packaging/extension-calls-are-statically-typed`).
@@ -3809,4 +3815,182 @@ pub enum Terminator {
         /// The stable id of the false edge.
         else_edge: EdgeId,
     },
+}
+
+impl InstKind {
+    /// Calls `f` with every SSA value this instruction reads, in field order,
+    /// once per occurrence. A [`InstKind::Phi`]'s incoming values are included.
+    pub fn for_each_operand(&self, mut f: impl FnMut(ValueId)) {
+        match self {
+            InstKind::StmtMarker(..)
+            | InstKind::Safepoint
+            | InstKind::DeprecationCheck { .. }
+            | InstKind::ConstBool(..)
+            | InstKind::ConstInt(..)
+            | InstKind::ConstUint(..)
+            | InstKind::ConstFloat(..)
+            | InstKind::ConstDecimal { .. }
+            | InstKind::ConstNull
+            | InstKind::ConstUnset
+            | InstKind::ConstStr(..)
+            | InstKind::ConstBytes(..)
+            | InstKind::ConstMarkup(..)
+            | InstKind::ConstDuration(..)
+            | InstKind::Param(..)
+            | InstKind::ClassDescConst { .. }
+            | InstKind::ShapeCodecConst { .. }
+            | InstKind::SourceConst { .. }
+            | InstKind::PreparedConst { .. }
+            | InstKind::QuerySiteConst { .. }
+            | InstKind::FieldSlot { .. }
+            | InstKind::StaticGet { .. }
+            | InstKind::TakeThrown
+            | InstKind::SeedRaiseSite => {}
+            InstKind::DebugLocals(locals) => {
+                for &(_, value) in locals {
+                    f(value);
+                }
+            }
+            InstKind::BinOp { lhs, rhs, .. } => {
+                f(*lhs);
+                f(*rhs);
+            }
+            InstKind::UnOp { operand, .. }
+            | InstKind::Retain { operand }
+            | InstKind::Release { operand }
+            | InstKind::Reinterpret { operand }
+            | InstKind::Tag { operand }
+            | InstKind::Untag { operand }
+            | InstKind::IsNull { operand }
+            | InstKind::TagIs { operand, .. } => f(*operand),
+            InstKind::Phi { incoming } => {
+                for &(_, value) in incoming {
+                    f(value);
+                }
+            }
+            InstKind::Call { receiver, args, .. } => {
+                if let Some(receiver) = receiver {
+                    f(*receiver);
+                }
+                args.iter().copied().for_each(&mut f);
+            }
+            InstKind::New { args, .. }
+            | InstKind::HelperCall { args, .. }
+            | InstKind::CoreCall { args, .. }
+            | InstKind::ExtensionCall { args, .. } => args.iter().copied().for_each(&mut f),
+            InstKind::ClassDescOf { object }
+            | InstKind::FieldGet { object, .. }
+            | InstKind::FieldIsInit { object, .. }
+            | InstKind::SlotGet { object, .. }
+            | InstKind::SlotProbe { object, .. }
+            | InstKind::Clone { object } => f(*object),
+            InstKind::CallVirtual {
+                lsb,
+                receiver,
+                args,
+                ..
+            } => {
+                f(*lsb);
+                if let Some(receiver) = receiver {
+                    f(*receiver);
+                }
+                args.iter().copied().for_each(&mut f);
+            }
+            InstKind::NewDynamic { desc, args, .. } => {
+                f(*desc);
+                args.iter().copied().for_each(&mut f);
+            }
+            InstKind::ClassDescIn { subject, .. } => f(*subject),
+            InstKind::FieldSet { object, value, .. } | InstKind::SlotSet { object, value, .. } => {
+                f(*object);
+                f(*value);
+            }
+            InstKind::StaticSet { value, .. } => f(*value),
+            InstKind::KeyGet { object, key } => {
+                f(*object);
+                f(*key);
+            }
+            InstKind::KeySet { object, key, value } => {
+                f(*object);
+                f(*key);
+                f(*value);
+            }
+            InstKind::ClassTest { value, class } => {
+                f(*value);
+                match class {
+                    TestedClass::Descriptor(desc) => f(*desc),
+                    TestedClass::Named(..) | TestedClass::IfDeclared(..) => {}
+                }
+            }
+            InstKind::Concat { pieces } => {
+                for piece in pieces {
+                    f(piece.value);
+                }
+            }
+            InstKind::StrAppend { target, suffix } => {
+                f(*target);
+                for piece in suffix {
+                    f(piece.value);
+                }
+            }
+            InstKind::RefSlot { init } => f(*init),
+            InstKind::RefLoad { slot } => f(*slot),
+            InstKind::RefStore { slot, value } => {
+                f(*slot);
+                f(*value);
+            }
+            InstKind::ArrayNew { entries } => {
+                for &(_, value) in entries {
+                    f(value);
+                }
+            }
+            InstKind::ArrayGet { array, key, .. } | InstKind::ArrayUnset { array, key } => {
+                f(*array);
+                f(*key);
+            }
+            InstKind::ArraySet { array, key, value } => {
+                f(*array);
+                f(*key);
+                f(*value);
+            }
+            InstKind::ArrayAppend { array, value } => {
+                f(*array);
+                f(*value);
+            }
+            InstKind::ArraySpread { array, subject } => {
+                f(*array);
+                f(*subject);
+            }
+            InstKind::ArrayNextSlot { array, from } => {
+                f(*array);
+                f(*from);
+            }
+            InstKind::ArrayKeyAt { array, slot } | InstKind::ArrayValueAt { array, slot } => {
+                f(*array);
+                f(*slot);
+            }
+        }
+    }
+}
+
+impl Terminator {
+    /// Calls `f` with every SSA value this terminator reads.
+    pub fn for_each_operand(&self, mut f: impl FnMut(ValueId)) {
+        match self {
+            Terminator::Return(value) => {
+                if let Some(value) = value {
+                    f(*value);
+                }
+            }
+            Terminator::Throw { value, source, .. } => {
+                f(*value);
+                if let Some(source) = source {
+                    f(*source);
+                }
+            }
+            Terminator::Switch { value, .. } => f(*value),
+            Terminator::Branch { cond, .. } => f(*cond),
+            Terminator::Jump(..) | Terminator::Propagate { .. } | Terminator::Catch { .. } => {}
+        }
+    }
 }

@@ -28,6 +28,10 @@ blake3.workspace = true
 # every other, so this edge runs downward like the rest of them.
 nvs-render.workspace = true
 nvs-syntax.workspace = true
+# `ownership` reads each `Core` member's owning entry and its subject's slot
+# from `nvs_stdlib::owning_entry`, the one table the helpers declare. Linked
+# already, through `nvs-types`.
+nvs-stdlib.workspace = true
 nvs-types.workspace = true
 rustc-hash.workspace = true
 

@@ -952,7 +952,16 @@ pub(crate) fn lower_callable(
             .chain(site)
             .chain(query_site)
             .collect::<Vec<_>>();
-        let (v, _) = low.emit_fallible(cur, ret, InstKind::CoreCall { symbol, args }, &env);
+        let (v, _) = low.emit_fallible(
+            cur,
+            ret,
+            InstKind::CoreCall {
+                symbol,
+                args,
+                subject: None,
+            },
+            &env,
+        );
         low.release_temporaries_since(mark, cur);
         v
     } else {

@@ -72,6 +72,7 @@ fn core_calls<'a>(program: &'a Program, symbol: &str) -> Vec<&'a [nvs_ir::ids::V
             InstKind::CoreCall {
                 symbol: called,
                 args,
+                ..
             } if *called == symbol => Some(args.as_slice()),
             _ => None,
         })

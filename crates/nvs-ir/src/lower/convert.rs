@@ -1587,6 +1587,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol: nvs_types::CORE_HTML_MARKUP,
                 args: vec![v],
+                subject: None,
             },
             env,
         );

@@ -199,6 +199,7 @@ impl<'a> Lowering<'a> {
                 InstKind::CoreCall {
                     symbol,
                     args: vec![lv, rv],
+                    subject: None,
                 },
                 env,
             );
@@ -688,6 +689,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol,
                 args: operands.map(|(_, value)| value).to_vec(),
+                subject: None,
             },
             env,
         );

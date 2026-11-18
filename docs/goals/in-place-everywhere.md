@@ -383,6 +383,15 @@ move costs nothing extra, and a symbol the table does not name can only be calle
 spends:** each owning member is compiled twice, and the borrowed entry takes one retain and one
 release per call for `apply`'s handle.
 
+**A `Core` move is a symbol switch, not a transferred argument (my call, 2026-11-18).** The lowering
+records the first declared parameter's index on `InstKind::CoreCall::subject`. The pass, seeing the
+subject released once on every path from the call's normal exit, switches the call to the owning
+entry and removes those releases. The error edge keeps its releases, because an owning entry leaves
+the subject with the caller when it fails. Marking the argument `ArgOwnership::Transferred` in the
+lowering would stage it as a transferred temporary, which is the lowering deciding a move. `nvs-ir`
+depends on `nvs-stdlib` for `owning_entry`, which `nvs-types` already linked, so no cycle and no new
+code is built.
+
 **Members that keep part of their subject write only what changes (my call).** `arrays-in-place` does
 every `Core\Arr` member, and `strings-in-place` every `Core\Str` and `Core\Bytes` member. This goal
 does the rest that keep part of their subject: `Core\Random::shuffle` and `sample`, the same pair on
@@ -494,15 +503,21 @@ disjoint and they run side by side. The session runs the test once all batches e
 
 ### 3. one ownership pass moves every value at its last use, on every path
 
-- [ ] `crates/nvs-ir/src/ownership.rs:1`: liveness over the SSA form, including the error edges and a
+- [x] `crates/nvs-ir/src/ownership.rs:1`: liveness over the SSA form, including the error edges and a
   generator's resume. Every move rule in § *Standing decisions* is applied here.
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:1444` `last_use_move` and `pending_move`
+  - [x] `InstKind::for_each_operand` and `Terminator::for_each_operand` (`crates/nvs-ir/src/ir.rs`, end)
+  - [x] the forward walk: one release on every path, phis read per edge, error edges followed
+  - [x] the avoid walk: no removed release is reachable from the entry without the call
+  - [x] run at the end of `lower_program_as`, skipped whole under `without_in_place`
+- [x] `crates/nvs-ir/src/lower/stmt.rs:1444` `last_use_move` and `pending_move`
   (`crates/nvs-ir/src/lower/mod.rs:2407`) are deleted, with their call sites at `stmt.rs:189`, `:1541`
   and `crates/nvs-ir/src/lower/call.rs:248`. The lowering emits plain retains. `crates/nvs-ir/src/lib.rs:139`
   becomes the pass's decision bullet.
-- [ ] A `Core` call whose subject the pass moves calls `nvs_stdlib::owning_entry`'s symbol with the
+- [x] A `Core` call whose subject the pass moves calls `nvs_stdlib::owning_entry`'s symbol with the
   subject `ArgOwnership::Transferred` (`call.rs:187`), only where the call's own ABI slot of the
   first parameter equals the entry's `slot`. Every other call keeps the borrowed symbol and no retain.
+  - [x] `InstKind::CoreCall::subject` set at the two written-member sites in `lower/expr.rs`
+  - [x] the pass switches `symbol` to the entry's and removes the normal path's releases
 - [ ] A binding that is never read again is released right after its last use.
 - [ ] The loop's own reference (`crates/nvs-ir/src/lower/control.rs:955`) is the pass's decision: it is
   dropped for a by-value loop whose body writes only the entry it is on, under the conditions in
@@ -512,6 +527,9 @@ disjoint and they run side by side. The session runs the test once all batches e
   hold, and one dropped while its body runs frees nothing twice.
 - [ ] The five tests the `moves` check names, the two the `own-entry-loop` check names and the two the
   `generator-local` check names. Run once.
+  - [x] the five `moves` tests, green (`crates/nvs-ir/src/lower/tests.rs` `lower_moves`)
+  - [ ] the two `own-entry-loop` tests
+  - [ ] the two `generator-local` tests
 
 ### 4. the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
 
@@ -596,6 +614,10 @@ Stage 1 is done: the rule, the switch and 684 matrix cases under `tests/conforma
 green both ways. The sweep's two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last
 named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
 
+Stage 3's first three items are done: `crates/nvs-ir/src/ownership.rs` decides every move from the
+IR, and `last_use_move`, `pending_move` and `mentions_of` are gone. The five `moves` tests are green,
+and a hand check printed the same output with and without `--no-in-place`.
+
 Stage 2 is done (`729cb594bf`, `e0281341e9`). `nvs_helper!`'s owning form (`crates/nvs-runtime/src/owned.rs`
 states the protocol) emits two entries per member, as § *Standing decisions* now records. Every
 module's `address` returns an `nvs_runtime::Entry`. 117 members are in the form; each `apply` returns
@@ -605,23 +627,27 @@ retain and return their argument, then `apply` releases the subject, which balan
 
 ### Next
 
-Stage 3, its first three items, in one session: they share `crates/nvs-ir/src/lower/` and the new
-pass.
+Stage 3's other three items, in one session. They share the pass and `crates/nvs-ir/src/lower/`.
 
-- `crates/nvs-ir/src/ownership.rs` (new): liveness over the SSA form, with the error edges and a
-  generator's resume.
-- `crates/nvs-ir/src/lower/stmt.rs:1446` `last_use_move` and its call sites go. The lowering emits
-  plain retains.
-- `crates/nvs-ir/src/lower/call.rs:187`: a moved `Core` subject calls `nvs_stdlib::owning_entry`'s
-  symbol (`crates/nvs-stdlib/src/lib.rs` `owning_entry`) only where the call's ABI slot of the first
-  parameter equals the entry's `slot`. A prepared argument shifts it: `Core\IO::read` and
-  `Core\Config::get` take theirs at 1, `Core\Time\DateTime::format` at 2. `nvs-ir` must reach that
-  table without a dependency cycle; check `crates/nvs-ir/Cargo.toml` before choosing how. The codegen
-  resolves the `_owned` symbol from `nvs_stdlib::symbols()`, which already lists it.
+- **Release at the last use.** In `crates/nvs-ir/src/ownership.rs`, hoist a binding's scope-end
+  `Release` to right after its last use on every path, before the move walk runs. That makes
+  `$b = $a; $a = Core\Arr::slice($a, 1);` move when `$b` is not read again. Today
+  `a_value_read_after_on_one_path_keeps_its_retain`'s second case keeps it, because two releases
+  follow the call; it changes from kept to moved once this lands. The `lends` check's
+  `a_dead_binding_is_released_at_its_last_use` is stage 4's, and tests this.
+- **The loop's own reference.** `crates/nvs-ir/src/lower/control.rs:955` keeps a retain on the walked
+  array. The pass drops it under § *Standing decisions*' conditions. The lowering must mark which
+  retain is the loop's, for example with a field on `InstKind::Retain` or a side table in
+  `Function`, because the pass cannot tell it from any other retain.
+- **`reload_field`** (`crates/nvs-ir/src/lower/generator.rs:21`) takes the parked value and leaves
+  the field empty.
+- Then the four tests the `own-entry-loop` and `generator-local` checks name, run once.
 
-Then the loop's own reference and the generator's `reload_field`, and the stage's nine tests, run once.
-No test is expected to go red from stage 2: every existing call still uses the borrowed symbol. The
-gate will run the whole suite over stage 2's 117 conversions for the first time.
+**Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
+a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
+retain. `crates/nvs-ir/tests/*.rs` and `crates/nvs-codegen`'s snapshot tests are the likely ones.
+Accept each after reading it: a removed retain must sit beside a removed release. The whole suite
+also runs stage 2's 117 owning entries for the first time through real calls.
 
 ### Backlog
 

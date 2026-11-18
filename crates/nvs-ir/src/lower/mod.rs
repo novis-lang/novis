@@ -1487,6 +1487,11 @@ fn lower_program_as(
         functions.push(function);
     }
 
+    // The lowering decides no move; the ownership pass decides every one, and
+    // the off switch skips it whole.
+    if in_place_on() {
+        crate::ownership::run(&mut functions);
+    }
     crate::ir::Program {
         functions,
         classes,
@@ -2440,17 +2445,6 @@ pub(crate) struct Lowering<'a> {
     /// every frame that has no such loop open and the write-through hook
     /// costs one `is_empty` there.
     inout_elements: Vec<InoutElement>,
-    /// The local the statement being lowered passes at its last use, and the
-    /// span of the argument that passes it — see [`Self::last_use_move`],
-    /// the one function that decides it.
-    ///
-    /// Set by the statement before its value is lowered and cleared after.
-    /// [`Self::lower_fixed_arg`] takes it when that argument reaches a
-    /// parameter the callee owns. It then passes the local's reference with no
-    /// retain and removes the local from `Env`, so no landing block and no
-    /// scope end releases it again. Left in place, nothing moved, and the
-    /// local is still in `Env`.
-    pub(crate) pending_move: Option<(Span, String)>,
     /// By-reference arguments staged for the calls currently being lowered,
     /// awaiting their copy-back — see [`Ty::Ref`] and
     /// [`Self::flush_ref_writebacks`].
@@ -2522,8 +2516,8 @@ pub(crate) struct Lowering<'a> {
     /// `Some` under [`with_debug_slots`]: the variables given a slot so far.
     /// [`Self::emit_stmt_marker`] fills it, and [`Self::finish`] hands it out.
     debug: Option<DebugSlots>,
-    /// False under [`without_in_place`]: [`Self::last_use_move`] moves
-    /// nothing, and a self-concatenation takes the general store.
+    /// False under [`without_in_place`]: a self-concatenation takes the
+    /// general store.
     in_place: bool,
 }
 
@@ -2781,7 +2775,6 @@ impl<'a> Lowering<'a> {
             switch_seq: 0,
             ref_locals: FxHashMap::default(),
             inout_elements: Vec::new(),
-            pending_move: None,
             pending_refs: Vec::new(),
             generator: None,
             anon_fns: Vec::new(),

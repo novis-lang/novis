@@ -912,7 +912,7 @@ impl Emitter<'_, '_> {
             // `rule:testing/debug-probes`'s probe pair, labelled with the
             // member's written name; a symbol no member row names is a helper
             // the compiler called on its own, and has none.
-            InstKind::CoreCall { symbol, args } => {
+            InstKind::CoreCall { symbol, args, .. } => {
                 let label = nvs_stdlib::registry::member_label(symbol);
                 return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper, label);
             }

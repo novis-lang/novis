@@ -136,19 +136,17 @@
 //!   call where a write of depth two made three, and one small key array per
 //!   write at depth three or more. An unshared row costs O(what the write
 //!   adds), not O(the row).
-//! - **A local passed at its last use is moved, and a moved local is absent
-//!   from `Env`.** In `$x = call(…, $x, …)` and `return call(…, $x, …)`,
-//!   `lower::Lowering::last_use_move` is the one function that decides it, and
-//!   `Lowering::lower_fixed_arg` applies it where the argument meets a
-//!   parameter the callee owns. The argument goes with no retain, staged as
-//!   transferred until the call is emitted, and the local leaves `Env` before
-//!   the next argument is lowered. Every reader of a frame's locals reads
-//!   `Env`: the landing blocks, the scope-end sweep, the debug markers and the
-//!   merges. So none of them releases the moved value again. A generator,
-//!   whose spills also read `Env`, and a statement inside a `try` never move.
-//!   **What it spends:** one text scan of the statement while compiling, and
-//!   one retain and one release fewer per call. The callee then holds the only
-//!   reference, so its write is in place (`rule:types/arrays`).
+//! - **The lowering decides no move; [`ownership`] decides every one.** The
+//!   lowering emits a plain retain and release for every reference, and the
+//!   pass, run at the end of [`lower::lower_program`], removes a retain and the
+//!   releases after it where the value is released exactly once on every path
+//!   from the call and read nothing else. A move into an owning `Core` member
+//!   calls its owning entry. Error edges, loops, a `try` and a generator's
+//!   resume are edges of the IR, so the pass reads them as it reads any other.
+//!   **What it spends:** one walk per candidate call while compiling, and one
+//!   retain and one release fewer per moved call. The callee then holds the
+//!   only reference, so its write is in place
+//!   (`rule:types/a-replaced-value-is-changed-in-place`).
 //! - **A shape's wire contract is a constant of the call site, never of its
 //!   class.** A member handed an inline shape as its type argument —
 //!   `Core\Arr::shapeAs<{ n: int }>` — needs the per-field wire types
@@ -628,6 +626,7 @@
 pub mod ids;
 pub mod ir;
 pub mod lower;
+pub mod ownership;
 pub mod print;
 pub mod ty;
 

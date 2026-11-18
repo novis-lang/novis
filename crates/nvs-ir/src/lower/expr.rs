@@ -1231,6 +1231,7 @@ impl<'a> Lowering<'a> {
                 InstKind::CoreCall {
                     symbol,
                     args: vec![receiver],
+                    subject: None,
                 },
                 env,
             );
@@ -2699,6 +2700,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol: nvs_types::CORE_STR_FORMAT_PIECE,
                 args: vec![spec, v],
+                subject: None,
             },
             env,
         );
@@ -2814,6 +2816,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol: nvs_types::CORE_HTML_MARKUP,
                 args: vec![bytes],
+                subject: None,
             },
             env,
         );
@@ -2869,6 +2872,7 @@ impl<'a> Lowering<'a> {
                 InstKind::CoreCall {
                     symbol: nvs_types::CORE_HTML_MARKUP_TEXT,
                     args: vec![v],
+                    subject: None,
                 },
                 env,
             );
@@ -2911,6 +2915,7 @@ impl<'a> Lowering<'a> {
             PartKind::HtmlText => InstKind::CoreCall {
                 symbol: nvs_types::CORE_HTML_ESCAPE_TEXT,
                 args: vec![part.value],
+                subject: None,
             },
             PartKind::Format(_) => panic!(
                 "nvs-ir: an html template hole lowered to a `Core\\Str::format` placeholder — \
@@ -3805,6 +3810,7 @@ impl<'a> Lowering<'a> {
                 InstKind::CoreCall {
                     symbol,
                     args: values,
+                    subject: None,
                 },
                 env,
             );
@@ -4429,6 +4435,7 @@ impl<'a> Lowering<'a> {
                     nvs_types::CORE_SCRIPT_SPAWN
                 },
                 args: call_args,
+                subject: None,
             },
             env,
         );
@@ -4542,6 +4549,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol: nvs_types::CORE_SCRIPT_AWAIT,
                 args: vec![handle],
+                subject: None,
             },
             env,
         );
@@ -4662,6 +4670,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol,
                 args: lowered,
+                subject: None,
             },
             env,
         );
@@ -4767,6 +4776,7 @@ impl<'a> Lowering<'a> {
             InstKind::CoreCall {
                 symbol: nvs_types::CORE_ROUTE_IS,
                 args: vec![object_v, label],
+                subject: None,
             },
             env,
         );
@@ -4953,6 +4963,10 @@ impl<'a> Lowering<'a> {
             arg_values.extend(written_enum);
             arg_values.extend(route_attributes);
             arg_values.push(object_v);
+            // The first declared parameter's slot, after the receiver and every
+            // prepared argument. `crate::ownership` reads it.
+            let subject = (!values.is_empty())
+                .then(|| u32::try_from(arg_values.len()).expect("an argument count fits u32"));
             arg_values.extend(values);
             arg_values.extend(site);
             arg_values.extend(query_site);
@@ -4962,6 +4976,7 @@ impl<'a> Lowering<'a> {
                 InstKind::CoreCall {
                     symbol,
                     args: arg_values,
+                    subject,
                 },
                 env,
             );
@@ -5266,11 +5281,18 @@ impl<'a> Lowering<'a> {
             let path_graph =
                 nvs_types::core_takes_path_graph(&call.class.to_string(), &call.method)
                     .then(|| self.path_graph_constant(*cur, call.path_graph.as_deref()));
-            let arg_values = prepared
+            let leading: Vec<ValueId> = prepared
                 .into_iter()
                 .chain(source)
                 .chain(written_class.into_iter().flatten())
                 .chain(written_enum)
+                .collect();
+            // The first declared parameter's slot, after every prepared
+            // argument. `crate::ownership` reads it.
+            let subject = (!lowered.values.is_empty())
+                .then(|| u32::try_from(leading.len()).expect("an argument count fits u32"));
+            let arg_values = leading
+                .into_iter()
                 .chain(lowered.values)
                 .chain(path_graph)
                 .chain(site)
@@ -5282,6 +5304,7 @@ impl<'a> Lowering<'a> {
                 InstKind::CoreCall {
                     symbol,
                     args: arg_values,
+                    subject,
                 },
                 env,
             );

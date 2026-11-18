@@ -65,6 +65,7 @@ fn last_arguments_are_sites(program: &Program, symbol: &str) -> usize {
             let InstKind::CoreCall {
                 symbol: called,
                 args,
+                ..
             } = &inst.kind
             else {
                 continue;

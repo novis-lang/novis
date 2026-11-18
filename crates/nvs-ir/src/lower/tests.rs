@@ -2007,58 +2007,114 @@ fn a_uint_hole_joins_as_a_part() {
     assert!(printed.contains("str.append v"), "{printed}");
 }
 
-/// `$xs = T::f($xs)` and `return T::f($xs)` pass the local's own reference
-/// with no retain, and release nothing for it afterwards. Each program after
-/// the first breaks one condition of `Lowering::last_use_move`, and keeps the
-/// retain.
+/// `body` as `T::m`'s body, with `params`, beside two Novis callees `f` and
+/// `g`, lowered as a whole program so the ownership pass has run. Every
+/// function the program lowered is printed, so a generator's own functions
+/// are in it too.
+fn lower_moves(body: &str, params: &str) -> String {
+    let src = format!(
+        "<?nvs\nclass T {{\n  static function m({params}): array<int> {{\n{body}\n  }}\n  \
+         static function f(array<int> $a): array<int> {{ return $a; }}\n  \
+         static function g(array<int> $a, string $s): array<int> {{ return $a; }}\n}}\n"
+    );
+    let (program, map, file) = lower_whole_file_with_src(&src);
+    program
+        .functions
+        .iter()
+        .filter(|f| f.name.starts_with("T::m"))
+        .map(|f| print_function(f, map.file(file)))
+        .collect()
+}
+
+const XS: &str = "array<int> $xs, bool $c";
+
+/// A value passed at its last use goes to the callee with no retain, and a
+/// subject passed to an owning `Core` member goes to its owning entry. That
+/// holds for a different target, for a nested call and inside a `try` whose
+/// `catch` does not read the value.
 #[test]
-fn a_local_is_moved_only_where_every_condition_holds() {
-    let lower = |body: &str, params: &str| {
-        let src = format!(
-            "<?nvs\nclass T {{\n  static function m({params}): array<int> {{\n{body}\n  }}\n  \
-             static function f(array<int> $a): array<int> {{ return $a; }}\n  \
-             static function g(array<int> $a, array<int> $b): array<int> {{ return $a; }}\n}}\n"
-        );
-        let (f, map, file) = lower_first_method(&src);
-        print_function(&f, map.file(file))
-    };
-    let xs = "array<int> $xs";
-    for (moved, params) in [
-        ("    $xs = T::f($xs);\n    return $xs;", xs),
-        ("    return T::f($xs);", xs),
+fn a_value_is_moved_at_its_last_use() {
+    for moved in [
+        "    $xs = T::f($xs);\n    return $xs;",
+        "    return T::f($xs);",
+        "    array<int> $ys = T::f($xs);\n    return $ys;",
+        "    $xs = T::f(T::f($xs));\n    return $xs;",
     ] {
-        let printed = lower(moved, params);
+        let printed = lower_moves(moved, XS);
         assert!(!printed.contains("retain v"), "moved: {moved}\n{printed}");
     }
-    for (kept, params) in [
-        // Written twice in the statement.
-        ("    $xs = T::g($xs, $xs);\n    return $xs;", xs),
-        // Not an argument of the statement's own call.
-        ("    $xs = T::f(T::f($xs));\n    return $xs;", xs),
-        // A different target.
-        (
-            "    array<int> $ys = [];\n    $ys = T::f($xs);\n    return $ys;",
-            xs,
-        ),
-        // Inside a `try`.
-        (
-            "    try {\n      $xs = T::f($xs);\n    } catch (Throwable $e) {\n    }\n    return $xs;",
-            xs,
-        ),
-        // An anonymous function in the statement reads the local too.
-        (
-            "    $xs = T::g($xs, (fn(): array<int> => $xs)());\n    return $xs;",
-            xs,
-        ),
-        // An `inout` parameter.
-        (
-            "    $xs = T::f($xs);\n    return $xs;",
-            "inout array<int> $xs",
-        ),
+    for moved in [
+        "    $xs = Core\\Arr::slice($xs, 1);\n    return $xs;",
+        "    try {\n      $xs = Core\\Arr::slice($xs, 1);\n    } catch (Throwable $e) {\n    }\n    return $xs;",
     ] {
-        let printed = lower(kept, params);
-        assert!(printed.contains("retain v"), "kept: {kept}\n{printed}");
+        let printed = lower_moves(moved, XS);
+        assert!(printed.contains("_owned"), "moved: {moved}\n{printed}");
     }
+}
+
+/// A value that one path reads after the call keeps its retain, and a
+/// `Core` member called with it borrows it.
+#[test]
+fn a_value_read_after_on_one_path_keeps_its_retain() {
+    let kept =
+        "    array<int> $ys = T::f($xs);\n    if ($c) {\n      return $xs;\n    }\n    return $ys;";
+    let printed = lower_moves(kept, XS);
+    assert!(printed.contains("retain v"), "{printed}");
+    for kept in [
+        "    array<int> $ys = Core\\Arr::slice($xs, 1);\n    if ($c) {\n      return $xs;\n    }\n    return $ys;",
+        // A second holder releases the value too.
+        "    array<int> $ys = $xs;\n    $xs = Core\\Arr::slice($xs, 1);\n    return $ys;",
+        // A loop reads it again on its back edge.
+        "    array<int> $ys = [];\n    while ($c) {\n      $ys = Core\\Arr::slice($xs, 1);\n    }\n    return $ys;",
+    ] {
+        let printed = lower_moves(kept, XS);
+        assert!(!printed.contains("slice_owned"), "kept: {kept}\n{printed}");
+    }
+}
+
+/// A Novis callee owns its argument on its error exit, so a `catch` that
+/// reads the value keeps the retain. An owning `Core` member leaves its
+/// subject with the caller on an error, so the same `catch` does not stop it.
+#[test]
+fn a_value_a_catch_reads_is_kept_on_the_error_edge() {
+    let kept = "    try {\n      $xs = T::f($xs);\n    } catch (Throwable $e) {\n      return $xs;\n    }\n    return $xs;";
+    let printed = lower_moves(kept, XS);
+    assert!(printed.contains("retain v"), "{printed}");
+    let moved = "    try {\n      $xs = Core\\Arr::slice($xs, 1);\n    } catch (Throwable $e) {\n      return $xs;\n    }\n    return $xs;";
+    let printed = lower_moves(moved, XS);
+    assert!(printed.contains("slice_owned"), "{printed}");
+}
+
+/// A generator's body moves a value at its last use as a function does.
+#[test]
+fn a_generator_moves_like_a_function() {
+    let src = "<?nvs\nclass T {\n  static function f(array<int> $a): array<int> { return $a; }\n  \
+               static function gen(array<int> $xs): Iterator<uint> {\n    \
+               yield 1;\n    $xs = T::f($xs);\n    $xs = Core\\Arr::slice($xs, 1);\n    \
+               yield Core\\Arr::count($xs);\n  }\n}\n";
+    let (program, map, file) = lower_whole_file_with_src(src);
+    let printed: String = program
+        .functions
+        .iter()
+        .filter(|f| f.name.contains("gen"))
+        .map(|f| print_function(f, map.file(file)))
+        .collect();
+    assert!(printed.contains("slice_owned"), "{printed}");
+}
+
+/// The pass reads the IR, so a mention of the variable in a string literal
+/// or a comment does not keep a retain.
+#[test]
+fn the_lowering_no_longer_scans_text_for_moves() {
+    for moved in [
+        "    $xs = T::g($xs, '$xs');\n    return $xs;",
+        "    $xs = T::f($xs /* $xs */);\n    return $xs;",
+    ] {
+        let printed = lower_moves(moved, XS);
+        assert!(!printed.contains("retain v"), "moved: {moved}\n{printed}");
+    }
+    let lower = include_str!("stmt.rs");
+    assert!(!lower.contains("fn mentions_of"), "the text scan is gone");
 }
 
 #[test]
@@ -4570,7 +4626,7 @@ fn a_resolved_route_link_releases_its_params_array() {
     let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());
     let call = insts()
         .find_map(|i| match &i.kind {
-            InstKind::CoreCall { symbol, args } if *symbol == nvs_types::CORE_ROUTE_LINK => {
+            InstKind::CoreCall { symbol, args, .. } if *symbol == nvs_types::CORE_ROUTE_LINK => {
                 Some(args.clone())
             }
             _ => None,
