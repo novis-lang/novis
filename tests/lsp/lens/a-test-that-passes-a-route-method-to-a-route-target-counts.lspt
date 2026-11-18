@@ -1,0 +1,36 @@
+--TEST--
+a test that passes a route method to a `#[Core\Router\Target]` argument counts as a reference to that method, and its used-by counts read at least, because the method that receives it may call it or only link to it, and a count is never too high, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Test;
+
+class Shop {
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string {
+        return "item";
+    }
+}
+
+class Menu {
+    public static function entry(#[Core\Router\Target] callable $route,
+                                 #[Core\Router\Params] array $params): string {
+        return Core\Router::url($route, $params);
+    }
+}
+
+class MenuTest {
+    #[Test]
+    public function entryLinksTheItem(): void {
+        Test::assertEquals('/items/3', Menu::entry(Shop::show, ['id' => 3]));
+    }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 1 reference -> case.nvs:22:52
+7:28 1 reference -> case.nvs:22:58
+7:28 used by at least 1 route, at least 0 tests (static)
+12:7 1 reference -> case.nvs:22:40
+13:28 1 reference -> case.nvs:22:46
+13:28 used by 0 routes, 1 test (static) -> runs MenuTest::entryLinksTheItem

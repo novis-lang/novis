@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/check.rs, tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst, tests/conformance/lang/a-test-links-a-method-reference-passed-as-a-value.nvst, docs/rules/routing/a-link-reaches-another-module.md, docs/rules/core-classes/router-signed-url.md]
   - id: 3
     title: the editor completes the keys, hovers the reference and counts the call as a use of the route method
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/arguments.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/reach.rs, crates/nvs-lsp/tests/completion_edits.rs, crates/nvs-cli/src/code.rs, crates/nvs-cli/tests/code.rs, tests/lsp/references/a-routed-method-answers-every-link-to-it.lspt, docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md]
   - id: 4
     title: the feature's proofs and its pages
@@ -223,6 +223,13 @@ lens and `nvs code refs` are expected to need no code: stage 3's tests prove it.
 `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` already says, because the wrapper
 may call it.
 
+**The lens does not count a test that passes the reference (my call, found in stage 3).** The
+reference is an occurrence with no caller, as every method taken as a callable value is, so
+`nvs code refs` and the reference lens list it and the "used by" lens reads "at least" without
+counting the test. Counting it as an edge would break that rule's "a count is never too high": a
+`Target` method may only build a link and never run the route method. The rule stands unchanged,
+and `tests/lsp/lens/a-test-that-passes-a-route-method-to-a-route-target-counts.lspt` pins it.
+
 **What it costs.** Compile time only. One recorded site per call of a marked method whose `Target`
 argument is a written reference, held until `resolve` runs and freed with the check. One
 `Option<RouteSlots>` per signature and per resolved call, held once per compiled program. Nothing at
@@ -319,23 +326,23 @@ names, copying the shape of `tests/lsp/references/a-routed-method-answers-every-
 `docs/agent/conventions.md` § *An `.lspt` case*. The session writes the three Rust tests and runs both
 checks once.
 
-- [ ] `crates/nvs-lsp/src/arguments.rs:152` `route_key_at`: a resolved call with `route_slots`
+- [x] `crates/nvs-lsp/src/arguments.rs:152` `route_key_at`: a resolved call with `route_slots`
   answers like a link, with the array at the `params` slot and the reference at the `target` slot.
   `:214` `route_argument_at`: the argument at the `target` slot is a route argument. Both keep the
   `is_link` and `is_match_is` paths as they are.
-- [ ] `crates/nvs-lsp/src/completion.rs:778` and `:1256` `route_keys`: expected to need no change once
+- [x] `crates/nvs-lsp/src/completion.rs:778` and `:1256` `route_keys`: expected to need no change once
   `route_key_at` answers. The Rust tests prove it.
-- [ ] `crates/nvs-lsp/src/hover.rs:177`: a hover on a `Target` reference answers what a hover on a
+- [x] `crates/nvs-lsp/src/hover.rs:177`: a hover on a `Target` reference answers what a hover on a
   link's local reference answers. Expected to need no code; the `.lspt` case proves it.
-- [ ] `crates/nvs-lsp/src/reach.rs:51` and `crates/nvs-cli/src/code.rs:497`: a written reference at a
+- [x] `crates/nvs-lsp/src/reach.rs:51` and `crates/nvs-cli/src/code.rs:497`: a written reference at a
   `Target` argument is an occurrence of the route method, so `nvs code refs` lists it and the lens
   counts the test that writes it, with "at least" as the rule says. Expected to need no code. If the
   index does not record it, the occurrence is added where the index records a method reference, and
   the rule fragment says so.
-- [ ] `crates/nvs-lsp/tests/completion_edits.rs:188`: `a_route_params_key_is_offered_the_routes_parameters`
+- [x] `crates/nvs-lsp/tests/completion_edits.rs:188`: `a_route_params_key_is_offered_the_routes_parameters`
   and `a_route_target_argument_is_offered_the_routed_methods_first`, beside the link's two tests.
   `crates/nvs-cli/tests/code.rs:92`: `refs_lists_a_route_target_argument_as_a_use_of_the_route_method`.
-- [ ] The three `.lspt` cases the `editor` check names, and both checks run once.
+- [x] The three `.lspt` cases the `editor` check names, and both checks run once.
 
 ### 4. the feature's proofs and its pages
 
@@ -386,15 +393,16 @@ heading, `about.md`, `details.md` and the website section, and runs the `feature
 
 ### State
 
-Stages 1 and 2 are done. `attribute-sites`, `call-checked` and `call-checked-rust` are green.
-`crates/nvs-types/src/links.rs` `record_target_site` records a call of a method with
-`route_slots` from the three call paths in `crates/nvs-types/src/expr/calls.rs` (instance, static,
-`new`), and `resolve` runs the four checks on a `SiteKind::Target` site and records nothing, so the
-`Call` stands. Each message names the called method (`LinkSite::this`, `LinkSite::params_word`).
-`note_link_target` is unchanged, so the reference keeps its visibility check (`E0471` for another
-class's private method). Stage 2 found that no user parameter can default to an empty array
-(`E0451`), so an omitted `Params` is not checked: see the decision *An omitted `Params`*, and the
-rule fragment says the same.
+Stages 1, 2 and 3 are done. `attribute-sites`, `call-checked`, `call-checked-rust`, `editor` and
+`editor-rust` are green.
+
+Stage 3: `crates/nvs-lsp/src/arguments.rs` `route_key_at` and `route_argument_at` read
+`ResolvedCall::route_slots` first and fall back to the `route`/`params` names for `Core` links and
+`Match::is`. Completion, hover and `nvs code refs` needed no other code. The "used by" lens reads
+"at least" and does not count a test that passes the reference: see the decision *The lens does
+not count a test that passes the reference*.
+Stage 2 checks a `Target` call in `crates/nvs-types/src/links.rs` `record_target_site` and
+`resolve`, and an omitted `Params` is not checked (decision *An omitted `Params`*).
 
 The sweep's reds: `env-secret-proofs` is stale (its newest `git log -S` hit is a retire commit), and
 the nightly `supply chain` failure (`chrono` unmaintained, through `rxing`) is already fixed on disk
@@ -406,14 +414,15 @@ The working tree carries edits this goal did not make, in `crates/nvs-lsp/src/in
 
 ### Next
 
-Stages 3 and 4 touch disjoint files and may run side by side (see *Lanes*). Stage 3 from its first
-item: `crates/nvs-lsp/src/arguments.rs:152` `route_key_at` and `:237`, which ask
-`nvs_types::is_link` / `is_match_is` today, read `ResolvedCall::route_slots` for the target and
-params indexes. Stage 4's pages quote the error text in the ten new `.nvst` cases under
-`tests/conformance/{reject,lang}/a-route-*.nvst`, and its examples cannot use `$params = []` (write
-the `Params` parameter as required). The `editor`, `editor-rust` and `feature-proofs` checks are
-red until their stages write them. No existing test is expected to go red: the `Core` link path
-keeps its slots `(0, Some(1))` and its omitted `$params` is still `[]`.
+Stage 4 from its first item: `docs/examples/lang/attributes/chapter.md:13`, then `about.md`, the
+three examples, the attacks, the bench and the `FeatureSection` in
+`website/src/content/docs/syntax/attributes/routes.mdx:55`. Run
+`bun nv proofs --id lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route`
+for the paths it owes. The pages quote the error text in the ten new `.nvst` cases under
+`tests/conformance/{reject,lang}/a-route-*.nvst`. The examples cannot use `$params = []`: write the
+`Params` parameter as required. A route method passed from top-level code must be `static`.
+`feature-proofs` stays red until stage 4 ends. No existing test is expected to go red: the `Core`
+link path keeps its `route`/`params` lookup.
 
 ### Backlog
 

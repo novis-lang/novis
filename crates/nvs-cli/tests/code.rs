@@ -116,6 +116,36 @@ fn refs_prints_the_declaration_first_then_each_use_with_its_position_and_line() 
     assert!(kinds.contains(&"import"), "{class}");
 }
 
+/// A program with one route and a method that takes a route, and a call that
+/// passes the route method to it on line 12.
+const MENU: &str = "<?nvs\nclass Pages {\n    \
+                    #[Core\\Route(path: '/pages/{id}', method: Core\\Http\\Method::Get)]\n    \
+                    #[Core\\Access(allow: Core\\Audience::Public)]\n    \
+                    public static function show(uint $id): string { return 'page'; }\n}\n\
+                    class Menu {\n    \
+                    public static function entry(#[Core\\Router\\Target] callable $route,\n        \
+                    #[Core\\Router\\Params] array $params): string { return 'entry'; }\n}\n\n\
+                    echo Menu::entry(Pages::show, ['id' => 3]);\n";
+
+// covers: tools:cli/nvs-code
+#[test]
+fn refs_lists_a_route_target_argument_as_a_use_of_the_route_method() {
+    let dir = project("route-target", &[("public/menu.nvs", MENU)]);
+    let (out, err, ok) = code(&dir, &["refs", "Pages::show"]);
+    assert!(ok, "{err}");
+    let lines: Vec<Vec<&str>> = out
+        .lines()
+        .map(|line| line.split_whitespace().collect())
+        .collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    assert_eq!(lines[0][..2], ["public/menu.nvs:5:28", "declared"], "{out}");
+    assert_eq!(lines[1][..2], ["public/menu.nvs:12:25", "use"], "{out}");
+    assert_eq!(
+        lines[1][2..].join(" "),
+        "echo Menu::entry(Pages::show, ['id' => 3]);"
+    );
+}
+
 // covers: tools:cli/nvs-code
 #[test]
 fn refs_of_a_name_nothing_uses_prints_nothing_and_exits_zero() {

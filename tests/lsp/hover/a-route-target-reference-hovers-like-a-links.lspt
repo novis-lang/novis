@@ -1,0 +1,30 @@
+--TEST--
+a route method written at a `#[Core\Router\Target]` argument answers the method's doc comment, as the same reference written in a `Core\Router::url` link does, `rule:routing/a-route-target-parameter-is-checked-like-a-link`
+--FILE--
+<?nvs
+class Shop
+{
+    /// Shows one item of the shop.
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string
+    {
+        return "item";
+    }
+}
+
+class Menu
+{
+    public static function entry(#[Core\Router\Target] callable $route,
+                                 #[Core\Router\Params] array $params): string
+    {
+        return "entry";
+    }
+}
+
+echo Core\Router::url(Shop::show, ['id' => 3]);
+echo Menu::entry(Shop::sh<|>ow, ['id' => 3]);
+--REQUEST--
+hover
+--EXPECT--
+Shows one item of the shop.

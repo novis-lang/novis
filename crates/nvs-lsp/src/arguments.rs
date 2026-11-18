@@ -148,7 +148,10 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<Named> {
 /// whose route the table holds is recorded as `nvs_types::ExprInfo::RouteLink`
 /// over the call, and its reference is the first argument. Any other link is
 /// a resolved call whose array fills the parameter called `params`, and whose
-/// reference fills the one called `route`.
+/// reference fills the one called `route`. A call of a user method that takes
+/// a route (`rule:routing/a-route-target-parameter-is-checked-like-a-link`)
+/// is answered the same way, with the two parameters its
+/// `nvs_types::ResolvedCall::route_slots` names.
 pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, String)> {
     let (literal, holders) = holders_at(analysed, offset)?;
     let file = analysed.map.file(analysed.entry);
@@ -178,22 +181,27 @@ pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span
         written.first().map(|(span, _)| *span)?
     } else {
         let resolved = call_at(analysed, call.span)?;
-        if !nvs_types::is_link(&resolved.class, &resolved.method) {
-            return None;
-        }
+        let (target, params) = match resolved.route_slots {
+            Some(slots) => (slots.target, slots.params?),
+            None if nvs_types::is_link(&resolved.class, &resolved.method) => {
+                let named = |name: &str| resolved.param_names.iter().position(|p| p == name);
+                (named("route")?, named("params")?)
+            }
+            None => return None,
+        };
         let slot_of = |span: Span| {
             let at = written.iter().position(|(child, _)| *child == span)?;
             match resolved.arg_slots.get(at)? {
-                ArgSlot::Param(index) => resolved.param_names.get(*index).map(String::as_str),
+                ArgSlot::Param(index) => Some(*index),
                 ArgSlot::Spread(_) | ArgSlot::Unresolved => None,
             }
         };
-        if slot_of(array.span) != Some("params") {
+        if slot_of(array.span) != Some(params) {
             return None;
         }
         written
             .iter()
-            .find(|(span, _)| slot_of(*span) == Some("route"))
+            .find(|(span, _)| slot_of(*span) == Some(target))
             .map(|(span, _)| *span)?
     };
     let Some(ExprInfo::CallableRef(target)) = analysed.exprs.lookup(route) else {
@@ -209,8 +217,11 @@ pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span
 /// inside. A link whose route the table holds is recorded as
 /// `nvs_types::ExprInfo::RouteLink` or `RouteIs` over the call, and carries
 /// the call it was recorded over; any other is a resolved call. The argument
-/// the cursor is in fills the parameter called `route`. A cursor in no written
-/// argument is writing the first one where no argument ends before it.
+/// the cursor is in fills the parameter called `route`, or, at a call of a
+/// user method that takes a route, the `Target` parameter its
+/// `nvs_types::ResolvedCall::route_slots` names. A cursor in no written
+/// argument is writing that parameter where exactly as many arguments end
+/// before it as come before that parameter.
 pub(crate) fn route_argument_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> bool {
     let Some(node) = path.nodes().iter().find(|node| CALLS.contains(&node.kind)) else {
         return false;
@@ -234,11 +245,18 @@ pub(crate) fn route_argument_at(analysed: &Analysed, path: &NodePath, offset: By
             None => return false,
         },
     };
-    if !nvs_types::is_link(&call.class, &call.method)
-        && !nvs_types::is_match_is(&call.class, &call.method)
-    {
-        return false;
-    }
+    let target = match call.route_slots {
+        Some(slots) => slots.target,
+        None if nvs_types::is_link(&call.class, &call.method)
+            || nvs_types::is_match_is(&call.class, &call.method) =>
+        {
+            match call.param_names.iter().position(|name| name == "route") {
+                Some(index) => index,
+                None => return false,
+            }
+        }
+        None => return false,
+    };
     let written: Vec<Span> = children
         .into_iter()
         .filter(|child| child.start >= open)
@@ -248,13 +266,10 @@ pub(crate) fn route_argument_at(analysed: &Analysed, path: &NodePath, offset: By
         .position(|child| child.start <= offset && offset <= child.end)
     {
         Some(at) => match call.arg_slots.get(at) {
-            Some(ArgSlot::Param(index)) => call
-                .param_names
-                .get(*index)
-                .is_some_and(|name| name == "route"),
-            _ => at == 0,
+            Some(ArgSlot::Param(index)) => *index == target,
+            _ => at == target,
         },
-        None => !written.iter().any(|child| child.end <= offset),
+        None => written.iter().filter(|child| child.end <= offset).count() == target,
     }
 }
 

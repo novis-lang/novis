@@ -245,6 +245,84 @@ fn a_links_route_argument_is_offered_the_routed_methods_first() {
     assert!(items.iter().all(|item| item.label != "Posts::show"));
 }
 
+/// A program with two `static` routes and a method whose second and third
+/// parameters take a route and its parameters, with `call` written at the
+/// [`CURSOR`]. The route parameter is not the first one, so an answer that
+/// read the link's fixed positions would miss it.
+fn targeted(call: &str) -> String {
+    format!(
+        "<?nvs\nclass Posts {{\n\
+         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Get)]\n\
+         #[Core\\Access(allow: Core\\Audience::Public)]\n\
+         public static function list(): string {{ return \"list\"; }}\n\
+         #[Core\\Route(path: \"/posts/{{id}}\", method: Core\\Http\\Method::Get)]\n\
+         #[Core\\Access(allow: Core\\Audience::Public)]\n\
+         public static function show(uint $id, #[Core\\Query] string $sort = \"new\"): string {{ return \"post\"; }}\n\
+         }}\n\
+         class Menu {{\n\
+         public static function entry(string $label, #[Core\\Router\\Target] callable $route, \
+         #[Core\\Router\\Params] array $params): string {{ return $label; }}\n\
+         }}\n{call}"
+    )
+}
+
+/// A key of the `Params` argument of a method that takes a route is offered
+/// the parameters of the route its `Target` argument names, as a link's key
+/// is, and a value in the same array is offered none of them.
+#[test]
+fn a_route_params_key_is_offered_the_routes_parameters() {
+    for call in [
+        "$e = Menu::entry('Post', Posts::show, ['<|>']);",
+        "$e = Menu::entry('Post', Posts::show, ['id' => 1, 's<|>' => 'old']);",
+        "$e = Menu::entry(params: ['<|>' => 1], route: Posts::show, label: 'Post');",
+    ] {
+        let items = offered_with_routes(&targeted(call));
+        let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(labels, ["id", "sort"], "{call}");
+        assert_eq!(named(&items, "id").detail.as_deref(), Some("uint (path)"));
+    }
+    let items = offered_with_routes(&targeted(
+        "$e = Menu::entry('Post', Posts::show, ['id' => '<|>']);",
+    ));
+    assert!(items.iter().all(|item| item.label != "id"));
+}
+
+/// The `Target` argument of a method that takes a route is offered every
+/// method that carries a `#[Route]` first, as a link's route argument is, and
+/// the arguments before and after it are offered none of them first.
+#[test]
+fn a_route_target_argument_is_offered_the_routed_methods_first() {
+    for call in [
+        "$e = Menu::entry('Post', <|>);",
+        "$e = Menu::entry('Post', Po<|>);",
+        "$e = Menu::entry(params: [], route: <|>);",
+    ] {
+        let items = offered_with_routes(&targeted(call));
+        let mut routed: Vec<&CompletionItem> = items
+            .iter()
+            .filter(|item| item.kind == Some(CompletionItemKind::METHOD))
+            .collect();
+        routed.sort_by(|left, right| left.sort_text.cmp(&right.sort_text));
+        let labels: Vec<&str> = routed.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(labels, ["Posts::list", "Posts::show"], "{call}");
+        let first = items
+            .iter()
+            .min_by(|left, right| left.sort_text.cmp(&right.sort_text))
+            .expect("the position offers something");
+        assert_eq!(first.kind, Some(CompletionItemKind::METHOD), "{call}");
+    }
+    for call in [
+        "$e = Menu::entry(<|>);",
+        "$e = Menu::entry('Post', Posts::show, <|>);",
+    ] {
+        let items = offered_with_routes(&targeted(call));
+        assert!(
+            items.iter().all(|item| item.label != "Posts::show"),
+            "{call}"
+        );
+    }
+}
+
 /// A field name in the `{…}` bag `Core\Html::later` takes is offered the
 /// member's options, and accepting one writes its name and `: ` over what was
 /// typed. A field's value is offered none of them.
