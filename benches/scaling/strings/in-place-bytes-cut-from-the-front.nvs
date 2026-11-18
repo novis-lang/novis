@@ -1,0 +1,21 @@
+<?nvs
+// Cuts one byte off the front of a buffer with `Core\Bytes::slice` until it is empty, as a binary parser does.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $buffer = Core\Bytes::fill($size, 7);
+        uint $total = 0;
+        while (Core\Bytes::length($buffer) > 0) {
+            $total = $total + Core\Bytes::at($buffer, 0);
+            $buffer = Core\Bytes::slice($buffer, 1);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4000), "\n";

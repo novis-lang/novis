@@ -1,0 +1,21 @@
+<?nvs
+// Makes a text one character longer each step with `Core\Str::padEnd`, as a progress bar does.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $bar = '';
+        uint $i = 0;
+        while ($i < $size) {
+            $i = $i + 1;
+            $bar = Core\Str::padEnd($bar, $i, '#');
+        }
+        return Core\Str::length($bar);
+    }
+}
+
+echo Bench::run(4000), "\n";

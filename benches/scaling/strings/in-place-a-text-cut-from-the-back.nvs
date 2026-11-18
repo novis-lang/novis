@@ -1,0 +1,21 @@
+<?nvs
+// Cuts the last character off a text with `Core\Str::slice($text, 0, -1)` until it is empty, as an editor does on backspace.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('é👋🏽', $size);
+        uint $steps = 0;
+        while ($text != '') {
+            $text = Core\Str::slice($text, 0, -1);
+            $steps = $steps + 1;
+        }
+        return $steps;
+    }
+}
+
+echo Bench::run(4000), "\n";

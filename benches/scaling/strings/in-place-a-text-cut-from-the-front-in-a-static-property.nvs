@@ -1,0 +1,25 @@
+<?nvs
+// Cuts one character off the front of a text in a static property with `Core\Str::slice`, as a shared input buffer does.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static string $text = '';
+
+    public static function run(uint $size): uint
+    {
+        Bench::$text = Core\Str::repeat('a,', $size);
+        uint $commas = 0;
+        while (Bench::$text != '') {
+            if (Core\Str::at(Bench::$text, 0) == ',') {
+                $commas = $commas + 1;
+            }
+            Bench::$text = Core\Str::slice(Bench::$text, 1);
+        }
+        return $commas;
+    }
+}
+
+echo Bench::run(4000), "\n";

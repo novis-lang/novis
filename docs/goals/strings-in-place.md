@@ -6,7 +6,7 @@ context: [docs/rules/types/a-replaced-value-is-changed-in-place.md, docs/rules/t
 stages:
   - id: 1
     title: the ladders show every quadratic string shape
-    status: open
+    status: done
     context: [benches/scaling/README.md, benches/scaling/strings/build.nvs]
   - id: 2
     title: a forward position reads only the characters before it, and a backward one only the characters after it
@@ -145,7 +145,7 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 **Split:** one writing subagent writes the nine ladders, copying the shape of
 `benches/scaling/strings/build.nvs`.
 
-- [ ] Nine ladders under `benches/scaling/strings/`, each `// scaling: expect linear`, start 4000, max
+- [x] Nine ladders under `benches/scaling/strings/`, each `// scaling: expect linear`, start 4000, max
   64000: `in-place-a-text-cut-from-the-front-in-a-local.nvs`,
   `in-place-a-text-cut-from-the-front-in-a-static-property.nvs`,
   `in-place-a-body-read-line-by-line.nvs` (`Core\Str::after`),
@@ -209,13 +209,28 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person, who asked for the same depth check on
-strings that arrays got, for nothing a developer has to remember, and for every replacement in place.
-Every other choice in § *Standing decisions* is the authoring session's call. Nothing is built yet.
+The goal came from a conversation with the person, who asked for the same depth check on strings
+that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
+other choice in § *Standing decisions* is the authoring session's call.
+
+Stage 1 is done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, and each runs at
+its start size with the release binary and prints the value its loop counts. Their comments pass
+`bun nv proofs --comments`. No ladder has been ramped yet, so which are red today is unmeasured. The
+three concatenation ladders (interpolation in a local, in a property, and the static property's
+`=` and `.`) may already be linear under `in-place-everywhere`'s concatenation. The cut, pad and
+line-reader ladders are expected red until stages 3 and 4. The line reader and the back cut use
+`Grüße 👋🏽` and `é👋🏽`, so the grapheme path is measured.
+
+The sweep's `env-secret-proofs` red is stale: it has no log, and the newest commit naming it is
+`arrays-in-place`'s retire commit.
 
 ### Next
 
-Stage 1. Stages 2 and 3 can run as side goals at any time. Stage 4 waits for `in-place-everywhere`.
+Stage 2: `crates/nvs-stdlib/src/granularity.rs` and `window` in `crates/nvs-stdlib/src/str.rs`
+(`slice` calls it at `str.rs:3291`). Stage 3 (`crates/nvs-runtime/src/string.rs` alone) is a
+separate lane and can run beside it. `in-place-everywhere` is reached, so stage 4 waits only on
+stages 2 and 3. Expect `positions`, `front-room`, `every-member` and `ladders` red until their
+stages land.
 
 ### Backlog
 

@@ -1,0 +1,21 @@
+<?nvs
+// Reads a request body one line at a time with `Core\Str::after`, as a handler does with an uploaded list.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $body = Core\Str::repeat("Grüße 👋🏽\n", $size);
+        uint $lines = 0;
+        while ($body != '') {
+            $body = Core\Str::after($body, "\n") ?? '';
+            $lines = $lines + 1;
+        }
+        return $lines;
+    }
+}
+
+echo Bench::run(4000), "\n";

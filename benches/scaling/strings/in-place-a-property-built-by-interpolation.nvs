@@ -1,0 +1,26 @@
+<?nvs
+// Builds a string in an object property from n pieces with `$page->html = "{$page->html}..."`, as a page builder does.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Page
+{
+    public string $html = '';
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Page $page = new Page();
+        uint $i = 0;
+        while ($i < $size) {
+            $page->html = "{$page->html}<li>{$i}</li>";
+            $i = $i + 1;
+        }
+        return Core\Str::length($page->html);
+    }
+}
+
+echo Bench::run(4000), "\n";

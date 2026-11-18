@@ -1,0 +1,23 @@
+<?nvs
+// Builds a string in a static property with `Bench::$log = Bench::$log . $piece`, as a shared log does.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static string $log = '';
+
+    public static function run(uint $size): uint
+    {
+        Bench::$log = '';
+        uint $i = 0;
+        while ($i < $size) {
+            Bench::$log = Bench::$log . 'line ' . "\n";
+            $i = $i + 1;
+        }
+        return Core\Str::length(Bench::$log);
+    }
+}
+
+echo Bench::run(4000), "\n";

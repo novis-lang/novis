@@ -1,0 +1,23 @@
+<?nvs
+// Cuts one character off the front of a text in a local variable with `Core\Str::slice` until it is empty, as a tokenizer does.
+// scaling: start 4000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('a,', $size);
+        uint $commas = 0;
+        while ($text != '') {
+            if (Core\Str::at($text, 0) == ',') {
+                $commas = $commas + 1;
+            }
+            $text = Core\Str::slice($text, 1);
+        }
+        return $commas;
+    }
+}
+
+echo Bench::run(4000), "\n";
