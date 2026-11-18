@@ -906,9 +906,9 @@ thread_local! {
     static IN_PLACE_OFF: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// Runs `lower` with in-place changes switched off: no value is moved into a
-/// call and no binding hands its own reference to a concatenation, so every
-/// owning call sees a shared subject and builds its result
+/// Runs `lower` with in-place changes switched off: the ownership pass is
+/// skipped, so no value is moved or lent, and every owning call and every
+/// concatenation sees a shared subject and builds its result
 /// (`rule:types/a-replaced-value-is-changed-in-place`). It exists for the
 /// differential checks alone, which run every case both ways and compare
 /// the output; `nvs run`, `nvs test` and `nvs serve` reach it through their
@@ -2518,9 +2518,6 @@ pub(crate) struct Lowering<'a> {
     /// `Some` under [`with_debug_slots`]: the variables given a slot so far.
     /// [`Self::emit_stmt_marker`] fills it, and [`Self::finish`] hands it out.
     debug: Option<DebugSlots>,
-    /// False under [`without_in_place`]: a self-concatenation takes the
-    /// general store.
-    in_place: bool,
 }
 
 /// One by-reference argument staged at a call site, and where its written-back
@@ -2786,7 +2783,6 @@ impl<'a> Lowering<'a> {
             debug: DEBUG_SLOTS
                 .with(std::cell::Cell::get)
                 .then(DebugSlots::default),
-            in_place: in_place_on(),
         }
     }
 

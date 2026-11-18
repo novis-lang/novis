@@ -52,6 +52,15 @@
 //!   reference of its own.** The lowering records each such loop in
 //!   [`Function::own_entry_loops`], and `drop_loop_reference` makes the walk
 //!   read the variable's current array and drops the loop's retain.
+//! - **A join and a literal's first spread take what they open with.** A
+//!   [`InstKind::Concat`] of strings always consumes its first piece, so a
+//!   local it opens with moves in as into a Novis callee: `$s = $s . $x` and
+//!   `$s = "{$s}x"` write into `$s`'s buffer. A literal's first
+//!   [`InstKind::ArraySpread`] into its empty array is switched to `owned`
+//!   where its local subject moves, as an owning `Core` call is switched to
+//!   its owning entry, and it leaves the subject with the caller on an error.
+//!   A slot is not lent to a spread: an item after it can fail, and its
+//!   landing would free the array the slot still names.
 //!
 //! # The lend
 //!
@@ -67,8 +76,9 @@
 //! its callbacks before it changes anything. A hook, a guard and an observer
 //! are calls, so a slot that has one is never lent.
 //!
-//! `slot .= e` is the same lend. Its [`InstKind::StrAppend`] always consumes
-//! its target ([`InstKind::consumes`]), so the lend switches no symbol and
+//! `slot .= e` and `slot = slot . e` are the same lend. Their
+//! [`InstKind::StrAppend`] and [`InstKind::Concat`] always consume the
+//! target ([`InstKind::consumes`]), so the lend switches no symbol and
 //! removes the retain the lowering put before it.
 //!
 //! An element write, an element `.=` and an element `unset` whose root is
@@ -326,6 +336,10 @@ enum Move {
     Novis { retain: At },
     /// An owning `Core` member: call this symbol instead.
     Core { owned: &'static str },
+    /// A literal's first spread: take the subject's reference
+    /// ([`InstKind::ArraySpread`]'s `owned`). It leaves the subject with the
+    /// caller on an error, as an owning `Core` entry does.
+    Spread,
 }
 
 /// Decides every move in one function. Removed instructions are collected and
@@ -430,6 +444,12 @@ fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
                     Move::Core { owned } => {
                         if let InstKind::CoreCall { symbol, .. } = &mut f.blocks[b].insts[c].kind {
                             *symbol = owned;
+                        }
+                    }
+                    Move::Spread => {
+                        if let InstKind::ArraySpread { owned, .. } = &mut f.blocks[b].insts[c].kind
+                        {
+                            *owned = true;
                         }
                     }
                 }
@@ -1439,8 +1459,52 @@ fn candidates(
                 })
                 .collect()
         }
+        // A literal that opens with a spread, `$a = [...$a, …]`, may take the
+        // subject's reference. The spread writes into the literal's empty
+        // array, so a sole list subject can be the literal itself.
+        InstKind::ArraySpread {
+            array,
+            subject,
+            owned: false,
+        } if array != subject
+            && matches!(tys.get(subject), Some(Ty::Array))
+            && is_empty_literal(f, *array) =>
+        {
+            vec![(*subject, Move::Spread)]
+        }
+        // A concatenation of strings takes its first piece's reference and
+        // cannot fail, so a local it opens with moves in as into a Novis
+        // callee: `$s = $s . $x` and `$s = "{$s}x"` write into `$s`'s buffer.
+        kind @ InstKind::Concat { .. } => {
+            let Some(value) = kind.consumes() else {
+                return Vec::new();
+            };
+            let mut mentions = 0;
+            kind.for_each_operand(|v| mentions += usize::from(v == value));
+            if mentions != 1 {
+                return Vec::new();
+            }
+            retain_before(insts, c, value, b, removed)
+                .map(|retain| {
+                    vec![(
+                        value,
+                        Move::Novis {
+                            retain: (b, retain),
+                        },
+                    )]
+                })
+                .unwrap_or_default()
+        }
         _ => Vec::new(),
     }
+}
+
+/// Whether `array` is made by an [`InstKind::ArrayNew`] with no entries.
+fn is_empty_literal(f: &Function, array: ValueId) -> bool {
+    f.blocks.iter().flat_map(|block| &block.insts).any(|inst| {
+        inst.result == Some(array)
+            && matches!(&inst.kind, InstKind::ArrayNew { entries } if entries.is_empty())
+    })
 }
 
 /// The index of the [`InstKind::Retain`] of `value` the lowering put before

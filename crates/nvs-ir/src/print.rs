@@ -402,9 +402,16 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ArrayAppend { array, value } => {
             format!("array.append v{}, v{}", array.index(), value.index())
         }
-        InstKind::ArraySpread { array, subject } => {
-            format!("array.spread v{}, v{}", array.index(), subject.index())
-        }
+        InstKind::ArraySpread {
+            array,
+            subject,
+            owned,
+        } => format!(
+            "array.spread{} v{}, v{}",
+            if *owned { ".owned" } else { "" },
+            array.index(),
+            subject.index()
+        ),
         InstKind::ArrayUnset { array, key } => {
             format!("array.unset v{}, v{}", array.index(), key.index())
         }

@@ -1364,6 +1364,15 @@ impl NvsArray {
         matches!(self.header().table.borrow().shape, Shape::Packed(_))
     }
 
+    /// Whether the keys are exactly `"0"`…`"n−1"` in order and the next
+    /// append writes `n`. A spread into an empty array gives such an array
+    /// back unchanged, because renumbering keeps every one of its keys.
+    fn is_list(&self) -> bool {
+        let table = self.header().table.borrow();
+        matches!(table.shape, Shape::Packed(_))
+            && usize::try_from(table.next_index.unwrap_or(0)).is_ok_and(|next| next == table.len())
+    }
+
     /// Converts to the hash form without changing a single answer — how the
     /// equivalence test produces the same content in the other shape, and the
     /// only caller of [`Table::hashed_mut`] that is not a broken invariant.
@@ -3108,6 +3117,56 @@ pub unsafe extern "C" fn nvs_array_spread(
     }
 }
 
+/// [`nvs_array_spread`] for a literal that opens with a spread, `[...$a, …]`,
+/// where the ownership pass gave the literal `subject`'s reference
+/// (`rule:types/a-replaced-value-is-changed-in-place`). `array` is the
+/// literal's empty array.
+///
+/// A `subject` that is a list and has no other holder is the literal itself:
+/// its keys are the ones a spread would give it, so `array` is released and
+/// `subject` is written to `out`. Any other `subject` is spread into `array`
+/// as [`nvs_array_spread`] does, and its reference is released when that
+/// succeeds. On a failure the reference stays with the caller, exactly as a
+/// refused [`nvs_array_append`] leaves its array. **What it spends:** one
+/// shape test per call.
+///
+/// # Safety
+///
+/// As [`nvs_array_spread`], and the caller owns one reference to `subject`
+/// as well, which this takes only where it returns [`crate::OK`].
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes raw pointers whose ownership the signature \
+              cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_array_spread_owned(
+    ctx: *mut crate::Ctx,
+    array: *mut ArrayHeader,
+    subject: *mut ArrayHeader,
+    out: *mut *mut ArrayHeader,
+) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees one owned reference to `array` and one to \
+                  `subject`, and that `ctx` and `out` are live and writable"
+    )]
+    unsafe {
+        let source = std::mem::ManuallyDrop::new(NvsArray::from_raw(subject));
+        let empty = std::mem::ManuallyDrop::new(NvsArray::from_raw(array));
+        if source.refcount() == 1 && source.is_list() && empty.is_empty() {
+            nvs_array_release(array);
+            out.write(subject);
+            return crate::OK;
+        }
+        let status = nvs_array_spread(ctx, array, subject, out);
+        if status == crate::OK {
+            nvs_array_release(subject);
+        }
+        status
+    }
+}
+
 /// Removes `key` if present — `unset($a[$k])`.
 ///
 /// Consumes one reference to `array` and returns the one reference to the
@@ -4546,6 +4605,123 @@ mod tests {
             drop(alias);
         }
         drop(ctx.take_pending());
+        assert_eq!(live_bytes(), before);
+    }
+
+    /// `$a = [...$a, 9]`: an owned spread of a list with no other holder is
+    /// the literal itself, so the append that follows writes into it. A list
+    /// another holder shares is spread into the literal, and the holder keeps
+    /// its own array unchanged.
+    #[test]
+    fn a_literal_that_spreads_its_target_appends_in_place_on_a_list() {
+        let mut ctx = crate::Ctx::buffered();
+        let before = live_bytes();
+        {
+            let mut list = NvsArray::new();
+            list.append(Value::int(1));
+            list.append(Value::int(2));
+            let subject = list.into_raw();
+            let mut out: *mut ArrayHeader = std::ptr::null_mut();
+            #[expect(unsafe_code, reason = "this test owns every reference it hands over")]
+            let status = unsafe {
+                nvs_array_spread_owned(
+                    &raw mut ctx,
+                    NvsArray::new().into_raw(),
+                    subject,
+                    &raw mut out,
+                )
+            };
+            assert_eq!(status, crate::OK);
+            assert_eq!(out, subject, "a sole list is the literal itself");
+            #[expect(unsafe_code, reason = "this test owns the one reference to `out`")]
+            let mut literal = unsafe { NvsArray::from_raw(out) };
+            literal.append(Value::int(9));
+            assert_eq!(
+                literal.keys(),
+                [b"0".to_vec(), b"1".to_vec(), b"2".to_vec()]
+            );
+            assert_eq!(literal.next_append_index(), 3);
+
+            let shared = literal.clone();
+            let subject = literal.into_raw();
+            #[expect(unsafe_code, reason = "this test owns every reference it hands over")]
+            let status = unsafe {
+                nvs_array_spread_owned(
+                    &raw mut ctx,
+                    NvsArray::new().into_raw(),
+                    subject,
+                    &raw mut out,
+                )
+            };
+            assert_eq!(status, crate::OK);
+            assert_ne!(out, subject, "a shared list is copied into the literal");
+            assert_eq!(
+                shared.refcount(),
+                1,
+                "the spread released the reference it took"
+            );
+            #[expect(unsafe_code, reason = "this test owns the one reference to `out`")]
+            let copy = unsafe { NvsArray::from_raw(out) };
+            assert_eq!(copy.count(), 3);
+            drop((copy, shared));
+        }
+        assert_eq!(live_bytes(), before);
+    }
+
+    /// An owned spread renumbers a number key and keeps every other key, as a
+    /// borrowed one does, so a map is never the literal itself. A list whose
+    /// next append is past its length is not a list for this purpose either.
+    #[test]
+    fn a_literal_that_spreads_a_map_with_number_keys_still_renumbers() {
+        let mut ctx = crate::Ctx::buffered();
+        let before = live_bytes();
+        {
+            let mut map = NvsArray::new();
+            map.set(key("5"), Value::int(1));
+            map.set(key("name"), Value::int(2));
+            map.set(key("7"), Value::int(3));
+            let subject = map.into_raw();
+            let mut out: *mut ArrayHeader = std::ptr::null_mut();
+            #[expect(unsafe_code, reason = "this test owns every reference it hands over")]
+            let status = unsafe {
+                nvs_array_spread_owned(
+                    &raw mut ctx,
+                    NvsArray::new().into_raw(),
+                    subject,
+                    &raw mut out,
+                )
+            };
+            assert_eq!(status, crate::OK);
+            assert_ne!(out, subject);
+            #[expect(unsafe_code, reason = "this test owns the one reference to `out`")]
+            let literal = unsafe { NvsArray::from_raw(out) };
+            assert_eq!(
+                literal.keys(),
+                [b"0".to_vec(), b"name".to_vec(), b"1".to_vec()]
+            );
+            drop(literal);
+
+            let mut cut = NvsArray::new();
+            cut.append(Value::int(1));
+            cut.append(Value::int(2));
+            cut.unset(b"1");
+            let subject = cut.into_raw();
+            #[expect(unsafe_code, reason = "this test owns every reference it hands over")]
+            let status = unsafe {
+                nvs_array_spread_owned(
+                    &raw mut ctx,
+                    NvsArray::new().into_raw(),
+                    subject,
+                    &raw mut out,
+                )
+            };
+            assert_eq!(status, crate::OK);
+            assert_ne!(out, subject, "the next append is past the length");
+            #[expect(unsafe_code, reason = "this test owns the one reference to `out`")]
+            let literal = unsafe { NvsArray::from_raw(out) };
+            assert_eq!(literal.next_append_index(), 1);
+            drop(literal);
+        }
         assert_eq!(live_bytes(), before);
     }
 

@@ -1737,18 +1737,18 @@ pub enum InstKind {
     /// quadratic: `nvs_runtime`'s concatenation primitives write into the
     /// leading buffer whenever nothing else holds it, and sole ownership is the
     /// whole of what makes that write unobservable — so the reference has to
-    /// arrive here rather than stay in the slot it came from. It is supplied
-    /// three ways, and `crate::lower::Lowering::emit_concat` is the one home
-    /// for the choice between the first two: a piece no durable slot owns (a
+    /// arrive here rather than stay in the slot it came from. The lowering
+    /// supplies it two ways, and `crate::lower::Lowering::emit_concat` is the
+    /// one home for the choice: a piece no durable slot owns (a
     /// literal, a nested `Concat`'s own result, a freshly converted
     /// [`HelperCall`](InstKind::HelperCall) result) is **handed over** — the
     /// release `crate::lower::Lowering::owned_temporaries` would have emitted
     /// after this instruction is what pays for it; a piece a slot does own is
     /// **retained** first, so the slot keeps its own and this consumes the
-    /// extra; and `$s = $s . e`, where the assignment re-points `$s` at the
-    /// result anyway, hands the binding's own reference over with neither a
-    /// retain nor a release — `crate::lower::Lowering::lower_string_self_concat`,
-    /// which is [`InstKind::StrAppend`]'s bookkeeping over this instruction.
+    /// extra. The ownership pass then removes that retain where the slot's
+    /// reference can go instead ([`InstKind::consumes`]): `$s = $s . e` and
+    /// `$s = "{$s}…"` move a local's reference in, and the same statement on
+    /// a plain property, a static property or an element lends the slot's.
     ///
     /// Every later piece that no durable slot owns is still released right
     /// after this instruction reads it, since nothing else ever will.
@@ -2298,11 +2298,22 @@ pub enum InstKind {
     /// Carries an [`Inst::on_error`] edge for the same reason
     /// [`InstKind::ArrayAppend`] does, because for a renumbered key it *is*
     /// that append.
+    ///
+    /// **`owned` takes `subject`'s reference** where the spread opens a
+    /// literal, `$a = [...$a, …]`. The lowering always emits it `false`, and
+    /// the ownership pass sets it where it moves a local into the spread, as
+    /// it switches an owning `Core` call to its owning entry. An owned spread
+    /// gives back a `subject` that is a list with no other holder as the
+    /// literal itself, so the rest of the literal appends to it in place
+    /// (`nvs_runtime::nvs_array_spread_owned`). It takes the reference only
+    /// when it succeeds, and a failure leaves it with the caller.
     ArraySpread {
         /// The array under construction, already lowered.
         array: ValueId,
         /// The array whose entries are copied out, already lowered.
         subject: ValueId,
+        /// Whether one reference to `subject` is taken, on success only.
+        owned: bool,
     },
     /// Removes `key` from `array` if it is present — `unset($a[$k]);`, the one
     /// surviving `unset` target of `rule:classes/unset-is-refused-on-a-property`
@@ -4045,7 +4056,7 @@ impl InstKind {
                 f(*array);
                 f(*value);
             }
-            InstKind::ArraySpread { array, subject } => {
+            InstKind::ArraySpread { array, subject, .. } => {
                 f(*array);
                 f(*subject);
             }
@@ -4309,7 +4320,8 @@ impl InstKind {
     /// lend removes that retain.
     ///
     /// [`InstKind::StrAppend`], [`InstKind::ArraySet`] and
-    /// [`InstKind::ArrayUnset`] cannot fail.
+    /// [`InstKind::ArrayUnset`] cannot fail, and neither can a
+    /// [`InstKind::Concat`] of strings alone, which takes its first piece.
     /// [`InstKind::ArrayAppend`] can, and its refusal leaves the array's
     /// reference with the caller, so the slot keeps a value it owns on every
     /// path. A [`Helper::ArrayWriteThrough`] or
@@ -4320,6 +4332,9 @@ impl InstKind {
     pub fn consumes(&self) -> Option<ValueId> {
         match self {
             InstKind::StrAppend { target, .. } => Some(*target),
+            InstKind::Concat { pieces } if ConcatPart::all_str(pieces) => {
+                pieces.first().map(|piece| piece.value)
+            }
             InstKind::ArraySet {
                 array, lent: false, ..
             }

@@ -3404,27 +3404,6 @@ impl<'a> Lowering<'a> {
         self.emit(cur, Ty::Str, InstKind::Concat { pieces }).0
     }
 
-    /// Whether `expr` is a `.` spine whose **leading** operand is a read of
-    /// `$name` — `$s = $s . e …`, the one assignment
-    /// [`Self::lower_string_self_concat`] hands the binding's own reference to.
-    pub(crate) fn concat_spine_opens_with(&self, expr: &Expr, name: &str) -> bool {
-        if !matches!(
-            &expr.kind,
-            ExprKind::Binary {
-                op: BinaryOp::Concat,
-                ..
-            }
-        ) {
-            return false;
-        }
-        let mut operands = Vec::new();
-        Self::flatten_concat(expr, &mut operands);
-        matches!(
-            &operands[0].kind,
-            ExprKind::Variable(span) if strip_sigil(span_text(self.src, *span)) == name
-        )
-    }
-
     /// Appends `expr`'s concatenation operands to `out`, in evaluation order —
     /// descending through any nested `.` so the whole spine reaches one
     /// `InstKind::Concat`.
@@ -6966,6 +6945,7 @@ impl<'a> Lowering<'a> {
                             InstKind::ArraySpread {
                                 array: array_v,
                                 subject,
+                                owned: false,
                             },
                             env,
                         )

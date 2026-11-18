@@ -1394,64 +1394,16 @@ impl<'a> Lowering<'a> {
         self.write_through_element(*cur, env, &name, appended, Ty::Str);
         env.insert(name, (appended, Ty::Str));
     }
-    /// `$s = $s . e …;` where `$s` is a plain `Ty::Str` local — one
-    /// [`InstKind::Concat`] that writes into `$s`'s own buffer whenever nothing
-    /// else holds it, rather than allocating a fresh one and copying the whole
-    /// accumulation into it.
-    ///
-    /// **No retain and no release of the local**, which is
-    /// [`Self::lower_string_append`]'s bookkeeping exactly: the instruction
-    /// consumes the binding's one reference and yields the one that replaces it
-    /// in the same `Env` slot, so `env.insert` is the entire write-back.
-    /// [`InstKind::Concat`]'s own doc comment owns that protocol, and the
-    /// runtime is what decides whether the buffer is reused — a `$s` a second
-    /// binding also holds is copied out of, exactly as a shared `.=` target is.
-    ///
-    /// The leading operand is not lowered again: the binding's current value
-    /// *is* it, and it is already `Ty::Str`, so it needs neither
-    /// [`Self::concat_operand`]'s conversion nor the retain a durable slot's
-    /// piece takes at every other `Concat` site. Nothing is consumed before the
-    /// instruction, which cannot throw, so a later operand that does leaves the
-    /// binding owning exactly what it owned before.
-    ///
-    /// Statement position only, for [`Self::lower_compound_assignment`]'s
-    /// reason: this re-points the holder and has no value to hand back, and
-    /// `$t = ($s = $s . $x)` is rare enough that the general path — correct for
-    /// it — is the right trade against a second concatenation lowering.
-    fn lower_string_self_concat(
-        &mut self,
-        name: String,
-        current: ValueId,
-        value: &Expr,
-        env: &mut Env,
-        cur: &mut BlockId,
-    ) {
-        let mut operands = Vec::new();
-        Self::flatten_concat(value, &mut operands);
-        let mark = self.temporaries_mark();
-        let mut pieces = Vec::with_capacity(operands.len());
-        pieces.push(ConcatPart::str(current));
-        for operand in &operands[1..] {
-            let (v, aliasing) = self.concat_operand(operand, env, cur);
-            if !aliasing {
-                self.own_temporary(v);
-            }
-            pieces.push(ConcatPart::str(v));
-        }
-        let (joined, _) = self.emit(*cur, Ty::Str, InstKind::Concat { pieces });
-        self.release_temporaries_since(mark, *cur);
-        self.write_through_element(*cur, env, &name, joined, Ty::Str);
-        env.insert(name, (joined, Ty::Str));
-    }
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
     /// SSA renaming needs no join logic here, only a fresh binding in `env`
     /// (a local target) or a [`InstKind::FieldSet`] (a property target).
     ///
-    /// The one shape that does not reach [`Self::lower_store`] is
-    /// `$s = $s . e …` on a plain `Ty::Str` local, which
-    /// [`Self::lower_string_self_concat`] hands the binding's own reference to
-    /// so the concatenation can write into its buffer — the `=` spelling of
-    /// what [`Self::lower_compound_assignment`] already recognises in `.=`.
+    /// `$s = $s . e …` reaches [`Self::lower_store`] as every store does. The
+    /// ownership pass moves `$s`'s reference into the concatenation, so it
+    /// writes into `$s`'s buffer (`crate::ownership`).
+    ///
+    /// The one shape that does not is `$page = $page + $b` on a sink carrier,
+    /// which [`Self::lower_carrier_self_append`] grows in place.
     pub(crate) fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Assign {
             op: AssignOp::Assign,
@@ -1464,20 +1416,10 @@ impl<'a> Lowering<'a> {
         };
         if let ExprKind::Variable(name_span) = &target.kind {
             let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
-            // A `Ty::Ref` binding (`inout $x`) names the caller's slot rather
-            // than an SSA value, so it is not a holder this can re-point — the
-            // same exclusion the `.=` spelling makes.
-            // Both shapes below read the binding before the value runs and hand
-            // its reference on, so a value that writes the local takes the
-            // general store instead, which reads the binding after the value.
-            if let Some(&(current, Ty::Str)) = env.get(&name)
-                && self.in_place
-                && self.concat_spine_opens_with(value, &name)
-                && !self.writes_local(value, &name)
-            {
-                self.lower_string_self_concat(name, current, value, env, cur);
-                return;
-            }
+            // The shape below reads the binding before the value runs and
+            // hands its reference on, so a value that writes the local takes
+            // the general store instead, which reads the binding after the
+            // value.
             if let Some(&(current, Ty::Object)) = env.get(&name)
                 && let ExprKind::Binary {
                     op: BinaryOp::Add,
@@ -1508,8 +1450,8 @@ impl<'a> Lowering<'a> {
     /// A throw leaves by the call's error edge before the release, with the
     /// binding still owning what it owned.
     ///
-    /// Statement position only, for [`Self::lower_string_self_concat`]'s
-    /// reason. A loop of these is linear in the bytes appended, where the copy
+    /// Statement position only: this re-points the holder and has no value to
+    /// hand back. A loop of these is linear in the bytes appended, where the copy
     /// [`Self::lower_carrier_concat`] makes is quadratic.
     fn lower_carrier_self_append(
         &mut self,

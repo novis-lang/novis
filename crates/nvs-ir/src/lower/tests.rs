@@ -1954,25 +1954,6 @@ fn appending_to_a_string_local_appends_in_place_rather_than_concatenating() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$out = $out . $piece;` on a plain `string` local — one `concat` with
-/// neither a retain of `$out` nor a release of its previous value, which
-/// is what makes the statement linear rather than quadratic: the binding's
-/// one reference is what `InstKind::Concat` consumes, and the one it
-/// yields is what the binding is re-pointed at, so the runtime finds the
-/// accumulation solely owned and writes into it. That is
-/// `InstKind::StrAppend`'s protocol over the `=` spelling —
-/// `Lowering::lower_string_self_concat`, and `InstKind::Concat`'s own doc
-/// comment for the protocol. `$piece` is only read, so its own slot keeps
-/// it.
-#[test]
-fn assigning_a_string_local_its_own_concatenation_hands_the_binding_over() {
-    let (f, map, file) = lower_first_method(
-        "<?nvs\nclass T {\n  function m(string $piece): string {\n    var $out = \"\";\n    \
-             $out = $out . $piece;\n    return $out;\n  }\n}\n",
-    );
-    assert_snapshot!(print_function(&f, map.file(file)));
-}
-
 /// `$this->p .= "x";` on a plain `string` property is load, append, store:
 /// the suffix is lowered first, then `field.get` reads the slot,
 /// `str.append` grows it, and `field.set` writes it back, with no retain,
@@ -2371,6 +2352,114 @@ fn a_nested_write_into_a_plain_slot_is_lent() {
     }
 }
 
+/// `body` as `T::m(string $x)`'s body, beside a `string` property `o`, a
+/// `string` static property `z` and an `array<string>` property `u`, lowered
+/// as a whole program so the ownership pass has run.
+fn lower_concats(body: &str) -> String {
+    let src = format!(
+        "<?nvs\nfinal class T {{\n  public string $o = '';\n  public static string $z = '';\n  \
+         public array<string> $u = [];\n  \
+         public function m(string $x): string {{\n    string $s = '!' . $x;\n{body}\n    \
+         return $s;\n  }}\n}}\n"
+    );
+    let (program, map, file) = lower_whole_file_with_src(&src);
+    program
+        .functions
+        .iter()
+        .filter(|f| f.name == "T::m")
+        .map(|f| print_function(f, map.file(file)))
+        .collect()
+}
+
+/// Asserts that `body`, a statement that replaces a target with a join that
+/// opens with it, hands the target's reference to the join: a local is moved
+/// in, a slot is lent and read once, and an element's array is made sole.
+/// With the pass off, the join takes a retain and a slot is read twice.
+fn assert_joined_in_place(body: &str, slot: Option<&str>) {
+    let printed = lower_concats(body);
+    assert!(printed.contains("concat v"), "{body}\n{printed}");
+    assert!(!printed.contains("retain v"), "{body}\n{printed}");
+    let off = crate::lower::without_in_place(|| lower_concats(body));
+    assert!(off.contains("retain v"), "{body}\n{off}");
+    match slot {
+        Some("T::u") => {
+            assert!(printed.contains("= array.sole v"), "{body}\n{printed}");
+            assert!(printed.contains("= array.set.lent v"), "{body}\n{printed}");
+        }
+        Some(slot) => {
+            assert_eq!(slot_reads(&printed, slot), 1, "{body}\n{printed}");
+            assert_eq!(slot_reads(&off, slot), 2, "{body}\n{off}");
+        }
+        None => {}
+    }
+}
+
+/// `t = t . e` writes into `t`'s own buffer on a local, a plain property, a
+/// static property and an element. A join whose later piece is the target,
+/// or that reads the slot again, keeps its retain.
+#[test]
+fn every_concatenation_target_appends_in_place() {
+    for (body, slot) in [
+        ("    $s = $s . $x;", None),
+        ("    $s = $s . $x . 'y';", None),
+        ("    $this->o = $this->o . $x;", Some("T::o")),
+        ("    T::$z = T::$z . $x . 'y';", Some("T::$z")),
+        ("    self::$z = self::$z . 'y';", Some("T::$z")),
+        ("    $this->u['a'] = $this->u['a'] . $x;", Some("T::u")),
+    ] {
+        assert_joined_in_place(body, slot);
+    }
+    for body in ["    $s = $s . $s;", "    $this->o = $this->o . $this->o;"] {
+        let printed = lower_concats(body);
+        assert!(printed.contains("retain v"), "{body}\n{printed}");
+    }
+    // `$s` is read after the join, so the join copies it.
+    let printed = lower_concats("    string $t = $s;\n    $s = $s . $x;\n    echo $t;");
+    assert!(printed.contains("retain v"), "{printed}");
+}
+
+/// `t = "{t}…"` is the same join as `t = t . …`, so it writes into `t`'s own
+/// buffer on a local, a plain property and an element. A static property
+/// cannot open an interpolation, because a hole opens with `{$`.
+#[test]
+fn an_interpolation_that_opens_with_its_target_appends_in_place() {
+    for (body, slot) in [
+        ("    $s = \"{$s}-{$x}\";", None),
+        ("    $this->o = \"{$this->o}<{$x}>\";", Some("T::o")),
+        ("    $this->u['a'] = \"{$this->u['a']}y\";", Some("T::u")),
+    ] {
+        assert_joined_in_place(body, slot);
+    }
+}
+
+/// `$xs = [...$xs, …]` at `$xs`'s last use moves `$xs` into the literal's
+/// first spread, which then takes its reference. A spread that is not the
+/// literal's first item, a local the same literal or a later statement reads
+/// again, and the pass switched off keep the borrowed spread.
+#[test]
+fn a_literal_that_opens_with_a_spread_of_a_local_takes_its_reference() {
+    for body in [
+        "    $xs = [...$xs, 9];\n    return $xs;",
+        "    return [...$xs, 9];",
+    ] {
+        let printed = lower_moves(body, XS);
+        assert!(
+            printed.contains("array.spread.owned v"),
+            "{body}\n{printed}"
+        );
+        let off = crate::lower::without_in_place(|| lower_moves(body, XS));
+        assert!(!off.contains("array.spread.owned"), "{body}\n{off}");
+    }
+    for body in [
+        "    array<int> $ys = [9, ...$xs];\n    return $ys;",
+        "    $xs = [...$xs, 9, ...$xs];\n    return $xs;",
+        "    array<int> $ys = [...$xs, 9];\n    $ys = T::f($ys);\n    return T::f($xs);",
+    ] {
+        let printed = lower_moves(body, XS);
+        assert!(!printed.contains("array.spread.owned"), "{body}\n{printed}");
+    }
+}
+
 /// An `unset` of an element of a plain property or static property is lent
 /// the slot's reference, one level and nested: the removal or the climb's
 /// last store takes no retain of the root, and the store reads the slot only
@@ -2680,7 +2769,10 @@ fn a_callee_that_can_fail_after_its_change_copies_at_that_change_only() {
     let lent = function_named(&printed, "T::add#lent1");
     let retain = lent.find("retain v1").unwrap_or(usize::MAX);
     let append = lent.find("array.append v1").unwrap_or(0);
-    assert!(retain < append, "the parameter is retained first\n{printed}");
+    assert!(
+        retain < append,
+        "the parameter is retained first\n{printed}"
+    );
     assert_eq!(lent.matches("retain v1").count(), 1, "{printed}");
     let ret = lent.find("return v3").unwrap_or(0);
     let release = lent[..ret].rfind("release v1").unwrap_or(0);

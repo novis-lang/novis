@@ -4009,6 +4009,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::array::nvs_array_spread as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_array_spread_owned",
+            (crate::array::nvs_array_spread_owned as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_array_unset",
             (crate::array::nvs_array_unset as *const ()).cast::<u8>(),
         ),

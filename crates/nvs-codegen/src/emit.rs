@@ -1361,8 +1361,12 @@ impl Emitter<'_, '_> {
             InstKind::ArrayAppend { array, value } => {
                 return self.emit_array_append(inst, *array, *value);
             }
-            InstKind::ArraySpread { array, subject } => {
-                return self.emit_array_spread(inst, *array, *subject);
+            InstKind::ArraySpread {
+                array,
+                subject,
+                owned,
+            } => {
+                return self.emit_array_spread(inst, *array, *subject, *owned);
             }
             InstKind::ArrayUnset { array, key } => {
                 let (array, _) = self.value(*array)?;
@@ -4761,7 +4765,8 @@ impl Emitter<'_, '_> {
     }
 
     /// `[...$a]`: the whole-array copy, and the other write emitted as a
-    /// status check.
+    /// status check. An owned spread calls `nvs_array_spread_owned`, which
+    /// has the same signature and the same error edge.
     ///
     /// [`Self::emit_array_append`] with an array pointer where that one builds
     /// a 16-byte value slot — the subject is borrowed, so nothing about it is
@@ -4783,9 +4788,15 @@ impl Emitter<'_, '_> {
         inst: &Inst,
         array: ValueId,
         subject: ValueId,
+        owned: bool,
     ) -> Result<Block, CodegenError> {
         let (array, _) = self.value(array)?;
         let (subject, _) = self.value(subject)?;
+        let symbol = if owned {
+            "nvs_array_spread_owned"
+        } else {
+            "nvs_array_spread"
+        };
 
         let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
             StackSlotKind::ExplicitSlot,
@@ -4794,7 +4805,7 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref("nvs_array_spread", RuntimeSig::ArraySpread)?;
+        let callee = self.runtime_ref(symbol, RuntimeSig::ArraySpread)?;
         let call = self
             .b
             .ins()

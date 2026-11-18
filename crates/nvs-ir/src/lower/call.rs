@@ -448,7 +448,11 @@ impl<'a> Lowering<'a> {
                     .emit_fallible(
                         *cur,
                         Ty::Array,
-                        InstKind::ArraySpread { array, subject },
+                        InstKind::ArraySpread {
+                            array,
+                            subject,
+                            owned: false,
+                        },
                         env,
                     )
                     .0;
