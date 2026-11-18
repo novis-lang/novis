@@ -63,6 +63,7 @@ pub(crate) fn check_declaration(
     // question of every site this walk visits, so each walks the same lists
     // once, beside it.
     crate::paths::check_marker_sites(groups, members, cases, ctx, env);
+    crate::route_params::check_marker_sites(members, ctx, env);
     crate::deprecated::check_sites(decl, groups, members, cases, ctx, env);
     check_recognized_sites(decl, groups, members, cases, ctx, env);
     for member in members {
@@ -421,6 +422,8 @@ fn check_recognized(
             crate::derive::DERIVE,
             crate::derive::DB_DERIVE,
             crate::derive::QUERY,
+            crate::derive::ROUTE_TARGET,
+            crate::derive::ROUTE_PARAMS,
             crate::derive::PATH,
         ]
         .into_iter()

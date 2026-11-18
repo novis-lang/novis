@@ -1,0 +1,20 @@
+--TEST--
+`#[Core\Router\Params]` in a method with no `#[Core\Router\Target]` is `E1000`: the values have no route to be checked against — `rule:routing/a-route-target-parameter-is-checked-like-a-link`
+--FILE--
+<?nvs
+class Menu {
+    // `$route` takes a method, but it has no `#[Core\Router\Target]`.
+    public static function entry(callable $route, #[Core\Router\Params] array $values): string {
+        return "entry";
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1000]: `#[Core\Router\Params]` is in a method with no `#[Core\Router\Target]` parameter
+  --> case.nvs:4:53
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

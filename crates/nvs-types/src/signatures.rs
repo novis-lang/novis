@@ -135,6 +135,15 @@ pub struct MethodSig {
     /// `crate::paths` is the one reader: it resolves a relative string literal
     /// written at a [`ParamText::Path`] parameter.
     pub param_text: Vec<ParamText>,
+    /// Which parameters carry `#[Core\Router\Target]` and
+    /// `#[Core\Router\Params]` (`rule:routing/a-route-target-parameter-is-checked-like-a-link`),
+    /// read by [`crate::route_params::declared_slots`]. `None` for every
+    /// signature that marks no `Target`, which is every signature but some
+    /// user methods'. A `Core` row never carries either mark.
+    ///
+    /// It is read off the signature a call resolves to, as
+    /// [`Self::param_text`] is, so an override neither inherits nor needs it.
+    pub route_slots: Option<crate::route_params::RouteSlots>,
     /// The type parameters a **call site** must write, in the order its
     /// `<...>` list binds them — `["T"]` for `Core\Json::decodeAs<T>`, and
     /// empty for everything else.
@@ -1441,6 +1450,7 @@ fn collect_members(
                     Vec::new()
                 };
                 let param_text = crate::paths::declared_text(&m.params, ctx, env);
+                let route_slots = crate::route_params::declared_slots(&m.params, ctx, env);
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let mut defaults = collect_defaults(&m.params, &params, ctx, env);
                 crate::paths::resolve_defaults(&m.params, &param_text, &mut defaults, env);
@@ -1499,6 +1509,7 @@ fn collect_members(
                         // `MethodSig::param_quals`.
                         param_quals: Vec::new(),
                         param_text,
+                        route_slots,
                         // `rule:types/declaration`: a user-declared method
                         // has no type parameters to write.
                         type_params: Vec::new(),

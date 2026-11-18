@@ -6,7 +6,7 @@ context: [crates/nvs-types/src/links.rs, docs/rules/routing/link-target-and-para
 stages:
   - id: 1
     title: the two attributes are read into the signature, and one written where it cannot be read does not compile
-    status: open
+    status: done
     context: [crates/nvs-types/src/derive.rs, crates/nvs-types/src/paths.rs, crates/nvs-types/src/attributes.rs, crates/nvs-types/src/signatures.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-diagnostics/src/code/mod.rs, crates/nvs-diagnostics/src/code/types_e08.rs, docs/rules/expressions/method-reference.md]
   - id: 2
     title: a written route at a Target argument is checked against the finished route table, and the call stays an ordinary call
@@ -126,7 +126,8 @@ mechanism, and a method that takes two routes is rare.
 **Where each may be written (my call; safe default: the narrower set).** On a parameter of a method,
 static or instance, and of a constructor. `derive::sites` gives both `Site::Param` alone, so a
 promoted constructor parameter, a method, a class and a property get the existing `E0874`. A
-top-level function's parameter is `E0874` too: its calls do not reach the call paths this goal changes.
+top-level function does not compile at all (`rule:classes/no-free-functions-or-constants`), so it
+needs no case.
 A `Target` parameter's type is `callable`, a `callable(...)` type, or either one nullable. A `Params`
 parameter's type is `array` or `array<...>`, nullable or not. A variadic parameter takes neither,
 because many arguments fill it.
@@ -241,30 +242,30 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 `tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst`. The
 session runs that check once.
 
-- [ ] `docs/rules/routing/a-route-target-parameter-is-checked-like-a-link.md:1`: the new rule from
+- [x] `docs/rules/routing/a-route-target-parameter-is-checked-like-a-link.md:1`: the new rule from
   § *Standing decisions*: the two attributes and where each goes, what a call checks, the call staying
   an ordinary call, the visibility and receiver checks, the table, overrides, and the cost line. Its
   Declined list: the `of:` argument, skipping the visibility check for a `Target` argument, a links-root
   route at a `Target` argument. One line in `docs/ground-rules.md` beside `:1049`. One sentence in
   `docs/rules/routing/link-target-and-params-are-checked.md:18` pointing to it. `bun nv rules
   --render`, then `bun nv rules --check` is green.
-- [ ] `crates/nvs-types/src/derive.rs:796`: `ROUTE_TARGET` (`Core\Router\Target`) and `ROUTE_PARAMS`
+- [x] `crates/nvs-types/src/derive.rs:796`: `ROUTE_TARGET` (`Core\Router\Target`) and `ROUTE_PARAMS`
   (`Core\Router\Params`) beside `QUERY`, each with a doc comment naming the rule. `:147` `sites` gives
   both `Site::Param`. `:254` `ATTRIBUTE_DOCS` gains a card for each (`rule:core-api/reference-card`),
   in end-user prose. `crates/nvs-types/src/attributes.rs:420` lists both among the names that take no
   options.
-- [ ] `crates/nvs-types/src/route_params.rs:1`: a new module, the sibling of `crates/nvs-types/src/paths.rs`.
+- [x] `crates/nvs-types/src/route_params.rs:1`: a new module, the sibling of `crates/nvs-types/src/paths.rs`.
   `declared_slots` reads the two marks off a method's parameters, as `paths.rs:103` `declared_text`
   reads `#[Core\Path]`. `check_marker_sites` reports `E0899` (wrong type, variadic) and `E1000`
   (pairing), each at the attribute, as `paths.rs:460` `check_method` does. It is called beside
   `crate::paths::check_marker_sites` at `crates/nvs-types/src/attributes.rs:65`.
-- [ ] `crates/nvs-types/src/signatures.rs:57`: `MethodSig::route_slots`, filled at `:1442` beside
+- [x] `crates/nvs-types/src/signatures.rs:57`: `MethodSig::route_slots`, filled at `:1442` beside
   `param_text`, and `None` everywhere else a signature is built. `crates/nvs-types/src/expr_table.rs:99`:
   `ResolvedCall::route_slots`, copied where `param_text` is.
-- [ ] `E0899` in `crates/nvs-diagnostics/src/code/types_e08.rs:1249` after `E0898`, and `E1000` in the new
+- [x] `E0899` in `crates/nvs-diagnostics/src/code/types_e08.rs:1249` after `E0898`, and `E1000` in the new
   `crates/nvs-diagnostics/src/code/types_e10.rs:1`, its `AREA` added to `AREAS` at
   `crates/nvs-diagnostics/src/code/mod.rs:76` and its row to the table at `:23`. Each has its card.
-- [ ] The five `.nvst` cases the `attribute-sites` check names, and the check run once.
+- [x] The five `.nvst` cases the `attribute-sites` check names, and the check run once.
 
 ### 2. a written route at a Target argument is checked against the finished route table, and the call stays an ordinary call
 
@@ -378,19 +379,29 @@ heading, `about.md`, `details.md` and the website section, and runs the `feature
 
 ### State
 
-Written on 2026-11-17 from a design conversation with the person. Nothing is built yet. The person's
-calls are marked in § *Standing decisions*. Every other choice there is the authoring session's call
-under the priority ordering, and stands until the person picks another. The `nvs test` fix for a
-method reference passed as a value (`crates/nvs-cli/src/runner.rs`, case
-`tests/conformance/lang/a-test-links-a-method-reference-passed-as-a-value.nvst`) lands before this
-goal starts, and stage 2's run cases rely on it.
+Stage 1 is done, and `attribute-sites` is green. `Core\Router\Target` and `Core\Router\Params` are
+on `crate::derive::ATTRIBUTES` with their cards, `crates/nvs-types/src/route_params.rs` reads them
+into `MethodSig::route_slots` (`RouteSlots { target, params }`) and reports `E0899` and `E1000`,
+and `ResolvedCall::route_slots` copies the slots at `crates/nvs-types/src/expr/calls.rs`
+`resolved_call`. `E1000` opened `crates/nvs-diagnostics/src/code/types_e10.rs`, and `E11xx` is now
+the reserve row. The rule is `docs/rules/routing/a-route-target-parameter-is-checked-like-a-link.md`,
+rendered. Nothing checks a call yet: the rule's *What a call checks* paragraph is stage 2's.
+
+The sweep's reds: `env-secret-proofs` is stale (its newest `git log -S` hit is a retire commit), and
+the nightly `supply chain` failure (`chrono` unmaintained, through `rxing`) is already fixed on disk
+by `0fe2fdef25`, which removed both from `Cargo.lock` after that run.
+
+The working tree carries edits this goal did not make, in `crates/nvs-lsp/src/index.rs`,
+`crates/nvs-lsp/tests/progress.rs`, `crates/nvs-runtime/src/lib.rs` and
+`crates/nvs-types/src/check.rs`. Leave them unstaged.
 
 ### Next
 
-Stage 1 from its first item: the rule fragment, then `derive.rs`'s two names and cards,
-`crates/nvs-types/src/route_params.rs`, `MethodSig::route_slots` at
-`crates/nvs-types/src/signatures.rs:1442`, and the two codes. The `attribute-sites` cases do not
-exist yet and are expected to fail until the stage writes them.
+Stage 2 from its first item: `LinkSite`'s kind at `crates/nvs-types/src/links.rs:104`, then
+`record_site` (`:212`) taking the two indexes from `RouteSlots`, then the three call paths in
+`crates/nvs-types/src/expr/calls.rs` (`:180`, `:963`, `:1222`) reading `sig.route_slots`, then
+`resolve` (`links.rs:443`). The `call-checked` and `call-checked-rust` cases do not exist yet and
+are expected to fail until the stage writes them. No existing test is expected to go red from stage 1.
 
 ### Backlog
 

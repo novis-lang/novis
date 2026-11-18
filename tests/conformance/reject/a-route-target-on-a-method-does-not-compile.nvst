@@ -1,0 +1,28 @@
+--TEST--
+`#[Core\Router\Target]` and `#[Core\Router\Params]` on a method are `E0874`: each goes on a parameter — `rule:routing/a-route-target-parameter-is-checked-like-a-link`
+--FILE--
+<?nvs
+class Menu {
+    #[Core\Router\Target]
+    public static function entry(callable $route): string {
+        return "entry";
+    }
+
+    #[Core\Router\Params]
+    public static function values(array $values): string {
+        return "values";
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0874]: `#[Core\Router\Target]` cannot be written on a method
+  --> case.nvs:3:7
+%A
+error[E0874]: `#[Core\Router\Params]` cannot be written on a method
+  --> case.nvs:8:7
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,22 @@
+--TEST--
+`#[Core\Router\Params]` on a `string` parameter is `E0899`: the route's values are an `array` — `rule:routing/a-route-target-parameter-is-checked-like-a-link`
+--FILE--
+<?nvs
+class Menu {
+    public static function entry(
+        #[Core\Router\Target] callable $route,
+        #[Core\Router\Params] string $values,
+    ): string {
+        return $values;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0899]: `#[Core\Router\Params] $values` is on a parameter of type `string`
+  --> case.nvs:5:11
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

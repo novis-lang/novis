@@ -840,7 +840,8 @@ and its class hooks under `nvs test`.
 
 **A link calls nothing**, so an instance method needs no object (`App::show` names it whether or not
 it is `static`), and its visibility is not checked: a `private` handler is linked to like a `public`
-one.
+one. A user method that takes a route through a `#[Core\Router\Target]` parameter keeps both checks,
+because it receives a callable it can call (`routing/a-route-target-parameter-is-checked-like-a-link`).
 
 **A literal value is held to the conversion of the parameter it supplies**, a capture's or a
 `#[Query]` parameter's, and one the conversion refuses is `E0772` at the call: `"x"`, `-3` and `2.5`
@@ -861,6 +862,75 @@ is built on is the mount-relative one ([`routing/link-carries-the-mount-prefix`]
   handler is no less reachable for being linked to; the route's `#[Access]` is what guards it.
 
 <sub>See also [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/path-grammar`](routing.md#routing-path-grammar), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture).</sub>
+
+<a id="routing-a-route-target-parameter-is-checked-like-a-link"></a>
+
+## A `#[Core\Router\Target]` parameter takes a route as `Core\Router::url` does, and a call that writes the route is checked like a link and stays an ordinary call
+
+`rule:routing/a-route-target-parameter-is-checked-like-a-link`
+
+A user method takes a route the way `Core\Router::url` does, and a call that writes the route is checked
+the way a link is. `#[Core\Router\Target]` goes on a `callable` parameter, and `#[Core\Router\Params]` on
+an `array` parameter of the same method:
+
+```nvs
+public static function entry(#[Core\Router\Target] callable $route,
+                             #[Core\Router\Params] array $params = []): string
+```
+
+**Where each may be written.** On a parameter of a method, static or instance, or of a constructor.
+Anywhere else, a promoted constructor parameter included, either one is `E0874`. A `Target` parameter's
+type is `callable`, a `callable(...)` type, or either one nullable. A `Params` parameter's type is
+`array` or `array<...>`, nullable or not. A variadic parameter takes neither, because many arguments
+fill it. A wrong type or a variadic parameter is `E0899`. A method has at most one of each, and a
+`Params` needs a `Target` in the same method and pairs with it, so a second of either and a `Params`
+alone are `E1000`. A `Target` may stand alone, for a route with no parameters. Neither takes a payload,
+and no `Core` member carries either.
+
+**What a call checks.** At a call whose `Target` argument is a **written** method reference, the call
+asks the four questions `routing/link-target-and-params-are-checked` asks of a link, against the
+program's finished route table: the method has a `#[Route]` (`E0754`), a `Params` array literal covers
+every capture (`E0755`), each of its keys is a capture or a `#[Query]` parameter (`E0759`), and a literal
+value is one the capture's conversion and closed set accept (`E0772`). A reference that names no method
+is reported as it is at a link. A named argument is read where it was written. A computed `Params` is
+not checked. A call that leaves the `Params` argument out is checked as `[]` when the parameter's
+default is `[]`, and is not checked for any other default. Each message names the method the call
+wrote.
+
+**The call stays an ordinary call.** The check records nothing over the call, so the argument is a real
+callable value and the method body receives it. A reference passed as a value — a variable, or a
+`Target` parameter forwarded to another such method — is not checked while compiling, and is resolved
+when it reaches `Core\Router::url` at run time, which throws for a method with no route.
+
+**The reference keeps its visibility and receiver checks.** A link calls nothing, so it skips them. A
+`Target` method receives a callable it can call, so a `private` route method is passed only from inside
+its own class. A written reference to an instance method needs the receiver
+`expressions/method-reference` asks for: inside an instance method of its own class it carries `$this`,
+and from anywhere else the route method is `static`, or the link is written with `Core\Router::url`.
+
+**The table is the program's own.** A reference to a class under an `autoload links` root stays
+`E0897` (`routing/a-link-reaches-another-module`): that class is not compiled into the program, so no
+callable value of it exists. A link to another module is written with `Core\Router::url` directly.
+
+**The marks are read from the signature the call resolves to**, as `#[Core\Path]`'s are. An override
+neither inherits nor needs them, and a call through an override with no marks is not checked while
+compiling. The visibility check holds on every path, so that loses checking and not safety.
+
+**Cost:** compile time only. One recorded site per call whose `Target` argument is a written reference,
+freed once the table check runs, and one optional pair of parameter indexes per signature. Nothing at
+run time and nothing per request.
+
+**Declined:**
+- **An `of:` argument naming the paired parameter by a string.** It is a new mechanism for a rare
+  method that takes two routes, and a string that names a parameter is not checked by renaming it.
+- **Skipping the visibility check for a `Target` argument.** The method receives a real callable and
+  can call it, so skipping the check would let any class take another class's `private` method and
+  call it. Security and request isolation outranks the convenience.
+- **A links-root route at a `Target` argument.** It needs a new run-time value that names a route
+  without a callable, and the run time does not change for this feature. A link to another module is
+  `Core\Router::url`'s.
+
+<sub>See also [`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-link-reaches-another-module`](routing.md#routing-a-link-reaches-another-module), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file).</sub>
 
 <a id="routing-link-carries-the-mount-prefix"></a>
 

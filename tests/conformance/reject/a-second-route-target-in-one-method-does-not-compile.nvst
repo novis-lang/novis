@@ -1,0 +1,22 @@
+--TEST--
+A second `#[Core\Router\Target]` in one method is `E1000`: a method takes one route — `rule:routing/a-route-target-parameter-is-checked-like-a-link`
+--FILE--
+<?nvs
+class Menu {
+    public static function pair(
+        #[Core\Router\Target] callable $first,
+        #[Core\Router\Target] callable $second,
+    ): string {
+        return "pair";
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1000]: a method has a second `#[Core\Router\Target]` parameter
+  --> case.nvs:5:11
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

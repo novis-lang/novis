@@ -373,6 +373,7 @@ fn method_sig(
         has_body: true,
         generator: false,
         param_text: vec![ParamText::Plain; count],
+        route_slots: None,
     }
 }
 

@@ -19,7 +19,8 @@ and its class hooks under `nvs test`.
 
 **A link calls nothing**, so an instance method needs no object (`App::show` names it whether or not
 it is `static`), and its visibility is not checked: a `private` handler is linked to like a `public`
-one.
+one. A user method that takes a route through a `#[Core\Router\Target]` parameter keeps both checks,
+because it receives a callable it can call (`routing/a-route-target-parameter-is-checked-like-a-link`).
 
 **A literal value is held to the conversion of the parameter it supplies**, a capture's or a
 `#[Query]` parameter's, and one the conversion refuses is `E0772` at the call: `"x"`, `-3` and `2.5`

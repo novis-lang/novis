@@ -20,7 +20,8 @@
 //! | `E07xx` | types, continued: the `E04xx` range filled at `E0499` | `types_e07.rs` |
 //! | `E08xx` | types, continued again: the `E07xx` range filled at `E0799` | `types_e08.rs` |
 //! | `E09xx` | internal compiler errors | `internal.rs` |
-//! | `E10xx` | reserve: whichever range fills next continues here, in a new file | none yet |
+//! | `E10xx` | types, continued: the `E08xx` range filled at `E0899` | `types_e10.rs` |
+//! | `E11xx` | reserve: whichever range fills next continues here, in a new file | none yet |
 //! | `W1xxx` | warnings | `warnings.rs` |
 //!
 //! A new code takes the highest number in its area's file plus one, and a
@@ -46,6 +47,7 @@ mod rejected_php;
 mod types;
 mod types_e07;
 mod types_e08;
+mod types_e10;
 mod warnings;
 
 pub use config::declared::*;
@@ -63,6 +65,7 @@ pub use rejected_php::declared::*;
 pub use types::declared::*;
 pub use types_e07::declared::*;
 pub use types_e08::declared::*;
+pub use types_e10::declared::*;
 pub use warnings::declared::*;
 
 /// One area of the table: the prefix every code in it starts with, and its
@@ -84,6 +87,7 @@ const AREAS: &[Area] = &[
     types_e07::AREA,
     types_e08::AREA,
     internal::AREA,
+    types_e10::AREA,
     warnings::AREA,
 ];
 

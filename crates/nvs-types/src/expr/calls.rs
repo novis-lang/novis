@@ -1816,6 +1816,7 @@ pub(crate) fn resolved_call(
         overridden,
         arg_slots,
         param_text: sig.param_text.clone(),
+        route_slots: sig.route_slots,
         param_tys: sig.params.clone(),
         param_names: sig.param_names.clone(),
         inout: sig.inout.clone(),

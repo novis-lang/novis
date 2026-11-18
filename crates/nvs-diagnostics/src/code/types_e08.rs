@@ -1,5 +1,5 @@
-//! The type checker's codes, continued from `types_e07.rs`: `E08xx`. Once
-//! this range is full, the area continues in the reserve range, `E10xx`.
+//! The type checker's codes, continued from `types_e07.rs`: `E08xx`. The
+//! range is full at `E0899`, and the area continues in `types_e10.rs`.
 //!
 //! A new code here takes the highest number in this file plus one, never a
 //! hole: a hole is a retired number. A code outside `E08xx` fails the
@@ -10,8 +10,8 @@ codes! {
 
     //
     // The third band for one stage. `E07xx` filled at `E0799`, and `E08xx`,
-    // held in reserve for whichever band filled next, continues it; `E10xx`
-    // is the reserve. The paragraph under this module's legend table
+    // held in reserve for whichever band filled next, continues it, and
+    // `E10xx` continues this one. The paragraph under this module's legend table
     // owns the reasoning.
     //
 
@@ -1250,5 +1250,18 @@ codes! {
         "`Core\\Router::urlSigned` cannot link to a route of another module. The module that \
          checks a signed link must also create it. Call `urlSigned` in the module that \
          declares the route, or link with `Core\\Router::url`.",
+    );
+    /// `#[Core\Router\Target]` on a parameter that is not `callable`, or
+    /// `#[Core\Router\Params]` on one that is not an `array`, or either on a
+    /// variadic parameter (`rule:routing/a-route-target-parameter-is-checked-like-a-link`).
+    /// A call fills the marked parameter with one route or one array, and the
+    /// checker reads that one argument, so a type that cannot hold it, or a
+    /// tail many arguments fill, leaves nothing to check. The range's last
+    /// number: `E10xx` continues it.
+    pub const E_ROUTE_ATTRIBUTE_ON_A_WRONG_PARAMETER: Code = Code::new("E0899").card(
+        "`#[Core\\Router\\Target]` goes on a parameter of type `callable`. \
+         `#[Core\\Router\\Params]` goes on a parameter of type `array`. Neither can go on a \
+         variadic parameter (`...$x`). Change the type of the parameter, or delete the \
+         attribute.",
     );
 }

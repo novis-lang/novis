@@ -523,6 +523,7 @@ fn method_sig(
         param_text: (0..method.positional().len())
             .map(|index| method.param_text(index))
             .collect(),
+        route_slots: None,
     }
 }
 

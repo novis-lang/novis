@@ -69,7 +69,8 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// `#[AfterClass]` and `#[AfterEachTest]` are [`crate::test_hooks`]',
 /// `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
-/// [`crate::routes`]', `#[Core\Path]` is [`crate::paths`]' and
+/// [`crate::routes`]', `#[Core\Router\Target]`/`#[Core\Router\Params]` are
+/// [`crate::route_params`]', `#[Core\Path]` is [`crate::paths`]' and
 /// `#[Core\Deprecated]` is [`crate::deprecated`]'s.
 pub const ATTRIBUTES: &[&str] = [
     DERIVE,
@@ -89,6 +90,8 @@ pub const ATTRIBUTES: &[&str] = [
     OPTION,
     ROUTE,
     QUERY,
+    ROUTE_TARGET,
+    ROUTE_PARAMS,
     ACCESS,
     API,
     API_SCHEME,
@@ -151,6 +154,7 @@ pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
         TEST | BENCH | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS
         | AFTER_EACH_TEST | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
         OPTION | QUERY => &[Site::Param, Site::PromotedParam],
+        ROUTE_TARGET | ROUTE_PARAMS => &[Site::Param],
         _ => return None,
     })
 }
@@ -538,6 +542,22 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         site: "a parameter of a route",
     },
     AttributeDoc {
+        name: ROUTE_TARGET,
+        fields: &[],
+        short: "Says that this parameter takes a route method, such as `Shop::show`. A call that \
+                writes the method here is checked like a call of `Core\\Router::url`.",
+        site: "a `callable` parameter of a method",
+    },
+    AttributeDoc {
+        name: ROUTE_PARAMS,
+        fields: &[],
+        short: "Says that this parameter takes the values for the route of the \
+                `#[Core\\Router\\Target]` parameter. An array written here must give every value \
+                that the route path needs.",
+        site: "an `array` parameter of a method that also has a `#[Core\\Router\\Target]` \
+               parameter",
+    },
+    AttributeDoc {
         name: ACCESS,
         fields: &[
             AttributeField {
@@ -794,6 +814,22 @@ pub const ROUTE: &str = r"Core\Route";
 /// no member of anything, so a file that spells it bare places it with
 /// `use Core\Query;`. [`crate::routes`] owns what it means.
 pub const QUERY: &str = r"Core\Query";
+
+/// `#[Core\Router\Target]` —
+/// `rule:routing/a-route-target-parameter-is-checked-like-a-link`'s mark on a
+/// `callable` parameter of a user method. It carries nothing. A call that
+/// writes a method reference at the marked parameter is checked against the
+/// route table as a `Core\Router::url` link is. [`crate::route_params`] owns
+/// where it may be written, and [`crate::signatures::MethodSig::route_slots`]
+/// carries it to the call.
+pub const ROUTE_TARGET: &str = r"Core\Router\Target";
+
+/// `#[Core\Router\Params]` —
+/// `rule:routing/a-route-target-parameter-is-checked-like-a-link`'s mark on an
+/// `array` parameter of a method that also has a [`ROUTE_TARGET`] parameter.
+/// It carries nothing. A literal array written there is checked against the
+/// route that the paired argument names, as a link's `$params` is.
+pub const ROUTE_PARAMS: &str = r"Core\Router\Params";
 
 /// `#[Access(allow: mixed, csrf?: bool)]` — `rule:attributes/access-is-a-required-sibling`'s required sibling of
 /// `#[Route]`, on the same method, and the only name here whose point is to

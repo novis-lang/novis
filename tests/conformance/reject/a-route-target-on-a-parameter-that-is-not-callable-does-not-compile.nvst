@@ -1,0 +1,20 @@
+--TEST--
+`#[Core\Router\Target]` on a `string` parameter is `E0899`: a route is a `callable` — `rule:routing/a-route-target-parameter-is-checked-like-a-link`
+--FILE--
+<?nvs
+class Menu {
+    // The route is passed as a method reference, which is a `callable`.
+    public static function entry(#[Core\Router\Target] string $route): string {
+        return $route;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0899]: `#[Core\Router\Target] $route` is on a parameter of type `string`
+  --> case.nvs:4:36
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

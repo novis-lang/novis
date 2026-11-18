@@ -1,0 +1,19 @@
+{
+  "title": "A `#[Core\\Router\\Target]` parameter takes a route as `Core\\Router::url` does, and a call that writes the route is checked like a link and stays an ordinary call",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/link-target-and-params-are-checked",
+    "routing/a-leftover-link-key-is-a-query-string",
+    "routing/a-capture-narrows-to-a-closed-set",
+    "routing/a-link-reaches-another-module",
+    "expressions/method-reference",
+    "programs/relative-paths-resolve-from-their-file"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-route-target-on-a-parameter-that-is-not-callable-does-not-compile.nvst",
+    "tests/conformance/reject/route-params-on-a-parameter-that-is-not-an-array-does-not-compile.nvst",
+    "tests/conformance/reject/route-params-without-a-route-target-does-not-compile.nvst",
+    "tests/conformance/reject/a-second-route-target-in-one-method-does-not-compile.nvst",
+    "tests/conformance/reject/a-route-target-on-a-method-does-not-compile.nvst"
+  ]
+}

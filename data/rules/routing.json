@@ -22,6 +22,7 @@
     "routing/a-gate-answers-around-every-handler",
     "routing/a-request-reads-its-mount",
     "routing/link-target-and-params-are-checked",
+    "routing/a-route-target-parameter-is-checked-like-a-link",
     "routing/link-carries-the-mount-prefix",
     "routing/a-leftover-link-key-is-a-query-string",
     "routing/an-absolute-link-takes-a-configured-origin",

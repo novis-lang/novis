@@ -292,6 +292,11 @@ pub struct ResolvedCall {
     /// empty vector does not allocate, so a call to an unmarked method costs
     /// nothing.
     pub param_text: Vec<nvs_stdlib::registry::ParamText>,
+    /// [`crate::signatures::MethodSig::route_slots`], kept with the call so an
+    /// editor reads which argument is a route and which its values from the
+    /// call it already holds. `None` for a call of a method that marks no
+    /// route parameter.
+    pub route_slots: Option<crate::route_params::RouteSlots>,
 }
 
 impl ResolvedCall {

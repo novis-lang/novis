@@ -310,6 +310,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             // carry a classification — see `MethodSig::param_quals`.
             param_quals: Vec::new(),
             param_text: Vec::new(),
+            route_slots: None,
             variadic: false,
             defaults: vec![
                 None,
