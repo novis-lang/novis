@@ -31,7 +31,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::{At, stmt_at, terminator_targets};
+use super::{At, BodyRow, Count, stmt_at, terminator_targets};
 use crate::copies::{Fix, KeptCopy, Reason};
 use crate::effects::{OwnedSlot, Summaries, Summary, Touches, callback, types};
 use crate::ids::{BlockId, ValueId};
@@ -48,13 +48,14 @@ enum Use {
 /// `<callee>#lent<param>`, or `None` when its shape is not covered. `slots`
 /// are the slots its calls lend it. With it come the copies it keeps: one
 /// per change that separates, with its [`Fix`] where one exists
-/// ([`Reach::fix`]).
+/// ([`Reach::fix`]), and the [`Count`] of the parameter against the change's
+/// result where the two have the same type.
 pub(super) fn body(
     callee: &Function,
     param: usize,
     slots: &FxHashSet<OwnedSlot>,
     summaries: &Summaries,
-) -> Option<(Function, Vec<KeptCopy>)> {
+) -> Option<(Function, Vec<BodyRow>)> {
     let index: FxHashMap<u32, usize> = callee
         .blocks
         .iter()
@@ -131,11 +132,13 @@ pub(super) fn body(
             Reason::FailureAfterChange
         };
         if let Some((_, span)) = stmt_at(callee, (b, i)) {
-            kept.push(KeptCopy {
+            let copy = KeptCopy {
                 span,
                 reason,
                 fix: walk.fix((b, i), reason),
-            });
+            };
+            let count = Count::of(&walk.tys, p, callee.blocks[b].insts[i].result);
+            kept.push((copy, count));
         }
         release_before_return.extend(reached.returns.iter().copied());
         if let Some(landing) = callee.blocks[b].insts[i].on_error {
@@ -283,22 +286,23 @@ impl Reach<'_> {
         let insts = &self.f.blocks[b].insts;
         let offender = (i + 1..insts.len()).find(|&j| match reason {
             Reason::ReadAfterChange => self.reads_a_slot(&insts[j].kind),
-            _ => {
-                insts[j].on_error.is_some()
-                    && !matches!(insts[j].kind, InstKind::Safepoint)
-            }
+            _ => insts[j].on_error.is_some() && !matches!(insts[j].kind, InstKind::Safepoint),
         })?;
         let (start, change) = stmt_at(self.f, (b, i))?;
         let (from, moved) = stmt_at(self.f, (b, offender))?;
         if from <= i {
             return None;
         }
-        let to = (from + 1..insts.len())
-            .find(|&j| matches!(insts[j].kind, InstKind::StmtMarker(_)))?;
-        let made_between: FxHashSet<ValueId> =
-            insts[start..from].iter().filter_map(|inst| inst.result).collect();
-        let made_in: FxHashSet<ValueId> =
-            insts[from..to].iter().filter_map(|inst| inst.result).collect();
+        let to =
+            (from + 1..insts.len()).find(|&j| matches!(insts[j].kind, InstKind::StmtMarker(_)))?;
+        let made_between: FxHashSet<ValueId> = insts[start..from]
+            .iter()
+            .filter_map(|inst| inst.result)
+            .collect();
+        let made_in: FxHashSet<ValueId> = insts[from..to]
+            .iter()
+            .filter_map(|inst| inst.result)
+            .collect();
         let mut reads_between = false;
         for inst in &insts[from..to] {
             inst.kind
@@ -336,7 +340,9 @@ impl Reach<'_> {
                 }
                 inst.kind.for_each_operand(|v| found |= values.contains(&v));
             }
-            block.term.for_each_operand(|v| found |= values.contains(&v));
+            block
+                .term
+                .for_each_operand(|v| found |= values.contains(&v));
         }
         found
     }

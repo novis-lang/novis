@@ -148,7 +148,7 @@ checks:
   - id: copy-report
     stage: 7
     name: "every copy the pass keeps is in the compiled program's table with its reason and fix, a warning is raised exactly where an easy fix removes a copy, the table survives the compile cache, and a recorded request counts its copies by site"
-    run: [cargo, test, --lib, --bin, nvs, --, every_copy_the_pass_keeps_is_in_the_table, a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy, the_copy_table_survives_the_compile_cache, a_recorded_request_counts_its_copies_by_site]
+    run: [cargo, test, --lib, --bin, nvs, --test, debug_ingest, --, every_copy_the_pass_keeps_is_in_the_table, a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy, the_copy_table_survives_the_compile_cache, a_recorded_request_counts_its_copies_by_site]
     timeout: 1800
     tests:
       - every_copy_the_pass_keeps_is_in_the_table
@@ -322,6 +322,18 @@ neither the lent slots nor the statements it passes. Only those two reasons with
   viewer lists the hottest copy sites with their help. The editor shows a lens on the line with the
   count from the newest recorded request and the help text, read from the debug index exactly as the
   query lens is (`crates/nvs-lsp/src/recorded.rs:1`).
+  **How it is counted (my call, 2026-11-18).** The runtime's copy paths do not take a site: the
+  pass puts `InstKind::CopyCount { site, before, after }` right after each row's call or change,
+  and codegen calls `nvs_copy_count`, which cannot fail. It does nothing unless the context counts
+  copies, which is armed when the context has a `CopySites` table and `[debug] store` is in force.
+  It counts a copy when `after` is another value than `before`, and adds `before`'s entries or
+  bytes. The request's context writes one `copies` spool record when its isolate finishes
+  (`nvs-host` `finish`), and the index keeps one row per site (`copies`, schema 8). Threading a
+  site id through every array, string and helper copy path was declined: many runtime ABIs would
+  change, for the same number. **What it spends:** one call per run of a kept-copy site, which
+  tests one field and returns, and a slice of two counters per row on a recorded request. A
+  counted row whose callee builds a new value of the same kind counts it as a copy; a task's own
+  copies (`Ctx::child`) are not counted.
 
 **What the report spends:** one table per compiled program, with one row per kept copy, and one
 flag check per copy at run time.
@@ -699,6 +711,12 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 - [ ] The copy path counts by site when a request is recorded. `crates/nvs-cli/src/debug/index.rs`
   stores the counts, the debug viewer lists the hottest sites with their help, and
   `crates/nvs-lsp/src/recorded.rs` shows the lens.
+  - [x] `InstKind::CopyCount` after each row's call or change, and `nvs_copy_count` in codegen.
+  - [x] `CopySites`, the armed counts on `Ctx`, and the `copies` spool record at `finish`.
+  - [x] The index's `copies` table and its ingest; `a_recorded_request_counts_its_copies_by_site`
+    and `a_kept_copy_is_counted_right_after_its_call` pass, run once by name.
+  - [ ] The debug viewer lists the hottest copy sites with `Reason::help`.
+  - [ ] `crates/nvs-lsp/src/recorded.rs` shows the lens, and its `.lspt` case.
 - [ ] The four tests and the three `.lspt` cases the `copy-report` checks name. Run once.
 
 ### 8. the fuzzer, Miri and an attack hold the guarantee
@@ -726,19 +744,17 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 Stages 1 to 6 are done, and stage 7's first three items. The sweep's `env-secret-proofs` red is
 stale: no goal defines it, and `git log -S` finds it only in this goal's handoffs and a retired goal.
 
-This session landed the editor's warnings. `crates/nvs-lsp/src/document.rs` `copy_warnings` lowers
-the program and runs the pass in `analyse_through`, after the type check, when no file has an
-error and `nvs_types::CheckCache::left_out()` is zero. That count is new: an open document's
-analysis leaves out the files another analysis checks, and a file left out of the fold has no
-expressions, so lowering it would panic. A lowering panic is caught and costs the warnings alone.
-Only the entry file's warnings are kept. The code actions needed no change: the fix is the
-warning's suggestion. **What it spends:** one lowering and pass per analysis of an error-free
-document. `tests/lsp/diagnostics/a-read-after-the-change-warns-and-its-fix-moves-it.lspt`,
-`a-failure-after-the-change-warns-and-its-fix-moves-it.lspt`, and
-`tests/lsp/actions/a-read-after-the-change-is-moved-above-it.lspt` and
-`a-failure-after-the-change-is-moved-above-it.lspt` pass. A `.lspt` case asks one request, so each
-fix has its own `actions` case. The `W1033` case needs a call to a Novis method after the change: a
-`throw` inside an `if` is in another block, so the pass offers no fix for it.
+This session landed the counting pipeline (standing decision "How it is counted"). The pass puts
+`CopyCount` after each row (`ownership.rs` `count_copies`, `Count`; `lent.rs` `body` returns
+`BodyRow`s), codegen calls `nvs_copy_count` (`emit.rs` `emit_copy_count`), the runtime counts on
+`Ctx::copy_counts` (`ctx/trace.rs` `CopySites`, `take_copies`), `nvs-host` `isolate.rs` `finish`
+writes `Record::Copies`, and `debug/index.rs` (schema 8) and `ingest.rs` keep one `copies` row per
+site, keyed `(writer, seq, part)`. `nvs-cli` `script.rs` `copy_sites` numbers by `Program::copies`
+index, calling `skip()` for a row whose file `copy_table` leaves out. `nvs run` and `nvs test`
+write no `copies` record: only a request that ends in `finish` does.
+
+The editor's warnings are `crates/nvs-lsp/src/document.rs` `copy_warnings`, gated on
+`nvs_types::CheckCache::left_out()` being zero.
 
 The sessions before landed `W1032` and `W1033` (`crates/nvs-diagnostics/src/code/warnings.rs`,
 `nvs_ir::copies::warnings`, printed by `nvs check` from `front_end_in`) and the copy table
@@ -747,14 +763,18 @@ nothing more, standing decision of 2026-11-18).
 
 ### Next
 
-- **Stage 7, the counting item.** The copy path in the runtime does not know its site yet: the call
-  site must hand its row id, as a query site id is handed (`Program::query_sites`). Count only when
-  a request is recorded, behind one flag check. `crates/nvs-cli/src/debug/index.rs` stores the
-  counts; the viewer lists the hottest sites with `Reason::help`; `crates/nvs-lsp/src/recorded.rs`
-  shows the lens. Then write `a_recorded_request_counts_its_copies_by_site` and
+- **Stage 7, the viewer and the lens.** The viewer (`crates/nvs-cli/src/debug/api.rs` and its
+  page) lists a request's copy sites from the `copies` table, highest `units` first, with the help
+  of the row's `reason` (a snake-case `Reason` name; add `Reason::from_name` beside `help` in
+  `crates/nvs-ir/src/copies.rs`). `crates/nvs-lsp/src/recorded.rs` reads the newest request's
+  `copies` row at each `(hash, line)` on the `copies_site` index, as the query lens reads
+  `events_site`, and shows the count, the units and the help. Then write
   `tests/lsp/lens/a-recorded-copy-shows-its-count-and-its-help.lspt`, copying an existing case
   under `tests/lsp/lens/`. Run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe lsp-test <case>`
   to see one case's answer; `bun nv suite lsp-test` prints only the first failure's name.
+- `crates/nvs-runtime/src/spool.rs` `one_of_each` and
+  `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool` have no `copies` line yet. Add one to
+  both, so the round trip covers it.
 - Not run yet, because a stage checks with a build alone: the `fn-`, `concat`, `interpolation` and
   `spread` conformance cases under `tests/conformance/in-place/`. They are the first real runs of a
   lent body, a lent local, an owned spread and a moved `Concat`. Run them early in the gate, under a
@@ -767,7 +787,10 @@ nothing more, standing decision of 2026-11-18).
 property copies its array, so a loop of such writes is quadratic. `$s = $s . $x` on a local now
 copies too, because the lowering no longer moves it. Only the differential run uses it.
 
-**Expected red at the gate.** A `.lspt` diagnostics case or an `nvs-lsp` test whose error-free
+**Expected red at the gate.** An IR snapshot of a program with a kept `array`, `string` or `bytes`
+copy now prints `copy.count <site>, v<before>, v<after>` after the call or change; accept it after
+reading it. A test that pins `nvs_runtime::symbols()` or a key built from it sees
+`nvs_copy_count`. A debug index test that reads `SCHEMA` sees 8. A `.lspt` diagnostics case or an `nvs-lsp` test whose error-free
 document has such a callee now shows `W1032` or `W1033` too. A `nvs check` test whose program has a callee that changes a lent
 value and then reads the slot or throws may now print `W1032` or `W1033`; and a program that type
 checks but whose lowering panics now panics in `nvs check` too, which is a lowering bug. Snapshot tests that lower a whole program now show the pass's moves:

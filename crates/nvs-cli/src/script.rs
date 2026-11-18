@@ -232,6 +232,44 @@ pub(crate) struct Compiled {
     /// The unit's query site table, which every context [`program_over`] arms shares, so a traced
     /// query names the file and line of its call.
     query_sites: Arc<nvs_runtime::QuerySites>,
+    /// The unit's copy site table, which every context [`program_over`] arms shares, so a
+    /// recorded request counts its copies by site.
+    copy_sites: Arc<nvs_runtime::CopySites>,
+}
+
+/// The copy site table of `program`, whose files `map` has: one row per copy the ownership pass
+/// keeps, by the id its compiled `CopyCount` passes, which is the row's index in
+/// [`nvs_ir::Program::copies`] plus one. A row whose file `map` does not have is skipped, so the
+/// ids stay in step. Built once per compiled program and shared by every context that runs it.
+///
+/// **What it spends:** one row per kept copy, and one BLAKE3 pass over each file that has one, at
+/// compile time and never on the request path.
+pub(crate) fn copy_sites(
+    program: &nvs_ir::Program,
+    map: &nvs_diagnostics::SourceMap,
+) -> Arc<nvs_runtime::CopySites> {
+    let mut sites = nvs_runtime::CopySites::new();
+    // `copy_table` keeps the rows' order and leaves out a row whose file is not in `map`, so
+    // walking both together finds each copy's located row, or none.
+    let mut located = program.copy_table(map).into_iter().peekable();
+    for copy in &program.copies {
+        match located.next_if(|row| row.span == copy.span && row.reason == copy.reason) {
+            Some(row) => sites.push(&row.file, row.line, &row.text_hash, reason_name(row.reason)),
+            None => sites.skip(),
+        }
+    }
+    Arc::new(sites)
+}
+
+/// The name a `copies` record and the debug index give `reason`.
+fn reason_name(reason: nvs_ir::copies::Reason) -> &'static str {
+    match reason {
+        nvs_ir::copies::Reason::ReadAfterChange => "read_after_change",
+        nvs_ir::copies::Reason::FailureAfterChange => "failure_after_change",
+        nvs_ir::copies::Reason::StillUsed => "still_used",
+        nvs_ir::copies::Reason::SlotKept => "slot_kept",
+        nvs_ir::copies::Reason::CalleeUnknown => "callee_unknown",
+    }
 }
 
 /// The query site table of `program`, whose files `map` has
@@ -1609,6 +1647,7 @@ impl Compiler {
                         debug,
                         coverage,
                         query_sites: query_sites(&lowered, &checked.map),
+                        copy_sites: copy_sites(&lowered, &checked.map),
                     })
                 })
                 .map_err(|error| {
@@ -2311,6 +2350,8 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
         ctx.set_program_id(Arc::clone(&compiled.id));
         // And its query site table, so a traced query names the line of its call in this unit.
         ctx.set_query_sites(Arc::clone(&compiled.query_sites));
+        // And its copy site table, so a recorded request counts its copies by site in this unit.
+        ctx.set_copy_sites(Arc::clone(&compiled.copy_sites));
         // And the debug session, on the unit this context runs. A served
         // request's context is set up for its request by now, so the stop
         // handler is set on the request's own tree.

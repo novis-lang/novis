@@ -37,8 +37,8 @@
 //! Every call this file emits — a runtime helper, `nvs_safepoint` — is
 //! followed by the compare-and-branch `rule:errors/propagation`
 //! puts in place of a landing pad, and a non-`OK` status returns onward
-//! unchanged. `nvs_probe_stmt`, `nvs_probe_edge` and the refcount primitives are the exceptions,
-//! and only because they return no status at all: neither can fail.
+//! unchanged. `nvs_probe_stmt`, `nvs_probe_edge`, `nvs_copy_count` and the refcount primitives
+//! are the exceptions, and only because they return no status at all: none of them can fail.
 //!
 //! # A runtime call that is not a helper
 //!
@@ -1045,6 +1045,14 @@ impl Emitter<'_, '_> {
             } => {
                 self.emit_lend_poison(*object, class, name, *ty, *on)?;
             }
+            InstKind::CopyCount {
+                site,
+                ty,
+                before,
+                after,
+            } => {
+                self.emit_copy_count(*site, *ty, *before, *after)?;
+            }
             InstKind::FieldTake {
                 object,
                 class,
@@ -1630,6 +1638,40 @@ impl Emitter<'_, '_> {
 
         self.b.switch_to_block(cont);
         Ok(cont)
+    }
+
+    /// One kept copy's count (`nvs_ir::ir::InstKind::CopyCount`): a call of
+    /// `nvs_runtime::nvs_copy_count` with the site, the kind (0 for an array,
+    /// 1 for a string, 2 for `bytes`) and both values' pointers. The runtime
+    /// counts nothing unless the request counts copies, and nothing when the
+    /// two pointers are equal. There is no status to check, because the call
+    /// cannot fail.
+    ///
+    /// **What it spends:** one call per counted site that runs, in every
+    /// build. With counting off the callee tests one context field and
+    /// returns.
+    fn emit_copy_count(
+        &mut self,
+        site: u32,
+        ty: Ty,
+        before: ValueId,
+        after: ValueId,
+    ) -> Result<(), CodegenError> {
+        let kind: i64 = match ty {
+            Ty::Array => 0,
+            Ty::Str => 1,
+            Ty::Bytes => 2,
+            _ => return Err(internal("a copy count of a value that is never copied")),
+        };
+        let (before, _) = self.value(before)?;
+        let (after, _) = self.value(after)?;
+        let callee = self.runtime_ref("nvs_copy_count", RuntimeSig::CopyCount)?;
+        let site = self.b.ins().iconst(types::I32, i64::from(site));
+        let kind = self.b.ins().iconst(types::I32, kind);
+        self.b
+            .ins()
+            .call(callee, &[self.ctx_p, site, kind, before, after]);
+        Ok(())
     }
 
     /// The debug switch's store of every variable at a statement
@@ -5366,6 +5408,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Probe => &self.sigs.probe,
             RuntimeSig::ProbeCall => &self.sigs.probe_call,
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
+            RuntimeSig::CopyCount => &self.sigs.copy_count,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::StrAppendParts => &self.sigs.str_append_parts,
             RuntimeSig::PtrEq => &self.sigs.ptr_eq,
@@ -5433,6 +5476,7 @@ enum RuntimeSig {
     Probe,
     ProbeCall,
     ProbeCallExit,
+    CopyCount,
     StrConcat,
     StrAppendParts,
     PtrEq,

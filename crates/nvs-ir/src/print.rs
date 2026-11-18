@@ -110,6 +110,21 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         };
         return;
     }
+    if let InstKind::CopyCount {
+        site,
+        before,
+        after,
+        ..
+    } = inst.kind
+    {
+        let _ = writeln!(
+            out,
+            "    copy.count {site}, v{}, v{}",
+            before.index(),
+            after.index()
+        );
+        return;
+    }
     if let InstKind::SeedRaiseSite = inst.kind {
         let where_ = inst.raise_site.as_ref().map_or_else(
             || "-".to_owned(),
@@ -447,6 +462,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         | InstKind::Retain { .. }
         | InstKind::Release { .. }
         | InstKind::RefStore { .. }
+        | InstKind::CopyCount { .. }
         | InstKind::FieldSet { .. }
         | InstKind::StaticSet { .. } => {
             unreachable!("returned above")

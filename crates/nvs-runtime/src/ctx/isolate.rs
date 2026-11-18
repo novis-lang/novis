@@ -433,6 +433,10 @@ impl Ctx {
         // The effective configuration, overlay included — see the doc above for
         // why the copy goes this way round and not through the snapshot alone.
         child.config = self.config.clone();
+        // The copy site table is the program's, so the task shares it. The task counts nothing:
+        // only the request's own context writes a `copies` record, so counts kept here would be
+        // read by nobody.
+        child.copy_sites = self.copy_sites.clone();
         child.runtime_error_class = self.runtime_error_class.clone();
         // One word, and the table behind it is the process's, so a task
         // resolves by name everything the request it belongs to could.

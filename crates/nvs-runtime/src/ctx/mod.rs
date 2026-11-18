@@ -1480,6 +1480,17 @@ pub struct Ctx {
     /// The query site table of the program this context runs ([`Ctx::set_query_sites`]). A task
     /// gets a clone of the handle. `None` unless the host installed one.
     query_sites: Option<std::sync::Arc<QuerySites>>,
+    /// The copy site table of the program this context runs ([`Ctx::set_copy_sites`]). A child
+    /// context gets a clone of the handle. `None` unless the host installed one.
+    copy_sites: Option<std::sync::Arc<CopySites>>,
+    /// How many copies each copy site made in this context, and how many entries or bytes they
+    /// copied, indexed by site id minus one ([`nvs_copy_count`]). Armed exactly when the context
+    /// has a copy site table and `[debug] store` is in force ([`Ctx::set_copy_sites`],
+    /// [`Ctx::set_config`]), and read once when the request ends ([`Ctx::take_copies`]).
+    ///
+    /// **What it spends:** two words in every context, and for a recorded request one allocation
+    /// of two `u64`s per copy site in the program.
+    copy_counts: Option<Box<[(u64, u64)]>>,
     /// The host's profiler ([`Ctx::set_run_profile`]). Every child context gets a clone of the
     /// handle and a track of its own in it.
     run_profile: Option<std::sync::Arc<Profiler>>,

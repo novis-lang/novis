@@ -119,9 +119,12 @@
 //! effects, which is how the trap's own test reaches it.
 //!
 //! **What it spends:** while compiling, one walk per candidate call over the
-//! code after it, and the effect summaries [`crate::effects`] solves.
-//! Nothing at run time: the program makes one retain and one release fewer for
-//! each move and each lend.
+//! code after it, and the effect summaries [`crate::effects`] solves. At run
+//! time the program makes one retain and one release fewer for each move and
+//! each lend. Each copy the pass keeps of an `array`, a `string` or `bytes`
+//! whose call or change gives the same type is counted
+//! ([`InstKind::CopyCount`]): one runtime call each time that site runs,
+//! which tests one context field unless the request is recorded.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -135,27 +138,109 @@ mod lent;
 
 /// Decides every move and every lend in `functions`, appends the lent body
 /// of each function and parameter a call lends a slot to, and returns every
-/// copy it keeps ([`crate::copies`]).
+/// copy it keeps ([`crate::copies`]). Each copy it can count gets an
+/// [`InstKind::CopyCount`] with its row's id (`count_copies`).
 pub fn run(functions: &mut Vec<Function>) -> Vec<KeptCopy> {
     let summaries = Summaries::of(functions);
     let ignore = ignore_effects();
-    let mut refused: Vec<(usize, ValueId, KeptCopy)> = Vec::new();
+    let mut refused: Vec<(usize, ValueId, KeptCopy, Option<Count>)> = Vec::new();
     for (at, f) in functions.iter_mut().enumerate() {
         refused.extend(
             run_function(f, &summaries, ignore)
                 .into_iter()
-                .map(|(value, copy)| (at, value, copy)),
+                .map(|(value, copy, count)| (at, value, copy, count)),
         );
     }
-    let (lent, mut copies) = lend_to_callees(functions, &summaries, ignore);
-    copies.splice(
-        0..0,
-        refused
-            .into_iter()
-            .filter(|(at, value, _)| !lent.contains(&(*at, *value)))
-            .map(|(_, _, copy)| copy),
-    );
-    copies
+    let (lent, lent_rows) = lend_to_callees(functions, &summaries, ignore);
+    let rows: Vec<Row> = refused
+        .into_iter()
+        .filter(|(at, value, ..)| !lent.contains(&(*at, *value)))
+        .map(|(at, _, copy, count)| (copy, count.map(|count| (at, count))))
+        .chain(lent_rows)
+        .collect();
+    count_copies(functions, &rows);
+    rows.into_iter().map(|(copy, _)| copy).collect()
+}
+
+/// One row of [`run`]'s list, with the function's index and the [`Count`]
+/// where the copy can be counted.
+type Row = (KeptCopy, Option<(usize, Count)>);
+
+/// One row a lent body keeps, with the [`Count`] where it can be counted.
+type BodyRow = (KeptCopy, Option<Count>);
+
+/// Where one kept copy is counted at run time: the value the copy is made
+/// from, the value the call or change gives, and the type both have.
+#[derive(Clone, Copy)]
+struct Count {
+    before: ValueId,
+    after: ValueId,
+    ty: Ty,
+}
+
+impl Count {
+    /// The count for a copy of `before` that `after` gives, or `None` when
+    /// there is no `after` or the two are not the same `array`, `string` or
+    /// `bytes` type, so their lengths cannot be compared.
+    fn of(tys: &FxHashMap<ValueId, Ty>, before: ValueId, after: Option<ValueId>) -> Option<Self> {
+        let after = after?;
+        let ty = *tys.get(&before)?;
+        let counted = matches!(ty, Ty::Array | Ty::Str | Ty::Bytes);
+        (counted && tys.get(&after) == Some(&ty)).then_some(Self { before, after, ty })
+    }
+}
+
+/// Puts an [`InstKind::CopyCount`] right after the instruction whose result
+/// is each counted row's `after`, in that row's function, with the row's id:
+/// its index in `rows` plus one. A result is defined once, and the normal
+/// path of an instruction with an error edge goes on in the same block, so
+/// the count runs exactly when the call or change returned. `before` is still
+/// alive there: a refused value is read after the call, a slot's read is
+/// released after its store, and a lent body retains the parameter before
+/// its separated change.
+///
+/// **What it spends:** one call per counted copy site that runs, in every
+/// build. With counting off the call tests one context field and returns.
+fn count_copies(functions: &mut [Function], rows: &[Row]) {
+    let mut by_function: FxHashMap<usize, FxHashMap<ValueId, Vec<Inst>>> = FxHashMap::default();
+    for (index, (_, count)) in rows.iter().enumerate() {
+        let (Some((at, count)), Ok(site)) = (count, u32::try_from(index + 1)) else {
+            continue;
+        };
+        by_function
+            .entry(*at)
+            .or_default()
+            .entry(count.after)
+            .or_default()
+            .push(Inst {
+                result: None,
+                ty: None,
+                kind: InstKind::CopyCount {
+                    site,
+                    ty: count.ty,
+                    before: count.before,
+                    after: count.after,
+                },
+                on_error: None,
+                raise_site: None,
+            });
+    }
+    for (at, mut counts) in by_function {
+        let Some(f) = functions.get_mut(at) else {
+            continue;
+        };
+        for block in &mut f.blocks {
+            if counts.is_empty() {
+                break;
+            }
+            let insts = std::mem::take(&mut block.insts);
+            for inst in insts {
+                let placed = inst.result.and_then(|result| counts.remove(&result));
+                block.insts.push(inst);
+                block.insts.extend(placed.into_iter().flatten());
+            }
+        }
+    }
 }
 
 /// The span of the statement the instruction at `(b, c)` belongs to: the
@@ -189,12 +274,12 @@ struct Site {
 /// own moves, so it copies the callee as it runs.
 ///
 /// Returns each caller's index and argument it lent, and the copies the lent
-/// bodies keep.
+/// bodies keep, each with its body's index once the bodies are appended.
 fn lend_to_callees(
     functions: &mut Vec<Function>,
     summaries: &Summaries,
     ignore: bool,
-) -> (FxHashSet<(usize, ValueId)>, Vec<KeptCopy>) {
+) -> (FxHashSet<(usize, ValueId)>, Vec<Row>) {
     let by_name: FxHashMap<&str, usize> = functions
         .iter()
         .enumerate()
@@ -288,8 +373,13 @@ fn lend_to_callees(
         let body = lent::body(&functions[key.0], key.1, &slots[&key], summaries);
         bodies.insert(key, body.as_ref().map(|(f, _)| f.name.clone()));
         if let Some((body, kept)) = body {
+            // Its index once `functions.extend(built)` below has run.
+            let at = functions.len() + built.len();
             built.push(body);
-            copies.extend(kept);
+            copies.extend(
+                kept.into_iter()
+                    .map(|(copy, count)| (copy, count.map(|count| (at, count)))),
+            );
         }
     }
     let mut lent_values = FxHashSet::default();
@@ -396,7 +486,7 @@ fn run_function(
     f: &mut Function,
     summaries: &Summaries,
     ignore: bool,
-) -> Vec<(ValueId, KeptCopy)> {
+) -> Vec<(ValueId, KeptCopy, Option<Count>)> {
     let mut kept = Vec::new();
     let mut lent_calls: FxHashSet<At> = FxHashSet::default();
     let index: FxHashMap<u32, usize> = f
@@ -489,9 +579,9 @@ fn run_function(
                     });
                 let Some(releases) = releases else {
                     if !lent_calls.contains(&(b, c))
-                        && let Some(copy) = refusal(f, (b, c), value, &tys, &defs)
+                        && let Some((copy, count)) = refusal(f, (b, c), value, &tys, &defs)
                     {
-                        kept.push((value, copy));
+                        kept.push((value, copy, count));
                     }
                     continue;
                 };
@@ -527,14 +617,15 @@ fn run_function(
 /// [`Reason::CalleeUnknown`] for a call that may run another body, and any
 /// other value is [`Reason::StillUsed`]. `None` for a value that is not an
 /// `array`, a `string` or `bytes`, which a change never copies, or a call
-/// with no statement.
+/// with no statement. With it comes the [`Count`] of `value` against the
+/// call's result, where the two have the same type.
 fn refusal(
     f: &Function,
     call: At,
     value: ValueId,
     tys: &FxHashMap<ValueId, Ty>,
     defs: &FxHashMap<ValueId, At>,
-) -> Option<KeptCopy> {
+) -> Option<(KeptCopy, Option<Count>)> {
     if !matches!(tys.get(&value), Some(Ty::Array | Ty::Str | Ty::Bytes)) {
         return None;
     }
@@ -546,11 +637,13 @@ fn refusal(
         (_, true) => Reason::SlotKept,
         (_, false) => Reason::StillUsed,
     };
-    Some(KeptCopy {
+    let copy = KeptCopy {
         span: stmt_at(f, call)?.1,
         reason,
         fix: None,
-    })
+    };
+    let count = Count::of(tys, value, f.blocks[call.0].insts[call.1].result);
+    Some((copy, count))
 }
 
 /// Puts a lent property's poison around the call at `(b, c)`

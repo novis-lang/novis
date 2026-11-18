@@ -1517,6 +1517,18 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // here for the same reason: the door that writes the `request` line holds no
     // context, and the configuration as it ended is the one the request chose.
     let store = isolate_ctx.config().and_then(nvs_runtime::spool::Store::of);
+    // The copies the request made, by copy site, written here under the same gate and on every
+    // ending: a request that threw copied as much as one that returned. A request that copied
+    // nothing at a located site writes no line.
+    if let Some(store) = store
+        && let Some(copies) = isolate_ctx.take_copies()
+    {
+        nvs_runtime::spool::record_under(
+            store,
+            isolate_ctx.trace_context(),
+            nvs_runtime::spool::Record::Copies(copies),
+        );
+    }
     // `rule:testing/debug-surface`'s copy-out, on every ending for the same
     // reason: the child's own coverage table and the trace it left running,
     // closed here so its last lines are on disk before the parent reads them.

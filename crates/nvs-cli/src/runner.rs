@@ -858,7 +858,7 @@ pub(crate) fn run(
     let cache = crate::cache::from_config(&snapshot.config);
     // `--mutate` runs the suite with coverage first, to find the tests each mutant needs.
     let measured = coverage.any() || mutate;
-    let (unit, probes, sites_of, query_sites) =
+    let (unit, probes, sites_of, query_sites, copy_sites) =
         match compile(&checked, cache.as_ref(), measured, debug.is_some()) {
             Ok(compiled) => compiled,
             Err(error) => {
@@ -881,6 +881,7 @@ pub(crate) fn run(
     };
     unit.install_in(&mut ctx);
     ctx.set_query_sites(Arc::clone(&query_sites));
+    ctx.set_copy_sites(Arc::clone(&copy_sites));
     // The class hooks and fixtures run on the suite's context, so it stops at a breakpoint too.
     // The session keeps the unit only while something holds it, and the run holds it here.
     let debug: Option<Attached> = debug.zip(sites_of).map(|(debugger, sites)| {
@@ -1521,12 +1522,13 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// which a unit loaded from the cache numbers the same way; without it, they
 /// are empty and nothing is read for them.
 /// What [`compile`] gives: the unit, its coverage probes, its debug sites under the switch, and
-/// its query site table.
+/// its query and copy site tables.
 type Compiled = (
     Arc<nvs_codegen::Unit>,
     crate::coverage::Probes,
     Option<Arc<nvs_host::debug::DebugUnit>>,
     Arc<nvs_runtime::QuerySites>,
+    Arc<nvs_runtime::CopySites>,
 );
 
 /// The suite's unit and its coverage probes. Under `debug`, the unit is compiled under the debug
@@ -1561,7 +1563,8 @@ fn compile(
             .map_err(|error| error.to_string())?;
     let sites = crate::script::debug_unit(&unit, &program, &checked.map, crate::dap::file_key);
     let query_sites = crate::script::query_sites(&program, &checked.map);
-    Ok((Arc::new(unit), probes, sites, query_sites))
+    let copy_sites = crate::script::copy_sites(&program, &checked.map);
+    Ok((Arc::new(unit), probes, sites, query_sites, copy_sites))
 }
 
 /// `hit` as a percentage of `of`, and `100` for a report with no lines.
@@ -1806,6 +1809,7 @@ fn run_suite(
         }),
         profile: ctx.run_profile().cloned(),
         query_sites: ctx.query_sites().cloned(),
+        copy_sites: ctx.copy_sites().cloned(),
         format: shape.format,
         show_output: shape.show_output,
         wall: shape.wall,
@@ -2108,6 +2112,9 @@ struct Shared {
     /// The suite's query site table, which each test's context is given, so a traced query names
     /// the line of its call.
     query_sites: Option<Arc<nvs_runtime::QuerySites>>,
+    /// The suite's copy site table, which each test's context is given, so a recorded test counts
+    /// its copies by site.
+    copy_sites: Option<Arc<nvs_runtime::CopySites>>,
     format: Format,
     show_output: bool,
     /// [`Shape::wall`].
@@ -2251,6 +2258,9 @@ impl Job {
         unit.install_in(&mut ctx);
         if let Some(sites) = &shared.query_sites {
             ctx.set_query_sites(Arc::clone(sites));
+        }
+        if let Some(sites) = &shared.copy_sites {
+            ctx.set_copy_sites(Arc::clone(sites));
         }
         if let Some((debugger, sites)) = &shared.debug {
             debugger.attach(&mut ctx, sites);

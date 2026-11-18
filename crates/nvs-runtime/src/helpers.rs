@@ -4072,6 +4072,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             "nvs_probe_call_exit",
             (crate::ctx::nvs_probe_call_exit as *const ()).cast::<u8>(),
         ),
+        (
+            "nvs_copy_count",
+            (crate::ctx::nvs_copy_count as *const ()).cast::<u8>(),
+        ),
     ]
 }
 

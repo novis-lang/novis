@@ -2420,6 +2420,10 @@ struct Signatures {
     probe_call: Signature,
     /// `nvs_probe_call_exit(ctx, name, len, status)`.
     probe_call_exit: Signature,
+    /// `nvs_copy_count(ctx, site, kind, before, after)`, one kept copy's
+    /// count (`nvs_ir::ir::InstKind::CopyCount`). It returns nothing, because
+    /// it cannot fail.
+    copy_count: Signature,
     /// `nvs_str_concat(lhs, rhs) -> *mut StrHeader`,
     /// `nvs_str_append(target, suffix) -> *mut StrHeader`,
     /// `nvs_str_concat_n(pieces, count) -> *mut StrHeader` and
@@ -3180,6 +3184,13 @@ impl Signatures {
         let mut probe_call_exit = probe_call.clone();
         probe_call_exit.params.push(AbiParam::new(types::I32));
 
+        let mut copy_count = module.make_signature();
+        copy_count.params.push(AbiParam::new(ptr)); // ctx
+        copy_count.params.push(AbiParam::new(types::I32)); // site
+        copy_count.params.push(AbiParam::new(types::I32)); // kind
+        copy_count.params.push(AbiParam::new(ptr)); // before
+        copy_count.params.push(AbiParam::new(ptr)); // after
+
         let mut str_concat = module.make_signature();
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.params.push(AbiParam::new(ptr));
@@ -3345,6 +3356,7 @@ impl Signatures {
             probe,
             probe_call,
             probe_call_exit,
+            copy_count,
             str_concat,
             str_append_parts,
             ptr_eq,

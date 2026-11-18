@@ -280,6 +280,8 @@ impl Ctx {
             stmt_hits: None,
             run_hits: None,
             query_sites: None,
+            copy_sites: None,
+            copy_counts: None,
             run_profile: None,
             debug_ceiling: DebugFlags::empty(),
             debug_sinks: DebugSinks::default(),
@@ -564,6 +566,9 @@ impl Ctx {
         self.debug_ceiling = (self.debug_ceiling - replaced) | armed_by(&config);
         self.config = Some(config);
         self.refresh_limits();
+        // `[debug] store` may have turned on or off with this snapshot, and it decides whether
+        // this context counts copies.
+        self.arm_copy_counts();
         // The log target is read out of the snapshot that just arrived, not out
         // of the one this context was built with. Dropping whatever was
         // resolved is what makes the read happen once *after* configuration

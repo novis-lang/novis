@@ -579,6 +579,35 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                 ],
             )?;
         }
+        Record::Copies(copies) => {
+            let trace = trace.ok_or(Insert::Bad("a copies line has no trace id"))?;
+            // One line makes one row per site, so a row's key is the line's key and the site's
+            // position in it. The position, not the site's file and line: two sites can share a
+            // line, and a line read twice gives its sites in the same order.
+            for (part, site) in (0_i64..).zip(&copies.sites) {
+                tx.execute(
+                    "INSERT OR IGNORE INTO copies \
+                     (writer, seq, part, batch, trace, span, at_us, file, line, hash, reason, \
+                     copies, units) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                    params![
+                        key.0,
+                        key.1,
+                        part,
+                        batch,
+                        trace,
+                        copies.span,
+                        at,
+                        site.file,
+                        site.line,
+                        site.hash,
+                        site.reason,
+                        int(site.copies),
+                        int(site.units),
+                    ],
+                )?;
+            }
+        }
         Record::Profile(profile) => {
             let trace = trace.ok_or(Insert::Bad("a profile line has no trace id"))?;
             tx.execute(

@@ -2855,9 +2855,15 @@ fn every_copy_the_pass_keeps_is_in_the_table() {
             .find(|row| row.line == line && row.reason == reason)
             .unwrap_or_else(|| panic!("no {reason:?} row on line {line}: {table:#?}"))
     };
-    assert!(at(5, Reason::FailureAfterChange).edit.is_none(), "{table:#?}");
+    assert!(
+        at(5, Reason::FailureAfterChange).edit.is_none(),
+        "{table:#?}"
+    );
     let read = at(10, Reason::ReadAfterChange);
-    let edit = read.edit.as_ref().expect("the read can move above the change");
+    let edit = read
+        .edit
+        .as_ref()
+        .expect("the read can move above the change");
     assert_eq!(edit.text, "    echo Core\\Arr::count($this->p);\n");
     assert_eq!(&src[edit.insert_at as usize..][..18], "    $items[] = $x;");
     assert_eq!(
@@ -2875,9 +2881,67 @@ fn every_copy_the_pass_keeps_is_in_the_table() {
             .all(|row| row.edit.is_none() || row.reason.warns()),
         "{table:#?}"
     );
-    assert!(table.iter().all(|row| !row.text_hash.is_empty() && row.file == "t.nvs"));
+    assert!(
+        table
+            .iter()
+            .all(|row| !row.text_hash.is_empty() && row.file == "t.nvs")
+    );
     let off = crate::lower::without_in_place(|| lower_whole_file_with_src(src).0);
     assert!(off.copies.is_empty(), "the pass did not run");
+}
+
+/// A kept copy is counted where it is made: the refused move of `$l` into
+/// `Core\Arr::append` gets a `copy.count` with its row's id right after the
+/// call, against the local and the call's result.
+#[test]
+fn a_kept_copy_is_counted_right_after_its_call() {
+    use crate::copies::Reason;
+    let src = "<?nvs\nfinal class T {\n  public function m(int $x): void {\n    \
+               array<int> $l = [1, 2];\n    \
+               array<int> $k = Core\\Arr::append($l, $x);\n    \
+               echo Core\\Arr::count($l), Core\\Arr::count($k);\n  }\n}\n";
+    let (program, map, file) = lower_whole_file_with_src(src);
+    let printed = print_program(&program, map.file(file));
+    let index = program
+        .copies
+        .iter()
+        .position(|copy| copy.reason == Reason::StillUsed)
+        .unwrap_or_else(|| panic!("no still-used row: {:#?}", program.copies));
+    let site = u32::try_from(index + 1).expect("a small table");
+    let counted = program.functions.iter().find_map(|f| {
+        f.blocks.iter().find_map(|block| {
+            block
+                .insts
+                .iter()
+                .enumerate()
+                .find_map(|(i, inst)| match inst.kind {
+                    InstKind::CopyCount {
+                        site: at,
+                        ty,
+                        before,
+                        after,
+                    } if at == site => Some((block, i, ty, before, after)),
+                    _ => None,
+                })
+        })
+    });
+    let (block, i, ty, before, after) =
+        counted.unwrap_or_else(|| panic!("no copy.count {site}:\n{printed}"));
+    assert_eq!(ty, Ty::Array, "{printed}");
+    let call = &block.insts[i - 1];
+    assert_eq!(
+        call.result,
+        Some(after),
+        "the count follows the call:\n{printed}"
+    );
+    let InstKind::CoreCall { args, .. } = &call.kind else {
+        panic!("the count follows a Core call:\n{printed}");
+    };
+    assert_eq!(args.first(), Some(&before), "{printed}");
+    assert!(
+        printed.contains(&format!("copy.count {site}, v{}", before.index())),
+        "{printed}"
+    );
 }
 
 /// Only a separated change whose offending statement can move above it
@@ -2916,7 +2980,9 @@ fn a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy() {
         &fix.replacement,
     );
     assert!(
-        fixed.contains("    echo Core\\Arr::count($this->p);\n    $items[] = $x;\n    return $items;"),
+        fixed.contains(
+            "    echo Core\\Arr::count($this->p);\n    $items[] = $x;\n    return $items;"
+        ),
         "{fixed}"
     );
     let (fixed_program, fixed_map, _) = lower_whole_file_with_src(&fixed);

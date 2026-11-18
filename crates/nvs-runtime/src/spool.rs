@@ -146,6 +146,8 @@ pub enum Record {
     Profile(Profile),
     /// The lines a request ran, on a development server whose `[debug] mode` names `coverage`.
     Coverage(Coverage),
+    /// The copies a recorded request made, by copy site.
+    Copies(Copies),
 }
 
 impl Record {
@@ -172,6 +174,10 @@ impl Record {
             Self::Coverage(coverage) => {
                 coverage.files = std::collections::BTreeMap::new();
                 coverage.elided = true;
+            }
+            Self::Copies(copies) => {
+                copies.sites = Vec::new();
+                copies.elided = true;
             }
             // A `body` line is at most [`BODY_CHUNK`] of bytes, so it is never too long.
             Self::Event(_) | Self::Body(_) | Self::Dropped(_) | Self::Profile(_) => {}
@@ -656,6 +662,39 @@ pub struct Coverage {
     /// Whether `files` was removed because the line was too long.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub elided: bool,
+}
+
+/// `kind: "copies"`: each copy site at which one recorded request copied a value, with how many
+/// copies it made there and how much they copied. Written once, when the request ends, and only
+/// when it copied at a site its program's table locates ([`crate::Ctx::take_copies`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Copies {
+    /// The span id the server drew for the request, as its `request` line has it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<String>,
+    /// The sites that copied, the most units copied first.
+    #[serde(default)]
+    pub sites: Vec<CopyCount>,
+    /// Whether `sites` was removed because the line was too long.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub elided: bool,
+}
+
+/// One copy site's counts in a [`Copies`] record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CopyCount {
+    /// The file the copy is made in, as the program named it.
+    pub file: String,
+    /// The 1-based line the statement that copies starts on.
+    pub line: u32,
+    /// The BLAKE3 hash of the file's text when the program was compiled, in lowercase hex.
+    pub hash: String,
+    /// Why the compiler kept the copy, such as `still_used`.
+    pub reason: String,
+    /// How many copies the request made at the site.
+    pub copies: u64,
+    /// How much they copied: entries for an array, bytes for a string or `bytes`.
+    pub units: u64,
 }
 
 /// Reads [`Coverage::files`]. A line number is a JSON key, so it is a string. [`Record`] is tagged

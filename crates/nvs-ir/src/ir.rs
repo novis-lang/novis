@@ -1371,6 +1371,28 @@ pub enum InstKind {
         /// `true` writes the poison tag, `false` the slot's own tag.
         on: bool,
     },
+    /// Counts one kept copy at its site, for a recorded request: one call of
+    /// `nvs_runtime`'s `nvs_copy_count` with both values' pointers.
+    ///
+    /// Its one producer is the ownership pass, right after the instruction
+    /// whose result is `after`, for each row of [`crate::copies::table`] that
+    /// has an `Array`, `Str` or `Bytes` value on both sides. The runtime counts
+    /// nothing when the two pointers are equal, since the call then changed the
+    /// value in place or returned it unchanged. It is emitted in every build:
+    /// with counting off it is one call that tests one context field and
+    /// returns, and it sits only on a path that may copy. It has no result,
+    /// reads both values, writes nothing, runs no user code and cannot fail.
+    CopyCount {
+        /// The row's id in [`crate::ir::Program::copies`], its index plus one.
+        site: u32,
+        /// `before`'s and `after`'s type: [`Ty::Array`], [`Ty::Str`] or
+        /// [`Ty::Bytes`].
+        ty: Ty,
+        /// The value the copy is made from, still alive here.
+        before: ValueId,
+        /// The value the call or change gave.
+        after: ValueId,
+    },
     /// Whether a compile-time-known field's slot holds a value — `false` while
     /// it still has `nvs_runtime::Tag::Unset`, the state a `lateinit` property
     /// starts in (`rule:classes/an-unwritten-property-read-throws`).
@@ -4045,6 +4067,10 @@ impl InstKind {
                 f(*slot);
                 f(*value);
             }
+            InstKind::CopyCount { before, after, .. } => {
+                f(*before);
+                f(*after);
+            }
             InstKind::ArrayNew { entries } => {
                 for &(_, value) in entries {
                     f(value);
@@ -4304,6 +4330,9 @@ impl InstKind {
             // The pass places it after every decision, and it changes only a
             // debug build's tag byte.
             InstKind::LendPoison { .. } => Effects::NONE,
+            // It reads two pointers and adds to a counter on the context,
+            // which no program reads.
+            InstKind::CopyCount { .. } => Effects::NONE,
             InstKind::StaticGet { class, name } => Effects::reading(Slot::Static { class, name }),
             InstKind::StaticSet { class, name, .. } => {
                 Effects::writing(Slot::Static { class, name })

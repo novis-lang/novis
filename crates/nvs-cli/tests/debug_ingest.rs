@@ -392,6 +392,92 @@ fn ten_throws_from_one_site_make_one_group_of_ten() {
     );
 }
 
+/// A `copies` line of `trace`, written by `writer` as its line `seq`, with one count per site.
+fn copies_line(writer: &str, seq: u64, trace: &str, sites: &[(u32, &str, u64, u64)]) -> Line {
+    Line {
+        writer: writer.to_owned(),
+        seq,
+        trace: Some(trace.to_owned()),
+        at_us: now_us(),
+        record: Record::Copies(nvs_runtime::spool::Copies {
+            span: Some("00f067aa0ba902b7".to_owned()),
+            sites: sites
+                .iter()
+                .map(
+                    |&(line, reason, copies, units)| nvs_runtime::spool::CopyCount {
+                        file: "shop.nvs".to_owned(),
+                        line,
+                        hash: "ab".repeat(32),
+                        reason: reason.to_owned(),
+                        copies,
+                        units,
+                    },
+                )
+                .collect(),
+            elided: false,
+        }),
+    }
+}
+
+#[test]
+fn a_recorded_request_counts_its_copies_by_site() {
+    let folder = Folder::new();
+    let first = "00000000000000000000000000000011";
+    let second = "00000000000000000000000000000012";
+    let lines = [
+        copies_line(
+            "4-1-0",
+            0,
+            first,
+            &[(7, "still_used", 3, 300), (12, "slot_kept", 1, 40)],
+        ),
+        copies_line("4-1-0", 1, second, &[(7, "still_used", 1, 100)]),
+    ];
+    folder.write("4-1-0.0.spool", &lines);
+    folder.ingest();
+    let db = folder.index();
+    let rows: Vec<(String, i64, String, i64, i64)> = db
+        .prepare("SELECT trace, line, reason, copies, units FROM copies ORDER BY trace, part")
+        .expect("the copies table exists")
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })
+        .expect("the query runs")
+        .collect::<Result<_, _>>()
+        .expect("each row reads");
+    assert_eq!(
+        rows,
+        vec![
+            (first.to_owned(), 7, "still_used".to_owned(), 3, 300),
+            (first.to_owned(), 12, "slot_kept".to_owned(), 1, 40),
+            (second.to_owned(), 7, "still_used".to_owned(), 1, 100),
+        ],
+        "each site of each request is its own row"
+    );
+
+    // The same file again adds no row.
+    folder.write("4-1-0.0.spool", &lines);
+    folder.ingest();
+    assert_eq!(count(&db, "SELECT count(*) FROM copies"), 3);
+    assert_eq!(
+        count(
+            &db,
+            &format!(
+                "SELECT sum(copies) FROM copies WHERE hash = '{}' AND line = 7",
+                "ab".repeat(32)
+            )
+        ),
+        4,
+        "the site index finds both requests' copies at one line"
+    );
+}
+
 /// The bytes of the pages `db` has in use, as `Index::forget` measures them.
 fn bytes_in_use(db: &Connection) -> i64 {
     (count(db, "PRAGMA page_count") - count(db, "PRAGMA freelist_count"))

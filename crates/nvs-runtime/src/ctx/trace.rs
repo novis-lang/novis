@@ -404,6 +404,76 @@ impl Ctx {
         self.query_sites.as_ref()?.at(id)
     }
 
+    /// Gives this context the copy site table of the program it runs, and arms its copy counts
+    /// when `[debug] store` is in force ([`nvs_copy_count`]). Counts kept under a previous table
+    /// are dropped, because their ids named that table's rows. Every task made from this one
+    /// afterwards shares the table.
+    pub fn set_copy_sites(&mut self, sites: Arc<CopySites>) {
+        self.copy_sites = Some(sites);
+        self.copy_counts = None;
+        self.arm_copy_counts();
+    }
+
+    /// The copy site table the host gave this context, when it gave one.
+    #[must_use]
+    pub fn copy_sites(&self) -> Option<&Arc<CopySites>> {
+        self.copy_sites.as_ref()
+    }
+
+    /// Arms the copy counts exactly when this context has a copy site table and `[debug] store`
+    /// is in force, and drops them otherwise. Counts already armed are kept.
+    pub(crate) fn arm_copy_counts(&mut self) {
+        let armed = self.config().is_some_and(nvs_config::Request::debug_store);
+        match (&self.copy_sites, armed) {
+            (Some(sites), true) => {
+                if self.copy_counts.is_none() {
+                    self.copy_counts = Some(vec![(0, 0); sites.len()].into_boxed_slice());
+                }
+            }
+            _ => self.copy_counts = None,
+        }
+    }
+
+    /// The `copies` record of this request: each copy site that made a copy, with its count of
+    /// copies and of units copied, highest unit count first. `None` where this context counted no
+    /// copies, or counted none at a site its table locates. The counts are taken, so a second
+    /// call answers `None`.
+    #[must_use]
+    pub fn take_copies(&mut self) -> Option<crate::spool::Copies> {
+        let counts = self.copy_counts.take()?;
+        let sites = self.copy_sites.as_ref()?;
+        let mut rows: Vec<crate::spool::CopyCount> = (1_u32..)
+            .zip(counts.iter())
+            .filter(|&(_, &(copies, _))| copies > 0)
+            .filter_map(|(id, &(copies, units))| {
+                let (file, line, hash, reason) = sites.at(id)?;
+                Some(crate::spool::CopyCount {
+                    file: file.to_owned(),
+                    line,
+                    hash: hash.to_owned(),
+                    reason: reason.to_owned(),
+                    copies,
+                    units,
+                })
+            })
+            .collect();
+        if rows.is_empty() {
+            return None;
+        }
+        rows.sort_by(|a, b| {
+            b.units
+                .cmp(&a.units)
+                .then(b.copies.cmp(&a.copies))
+                .then_with(|| a.file.cmp(&b.file))
+                .then(a.line.cmp(&b.line))
+        });
+        Some(crate::spool::Copies {
+            span: Some(self.trace_context.span_id_hex()),
+            sites: rows,
+            elided: false,
+        })
+    }
+
     /// The statements executed, the compiled call sites entered and the
     /// collections run while [`DebugFlags::COUNT`] was on — [`nvs_probe_stmt`]'s
     /// and [`nvs_probe_call_enter`]'s whole effect under that bit, and one
@@ -868,6 +938,97 @@ pub unsafe extern "C" fn nvs_probe_edge(ctx: *mut Ctx, edge: u32) {
     }
 }
 
+/// Counts one copy at a copy site: the call `nvs_ir::InstKind::CopyCount` compiles to, placed
+/// right after an instruction the ownership pass could not make change its value in place.
+///
+/// `site` is the row's id in the program's [`CopySites`], from 1. `kind` says what `before` and
+/// `after` point at: `0` an array header, `1` a string's `StrHeader` and `2` a
+/// `bytes` value's, which has the same header. `before` is the value the copy was made from and
+/// `after` the instruction's result.
+///
+/// It does nothing unless the context counts copies ([`Ctx::set_copy_sites`]). When it does, and
+/// the two pointers differ and neither is null, it adds one copy and `before`'s length to the
+/// site's counts: its entry count for an array, its byte length for a string or `bytes`. Equal
+/// pointers mean the call changed the value in place or returned it unchanged, so nothing is
+/// counted. An unknown `kind` or an id past the table counts nothing.
+///
+/// [`nvs_probe_stmt`]'s shape: it returns nothing and cannot fail, so the site has no status to
+/// check and no error edge.
+///
+/// **What it spends:** with counting off, one call that tests one field and returns, on a path
+/// that has just copied a value. With it on, one length read and two additions.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call. `before`, when it is
+/// not null and not `after`, must refer to a live allocation of the kind `kind` names.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer and two value pointers; the contract \
+              cannot be expressed in the signature"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_copy_count(
+    ctx: *mut Ctx,
+    site: u32,
+    kind: u32,
+    before: *const u8,
+    after: *const u8,
+) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid for this call, and nothing here \
+                  allocates or panics"
+    )]
+    let ctx = unsafe { &mut *ctx };
+
+    let Some(counts) = ctx.copy_counts.as_deref_mut() else {
+        return;
+    };
+    if before.is_null() || after.is_null() || before == after {
+        return;
+    }
+    let units = match kind {
+        0 => {
+            #[expect(
+                unsafe_code,
+                reason = "the caller guarantees `before` is a live array: the copy was made \
+                          from it and the compiler keeps it alive past this call"
+            )]
+            let entries = unsafe { crate::array::nvs_array_count(before.cast()) };
+            u64::try_from(entries).unwrap_or(0)
+        }
+        1 | 2 => {
+            #[expect(
+                unsafe_code,
+                reason = "the caller guarantees `before` is a live string or `bytes` value, \
+                          which share one header: the copy was made from it and the compiler \
+                          keeps it alive past this call"
+            )]
+            let bytes = unsafe { crate::string::NvsStr::bytes_of(before.cast()) };
+            u64::try_from(bytes.len()).unwrap_or(u64::MAX)
+        }
+        _ => return,
+    };
+    let Some(row) = usize::try_from(site)
+        .ok()
+        .and_then(|site| site.checked_sub(1))
+        .and_then(|index| counts.get_mut(index))
+    else {
+        return;
+    };
+    row.0 = row.0.saturating_add(1);
+    row.1 = row.1.saturating_add(units);
+}
+
 /// What [`Ctx::counted`] answers: `rule:testing/bench-counters`'s two
 /// probe-site counts and its GC cycle count, read once at the end of a run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -995,6 +1156,69 @@ impl QuerySites {
             line,
             hash: hash.to_string(),
         })
+    }
+}
+
+/// The program's copy site table: the file, line, file text hash and reason of each copy the
+/// ownership pass keeps, by the id compiled code passes [`nvs_copy_count`]. A recorded request's
+/// `copies` record names the rows its counts are at ([`Ctx::take_copies`]), so a reader of the
+/// spool needs no table of its own.
+///
+/// **What it spends:** two `u32`s and one pointer per copy site, and one name and hash per file,
+/// once per compiled program whose host gave its contexts the table. A context holds a pointer to
+/// it.
+#[derive(Debug, Default)]
+pub struct CopySites {
+    files: Vec<(Box<str>, Box<str>)>,
+    sites: Vec<(u32, u32, &'static str)>,
+}
+
+impl CopySites {
+    /// No sites yet.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Says where the next site id is written, the hash of that file's text and why the copy is
+    /// kept, such as `still_used`. The ids are given in order, from 1.
+    pub fn push(&mut self, file: &str, line: u32, hash: &str, reason: &'static str) {
+        let index = match self.files.iter().rposition(|(known, _)| &**known == file) {
+            Some(index) => index,
+            None => {
+                self.files.push((file.into(), hash.into()));
+                self.files.len() - 1
+            }
+        };
+        self.sites
+            .push((u32::try_from(index).unwrap_or(u32::MAX), line, reason));
+    }
+
+    /// Says the next site id is in no file the table locates, such as a file that is not on
+    /// disk. A count at it is left out of the `copies` record.
+    pub fn skip(&mut self) {
+        self.sites.push((u32::MAX, 0, ""));
+    }
+
+    /// How many site ids the table has.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.sites.len()
+    }
+
+    /// Whether the table has no site.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.sites.is_empty()
+    }
+
+    /// The file, line, file hash and reason of the site `id` names, or `None` for the zero id,
+    /// an id past the table and a skipped site.
+    #[must_use]
+    pub fn at(&self, id: u32) -> Option<(&str, u32, &str, &'static str)> {
+        let &(file, line, reason) = self.sites.get(usize::try_from(id.checked_sub(1)?).ok()?)?;
+        let (name, hash) = self.files.get(usize::try_from(file).ok()?)?;
+        Some((name, line, hash, reason))
     }
 }
 

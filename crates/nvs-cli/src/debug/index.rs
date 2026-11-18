@@ -45,14 +45,16 @@
 //! **What it spends:** SQLite's page cache in the service process. On disk, at most `index_max`
 //! of pages in use; a page freed by a deletion is reused, so the file stays near its largest size.
 //! The `events_site` index, which the editor's query lens looks a call site up on
-//! (`nvs_lsp::recorded`), is one entry per event inside that cap.
+//! (`nvs_lsp::recorded`), is one entry per event inside that cap. The `copies_site` index, which
+//! looks up the copies recorded requests made at one copy site, is one entry per site a recorded
+//! request copied at, inside the same cap.
 
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 7;
+pub(crate) const SCHEMA: i64 = 8;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -198,6 +200,27 @@ CREATE UNIQUE INDEX coverage_key ON coverage (writer, seq);
 CREATE INDEX coverage_trace ON coverage (trace);
 CREATE INDEX coverage_at ON coverage (at_us);
 
+CREATE TABLE copies (
+    id INTEGER PRIMARY KEY,
+    writer TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    part INTEGER NOT NULL,
+    batch INTEGER NOT NULL,
+    trace TEXT NOT NULL,
+    span TEXT,
+    at_us INTEGER NOT NULL,
+    file TEXT NOT NULL,
+    line INTEGER NOT NULL,
+    hash TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    copies INTEGER NOT NULL,
+    units INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX copies_key ON copies (writer, seq, part);
+CREATE INDEX copies_trace ON copies (trace);
+CREATE INDEX copies_at ON copies (at_us);
+CREATE INDEX copies_site ON copies (hash, line);
+
 CREATE TABLE logs (
     id INTEGER PRIMARY KEY,
     writer TEXT,
@@ -323,13 +346,14 @@ END;
 ";
 
 /// The tables whose rows name a trace id, deleted with their request.
-const BY_TRACE: [&str; 8] = [
+const BY_TRACE: [&str; 9] = [
     "inputs",
     "body_parts",
     "events",
     "dumps",
     "profiles",
     "coverage",
+    "copies",
     "logs",
     "exceptions",
 ];
@@ -337,12 +361,13 @@ const BY_TRACE: [&str; 8] = [
 /// The tables whose rows carry their own time, deleted past `index_age` when no request names them.
 /// A `quarantine` row is not one: it stays while its file fails, and goes once the file is read or
 /// is gone.
-const BY_TIME: [&str; 8] = [
+const BY_TIME: [&str; 9] = [
     "body_parts",
     "events",
     "dumps",
     "profiles",
     "coverage",
+    "copies",
     "logs",
     "dropped",
     "unparseable",
