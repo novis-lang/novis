@@ -93,6 +93,12 @@
 //! slot's value with the caller on every error exit and copies only at a
 //! change after which a failure or a read of the slot is reachable.
 //!
+//! A local whose move into a known Novis callee was refused only because the
+//! call's error edge reads it, as inside a `try` whose `catch` reads it, is
+//! lent the same way ([`lend_local`]). The call takes the local's reference
+//! with no retain, the releases on its normal paths go, and the error edge
+//! keeps the local's value and its releases.
+//!
 //! A lent property is poisoned in a debug build ([`InstKind::LendPoison`]):
 //! from just after its read to just before the call, where nothing in that
 //! window can fail, and from the call's normal exit to the store. A compiled
@@ -151,6 +157,13 @@ fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore:
     let mut sites = Vec::new();
     for (caller, f) in functions.iter().enumerate() {
         let tys = types(f);
+        let index: FxHashMap<u32, usize> = f
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(at, block)| (block.id.index(), at))
+            .collect();
+        let entry = index[&f.entry.index()];
         let defs: FxHashMap<ValueId, At> = f
             .blocks
             .iter()
@@ -194,7 +207,10 @@ fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore:
                     if *receiver == Some(arg) {
                         continue;
                     }
-                    if let Some(lent) = lend.of_call((b, c), arg, summary) {
+                    let lent = lend
+                        .of_call((b, c), arg, summary)
+                        .or_else(|| lend_local(f, &index, entry, (b, c), arg));
+                    if let Some(lent) = lent {
                         sites.push(Site {
                             caller,
                             call: (b, c),
@@ -251,6 +267,53 @@ fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore:
         rebuild(f, &removed, before, after, &FxHashMap::default());
     }
     functions.extend(built);
+}
+
+/// A local lent to the Novis call at `call`, where the move into it was
+/// refused only because the call's error edge reads the local, as a `catch`
+/// does. The call then takes the local's reference with no retain, and its
+/// lent body leaves the reference with the caller when it fails. So the
+/// releases on the paths from the call's normal exit go, with the retain,
+/// and the error edge keeps its releases, as for an owning `Core` member.
+/// The lent body is lent no slot, so it copies only at a change after which
+/// a failure is reachable.
+fn lend_local(
+    f: &Function,
+    index: &FxHashMap<u32, usize>,
+    entry: usize,
+    (b, c): At,
+    value: ValueId,
+) -> Option<Lent> {
+    f.blocks[b].insts[c].on_error?;
+    let removed = FxHashSet::default();
+    let retain = retain_before(&f.blocks[b].insts, c, value, b, &removed)?;
+    let walk = Walk {
+        f,
+        index,
+        removed: &removed,
+        value,
+        call: (b, c),
+    };
+    let mut gone: Vec<At> = walk
+        .releases_after(false, 1)?
+        .into_iter()
+        .map(|(at, _)| at)
+        .collect();
+    let avoid = walk.reachable_avoiding(entry, true);
+    if gone
+        .iter()
+        .any(|&(rb, ri)| !(rb == b && ri > c) && avoid.contains(&rb))
+    {
+        return None;
+    }
+    gone.push((b, retain));
+    Some(Lent {
+        symbol: None,
+        gone,
+        element: None,
+        poison: None,
+        chain: Vec::new(),
+    })
 }
 
 /// One instruction's place: the block's index in [`Function::blocks`] and the

@@ -2593,6 +2593,31 @@ fn recursive_callees_reach_one_summary() {
     assert_eq!(d.writes, Touches::Anything, "{d:?}");
 }
 
+/// A local inside a `try` whose `catch` reads it cannot move into the call,
+/// so it is lent to the callee's lent body: the call takes no retain, and
+/// the callee appends in place. The `catch` still sees the old value.
+#[test]
+fn a_local_inside_a_try_is_lent_to_a_callee_that_cannot_fail_after_its_change() {
+    let body = "    array<int> $a = [$x];\n    try {\n      $a = $this->add($a, $x);\n    } \
+                catch (LogicError $e) {\n      $this->p = $a;\n    }\n    $this->p = $a;";
+    let printed = lower_callees(ADD, body);
+    let m = function_named(&printed, "T::m");
+    let call = m.find("call T::add#lent1(").expect(&printed);
+    let line = &m[call..m[call..].find('\n').map_or(m.len(), |end| call + end)];
+    let arg = line
+        .split(['(', ',', ')'])
+        .nth(2)
+        .map(str::trim)
+        .expect(&printed);
+    assert!(
+        !m[..call].contains(&format!("retain {arg}\n")),
+        "{arg}\n{printed}"
+    );
+    let lent = function_named(&printed, "T::add#lent1");
+    assert!(lent.contains("array.append v1"), "{printed}");
+    assert!(!lent.contains("retain v1"), "{printed}");
+}
+
 /// A class `T` with an array property `$p`, the methods `methods`, and a
 /// method `m(int $x)` whose body is `body`, lowered as a whole program. Every
 /// function of `T` is printed, its lent bodies included.
