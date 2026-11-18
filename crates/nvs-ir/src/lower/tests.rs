@@ -2593,6 +2593,165 @@ fn recursive_callees_reach_one_summary() {
     assert_eq!(d.writes, Touches::Anything, "{d:?}");
 }
 
+/// A class `T` with an array property `$p`, the methods `methods`, and a
+/// method `m(int $x)` whose body is `body`, lowered as a whole program. Every
+/// function of `T` is printed, its lent bodies included.
+fn lower_callees(methods: &str, body: &str) -> String {
+    let src = format!(
+        "<?nvs\nclass B {{\n  public function add(array<int> $items, int $x): array<int> {{ return $items; }}\n}}\n\
+         class C extends B {{\n  public function add(array<int> $items, int $x): array<int> {{ $items[] = $x; return $items; }}\n}}\n\
+         final class T {{\n  public array<int> $p = [];\n  public static array<int> $s = [];\n{methods}\n  \
+         public function m(int $x): void {{\n{body}\n  }}\n}}\n"
+    );
+    let (program, map, file) = lower_whole_file_with_src(&src);
+    program
+        .functions
+        .iter()
+        .filter(|f| f.name.starts_with("T::"))
+        .map(|f| print_function(f, map.file(file)))
+        .collect()
+}
+
+/// The printed function `name` out of `printed`, or an empty string.
+fn function_named<'a>(printed: &'a str, name: &str) -> &'a str {
+    let head = format!("fn {name}(");
+    let Some(start) = printed.find(&head) else {
+        return "";
+    };
+    let rest = &printed[start..];
+    &rest[..rest.find("\n}").map_or(rest.len(), |end| end + 2)]
+}
+
+const ADD: &str = "  public function add(array<int> $items, int $x): array<int> {\n    $items[] = $x;\n    return $items;\n  }";
+
+const ADD_THEN_THROW: &str = "  public function add(array<int> $items, int $x): array<int> {\n    $items[] = $x;\n    \
+                              if ($x > 5) { throw new LogicError('no'); }\n    return $items;\n  }";
+
+/// A callee that cannot fail after its append is lent the property: the call
+/// takes no retain and reads the slot once, and the lent body appends in
+/// place, with no retain of its parameter.
+#[test]
+fn a_callee_that_cannot_fail_after_its_change_changes_the_slot_in_place() {
+    let printed = lower_callees(ADD, "    $this->p = $this->add($this->p, $x);");
+    let m = function_named(&printed, "T::m");
+    assert!(m.contains("call T::add#lent1("), "{printed}");
+    assert_eq!(slot_reads(m, "T::p"), 1, "{printed}");
+    assert!(!m.contains("retain v2"), "{printed}");
+    let lent = function_named(&printed, "T::add#lent1");
+    assert!(lent.contains("array.append v1"), "{printed}");
+    assert!(!lent.contains("retain v1"), "{printed}");
+    let off = crate::lower::without_in_place(|| {
+        lower_callees(ADD, "    $this->p = $this->add($this->p, $x);")
+    });
+    assert!(!off.contains("#lent"), "{off}");
+}
+
+/// A callee that may throw after its append copies at that append: the lent
+/// body retains its parameter first, and releases the caller's reference
+/// before it returns. Its error exits after the append free only the copy.
+#[test]
+fn a_callee_that_can_fail_after_its_change_copies_at_that_change_only() {
+    let printed = lower_callees(ADD_THEN_THROW, "    $this->p = $this->add($this->p, $x);");
+    let lent = function_named(&printed, "T::add#lent1");
+    let retain = lent.find("retain v1").unwrap_or(usize::MAX);
+    let append = lent.find("array.append v1").unwrap_or(0);
+    assert!(retain < append, "the parameter is retained first\n{printed}");
+    assert_eq!(lent.matches("retain v1").count(), 1, "{printed}");
+    let ret = lent.find("return v3").unwrap_or(0);
+    let release = lent[..ret].rfind("release v1").unwrap_or(0);
+    assert!(
+        lent[release..ret].lines().count() <= 2,
+        "the caller's reference is released before the return\n{printed}"
+    );
+}
+
+/// The lent body never frees its parameter on a path that ends in a
+/// failure: the entry poll's landing and the append's landing leave it with
+/// the caller. The callee's own body frees it on both.
+#[test]
+fn a_lent_parameter_is_not_freed_on_an_error_exit() {
+    let printed = lower_callees(ADD, "    $this->p = $this->add($this->p, $x);");
+    let own = function_named(&printed, "T::add");
+    assert_eq!(own.matches("release v1").count(), 2, "{printed}");
+    let lent = function_named(&printed, "T::add#lent1");
+    assert_eq!(lent.matches("release v1").count(), 0, "{printed}");
+    assert_eq!(lent.matches("propagate").count(), 2, "{printed}");
+}
+
+/// A read of the slot before the change sees the old value, so the change is
+/// in place. A static property is lent the same way.
+#[test]
+fn a_callee_that_reads_the_slot_before_its_change_changes_it_in_place() {
+    let methods = "  public function add(array<int> $items, int $x): array<int> {\n    \
+                   int $n = Core\\Arr::count($this->p) as int;\n    $items[] = $x + $n;\n    return $items;\n  }\n  \
+                   public static function put(array<int> $items, int $x): array<int> {\n    \
+                   int $n = Core\\Arr::count(T::$s) as int;\n    $items[] = $x + $n;\n    return $items;\n  }";
+    let printed = lower_callees(
+        methods,
+        "    $this->p = $this->add($this->p, $x);\n    T::$s = T::put(T::$s, $x);",
+    );
+    for name in ["T::add#lent1", "T::put#lent1"] {
+        let lent = function_named(&printed, name);
+        assert!(lent.contains("array.append"), "{name}\n{printed}");
+        assert!(!lent.contains("retain v"), "{name}\n{printed}");
+    }
+}
+
+/// A read of the slot after the change would see the new value while the
+/// slot still has the old one, so the lent body copies at the change.
+#[test]
+fn a_callee_that_reads_the_slot_after_its_change_copies_at_that_change_only() {
+    let methods = "  public function add(array<int> $items, int $x): array<int> {\n    $items[] = $x;\n    \
+                   int $n = Core\\Arr::count($this->p) as int;\n    $items[] = $n;\n    return $items;\n  }";
+    let printed = lower_callees(methods, "    $this->p = $this->add($this->p, $x);");
+    let lent = function_named(&printed, "T::add#lent1");
+    assert_eq!(lent.matches("retain v1").count(), 1, "{printed}");
+    let retain = lent.find("retain v1").unwrap_or(usize::MAX);
+    let append = lent.find("array.append v1").unwrap_or(0);
+    assert!(retain < append, "{printed}");
+}
+
+/// A callee that writes the slot it would be lent keeps the call's retain:
+/// its write cannot free the array it is changing, and the caller's store
+/// still releases the slot's old value.
+#[test]
+fn a_callee_that_writes_the_slot_keeps_both_values_alive() {
+    let methods = "  public function add(array<int> $items, int $x): array<int> {\n    $this->p = [];\n    \
+                   $items[] = $x;\n    return $items;\n  }";
+    let printed = lower_callees(methods, "    $this->p = $this->add($this->p, $x);");
+    let m = function_named(&printed, "T::m");
+    assert!(m.contains("call T::add("), "{printed}");
+    assert!(!printed.contains("#lent"), "{printed}");
+    assert_eq!(slot_reads(m, "T::p"), 2, "{printed}");
+}
+
+/// A method that a subclass overrides may reach either body, so its call has
+/// no one callee and keeps its retain.
+#[test]
+fn an_overridable_or_dynamic_callee_keeps_the_retain() {
+    let printed = lower_callees(
+        "",
+        "    B $b = new C();\n    $this->p = $b->add($this->p, $x);",
+    );
+    let m = function_named(&printed, "T::m");
+    assert!(!printed.contains("#lent"), "{printed}");
+    assert_eq!(slot_reads(m, "T::p"), 2, "{printed}");
+}
+
+/// A string built after the change can only stop the request when memory
+/// runs out, which no `catch` sees. It has no error edge, so the lent body
+/// changes the parameter in place.
+#[test]
+fn a_fatal_is_not_a_failure_the_summary_counts() {
+    let methods = "  public function add(array<int> $items, int $x, string $t): array<int> {\n    $items[] = $x;\n    \
+                   string $label = $t . 'm';\n    return $items;\n  }";
+    let printed = lower_callees(methods, "    $this->p = $this->add($this->p, $x, 'k');");
+    assert!(printed.contains("concat"), "{printed}");
+    let lent = function_named(&printed, "T::add#lent1");
+    assert!(lent.contains("array.append v1"), "{printed}");
+    assert!(!lent.contains("retain v1"), "{printed}");
+}
+
 /// A second holder that is never read again is released right after its
 /// last use, so the call holds the only reference.
 #[test]

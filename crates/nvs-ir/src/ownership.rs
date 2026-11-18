@@ -86,6 +86,13 @@
 //! the call took ([`InstKind::ArraySet`]'s `lent`). **What it spends:** a
 //! shared array is copied at the read, where the write would have copied it.
 //!
+//! `slot = f(slot, …)` with a known Novis callee `f` is the same lend, made
+//! after every function's own moves ([`lend_to_callees`]). The callee must
+//! write no slot on the chain by its effect summary. The call is pointed at
+//! the callee's lent body for that parameter (`lent::body`), which leaves the
+//! slot's value with the caller on every error exit and copies only at a
+//! change after which a failure or a read of the slot is reachable.
+//!
 //! A lent property is poisoned in a debug build ([`InstKind::LendPoison`]):
 //! from just after its read to just before the call, where nothing in that
 //! window can fail, and from the call's normal exit to the store. A compiled
@@ -102,18 +109,148 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::effects::{Summaries, callback, takes_an_object, types};
+use crate::effects::{OwnedSlot, Summaries, Summary, callback, own, takes_an_object, types};
 use crate::ids::ValueId;
 use crate::ir::{Function, Inst, InstKind, Slot, Terminator, UserCode};
 use crate::ty::Ty;
 
-/// Decides every move and every lend in `functions`.
-pub fn run(functions: &mut [Function]) {
+mod lent;
+
+/// Decides every move and every lend in `functions`, and appends the lent
+/// body of each function and parameter a call lends a slot to.
+pub fn run(functions: &mut Vec<Function>) {
     let summaries = Summaries::of(functions);
     let ignore = ignore_effects();
-    for f in functions {
+    for f in functions.iter_mut() {
         run_function(f, &summaries, ignore);
     }
+    lend_to_callees(functions, &summaries, ignore);
+}
+
+/// One call that may lend a slot to its known Novis callee: the caller's
+/// index, the call, the callee's index and the lent parameter's index.
+struct Site {
+    caller: usize,
+    call: At,
+    callee: usize,
+    param: usize,
+    lent: Lent,
+}
+
+/// Lends a slot to each call of a known Novis callee where
+/// [`Lend::of_call`] allows it and the callee has a lent body for that
+/// parameter ([`lent::body`]). The call is pointed at the lent body, and the
+/// body is built once per function and parameter, after every function's
+/// own moves, so it copies the callee as it runs.
+fn lend_to_callees(functions: &mut Vec<Function>, summaries: &Summaries, ignore: bool) {
+    let by_name: FxHashMap<&str, usize> = functions
+        .iter()
+        .enumerate()
+        .map(|(at, f)| (f.name.as_str(), at))
+        .collect();
+    let mut sites = Vec::new();
+    for (caller, f) in functions.iter().enumerate() {
+        let tys = types(f);
+        let defs: FxHashMap<ValueId, At> = f
+            .blocks
+            .iter()
+            .enumerate()
+            .flat_map(|(b, block)| {
+                block
+                    .insts
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(i, inst)| Some((inst.result?, (b, i))))
+            })
+            .collect();
+        let removed = FxHashSet::default();
+        let lend = Lend {
+            f,
+            defs: &defs,
+            tys: &tys,
+            summaries,
+            removed: &removed,
+            ignore,
+        };
+        for (b, block) in f.blocks.iter().enumerate() {
+            for (c, inst) in block.insts.iter().enumerate() {
+                let InstKind::Call {
+                    target,
+                    receiver,
+                    args,
+                } = &inst.kind
+                else {
+                    continue;
+                };
+                let (Some(&callee), Some(summary)) =
+                    (by_name.get(target.as_str()), summaries.get(target))
+                else {
+                    continue;
+                };
+                let Some(offset) = functions[callee].params.len().checked_sub(args.len()) else {
+                    continue;
+                };
+                for (k, &arg) in args.iter().enumerate() {
+                    if *receiver == Some(arg) {
+                        continue;
+                    }
+                    if let Some(lent) = lend.of_call((b, c), arg, summary) {
+                        sites.push(Site {
+                            caller,
+                            call: (b, c),
+                            callee,
+                            param: offset + k,
+                            lent,
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // The slots each body is lent, so it copies before a read of any of them.
+    let mut slots: FxHashMap<(usize, usize), FxHashSet<OwnedSlot>> = FxHashMap::default();
+    for site in &sites {
+        slots
+            .entry((site.callee, site.param))
+            .or_default()
+            .extend(site.lent.chain.first().cloned());
+    }
+    let mut bodies: FxHashMap<(usize, usize), Option<String>> = FxHashMap::default();
+    let mut built = Vec::new();
+    let mut keys: Vec<_> = slots.keys().copied().collect();
+    keys.sort_unstable();
+    for key in keys {
+        let body = lent::body(&functions[key.0], key.1, &slots[&key], summaries);
+        bodies.insert(key, body.as_ref().map(|f| f.name.clone()));
+        built.extend(body);
+    }
+    let mut per_caller: FxHashMap<usize, Vec<(At, Lent, String)>> = FxHashMap::default();
+    for site in sites {
+        if let Some(Some(name)) = bodies.get(&(site.callee, site.param)) {
+            per_caller
+                .entry(site.caller)
+                .or_default()
+                .push((site.call, site.lent, name.clone()));
+        }
+    }
+    for (caller, sites) in per_caller {
+        let f = &mut functions[caller];
+        let mut removed = FxHashSet::default();
+        let mut before = FxHashMap::default();
+        let mut after = FxHashMap::default();
+        for ((b, c), lent, name) in sites {
+            removed.extend(lent.gone);
+            if let Some(poison) = lent.poison {
+                place_poison(f, (b, c), &poison, &mut before, &mut after);
+            }
+            if let InstKind::Call { target, .. } = &mut f.blocks[b].insts[c].kind {
+                *target = name;
+            }
+        }
+        rebuild(f, &removed, before, after, &FxHashMap::default());
+    }
+    functions.extend(built);
 }
 
 /// One instruction's place: the block's index in [`Function::blocks`] and the
@@ -171,27 +308,8 @@ fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
             };
             if let Some(lent) = lend.of((b, c)) {
                 removed.extend(lent.gone);
-                if let Some(Poison {
-                    read,
-                    before: early,
-                    ty,
-                }) = lent.poison
-                {
-                    let kind = &f.blocks[b].insts[read].kind;
-                    if early {
-                        after
-                            .entry((b, read))
-                            .or_default()
-                            .extend(poison_of(kind, ty, true));
-                        before
-                            .entry((b, c))
-                            .or_default()
-                            .extend(poison_of(kind, ty, false));
-                    }
-                    after
-                        .entry((b, c))
-                        .or_default()
-                        .extend(poison_of(kind, ty, true));
+                if let Some(poison) = lent.poison {
+                    place_poison(f, (b, c), &poison, &mut before, &mut after);
                 }
                 if let (Some(owned), InstKind::CoreCall { symbol, .. }) =
                     (lent.symbol, &mut f.blocks[b].insts[c].kind)
@@ -258,6 +376,45 @@ fn run_function(f: &mut Function, summaries: &Summaries, ignore: bool) {
             }
         }
     }
+    rebuild(f, &removed, before, after, &released_before);
+}
+
+/// Puts a lent property's poison around the call at `(b, c)`
+/// ([`InstKind::LendPoison`]).
+fn place_poison(
+    f: &Function,
+    (b, c): At,
+    poison: &Poison,
+    before: &mut FxHashMap<At, Vec<Inst>>,
+    after: &mut FxHashMap<At, Vec<Inst>>,
+) {
+    let kind = &f.blocks[b].insts[poison.read].kind;
+    if poison.before {
+        after
+            .entry((b, poison.read))
+            .or_default()
+            .extend(poison_of(kind, poison.ty, true));
+        before
+            .entry((b, c))
+            .or_default()
+            .extend(poison_of(kind, poison.ty, false));
+    }
+    after
+        .entry((b, c))
+        .or_default()
+        .extend(poison_of(kind, poison.ty, true));
+}
+
+/// Writes the pass's decisions into `f`: the instructions `before` and
+/// `after` each place, a release of each value in `released_before`, and
+/// every instruction in `removed` dropped.
+fn rebuild(
+    f: &mut Function,
+    removed: &FxHashSet<At>,
+    mut before: FxHashMap<At, Vec<Inst>>,
+    mut after: FxHashMap<At, Vec<Inst>>,
+    released_before: &FxHashMap<At, Vec<ValueId>>,
+) {
     for (b, block) in f.blocks.iter_mut().enumerate() {
         let insts = std::mem::take(&mut block.insts);
         for (i, inst) in insts.into_iter().enumerate() {
@@ -483,6 +640,9 @@ struct Lent {
     gone: Vec<At>,
     element: Option<Element>,
     poison: Option<Poison>,
+    /// The slots on the lent slot's chain, the lent slot first. A lent body
+    /// copies at a change after which one of them may be read.
+    chain: Vec<OwnedSlot>,
 }
 
 /// Where a lent property's poison goes ([`InstKind::LendPoison`]): after the
@@ -599,6 +759,30 @@ impl Lend<'_> {
             }
             kind => (kind.consumes()?, None, &[]),
         };
+        self.of_subject((b, c), subject, symbol, args, None)
+    }
+
+    /// [`Self::of`] for a call to a known Novis callee, `summary` its effect
+    /// summary, lending the argument `subject`. The callee must write no slot
+    /// on the chain, and an element is not lent to one.
+    fn of_call(&self, at: At, subject: ValueId, summary: &Summary) -> Option<Lent> {
+        self.of_subject(at, subject, None, &[], Some(summary))
+    }
+
+    /// The lend of `subject` to the call at `(b, c)`, with the owning
+    /// `symbol` it switches to and the arguments whose callables it may run.
+    /// `callee` is a Novis callee's summary, which must write no slot on the
+    /// chain.
+    fn of_subject(
+        &self,
+        (b, c): At,
+        subject: ValueId,
+        symbol: Option<&'static str>,
+        args: &[ValueId],
+        callee: Option<&Summary>,
+    ) -> Option<Lent> {
+        let insts = &self.f.blocks[b].insts;
+        let call = &insts[c];
         let result = call.result?;
         let mut mentions = 0;
         call.kind
@@ -616,6 +800,9 @@ impl Lend<'_> {
             return None;
         }
         if matches!(insts[read].kind, InstKind::ArrayGet { .. }) {
+            if callee.is_some() {
+                return None;
+            }
             let (gone, element) = self.of_element((b, c), subject, result, read, args)?;
             // An element has no tag of its own to poison yet.
             return Some(Lent {
@@ -623,6 +810,7 @@ impl Lend<'_> {
                 gone,
                 element: Some(element),
                 poison: None,
+                chain: Vec::new(),
             });
         }
         let (slot, object) = slot_of(&insts[read].kind)?;
@@ -671,12 +859,19 @@ impl Lend<'_> {
         self.window_is_quiet(b, start, c, &[read], subject, &chain)?;
         gone.extend(self.subject_counts((b, c), subject)?);
         self.callbacks_are_quiet(args, subject, &chain)?;
+        if let Some(callee) = callee
+            && !self.ignore
+            && chain.iter().any(|&s| callee.writes.reaches(s))
+        {
+            return None;
+        }
         let before = self.ignore
             || (read + 1..c).all(|i| self.removed.contains(&(b, i)) || insts[i].on_error.is_none());
         Some(Lent {
             symbol,
             gone,
             element: None,
+            chain: chain.iter().map(|&s| own(s)).collect(),
             poison: Some(Poison {
                 read,
                 before,

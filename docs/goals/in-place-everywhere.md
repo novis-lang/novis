@@ -342,9 +342,18 @@ callee when all of these hold:
     old value while the new one exists, so two values really are alive and one copy is the minimum.
     Every other change is made in place. A read of the slot before the first change sees the old value,
     which is correct, and costs nothing.
-  - A write to the lent slot first retains the parameter, so the write cannot free the value the
-    callee is using. The caller's store then releases what the slot holds unless it is still the lent
-    value, which is one pointer comparison.
+  - **A callee that may write the lent slot is not lent (my call, 2026-11-18).** Its call keeps its
+    retain, as a callback that writes the slot does, so both values stay alive with no new rule. The
+    retain in the callee and the caller's pointer comparison before its release are declined: they
+    put a second protocol on the store for a callee that both changes and replaces one value, which
+    is rare. **What it spends:** such a call copies at its change, as it does today.
+  - **The lent body covers the common shapes, and any other callee keeps the retain (my call,
+    2026-11-18).** The parameter may be released, changed, returned, read by a borrowed `Core` or
+    helper call, or read by an element read. A retain of it, a phi or a call that takes it gives no
+    lent body. Neither does a release from which both a failure and a return are reachable, or a
+    separated change whose return is reachable another way, or whose landing has another way in.
+    The separate is a retain before the change and a release before each return it reaches; the
+    change's own landing keeps its release. `crates/nvs-ir/src/ownership/lent.rs` is the home.
   - A failure is an instruction with an error edge in the IR. A `FATAL`, such as the memory ceiling
     (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`), ends the request
     and is not one. An append that is refused leaves its array unchanged, so it is not a failure after
@@ -608,13 +617,21 @@ disjoint and they run side by side. The session runs the test once all batches e
 - [x] `crates/nvs-ir/src/effects.rs:1`: each function's summary (properties it may read or write, by
   class and name, and "anything"), solved to a fixed point over the call graph. The resolver that
   names the one body of a call while compiling lives here too.
-- [ ] The lent body: built once per function and parameter that a call site lends. Its error exits
+- [x] The lent body: built once per function and parameter that a call site lends. Its error exits
   never free that parameter, and its changes to it separate first wherever a catchable failure is
-  still reachable. `crates/nvs-ir/src/ownership.rs` builds it and points the call at it.
+  still reachable. `crates/nvs-ir/src/ownership/lent.rs` builds it and `ownership.rs` points the
+  call at it.
+  - [x] `lent::body` classifies each use of the parameter and declines an uncovered shape.
+  - [x] Releases on failure-only paths go; a separated change retains first and releases before its
+    returns.
+  - [x] `lend_to_callees` collects the sites, builds each body once and rewrites the calls.
 - [ ] `ownership.rs` lends a slot, and a local that a `catch` reads, to a Novis callee under the three
   conditions in § *Standing decisions*.
-- [ ] The lent body's write to the lent slot retains the parameter first, and the caller's store
-  releases the slot's value unless it is still the lent one.
+  - [x] A property or a static property, through `Lend::of_call`, with the callee's summary in place
+    of the callback check.
+  - [ ] A local inside a `try` whose `catch` reads it.
+- [x] A callee that may write the lent slot keeps the call's retain (§ *Standing decisions*, "A callee
+  that may write the lent slot is not lent").
 - [ ] `Core\Arr::reduce` (`crates/nvs-stdlib/src/arr.rs:4452`) hands its carry to the callback. `call_callable`
   (`crates/nvs-runtime/src/callable.rs:193`) gains the form that takes an argument the caller gives
   away, with no retain for it, and `reduce`'s guard no longer holds the carry during the call.
@@ -670,44 +687,34 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 4 are done, and stage 5's first item. The sweep's `env-secret-proofs` red is stale: no
-goal defines it, and its newest naming commit is `route-parameters`' retire.
+Stages 1 to 4 are done. Stage 5 has its summary, its lent body, the lend of a property or a static
+property to a known Novis callee, and the decision on a callee that writes the slot. The sweep's
+`env-secret-proofs` red is stale: no goal defines it, and the newest commit that names it is this
+goal's own handoff.
 
-`crates/nvs-ir/src/effects.rs` holds the effect summary. `Summaries::of` solves each function's reads
-and writes, by `OwnedSlot`, to a fixed point over the call graph. `callee` names the one body of an
-`InstKind::Call` or a `New` with a constructor, and `callback` names an anonymous function's
-`Class::invoke`. `Summaries::of_inst` gives one instruction's effects with its callee's summary in
-place of "user code", which the lent body's per-instruction check reads. `ownership.rs`'s
-`callbacks_are_quiet` reads the summary, so a callback that calls a known quiet function is now lent.
-The summary has no "may fail" flag; § *Standing decisions* says why. `recursive_callees_reach_one_summary`
-ran once by name and passes.
+`crates/nvs-ir/src/ownership/lent.rs` builds `<callee>#lent<i>`. `ownership::lend_to_callees` runs
+after every function's own pass, collects each `slot = f(slot, …)` through `Lend::of_call`, builds
+each body once with the union of the slots its sites lend, and rewrites the call's target. The lent
+body names its parameter by `InstKind::Param`, so a static method's first argument is `#lent1`
+(parameter 0 is its class descriptor). `Function`, `BasicBlock`, `Inst`, `InstKind`,
+`Terminator` and `TestedClass` now derive `Clone`. Nine `user-callees` tests pass, each run once
+by name.
 
 ### Next
 
-Stage 5's second to fourth items, built together in `crates/nvs-ir/src/ownership.rs`:
-
-- **The lent body.** One more `Function` per (callee name, parameter index) that a call site lends,
-  named `<callee>#lent<i>`, appended to the functions after the pass's first sweep. Copy the callee,
-  remove the parameter's releases on every path that ends in `Terminator::Propagate` (`Walk::edge`
-  shows how a path is followed), and before each change of the parameter (`InstKind::consumes`, an
-  owning `CoreCall` on it, a `Call` that moves it) insert a separate when a failure (any instruction
-  with `on_error`, or a `Throw`) or a read of the lent slot (`Summaries::of_inst(..).reads.reaches`)
-  is reachable after it. A runtime separate exists as `ArraySole`; a string needs its own.
-- **The caller.** In `Lend::of`, accept an `InstKind::Call` whose `effects::callee` is known, whose
-  summary writes no slot on the chain, and whose lent argument is the slot's read; point it at the
-  lent body. A local inside a `try` whose `catch` reads it takes the same lent body
-  (`Walk::releases_after` with `error_edge`).
-- **A write to the slot inside the lent body** retains the parameter first, and the caller's store
-  compares the slot with the lent value before it releases.
-
-The ten `user-callees` tests go in `lower/tests.rs` beside the lend tests;
-`recursive_callees_reach_one_summary` is written. `a_fatal_is_not_a_failure_the_summary_counts`
-checks that a lent body does not copy before an allocation that can only `FATAL`, because such an
-instruction has no error edge.
-
-`Core\Arr::reduce`'s carry (`crates/nvs-runtime/src/callable.rs:193` `call_callable`, and the
-`reduce` test at `crates/nvs-stdlib/src/arr.rs:10719`) is separate from the lent body and fits a
-session of its own.
+- **A local inside a `try` whose `catch` reads it** (stage 5's open sub-item). In `run_function`,
+  a `Move::Novis` that `Walk::releases_after(true, 1)` refuses because the error edge reads the
+  local can instead take the lent body: the call keeps no retain, the normal path's release of the
+  local goes, and the error edge keeps the local. Add it as a second kind of `Site` in
+  `lend_to_callees` with an empty slot set, and write
+  `a_local_inside_a_try_is_lent_to_a_callee_that_cannot_fail_after_its_change` beside the other
+  nine in `crates/nvs-ir/src/lower/tests.rs` (after `recursive_callees_reach_one_summary`).
+- **`CoreArr::reduce`'s carry** (`crates/nvs-runtime/src/callable.rs:193` `call_callable`, and the
+  `reduce` test at `crates/nvs-stdlib/src/arr.rs:10719`), with the two `carry` tests in
+  `crates/nvs-stdlib/tests/in_place.rs`. It fits a session of its own.
+- Not run yet, because a stage checks with a build alone: the `fn-` conformance cases under
+  `tests/conformance/in-place/`. They are the first real runs of a lent body. Run them early in the
+  gate, under a debug binary, and read any crash as a lent body bug in `lent.rs`.
 
 **What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
 property copies its array, so a loop of such writes is quadratic. Only the differential run uses it.
@@ -734,6 +741,8 @@ a nested write, a nested `.=` and an `unset` on a property or static property ro
 `lateinit` roots included. A snapshot of an element `unset` now lowers its keys before the root's
 read, and a guarded one reads the root again after the guard. A `Core` call with a callback that
 calls a known function writing none of the slot's chain is now lent where it kept its retain.
+A snapshot of `$this->p = $this->f($this->p)` with a known `f` now calls `T::f#lent1`, prints
+`lend.poison` around it, and has no retain of the slot's read; the program gains that lent body.
 
 ### Backlog
 

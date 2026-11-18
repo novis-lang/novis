@@ -580,7 +580,7 @@ pub enum SlotCheck {
 }
 
 /// One lowered method or function.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Function {
     /// The function's name, for diagnostics and the text listing —
     /// `crate::lower::lower_method`'s caller decides how it is qualified
@@ -711,7 +711,7 @@ pub struct DebugSlot {
 
 /// One basic block: a straight-line run of [`Inst`]ructions ending in one
 /// [`Terminator`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BasicBlock {
     /// This block's own id.
     pub id: BlockId,
@@ -766,7 +766,7 @@ impl BasicBlock {
 /// One SSA instruction. Not every instruction defines a value — a
 /// [`InstKind::StmtMarker`] never does, the same way a future `void`-returning
 /// call would not.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Inst {
     /// The SSA value this instruction defines, if any.
     pub result: Option<ValueId>,
@@ -866,7 +866,7 @@ pub struct Inst {
 }
 
 /// What one [`Inst`] does.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum InstKind {
     /// `rule:testing/debug-probes`'s statement-boundary probe site: marks where the
@@ -2528,7 +2528,7 @@ pub enum PartKind {
 /// that every consumer of this instruction reads by name — the printer,
 /// `crate::lower::tests`, and codegen's refusal for a class this unit declares
 /// no descriptor for — and none of them can name a [`ValueId`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TestedClass {
     /// A class or interface written at the site. Every producer but `rule:types/class-reference-sites`'s dynamic one gives this, including the `catch` ladders and
     /// `as`'s own downcast check.
@@ -3754,7 +3754,7 @@ pub enum UnOp {
 }
 
 /// How one [`BasicBlock`] ends.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum Terminator {
     /// `return;` (`None`) or `return expr;` (`Some`).
