@@ -45,10 +45,18 @@ The callee then runs a **lent body**, a second body built once per function and 
 call site lends. The parameter is never freed on an error exit, because the caller still holds it. A
 change to the parameter separates first, copying at that change only, when a catchable failure or a
 read of the lent slot is reachable after it: both would show the old value while the new one exists,
-so one copy is the minimum. Every other change is in place. A write to the lent slot first retains the
-parameter, and the caller's store releases what the slot holds unless it is still the lent value, one
-pointer comparison. A failure is an instruction with an error edge; a `FATAL`, such as the memory
-ceiling, ends the request and is not one, and a refused append leaves its array unchanged.
+so one copy is the minimum. Every other change is in place. A callee that may write the lent slot is
+not lent: its call keeps its retain, so both values stay alive and it copies at its change. The lent
+body covers a parameter that is released, changed, returned, or read by a borrowed `Core` or helper
+call or an element read; any other shape gives no lent body, and the call keeps its retain. A failure
+is an instruction with an error edge; a `FATAL`, such as the memory ceiling, ends the request and is
+not one, and a refused append leaves its array unchanged. Every call to a Novis function is a failure,
+because each may throw `RecursionError` at its entry (`rule:errors/stack-depth`), so a lent body
+copies at a change after which any such call is reachable.
+
+A local's element, `$a[k] = M($a[k])`, is not lent: a local is not a slot, so once the array is made
+sole every later read of the local's old value, the error edges' releases included, would have to
+read the sole array. It keeps its retain.
 
 **Four forms the pass covers beyond a call.**
 
@@ -62,6 +70,9 @@ ceiling, ends the request and is not one, and a refused append leaves its array 
   callback.
 - A by-value `foreach` whose body writes the array only at the loop's own key, never assigns the key,
   and has no instruction that may write the array another way holds no reference of its own to it.
+  The loop then walks the variable's current array, because with no reference of its own another
+  holder could free the array it started on. It reads each entry before the body runs, so it sees the
+  original values, and a copy of a hashed array keeps its holes so each position holds across it.
 - A generator's resume takes each parked local out of the state object and leaves the field empty
   until the next `yield` parks it, so the local is its value's only reference.
 
@@ -75,9 +86,16 @@ callback, reserves every allocation up to the memory ceiling and returns a plan 
 the subject the caller's and unchanged; `apply` takes the plan and the owned subject, has no error in
 its type, runs no user code, and on a shared subject builds only what it keeps.
 
+Each owning member has two entries: its own symbol, which borrows as every helper does, and
+`<symbol>_owned`, which takes the subject's reference on success only. A move into a `Core` member is
+a switch of the call to the owning entry, made by the pass where the subject is released once on
+every path from the call's normal exit; the error edge keeps its releases. So a call the pass does not
+move costs nothing extra, and a symbol the table does not name can only be called borrowed.
+
 **Every copy the pass keeps is reported where it is written.** The pass records each kept copy with a
-reason and, where one exists, a fix, in a table compiled into the program and stored in its compile
-cache entry. A warning is raised only where one edit removes the copy: a read of the lent slot after
+reason and, where one exists, a fix, in a table that is part of the compiled program. A warm compile
+cache hit still lowers the program and runs the pass, so the table is rebuilt on every run and the
+cache entry carries no second copy of it. A warning is raised only where one edit removes the copy: a read of the lent slot after
 the change, whose fix moves the read above it, and a catchable failure after the change, whose fix
 moves the failing statement above it. Every other kept copy — two values really both used, a callable,
 an overridden method, a hooked property — is a table row, shown when a recorded request ran it. The
@@ -87,15 +105,19 @@ language server cannot disagree. A recorded request counts the entries or bytes 
 **The guarantee is checked three ways beyond the cases.** `nvs run`, `nvs test` and `nvs serve` take a
 hidden `--no-in-place` that skips the pass, so every owning call sees a shared subject and builds; `bun
 nv suite --no-in-place-too` runs every case both ways and fails on any difference. In a debug build
-the pass poisons a lent slot between its read and its store, so a wrong effect decision traps with
-the statement's span. The in-place operations of the runtime's arrays and strings run under Miri. A
+the pass poisons a lent slot in the two windows where any read is a wrong effect decision: from the
+slot's read to just before the call, where nothing in between can fail, and from the call's normal
+exit to the store. A read there traps with the statement's span. The call itself is not poisoned,
+because a callback the lend allows and a lent body before its first change may read the slot and
+must see the old value. The in-place operations of the runtime's arrays and strings run under Miri. A
 value a cache, the configuration or another request can reach always has a count above 1, so it is
 never changed in place.
 
 **What it spends.** One retain and one release per call whose subject is still read after the call,
 where today it is borrowed. One more compiled body per lent function and parameter, and the effect
-summaries while compiling, linear in the call graph plus the fixed point. One shape test per literal
-that spreads its target. One table per compiled program with a row per kept copy, and one flag check
+summaries while compiling, linear in the call graph plus the fixed point. Each owning member compiled
+twice, and one retain and one release per call of its borrowed entry. A copy of a hashed array
+carries its holes, at most one per live entry. One shape test per literal that spreads its target. One table per compiled program with a row per kept copy, and one flag check
 per copy at run time. Nothing per request; compile time grows by one liveness pass per function.
 
 **Declined:**
@@ -106,3 +128,8 @@ per copy at run time. Nothing per request; compile time grows by one liveness pa
   `$this->items = $this->addItem($this->items, $x)` quadratic in a loop, and the compiler can prove the
   common case safe.
 - **A list of owning members.** A list drifts from the helpers; the signature is already the fact.
+- **Lending to a callee that writes the lent slot, with a retain in the callee and a pointer
+  comparison before the caller's store.** It puts a second protocol on the store for a callee that both
+  changes and replaces one value, which is rare.
+- **A site id threaded through every runtime copy path to count copies.** Many runtime ABIs would
+  change for the same number; the pass instead places one counting call after each kept-copy site.
