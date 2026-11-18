@@ -3470,6 +3470,11 @@ impl<T> Levels<T> {
         }
         self.len += 1;
     }
+
+    /// Every open level, outermost first.
+    fn iter(&self) -> impl Iterator<Item = &T> {
+        self.inline.iter().flatten().chain(&self.spill)
+    }
 }
 
 /// Reads the one value `reader` gives next against `root`: `decodeAs`'s one
@@ -3799,10 +3804,7 @@ impl<'a> Builder<'a> {
             ctx,
             slots: Vec::new(),
             kept: Vec::new(),
-            spares: Spares {
-                constructors: Vec::new(),
-                args: Vec::new(),
-            },
+            spares: Spares::new(),
         }
     }
 
@@ -4370,7 +4372,7 @@ pub(crate) unsafe fn hydrate(
         reason = "the same live descriptor the caller vouched for"
     )]
     let decoded = unsafe {
-        let mut spares = Spares::default();
+        let mut spares = Spares::new();
         if list {
             decode_each(ctx, &mut spares, contract, Seen::Value(document), member)
         } else {
@@ -5312,16 +5314,25 @@ impl<'a> Fields<'a> {
 ///
 /// **What it spends:** one pair per class the decode builds, and one vector per
 /// object open at once, each one place longer than its class's constructor has
-/// parameters. Both are freed with the decode.
-#[derive(Default)]
+/// parameters. The first [`LEVELS_INLINE`] pairs and spare vectors are held
+/// inline ([`Levels`]), so a decode of a few classes allocates only the
+/// vectors themselves. All are freed with the decode.
 struct Spares {
     /// Each class the decode has built, with its constructor.
-    constructors: Vec<(*const nvs_runtime::ClassDesc, nvs_runtime::Constructor)>,
+    constructors: Levels<(*const nvs_runtime::ClassDesc, nvs_runtime::Constructor)>,
     /// Argument vectors given back empty.
-    args: Vec<Vec<Value>>,
+    args: Levels<Vec<Value>>,
 }
 
 impl Spares {
+    /// Nothing found and nothing given back yet.
+    const fn new() -> Self {
+        Self {
+            constructors: Levels::new(),
+            args: Levels::new(),
+        }
+    }
+
     /// The constructor of `class`, looked up on the first object of that class.
     ///
     /// # Safety
@@ -5351,6 +5362,9 @@ impl Spares {
     /// A vector of `len` `null`s, reused where one was given back.
     fn args(&mut self, len: usize) -> Vec<Value> {
         let mut args = self.args.pop().unwrap_or_default();
+        // `Vec::resize` would grow an empty vector to four places at least,
+        // and a class of fewer parameters needs only its own.
+        args.reserve_exact(len.saturating_sub(args.len()));
         args.resize(len, Value::null());
         args
     }
