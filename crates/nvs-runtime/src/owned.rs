@@ -250,6 +250,14 @@ pub unsafe fn run_owned<S: OwnedSubject, P>(
     unsafe_code,
     reason = "compiled code passes the context pointer and its own baked carrier"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_lend_trap(ctx: *mut Ctx, source: *const u8) -> i32 {
     // The caller's contract, passed on unchanged.

@@ -2840,6 +2840,14 @@ pub enum Lent {
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
 )]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_sole(array: *mut ArrayHeader) -> *mut ArrayHeader {
     #[expect(
@@ -2864,6 +2872,14 @@ pub unsafe extern "C" fn nvs_array_sole(array: *mut ArrayHeader) -> *mut ArrayHe
     unsafe_code,
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_set_lent(
@@ -2893,6 +2909,14 @@ pub unsafe extern "C" fn nvs_array_set_lent(
     unsafe_code,
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_set_index_lent(
@@ -3138,6 +3162,14 @@ pub unsafe extern "C" fn nvs_array_spread(
     unsafe_code,
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_array_spread_owned(

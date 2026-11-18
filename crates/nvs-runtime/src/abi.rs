@@ -1123,12 +1123,17 @@ pub(crate) fn panic_message(
 ///     }
 /// }
 ///
+/// # fn main() {
 /// let mut ctx = Ctx::buffered();
 /// let text = Value::str(NvsStr::new(b"kept"));
 /// let same = call(nvs_same, &mut ctx, &[text]).unwrap();
 /// assert_eq!(same.as_text(), Some("kept"));
 /// # unsafe { same.release(); text.release() };
+/// # }
 /// ```
+///
+/// The form puts `apply` in a module named after the helper, which reads the
+/// enclosing module's names, so the macro is written at module level.
 ///
 /// `check` reads the arguments borrowed and returns `Result<Plan, Fault>`;
 /// `apply` takes the plan and the owned subject and returns a `Value`. The form
