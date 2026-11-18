@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/lang/types/property-paths/about.md, docs/reference/lang/20-types.md, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: cases
@@ -200,32 +200,30 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. The `cases` and `editor` checks are green, and
-`bun nv proofs --id lang:types/property-paths` reports the feature complete.
+Every stage is done, and the goal is reached. The first `looper verify` failed on one test: the
+identity printer found `tests/hostile/lang/types/property-paths/03-array-steps-from-a-request.nvs`
+unformatted. `bun nv nvs-fmt` fixed it, and rustfmt's rewrites of `helpers.rs` and `hover.rs` went
+into the same commit. The second `looper verify` is green.
 
-Stage 4 landed: `about.md` and `details.md` of `docs/examples/lang/types/property-paths/` describe
-`@key`, `@value`, the shorthand and `Core\Reflect::steps`'s two rows, and `bun nv render` and
-`bun nv render --website` wrote the chapter, `core.json` and `llms-full.txt`. The example
-`06-a-condition-on-an-array-key-and-element.nvs` and the attack `03-array-steps-from-a-request.nvs`
-(with its `.nvsr`) run green under `bun nv proofs --run`. Every stale perf record (`Core\Reflect`'s
-members and the `lang:types/*` features) was recorded on the release binary, and none is stale.
+The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes path-array-steps` (no
+gap) and `bun nv ci --check`. The site stale guard named `syntax/classes/property-names.mdx` and
+the questions of `/reference/core/reflect/steps/`. The page gained a sentence on `@key` and
+`@value`, each page gained a question, and all three stamps were renewed.
 
-The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only
-this goal's handoff and `in-place-everywhere`'s retire commit.
+Every standing decision is held by `docs/rules/types/property-path.md` or
+`docs/rules/core-classes/str-parts-and-reflect-steps.md`, so the file can be deleted at retire.
 
 ### Next
 
-Stage 5: `bun nv affected --run` (`looper verify` in the loop), fix every failure in one pass, run it
-once more. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes path-array-steps`,
-`bun nv ci --check`. Pages covering `lang:types/property-paths` may need `bun nv site --stamp`, which
-`ci --check` names. No red is expected from this goal's tests.
+Nothing. The driver runs the `cases` and `editor` checks and retires the goal. No test is expected
+to go red.
 
 ### Backlog
