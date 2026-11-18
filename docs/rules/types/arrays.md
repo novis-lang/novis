@@ -112,6 +112,15 @@ An array has no internal cursor. A cursor inside a copy-on-write value would be 
 so a copy would carry its iteration position. `foreach` and `Core\Arr`'s `first`, `last`, `firstKey` and
 `lastKey` cover every use.
 
+**A list has room at both ends, and a map knows where its live entries start.** Dropping a list's
+first entries releases them and moves its front, and a prepend writes into the room in front and grows
+by doubling where there is none. A map keeps the slot of its first live entry, so `first`, `firstKey`
+and the start of a `foreach` take one step past any number of removed entries. `last` and `lastKey`
+take one step on a list, and on a map walk back past the holes at its end, which compaction bounds.
+The room and the holes are freed when they outnumber the live entries. **Memory:** a word per list and
+per map. A list that was prepended to holds up to twice its entries, and one cut down a step at a time
+up to four times; a list never prepended to or cut holds nothing more.
+
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
   and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.

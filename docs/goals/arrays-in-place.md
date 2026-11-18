@@ -10,7 +10,7 @@ stages:
     context: [benches/scaling/README.md, benches/scaling/arrays/sort.nvs]
   - id: 2
     title: a list has room at both ends, and a map finds its first live entry in one step
-    status: open
+    status: done
   - id: 3
     title: every Core\Arr member changes only what its result changes
     status: open
@@ -131,6 +131,15 @@ live slot are found from what it already keeps.
 On a shared subject, every member builds only what it keeps, so `slice($big, 0, 10)` touches ten entries.
 A member that rewrites a shared subject copies the table in one block, never key by key.
 
+**How stage 2 built it (my call, 2026-11-18).** The packed list is a `VecDeque`: its head is the
+front offset, and it doubles at either end. A cut list frees its room once the room is more than three
+times its entries, so a list cut a step at a time holds up to four times its entries. Every in-place
+operation takes positions in iteration order, never slots, and calls `make_unique` first, which is a
+no-op on the sole subject every caller passes. A renumbered result is a list whose append counter is
+its length. A result that keeps its keys keeps the subject's counter on a map, and on a list cut only
+at its end the counter is the new length, so `withoutLast` keeps a stack a list. A stage 3 member that
+must give a fresh build's counter on a map recomputes it.
+
 **Lanes.** Stage 2 touches `crates/nvs-runtime/src/array.rs` alone and can run as a side goal at any
 time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` reached.
 
@@ -165,18 +174,18 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 
 ### 2. a list has room at both ends, and a map finds its first live entry in one step
 
-- [ ] `crates/nvs-runtime/src/array.rs:276` `Shape::Packed` gains its front offset. Every reader of the
+- [x] `crates/nvs-runtime/src/array.rs:276` `Shape::Packed` gains its front offset. Every reader of the
   packed `Vec` (`key_at`, `value_at`, `next_slot`, the separation at `:921`, the size accounting at
   `:760`, `:785` and `:806`) reads through it.
-- [ ] `Hashed` keeps the slot of its first live entry, updated by `unset` (`:1879`) and by compaction
+- [x] `Hashed` keeps the slot of its first live entry, updated by `unset` (`:1879`) and by compaction
   (`:1082`). `next_slot(0)` (`:1930`) starts there.
-- [ ] `NvsArray` gains the in-place operations the members call, each on a sole array only: drop the
+- [x] `NvsArray` gains the in-place operations the members call, each on a sole array only: drop the
   first k, drop the last k, keep a window (renumbered or with its keys), prepend values, permute by a
   plan, keep by a mask, rewrite values, and rekey. Each states its cost in its doc comment.
-- [ ] `NvsArray` gains two readers beside `next_slot` (`:1930`): the last live slot, and the slot of a
+- [x] `NvsArray` gains two readers beside `next_slot` (`:1930`): the last live slot, and the slot of a
   position. The second answers in one step for a list with no hole and walks otherwise. Each states
   its cost in its doc comment.
-- [ ] The four tests the `runtime-room` check names and the two the `runtime-reads` check names, beside
+- [x] The four tests the `runtime-room` check names and the two the `runtime-reads` check names, beside
   `:4269` `compaction_preserves_order_and_the_append_counter`, run once by name.
 
 ### 3. every Core\Arr member changes only what its result changes
@@ -210,32 +219,36 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person, and narrowed the same day when
-`in-place-everywhere` took the protocol, the ABI, the moves and the lends. Their calls: fix the cause,
-nothing for a developer to remember, and every replacement in place. Every other choice in
-§ *Standing decisions* is the authoring session's call.
+Written on 2026-11-17 from a conversation with the person. Their calls: fix the cause, nothing for a
+developer to remember, and every replacement in place. Every other choice in § *Standing decisions*
+is a session's call.
 
-A review the person asked for on 2026-11-17 added the two reads that walk (`last` and `lastKey`, and a
-late `slice` window) and five ladders. The person agreed to add them.
+Stages 1 and 2 are done. The fourteen ladders are under `benches/scaling/arrays/`. Every ladder but
+`in-place-a-list-built-with-a-spread.nvs` is expected red until stage 3, because the `Core\Arr`
+members still copy their subject: `bun nv scaling --check arrays/in-place-` and `arrays/read-`.
 
-Stage 1 is done: the fourteen ladders are under `benches/scaling/arrays/`, and each one runs at its
-start size and prints the expected result. One ramp of the list-building ladders found
-`in-place-a-list-built-with-a-spread.nvs` linear, and `-with-append`, `-with-prepend`, `-by-reduce`,
-`-inside-a-generator` and `-in-an-element-built-with-append` quadratic in bytes (slope 2.00), because
-`Core\Arr::append` and `prepend` still copy their subject. Every ladder but the spread one is expected
-red until stage 3: `bun nv scaling --check arrays/in-place-` and `arrays/read-`.
-
-A nullable read such as `Core\Arr::first($q) ?? 0` added straight to a `uint` is `mixed` (`E0401`),
-so the ladders read it into a `uint` variable first.
+`crates/nvs-runtime/src/array.rs` now has a list with room at both ends (`Shape::Packed` is a
+`VecDeque`), a map that keeps its first live slot (`Hashed::first`), the two readers and the in-place
+operations on `NvsArray`: `last_slot` `:2448`, `slot_of_position` `:2457`, `keep_window` `:2469`,
+`drop_first` `:2479`, `drop_last` `:2485`, `prepend` `:2498`, `permute` `:2512`, `keep_by_mask`
+`:2521`, `rewrite_values` `:2533` and `rekey` `:2544`. Each states its cost. The `runtime-room` and
+`runtime-reads` checks pass, and `the_in_place_operations_give_what_a_rebuilt_array_would` covers the
+other four operations. The decision is in the module docs and in `rule:types/arrays`.
 
 The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only
 retired goals' commits. No goal defines it.
 
+A nullable read such as `Core\Arr::first($q) ?? 0` added straight to a `uint` is `mixed` (`E0401`),
+so the ladders read it into a `uint` variable first.
+
 ### Next
 
-Stage 2, which touches `crates/nvs-runtime/src/array.rs` alone: `Shape::Packed` (`:276`) gains its
-front offset, `Hashed` keeps its first live slot (`unset` `:1879`, compaction `:1082`, `next_slot`
-`:1930`), then the in-place operations, the two readers, and the six tests the `runtime-room` and
-`runtime-reads` checks name. `in-place-everywhere` is reached, so stage 3 may follow at once.
+Stage 3 in `crates/nvs-stdlib/src/arr.rs`: each owning member's body, on a sole subject (its `owns`
+`apply` path), calls the `NvsArray` operation above in place of building. Start with `append` and
+`prepend`, which five list-building ladders wait on, then `withoutFirst` (`:3601`, `drop_first(1,
+false)`), `withoutLast` (`drop_last(1)`), `slice` (`:3345`, `keep_window`), then the reads `last` and
+`lastKey` through `last_slot`. Check `withoutFirst` and `withoutLast` keep the append counter a fresh
+build gives (see § *How stage 2 built it*). Then `crates/nvs-stdlib/tests/in_place.rs` and the two
+ladder checks.
 
 ### Backlog

@@ -146,6 +146,23 @@
 //! the ordinary "unset in a loop" shape quadratic. The holes are swept when
 //! they outnumber the live entries, so the vector stays O(live) amortized.
 //!
+//! # Decision: a list has room at both ends, and a map knows its first entry
+//!
+//! A packed list is a ring buffer, so its head is a front offset. Dropping
+//! the first k entries releases them and moves the head, and a prepend writes
+//! into the room in front, growing by doubling where there is none. A map
+//! keeps the slot of its first live entry, so `firstKey`, `first` and the
+//! start of a `foreach` skip the front holes in one step. Its last live slot
+//! is found by a walk backward past the holes at its end, and the slot of a
+//! position in one step where every hole is in front. The front holes are
+//! swept with the others, and a list frees its room once it is more than
+//! three times its entries. These are what the in-place operations a sole
+//! array offers `Core\Arr` stand on (`rule:types/a-replaced-value-is-changed-in-place`).
+//! **What it spends:** a word per list for the head and one per map for the
+//! first slot. A list that was prepended to holds up to twice its entries, and
+//! one that was cut down holds up to four times. A list never prepended to or
+//! cut holds what a `Vec` would.
+//!
 //! # Decision: a mutation consumes one reference and returns one
 //!
 //! `rule:types/arrays` gives arrays copy-on-write **value semantics**, so
@@ -233,7 +250,7 @@
 
 use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::ptr::NonNull;
@@ -277,7 +294,16 @@ enum Shape {
     /// The packed form: the keys are exactly `"0"`…`"n−1"` in order, so they
     /// are not stored at all and there is no index map to hash into.
     /// [`Table::key_at`] renders one on demand.
-    Packed(Vec<Value>),
+    ///
+    /// A ring buffer, so the list has room at both ends: its head is the
+    /// front offset `rule:types/arrays`'s list keeps. Dropping the first k
+    /// entries releases them and moves the head, and a prepend writes into
+    /// the room in front. A prepend with no room grows the buffer by
+    /// doubling, as an append does. **What it spends:** one word per list for
+    /// the head, and a list that was prepended to holds up to twice its
+    /// entries. A list that is never prepended to holds what a `Vec` would.
+    /// Position `i` costs one add and one compare more than a `Vec` index.
+    Packed(VecDeque<Value>),
     /// The general form, which every array that is not a list degrades into.
     Hashed(Hashed),
 }
@@ -295,6 +321,13 @@ struct Hashed {
     index: Index,
     /// How many of [`Hashed::entries`] are `Some` — the array's `count()`.
     live: usize,
+    /// The slot of the first live entry, or [`Hashed::entries`]' length when
+    /// there is none. Every hole below it is skipped without a look, so
+    /// `firstKey`, `first` and the start of a `foreach` take one step however
+    /// many entries were removed from the front. A removal of the first entry
+    /// moves it past the holes behind, each passed once, and compaction resets
+    /// it to `0`. **What it spends:** one word per map.
+    first: usize,
 }
 
 impl Default for Table {
@@ -303,7 +336,7 @@ impl Default for Table {
     fn default() -> Self {
         Self {
             next_index: None,
-            shape: Shape::Packed(Vec::new()),
+            shape: Shape::Packed(VecDeque::new()),
         }
     }
 }
@@ -540,6 +573,7 @@ impl Table {
                 entries: Vec::with_capacity(reserve),
                 index: Index::with_capacity_and_hasher(reserve, Default::default()),
                 live: 0,
+                first: 0,
             };
             for (index, value) in packed.into_iter().enumerate() {
                 let mut buf = [0; crate::helpers::DECIMAL_MAX];
@@ -716,7 +750,7 @@ impl Table {
         if let Shape::Packed(values) = &mut self.shape
             && usize::try_from(counter).is_ok_and(|next| next == values.len())
         {
-            values.push(value);
+            values.push_back(value);
             self.next_index = Some(counter.saturating_add(1));
             return Ok(());
         }
@@ -818,7 +852,9 @@ impl Table {
         if let Shape::Packed(values) = &mut self.shape {
             match packed_index(key.bytes()).filter(|slot| *slot < values.len()) {
                 None => return None,
-                Some(slot) if Some(slot) == values.len().checked_sub(1) => return values.pop(),
+                Some(slot) if Some(slot) == values.len().checked_sub(1) => {
+                    return values.pop_back();
+                }
                 Some(_) => {}
             }
         }
@@ -932,7 +968,7 @@ impl Table {
     /// keys directly.
     fn take_values(&mut self) -> Vec<Value> {
         match &mut self.shape {
-            Shape::Packed(values) => std::mem::take(values),
+            Shape::Packed(values) => Vec::from(std::mem::take(values)),
             Shape::Hashed(hashed) => {
                 // Sized to the live count once: the entries have holes, so
                 // collecting them would grow the result from nothing.
@@ -945,8 +981,264 @@ impl Table {
                 );
                 hashed.index.clear();
                 hashed.live = 0;
+                hashed.first = 0;
                 values
             }
+        }
+    }
+
+    /// The slot of the last live entry: one step on a list, and on a map a
+    /// walk backward past the holes at its end.
+    fn last_slot(&self) -> Option<usize> {
+        match &self.shape {
+            Shape::Packed(values) => values.len().checked_sub(1),
+            Shape::Hashed(hashed) => hashed.last_slot(),
+        }
+    }
+
+    /// The slot of the live entry at `position` in iteration order: one step
+    /// on a list and on a map whose holes are all in front, a walk otherwise.
+    fn slot_of_position(&self, position: usize) -> Option<usize> {
+        match &self.shape {
+            Shape::Packed(values) => (position < values.len()).then_some(position),
+            Shape::Hashed(hashed) => hashed.slot_of_position(position),
+        }
+    }
+
+    /// Makes the table the list of its values in order: every key is
+    /// discarded, and the next append writes the list's length.
+    fn renumber(&mut self) {
+        if let Shape::Hashed(hashed) = &mut self.shape {
+            let mut values = VecDeque::with_capacity(hashed.live);
+            values.extend(
+                std::mem::take(&mut hashed.entries)
+                    .into_iter()
+                    .flatten()
+                    .map(|entry| entry.value),
+            );
+            self.shape = Shape::Packed(values);
+        }
+        self.next_index = list_counter(self.len());
+    }
+
+    /// Keeps the live entries at positions `start..end` and releases every
+    /// other one. O(k) for the k entries released on a list, and on a map
+    /// whose window keeps its keys. A renumbered window of a map rebuilds the
+    /// list of what it keeps.
+    fn keep_window(&mut self, start: usize, end: usize, renumber: bool) {
+        let count = self.len();
+        let end = end.min(count);
+        let start = start.min(end);
+        if let Shape::Packed(values) = &mut self.shape
+            && (renumber || start == 0)
+        {
+            for _ in end..count {
+                if let Some(value) = values.pop_back() {
+                    release_taken(value);
+                }
+            }
+            for _ in 0..start {
+                if let Some(value) = values.pop_front() {
+                    release_taken(value);
+                }
+            }
+            free_room(values);
+            self.next_index = list_counter(values.len());
+            return;
+        }
+        self.hashed_mut().keep_window(start, end);
+        if renumber {
+            self.renumber();
+        }
+    }
+
+    /// Puts `front` before the first entry and renumbers the whole table, so
+    /// the result is a list. A list with room in front writes into it and
+    /// moves nothing; one without grows by doubling. The caller has reserved
+    /// the room.
+    fn prepend(&mut self, front: Vec<Value>) {
+        self.renumber();
+        if let Shape::Packed(values) = &mut self.shape {
+            values.reserve(front.len());
+            for value in front.into_iter().rev() {
+                values.push_front(value);
+            }
+        }
+        self.next_index = list_counter(self.len());
+    }
+
+    /// Reorders the live entries so position `i` holds the entry that was at
+    /// position `plan[i]`. `false`, and nothing changed, where `plan` is not
+    /// a permutation of the positions. O(n), with n bytes to check the plan.
+    fn permute(&mut self, plan: &[usize], renumber: bool) -> bool {
+        let count = self.len();
+        let Some(mut seen) = permutation_check(plan, count) else {
+            return false;
+        };
+        let identity = plan.iter().enumerate().all(|(at, from)| at == *from);
+        match &mut self.shape {
+            Shape::Packed(values) if renumber || identity => {
+                apply_plan(values.make_contiguous(), plan, &mut seen);
+                if renumber {
+                    self.next_index = list_counter(values.len());
+                }
+                return true;
+            }
+            _ => {}
+        }
+        let hashed = self.hashed_mut();
+        hashed.entries.retain(Option::is_some);
+        apply_plan(hashed.entries.as_mut_slice(), plan, &mut seen);
+        hashed.reindex();
+        if renumber {
+            self.renumber();
+        }
+        true
+    }
+
+    /// Keeps the live entry at position `i` where `mask[i]` is `true` and
+    /// releases the rest. `false`, and nothing changed, where the mask's
+    /// length is not the count. O(n).
+    fn keep_by_mask(&mut self, mask: &[bool], renumber: bool) -> bool {
+        if mask.len() != self.len() {
+            return false;
+        }
+        let only_the_end = mask.iter().skip_while(|keep| **keep).all(|keep| !*keep);
+        if let Shape::Packed(values) = &mut self.shape
+            && (renumber || only_the_end)
+        {
+            let mut kept = 0usize;
+            for (at, keep) in mask.iter().enumerate() {
+                let Some(value) = values.get(at).copied() else {
+                    break;
+                };
+                if !*keep {
+                    release_taken(value);
+                } else if let Some(stored) = values.get_mut(kept) {
+                    *stored = value;
+                    kept = kept.saturating_add(1);
+                }
+            }
+            values.truncate(kept);
+            free_room(values);
+            self.next_index = list_counter(kept);
+            return true;
+        }
+        self.hashed_mut().keep_by_mask(mask);
+        if renumber {
+            self.renumber();
+        }
+        true
+    }
+
+    /// Puts `new[i]` in place of the value at position `i`, and releases the
+    /// value it replaces. Keys, order and shape do not change. Hands `new`
+    /// back where its length is not the count. O(n).
+    fn rewrite_values(&mut self, new: Vec<Value>) -> Result<(), Vec<Value>> {
+        if new.len() != self.len() {
+            return Err(new);
+        }
+        match &mut self.shape {
+            Shape::Packed(values) => {
+                for (stored, value) in values.iter_mut().zip(new) {
+                    release_taken(std::mem::replace(stored, value));
+                }
+            }
+            Shape::Hashed(hashed) => {
+                for (entry, value) in hashed.entries.iter_mut().flatten().zip(new) {
+                    release_taken(std::mem::replace(&mut entry.value, value));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Gives the live entry at position `i` the key `keys[i]`, rebuilding
+    /// the index in the same table. A key that repeats an earlier one writes
+    /// its value into the earlier entry, as `$a[$k] = $v` would, and leaves a
+    /// hole. The append counter is the one these keys give. Hands `keys` back
+    /// where its length is not the count. O(n).
+    fn rekey(&mut self, keys: Vec<NvsStr>) -> Result<(), Vec<NvsStr>> {
+        if keys.len() != self.len() {
+            return Err(keys);
+        }
+        self.next_index = None;
+        for key in &keys {
+            self.note_key(key.as_bytes());
+        }
+        self.hashed_mut().rekey(keys);
+        Ok(())
+    }
+}
+
+/// The append counter of a list of `len` entries: the next append writes
+/// `len`, and an empty list has used no key, as a fresh array has not.
+fn list_counter(len: usize) -> Option<i64> {
+    (len > 0).then(|| i64::try_from(len).unwrap_or(i64::MAX))
+}
+
+/// Frees a list's room once it is more than three times what the list holds,
+/// keeping room for as many entries again. A list cut down a step at a time
+/// reallocates O(log n) times, and holds at most four times its entries.
+fn free_room(values: &mut VecDeque<Value>) {
+    if values.capacity() > FIRST_SLOTS && values.len().saturating_mul(4) < values.capacity() {
+        values.shrink_to(values.len().saturating_mul(2));
+    }
+}
+
+/// Releases the reference a table held for `value`, which it has just taken
+/// out. Releasing runs no program code and frees no other table's storage
+/// this one is borrowed through, so it is done under the table's borrow.
+fn release_taken(value: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "the table owned exactly one reference to the value it just \
+                  took out, and no longer holds it"
+    )]
+    unsafe {
+        crate::release::release_value(value);
+    }
+}
+
+/// `n` bytes, all `false`, where `plan` names each position below `count`
+/// exactly once, and `None` otherwise.
+fn permutation_check(plan: &[usize], count: usize) -> Option<Vec<bool>> {
+    if plan.len() != count {
+        return None;
+    }
+    let mut seen = vec![false; count];
+    for from in plan {
+        let mark = seen.get_mut(*from)?;
+        if *mark {
+            return None;
+        }
+        *mark = true;
+    }
+    seen.fill(false);
+    Some(seen)
+}
+
+/// Reorders `items` so `items[i]` is what was at `plan[i]`, by following
+/// each cycle of the plan with swaps. `seen` is `items.len()` bytes, all
+/// `false`, and `plan` a checked permutation.
+fn apply_plan<T>(items: &mut [T], plan: &[usize], seen: &mut [bool]) {
+    for start in 0..items.len() {
+        if seen.get(start).copied().unwrap_or(true) {
+            continue;
+        }
+        let mut target = start;
+        loop {
+            if let Some(mark) = seen.get_mut(target) {
+                *mark = true;
+            }
+            let Some(source) = plan.get(target).copied() else {
+                break;
+            };
+            if source == start {
+                break;
+            }
+            items.swap(target, source);
+            target = source;
         }
     }
 }
@@ -954,11 +1246,11 @@ impl Table {
 /// Writes `value` at `slot` of a packed vector and gives back the value it
 /// replaced, or appends it where `slot` is one past the end. The caller has
 /// already checked that `slot` is at most the length.
-fn replace_or_push(values: &mut Vec<Value>, slot: usize, value: Value) -> Option<Value> {
+fn replace_or_push(values: &mut VecDeque<Value>, slot: usize, value: Value) -> Option<Value> {
     if let Some(held) = values.get_mut(slot) {
         return Some(std::mem::replace(held, value));
     }
-    values.push(value);
+    values.push_back(value);
     None
 }
 
@@ -1057,12 +1349,21 @@ impl Hashed {
             .and_then(Option::take)
             .expect("an indexed slot is always live");
         self.live = self.live.saturating_sub(1);
+        if slot == self.first {
+            self.first = self.next_slot(slot).unwrap_or(self.entries.len());
+        }
         let value = entry.value;
         drop(entry.key);
+        self.compact_if_sparse();
+        Some(value)
+    }
+
+    /// Compacts once the holes are as many as the live entries, the front
+    /// holes included. O(1) amortized for each removal that made a hole.
+    fn compact_if_sparse(&mut self) {
         if self.entries.len() > 8 && self.entries.len() >= self.live.saturating_mul(2) {
             self.compact();
         }
-        Some(value)
     }
 
     /// Gives the entry at `from` the key `to`, at the same position, and
@@ -1081,6 +1382,7 @@ impl Hashed {
     /// half of them are holes, so removal stays O(1) amortized.
     fn compact(&mut self) {
         self.entries.retain(Option::is_some);
+        self.first = 0;
         self.index.clear();
         // The holes are gone, so the n-th live entry is at position n.
         for (slot, entry) in self.entries.iter().flatten().enumerate() {
@@ -1089,13 +1391,148 @@ impl Hashed {
     }
 
     /// The position of the first live entry at or after `from`, or `None` when
-    /// there is none — one `foreach` step.
+    /// there is none — one `foreach` step. It starts at [`Hashed::first`], so
+    /// the holes in front of the first live entry cost nothing.
     fn next_slot(&self, from: usize) -> Option<usize> {
+        let from = from.max(self.first);
+        self.entries
+            .get(from..)?
+            .iter()
+            .position(Option::is_some)
+            .map(|offset| from.saturating_add(offset))
+    }
+
+    /// The slot of the last live entry. It walks backward past the holes at
+    /// the end, which compaction keeps to at most one per live entry.
+    fn last_slot(&self) -> Option<usize> {
+        self.entries
+            .get(self.first..)?
+            .iter()
+            .rposition(Option::is_some)
+            .map(|offset| self.first.saturating_add(offset))
+    }
+
+    /// The slot of the live entry at `position` in iteration order. One step
+    /// when every hole is in front of [`Hashed::first`], and a walk over the
+    /// slots from there otherwise.
+    fn slot_of_position(&self, position: usize) -> Option<usize> {
+        if position >= self.live {
+            return None;
+        }
+        if self.entries.len().saturating_sub(self.first) == self.live {
+            return Some(self.first.saturating_add(position));
+        }
         self.entries
             .iter()
             .enumerate()
-            .skip(from)
-            .find_map(|(slot, entry)| entry.is_some().then_some(slot))
+            .skip(self.first)
+            .filter(|(_, entry)| entry.is_some())
+            .nth(position)
+            .map(|(slot, _)| slot)
+    }
+
+    /// Files every live entry under its slot again, after the entries moved.
+    /// The index keeps its storage. O(n).
+    fn reindex(&mut self) {
+        self.index.clear();
+        for (slot, entry) in self.entries.iter().enumerate() {
+            if let Some(entry) = entry {
+                self.index.insert(Filed(entry.key.clone()), slot);
+            }
+        }
+        self.first = self.next_from(0);
+    }
+
+    /// The first live slot at or after `from`, or the end of the entries.
+    fn next_from(&self, from: usize) -> usize {
+        self.entries
+            .get(from..)
+            .and_then(|rest| rest.iter().position(Option::is_some))
+            .map_or(self.entries.len(), |offset| from.saturating_add(offset))
+    }
+
+    /// Takes the live entry at `slot` out, unfiles its key and releases its
+    /// value. The caller moves [`Hashed::first`] and compacts.
+    fn release_slot(&mut self, slot: usize) {
+        let Some(entry) = self.entries.get_mut(slot).and_then(Option::take) else {
+            return;
+        };
+        self.index.remove(&KeyRef::of(&entry.key) as &dyn Lookup);
+        self.live = self.live.saturating_sub(1);
+        release_taken(entry.value);
+    }
+
+    /// Keeps the live entries at positions `start..end`, each under its own
+    /// key. The entries after the window are popped off the end, and the
+    /// ones before it leave holes that [`Hashed::first`] steps over. O(k) for
+    /// the k entries released, plus the holes passed.
+    fn keep_window(&mut self, start: usize, end: usize) {
+        let mut behind = self.live.saturating_sub(end);
+        while behind > 0 {
+            let Some(cell) = self.entries.pop() else {
+                break;
+            };
+            if let Some(entry) = cell {
+                self.index.remove(&KeyRef::of(&entry.key) as &dyn Lookup);
+                self.live = self.live.saturating_sub(1);
+                release_taken(entry.value);
+                behind = behind.saturating_sub(1);
+            }
+        }
+        let mut slot = self.first;
+        for _ in 0..start {
+            slot = self.next_from(slot);
+            self.release_slot(slot);
+        }
+        self.first = self.next_from(self.first.min(self.entries.len()));
+        self.compact_if_sparse();
+    }
+
+    /// Keeps the live entry at position `i` where `mask[i]` is `true`, each
+    /// under its own key, and releases the rest. O(slots).
+    fn keep_by_mask(&mut self, mask: &[bool]) {
+        let mut slot = self.first;
+        for keep in mask {
+            slot = self.next_from(slot);
+            if !*keep {
+                self.release_slot(slot);
+            }
+            slot = slot.saturating_add(1);
+        }
+        self.first = self.next_from(self.first);
+        self.compact_if_sparse();
+    }
+
+    /// Gives the live entry at position `i` the key `keys[i]` and rebuilds
+    /// the index in the same storage. A repeated key writes its value into
+    /// the entry that took the key first, and leaves a hole. O(n).
+    fn rekey(&mut self, keys: Vec<NvsStr>) {
+        self.index.clear();
+        let mut slot = self.first;
+        for key in keys {
+            slot = self.next_from(slot);
+            let Some(mut entry) = self.entries.get_mut(slot).and_then(Option::take) else {
+                break;
+            };
+            match self.index.entry(Filed(key.clone())) {
+                std::collections::hash_map::Entry::Occupied(found) => {
+                    let earlier = *found.get();
+                    let held = &mut self.indexed_mut(earlier).value;
+                    release_taken(std::mem::replace(held, entry.value));
+                    self.live = self.live.saturating_sub(1);
+                }
+                std::collections::hash_map::Entry::Vacant(room) => {
+                    room.insert(slot);
+                    entry.key = key;
+                    if let Some(cell) = self.entries.get_mut(slot) {
+                        *cell = Some(entry);
+                    }
+                }
+            }
+            slot = slot.saturating_add(1);
+        }
+        self.first = self.next_from(self.first);
+        self.compact_if_sparse();
     }
 
     /// The live entry at `slot`, if there is one.
@@ -1121,6 +1558,7 @@ impl Hashed {
             entries: Vec::with_capacity(self.entries.len()),
             index: Index::with_capacity_and_hasher(self.live, Default::default()),
             live: self.live,
+            first: self.first,
         };
         for entry in &self.entries {
             let Some(entry) = entry else {
@@ -1330,7 +1768,7 @@ impl NvsArray {
             refcount: Cell::new(1),
             table: RefCell::new(Table {
                 next_index: None,
-                shape: Shape::Packed(Vec::with_capacity(capacity)),
+                shape: Shape::Packed(VecDeque::with_capacity(capacity)),
             }),
         });
         let ptr = NonNull::from(Box::leak(boxed));
@@ -2000,6 +2438,112 @@ impl NvsArray {
     #[must_use]
     pub fn value_at(&self, slot: usize) -> Option<Value> {
         self.header().table.borrow().value_at(slot)
+    }
+
+    /// The slot of the last live entry, or `None` for an empty array. One
+    /// step on a list. On a map it walks backward past the holes at the end,
+    /// which compaction keeps to at most one per live entry. `last`,
+    /// `lastKey` and `withoutLast` start here.
+    #[must_use]
+    pub fn last_slot(&self) -> Option<usize> {
+        self.header().table.borrow().last_slot()
+    }
+
+    /// The slot of the live entry at `position` in iteration order, or `None`
+    /// past the end. One step on a list, and on a map whose holes are all in
+    /// front of its first entry. Otherwise it walks the slots from the first
+    /// live one. The start of a `slice` window is found here.
+    #[must_use]
+    pub fn slot_of_position(&self, position: usize) -> Option<usize> {
+        self.header().table.borrow().slot_of_position(position)
+    }
+
+    /// Keeps the entries at positions `start..end` and releases the rest.
+    /// `renumber` makes the result a list. Without it each entry keeps its
+    /// key, and a list cut anywhere but its end becomes a map once.
+    ///
+    /// For a sole array, which every caller is: on a shared one it separates
+    /// first. **Cost:** O(k) for the k entries released on a list, and on a
+    /// map that keeps its keys. A list's room is freed once it is more than
+    /// three times the entries left. A renumbered map rebuilds its list.
+    pub fn keep_window(&mut self, start: usize, end: usize, renumber: bool) {
+        self.make_unique();
+        self.header()
+            .table
+            .borrow_mut()
+            .keep_window(start, end, renumber);
+    }
+
+    /// Releases the first `count` entries: [`Self::keep_window`] from
+    /// `count`. O(count) on a list and on a map that keeps its keys.
+    pub fn drop_first(&mut self, count: usize, renumber: bool) {
+        self.keep_window(count, usize::MAX, renumber);
+    }
+
+    /// Releases the last `count` entries, keeping every other key. O(count),
+    /// plus the holes at a map's end.
+    pub fn drop_last(&mut self, count: usize) {
+        let end = self.count().saturating_sub(count);
+        self.keep_window(0, end, false);
+    }
+
+    /// Puts `values` before the first entry, taking over each reference, and
+    /// makes the result a list renumbered from `"0"`. A list with room in
+    /// front writes into it and moves no entry. Without room it grows by
+    /// doubling, so both ends of a list grow in O(1) amortized for each
+    /// entry. A map is renumbered into a list first, in O(n).
+    ///
+    /// The growth is asked of the request's memory ceiling first. A refusal
+    /// hands `values` back and changes nothing.
+    pub fn prepend(&mut self, values: Vec<Value>) -> Result<(), Vec<Value>> {
+        if !self.reserve_within_budget(values.len()) {
+            return Err(values);
+        }
+        self.header().table.borrow_mut().prepend(values);
+        Ok(())
+    }
+
+    /// Reorders the entries so position `i` holds the entry that was at
+    /// position `plan[i]`. Each keeps its key unless `renumber` makes the
+    /// result a list, and a list reordered with its keys becomes a map.
+    /// `false`, and nothing changed, where `plan` is not a permutation of the
+    /// positions. **Cost:** O(n) swaps in the same storage, and n bytes to
+    /// check the plan.
+    pub fn permute(&mut self, plan: &[usize], renumber: bool) -> bool {
+        self.make_unique();
+        self.header().table.borrow_mut().permute(plan, renumber)
+    }
+
+    /// Keeps the entry at position `i` where `mask[i]` is `true`, and
+    /// releases the rest. Each kept entry keeps its key unless `renumber`
+    /// makes the result a list. `false`, and nothing changed, where the
+    /// mask's length is not the count. **Cost:** O(n) in the same storage.
+    pub fn keep_by_mask(&mut self, mask: &[bool], renumber: bool) -> bool {
+        self.make_unique();
+        self.header()
+            .table
+            .borrow_mut()
+            .keep_by_mask(mask, renumber)
+    }
+
+    /// Puts `values[i]` in place of the value at position `i`, taking over
+    /// each reference and releasing each value it replaces. The keys and the
+    /// order do not change. Hands `values` back where its length is not the
+    /// count. **Cost:** O(n) in the same storage.
+    pub fn rewrite_values(&mut self, values: Vec<Value>) -> Result<(), Vec<Value>> {
+        self.make_unique();
+        self.header().table.borrow_mut().rewrite_values(values)
+    }
+
+    /// Gives the entry at position `i` the key `keys[i]`, taking over each
+    /// reference. A key that repeats an earlier one writes its value into
+    /// the earlier entry, as `$a[$k] = $v` would. The next append follows
+    /// the new keys. Hands `keys` back where its length is not the count.
+    /// **Cost:** O(n). A map rebuilds its index in the same storage, and a
+    /// list becomes a map once.
+    pub fn rekey(&mut self, keys: Vec<NvsStr>) -> Result<(), Vec<NvsStr>> {
+        self.make_unique();
+        self.header().table.borrow_mut().rekey(keys)
     }
 
     /// Whether `test` is true for every value, in insertion order. Each value
@@ -4512,6 +5056,291 @@ mod tests {
         array.append(Value::int(99));
         assert_eq!(keys_of(&array), ["30", "31", "32"]);
         assert_eq!(array.get(b"31").and_then(Value::as_int), Some(31));
+    }
+
+    /// A map of `count` entries keyed `"k0"`, `"k1"`, … with the values of
+    /// [`list_of`].
+    fn map_of(count: i64) -> NvsArray {
+        let mut array = NvsArray::new();
+        for value in 0..count {
+            array.set(key(&format!("k{value}")), Value::int(value * 10));
+        }
+        array
+    }
+
+    /// The address of the value at `position` of a list, and the room its
+    /// storage has: what shows whether an operation moved the entries.
+    fn list_storage(array: &NvsArray, position: usize) -> (*const Value, usize) {
+        let table = array.header().table.borrow();
+        let Shape::Packed(values) = &table.shape else {
+            panic!("the array is a list");
+        };
+        let at = values.get(position).expect("the position is live");
+        (std::ptr::from_ref(at), values.capacity())
+    }
+
+    /// The slot a map's first live entry is at, as the map keeps it.
+    fn first_of_map(array: &NvsArray) -> (usize, usize) {
+        let table = array.header().table.borrow();
+        let Shape::Hashed(hashed) = &table.shape else {
+            panic!("the array is a map");
+        };
+        (hashed.first, hashed.entries.len())
+    }
+
+    fn pairs(entries: &[(&str, i64)]) -> Vec<(String, Option<i64>)> {
+        entries
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), Some(*v)))
+            .collect()
+    }
+
+    #[test]
+    fn a_list_drops_its_first_entries_without_moving_the_rest() {
+        let mut array = list_of(10);
+        let (before, room) = list_storage(&array, 3);
+        array.drop_first(3, true);
+        assert!(array.is_packed());
+        assert_eq!(list_storage(&array, 0), (before, room));
+        assert_eq!(
+            readout(&array),
+            pairs(&[
+                ("0", 30),
+                ("1", 40),
+                ("2", 50),
+                ("3", 60),
+                ("4", 70),
+                ("5", 80),
+                ("6", 90)
+            ])
+        );
+        array.append(Value::int(1));
+        assert!(array.is_packed());
+        assert_eq!(keys_of(&array).last().map(String::as_str), Some("7"));
+
+        // A drop that keeps the keys makes the list a map once. Every later
+        // drop moves the map's first slot and nothing else.
+        let mut kept = list_of(4);
+        kept.drop_first(1, false);
+        assert_eq!(keys_of(&kept), ["1", "2", "3"]);
+        kept.drop_first(1, false);
+        assert_eq!(first_of_map(&kept), (2, 4));
+        assert_eq!(readout(&kept), pairs(&[("2", 20), ("3", 30)]));
+    }
+
+    #[test]
+    fn a_list_prepends_into_its_front_room() {
+        let mut array = list_of(8);
+        array.drop_first(4, true);
+        let (first, room) = list_storage(&array, 0);
+        let front = (1..=4).map(Value::int).collect();
+        assert!(array.prepend(front).is_ok());
+        assert!(array.is_packed());
+        assert_eq!(list_storage(&array, 4), (first, room));
+        assert_eq!(
+            readout(&array),
+            pairs(&[
+                ("0", 1),
+                ("1", 2),
+                ("2", 3),
+                ("3", 4),
+                ("4", 40),
+                ("5", 50),
+                ("6", 60),
+                ("7", 70)
+            ])
+        );
+
+        // With no room in front, the list grows by doubling and keeps its order.
+        let mut full = list_of(4);
+        let (_, room) = list_storage(&full, 0);
+        assert!(full.prepend(vec![Value::int(-1), Value::int(-2)]).is_ok());
+        assert!(list_storage(&full, 0).1 >= room * 2);
+        assert_eq!(
+            readout(&full),
+            pairs(&[
+                ("0", -1),
+                ("1", -2),
+                ("2", 0),
+                ("3", 10),
+                ("4", 20),
+                ("5", 30)
+            ])
+        );
+        full.append(Value::int(7));
+        assert_eq!(keys_of(&full).last().map(String::as_str), Some("6"));
+
+        // A map is renumbered into a list.
+        let mut map = map_of(2);
+        assert!(map.prepend(vec![Value::int(5)]).is_ok());
+        assert!(map.is_packed());
+        assert_eq!(readout(&map), pairs(&[("0", 5), ("1", 0), ("2", 10)]));
+    }
+
+    #[test]
+    fn a_map_finds_its_first_entry_past_front_holes_in_one_step() {
+        let mut array = map_of(100);
+        for index in 0..40 {
+            array.unset(format!("k{index}").as_bytes());
+        }
+        assert_eq!(first_of_map(&array), (40, 100));
+        assert_eq!(array.next_slot(0), Some(40));
+        assert_eq!(
+            array.key_at(40).map(|k| k.as_bytes().to_vec()),
+            Some(b"k40".to_vec())
+        );
+
+        // Removing an entry behind the first one leaves the first where it is,
+        // and removing the first steps over the hole behind it.
+        array.unset(b"k41");
+        assert_eq!(first_of_map(&array).0, 40);
+        array.unset(b"k40");
+        assert_eq!(first_of_map(&array).0, 42);
+        assert_eq!(array.next_slot(0), Some(42));
+
+        // A window that keeps its keys moves the first slot the same way.
+        array.drop_first(3, false);
+        assert_eq!(first_of_map(&array).0, 45);
+        assert_eq!(keys_of(&array).first().map(String::as_str), Some("k45"));
+    }
+
+    #[test]
+    fn front_room_and_holes_are_freed_by_compaction() {
+        let mut array = map_of(100);
+        for index in 0..50 {
+            array.unset(format!("k{index}").as_bytes());
+        }
+        assert_eq!(first_of_map(&array), (0, 50));
+        assert_eq!(keys_of(&array).first().map(String::as_str), Some("k50"));
+
+        let mut cut = map_of(100);
+        cut.drop_first(60, false);
+        let (first, slots) = first_of_map(&cut);
+        assert!(
+            slots <= 2 * cut.count(),
+            "{slots} slots hold {} entries",
+            cut.count()
+        );
+        assert_eq!(
+            cut.key_at(first).map(|k| k.as_bytes().to_vec()),
+            Some(b"k60".to_vec())
+        );
+
+        // A list cut a step at a time frees its room as it goes.
+        let mut list = list_of(64);
+        let (_, room) = list_storage(&list, 0);
+        for _ in 0..60 {
+            list.drop_first(1, true);
+        }
+        assert!(list_storage(&list, 0).1 < room / 4);
+        assert_eq!(
+            readout(&list),
+            pairs(&[("0", 600), ("1", 610), ("2", 620), ("3", 630)])
+        );
+    }
+
+    #[test]
+    fn an_array_names_its_last_live_entry_without_walking_from_the_front() {
+        assert_eq!(NvsArray::new().last_slot(), None);
+        let list = list_of(5);
+        assert_eq!(list.last_slot(), Some(4));
+
+        let mut map = map_of(10);
+        map.unset(b"k9");
+        map.unset(b"k8");
+        map.unset(b"k0");
+        assert_eq!(map.last_slot(), Some(7));
+        assert_eq!(
+            map.key_at(7).map(|k| k.as_bytes().to_vec()),
+            Some(b"k7".to_vec())
+        );
+
+        // `withoutLast` on a list keeps it a list, and the next append follows it.
+        let mut stack = list_of(5);
+        stack.drop_last(2);
+        assert!(stack.is_packed());
+        assert_eq!(stack.last_slot(), Some(2));
+        stack.append(Value::int(1));
+        assert_eq!(keys_of(&stack), ["0", "1", "2", "3"]);
+        map.drop_last(1);
+        assert_eq!(map.last_slot(), Some(6));
+        assert_eq!(map.count(), 6);
+    }
+
+    #[test]
+    fn a_list_finds_an_entry_by_its_position_in_one_step() {
+        let list = list_of(5);
+        assert_eq!(list.slot_of_position(3), Some(3));
+        assert_eq!(list.slot_of_position(5), None);
+
+        let mut map = map_of(10);
+        map.unset(b"k0");
+        map.unset(b"k1");
+        assert_eq!(map.slot_of_position(0), Some(2));
+        assert_eq!(map.slot_of_position(3), Some(5));
+        assert_eq!(map.slot_of_position(8), None);
+
+        // A hole after the first entry makes it walk, with the same answer.
+        map.unset(b"k5");
+        assert_eq!(map.slot_of_position(3), Some(6));
+        assert_eq!(map.slot_of_position(6), Some(9));
+        assert_eq!(map.slot_of_position(7), None);
+    }
+
+    #[test]
+    fn the_in_place_operations_give_what_a_rebuilt_array_would() {
+        let mut list = list_of(4);
+        assert!(list.permute(&[3, 1, 0, 2], true));
+        assert!(list.is_packed());
+        assert_eq!(
+            readout(&list),
+            pairs(&[("0", 30), ("1", 10), ("2", 0), ("3", 20)])
+        );
+        assert!(!list.permute(&[0, 0, 1, 2], true));
+        assert!(!list.permute(&[0, 1, 2], true));
+
+        let mut keyed = list_of(4);
+        assert!(keyed.permute(&[3, 1, 0, 2], false));
+        assert_eq!(
+            readout(&keyed),
+            pairs(&[("3", 30), ("1", 10), ("0", 0), ("2", 20)])
+        );
+        assert_eq!(keyed.get(b"0").and_then(Value::as_int), Some(0));
+
+        let mut map = map_of(5);
+        map.unset(b"k1");
+        assert!(map.keep_by_mask(&[true, false, true, true], false));
+        assert_eq!(readout(&map), pairs(&[("k0", 0), ("k3", 30), ("k4", 40)]));
+        assert!(map.get(b"k2").is_none());
+        assert!(map.keep_by_mask(&[false, true, true], true));
+        assert!(map.is_packed());
+        assert_eq!(readout(&map), pairs(&[("0", 30), ("1", 40)]));
+
+        let mut trimmed = list_of(4);
+        assert!(trimmed.keep_by_mask(&[true, true, false, false], false));
+        assert!(trimmed.is_packed());
+        assert!(trimmed.keep_by_mask(&[false, true], false));
+        assert_eq!(readout(&trimmed), pairs(&[("1", 10)]));
+
+        let mut values = map_of(3);
+        let new = vec![Value::int(7), Value::int(8), Value::int(9)];
+        assert!(values.rewrite_values(new).is_ok());
+        assert_eq!(readout(&values), pairs(&[("k0", 7), ("k1", 8), ("k2", 9)]));
+        assert!(values.rewrite_values(vec![Value::int(1)]).is_err());
+
+        let mut rekeyed = list_of(3);
+        assert!(rekeyed.rekey(vec![key("a"), key("5"), key("a")]).is_ok());
+        assert_eq!(readout(&rekeyed), pairs(&[("a", 20), ("5", 10)]));
+        assert_eq!(rekeyed.get(b"a").and_then(Value::as_int), Some(20));
+        rekeyed.append(Value::int(1));
+        assert_eq!(keys_of(&rekeyed), ["a", "5", "6"]);
+
+        let mut window = map_of(6);
+        window.keep_window(1, 4, false);
+        assert_eq!(keys_of(&window), ["k1", "k2", "k3"]);
+        window.keep_window(1, 2, true);
+        assert!(window.is_packed());
+        assert_eq!(readout(&window), pairs(&[("0", 20)]));
     }
 
     #[test]
