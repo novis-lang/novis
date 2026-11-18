@@ -7487,13 +7487,13 @@ pub(crate) mod tests {
     fn a_typed_decode_agrees_with_the_generic_decode_on_every_document() {
         let (class, shape) = every_type_shape();
         let member = r"Core\Json::decodeAs";
-        // Under Miri, 2,000 documents ran past the test runner's five-minute
-        // stop. There the draw starts from a seed whose first 61 documents
-        // reach every state of every key (missing, `null`, each wrong value and
-        // each right one), lists of none to three objects, an undeclared key
-        // and a reversed order, and three of them decode.
+        // Each document costs about four seconds under Miri on a CI runner, so
+        // Miri runs 8 of them and the native run keeps the 2,000 that reach
+        // every state of every key. Miri's 8 come from a seed whose draw
+        // reaches 70 of those states, a list of objects, an undeclared key and
+        // a reversed order, and two of them decode.
         let (seed, cases, least) = if cfg!(miri) {
-            (0x257f_7a0f_e074_a0f1, 61, 1)
+            (0xc672_e244_360d_a76e, 8, 2)
         } else {
             (0x2545_f491_4f6c_dd1d, 2_000, 10)
         };
