@@ -3,21 +3,20 @@
   "internal": [],
   "themes": [
     {
-      "title": "Less work for each request",
-      "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
-      "goals": [
-        "in-place-everywhere",
-        "arrays-in-place",
-        "strings-in-place",
-        "cheaper-forms"
-      ]
-    },
-    {
       "title": "Property names the compiler checks",
       "text": "A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.",
       "goals": [
         "path-array-steps",
         "attribute-property-names"
+      ]
+    },
+    {
+      "title": "Less work for each request",
+      "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
+      "goals": [
+        "arrays-in-place",
+        "strings-in-place",
+        "cheaper-forms"
       ]
     },
     {
