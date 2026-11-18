@@ -1068,22 +1068,19 @@ const WALK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::temporaryDir`'s reference card — `rule:core-api/reference-card`.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Creates a new, empty, private directory and returns its path. The directory is under \
-            `[io] temp_root`, or under the `tmp` folder in the data folder. It is created at once, \
-            so no other program can take its name first. It needs the `fs.write` capability **for \
-            the path it creates**. A configuration that allows only the working directory does not \
-            cover the temporary folder.",
+    short: "Creates a new, empty folder for temporary files and returns its path. Novis deletes \
+            the folder and every file in it when the script or the request ends.",
     params: &[],
-    ret: "The absolute path of a directory that exists, is empty, and belongs to this script. \
-          Novis deletes it and everything in it when the script ends. This happens after the last \
-          line of your code runs, however the script ends. A program never has to delete it, and \
-          it is never left behind. You may remove it earlier, and that is not an error. A file \
-          that must stay after the script ends does not belong in a temporary directory.",
+    ret: "The full path of the new folder. Each call creates a different folder, and no other \
+          program uses it. The folder is under `[io] temp_root`, or under the `tmp` folder in the \
+          data folder. Novis also deletes it when the script stops with an uncaught error. You may \
+          delete it earlier, and that is not an error. A file that must stay after the script ends \
+          belongs in another folder.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `fs.write` for the temporary folder. The \
-                   message names the path that the capability must cover.",
+            desc: "`nvs.toml` sets `[capabilities.fs] write`, and that list does not include the \
+                   folder for temporary files. The message names the path the list must include.",
         },
         ErrorDoc {
             error: "IOError",
