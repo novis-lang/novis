@@ -550,10 +550,15 @@ disjoint and they run side by side. The session runs the test once all batches e
 
 ### 4. the same pass lends every slot a statement replaces, and a debug build traps a wrong lend
 
-- [ ] Each IR instruction states its effects: may run user code, and which slots it may read or
+- [x] Each IR instruction states its effects: may run user code, and which slots it may read or
   write. The pass reads them, never the source.
 - [ ] The lend for every slot kind in § *Standing decisions*. `lower_slot_append`
   (`crates/nvs-ir/src/lower/stmt.rs:623`) and `write_back_array` become uses of it.
+  - [x] A plain property, a static property and a property chain are lent to an owning `Core`
+    member, and a callback is judged by its body's write summary.
+  - [ ] An element, through containers made sole before the element's read.
+  - [ ] `lower_slot_append` emits a plain load, retain and store, and the lend removes the retain.
+  - [ ] `write_back_array`'s decision is the lend's.
 - [ ] The debug poison, emitted only in a debug build, in `crates/nvs-codegen/src/emit.rs`.
 - [ ] The tests the `lends` and `lend-trap` checks name. Run once.
 
@@ -627,40 +632,45 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 The person's calls: fix the cause, nothing for a developer to remember, and every replacement in
 place, handled by the compiler and tested. § *Standing decisions* is the authoring sessions' calls.
 
-Stage 1 is done: the rule, the switch and 684 matrix cases under `tests/conformance/in-place/`, each
-green both ways. The sweep's two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last
-named by `route-parameters`' retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
+Stages 1 to 3 are done: 684 matrix cases under `tests/conformance/in-place/`, 117 owning members
+(`crates/nvs-runtime/src/owned.rs`), and every move in `crates/nvs-ir/src/ownership.rs`. The sweep's
+two reds are stale, checked on 2026-11-18: `env-secret-proofs` was last named by `route-parameters`'
+retire commit, and nightly run 44073672172's head lacks `0fe2fdef25`.
 
-Stage 2 is done: 117 owning members, two entries each (`crates/nvs-runtime/src/owned.rs`).
-
-Stage 3 is done, and all nine of its tests are green. `crates/nvs-ir/src/ownership.rs` decides every
-move from the IR, including a release at the last use (`Walk::excess_releases`) and a by-value loop's
-own reference (`drop_loop_reference`) in a function, an anonymous function and a generator.
-`InstKind::FieldTake` (codegen `emit_field_take`) reads a field and stores `null`, and
-`reload_field` (`crates/nvs-ir/src/lower/generator.rs:21`) emits it with no retain. So a resumed
-generator local is the only reference, and the next spill's release of the field is a no-op. A loop
-with a `yield` in it keeps its reference, because its back edge comes from a `field.take`.
+Stage 4 is under way. `InstKind::effects` (end of `crates/nvs-ir/src/ir.rs`) states each
+instruction's row in one exhaustive `match`, with `Helper::may_run_user_code` beside it. A `CoreCall`
+is `UserCode::ItsCallables`, and an argument that is not a scalar, a string, bytes, an array or an
+enum counts as a callable. `crates/nvs-ir/src/ownership.rs` runs `Lend::of` before the moves: a
+plain property, a static property and a chain of plain properties are lent to an owning `Core`
+member. The lend switches the symbol to `_owned` and removes the store's second read of the old value,
+its release, and the subject's one retain with every release that pairs with it. A callback passes
+when it is an anonymous function (`New` of a class with no constructor) whose `{class}::invoke` write
+summary (`summaries`) names no slot on the chain. A hook or a guard is a call, so it keeps the slot.
+Eight of the nine `lends` tests are green, run once by name (`crates/nvs-ir/src/lower/tests.rs`,
+helper `lower_lends`). `an_element_is_lent_through_its_containers` is not written yet.
 
 ### Next
 
-Stage 4 (`lends`), item by item. No instruction states its effects yet.
+The rest of stage 4, in this order:
 
-- **Effects.** Add `InstKind::effects(&self) -> Effects` beside `for_each_operand` at the end of
-  `crates/nvs-ir/src/ir.rs`: `may_run_user_code` (a `Call`, `CallVirtual`, a callable call, a
-  `CoreCall` whose member takes a callback, a hooked read) and the slots it may read or write, by
-  class and field or static name, with "anything" for a dynamic or name-keyed access (`SlotGet`,
-  `SlotSet`, `KeyGet`, `KeySet`). Write it as one exhaustive `match` with no `_` arm, so a new
-  instruction must state its row. `FieldTake` writes its own field.
-- **The lend.** In `crates/nvs-ir/src/ownership.rs`, beside the move walk: find
-  `FieldGet`/`StaticGet`/`ArrayGet` of a slot, a `CoreCall` that takes it as `subject`, and the
-  matching `FieldSet`/`StaticSet`/`ArraySet` of the call's result to the same slot. Where no
-  instruction between them has an effect on the slot or may run user code, remove the retain and
-  the store's release of the old value, and switch the symbol to the `_owned` entry, as the move does
-  (`ownership.rs:148`). `lower_slot_append` (`crates/nvs-ir/src/lower/stmt.rs:619`) and
-  `write_back_array` (`crates/nvs-ir/src/lower/mod.rs:4057`) are the two lowering-side decisions to
-  fold in. `lower_reassignment` (`stmt.rs:1425`) is where a slot's read, retain and store are emitted.
-- **The debug poison** in `crates/nvs-codegen/src/emit.rs`, then the nine `lends` tests and
-  `lend-trap`, run once by name.
+- **The element lend.** Today `$this->g['a'] = M($this->g['a'], …)` lowers to `field.get` of the
+  container, a borrowed `array.get`, the call, a second `field.get`, `array.set` and `field.set`
+  (`lower_store`'s `Index` arm, `crates/nvs-ir/src/lower/stmt.rs`). `array.set` releases the entry it
+  overwrites, and it copies a shared container, which retains each entry. So an element lend needs
+  two things. First, each container on the chain is made sole before the element's read, as
+  `write_back_array` does (`crates/nvs-ir/src/lower/mod.rs:4057`). Second, an `ArraySet` form that
+  does not release the entry it overwrites, because the call took that reference. Add the form,
+  extend `slot_of`/`store_of` in `ownership.rs` with it, and write
+  `an_element_is_lent_through_its_containers`.
+- **Fold in `lower_slot_append`** (`stmt.rs:619`): emit a plain load, retain and store for `.=`, and
+  let `Lend::of` remove the retain. `StrAppend` is not a `CoreCall`, so `Lend::of` needs a second
+  call shape: the instruction that consumes the slot's value, named by an `InstKind` method beside
+  `effects`. Then `write_back_array`'s own decision.
+- **The debug poison** in `crates/nvs-codegen/src/emit.rs`: in a debug build, after a lent slot's
+  read, store a poison value into it, and trap with the statement's span on a read of the poison.
+  The pass must record which reads it lent (a flag on the `CoreCall` or a new instruction), so the
+  emitter knows where to poison. Then `a_debug_build_traps_a_read_of_a_lent_slot` in
+  `crates/nvs-cli/tests/in_place.rs`, run once by name.
 
 **Expected red at the gate.** Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
@@ -670,7 +680,9 @@ also runs stage 2's 117 owning entries for the first time through real calls. A 
 by-value `foreach` that writes `$a[$k]` now walks the header phi with no `retain` of the subject, and
 `crates/nvs-runtime`'s array tests that assert a separated hashed array's vector length may change,
 because the copy keeps its holes. A snapshot of a generator's `advance` now prints `field.take`
-where it printed `field.get` and a `retain` at each resume.
+where it printed `field.get` and a `retain` at each resume. A snapshot of `$this->p = M($this->p)`
+or `C::$s = M(C::$s)` with an owning `M` now prints `_owned`, and no second read of the slot and no
+release of it after the store.
 
 ### Backlog
 

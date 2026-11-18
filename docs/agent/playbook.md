@@ -61,6 +61,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   a lone surrogate's escape became a different code point. Write the escape in a plain string with a
   doubled backslash, which arrives as written, and grep the file for the escape after the write.
   See `crates/nvs-stdlib/src/json/reader/tests.rs`.
+- **A Python script under `.agent-tmp/` writes CRLF on Windows when it opens a file in text mode.**
+  A replace script turned two whole Rust files to CRLF, and its `\n` patterns stopped matching, so
+  half its edits were silently skipped. Open both ways with `newline=''`, or read and write bytes,
+  and check `git diff --stat` for a whole-file change after the script. See `.gitattributes`.
 - **`bun nv splice --patch` writes a `\\` in a patch's NEW block as one `\`.** A Rust string such as
   `"Core\\Env::get"` lands as `"Core\Env::get"`, and the build fails with `unknown character escape`.
   Write a `Core` name in a patch as a raw string, `r"Core\Env::get"`, or make that edit with Edit.

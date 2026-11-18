@@ -2172,7 +2172,10 @@ fn a_generator_dropped_while_parked_frees_each_local_once() {
         );
     }
     for old in field_reads(&printed, "field.get") {
-        assert!(printed.contains(&format!("release {old}\n")), "{old}\n{printed}");
+        assert!(
+            printed.contains(&format!("release {old}\n")),
+            "{old}\n{printed}"
+        );
     }
 }
 
@@ -2221,6 +2224,145 @@ fn the_lowering_no_longer_scans_text_for_moves() {
     }
     let lower = include_str!("stmt.rs");
     assert!(!lower.contains("fn mentions_of"), "the text scan is gone");
+}
+
+/// `body` as `T::m`'s body, in a class with a plain array property `$p`, a
+/// static array property `$s`, a property `$n` holding a `N` whose own `$q` is
+/// an array, a property `$h` with hooks, and a property `$w` holding a `W`,
+/// whose class is a `PropertyGuard`. Lowered as a whole program, so the
+/// ownership pass has run, and `T::m` alone is printed.
+fn lower_lends(body: &str) -> String {
+    let src = format!(
+        "<?nvs\nfinal class N {{\n  public array<int> $q = [];\n}}\n\
+         final class W implements PropertyGuard {{\n  public array<int> $p = [];\n  \
+         public function beforePropertySet(string $name, mixed $value, array<string> $keys): void {{}}\n  \
+         public function beforePropertyUnset(string $name, array<string> $keys): void {{}}\n}}\n\
+         final class T {{\n  public array<int> $p = [];\n  public static array<int> $s = [];\n  \
+         public array<array<int>> $g = [];\n  public N $n;\n  public W $w;\n  \
+         public array<int> $h {{ get => $this->h; set (array<int> $v) {{ $this->h = $v; }} }}\n  \
+         public function constructor() {{ $this->n = new N(); $this->w = new W(); $this->h = []; }}\n  \
+         public function m(callable(int): bool $cb): void {{\n{body}\n  }}\n  \
+         public static function f(): int {{ return 1; }}\n}}\n"
+    );
+    let (program, map, file) = lower_whole_file_with_src(&src);
+    program
+        .functions
+        .iter()
+        .filter(|f| f.name == "T::m")
+        .map(|f| print_function(f, map.file(file)))
+        .collect()
+}
+
+/// How many times `printed` reads `slot`, such as `T::p` or `T::$s`. A lent
+/// slot is read once, by the call's subject. A slot that is not lent is read a
+/// second time, for the release of its old value after the store.
+fn slot_reads(printed: &str, slot: &str) -> usize {
+    printed
+        .lines()
+        .filter(|line| line.contains(".get ") && line.contains(&format!("{slot}  ;")))
+        .count()
+}
+
+/// Asserts that `body` lends `slot` to an owning `Core` entry.
+fn assert_lent(body: &str, slot: &str) {
+    let printed = lower_lends(body);
+    assert!(printed.contains("_owned("), "{body}\n{printed}");
+    assert_eq!(slot_reads(&printed, slot), 1, "{body}\n{printed}");
+}
+
+/// Asserts that `body` keeps the slot's own reference: the store still reads
+/// the old value and releases it.
+fn assert_kept(body: &str, slot: &str) {
+    let printed = lower_lends(body);
+    assert_eq!(slot_reads(&printed, slot), 2, "{body}\n{printed}");
+}
+
+#[test]
+fn a_plain_property_is_lent() {
+    assert_lent("    $this->p = Core\\Arr::slice($this->p, 1);", "T::p");
+    assert_lent("    $this->p = Core\\Arr::sort($this->p);", "T::p");
+}
+
+#[test]
+fn a_static_property_is_lent() {
+    assert_lent("    T::$s = Core\\Arr::slice(T::$s, 1);", "T::$s");
+    assert_lent("    self::$s = Core\\Arr::reverse(self::$s);", "T::$s");
+}
+
+#[test]
+fn a_property_chain_is_lent() {
+    assert_lent(
+        "    $this->n->q = Core\\Arr::slice($this->n->q, 1);",
+        "N::q",
+    );
+}
+
+/// A hooked property is read and written by its hooks, so there is no slot to
+/// lend. A guarded one runs the guard between the call and the store.
+#[test]
+fn a_hooked_or_guarded_slot_keeps_the_retain() {
+    let printed = lower_lends("    $this->h = Core\\Arr::slice($this->h, 1);");
+    assert!(printed.contains("call T::$h::set("), "{printed}");
+    assert_eq!(slot_reads(&printed, "T::h"), 0, "{printed}");
+    assert_kept(
+        "    $this->w->p = Core\\Arr::slice($this->w->p, 1);",
+        "W::p",
+    );
+}
+
+/// A call to user code, a second read of the slot or a write of a container
+/// between the read and the store keeps the slot's reference.
+#[test]
+fn code_between_the_read_and_the_store_keeps_the_retain() {
+    for body in [
+        "    $this->p = Core\\Arr::slice($this->p, T::f());",
+        "    $this->p = Core\\Arr::slice($this->p, Core\\Arr::count($this->p) as int);",
+        "    $this->n->q = Core\\Arr::slice($this->n->q, ($this->n = new N()) is N ? 1 : 0);",
+    ] {
+        let printed = lower_lends(body);
+        assert!(
+            slot_reads(&printed, "T::p") + slot_reads(&printed, "N::q") >= 2,
+            "{body}\n{printed}"
+        );
+    }
+}
+
+/// A callback runs before the member changes anything, so one that only
+/// reads the slot sees the old value, and the slot is lent.
+#[test]
+fn a_callback_that_reads_the_slot_sees_the_old_value() {
+    assert_lent(
+        "    $this->p = Core\\Arr::filter($this->p, fn(int $x): bool => Core\\Arr::count($this->p) > $x);",
+        "T::p",
+    );
+}
+
+/// A callback that writes the slot, or one whose body is not known, keeps
+/// the slot's reference, so the write cannot free the array the member is
+/// reading.
+#[test]
+fn a_callback_that_writes_the_slot_keeps_the_retain() {
+    assert_kept(
+        "    $this->p = Core\\Arr::filter($this->p, fn(int $x): bool => { $this->p = []; return true; });",
+        "T::p",
+    );
+    assert_kept("    $this->p = Core\\Arr::filter($this->p, $cb);", "T::p");
+}
+
+/// A second holder that is never read again is released right after its
+/// last use, so the call holds the only reference.
+#[test]
+fn a_dead_binding_is_released_at_its_last_use() {
+    let printed = lower_moves(
+        "    array<int> $ys = $xs;\n    $xs = Core\\Arr::slice($xs, 1);\n    return $xs;",
+        XS,
+    );
+    assert!(printed.contains("_owned("), "{printed}");
+    let printed = lower_moves(
+        "    array<int> $ys = $xs;\n    $xs = Core\\Arr::slice($xs, 1);\n    return $ys;",
+        XS,
+    );
+    assert!(!printed.contains("_owned("), "{printed}");
 }
 
 #[test]

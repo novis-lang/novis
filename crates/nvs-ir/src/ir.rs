@@ -4033,3 +4033,334 @@ impl Terminator {
         }
     }
 }
+
+/// One piece of storage an instruction may read or write by its label: a
+/// compile-time-known property of a class, or a static property.
+///
+/// A property is named by its declaring class, so every object of the class
+/// shares the label. That is coarse on purpose: the ownership pass asks
+/// whether anything *may* touch a slot, and two objects of one class are one
+/// answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Slot<'a> {
+    /// `$obj->field` of the declaring class `class`.
+    Field {
+        /// The declaring class's label.
+        class: &'a str,
+        /// The property's own name.
+        field: &'a str,
+    },
+    /// `Class::$name` of the declaring class `class`.
+    Static {
+        /// The declaring class's label.
+        class: &'a str,
+        /// The property's own name.
+        name: &'a str,
+    },
+}
+
+/// What an instruction may read or write of the program's storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Touch<'a> {
+    /// No property and no static property.
+    Nothing,
+    /// This one slot.
+    Slot(Slot<'a>),
+    /// Any slot: a name-keyed access, a reference cell, or user code.
+    Anything,
+}
+
+impl Touch<'_> {
+    /// Whether this may reach `slot`.
+    #[must_use]
+    pub fn reaches(&self, slot: Slot<'_>) -> bool {
+        match self {
+            Touch::Nothing => false,
+            Touch::Slot(own) => *own == slot,
+            Touch::Anything => true,
+        }
+    }
+}
+
+/// Whether an instruction may run code the program wrote.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UserCode {
+    /// It runs none.
+    No,
+    /// It runs the callables among its arguments, and nothing else: a `Core`
+    /// member that takes a callback. What a callable does is its own body's
+    /// effects, which the ownership pass reads where it knows the body.
+    ItsCallables,
+    /// It may run any of it.
+    Yes,
+}
+
+/// What one instruction may do beyond defining its value, as
+/// [`InstKind::effects`] states it. The ownership pass reads these, never the
+/// source, to decide whether a slot can be lent across a run of instructions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Effects<'a> {
+    /// Whether it may run user code. User code may read and write any slot.
+    pub user_code: UserCode,
+    /// The storage it may read.
+    pub reads: Touch<'a>,
+    /// The storage it may write.
+    pub writes: Touch<'a>,
+}
+
+impl<'a> Effects<'a> {
+    const NONE: Self = Self {
+        user_code: UserCode::No,
+        reads: Touch::Nothing,
+        writes: Touch::Nothing,
+    };
+    const USER_CODE: Self = Self {
+        user_code: UserCode::Yes,
+        reads: Touch::Anything,
+        writes: Touch::Anything,
+    };
+
+    const fn reading(slot: Slot<'a>) -> Self {
+        Self {
+            user_code: UserCode::No,
+            reads: Touch::Slot(slot),
+            writes: Touch::Nothing,
+        }
+    }
+
+    const fn writing(slot: Slot<'a>) -> Self {
+        Self {
+            user_code: UserCode::No,
+            reads: Touch::Nothing,
+            writes: Touch::Slot(slot),
+        }
+    }
+}
+
+impl InstKind {
+    /// What this instruction may do to the program's storage, and whether it
+    /// may run user code.
+    ///
+    /// One exhaustive `match` with no catch-all arm, so a new instruction does
+    /// not compile until it states its row. A row that is not sure says more:
+    /// a wrong "may" only keeps a copy, and a wrong "may not" corrupts memory.
+    /// Freeing a value runs no user code, because no class has a destructor
+    /// (`rule:classes/no-destructors`).
+    #[must_use]
+    pub fn effects(&self) -> Effects<'_> {
+        match self {
+            InstKind::StmtMarker(..)
+            | InstKind::DebugLocals(..)
+            | InstKind::Safepoint
+            | InstKind::DeprecationCheck { .. }
+            | InstKind::ConstBool(..)
+            | InstKind::ConstInt(..)
+            | InstKind::ConstUint(..)
+            | InstKind::ConstFloat(..)
+            | InstKind::ConstDecimal { .. }
+            | InstKind::ConstNull
+            | InstKind::ConstUnset
+            | InstKind::ConstStr(..)
+            | InstKind::ConstBytes(..)
+            | InstKind::ConstMarkup(..)
+            | InstKind::ConstDuration(..)
+            | InstKind::Param(..)
+            | InstKind::BinOp { .. }
+            | InstKind::UnOp { .. }
+            | InstKind::Phi { .. }
+            | InstKind::ClassDescConst { .. }
+            | InstKind::ShapeCodecConst { .. }
+            | InstKind::SourceConst { .. }
+            | InstKind::PreparedConst { .. }
+            | InstKind::QuerySiteConst { .. }
+            | InstKind::ClassDescOf { .. }
+            | InstKind::ClassDescIn { .. }
+            | InstKind::FieldSlot { .. }
+            | InstKind::ClassTest { .. }
+            | InstKind::Concat { .. }
+            | InstKind::StrAppend { .. }
+            | InstKind::TakeThrown
+            | InstKind::SeedRaiseSite
+            | InstKind::Retain { .. }
+            | InstKind::Release { .. }
+            | InstKind::RefSlot { .. }
+            | InstKind::Reinterpret { .. }
+            | InstKind::Tag { .. }
+            | InstKind::Untag { .. }
+            | InstKind::IsNull { .. }
+            | InstKind::TagIs { .. }
+            | InstKind::ArrayNew { .. }
+            | InstKind::ArrayGet { .. }
+            | InstKind::ArraySet { .. }
+            | InstKind::ArrayAppend { .. }
+            | InstKind::ArraySpread { .. }
+            | InstKind::ArrayUnset { .. }
+            | InstKind::ArrayNextSlot { .. }
+            | InstKind::ArrayKeyAt { .. }
+            | InstKind::ArrayValueAt { .. } => Effects::NONE,
+            // A fresh object with no constructor writes only its own fields.
+            InstKind::New { ctor: None, .. } => Effects::NONE,
+            InstKind::Call { .. }
+            | InstKind::New { ctor: Some(_), .. }
+            | InstKind::CallVirtual { .. }
+            | InstKind::NewDynamic { .. }
+            | InstKind::Clone { .. }
+            | InstKind::ExtensionCall { .. } => Effects::USER_CODE,
+            // A name-keyed access may reach any slot, and a reference cell may
+            // be the caller's storage.
+            InstKind::SlotGet { .. }
+            | InstKind::SlotProbe { .. }
+            | InstKind::SlotSet { .. }
+            | InstKind::KeyGet { .. }
+            | InstKind::KeySet { .. }
+            | InstKind::RefLoad { .. }
+            | InstKind::RefStore { .. } => Effects::USER_CODE,
+            InstKind::FieldGet { class, field, .. }
+            | InstKind::FieldIsInit { class, field, .. } => {
+                Effects::reading(Slot::Field { class, field })
+            }
+            InstKind::FieldSet { class, field, .. } => {
+                Effects::writing(Slot::Field { class, field })
+            }
+            InstKind::FieldTake { class, field, .. } => {
+                let slot = Slot::Field { class, field };
+                Effects {
+                    user_code: UserCode::No,
+                    reads: Touch::Slot(slot),
+                    writes: Touch::Slot(slot),
+                }
+            }
+            InstKind::StaticGet { class, name } => Effects::reading(Slot::Static { class, name }),
+            InstKind::StaticSet { class, name, .. } => {
+                Effects::writing(Slot::Static { class, name })
+            }
+            InstKind::HelperCall { helper, .. } => {
+                if helper.may_run_user_code() {
+                    Effects::USER_CODE
+                } else {
+                    Effects::NONE
+                }
+            }
+            InstKind::CoreCall { .. } => Effects {
+                user_code: UserCode::ItsCallables,
+                reads: Touch::Nothing,
+                writes: Touch::Nothing,
+            },
+        }
+    }
+}
+
+impl Helper {
+    /// Whether this helper may run user code: a callable, an erased method,
+    /// or a class's `toString`. One exhaustive `match`, as
+    /// [`InstKind::effects`] is.
+    #[must_use]
+    pub const fn may_run_user_code(self) -> bool {
+        match self {
+            Helper::CallCallable
+            | Helper::CallCallableProven
+            | Helper::CallCallableArray
+            | Helper::CallErasedMethod
+            | Helper::TaggedToString
+            | Helper::TaggedAsString
+            | Helper::EchoValue
+            | Helper::Exit => true,
+            Helper::IntToString
+            | Helper::UintToString
+            | Helper::FloatToString
+            | Helper::BoolToString
+            | Helper::ClassDescName
+            | Helper::ClassConstant
+            | Helper::TypeCheckFailed
+            | Helper::CovariantRejected
+            | Helper::CovariantPropertyChecked
+            | Helper::RestrictedErasedAct
+            | Helper::LateInitRunning
+            | Helper::IntTruthy
+            | Helper::UintTruthy
+            | Helper::FloatTruthy
+            | Helper::StrTruthy
+            | Helper::BytesTruthy
+            | Helper::ArrayTruthy
+            | Helper::ValueTruthy
+            | Helper::ArrayWriteThrough
+            | Helper::ArrayStrAppendThrough
+            | Helper::ArrayInoutWrite
+            | Helper::GuardKeyPath
+            | Helper::DecimalTruthy
+            | Helper::DecimalAdd
+            | Helper::DecimalSub
+            | Helper::DecimalMul
+            | Helper::DecimalDiv
+            | Helper::DecimalMod
+            | Helper::DecimalNeg
+            | Helper::DecimalEq
+            | Helper::DecimalLt
+            | Helper::DecimalLtEq
+            | Helper::DecimalCmp
+            | Helper::IntToUint
+            | Helper::UintToInt
+            | Helper::IntToFloat
+            | Helper::UintToFloat
+            | Helper::FloatToInt
+            | Helper::FloatToUint
+            | Helper::StrToInt
+            | Helper::StrToUint
+            | Helper::StrToFloat
+            | Helper::BytesToString
+            | Helper::ToIntOrNull
+            | Helper::ToUintOrNull
+            | Helper::ToFloatOrNull
+            | Helper::ToStringOrNull
+            | Helper::ToBytesOrNull
+            | Helper::ToDecimal
+            | Helper::ToDecimalOrNull
+            | Helper::DecimalToInt
+            | Helper::DecimalToUint
+            | Helper::DecimalToFloat
+            | Helper::DecimalToString
+            | Helper::TaggedToInt
+            | Helper::TaggedToUint
+            | Helper::TaggedToFloat
+            | Helper::TaggedWidenToFloat
+            | Helper::TaggedToBytes
+            | Helper::ToArrayOf
+            | Helper::ToArrayOfOrNull
+            | Helper::EchoStr
+            | Helper::EchoMarkup
+            | Helper::SingleValueMismatch
+            | Helper::PropertyPathValid
+            | Helper::PropertyPathMismatch
+            | Helper::StringHolesValid
+            | Helper::StringHolesMismatch
+            | Helper::CloneOperandNotAnObject
+            | Helper::CloneGuard
+            | Helper::Identical
+            | Helper::NumericEq
+            | Helper::NumericLt
+            | Helper::NumericLtEq
+            | Helper::NumericCmp
+            | Helper::ValueLt
+            | Helper::ValueLtEq
+            | Helper::ValueCmp
+            | Helper::ValueAdd
+            | Helper::ValueSub
+            | Helper::ValueMul
+            | Helper::ValueDiv
+            | Helper::ValueMod
+            | Helper::ValuePow
+            | Helper::ValueBitAnd
+            | Helper::ValueBitOr
+            | Helper::ValueBitXor
+            | Helper::ValueShl
+            | Helper::ValueShr
+            | Helper::ValueNeg
+            | Helper::ValueBitNot
+            | Helper::ValueIndexGet
+            | Helper::ValueIndexOptionalGet
+            | Helper::ValueToArrayKey
+            | Helper::SecretEq
+            | Helper::BindCallable => false,
+        }
+    }
+}

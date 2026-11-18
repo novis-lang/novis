@@ -53,21 +53,124 @@
 //!   [`Function::own_entry_loops`], and `drop_loop_reference` makes the walk
 //!   read the variable's current array and drops the loop's retain.
 //!
+//! # The lend
+//!
+//! `slot = M(slot, …)` with an owning `Core` member `M`, where the slot is a
+//! plain property, a static property or a property reached through plain
+//! properties, gives `M` the slot's own reference. The call switches to the
+//! owning entry, and the store's second read of the old value and its release
+//! go. `Lend::of` reads each instruction's [`InstKind::effects`] between the
+//! slot's read and its store, never the source: nothing there may run user
+//! code, write a slot on the chain or read the lent slot again. A callback the
+//! member runs is allowed when it is an anonymous function whose own body
+//! writes none of those slots and calls no user code, because a member runs
+//! its callbacks before it changes anything. A hook, a guard and an observer
+//! are calls, so a slot that has one is never lent.
+//!
 //! **What it spends:** while compiling, one walk per candidate call over the
-//! code after it. Nothing at run time: the program makes one retain and one
-//! release fewer for each move.
+//! code after it, and one pass over each function for its write summary.
+//! Nothing at run time: the program makes one retain and one release fewer for
+//! each move and each lend.
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::ValueId;
-use crate::ir::{Function, InstKind, Terminator};
+use crate::ir::{Function, InstKind, Slot, Terminator, Touch, UserCode};
 use crate::ty::Ty;
 
-/// Decides every move in `functions`.
+/// Decides every move and every lend in `functions`.
 pub fn run(functions: &mut [Function]) {
+    let writes = summaries(functions);
     for f in functions {
-        run_function(f);
+        run_function(f, &writes);
     }
+}
+
+/// A slot by value, so a summary outlives the function it was read from:
+/// whether it is static, the declaring class, and the property's name.
+type OwnedSlot = (bool, String, String);
+
+fn own(slot: Slot<'_>) -> OwnedSlot {
+    match slot {
+        Slot::Field { class, field } => (false, class.to_owned(), field.to_owned()),
+        Slot::Static { class, name } => (true, class.to_owned(), name.to_owned()),
+    }
+}
+
+/// What one function's own instructions may write.
+enum Writes {
+    /// Any slot: it may run user code or touch a slot by name.
+    Anything,
+    /// These slots and no others.
+    Slots(FxHashSet<OwnedSlot>),
+}
+
+/// Each function's [`Writes`], by name, read from its instructions alone. A
+/// call to user code makes it [`Writes::Anything`], so a summary never
+/// depends on another one.
+fn summaries(functions: &[Function]) -> FxHashMap<String, Writes> {
+    functions
+        .iter()
+        .map(|f| {
+            let tys = types(f);
+            let mut slots = FxHashSet::default();
+            let mut anything = false;
+            for inst in f.blocks.iter().flat_map(|block| &block.insts) {
+                let effects = inst.kind.effects();
+                anything |= match effects.user_code {
+                    UserCode::No => false,
+                    UserCode::ItsCallables => takes_an_object(&inst.kind, &tys),
+                    UserCode::Yes => true,
+                };
+                match effects.writes {
+                    Touch::Nothing => {}
+                    Touch::Slot(slot) => {
+                        slots.insert(own(slot));
+                    }
+                    Touch::Anything => anything = true,
+                }
+            }
+            let writes = if anything {
+                Writes::Anything
+            } else {
+                Writes::Slots(slots)
+            };
+            (f.name.clone(), writes)
+        })
+        .collect()
+}
+
+/// Every value's type in `f`.
+fn types(f: &Function) -> FxHashMap<ValueId, Ty> {
+    f.blocks
+        .iter()
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| Some((inst.result?, inst.ty?)))
+        .collect()
+}
+
+/// Whether any argument of `kind` may be a callable. A callable is an
+/// object, and a tagged value may hold one.
+fn takes_an_object(kind: &InstKind, tys: &FxHashMap<ValueId, Ty>) -> bool {
+    let mut found = false;
+    kind.for_each_operand(|v| {
+        found |= !matches!(
+            tys.get(&v),
+            Some(
+                Ty::Bool
+                    | Ty::Int
+                    | Ty::Uint
+                    | Ty::Float
+                    | Ty::Decimal
+                    | Ty::Null
+                    | Ty::Str
+                    | Ty::Bytes
+                    | Ty::Array
+                    | Ty::Enum(_)
+            )
+        );
+    });
+    found
 }
 
 /// One instruction's place: the block's index in [`Function::blocks`] and the
@@ -84,23 +187,47 @@ enum Move {
 
 /// Decides every move in one function. Removed instructions are collected and
 /// dropped at the end, so every [`At`] stays valid while the pass runs.
-fn run_function(f: &mut Function) {
+fn run_function(f: &mut Function, writes: &FxHashMap<String, Writes>) {
     let index: FxHashMap<u32, usize> = f
         .blocks
         .iter()
         .enumerate()
         .map(|(at, block)| (block.id.index(), at))
         .collect();
-    let tys: FxHashMap<ValueId, Ty> = f
-        .blocks
-        .iter()
-        .flat_map(|block| &block.insts)
-        .filter_map(|inst| Some((inst.result?, inst.ty?)))
-        .collect();
+    let tys = types(f);
     let entry = index[&f.entry.index()];
     let mut removed: FxHashSet<At> = FxHashSet::default();
     for lp in f.own_entry_loops.clone() {
         drop_loop_reference(f, &index, entry, lp, &mut removed);
+    }
+    let defs: FxHashMap<ValueId, At> = f
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(b, block)| {
+            block
+                .insts
+                .iter()
+                .enumerate()
+                .filter_map(move |(i, inst)| Some((inst.result?, (b, i))))
+        })
+        .collect();
+    for b in 0..f.blocks.len() {
+        for c in 0..f.blocks[b].insts.len() {
+            let lend = Lend {
+                f,
+                defs: &defs,
+                tys: &tys,
+                writes,
+                removed: &removed,
+            };
+            if let Some((owned, gone)) = lend.of((b, c)) {
+                removed.extend(gone);
+                if let InstKind::CoreCall { symbol, .. } = &mut f.blocks[b].insts[c].kind {
+                    *symbol = owned;
+                }
+            }
+        }
     }
     let mut released_before: FxHashMap<At, Vec<ValueId>> = FxHashMap::default();
     for b in 0..f.blocks.len() {
@@ -299,6 +426,296 @@ fn drop_loop_reference(
     }
     removed.extend(firsts);
     removed.insert((pre, retain));
+}
+
+/// One function's view for the lend: `slot = M(slot, …)`, where `M` is an
+/// owning `Core` member and the slot a plain property, a static property or a
+/// property reached through a chain of plain properties.
+///
+/// The lowering emits the slot's read, the call on the borrowed entry, a
+/// second read of the slot's old value, the store of the result and a
+/// release of the old value. Where the check holds, the call takes the slot's
+/// own reference through the owning entry, and the second read and its
+/// release go. The slot keeps its value when the call fails, because an
+/// owning entry leaves its subject with the caller on an error.
+struct Lend<'a> {
+    f: &'a Function,
+    defs: &'a FxHashMap<ValueId, At>,
+    tys: &'a FxHashMap<ValueId, Ty>,
+    writes: &'a FxHashMap<String, Writes>,
+    removed: &'a FxHashSet<At>,
+}
+
+impl Lend<'_> {
+    /// The owning symbol and the instructions to remove, when the call at
+    /// `(b, c)` can be lent its subject's slot. `None` keeps it as it is.
+    ///
+    /// Every condition must hold:
+    ///
+    /// - The subject is read from a slot in the call's own block, and is read
+    ///   by nothing but the call, one retain and the releases that pair with
+    ///   that retain.
+    /// - The call's result is stored back into the same slot, through the
+    ///   same object, later in the block.
+    /// - From the slot's read to the store, no instruction other than the
+    ///   call may run user code, write the slot or a container on its chain,
+    ///   or read the slot. Between the call and the store nothing can fail, so
+    ///   the slot is never left without a value it owns.
+    /// - Each callable the call takes is an anonymous function whose body
+    ///   writes none of those slots and runs no user code. Its body runs
+    ///   before anything changes, so a read of the slot sees the old value.
+    fn of(&self, (b, c): At) -> Option<(&'static str, Vec<At>)> {
+        let insts = &self.f.blocks[b].insts;
+        let call = &insts[c];
+        let InstKind::CoreCall {
+            symbol,
+            args,
+            subject: Some(subject),
+        } = &call.kind
+        else {
+            return None;
+        };
+        let entry = nvs_stdlib::owning_entry(symbol)?;
+        let at = *subject as usize;
+        let subject = *args.get(at)?;
+        let result = call.result?;
+        if entry.slot != at
+            || args.iter().filter(|&&a| a == subject).count() != 1
+            || !matches!(
+                self.tys.get(&subject),
+                Some(Ty::Array | Ty::Str | Ty::Bytes)
+            )
+        {
+            return None;
+        }
+        let (rb, read) = *self.defs.get(&subject)?;
+        if rb != b || read >= c {
+            return None;
+        }
+        let (slot, object) = slot_of(&insts[read].kind)?;
+        // The containers on the chain, and where the first of them is read.
+        let mut chain = vec![slot];
+        let mut start = read;
+        let mut on = object;
+        while let Some(o) = on {
+            let Some(&(ob, oi)) = self.defs.get(&o) else {
+                break;
+            };
+            let Some((container, outer)) = slot_of(&self.f.blocks[ob].insts[oi].kind) else {
+                break;
+            };
+            if ob != b {
+                return None;
+            }
+            chain.push(container);
+            start = start.min(oi);
+            on = outer;
+        }
+        // The store, and the second read of the old value between.
+        let mut gone = Vec::new();
+        let mut old = None;
+        let mut store = None;
+        for (j, inst) in insts.iter().enumerate().skip(c + 1) {
+            if self.removed.contains(&(b, j)) {
+                continue;
+            }
+            if let Some((stored, into, value)) = store_of(&inst.kind)
+                && value == result
+                && stored == slot
+                && let Some(from) = self.same_object(into, object, b, &chain)
+            {
+                start = start.min(from);
+                store = Some(j);
+                break;
+            }
+            if inst.on_error.is_some() || reads(&inst.kind, result) {
+                return None;
+            }
+            if let Some((read_slot, from)) = slot_of(&inst.kind)
+                && read_slot == slot
+                && old.is_none()
+                && let Some(earliest) = self.same_object(from, object, b, &chain)
+            {
+                start = start.min(earliest);
+                old = Some((j, inst.result?));
+                continue;
+            }
+            if matches!(inst.kind, InstKind::Release { operand } if operand == subject) {
+                continue;
+            }
+            if reads(&inst.kind, subject) || !self.quiet(&inst.kind, &chain, true) {
+                return None;
+            }
+        }
+        let store = store?;
+        let (old_at, old) = old?;
+        gone.push((b, old_at));
+        // The old value is released once, after the store, and read by
+        // nothing else.
+        let mut old_release = None;
+        for (ib, block) in self.f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if (ib, i) == (b, old_at) || !reads(&inst.kind, old) {
+                    continue;
+                }
+                if ib != b
+                    || i <= store
+                    || old_release.is_some()
+                    || !matches!(inst.kind, InstKind::Release { operand } if operand == old)
+                {
+                    return None;
+                }
+                old_release = Some((ib, i));
+            }
+        }
+        gone.push(old_release?);
+        // Nothing from the first container's read to the call touches the
+        // slots, and the subject is read only by its retain and releases.
+        for (i, inst) in insts.iter().enumerate().take(c).skip(start) {
+            if i == read || self.removed.contains(&(b, i)) {
+                continue;
+            }
+            if i > read && reads(&inst.kind, subject) {
+                if !matches!(
+                    inst.kind,
+                    InstKind::Retain { .. } | InstKind::Release { .. }
+                ) {
+                    return None;
+                }
+                continue;
+            }
+            if !self.quiet(&inst.kind, &chain, true) {
+                return None;
+            }
+        }
+        // Every retain and release of the subject in the function pairs up,
+        // so removing all of them keeps the counts.
+        let mut retains = 0;
+        for (ib, block) in self.f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if (ib, i) == (b, c) || self.removed.contains(&(ib, i)) {
+                    continue;
+                }
+                match inst.kind {
+                    InstKind::Retain { operand } if operand == subject => {
+                        retains += 1;
+                        gone.push((ib, i));
+                    }
+                    InstKind::Release { operand } if operand == subject => gone.push((ib, i)),
+                    ref kind if reads(kind, subject) => return None,
+                    _ => {}
+                }
+            }
+            let mut read_by_term = false;
+            block
+                .term
+                .for_each_operand(|v| read_by_term |= v == subject);
+            if read_by_term {
+                return None;
+            }
+        }
+        let releases = gone.len() - 2 - retains;
+        if retains > 1 || (retains == 0 && releases > 0) {
+            return None;
+        }
+        // The callables the call runs.
+        for &arg in args {
+            if arg == subject || !takes_an_object(&InstKind::Retain { operand: arg }, self.tys) {
+                continue;
+            }
+            let &(ab, ai) = self.defs.get(&arg)?;
+            let InstKind::New {
+                class, ctor: None, ..
+            } = &self.f.blocks[ab].insts[ai].kind
+            else {
+                return None;
+            };
+            match self.writes.get(&format!("{class}::invoke"))? {
+                Writes::Anything => return None,
+                Writes::Slots(slots) => {
+                    if chain.iter().any(|&s| slots.contains(&own(s))) {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some((entry.symbol, gone))
+    }
+
+    /// Whether `kind` runs no user code, writes no slot on `chain`, and, with
+    /// `reading`, does not read the lent slot.
+    fn quiet(&self, kind: &InstKind, chain: &[Slot<'_>], reading: bool) -> bool {
+        let effects = kind.effects();
+        let user_code = match effects.user_code {
+            UserCode::No => false,
+            UserCode::ItsCallables => takes_an_object(kind, self.tys),
+            UserCode::Yes => true,
+        };
+        !user_code
+            && !chain.iter().any(|&s| effects.writes.reaches(s))
+            && !(reading && effects.reads.reaches(chain[0]))
+    }
+
+    /// Whether `x` and `y` are the same object: the same value, or two reads
+    /// of one container slot of the same object, both in block `b`. Gives
+    /// the index of the earliest read it followed, and `usize::MAX` for the
+    /// same value. Every container is on `chain`, so the window check from
+    /// that index on finds any write between the two reads.
+    fn same_object(
+        &self,
+        x: Option<ValueId>,
+        y: Option<ValueId>,
+        b: usize,
+        chain: &[Slot<'_>],
+    ) -> Option<usize> {
+        match (x, y) {
+            (None, None) => Some(usize::MAX),
+            (Some(x), Some(y)) if x == y => Some(usize::MAX),
+            (Some(x), Some(y)) => {
+                let (&(xb, xi), &(yb, yi)) = (self.defs.get(&x)?, self.defs.get(&y)?);
+                if xb != b || yb != b {
+                    return None;
+                }
+                let insts = &self.f.blocks[b].insts;
+                let (xs, xo) = slot_of(&insts[xi].kind)?;
+                let (ys, yo) = slot_of(&insts[yi].kind)?;
+                if xs != ys || !chain.contains(&xs) {
+                    return None;
+                }
+                Some(self.same_object(xo, yo, b, chain)?.min(xi).min(yi))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The slot a plain read reads, and the object it reads it from.
+fn slot_of(kind: &InstKind) -> Option<(Slot<'_>, Option<ValueId>)> {
+    match kind {
+        InstKind::FieldGet {
+            object,
+            class,
+            field,
+        } => Some((Slot::Field { class, field }, Some(*object))),
+        InstKind::StaticGet { class, name } => Some((Slot::Static { class, name }, None)),
+        _ => None,
+    }
+}
+
+/// The slot a plain store writes, the object it writes it on, and the value.
+fn store_of(kind: &InstKind) -> Option<(Slot<'_>, Option<ValueId>, ValueId)> {
+    match kind {
+        InstKind::FieldSet {
+            object,
+            class,
+            field,
+            value,
+        } => Some((Slot::Field { class, field }, Some(*object), *value)),
+        InstKind::StaticSet { class, name, value } => {
+            Some((Slot::Static { class, name }, None, *value))
+        }
+        _ => None,
+    }
 }
 
 /// The values the call at `call` could take the reference of, each with what
