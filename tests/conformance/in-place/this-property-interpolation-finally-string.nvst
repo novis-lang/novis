@@ -1,0 +1,23 @@
+--TEST--
+A class property string replaced inside a `try` by an interpolated string that starts with it has the new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public string $text) {}
+
+    public function run(): void {
+        try {
+            // The string puts `x` after the property's value, so `$this->text` is `abx`.
+            $this->text = "{$this->text}x";
+        } finally {
+            echo "finally: ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+Box $box = new Box("ab");
+$box->run();
+--EXPECT--
+finally: abx
+abx

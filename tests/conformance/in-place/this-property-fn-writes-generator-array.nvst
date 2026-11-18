@@ -1,0 +1,41 @@
+--TEST--
+A class property array replaced between two `yield`s by a method that writes the same property yields its old value and then the returned one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public array<int> $items) {}
+
+    // Sets `$this->items` to `7`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        $this->items = [7];
+        echo "callee: ", self::show($items), " / ", self::show($this->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function steps(): Iterator<array<int>> {
+        yield $this->items;
+        $this->items = $this->add($this->items, 3);
+        yield $this->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+array<array<int>> $seen = [];
+foreach ($box->steps() as array<int> $v) {
+    $seen[] = $v;
+    echo Box::show($v), "\n";
+}
+// The first value is still `1,2` after the change.
+echo "first: ", Box::show($seen[0]), "\n";
+echo "property: ", Box::show($box->items), "\n";
+--EXPECT--
+1,2
+callee: 1,2 / 7
+1,2,3
+first: 1,2
+property: 1,2,3

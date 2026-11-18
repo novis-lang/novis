@@ -1,0 +1,32 @@
+--TEST--
+A string property replaced through `$this` by a private method that cannot throw in a loop has every change — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        // Each pass adds one `x`, so this prints `abxxx`.
+        foreach ([1, 2, 3] as var $i) {
+            $this->text = $this->add($this->text, "x");
+        }
+        echo $this->text, "\n";
+    }
+}
+
+var $note = new Note("ab");
+$note->run();
+echo $note->text, "\n";
+--EXPECT--
+abxxx
+abxxx

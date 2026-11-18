@@ -1,0 +1,33 @@
+--TEST--
+A class property string replaced inside a `try` by a method that writes the same property has the returned value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public string $text) {}
+
+    // Sets `$this->text` to `z`, then appends `$x` to `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $this->text = "z";
+        echo "callee: ", $text, " / ", $this->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            $this->text = $this->add($this->text, "c");
+            // The error comes after the store, so the `catch` prints `abc`.
+            throw new LogicError("after");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+Box $box = new Box("ab");
+$box->run();
+--EXPECT--
+callee: ab / z
+after: abc
+abc

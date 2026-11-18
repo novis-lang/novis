@@ -1,0 +1,17 @@
+--TEST--
+An object's string property replaced by an interpolation of itself has its new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+Box $box = new Box();
+string $before = $box->text;
+// The new string is the property followed by `x`, so the property is `abx`.
+$box->text = "{$box->text}x";
+echo $box->text, "\n";
+echo $before, "\n";
+--EXPECT--
+abx
+ab

@@ -1,0 +1,23 @@
+--TEST--
+A class property string replaced by a concatenation that starts with it has the joined value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public string $text) {}
+
+    public function run(): void {
+        string $before = $this->text;
+        // `.` joins two strings, so `$this->text` is `abx`.
+        $this->text = $this->text . "x";
+        echo $this->text, "\n";
+        echo "before: ", $before, "\n";
+    }
+}
+
+Box $box = new Box("ab");
+$box->run();
+echo $box->text, "\n";
+--EXPECT--
+abx
+before: ab
+abx

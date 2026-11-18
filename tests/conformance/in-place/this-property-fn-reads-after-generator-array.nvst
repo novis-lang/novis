@@ -1,0 +1,39 @@
+--TEST--
+An array property replaced between two `yield`s by a method that reads the property after its change leaves the first yielded value unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Bag {
+    public array<int> $items = [];
+
+    public function constructor() {
+        $this->items = [1, 2];
+    }
+
+    // Appends `$x` to `$items`, then prints `$this->items`.
+    private function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        echo "saw: ", Bag::show($this->items), "\n";
+        return $items;
+    }
+
+    public function steps(): Iterator<array<int>> {
+        yield $this->items;
+        $this->items = $this->add($this->items, 3);
+        yield $this->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Bag $bag = new Bag();
+array<array<int>> $seen = [];
+foreach ($bag->steps() as array<int> $step) {
+    $seen[] = $step;
+}
+// The first value is still `1,2` after the change.
+echo Bag::show($seen[0]), " then ", Bag::show($seen[1]), "\n";
+--EXPECT--
+saw: 1,2
+1,2 then 1,2,3

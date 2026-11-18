@@ -1,0 +1,32 @@
+--TEST--
+A class property array replaced between two `yield`s by a literal that spreads it yields its old value and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public array<int> $items) {}
+
+    public function steps(): Iterator<array<int>> {
+        yield $this->items;
+        $this->items = [...$this->items, 9];
+        yield $this->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+array<array<int>> $seen = [];
+foreach ($box->steps() as array<int> $v) {
+    $seen[] = $v;
+    echo Box::show($v), "\n";
+}
+// The first value is still `1,2` after the change.
+echo "first: ", Box::show($seen[0]), "\n";
+echo "property: ", Box::show($box->items), "\n";
+--EXPECT--
+1,2
+1,2,9
+first: 1,2
+property: 1,2,9

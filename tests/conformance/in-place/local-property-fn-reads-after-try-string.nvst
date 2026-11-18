@@ -1,0 +1,34 @@
+--TEST--
+A Novis function inside a `try` that reads an object's string property after it changes its parameter still sees the old value, and the `catch` sees the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then prints `$box->text` and returns `$text`.
+    public static function add(Box $box, string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $box->text, "\n";
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+try {
+    // The property changes only when the call returns, so the call prints `ab`.
+    $box->text = Lib::add($box, $box->text, "c");
+    throw new LogicError("after");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+saw: ab
+after: abc
+abc

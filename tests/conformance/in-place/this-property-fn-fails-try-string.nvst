@@ -1,0 +1,37 @@
+--TEST--
+A string property replaced through `$this` by a private method that throws after its change still has its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            // This call throws after it adds `!`, so `$this->text` stays `ab`.
+            $this->text = $this->add($this->text, "!");
+            echo "not reached\n";
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+var $note = new Note("ab");
+$note->run();
+--EXPECT--
+bad text: ab
+ab

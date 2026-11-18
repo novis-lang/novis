@@ -1,0 +1,30 @@
+--TEST--
+An object's array property replaced by a spread of itself before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+try {
+    $box->items = [...$box->items, 9];
+    // The error comes after the statement, so the property is already `1,2,9`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Lib::show($box->items), "\n";
+}
+echo Lib::show($box->items), "\n";
+--EXPECT--
+stop: 1,2,9
+1,2,9

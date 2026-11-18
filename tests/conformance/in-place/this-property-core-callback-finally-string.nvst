@@ -1,0 +1,30 @@
+--TEST--
+A string property replaced through `$this` by a `Core` function with a callback inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public function swap(): void {
+        try {
+            // `Core\Regex::replaceWith` calls the function for each `o`, so `$this->text` is `sh0p`.
+            $this->text = Core\Regex::replaceWith($this->text, "o", fn(Core\Regex\Match $m): string => "0");
+        } finally {
+            echo "finally: ", $this->text, "\n";
+        }
+    }
+}
+
+var $box = new Box("shop");
+string $before = $box->text;
+$box->swap();
+echo $box->text, "\n";
+echo $before, "\n";
+--EXPECT--
+finally: sh0p
+sh0p
+shop

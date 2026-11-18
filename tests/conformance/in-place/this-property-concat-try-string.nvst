@@ -1,0 +1,24 @@
+--TEST--
+A class property string replaced inside a `try` by a concatenation that starts with it has the joined value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public string $text) {}
+
+    public function run(): void {
+        try {
+            $this->text = $this->text . "x";
+            // The error comes after the change, so the `catch` prints `abx`.
+            throw new LogicError("after");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+Box $box = new Box("ab");
+$box->run();
+--EXPECT--
+after: abx
+abx

@@ -1,0 +1,28 @@
+--TEST--
+A class property array replaced inside a `try` by a literal that spreads it has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public array<int> $items) {}
+
+    public function run(): void {
+        try {
+            $this->items = [...$this->items, 9];
+            // The error comes after the change, so the `catch` prints `1,2,9`.
+            throw new LogicError("after");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", self::show($this->items), "\n";
+        }
+        echo self::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+$box->run();
+--EXPECT--
+after: 1,2,9
+1,2,9

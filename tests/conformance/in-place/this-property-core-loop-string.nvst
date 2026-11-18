@@ -1,0 +1,28 @@
+--TEST--
+A string property replaced through `$this` by an owning `Core` call in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Each pass removes the first character with `Core\Str::slice`.
+    public function trim(): void {
+        for (int $i = 0; $i < 3; $i++) {
+            $this->text = Core\Str::slice($this->text, 1);
+        }
+    }
+}
+
+var $box = new Box("shop");
+string $before = $box->text;
+$box->trim();
+// Three passes remove `s`, `h` and `o`, so the text is `p`.
+echo $box->text, "\n";
+echo $before, "\n";
+--EXPECT--
+p
+shop

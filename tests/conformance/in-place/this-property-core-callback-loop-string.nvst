@@ -1,0 +1,28 @@
+--TEST--
+A string property replaced through `$this` by a `Core` function with a callback in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Each pass puts the `b` in one more pair of angle brackets.
+    public function wrap(): void {
+        for (int $i = 0; $i < 3; $i++) {
+            $this->text = Core\Regex::replaceWith($this->text, "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+        }
+    }
+}
+
+var $box = new Box("ab");
+string $before = $box->text;
+$box->wrap();
+echo $box->text, "\n";
+// The copy made before the loop still has `ab`.
+echo $before, "\n";
+--EXPECT--
+a<<<b>>>
+ab

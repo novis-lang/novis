@@ -1,0 +1,23 @@
+--TEST--
+An object's string property replaced by a `Core` function with a callback inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+Box $box = new Box("ab");
+try {
+    // The callback puts each `b` in angle brackets, so `$box->text` is `a<b>`.
+    $box->text = Core\Regex::replaceWith($box->text, "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+} finally {
+    echo "finally: ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+finally: a<b>
+a<b>

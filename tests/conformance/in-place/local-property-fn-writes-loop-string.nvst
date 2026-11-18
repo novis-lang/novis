@@ -1,0 +1,29 @@
+--TEST--
+An object's string property replaced in a loop by a Novis function that also writes that property ends with the last returned value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+final class Lib {
+    // Sets the property to `z` and prints both strings. Then it adds `$x` to `$text` and returns it.
+    public static function grow(Box $box, string $text, string $x): string {
+        $box->text = "z";
+        echo "callee: ", $text, " and ", $box->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box();
+// Each pass adds `c`, so three passes give `abccc`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->text = Lib::grow($box, $box->text, "c");
+}
+echo $box->text, "\n";
+--EXPECT--
+callee: ab and z
+callee: abc and z
+callee: abcc and z
+abccc

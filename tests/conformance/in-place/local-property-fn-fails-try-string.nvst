@@ -1,0 +1,35 @@
+--TEST--
+A string property of a local object replaced by a Novis function that throws after its change still has its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "";
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+try {
+    // This call throws after it adds `!`, so `$box->text` keeps `ab`.
+    $box->text = Lib::add($box->text, "!");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+bad text: ab
+ab

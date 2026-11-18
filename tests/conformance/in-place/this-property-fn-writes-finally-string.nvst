@@ -1,0 +1,32 @@
+--TEST--
+A class property string replaced inside a `try` by a method that writes the same property has the returned value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public string $text) {}
+
+    // Sets `$this->text` to `z`, then appends `$x` to `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $this->text = "z";
+        echo "callee: ", $text, " / ", $this->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            // The call returns `abc`, and that value replaces the `z` the method stored.
+            $this->text = $this->add($this->text, "c");
+        } finally {
+            echo "finally: ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+Box $box = new Box("ab");
+$box->run();
+--EXPECT--
+callee: ab / z
+finally: abc
+abc

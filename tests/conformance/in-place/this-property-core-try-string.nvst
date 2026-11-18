@@ -1,0 +1,31 @@
+--TEST--
+A string property replaced through `$this` by an owning `Core` call before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public function trim(): void {
+        try {
+            // `Core\Str::slice` removes the first character, so `$this->text` is `hop`.
+            $this->text = Core\Str::slice($this->text, 1);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+var $box = new Box("shop");
+string $before = $box->text;
+$box->trim();
+echo $before, "\n";
+--EXPECT--
+stop: hop
+hop
+shop

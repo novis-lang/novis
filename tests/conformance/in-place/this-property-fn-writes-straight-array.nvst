@@ -1,0 +1,31 @@
+--TEST--
+A class property array replaced by a method that writes the same property gets the method's return value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public array<int> $items) {}
+
+    // Sets `$this->items` to `7`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        $this->items = [7];
+        echo "callee: ", self::show($items), " / ", self::show($this->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function run(): void {
+        // The call returns `1,2,3`, and that value replaces the `7` the method stored.
+        $this->items = $this->add($this->items, 3);
+        echo self::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+$box->run();
+--EXPECT--
+callee: 1,2 / 7
+1,2,3

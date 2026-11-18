@@ -1,0 +1,41 @@
+--TEST--
+An array property replaced through `$this` by a private method that throws after its change still has its old value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Bag {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    // Appends `$x` to `$items`, then throws when `$x` is negative.
+    private function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        if ($x < 0) {
+            throw new LogicError("negative");
+        }
+        return $items;
+    }
+
+    public function run(): void {
+        try {
+            // This call throws after its append, so `$this->items` stays `1,2`.
+            $this->items = $this->add($this->items, -1);
+            echo "not reached\n";
+        } catch (LogicError $e) {
+            echo $e->message, ": ", Bag::show($this->items), "\n";
+        }
+        echo Bag::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $bag = new Bag([1, 2]);
+$bag->run();
+--EXPECT--
+negative: 1,2
+1,2

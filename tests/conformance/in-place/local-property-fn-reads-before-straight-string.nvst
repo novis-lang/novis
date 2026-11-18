@@ -1,0 +1,28 @@
+--TEST--
+A Novis function that reads an object's string property before it changes its parameter sees the old value, and the property then has the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Lib {
+    // Prints `$box->text`, then adds `$x` to the end of `$text` and returns it.
+    public static function add(Box $box, string $text, string $x): string {
+        echo "saw: ", $box->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+// The call prints `ab`. Then the property is `abc`.
+$box->text = Lib::add($box, $box->text, "c");
+echo $box->text, "\n";
+--EXPECT--
+saw: ab
+abc

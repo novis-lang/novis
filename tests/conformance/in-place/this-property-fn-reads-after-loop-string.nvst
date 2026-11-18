@@ -1,0 +1,31 @@
+--TEST--
+A string property replaced in a loop by a method that reads the property after its change shows each pass the value of the pass before — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text = "a";
+
+    // Adds `$x` to the end of `$text`, then prints `$this->text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->text, "\n";
+        return $text;
+    }
+
+    public function run(): void {
+        array<string> $letters = ["b", "c", "d"];
+        // The property changes when each call returns, so it ends as `abcd`.
+        foreach ($letters as string $x) {
+            $this->text = $this->add($this->text, $x);
+        }
+        echo $this->text, "\n";
+    }
+}
+
+Note $note = new Note();
+$note->run();
+--EXPECT--
+saw: a
+saw: ab
+saw: abc
+abcd

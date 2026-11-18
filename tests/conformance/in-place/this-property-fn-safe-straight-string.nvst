@@ -1,0 +1,30 @@
+--TEST--
+A string property replaced through `$this` by a private method that cannot throw has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        // `add` adds `c`, so `$this->text` is `abc`.
+        $this->text = $this->add($this->text, "c");
+        echo $this->text, "\n";
+    }
+}
+
+var $note = new Note("ab");
+$note->run();
+echo $note->text, "\n";
+--EXPECT--
+abc
+abc

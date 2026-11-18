@@ -1,0 +1,41 @@
+--TEST--
+A Novis function between two `yield`s that reads an object's array property before it changes its parameter sees the old value, and the value yielded before it stays unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Lib {
+    // Prints `$box->items`, then appends `$x` to `$items` and returns it.
+    public static function add(Box $box, array<int> $items, int $x): array<int> {
+        echo "saw: ", Lib::show($box->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function steps(): Iterator<array<int>> {
+        Box $box = new Box([1, 2]);
+        yield $box->items;
+        $box->items = Lib::add($box, $box->items, 3);
+        yield $box->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+// The first value is still `1,2` after the generator changed the property.
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+saw: 1,2
+1,2 then 1,2,3

@@ -1,0 +1,36 @@
+--TEST--
+A class property array replaced in a loop by a method that writes the same property has the value of the last call — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public array<int> $items) {}
+
+    // Sets `$this->items` to `7`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        $this->items = [7];
+        echo "callee: ", self::show($items), " / ", self::show($this->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function run(): void {
+        array<int> $xs = [3, 4, 5];
+        // Each call sees the value of the pass before it, so the end result is `1,2,3,4,5`.
+        foreach ($xs as int $x) {
+            $this->items = $this->add($this->items, $x);
+        }
+        echo self::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+$box->run();
+--EXPECT--
+callee: 1,2 / 7
+callee: 1,2,3 / 7
+callee: 1,2,3,4 / 7
+1,2,3,4,5

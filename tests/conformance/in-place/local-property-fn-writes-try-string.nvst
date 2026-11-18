@@ -1,0 +1,31 @@
+--TEST--
+An object's string property replaced by a Novis function that also writes that property has the returned value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+final class Lib {
+    // Sets the property to `z` and prints both strings. Then it adds `$x` to `$text` and returns it.
+    public static function grow(Box $box, string $text, string $x): string {
+        $box->text = "z";
+        echo "callee: ", $text, " and ", $box->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box();
+try {
+    $box->text = Lib::grow($box, $box->text, "c");
+    // The error comes after the statement, so the property is already `abc`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+callee: ab and z
+stop: abc
+abc

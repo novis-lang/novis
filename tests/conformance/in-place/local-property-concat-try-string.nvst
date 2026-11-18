@@ -1,0 +1,20 @@
+--TEST--
+An object's string property replaced by a concatenation of itself before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+Box $box = new Box();
+try {
+    $box->text = $box->text . "x";
+    // The error comes after the statement, so the property is already `abx`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+stop: abx
+abx

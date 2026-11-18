@@ -1,0 +1,39 @@
+--TEST--
+An array property replaced in a loop by a method that reads the property after its change shows each pass the value of the pass before — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Bag {
+    public array<int> $items = [];
+
+    public function constructor() {
+        $this->items = [1, 2];
+    }
+
+    // Appends `$x` to `$items`, then prints `$this->items`.
+    private function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        echo "saw: ", Bag::show($this->items), "\n";
+        return $items;
+    }
+
+    public function run(): void {
+        array<int> $extra = [3, 4, 5];
+        // The property changes when each call returns, so it ends as `1,2,3,4,5`.
+        foreach ($extra as int $x) {
+            $this->items = $this->add($this->items, $x);
+        }
+        echo Bag::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Bag $bag = new Bag();
+$bag->run();
+--EXPECT--
+saw: 1,2
+saw: 1,2,3
+saw: 1,2,3,4
+1,2,3,4,5

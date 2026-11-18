@@ -1,0 +1,38 @@
+--TEST--
+An object's array property replaced inside a `try` by a Novis function that also writes that property has the returned value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Lib {
+    // Sets the property to `7` and prints both arrays. Then it appends `$x` to `$items` and returns it.
+    public static function grow(Box $box, array<int> $items, int $x): array<int> {
+        $box->items = [7];
+        echo "callee: ", Lib::show($items), " and ", Lib::show($box->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+try {
+    // The statement stores the returned `1,2,3` over the `7` the call wrote.
+    $box->items = Lib::grow($box, $box->items, 3);
+} finally {
+    echo "finally: ", Lib::show($box->items), "\n";
+}
+echo Lib::show($box->items), "\n";
+--EXPECT--
+callee: 1,2 and 7
+finally: 1,2,3
+1,2,3

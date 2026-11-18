@@ -1,0 +1,26 @@
+--TEST--
+A string property replaced by a method that reads the property after its change shows the old value to that method — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text = "ab";
+
+    // Adds `$x` to the end of `$text`, then prints `$this->text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->text, "\n";
+        return $text;
+    }
+
+    public function run(): void {
+        // The property changes only when the call returns. The method prints `ab`.
+        $this->text = $this->add($this->text, "c");
+        echo $this->text, "\n";
+    }
+}
+
+Note $note = new Note();
+$note->run();
+--EXPECT--
+saw: ab
+abc

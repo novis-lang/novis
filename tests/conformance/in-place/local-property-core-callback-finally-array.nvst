@@ -1,0 +1,29 @@
+--TEST--
+An object's array property replaced by a `Core` function with a callback inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2, 3]);
+try {
+    // `Core\Arr::map` multiplies each value by 10, so `$box->items` is `10,20,30`.
+    $box->items = Core\Arr::map($box->items, fn(int $v): int => $v * 10);
+} finally {
+    echo "finally: ", Lib::show($box->items), "\n";
+}
+echo Lib::show($box->items), "\n";
+--EXPECT--
+finally: 10,20,30
+10,20,30

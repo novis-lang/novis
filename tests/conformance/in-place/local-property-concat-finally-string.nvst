@@ -1,0 +1,19 @@
+--TEST--
+An object's string property replaced inside a `try` by a concatenation of itself has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+Box $box = new Box();
+try {
+    // The `.` operator adds `x` to the end, so the property is `abx`.
+    $box->text = $box->text . "x";
+} finally {
+    echo "finally: ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+finally: abx
+abx

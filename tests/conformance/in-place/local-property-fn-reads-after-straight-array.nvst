@@ -1,0 +1,32 @@
+--TEST--
+A Novis function that reads an object's array property after it changes its parameter still sees the old value, and the property then has the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Lib {
+    // Appends `$x` to `$items`, then prints `$box->items` and returns `$items`.
+    public static function add(Box $box, array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        echo "saw: ", Lib::show($box->items), "\n";
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+// The property changes only when the call returns, so the call prints `1,2`.
+$box->items = Lib::add($box, $box->items, 3);
+echo Lib::show($box->items), "\n";
+--EXPECT--
+saw: 1,2
+1,2,3

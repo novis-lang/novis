@@ -1,0 +1,28 @@
+--TEST--
+A class property string replaced between two `yield`s by a concatenation that starts with it yields its old value and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public string $text) {}
+
+    public function steps(): Iterator<string> {
+        yield $this->text;
+        $this->text = $this->text . "x";
+        yield $this->text;
+    }
+}
+
+Box $box = new Box("ab");
+array<string> $seen = [];
+foreach ($box->steps() as string $v) {
+    $seen[] = $v;
+    echo $v, "\n";
+}
+// The first value is still `ab` after the change.
+echo "first: ", $seen[0], "\n";
+echo "property: ", $box->text, "\n";
+--EXPECT--
+ab
+abx
+first: ab
+property: abx

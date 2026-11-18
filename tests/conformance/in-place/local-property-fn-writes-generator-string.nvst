@@ -1,0 +1,34 @@
+--TEST--
+A generator's object property replaced by a Novis function that also writes that property yields its old string and then the returned one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+final class Lib {
+    // Sets the property to `z` and prints both strings. Then it adds `$x` to `$text` and returns it.
+    public static function grow(Box $box, string $text, string $x): string {
+        $box->text = "z";
+        echo "callee: ", $text, " and ", $box->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public static function steps(): Iterator<string> {
+        Box $box = new Box();
+        yield $box->text;
+        $box->text = Lib::grow($box, $box->text, "c");
+        yield $box->text;
+    }
+}
+
+// The first value is still `ab` after the property changed.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+callee: ab and z
+ab,abc

@@ -1,0 +1,36 @@
+--TEST--
+A string property replaced through `$this` inside a `try` by a private method that can throw, called so it does not, has the new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            // `c` is not `!`, so the `finally` prints `abc`.
+            $this->text = $this->add($this->text, "c");
+        } finally {
+            echo "finally: ", $this->text, "\n";
+        }
+    }
+}
+
+var $note = new Note("ab");
+$note->run();
+echo $note->text, "\n";
+--EXPECT--
+finally: abc
+abc

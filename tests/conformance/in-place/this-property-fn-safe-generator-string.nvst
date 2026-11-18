@@ -1,0 +1,34 @@
+--TEST--
+A string property replaced through `$this` between two `yield`s by a private method that cannot throw leaves the first yielded value unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+
+    // Gives the property, then adds `c` to it and gives the new value.
+    public function steps(): Iterator<string> {
+        yield $this->text;
+        $this->text = $this->add($this->text, "c");
+        yield $this->text;
+    }
+}
+
+var $note = new Note("ab");
+array<string> $seen = [];
+foreach ($note->steps() as string $step) {
+    $seen[] = $step;
+}
+// The first value is still `ab` after the property changed.
+echo $seen[0], " ", $seen[1], " ", $note->text, "\n";
+--EXPECT--
+ab abc abc

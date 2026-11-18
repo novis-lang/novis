@@ -1,0 +1,35 @@
+--TEST--
+A string property replaced through `$this` in a loop by a private method that can throw, called so it does not, has every change — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+
+    public function run(): void {
+        // Each pass adds one `x`, so this prints `abxxx`.
+        foreach ([1, 2, 3] as var $i) {
+            $this->text = $this->add($this->text, "x");
+        }
+        echo $this->text, "\n";
+    }
+}
+
+var $note = new Note("ab");
+$note->run();
+echo $note->text, "\n";
+--EXPECT--
+abxxx
+abxxx

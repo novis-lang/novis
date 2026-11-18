@@ -1,0 +1,31 @@
+--TEST--
+A Novis function called in a loop that reads an object's string property before it changes its parameter sees the value from the previous pass each time — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Lib {
+    // Prints `$box->text`, then adds `$x` to the end of `$text` and returns it.
+    public static function add(Box $box, string $text, string $x): string {
+        echo "saw: ", $box->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+foreach (["c", "d", "e"] as var $x) {
+    $box->text = Lib::add($box, $box->text, $x);
+}
+echo $box->text, "\n";
+--EXPECT--
+saw: ab
+saw: abc
+saw: abcd
+abcde

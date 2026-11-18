@@ -1,0 +1,32 @@
+--TEST--
+A string property replaced by a method that reads the property after its change has the new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text = "ab";
+
+    // Adds `$x` to the end of `$text`, then prints `$this->text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->text, "\n";
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            // The method prints `ab`. The property is `abc` once the call returns.
+            $this->text = $this->add($this->text, "c");
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+Note $note = new Note();
+$note->run();
+--EXPECT--
+saw: ab
+stop: abc
+abc

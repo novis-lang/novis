@@ -1,0 +1,26 @@
+--TEST--
+A generator's object property replaced by a concatenation of itself between two `yield`s yields its old string and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text = "ab";
+}
+
+final class Lib {
+    public static function steps(): Iterator<string> {
+        Box $box = new Box();
+        yield $box->text;
+        // The `.` operator adds `x` to the end, so the property is `abx`.
+        $box->text = $box->text . "x";
+        yield $box->text;
+    }
+}
+
+// The first value is still `ab` after the property changed.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abx

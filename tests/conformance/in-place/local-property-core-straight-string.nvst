@@ -1,0 +1,22 @@
+--TEST--
+An object's string property replaced by an owning `Core` call has the new value, and a copy read before it keeps the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+Box $box = new Box("shop");
+string $before = $box->text;
+// `Core\Str::upper` changes each letter to upper case, so `$box->text` is `SHOP`.
+$box->text = Core\Str::upper($box->text);
+echo $box->text, "\n";
+// `$before` was read before the change, so it is still `shop`.
+echo $before, "\n";
+--EXPECT--
+SHOP
+shop

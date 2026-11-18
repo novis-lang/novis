@@ -1,0 +1,32 @@
+--TEST--
+An array property replaced through `$this` by an owning `Core` call in a loop has the result of every pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    // Each pass adds `$x` to the end with `Core\Arr::append`.
+    public function grow(): void {
+        foreach ([3, 4, 5] as var $x) {
+            $this->items = Core\Arr::append($this->items, $x);
+        }
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $box = new Box([1, 2]);
+array<int> $before = $box->items;
+$box->grow();
+echo Box::show($box->items), "\n";
+// The copy made before the loop still has `1,2`.
+echo Box::show($before), "\n";
+--EXPECT--
+1,2,3,4,5
+1,2

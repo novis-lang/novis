@@ -1,0 +1,41 @@
+--TEST--
+A generator's object array property replaced by a `Core` function with a callback between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        Box $box = new Box([1, 2, 3]);
+        yield $box->items;
+        // `Core\Arr::map` multiplies each value by 10, so `$box->items` is `10,20,30`.
+        $box->items = Core\Arr::map($box->items, fn(int $v): int => $v * 10);
+        yield $box->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $first = [];
+int $n = 0;
+foreach (Lib::steps() as array<int> $items) {
+    if ($n == 0) {
+        $first = $items;
+    }
+    $n++;
+    echo Lib::show($items), "\n";
+}
+// The first value is still `1,2,3` after the generator changed the property.
+echo Lib::show($first), "\n";
+--EXPECT--
+1,2,3
+10,20,30
+1,2,3

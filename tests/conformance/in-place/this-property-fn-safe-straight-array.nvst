@@ -1,0 +1,34 @@
+--TEST--
+An array property replaced through `$this` by a private method that cannot throw has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Bag {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    // Appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public function run(): void {
+        // `add` appends 3, so `$this->items` is `1,2,3`.
+        $this->items = $this->add($this->items, 3);
+        echo Bag::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $bag = new Bag([1, 2]);
+$bag->run();
+echo Bag::show($bag->items), "\n";
+--EXPECT--
+1,2,3
+1,2,3

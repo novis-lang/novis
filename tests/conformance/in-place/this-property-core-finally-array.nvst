@@ -1,0 +1,34 @@
+--TEST--
+An array property replaced through `$this` by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    public function grow(): void {
+        try {
+            // `Core\Arr::append` adds 3 to the end, so `$this->items` is `1,2,3`.
+            $this->items = Core\Arr::append($this->items, 3);
+        } finally {
+            echo "finally: ", Box::show($this->items), "\n";
+        }
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $box = new Box([1, 2]);
+array<int> $before = $box->items;
+$box->grow();
+echo Box::show($box->items), "\n";
+echo Box::show($before), "\n";
+--EXPECT--
+finally: 1,2,3
+1,2,3
+1,2

@@ -1,0 +1,24 @@
+--TEST--
+An object's string property replaced by an owning `Core` call inside a `try` has its new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+Box $box = new Box("shop");
+try {
+    // `Core\Str::upper` makes `$box->text` `SHOP` before the error.
+    $box->text = Core\Str::upper($box->text);
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->text, "\n";
+}
+echo $box->text, "\n";
+--EXPECT--
+stop: SHOP
+SHOP

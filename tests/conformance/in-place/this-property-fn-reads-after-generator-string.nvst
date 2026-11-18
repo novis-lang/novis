@@ -1,0 +1,31 @@
+--TEST--
+A string property replaced between two `yield`s by a method that reads the property after its change leaves the first yielded value unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text = "ab";
+
+    // Adds `$x` to the end of `$text`, then prints `$this->text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->text, "\n";
+        return $text;
+    }
+
+    public function steps(): Iterator<string> {
+        yield $this->text;
+        $this->text = $this->add($this->text, "c");
+        yield $this->text;
+    }
+}
+
+Note $note = new Note();
+array<string> $seen = [];
+foreach ($note->steps() as string $step) {
+    $seen[] = $step;
+}
+// The first value is still `ab` after the change.
+echo $seen[0], " then ", $seen[1], "\n";
+--EXPECT--
+saw: ab
+ab then abc

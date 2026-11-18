@@ -1,0 +1,34 @@
+--TEST--
+A string property replaced through `$this` by a private method that cannot throw keeps the new value when an error follows — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Note {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    // Adds `$x` to the end of `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            $this->text = $this->add($this->text, "c");
+            // The error comes after the change, so the `catch` prints `abc`.
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->text, "\n";
+        }
+        echo $this->text, "\n";
+    }
+}
+
+var $note = new Note("ab");
+$note->run();
+--EXPECT--
+stop: abc
+abc

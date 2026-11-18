@@ -1,0 +1,35 @@
+--TEST--
+An array property replaced through `$this` by `Core\Arr::map` before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    public function double(): void {
+        try {
+            // `Core\Arr::map` doubles every value, so `$this->items` is `2,4`.
+            $this->items = Core\Arr::map($this->items, fn(int $v): int => $v * 2);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", Box::show($this->items), "\n";
+        }
+        echo Box::show($this->items), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $box = new Box([1, 2]);
+array<int> $before = $box->items;
+$box->double();
+echo Box::show($before), "\n";
+--EXPECT--
+stop: 2,4
+2,4
+1,2

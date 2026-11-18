@@ -1,0 +1,27 @@
+--TEST--
+A class property array replaced by a literal that spreads it has the new value, and a copy taken before is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public function constructor(public array<int> $items) {}
+
+    public function run(): void {
+        array<int> $before = $this->items;
+        // The literal copies every item and adds `9`, so `$this->items` is `1,2,9`.
+        $this->items = [...$this->items, 9];
+        echo self::show($this->items), "\n";
+        echo "before: ", self::show($before), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+$box->run();
+echo Box::show($box->items), "\n";
+--EXPECT--
+1,2,9
+before: 1,2
+1,2,9

@@ -1,0 +1,23 @@
+--TEST--
+An object's string property replaced by an owning `Core` call in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+Box $box = new Box("shopping");
+string $before = $box->text;
+// Each pass drops the first character, so three passes leave `pping`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->text = Core\Str::slice($box->text, 1);
+}
+echo $box->text, "\n";
+echo $before, "\n";
+--EXPECT--
+pping
+shopping

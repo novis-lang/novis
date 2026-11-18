@@ -1,0 +1,30 @@
+--TEST--
+An array property replaced through `$this` by `Core\Arr::map` has its new value, and a copy made before has its old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    // `Core\Arr::map` doubles every value, so `$this->items` is `2,4`.
+    public function double(): void {
+        $this->items = Core\Arr::map($this->items, fn(int $v): int => $v * 2);
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $box = new Box([1, 2]);
+array<int> $before = $box->items;
+$box->double();
+echo Box::show($box->items), "\n";
+// The copy made before the call still has `1,2`.
+echo Box::show($before), "\n";
+--EXPECT--
+2,4
+1,2
