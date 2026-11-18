@@ -398,6 +398,36 @@ which the `compile` ladders under `benches/scaling/compiler/` keep linear.
 `arrays-in-place` stage 2 and `strings-in-place` stages 2 and 3 touch only the runtime representation
 and can run as side goals at any time.
 
+**How the off switch reaches the IR (my call, 2026-11-18).** `nvs_ir::lower::without_in_place` is a
+scoped thread-local, as `with_debug_slots` is, so a test lowers both ways in one process with no
+global state. The `Program` records it (`Program::in_place`), and the artifact cache skips such a
+program as it skips a debug one. The CLI's process switch is `crates/nvs-cli/src/in_place.rs`, and
+`nvs test` hands it to each case's process as `NOVIS_NO_IN_PLACE`, as `--probes` does. Today it turns
+off `last_use_move` and the `=` self-concatenation; stage 3 points it at `ownership.rs` instead, and
+the pass is skipped whole. `--no-in-place-too` runs the trees a second time outside the selection
+store, because the store's verdicts are the shipped binary's.
+
+**The matrix's ruled-out cells (my call).** `.` and interpolation make a `string`, a spread an
+`array`. The three `fn-` values that read or write the slot need a slot a callee can reach: a property,
+a static property, an element of a property or a chain. A generator takes no `inout` parameter. That
+leaves 689 cells.
+
+**The case brief (my call).** Every batch gets the same brief, written to a scratch file it reads.
+The exemplar is `tests/conformance/in-place/local-fn-fails-try-array.nvst`. The value slugs: `core`
+(an owning member with no callback), `core-callback`, `fn-safe` (a `public static function` on a
+`final class` that changes its parameter and cannot throw after it), `fn-fails` (throws `LogicError`
+after its change when an argument says so; outside `try` it is called so it does not throw),
+`fn-reads-before`, `fn-reads-after`, `fn-writes`, `concat` (`$t = $t . "x"`), `interpolation`
+(`$t = "{$t}x"`), `spread` (`$t = [...$t, 9]`). The contexts: `straight`; `loop` (at least three
+runs, print after); `try` (the `catch` prints the target, an error after the statement, and a print
+after the `try`); `finally` (the `finally` prints it); `generator` (the statement between two
+`yield`s, the target yielded after it, and the consumer keeps the first yielded value and prints it
+after the change, so a change made in place on a value the consumer still has shows). An array
+literal written in a `foreach` header has `mixed` items, so a loop uses `as var $x` or a typed local.
+Arrays are `array<int>` joined with `,` to print. Each case
+is 15 to 35 lines, cites `rule:types/a-replaced-value-is-changed-in-place` in its `--TEST--` line,
+passes under `nvs test` and `nvs test --no-in-place` by path, and runs no `cargo`.
+
 ## Stages
 
 ### 1. the rule, the off switch and the matrix of every replacement form
@@ -406,13 +436,13 @@ and can run as side goals at any time.
 the cases in batches of about fifteen. Each batch is one target kind, so the subagents' files are
 disjoint and they run side by side. The session runs the test once all batches end.
 
-- [ ] `docs/rules/types/a-replaced-value-is-changed-in-place.md:1`: the rule, with every decision
+- [x] `docs/rules/types/a-replaced-value-is-changed-in-place.md:1`: the rule, with every decision
   above, the lent body for a Novis callee and the cost lines. `rule:core-api/nothing-mutates` points to it
   and drops its own claim. One line in `docs/ground-rules.md`. `bun nv rules --render`, then
   `bun nv rules --check` is green.
-- [ ] `--no-in-place` on `run`, `test` and `serve` in `crates/nvs-cli/src/main.rs`, hidden, reaching
+- [x] `--no-in-place` on `run`, `test` and `serve` in `crates/nvs-cli/src/main.rs`, hidden, reaching
   the IR's options. `tools/nv/cmd/suite.ts` gains `--no-in-place-too`.
-- [ ] `crates/nvs-ir/src/lower/tests.rs`: `every_replacement_form_has_a_case` builds the matrix from
+- [x] `crates/nvs-ir/src/lower/tests.rs`: `every_replacement_form_has_a_case` builds the matrix from
   the grammar and fails naming each missing case under `tests/conformance/in-place/`. The axes are:
   - Target: local, parameter, `inout` parameter, captured variable, property of `$this`, property of a
     local, static property, array element, element of a property, and a property chain.
@@ -425,7 +455,13 @@ disjoint and they run side by side. The session runs the test once all batches e
   - Kind: array and string.
   Each case prints the target after the statement, and in a `try` after an error too. It is named
   `<target>-<value>-<context>-<kind>.nvst`.
-- [ ] The cases, through the subagents.
+- [ ] The cases, through the subagents: 689 cells. Each batch's brief is § *Standing decisions*'
+  **The case brief**, written to a scratch file the subagents read.
+  - [x] `local` and `parameter` (110 cases)
+  - [ ] `inout` and `captured` (44 and 55; no `inout` in a generator)
+  - [ ] `this-property` and `local-property` (85 each)
+  - [ ] `static-property` and `element` (85 and 55)
+  - [ ] `property-element` and `property-chain` (85 each), then the test is green
 
 ### 2. a Core member owns its subject whenever its signature says so, and every such member does
 
@@ -544,8 +580,32 @@ the carry of a `Core\Arr::reduce` callback, a by-value loop that writes only the
 generator's local after a resume. The person agreed to add the first three; the fourth was measured
 after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
 
+Session of 2026-11-18. The sweep's two reds were stale: `env-secret-proofs` has no log and was last
+named by `route-parameters`' retire commit, and the nightly `supply chain` run predates `0fe2fdef25`,
+which removed chrono. Stage 1's first three items landed: the designed rule
+`rule:types/a-replaced-value-is-changed-in-place` (`f2a676192e`), the hidden `--no-in-place` and
+`bun nv suite --no-in-place-too` (`bdb63ad386`), and `every_replacement_form_has_a_case`
+(`157a84b101`), which owes 689 cells. The `local` and `parameter` cells are written, 110 cases, each
+green under `nvs test` and `nvs test --no-in-place` (`92eebe1ad5`). Eight writing subagents took one
+target, one kind and two or three contexts each, about 37k tokens apiece.
+
+Every subagent found that `foreach ([1, 2, 3] as int $x)` does not compile: E0401 says a literal in a
+`foreach` header has `mixed` items. That is not this goal's; see § *Backlog*.
+
 ### Next
 
-Stage 1 from its first item, with stage 2 beside it.
+Stage 1's last item, from the checkpoint `inout` and `captured`. Write the brief from § *Standing
+decisions*' **The case brief** to `.agent-tmp/in-place-brief.md`, adding the run commands
+(`target/debug/nvs.exe test <paths>` and the same with `--no-in-place`, no `cargo`, no commit) and a
+report of at most 15 lines. Send one writing subagent per target, kind and two or three contexts, as
+this session did: about 15 cases each. `every_replacement_form_has_a_case` lists what is missing.
+After the five property-like targets, the `fn-reads-before`, `fn-reads-after` and `fn-writes` values
+need a Novis method that reads or writes the same property or static property.
+Expect `every_replacement_form_has_a_case` to stay red until the last checkpoint. Stage 2 can run
+beside stage 1.
 
 ### Backlog
+
+- `foreach ([1, 2, 3] as int $x)` is E0401 because the literal's items are `mixed`. An element type
+  inferred from the literal would accept it. Whether the checker should infer it belongs to a goal on
+  `var` inference, not this one.
