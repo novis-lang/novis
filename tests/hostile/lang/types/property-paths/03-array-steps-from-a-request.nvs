@@ -44,7 +44,7 @@ echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " paths\n";
 //    It is caught, so the step after it still runs.
 tainted string $where = Core\Request::query('where') ?? '{authors.@value.email} = 1';
 try {
-    tainted string<propertyPath<Book>> $condition =$where as string<propertyPath<Book>>;
+    tainted string<propertyPath<Book>> $condition = $where as string<propertyPath<Book>>;
     echo '2: BAD, converted ', $condition as string, "\n";
 } catch (RuntimeError $e) {
     echo "2: caught the conversion\n";

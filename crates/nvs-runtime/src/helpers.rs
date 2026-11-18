@@ -3322,7 +3322,10 @@ enum PathMiss<'a> {
     /// A property segment that `class` does not have.
     NoProperty { class: &'a [u8], segment: &'a [u8] },
     /// `@key` or `@value` after something that is not an array.
-    NotArray { before: PathBefore<'a>, segment: &'a [u8] },
+    NotArray {
+        before: PathBefore<'a>,
+        segment: &'a [u8],
+    },
     /// Any segment after one the path cannot step past.
     DeadEnd(PathBefore<'a>),
 }
@@ -3339,22 +3342,39 @@ impl PathMiss<'_> {
                 text(segment)
             ),
             Self::NoProperty { class, segment } => {
-                format!("`{}` has no public property `${}`", text(class), text(segment))
+                format!(
+                    "`{}` has no public property `${}`",
+                    text(class),
+                    text(segment)
+                )
             }
-            Self::NotArray { before: PathBefore::Key, .. } | Self::DeadEnd(PathBefore::Key) => {
+            Self::NotArray {
+                before: PathBefore::Key,
+                ..
+            }
+            | Self::DeadEnd(PathBefore::Key) => {
                 "`@key` ends a property path, so nothing can follow it".to_owned()
             }
-            Self::NotArray { before: PathBefore::Root(class), segment } => format!(
+            Self::NotArray {
+                before: PathBefore::Root(class),
+                segment,
+            } => format!(
                 "`{}` is a class, so the path cannot start with `{}`",
                 text(class),
                 text(segment)
             ),
-            Self::NotArray { before: PathBefore::Property { name, .. }, segment } => format!(
+            Self::NotArray {
+                before: PathBefore::Property { name, .. },
+                segment,
+            } => format!(
                 "`${}` is not an array, so the path cannot take `{}` after it",
                 text(name),
                 text(segment)
             ),
-            Self::NotArray { before: PathBefore::Value(_), segment } => format!(
+            Self::NotArray {
+                before: PathBefore::Value(_),
+                segment,
+            } => format!(
                 "`@value` is not an array, so the path cannot take `{}` after it",
                 text(segment)
             ),

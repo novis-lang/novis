@@ -666,7 +666,10 @@ fn property_segment(analysed: &Analysed, offset: BytePos) -> Option<(String, Spa
             format!("`{}`", analysed.interner.describe(step.array))
         };
         let (ty, sentence) = if step.key {
-            ("int|string".to_owned(), format!("The key of an element of {array}."))
+            (
+                "int|string".to_owned(),
+                format!("The key of an element of {array}."),
+            )
         } else {
             (
                 analysed.interner.describe(found.ty),
