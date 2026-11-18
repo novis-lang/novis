@@ -3236,6 +3236,10 @@ enum Filling<'a> {
         base: usize,
         /// Where the value after the last key goes.
         next: Next,
+        /// The declared field the next key's search starts at: the one after
+        /// the field matched last, so a document in declared order costs one
+        /// compare per key.
+        from: usize,
         /// The keys the contract does not declare, kept only to refuse a
         /// repeat, and made only once the first one appears.
         undeclared: Option<std::collections::HashSet<Box<str>>>,
@@ -3391,7 +3395,9 @@ impl<T> Levels<T> {
 /// yet, and each growth is asked from the request's budget first. An object
 /// is built at its closing brace ([`build_object`]), so a constructor runs on
 /// the stack the call came in on. A value no contract fills is [`build`]'s.
-/// A declared key is matched from the borrowed text. Each value counts one
+/// A declared key is matched on its borrowed bytes, from the field after the
+/// one matched last ([`declared`]), and only a key no field declares is
+/// validated as text, since it is kept. Each value counts one
 /// step of `deadline`'s poll. Every check [`build`] makes still applies, with
 /// the same message, and a repeated key is refused once its value is read.
 ///
@@ -3406,29 +3412,49 @@ fn fill<'a, S: reader::Source>(
     builder: &mut Builder<'a>,
     deadline: Option<&Deadline>,
 ) -> Result<Found<'a>, Halt> {
-    use reader::{Code, Event};
+    use reader::{Code, Event, Keyed};
     let mut frames = Levels::new();
     loop {
-        let Some(event) = reader.next()? else {
-            // Unreachable: the reader refuses a text that ends inside a value.
-            return Err(reader.refuse(Code::EofWhileParsingValue).into());
-        };
-        let found = match event {
-            Event::Key(key) => {
-                let Some(Filling::Object { contract, next, .. }) = frames.last_mut() else {
+        let event = match reader.next_keyed()? {
+            Some(Keyed::Event(event)) => event,
+            Some(Keyed::Key(key)) => {
+                let Some(Filling::Object {
+                    contract,
+                    next,
+                    from,
+                    ..
+                }) = frames.last_mut()
+                else {
                     // Unreachable: the reader gives a key only inside an
                     // object, and an object a contract does not fill is
                     // `build`'s.
                     return Err(reader.refuse(Code::KeyMustBeAString).into());
                 };
-                if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(key.len())) {
+                let bytes = key.bytes();
+                if !nvs_runtime::budget::affords(size_of::<Value>().saturating_add(bytes.len())) {
+                    // A key that is not text is refused first, as it is when
+                    // a key is validated as it is read.
+                    key.text()?;
                     return Err(reader.refuse(Code::OverMemory).into());
                 }
-                *next = match contract.fields().iter().position(|field| field.key == key) {
-                    Some(index) => Next::Field(index),
-                    None => Next::Undeclared(key.into()),
+                *next = match declared(contract.fields(), *from, bytes) {
+                    Some(index) => {
+                        *from = index + 1;
+                        Next::Field(index)
+                    }
+                    None => Next::Undeclared(key.text()?.into()),
                 };
                 continue;
+            }
+            None => {
+                // Unreachable: the reader refuses a text that ends inside a value.
+                return Err(reader.refuse(Code::EofWhileParsingValue).into());
+            }
+        };
+        let found = match event {
+            Event::Key(_) => {
+                // Unreachable: `next_keyed` gives a key as `Keyed::Key`.
+                return Err(reader.refuse(Code::KeyMustBeAString).into());
             }
             Event::EndObject => {
                 let Some(Filling::Object { contract, base, .. }) = frames.pop() else {
@@ -3491,6 +3517,7 @@ fn fill<'a, S: reader::Source>(
                             contract,
                             base,
                             next: Next::Key,
+                            from: 0,
                             undeclared: None,
                         });
                         continue;
@@ -3543,6 +3570,7 @@ fn fill<'a, S: reader::Source>(
                 base,
                 next,
                 undeclared,
+                ..
             } => match std::mem::replace(next, Next::Key) {
                 Next::Field(index) => {
                     // Each object has one slot per field. On the refusal,
@@ -3583,6 +3611,29 @@ fn fill<'a, S: reader::Source>(
             },
         }
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The keys [`declared`] has compared on this thread, for the test that
+    /// holds a document in declared order to one compare per key.
+    static KEYS_COMPARED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The index of the field of `fields` whose key is `key`, compared as bytes.
+///
+/// The search starts at `from` and wraps, so a document that keeps the
+/// declared order costs one compare per key. A class has few fields, so no
+/// table is built. Two fields never share a key, so the start does not change
+/// which field matches.
+fn declared(fields: &[nvs_runtime::CodecField], from: usize, key: &[u8]) -> Option<usize> {
+    let count = fields.len();
+    let from = if from >= count { 0 } else { from };
+    (from..count).chain(0..from).find(|&index| {
+        #[cfg(test)]
+        KEYS_COMPARED.with(|compared| compared.set(compared.get() + 1));
+        fields[index].key.as_bytes() == key
+    })
 }
 
 /// Writes `found` into `slot`, or returns `true` where the slot is filled
@@ -6519,6 +6570,144 @@ pub(crate) mod tests {
         );
         let table: &'static ClassTable = Box::leak(Box::new(table));
         (table.desc(id), shape)
+    }
+
+    /// Reads `text` against an `int` shape of `keys`, as one object or as a
+    /// list of them, and gives each object's fields in slot order, or the
+    /// error's message. Also gives how many keys were validated as text and
+    /// how many compares the key search made.
+    fn read_ints(
+        keys: &[&str],
+        list: bool,
+        text: &str,
+    ) -> (Result<Vec<Vec<i64>>, String>, usize, usize) {
+        let (class, shape) = int_shape(keys);
+        let lists = Lists::default();
+        #[expect(
+            unsafe_code,
+            reason = "`int_shape` leaks its table, so both addresses outlive the read"
+        )]
+        let contract = unsafe { Contract::new(class, Some(shape)) }.over(Reading::Wire(&lists));
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut builder = Builder::new(&mut ctx);
+        let validated = reader::KEYS_VALIDATED.with(std::cell::Cell::get);
+        let compared = KEYS_COMPARED.with(std::cell::Cell::get);
+        let found = read_against(
+            text,
+            DEFAULT_MAX_DEPTH_U32,
+            contract,
+            list,
+            &mut builder,
+            None,
+        );
+        let validated = reader::KEYS_VALIDATED.with(std::cell::Cell::get) - validated;
+        let compared = KEYS_COMPARED.with(std::cell::Cell::get) - compared;
+        let ints = |found: &Found<'_>| -> Result<Vec<i64>, String> {
+            match found {
+                Found::Built(value) => {
+                    let ptr = value.obj_ptr().expect("a built shape is an object");
+                    #[expect(
+                        unsafe_code,
+                        reason = "`found` owns a reference to a live allocation, and the \
+                                  rebuilt handle is never dropped"
+                    )]
+                    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+                    Ok((0..keys.len())
+                        .map(|slot| object.field(slot).as_int().expect("every field is an int"))
+                        .collect())
+                }
+                Found::Failed(issues) => Err(issues
+                    .iter()
+                    .map(|issue| format!("{}: {}", issue.render(), issue.message))
+                    .collect::<Vec<_>>()
+                    .join("; ")),
+                _ => panic!("{text} holds objects"),
+            }
+        };
+        let read = match &found {
+            Err(why) => Err(why.to_string()),
+            Ok(Found::List(items)) => items.iter().map(ints).collect(),
+            Ok(object) => ints(object).map(|fields| vec![fields]),
+        };
+        (read, validated, compared)
+    }
+
+    /// A key a field declares is compared with the field's key as bytes and
+    /// is never validated as text, even when it is written with an escape.
+    /// Only a key no field declares is validated, once, since it is kept.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_declared_key_is_matched_on_its_bytes() {
+        let keys = ["a", "b", "c"];
+        let (read, validated, _) = read_ints(&keys, false, r#"{"a":1,"b":2,"c":3}"#);
+        assert_eq!(read, Ok(vec![vec![1, 2, 3]]));
+        assert_eq!(validated, 0, "no declared key is validated");
+
+        let escaped = "{\"a\":1,\"\\u0062\":2,\"c\":3}";
+        assert!(escaped.contains("\\u0062"), "the escape is in the text");
+        let (read, validated, _) = read_ints(&keys, false, escaped);
+        assert_eq!(read, Ok(vec![vec![1, 2, 3]]));
+        assert_eq!(
+            validated, 0,
+            "a declared key with an escape is not validated"
+        );
+
+        let (read, validated, _) = read_ints(&keys, false, r#"{"a":1,"zz":9,"b":2,"c":3}"#);
+        assert_eq!(read, Ok(vec![vec![1, 2, 3]]));
+        assert_eq!(validated, 1, "the undeclared key is validated once");
+    }
+
+    /// A document whose keys keep the declared order costs one compare per
+    /// key, in one object and in every object of a list.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_document_in_declared_order_costs_one_compare_per_key() {
+        let keys = ["a", "b", "c", "d"];
+        let (read, _, compared) = read_ints(&keys, false, r#"{"a":1,"b":2,"c":3,"d":4}"#);
+        assert_eq!(read, Ok(vec![vec![1, 2, 3, 4]]));
+        assert_eq!(compared, 4);
+
+        let objects = 25;
+        let text = format!(
+            "[{}]",
+            vec![r#"{"a":1,"b":2,"c":3,"d":4}"#; objects].join(",")
+        );
+        let (read, _, compared) = read_ints(&keys, true, &text);
+        assert_eq!(read, Ok(vec![vec![1, 2, 3, 4]; objects]));
+        assert_eq!(compared, 4 * objects);
+    }
+
+    /// Keys out of the declared order still fill their fields, a key written
+    /// twice is refused and named whether a field declares it or not, and a
+    /// key no field declares is read and left out.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_key_out_of_order_or_repeated_is_matched_as_before() {
+        let keys = ["a", "b", "c"];
+        for text in [
+            r#"{"c":3,"a":1,"b":2}"#,
+            r#"{"b":2,"c":3,"a":1}"#,
+            r#"{"c":3,"b":2,"a":1}"#,
+            r#"{"x":[1,{"y":2}],"c":3,"b":2,"z":null,"a":1}"#,
+        ] {
+            let (read, _, _) = read_ints(&keys, false, text);
+            assert_eq!(read, Ok(vec![vec![1, 2, 3]]), "{text}");
+        }
+
+        for (text, key) in [
+            (r#"{"a":1,"b":2,"a":1,"c":3}"#, "a"),
+            (r#"{"c":3,"a":1,"b":2,"c":3}"#, "c"),
+            (r#"{"a":1,"x":0,"b":2,"x":0,"c":3}"#, "x"),
+        ] {
+            let (read, _, _) = read_ints(&keys, false, text);
+            let why = read.expect_err(text);
+            let named = format!(r#"the key "{key}" appears twice in one object"#);
+            assert!(why.contains(&named), "{text}: {why}");
+        }
+
+        let (read, _, _) = read_ints(&keys, false, r#"{"a":1,"b":2}"#);
+        let why = read.expect_err("a missing key is an issue");
+        assert!(why.contains('c'), "{why} names `c`");
     }
 
     /// An integer literal outside `int` under a typed field follows the field:

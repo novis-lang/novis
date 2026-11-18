@@ -125,6 +125,73 @@ pub(crate) enum Event<'a> {
     EndObject,
 }
 
+/// One token of the document as [`Reader::next_keyed`] gives it: a key as
+/// its bytes, and every other token as [`Reader::next`] gives it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Keyed<'a> {
+    /// An object key, not yet validated as text.
+    Key(Key<'a>),
+    /// Any token but a key.
+    Event(Event<'a>),
+}
+
+/// An object key's bytes, with its escapes resolved, and where it ended.
+///
+/// A caller that compares it with a key it knows needs no validation: a key
+/// it knows is text, so equal bytes are text too. [`Key::text`] validates it
+/// where the caller keeps it, and refuses it at the place [`Reader::next`]
+/// would have.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Key<'a> {
+    bytes: &'a [u8],
+    /// The line of the byte after the closing quote, its offset in the whole
+    /// text, and the offset its line starts at.
+    line: usize,
+    offset: usize,
+    line_start: usize,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The keys [`Key::text`] has validated on this thread, for the tests
+    /// that hold a declared key to no validation.
+    pub(crate) static KEYS_VALIDATED: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
+impl<'a> Key<'a> {
+    /// The key's bytes.
+    pub(crate) const fn bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+
+    /// The key as text.
+    ///
+    /// # Errors
+    ///
+    /// The bytes are not UTF-8: the error [`Reader::next`] gives for them.
+    pub(crate) fn text(&self) -> Result<&'a str, Error> {
+        #[cfg(test)]
+        KEYS_VALIDATED.with(|count| count.set(count.get() + 1));
+        utf8(self.bytes, self.line, self.offset, self.line_start)
+    }
+}
+
+/// `bytes` as text, refused where they are not UTF-8. The position is
+/// `serde_json`'s: the column after the closing quote, at `offset` on `line`,
+/// less the bytes from the first invalid one to the string's end.
+fn utf8(bytes: &[u8], line: usize, offset: usize, line_start: usize) -> Result<&str, Error> {
+    std::str::from_utf8(bytes).map_err(|why| {
+        let column = (offset - line_start).saturating_sub(bytes.len() - why.valid_up_to());
+        Error {
+            code: Code::InvalidUnicodeCodePoint,
+            line,
+            column,
+            byte: (line_start + column).saturating_sub(1),
+        }
+    })
+}
+
 /// A number, as the document wrote it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Number {
@@ -539,6 +606,35 @@ impl<S: Source> Reader<S> {
         }))
     }
 
+    /// The next event as [`Reader::next`] gives it, but a key as its bytes,
+    /// which are not validated as text. A typed decode matches a declared key
+    /// on them, and validates only a key it keeps.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Reader::next`], but a key that is not UTF-8.
+    pub(crate) fn next_keyed(&mut self) -> Result<Option<Keyed<'_>>, Error> {
+        let Some(token) = self.step()? else {
+            return Ok(None);
+        };
+        Ok(Some(match token {
+            Token::Key(span) => Keyed::Key(Key {
+                bytes: self.bytes(span),
+                line: self.line,
+                offset: self.offset(),
+                line_start: self.line_start,
+            }),
+            Token::Null => Keyed::Event(Event::Null),
+            Token::Bool(value) => Keyed::Event(Event::Bool(value)),
+            Token::Number(number) => Keyed::Event(Event::Number(number)),
+            Token::Str(span) => Keyed::Event(Event::Str(self.text(span)?)),
+            Token::StartArray => Keyed::Event(Event::StartArray),
+            Token::EndArray => Keyed::Event(Event::EndArray),
+            Token::StartObject => Keyed::Event(Event::StartObject),
+            Token::EndObject => Keyed::Event(Event::EndObject),
+        }))
+    }
+
     /// `code` right after the token [`Reader::next`] gave last: a caller's
     /// refusal of a token the grammar allows, where `serde_json` places a
     /// visitor's error.
@@ -546,24 +642,18 @@ impl<S: Source> Reader<S> {
         self.fail(code)
     }
 
-    /// A string's bytes as text, refused where they are not UTF-8. The
-    /// position is `serde_json`'s: the column after the closing quote, less the
-    /// bytes from the first invalid one to the string's end.
-    fn text(&self, span: Span) -> Result<&str, Error> {
-        let bytes = match span {
+    /// A string's bytes, read right after its closing quote.
+    fn bytes(&self, span: Span) -> &[u8] {
+        match span {
             Span::Chunk(from, to) => self.source.chunk().get(from..to).unwrap_or_default(),
             Span::Scratch => &self.scratch,
-        };
-        std::str::from_utf8(bytes).map_err(|why| {
-            let column =
-                (self.offset() - self.line_start).saturating_sub(bytes.len() - why.valid_up_to());
-            Error {
-                code: Code::InvalidUnicodeCodePoint,
-                line: self.line,
-                column,
-                byte: (self.line_start + column).saturating_sub(1),
-            }
-        })
+        }
+    }
+
+    /// A string's bytes as text, refused where they are not UTF-8, as
+    /// [`utf8`] places the refusal.
+    fn text(&self, span: Span) -> Result<&str, Error> {
+        utf8(self.bytes(span), self.line, self.offset(), self.line_start)
     }
 
     /// The offset of the next byte in the whole text.

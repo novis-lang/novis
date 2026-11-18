@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/json/reader.rs, d
 stages:
   - id: 1
     title: a declared key is matched on its bytes, at the place the last key left off
-    status: open
+    status: done
   - id: 2
     title: a value is checked when it is read, and an object is built straight from its slots
     status: open
@@ -84,8 +84,9 @@ n = 10, so the constant never has to be known. Today the same difference is n ×
 **Key matching (my call).** A key is compared as bytes. The search starts at the property after the
 one matched last and wraps, so a document that keeps the declared order costs one compare per key. No
 hash table is built: a class has few properties, and a table per class is memory held for the life of
-the unit. A key is validated as text only when it is undeclared and kept, or when it carries an
-escape.
+the unit. A key is validated as text only when it is undeclared, since it is kept. A declared key
+with an escape is not validated either: a declared key is text, so equal bytes are text too. A key
+that is not text and meets the memory ceiling is validated first, so its error is today's.
 
 **One touch (my call).** `fill` checks a declared scalar against its property's type when it reads
 it. A value of the wrong type stores the issue the second pass would have reported, at the same
@@ -114,14 +115,20 @@ and can run beside it as a side goal. Its stages share `json.rs` and run in orde
 
 ### 1. a declared key is matched on its bytes, at the place the last key left off
 
-- [ ] `crates/nvs-stdlib/src/json/reader.rs:839` `Reader::key` and `:534` `Reader::text`: a key with no
+- [x] `crates/nvs-stdlib/src/json/reader.rs:839` `Reader::key` and `:534` `Reader::text`: a key with no
   escape is given to its caller as bytes with no validation. The caller validates it where it keeps
   it (`json.rs:3429`, the undeclared key). Every other caller of `key` keeps today's validated text.
-- [ ] `crates/nvs-stdlib/src/json.rs:3417` the key event in `fill`: the compare is on bytes, and the
+  - [x] `Reader::next_keyed` gives a key as `Keyed::Key`, whose `Key::text` validates it where `next` would.
+  - [x] `Reader::next` and its callers are unchanged.
+- [x] `crates/nvs-stdlib/src/json.rs:3417` the key event in `fill`: the compare is on bytes, and the
   search starts after the property matched last in this object, kept in the object's `Filling` frame
   (`:3317`).
-- [ ] The three tests the `key-match` check names, in the tests module of `json.rs` beside `:9179`. The
+  - [x] `Filling::Object` keeps `from`, and `declared` searches from it and wraps.
+  - [x] Only an undeclared key is validated, and the ceiling's order of errors is kept.
+- [x] The three tests the `key-match` check names, in the tests module of `json.rs` beside `:9179`. The
   first two count with a `#[cfg(test)]` counter of validations and of compares. Run once by name.
+  - [x] Written beside `a_typed_integer_too_large_for_its_field_is_that_fields_issue`, on `read_ints`.
+  - [x] Run once by name: three pass.
 
 ### 2. a value is checked when it is read, and an object is built straight from its slots
 
@@ -176,14 +183,23 @@ one line each.
 
 Written on 2026-11-17 from a conversation with the person, who asked why Novis is third on `json-api`
 in the comparison. Their calls: write goals for it, and give up nothing else for these cases. Every
-other choice in § *Standing decisions* is the authoring session's call. Nothing is built yet.
+other choice in § *Standing decisions* is the authoring session's call.
 
-The map of the decode in § *Why* was read from the code that day by a subagent. Its anchors are
-checked by the first session that uses them.
+Stage 1 is done in one session (stage 2 has used none). `fill` reads with `Reader::next_keyed`
+(`reader.rs` `Keyed`, `Key`), and `declared` (`json.rs`, beside `fill_slot`) matches a key on its
+bytes from `Filling::Object`'s `from`. The `key-match` tests pass, run once by name. No existing
+test is expected to go red. Two properties with one key do not compile (`types_e08.rs`), so the
+wrapping search never changes which property matches.
+
+The sweep's reds were stale: `env-secret-proofs` has no log, and the nightly `supply chain` run
+44073672172 built `2934ebe1ae`, before `chrono` was removed.
 
 ### Next
 
-Stage 1.
+Stage 2. Stage 1 moved the anchors in `json.rs`: today `scalar_of` is `:2551`, `build_object`
+`:3762`, `keep_arrays` `:3733`, `check_codec` `:4081` and `decode_list` `:5907`, and `construct` is
+`object.rs:5447`. Find the rest with `bun nv peek --locate`. The tests helper `read_ints` reads an
+`int` shape and may serve the `one-touch` tests.
 
 ### Backlog
 
