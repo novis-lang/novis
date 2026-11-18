@@ -3678,12 +3678,22 @@ tier joined to its own, so a change to the byte source stales the figure of ever
 through it. The granularity is still the file rather than the member, which is conservative in the only safe
 direction: the cost of being wrong is one command rather than a wrong number.
 
+**The ledger keeps only the records a reader uses.** The gate reads a feature's last record and the
+report's `Δ` its last two, so every `--record-perf` writes the file back with the last two of each
+feature on each machine, and the last two of each feature that carry counts. `bun nv proofs
+--compact-ledger` does the same and measures nothing. An older figure is in git's history of the file.
+The ledger's size is set by the roster and the machines, not by how often anybody measured.
+
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,
 so a fresh clone owes nothing it already has a current record for. Gating on a record from this
 machine would make every new machine owe every figure in the ledger on its first run. Nothing here
 gates a build. A regression is a row with a delta on it.
 
 **Declined:**
+- **Keeping every record the ledger was ever given.** No reader looks past a feature's last two, and
+  the file had grown to sixteen thousand rows, six of every seven unread, all of them in git already.
+- **Keeping the newest record of every `impl_hash` a feature had,** so that reverting a file needs no
+  re-measure. One per hash keeps nearly the whole ledger, and a revert costs one `--record-perf`.
 - **Instruction counts under callgrind as the recorded figure.** Callgrind runs on Linux only and
   about fifty times slower, so a sweep of every feature would take hours on one platform, and a
   ledger that expensive is not taken. Valgrind is kept for the growth ramp that does not settle

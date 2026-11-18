@@ -27,9 +27,11 @@
 //     bun nv proofs --comments PATH...     judge the comments of these programs and `details.md` files, or
 //                                          of every one under a directory, against the plain-comment
 //                                          bounds; runs nothing
-//     bun nv proofs --record-perf          measure every bench in scope with no current figure, and append
-//                                          a record per feature to the perf ledger
+//     bun nv proofs --record-perf          measure every bench in scope with no current figure, append
+//                                          a record per feature to the perf ledger, and drop the older
+//                                          records no reader uses
 //     bun nv proofs --perf-report          write data/perf/members.md from the ledger
+//     bun nv proofs --compact-ledger       drop the older records no reader uses, and measure nothing
 //
 // `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run`,
 // `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
@@ -67,7 +69,7 @@ import { abs, rel } from "../lib/paths.ts";
 import { ArgError, comparePaths, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { inPart } from "../lib/reads.ts";
 import { collect, collectParts, gapTitle, HELP_BACKLOG_REASON, implHashes, INTRO_BACKLOG_REASON, knownGap, loadPolicy, owed, PROOFS, shownProofs, skippedOf, textProblems, walk, type Policy, type Proof, type Proofs, type Skips } from "../proofs/collect.ts";
-import { perfReport, recordPerf } from "../proofs/perf.ts";
+import { compactPerfLedger, perfReport, recordPerf } from "../proofs/perf.ts";
 import { aboutFile, benchFile, DETAILS, examplesDir, hostileDir, noteRoster, programsIn, read, roster, RosterError, type Entry } from "../proofs/roster.ts";
 import { newestNvs } from "../lib/nvs-binary.ts";
 import { bless, namedBinary, overshootScan, type Pass, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
@@ -76,7 +78,7 @@ import { featureGroup } from "../select/store.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
 
 export const summary =
-  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--overshoot] [--probe] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report]";
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--overshoot] [--probe] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report] [--compact-ledger]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
@@ -86,7 +88,7 @@ const USAGE = [
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
   "                 [--record-perf] [--reps REPS] [--force] [--note NOTE] [--no-callgrind]",
-  "                 [--perf-report] [--impl-hash FILE [FILE ...]]",
+  "                 [--perf-report] [--compact-ledger] [--impl-hash FILE [FILE ...]]",
 ].join("\n");
 
 /** What the binary is: the one named, or the newest built `nvs` (`lib/nvs-binary.ts`). A named path is
@@ -454,7 +456,7 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: blessed } = takeList(rest, "--bless"));
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
-      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--overshoot", "--probe", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--no-callgrind"],
+      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--overshoot", "--probe", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--compact-ledger", "--no-callgrind"],
       valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip"],
     }));
     const noSkip = values.get("--no-skip");
@@ -500,6 +502,7 @@ export async function run(args: string[]): Promise<number> {
     for (const path of hashed) out.push(`${hashes.get(path) || "-"} ${path}`);
     return flush(0);
   }
+  if (flags.has("--compact-ledger")) return flush(compactPerfLedger(out));
   const measures = flags.has("--record-perf");
   if (flags.has("--perf-report") && !measures) return flush(perfReport(out));
   const executes = blessed !== null || flags.has("--run") || flags.has("--verify") || flags.has("--overshoot") || flags.has("--probe");

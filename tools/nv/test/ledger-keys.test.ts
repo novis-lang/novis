@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { CACHE, ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { ENV, readLog } from "../lib/reads.ts";
-import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerRows, ledgerSigns, PERF_ANY, perfKey } from "../proofs/ledger.ts";
+import { compactLedger, LEDGER, LEDGER_KEEP, LEDGER_WHOLE, ledgerMoved, ledgerRows, ledgerSigns, PERF_ANY, perfKey } from "../proofs/ledger.ts";
 import { ledgerLine } from "../proofs/perf.ts";
 import { computeChange, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
@@ -22,6 +22,31 @@ describe("a ledger line", () => {
     const line = ledgerLine({ id: "lang:a", ns_per_op: 2, twin_ns_per_op: 0, twin_ratio: null, ratio: Infinity });
     expect(line).toBe('{"id": "lang:a", "ns_per_op": 2.0, "twin_ns_per_op": 0.0, "twin_ratio": null, "ratio": null}');
     expect(ledgerRows(line).get("lang:a")).toHaveLength(1);
+  });
+});
+
+describe("compacting the ledger", () => {
+  const rec = (id: string, machine: string, ns: number, counts = true) =>
+    JSON.stringify({ id, machine, ns_per_op: ns, ...(counts ? { allocations: ns } : {}) });
+
+  test("keeps the last two rows of each feature on each machine, in order, and every line that is not a row", () => {
+    const text = ["# kept", rec("A", "m1", 1), rec("B", "m1", 2), rec("A", "m1", 3), "not json", "", rec("A", "m1", 4), rec("B", "m1", 5)].join("\n") + "\n";
+    const out = compactLedger(text);
+    expect(out.text).toBe(["# kept", rec("B", "m1", 2), rec("A", "m1", 3), "not json", rec("A", "m1", 4), rec("B", "m1", 5)].join("\n") + "\n");
+    expect(out).toMatchObject({ kept: 4, dropped: 1 });
+    expect(compactLedger(out.text)).toMatchObject({ text: out.text, dropped: 0 });
+  });
+
+  test("keeps a feature's last two rows with counts when its newer rows have none", () => {
+    const text = [rec("A", "m1", 1), rec("A", "m1", 2), rec("A", "m2", 3, false), rec("A", "m2", 4, false), rec("A", "m2", 5, false)].join("\n");
+    expect(compactLedger(text).text).toBe([rec("A", "m1", 1), rec("A", "m1", 2), rec("A", "m2", 4, false), rec("A", "m2", 5, false)].join("\n") + "\n");
+  });
+
+  test("the gate and the report read the same rows before and after", () => {
+    const text = Array.from({ length: 9 }, (_, i) => rec(i % 2 ? "A" : "B", i % 3 ? "m1" : "m2", i)).join("\n");
+    const tail = (rows: Map<string, Record<string, unknown>[]>) =>
+      [...rows].map(([id, rs]) => [id, ["m1", "m2"].map((m) => rs.filter((r) => r.machine === m).slice(-LEDGER_KEEP))]);
+    expect(tail(ledgerRows(compactLedger(text).text))).toEqual(tail(ledgerRows(text)));
   });
 });
 

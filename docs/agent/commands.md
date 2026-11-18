@@ -240,7 +240,8 @@ bun nv rules --render                     # docs/rules/*.md and docs/ground-rule
 
 Run only the command that writes the conflicted file. A side loop's catch-up does this itself for
 the files `looper.toml`'s `[merge]` table names. The perf ledger `data/perf/members.ndjson`
-never conflicts: it is append-only, and `merge=union` keeps the lines of both sides.
+never conflicts: `merge=union` keeps the lines of both sides. A record one side's `--record-perf` dropped
+can come back that way, and the next `--record-perf` or `bun nv proofs --compact-ledger` drops it again.
 
 ## A debug cargo command never takes `-p`
 
@@ -591,7 +592,8 @@ bun nv proofs --run --group 'Core\Str' # run every example and attack in scope, 
 bun nv proofs --verify --group G       # the owed gate, then the run, for each scope in one pass
 bun nv proofs --bless <file.nvs>       # write an example's `.out` from what it prints
 bun nv proofs --comments <path>        # judge a program's comments against the plain-comment bounds
-bun nv proofs --record-perf --group G  # measure, append to data/perf/members.ndjson
+bun nv proofs --record-perf --group G  # measure, append to data/perf/members.ndjson, drop unread rows
+bun nv proofs --compact-ledger         # drop the ledger rows no reader uses, and measure nothing
 bun nv proofs --no-perf …              # any of the above, with the perf proof switched off
 ```
 

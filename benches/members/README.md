@@ -9,7 +9,8 @@ answer two questions: *we changed something — what did it cost?*, and *is this
 than it should?* — the second on the very first run, before there is anything to compare against.
 
 `bun nv proofs --record-perf` measures them and appends to
-[`data/perf/members.ndjson`](../../data/perf/members.ndjson); `--perf-report` renders
+[`data/perf/members.ndjson`](../../data/perf/members.ndjson), which keeps each feature's last two
+records per machine; `--perf-report` renders
 [`data/perf/members.md`](../../data/perf/members.md) from it. This file owns what a bench **is**.
 
 ## Where a bench goes
