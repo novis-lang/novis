@@ -140,6 +140,15 @@ its length. A result that keeps its keys keeps the subject's counter on a map, a
 at its end the counter is the new length, so `withoutLast` keeps a stack a list. A stage 3 member that
 must give a fresh build's counter on a map recomputes it.
 
+**A kept key keeps the append counter (my call, 2026-11-18).** A member whose result keeps the
+subject's keys gives it the subject's append counter, as `unset` does, on a sole subject and on a shared
+one alike. A list cut only at its end stays a list, and appends at its new length. `append` alone sets
+the counter a fresh build of its entries gives, which its conformance case pins. So `slice($a, 2, 2,
+{preserveKeys: true})` of a five-entry list appends at `5`, not at `4`. Why: the in-place cut keeps the
+counter at no cost, and a recount on a map is a walk per call that would make a queue quadratic. The
+build path matches it through `kept_counter` in `crates/nvs-stdlib/src/arr.rs`, so the result does not
+depend on who else holds the subject. **What it spends:** nothing.
+
 **Lanes.** Stage 2 touches `crates/nvs-runtime/src/array.rs` alone and can run as a side goal at any
 time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` reached.
 
@@ -195,8 +204,13 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 - [ ] The removing members, in `crates/nvs-stdlib/src/arr.rs` order: `slice` (`:3334`), `replaceRange`
   (`:3384`), `withoutFirst` (`:3581`), `withoutLast` (`:3619`), `withoutNull`, `filter`, `unique`,
   `diff`, `intersect`.
+  - [x] `slice`, `withoutFirst` and `withoutLast` keep or release in place, and build on a shared
+    subject with [`kept_counter`]'s counter.
+  - [ ] `replaceRange`, `withoutNull`, `filter`, `unique`, `diff`, `intersect`.
 - [ ] The adding members: `append` (`:3514`), `prepend` (`:3548`), `appendAll`, `padStart`, `padEnd`,
   `overlay`, `overlayDeep`, `underlay`.
+  - [x] `append` (recounts, then pushes) and `prepend` (front room) change a sole subject in place.
+  - [ ] `appendAll`, `padStart`, `padEnd`, `overlay`, `overlayDeep`, `underlay`.
 - [ ] The reordering and rewriting members: `reverse`, `sort`, `sortByKey`, `values`, `map`, `mapKeys`,
   `flip`.
 - [ ] `crates/nvs-stdlib/tests/in_place.rs`: `every_arr_member_has_a_row_here` reads every owning
@@ -204,10 +218,13 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
   keeps its storage or builds. `every_arr_member_keeps_what_it_does_not_change` checks each row on a
   sole subject. `a_shared_subject_builds_only_the_window_it_keeps` counts the entries a shared `slice`
   touches. Run once by name.
-- [ ] The reads that walked use stage 2's two readers: `last` (`:5302`), `lastKey` (`:5340`), the end
+- [x] The reads that walked use stage 2's two readers: `last` (`:5302`), `lastKey` (`:5340`), the end
   `withoutLast` looks for (`:3619`) and the start of `slice`'s window (`:3340`).
 - [ ] `bun nv scaling --check arrays/in-place-` and `bun nv scaling --check arrays/read-`, once each.
   Every ladder grows linearly.
+  - [x] `arrays/read-`: both flat (the `read-ladders` check passes).
+  - [ ] `arrays/in-place-`: 10 flat. `in-place-a-list-built-by-reduce.nvs` grows in instructions alone.
+  - [ ] `in-place-a-list-in-an-element-built-with-append.nvs` grows in bytes: the row is copied.
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -219,36 +236,44 @@ time, even before `in-place-everywhere`. Stage 3 needs `in-place-everywhere` rea
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person. Their calls: fix the cause, nothing for a
-developer to remember, and every replacement in place. Every other choice in § *Standing decisions*
-is a session's call.
+The person's calls (2026-11-17): fix the cause, nothing for a developer to remember, and every
+replacement in place. Every other choice in § *Standing decisions* is a session's call.
 
-Stages 1 and 2 are done. The fourteen ladders are under `benches/scaling/arrays/`. Every ladder but
-`in-place-a-list-built-with-a-spread.nvs` is expected red until stage 3, because the `Core\Arr`
-members still copy their subject: `bun nv scaling --check arrays/in-place-` and `arrays/read-`.
+Stages 1 and 2 are done. Stage 3 has its first group (`bbee02e081`): `append`, `prepend`, `slice`,
+`withoutFirst` and `withoutLast` change a sole subject in place, and `last` and `lastKey` read
+`last_slot`. `array.rs` gained `fresh_append_index`, `recount_append_index`, `keep_append_index_of`
+and `is_packed_list`; `arr.rs` has `Retained`, `Appended`, `kept_counter` and `release_all`.
 
-`crates/nvs-runtime/src/array.rs` now has a list with room at both ends (`Shape::Packed` is a
-`VecDeque`), a map that keeps its first live slot (`Hashed::first`), the two readers and the in-place
-operations on `NvsArray`: `last_slot` `:2448`, `slot_of_position` `:2457`, `keep_window` `:2469`,
-`drop_first` `:2479`, `drop_last` `:2485`, `prepend` `:2498`, `permute` `:2512`, `keep_by_mask`
-`:2521`, `rewrite_values` `:2533` and `rekey` `:2544`. Each states its cost. The `runtime-room` and
-`runtime-reads` checks pass, and `the_in_place_operations_give_what_a_rebuilt_array_would` covers the
-other four operations. The decision is in the module docs and in `rule:types/arrays`.
+`bun nv scaling --check arrays/read-` passes. `arrays/in-place-` is 10 flat, 2 growing:
 
-The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only
-retired goals' commits. No goal defines it.
+- `in-place-a-list-built-by-reduce.nvs` grows in instructions (slope 2), with allocations and bytes
+  flat. The likely cause: `nvs_runtime::call_callable_giving` runs `dispatch::check_param_types` on
+  every call (`crates/nvs-runtime/src/callable.rs:306`), and an `array<uint>` parameter walks every
+  element of the carry (`helpers.rs` `every_element_has_tag`). So each step costs the carry's length.
+- `in-place-a-list-in-an-element-built-with-append.nvs` grows in bytes (slope 2): `$rows['a'] =
+  Core\Arr::append($rows['a'], $i)` copies the row each step, so the element lend of
+  `rule:types/a-replaced-value-is-changed-in-place` is not taken, or the row is shared. The cause is
+  in `crates/nvs-ir/src/ownership.rs` or its lowering, not in `arr.rs`.
 
-A nullable read such as `Core\Arr::first($q) ?? 0` added straight to a `uint` is `mixed` (`E0401`),
-so the ladders read it into a `uint` variable first.
+Expected red in stage 4: a conformance case or a stdlib unit test that appends after a key-keeping
+`slice`, `withoutFirst` or `withoutLast` of a map or a cut list now sees the subject's counter
+(§ *A kept key keeps the append counter*). Update the expected output. `env-secret-proofs` in the sweep
+is stale, as the playbook says.
 
 ### Next
 
-Stage 3 in `crates/nvs-stdlib/src/arr.rs`: each owning member's body, on a sole subject (its `owns`
-`apply` path), calls the `NvsArray` operation above in place of building. Start with `append` and
-`prepend`, which five list-building ladders wait on, then `withoutFirst` (`:3601`, `drop_first(1,
-false)`), `withoutLast` (`drop_last(1)`), `slice` (`:3345`, `keep_window`), then the reads `last` and
-`lastKey` through `last_slot`. Check `withoutFirst` and `withoutLast` keep the append counter a fresh
-build gives (see § *How stage 2 built it*). Then `crates/nvs-stdlib/tests/in_place.rs` and the two
-ladder checks.
+1. The reduce ladder: confirm the element walk with a run of the ladder at two sizes, then make the
+   element check of a callback's array argument O(1) where it can be. Recommendation: the array keeps
+   the union of the tags of every value written into it (one word, one OR per write, never lowered by
+   a removal), and the check walks only when that union does not fit the declared element tags. Record
+   it in `rule:types/arrays` with what it spends.
+2. The element ladder: find why `$rows['a']` is not lent (`crates/nvs-ir/src/ownership.rs`, the lend
+   of an array-element slot) and fix it there.
+3. The rest of stage 3's members in `arr.rs`, each with the same shape as `slice`: `check` returns a
+   plan, `apply` branches on `subject.is_sole()`. `replaceRange` and `filter`/`withoutNull`/`unique`
+   through `keep_by_mask`, `reverse`/`sort`/`sortByKey` through `permute`, `map` through
+   `rewrite_values`, `mapKeys`/`flip` through `rekey`.
+4. `crates/nvs-stdlib/tests/in_place.rs`'s three tests, then both ladder checks once more.
 
 ### Backlog
+

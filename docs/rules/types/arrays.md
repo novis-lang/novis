@@ -17,7 +17,9 @@ subscripts name the same entry is decided once, at the subscript, and nothing la
 between two kinds.
 
 - `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
-  a counter the array keeps.
+  a counter the array keeps. A `Core\Arr` member whose result keeps the subject's keys keeps that
+  counter too, as `unset` does, whether the subject was shared or not. A list cut only at its end
+  appends at its new length, and `Core\Arr::append` appends one past the largest integer key present.
 - An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is
   `$a["8"]`. That is key normalisation, not a conversion, and needs no `as`. `"08"` stays a distinct
   key from `"8"`.
