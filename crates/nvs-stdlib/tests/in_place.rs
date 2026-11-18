@@ -310,7 +310,11 @@ fn a_reduce_callback_changes_its_carry_in_place() {
     // The caller still holds the seed, so the first call shares it and copies
     // once. Every later call holds the only reference to its carry.
     assert_eq!(SEEN.with(|seen| seen.borrow().clone()), vec![2, 1, 1]);
-    assert_eq!(seed.refcount(), Some(1), "the seed is the caller's alone again");
+    assert_eq!(
+        seed.refcount(),
+        Some(1),
+        "the seed is the caller's alone again"
+    );
     assert_eq!(answer.refcount(), Some(1));
     for value in [answer, seed, subject, folder] {
         dropped(value);
@@ -331,7 +335,11 @@ fn a_reduce_callback_that_throws_frees_the_carry_once() {
     // The second call's carry is the first call's fresh copy, which the
     // callback alone held and freed as it threw. The seed is untouched.
     assert_eq!(SEEN.with(|seen| seen.borrow().clone()), vec![2, 1]);
-    assert_eq!(seed.refcount(), Some(1), "the seed is the caller's alone again");
+    assert_eq!(
+        seed.refcount(),
+        Some(1),
+        "the seed is the caller's alone again"
+    );
     for value in [seed, subject, folder] {
         dropped(value);
     }

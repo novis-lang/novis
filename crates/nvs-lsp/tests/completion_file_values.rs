@@ -996,9 +996,21 @@ fn linked(name: &str, attribute: &str) -> (Vec<CompletionItem>, bool) {
 #[test]
 fn a_string_in_an_attribute_payload_offers_the_allowed_values_of_its_field() {
     for (name, attribute, want) in [
-        ("field", "#[Link(onRemove: '<|>')]", &["clear", "it's", "keep"][..]),
-        ("element", "#[Link(order: ['asc', '<|>'])]", &["asc", "desc"][..]),
-        ("nested", "#[Link(page: { size: \"<|>\" })]", &["large", "small"][..]),
+        (
+            "field",
+            "#[Link(onRemove: '<|>')]",
+            &["clear", "it's", "keep"][..],
+        ),
+        (
+            "element",
+            "#[Link(order: ['asc', '<|>'])]",
+            &["asc", "desc"][..],
+        ),
+        (
+            "nested",
+            "#[Link(page: { size: \"<|>\" })]",
+            &["large", "small"][..],
+        ),
         (
             "after",
             "#[Link(note: 'x', onRemove: '<|>')]",
