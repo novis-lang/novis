@@ -1,0 +1,24 @@
+--TEST--
+inside a string literal at a `propertyPath<T>` parameter, the `.` after an array property offers `@key`, `@value` and the public properties of the element class — `rule:types/property-path`
+--FILE--
+<?nvs
+class Author {
+    public string $name = "Ada";
+}
+class Post {
+    public string $title = "Hello";
+    public array<Author> $authors = [];
+}
+class Grid {
+    public static function sortBy(propertyPath<Post> $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("authors.<|>");
+--REQUEST--
+completion
+--EXPECT--
+@key    keyword   int|string
+@value  keyword   Author
+name    property  string

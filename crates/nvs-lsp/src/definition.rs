@@ -167,6 +167,10 @@ pub fn at(
             range: range_at(analysed.map.file(target.file), route.name, encoding),
         });
     }
+    if let Some(found) = property_segment_at(analysed, offset).filter(|found| found.step.is_some())
+    {
+        return declared(analysed, &found.target, encoding);
+    }
     let (target, _) = named_at(analysed, offset)?;
     declared(analysed, &target, encoding)
 }
@@ -766,7 +770,11 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
     type_member_at(analysed, offset)
         .or_else(|| type_name_at(analysed, offset))
         .or_else(|| written_class_name_at(analysed, offset))
-        .or_else(|| property_segment_at(analysed, offset).map(|found| (found.target, found.span)))
+        .or_else(|| {
+            property_segment_at(analysed, offset)
+                .filter(|found| found.step.is_none())
+                .map(|found| (found.target, found.span))
+        })
         .or_else(|| resolved_in(analysed, &nodes))
         .or_else(|| clause_at(analysed, offset))
         .or_else(|| attribute_at(analysed, offset))
@@ -1107,23 +1115,41 @@ pub(crate) fn written_key(analysed: &Analysed, offset: BytePos) -> Option<Writte
 /// One segment of a key or path literal: the property it names, the span it
 /// is written at, and the property's declared type.
 pub(crate) struct PathSegment<'a> {
-    /// The property, on the class the path reached at this segment.
+    /// The property, on the class the path reached at this segment. For an
+    /// array step, the array property the step follows.
     pub target: Target<'a>,
     /// The segment's own text in the literal.
     pub span: Span,
-    /// The property's declared type.
+    /// The property's declared type. For `@value`, the element type, and for
+    /// `@key`, the array's type.
     pub ty: TypeId,
+    /// The array step this segment is, or `None` for a property.
+    pub step: Option<ArrayStep>,
+}
+
+/// A `@key` or `@value` segment of a path (`rule:types/property-path`).
+#[derive(Clone, Copy)]
+pub(crate) struct ArrayStep {
+    /// `true` for `@key`, `false` for `@value`.
+    pub key: bool,
+    /// The array the step reads, `array<E>`.
+    pub array: TypeId,
+    /// Whether the segment before it is the array property itself, and not
+    /// another `@value` step.
+    pub after_property: bool,
 }
 
 /// The segment of a key or path literal the cursor at `offset` is on, stepped
 /// to over the rosters the checker recorded (`rule:types/property-path`).
 ///
-/// Each segment before it is looked up on the class the path has reached, and
-/// [`nvs_types::path_step`] gives the next class, the step the checker
-/// takes. `None` where a segment before the cursor names nothing, and for a
-/// literal with an escape in it, whose text does not map to its source byte for
-/// byte. The property is named on the class the path reached, so one inherited
-/// from a parent has no declaration to jump to.
+/// Each segment before it is looked up on the class the path has reached, or
+/// is an array's `@value` step, and [`nvs_types::path_step`] gives what the
+/// next segment steps from, the step the checker takes. A `@key` or `@value`
+/// segment answers the array property it follows. `None` where a segment
+/// before the cursor names nothing, and for a literal with an escape in it,
+/// whose text does not map to its source byte for byte. The property is named
+/// on the class the path reached, so one inherited from a parent has no
+/// declaration to jump to.
 pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Option<PathSegment<'_>> {
     let written = written_key(analysed, offset)?;
     let file = analysed.map.file(analysed.entry);
@@ -1135,7 +1161,11 @@ pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Optio
         return None;
     }
     let at = usize::try_from(offset - written.span.start - 1).ok()?;
-    let mut class = analysed.module.symbols.get(&written.class)?.qname.clone();
+    let root = analysed.module.symbols.get(&written.class)?.qname.clone();
+    let mut reached = Some(nvs_types::PathTarget::Class(root));
+    // The array property the path last named, which a step answers.
+    let mut last: Option<(QName, &str)> = None;
+    let mut after_property = false;
     let mut start = 0;
     let segments: Vec<&str> = if written.path {
         text.split('.').collect()
@@ -1144,29 +1174,62 @@ pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Optio
     };
     for segment in segments {
         let end = start + segment.len();
-        let (name, ty) = analysed
-            .exprs
-            .property_keys(&class.to_string())
-            .iter()
-            .find(|(name, _)| name == segment)?;
-        if at <= end {
-            let symbol = analysed.module.symbols.get(&class)?;
-            let begin = written.span.start + 1 + BytePos::try_from(start).ok()?;
-            return Some(PathSegment {
-                target: Target::Property {
-                    class: &symbol.qname,
-                    name,
-                },
-                span: Span {
-                    file: written.span.file,
-                    start: begin,
-                    end: begin + BytePos::try_from(segment.len()).ok()?,
-                },
-                ty: *ty,
-            });
+        let begin = written.span.start + 1 + BytePos::try_from(start).ok()?;
+        let span = Span {
+            file: written.span.file,
+            start: begin,
+            end: begin + BytePos::try_from(segment.len()).ok()?,
+        };
+        let current = reached.take()?;
+        if written.path
+            && (segment == nvs_types::PATH_KEY_STEP || segment == nvs_types::PATH_VALUE_STEP)
+        {
+            let nvs_types::PathTarget::Array { array, element } = current else {
+                return None;
+            };
+            let key = segment == nvs_types::PATH_KEY_STEP;
+            if at <= end {
+                let (class, name) = last?;
+                let symbol = analysed.module.symbols.get(&class)?;
+                return Some(PathSegment {
+                    target: Target::Property {
+                        class: &symbol.qname,
+                        name,
+                    },
+                    span,
+                    ty: if key { array } else { element },
+                    step: Some(ArrayStep {
+                        key,
+                        array,
+                        after_property,
+                    }),
+                });
+            }
+            reached = nvs_types::path_step(element, &analysed.interner);
+            after_property = false;
+        } else {
+            let class = current.property_class(&analysed.interner)?;
+            let (name, ty) = analysed
+                .exprs
+                .property_keys(&class.to_string())
+                .iter()
+                .find(|(name, _)| name == segment)?;
+            if at <= end {
+                let symbol = analysed.module.symbols.get(&class)?;
+                return Some(PathSegment {
+                    target: Target::Property {
+                        class: &symbol.qname,
+                        name,
+                    },
+                    span,
+                    ty: *ty,
+                    step: None,
+                });
+            }
+            reached = nvs_types::path_step(*ty, &analysed.interner);
+            last = Some((class, name.as_str()));
+            after_property = true;
         }
-        class =
-            nvs_types::path_step(*ty, &analysed.interner)?.property_class(&analysed.interner)?;
         start = end + 1;
     }
     None

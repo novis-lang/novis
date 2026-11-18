@@ -652,12 +652,29 @@ fn written_class_name(analysed: &Analysed, offset: BytePos) -> Option<(String, S
 /// The property one segment of a key or path literal names, for a cursor on
 /// that segment, and the segment's span: the property as its class declares
 /// it, then its `///` run. The segment is
-/// [`crate::definition::property_segment_at`]'s.
+/// [`crate::definition::property_segment_at`]'s. A `@key` or `@value` step
+/// shows its type and one sentence that names the array it reads.
 fn property_segment(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
     let found = crate::definition::property_segment_at(analysed, offset)?;
     let Target::Property { class, name } = &found.target else {
         return None;
     };
+    if let Some(step) = found.step {
+        let array = if step.after_property {
+            format!("`${name}`")
+        } else {
+            format!("`{}`", analysed.interner.describe(step.array))
+        };
+        let (ty, sentence) = if step.key {
+            ("int|string".to_owned(), format!("The key of an element of {array}."))
+        } else {
+            (
+                analysed.interner.describe(found.ty),
+                format!("An element of {array}."),
+            )
+        };
+        return Some((format!("```nvs\n{ty}\n```\n\n{sentence}"), found.span));
+    }
     let ty = format!(
         "```nvs\nclass {class} {{ public {} ${name} }}\n```",
         analysed.interner.describe(found.ty)

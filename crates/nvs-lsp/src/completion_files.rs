@@ -260,6 +260,18 @@ impl Value {
         }
     }
 
+    /// A value no completion file declares: an array step of a property path,
+    /// `@key` or `@value`, offered as a keyword with the type it reaches at
+    /// the right (`rule:types/property-path`).
+    #[must_use]
+    pub fn step(name: &str, ty: String) -> Self {
+        Self {
+            kind: CompletionItemKind::KEYWORD,
+            label_description: Some(ty),
+            ..Self::member(name.to_owned())
+        }
+    }
+
     /// [`Self::documentation`], with each relative link and image target rewritten as a `file:`
     /// URI under [`Self::folder`]. A target with a scheme, an absolute path or a `#` fragment is
     /// left as written.

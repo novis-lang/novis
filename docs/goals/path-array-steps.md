@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/helpers.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/core-classes/str-parts-and-reflect-steps.md]
   - id: 3
     title: the editor completes, explains and jumps through the two steps
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/hover.rs, tests/lsp/completion/a-property-path-completes-one-segment-at-a-time.lspt]
   - id: 4
     title: the reference, the example and the attack say what the steps do
@@ -166,14 +166,14 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** the editor steps with the stage 1 rule.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:935` `path_steps`: after an array property it offers `@key`,
+- [x] `crates/nvs-lsp/src/completion.rs:935` `path_steps`: after an array property it offers `@key`,
   `@value` and, for a class element, the element's properties. After `@value` it offers what the element
   type takes.
-- [ ] `crates/nvs-lsp/src/definition.rs:1127` `property_segment_at`: steps over `@value`, so go-to-definition,
+- [x] `crates/nvs-lsp/src/definition.rs:1127` `property_segment_at`: steps over `@value`, so go-to-definition,
   hover and rename reach a property after it. `@key` and `@value` jump to the array property they follow.
-- [ ] `crates/nvs-lsp/src/hover.rs:656` `property_segment`: hovering `@key` shows "the key of an element
+- [x] `crates/nvs-lsp/src/hover.rs:656` `property_segment`: hovering `@key` shows "the key of an element
   of `$keywords`" and `int|string`; `@value` shows the element type. End-user text.
-- [ ] `tests/lsp/completion/a-property-path-offers-key-and-value-after-an-array.lspt:1`,
+- [x] `tests/lsp/completion/a-property-path-offers-key-and-value-after-an-array.lspt:1`,
   `tests/lsp/hover/a-property-path-array-step-shows-its-type.lspt:1` and
   `tests/lsp/definition/a-property-path-segment-after-value-jumps-to-its-property.lspt:1`, modelled on
   the `a-property-path-*` cases beside each. The `editor` check runs once.
@@ -208,32 +208,30 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### State
 
-Stages 1 and 2 are done, and the `cases` check is green with all four cases.
+Stages 1, 2 and 3 are done. The `cases` and `editor` checks are green.
 
-The run-time walk (`crates/nvs-runtime/src/helpers.rs` `property_path_miss`) now returns a
-`PathMiss` enum with a `PathBefore`, in the checker's check order, and `PathMiss::reason` gives the
-clause both throws (`nvs_property_path_mismatch`, `nvs_string_holes_mismatch`) print. Every message
-matches `report_path_dead_end` and `check_path_segments` in `crates/nvs-types/src/expr/members.rs`,
-except a dead end after `@value`, which cannot name the element type (the graph does not carry it) and
-says "`@value` of `array<string>` is not an object". `path_owner` gives the class a property segment
-is read on, the shorthand included; `property_path_segments` uses it too.
+The editor steps with the checker's rule. `property_segment_at` (`crates/nvs-lsp/src/definition.rs`)
+walks `@key`, `@value` and properties through `nvs_types::path_step`, and a `PathSegment` carries an
+`ArrayStep` for a step. A step answers the array property it follows: `definition::at` jumps there,
+and `named_at` skips a step, so references and rename never treat `@key` as the property. Hover
+(`hover.rs` `property_segment`) shows `int|string` and "The key of an element of `$keywords`.", or
+the element type and "An element of `$authors`."; after another `@value` it names the array type.
+Completion (`completion.rs` `path_steps`, `path_after`) offers `@key` and `@value` as keywords, then
+the element class's properties; `open_hole` accepts `@` in a `string<propertyPath<T>>` hole.
+`completion_files::Value::step` builds the two items.
 
-`Core\Reflect::steps` (`crates/nvs-stdlib/src/reflect.rs` `nvs_core_reflect_steps`) builds the `@key`
-and `@value` rows through `array_step_type`, which reads `E` off the node's `array<E>` label.
-`STEPS_DOC`, `docs/examples/core/Reflect/steps/about.md` and the rule fragment say so. The new Rust
-test `steps_gives_a_row_for_each_array_step_and_the_element_class_for_the_shorthand` is green.
-
-The sweep's `env-secret-proofs` red is stale: its log does not exist, and the newest `git log -S` hit
-is `in-place-everywhere`'s retire commit.
+The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only
+this goal's handoff and `in-place-everywhere`'s retire commit.
 
 ### Next
 
-Stages 3 and 4 may run side by side. Stage 3 from its first item: `crates/nvs-lsp/src/completion.rs`
-`path_steps`, `definition.rs` `property_segment_at`, `hover.rs` `property_segment`, then the three
-`.lspt` cases. Stage 4: the `property-paths` `about.md`, `docs/reference/lang/20-types.md`, the example
-and the attack. Expect red until written: the `editor` check. The website's `core.json` and
-`llms-full.txt` embed the `steps` card and `about.md`, so `bun nv render --website` is owed before the
-gate (stage 4 runs it). `Core\Reflect`'s perf records are stale after this change: record them last,
-per the playbook.
+Stage 4 from its first item: `docs/examples/lang/types/property-paths/about.md:1`,
+`docs/reference/lang/20-types.md:3245`, the example `06-a-condition-on-an-array-key-and-element.nvs`
+and the attack `tests/hostile/lang/types/property-paths/03-array-steps-from-a-request.nvs`, per the
+stage's split. Run `bun nv proofs --id lang:types/property-paths` first and last. The website's
+`core.json` and `llms-full.txt` embed the `steps` card and `about.md`, so `bun nv render --website`
+is owed before the gate. `Core\Reflect`'s perf records are stale after stage 2: record them last,
+per the playbook. Expect red at the gate until stage 4 lands: the proofs gate for
+`lang:types/property-paths`.
 
 ### Backlog

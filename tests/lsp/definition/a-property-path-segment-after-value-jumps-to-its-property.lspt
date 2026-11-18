@@ -1,0 +1,16 @@
+--TEST--
+go-to-definition on a segment after `@value` in a `propertyPath<T>` literal answers the declaration of the property on the array's element class — `rule:types/property-path`
+--FILE--
+<?nvs
+class Author {
+    public string $name = "Ada";
+}
+class Post {
+    public array<Author> $authors = [];
+}
+
+echo "authors.@value.na<|>me" as propertyPath<Post>;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:3:19

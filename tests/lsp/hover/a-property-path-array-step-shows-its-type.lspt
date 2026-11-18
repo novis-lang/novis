@@ -1,0 +1,23 @@
+--TEST--
+hovering the `@key` step of a `propertyPath<T>` literal shows the type of an array's key and names the array property it follows — `rule:types/property-path`
+--FILE--
+<?nvs
+class Post {
+    public string $title = "Hello";
+    public array<string> $keywords = [];
+}
+class Grid {
+    public static function sortBy(propertyPath<Post> $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("keywords.@k<|>ey");
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+int|string
+```
+
+The key of an element of `$keywords`.

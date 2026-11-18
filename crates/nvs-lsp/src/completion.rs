@@ -900,7 +900,7 @@ fn open_hole(
         at += 1;
     }
     let open = open?;
-    let in_name = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.';
+    let in_name = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '@';
     if !text[open + 1..cursor].chars().all(in_name) {
         return None;
     }
@@ -927,11 +927,12 @@ fn open_hole(
 /// (`rule:ide/a-field-path-completes-one-segment-at-a-time`).
 ///
 /// The text up to the last `.` before the cursor is stepped over the rosters
-/// the checker recorded, with [`nvs_types::path_step`], and the names of
-/// the class it reaches are offered. Each value is that text and one name,
-/// split on `.`, so [`file_values`] replaces only the segment being written
-/// and a `.` asks for the next list. Nothing where a segment before the cursor
-/// names nothing, or names a property the path cannot step past.
+/// the checker recorded, with [`nvs_types::path_step`], and what it reaches is
+/// offered: a class's names, or after an array `@key`, `@value` and the
+/// element class's names. Each value is that text and one name, split on `.`,
+/// so [`file_values`] replaces only the segment being written and a `.` asks
+/// for the next list. Nothing where a segment before the cursor names nothing,
+/// or steps past something a path cannot step past.
 fn path_steps(
     analysed: &Analysed,
     literal: Span,
@@ -943,23 +944,32 @@ fn path_steps(
         return Vec::new();
     };
     let cut = typed.rfind('.').map_or(0, |found| found + 1);
-    let mut reached = class.to_owned();
+    let mut reached = Some(nvs_types::PathTarget::Class(nvs_hir::QName::parse(class)));
     if cut > 0 {
         for segment in typed[..cut - 1].split('.') {
-            let Some(next) = analysed
-                .exprs
-                .property_keys(&reached)
-                .iter()
-                .find(|(name, _)| name == segment)
-                .and_then(|(_, ty)| nvs_types::path_step(*ty, &analysed.interner))
-                .and_then(|target| target.property_class(&analysed.interner))
-            else {
-                return Vec::new();
-            };
-            reached = next.to_string();
+            reached = reached.and_then(|current| path_after(analysed, current, segment));
         }
     }
-    property_keys(analysed, &reached)
+    let names = match reached {
+        None => Vec::new(),
+        Some(nvs_types::PathTarget::Class(class)) => property_keys(analysed, &class.to_string()),
+        Some(nvs_types::PathTarget::Array { element, .. }) => {
+            let mut names = vec![
+                completion_files::Value::step(nvs_types::PATH_KEY_STEP, "int|string".to_owned()),
+                completion_files::Value::step(
+                    nvs_types::PATH_VALUE_STEP,
+                    analysed.interner.describe(element),
+                ),
+            ];
+            if let Some(nvs_types::PathTarget::Class(class)) =
+                nvs_types::path_step(element, &analysed.interner)
+            {
+                names.extend(property_keys(analysed, &class.to_string()));
+            }
+            names
+        }
+    };
+    names
         .into_iter()
         .map(|mut key| {
             key.value = format!("{}{}", &typed[..cut], key.value);
@@ -967,6 +977,31 @@ fn path_steps(
             key
         })
         .collect()
+}
+
+/// What a property path reaches after `segment`, from `current`
+/// (`rule:types/property-path`): an array's `@value` steps to its element, and
+/// a property of the class reached, or of an array's element class, steps to
+/// its declared type. `None` for `@key`, which ends a path, and for a segment
+/// that names nothing.
+fn path_after(
+    analysed: &Analysed,
+    current: nvs_types::PathTarget,
+    segment: &str,
+) -> Option<nvs_types::PathTarget> {
+    if segment == nvs_types::PATH_VALUE_STEP {
+        let nvs_types::PathTarget::Array { element, .. } = current else {
+            return None;
+        };
+        return nvs_types::path_step(element, &analysed.interner);
+    }
+    let class = current.property_class(&analysed.interner)?;
+    analysed
+        .exprs
+        .property_keys(&class.to_string())
+        .iter()
+        .find(|(name, _)| name == segment)
+        .and_then(|(_, ty)| nvs_types::path_step(*ty, &analysed.interner))
 }
 
 /// The names a `property<T>` over the class labelled `class` may hold, each
