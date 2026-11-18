@@ -1043,6 +1043,8 @@ ceiling, ends the request and is not one, and a refused append leaves its array 
 - A literal that opens with a spread of its own target, `$list = [...$list, $x]`, takes that source as
   an owning operand. A sole source that is a list is the literal itself, and the rest appends to it. A
   shared source, or one that is not a list, builds as before, because a spread renumbers number keys.
+  The pass moves a local into it. A property or element keeps its copy: an item after the spread can
+  fail at the memory ceiling, and its landing would free the array the slot still names.
 - `Core\Arr::reduce` gives its carry away: the callback owns it as a Novis callee owns a moved
   parameter, and its error exit frees it. It is the one member that hands a value it made to a
   callback.
