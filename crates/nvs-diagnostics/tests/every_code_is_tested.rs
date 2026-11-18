@@ -4,8 +4,8 @@
 //! A code is a promise the language makes, and `has_errors` alone proves only that something was
 //! refused. So each code in [`code::ALL`] must appear in a test the way a test asserts one: as a
 //! rendered `[E0401]`, a quoted `"E0401"`, or its constant `code::E_TYPE_MISMATCH`. A test is a
-//! file under a `tests` directory of the repository, a `.nvst` case wherever it sits, or the
-//! `#[cfg(test)]` tail of a crate's source file. This crate's own sources do not count: they
+//! file under a `tests` directory of the repository, a `.nvst` case wherever it sits, a
+//! `tests.rs` module, or the `#[cfg(test)]` tail of a crate's source file. This crate's own sources do not count: they
 //! declare the codes, and their renderer tests use a code as an arbitrary example.
 //!
 //! The walk reads the repository's `crates/` and `tests/` trees once per run of this test, through
@@ -46,7 +46,8 @@ fn declarations() -> Vec<(String, String)> {
 }
 
 /// Collects the test text under `dir`: every file below a `tests` directory, every `.nvst`
-/// case, and the `#[cfg(test)]` tail of every other `.rs` file.
+/// case, every `tests.rs` module, which its parent declares under `#[cfg(test)]`, and the
+/// `#[cfg(test)]` tail of every other `.rs` file.
 fn collect(dir: &Path, in_tests: bool, skipped: &Path, out: &mut String) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -65,7 +66,7 @@ fn collect(dir: &Path, in_tests: bool, skipped: &Path, out: &mut String) {
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
-        if in_tests || name.ends_with(".nvst") {
+        if in_tests || name.ends_with(".nvst") || name == "tests.rs" {
             out.push_str(&text);
         } else if name.ends_with(".rs")
             && let Some(at) = text.find("#[cfg(test)]")

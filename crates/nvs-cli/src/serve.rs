@@ -5961,8 +5961,9 @@ mod tests {
     /// The frames of `trace`, innermost first.
     #[cfg(debug_assertions)]
     fn frames_of(trace: &std::backtrace::Backtrace) -> Vec<Frame> {
-        // A backtrace writes a file under the current folder as `./path`.
-        let here = std::env::current_dir().unwrap_or_default();
+        // A backtrace writes a file under the current folder as `./path`, and
+        // a test of this package runs in the package's own folder.
+        let here = nvs_repo::path("crates/nvs-cli");
         let mut frames = Vec::<Frame>::new();
         for line in trace.to_string().lines() {
             let line = line.trim_start();

@@ -49,7 +49,7 @@ const DRIVERS: &[(&str, &str, Driver)] = &[
     ),
     (
         "nvs-runtime/src/callable.rs",
-        "call_callable_with",
+        "call_prepared",
         Driver::Refuses(&["a_bare_callable_call_checks_what_its_parameter_declares"]),
     ),
     (
