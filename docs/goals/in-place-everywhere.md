@@ -691,8 +691,11 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
   - [x] `nvs_ir::copies::warnings` builds them from the rows, with the fix as one reviewed suggestion.
   - [x] `front_end_in` lowers under `Sink::Check` and adds them before the secret literals are concealed.
   - [x] `a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy` passes, run once by name.
-- [ ] `crates/nvs-lsp/Cargo.toml` links `nvs-ir`. The server runs the pass on the open document after
+- [x] `crates/nvs-lsp/Cargo.toml` links `nvs-ir`. The server runs the pass on the open document after
   its type diagnostics, publishes the warnings, and offers each fix as a code action.
+  - [x] `CheckCache::left_out` counts the files a partial check left out of the fold.
+  - [x] `analyse_through` lowers an error-free program whose table is whole (`copy_warnings`).
+  - [x] The two diagnostics cases and two `tests/lsp/actions/` cases for the fixes pass, run once.
 - [ ] The copy path counts by site when a request is recorded. `crates/nvs-cli/src/debug/index.rs`
   stores the counts, the debug viewer lists the hottest sites with their help, and
   `crates/nvs-lsp/src/recorded.rs` shows the lens.
@@ -720,41 +723,38 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 6 are done, and stage 7's first two items. The sweep's `env-secret-proofs` red is
+Stages 1 to 6 are done, and stage 7's first three items. The sweep's `env-secret-proofs` red is
 stale: no goal defines it, and `git log -S` finds it only in this goal's handoffs and a retired goal.
 
-This session landed the two warnings. `W1032` (a read of the lent slot after the change) and `W1033`
-(a failure after the change) are in `crates/nvs-diagnostics/src/code/warnings.rs`.
-`nvs_ir::copies::warnings` builds one per row that warns and has a whole-line edit, once per span:
-the primary label on the change, a second on the statement to move, `Reason::help`, and one
-reviewed (unsafe) fix, so `nvs check --fix` does not apply it. `front_end_in` lowers the program
-under `Sink::Check` alone, skips vendored files, and adds them before the secret literals are
-concealed. `nvs check` on a callee that appends and then reads the property prints `W1032`, checked
-by hand. **What it spends:** `nvs check` now lowers and runs the pass once per run.
+This session landed the editor's warnings. `crates/nvs-lsp/src/document.rs` `copy_warnings` lowers
+the program and runs the pass in `analyse_through`, after the type check, when no file has an
+error and `nvs_types::CheckCache::left_out()` is zero. That count is new: an open document's
+analysis leaves out the files another analysis checks, and a file left out of the fold has no
+expressions, so lowering it would panic. A lowering panic is caught and costs the warnings alone.
+Only the entry file's warnings are kept. The code actions needed no change: the fix is the
+warning's suggestion. **What it spends:** one lowering and pass per analysis of an error-free
+document. `tests/lsp/diagnostics/a-read-after-the-change-warns-and-its-fix-moves-it.lspt`,
+`a-failure-after-the-change-warns-and-its-fix-moves-it.lspt`, and
+`tests/lsp/actions/a-read-after-the-change-is-moved-above-it.lspt` and
+`a-failure-after-the-change-is-moved-above-it.lspt` pass. A `.lspt` case asks one request, so each
+fix has its own `actions` case. The `W1033` case needs a call to a Novis method after the change: a
+`throw` inside an `if` is in another block, so the pass offers no fix for it.
 
-The session before landed the copy table. `crates/nvs-ir/src/copies.rs` defines `KeptCopy` (a span, a
-`Reason`, an optional `Fix` of two statement spans) and `table`, which adds the file, line, BLAKE3
-and a `TextEdit` from a `SourceMap`. `ownership::run` now returns the rows: `refusal` records a
-refused move in `run_function`, `lend_to_callees` drops the rows of values it later lends, and
-`lent::body` records each separated change with `Reach::fix`. `Program::copies` and `Unit::copies`
-carry them; the cache payload stores nothing more (standing decision of 2026-11-18). The
-`copy-report` check now runs `--lib --bin nvs`, because the cache test is in the `nvs` binary.
+The sessions before landed `W1032` and `W1033` (`crates/nvs-diagnostics/src/code/warnings.rs`,
+`nvs_ir::copies::warnings`, printed by `nvs check` from `front_end_in`) and the copy table
+(`crates/nvs-ir/src/copies.rs`, `Program::copies`, `Unit::copies`; the cache payload stores
+nothing more, standing decision of 2026-11-18).
 
 ### Next
 
-- **Stage 7, the language server item.** Add `nvs-ir.workspace = true` to
-  `crates/nvs-lsp/Cargo.toml` (check first that `nvs-ir` does not depend on `nvs-lsp`, directly or
-  through `nvs-types`; `nvs-cli` links both). Where the server publishes a document's type
-  diagnostics with no error, lower it with `nvs_ir::lower::lower_program` as `front_end_in` does
-  (`crates/nvs-cli/src/main.rs`, the block after `unused_uses`), and add
-  `nvs_ir::copies::warnings(&program.copies, &map)`. Each warning carries one unsafe
-  `Suggestion` that spans the change's line to the end of the moved lines; the server's code
-  actions already turn a suggestion into an edit. Gate it as `rule:ide/diagnostics-are-phase-gated`
-  gates the rest. Then the subagent of the stage's `**Split:**` line writes the two diagnostics
-  `.lspt` cases; the shape the warning takes is in
-  `a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy` (`crates/nvs-ir/src/lower/tests.rs`).
-- Then the counting item (the copy path in the runtime does not know its site yet: the call site must
-  hand its row id, as a query site id is handed, `Program::query_sites`), and the lens case.
+- **Stage 7, the counting item.** The copy path in the runtime does not know its site yet: the call
+  site must hand its row id, as a query site id is handed (`Program::query_sites`). Count only when
+  a request is recorded, behind one flag check. `crates/nvs-cli/src/debug/index.rs` stores the
+  counts; the viewer lists the hottest sites with `Reason::help`; `crates/nvs-lsp/src/recorded.rs`
+  shows the lens. Then write `a_recorded_request_counts_its_copies_by_site` and
+  `tests/lsp/lens/a-recorded-copy-shows-its-count-and-its-help.lspt`, copying an existing case
+  under `tests/lsp/lens/`. Run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe lsp-test <case>`
+  to see one case's answer; `bun nv suite lsp-test` prints only the first failure's name.
 - Not run yet, because a stage checks with a build alone: the `fn-`, `concat`, `interpolation` and
   `spread` conformance cases under `tests/conformance/in-place/`. They are the first real runs of a
   lent body, a lent local, an owned spread and a moved `Concat`. Run them early in the gate, under a
@@ -767,7 +767,8 @@ carry them; the cache payload stores nothing more (standing decision of 2026-11-
 property copies its array, so a loop of such writes is quadratic. `$s = $s . $x` on a local now
 copies too, because the lowering no longer moves it. Only the differential run uses it.
 
-**Expected red at the gate.** A `nvs check` test whose program has a callee that changes a lent
+**Expected red at the gate.** A `.lspt` diagnostics case or an `nvs-lsp` test whose error-free
+document has such a callee now shows `W1032` or `W1033` too. A `nvs check` test whose program has a callee that changes a lent
 value and then reads the slot or throws may now print `W1032` or `W1033`; and a program that type
 checks but whose lowering panics now panics in `nvs check` too, which is a lowering bug. Snapshot tests that lower a whole program now show the pass's moves:
 a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no

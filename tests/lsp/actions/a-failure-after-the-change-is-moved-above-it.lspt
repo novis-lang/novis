@@ -1,0 +1,27 @@
+--TEST--
+the W1033 fix moves the call that may throw above the change, which removes the copy, `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Cart {
+    public array<int> $items = [];
+
+    public function add(array<int> $items, int $x): array<int> {
+        <|>$items[] = $x;
+        $this->check($x);
+        return $items;
+    }
+
+    private function check(int $x): void {
+        if ($x > 5) {
+            throw new LogicError('too big');
+        }
+    }
+
+    public function put(int $x): void {
+        $this->items = $this->add($this->items, $x);
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+6:1-8:1 quickfix move this statement above the change -> "        $this->check($x);\n        $items[] = $x;\n"

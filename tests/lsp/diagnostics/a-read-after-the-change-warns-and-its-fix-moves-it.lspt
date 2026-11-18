@@ -1,0 +1,21 @@
+--TEST--
+a lent value changed before a read of its property warns W1032 on the change, and the warning names the read to move above it, `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Cart {
+    public array<int> $items = [];
+
+    public function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        echo Core\Arr::count($this->items);
+        return $items;
+    }
+
+    public function put(int $x): void {
+        $this->items = $this->add($this->items, $x);
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+6:9-6:23 warning W1032 this change copies the value, because the property is read after it

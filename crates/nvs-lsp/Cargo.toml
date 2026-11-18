@@ -52,6 +52,11 @@ nvs-fmt.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
+# The lowering and the ownership pass, run on a document with no error, so the
+# editor shows the copies an easy edit removes from the pass's own table, as
+# `nvs check` does (`rule:types/a-replaced-value-is-changed-in-place`). It
+# depends on nothing here that depends on this crate.
+nvs-ir.workspace = true
 # The route table the server matches a request with, which `index` matches a
 # literal `Core\Test::request` path against for the call graph. Already linked
 # through `nvs-types`; named here because this crate names its type.

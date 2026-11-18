@@ -377,6 +377,9 @@ fn check_files(
             diags.extend(scratch.take());
         }
     }
+    if let Some((_, _, cache)) = partial.as_mut() {
+        cache.left_out = 0;
+    }
     for file in files {
         let id = file.src.id();
         // A file outside the body set takes its cached output where the
@@ -396,6 +399,9 @@ fn check_files(
             {
                 // Left out of the fold. It counts the anonymous functions it
                 // had the last time it was walked, and none if it never was.
+                if let Some((_, _, cache)) = partial.as_mut() {
+                    cache.left_out += 1;
+                }
                 anon_fn_seq += partial
                     .as_ref()
                     .and_then(|(_, _, cache)| cache.outputs.get(&id))

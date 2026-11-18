@@ -4508,6 +4508,7 @@ dependencies = [
  "nvs-fmt",
  "nvs-footprint",
  "nvs-hir",
+ "nvs-ir",
  "nvs-repo",
  "nvs-runtime",
  "nvs-stdlib",

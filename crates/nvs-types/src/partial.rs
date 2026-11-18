@@ -125,6 +125,8 @@ pub struct CheckCache {
     /// How many files' bodies were walked into this cache since it was made,
     /// so a caller can count a check's work.
     pub(crate) walked: usize,
+    /// How many files the last check left out of the fold.
+    pub(crate) left_out: usize,
 }
 
 impl CheckCache {
@@ -139,6 +141,15 @@ impl CheckCache {
     #[must_use]
     pub const fn walked(&self) -> usize {
         self.walked
+    }
+
+    /// How many files the last [`crate::check::check_program_partial`] left
+    /// out of the fold, because they were absent and had no current output.
+    /// Their expressions are missing from its table, so a caller that lowers
+    /// the program lowers only where this is zero.
+    #[must_use]
+    pub const fn left_out(&self) -> usize {
+        self.left_out
     }
 
     /// How many files have an output.

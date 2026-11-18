@@ -1275,11 +1275,10 @@ pub(crate) fn analyse_through(
             .map(|src| src.id())
             .collect();
         let walked = session.checks.walked();
-        // The enum table is dropped and the expression table is not: nothing
-        // here lowers, so a case's constant value has no reader, while what
-        // each expression resolved to is what a cursor request asks about.
+        // The enum table is kept for the lowering below, and the expression
+        // table for every cursor request.
         let (checks, interner) = session.check_parts();
-        let _ = nvs_types::check::check_program_partial(
+        let enums = nvs_types::check::check_program_partial(
             &files,
             &module,
             None,
@@ -1311,6 +1310,16 @@ pub(crate) fn analyse_through(
             })
         }));
         session.store(keys, &left_out);
+        // The copies an easy edit removes, as `nvs check` reports them. Only a
+        // program with no error lowers, and only when every file's expressions
+        // are in the table, which is `rule:ide/diagnostics-are-phase-gated`'s
+        // gate and more.
+        if erring.is_empty() && !diags.has_errors() && session.checks.left_out() == 0 {
+            let interner = session.shared_interner();
+            diags.extend(copy_warnings(
+                &files, &module, &exprs, &interner, &enums, &map, entry,
+            ));
+        }
         deprecated = nvs_types::deprecated::notices(&files);
     }
     let interner = session.shared_interner();
@@ -1351,6 +1360,49 @@ pub(crate) fn analyse_through(
         erring,
         work,
     })
+}
+
+/// The `W1032` and `W1033` warnings of the entry file
+/// (`rule:types/a-replaced-value-is-changed-in-place`): the program is lowered
+/// as `nvs check` lowers it, and the ownership pass's table gives each one, so
+/// the editor and the compiler cannot disagree.
+///
+/// A lowering that panics is a compiler bug that `nvs check` shows. Here it
+/// costs the warnings alone and never the server.
+///
+/// **What it spends:** one lowering and one ownership pass over the whole
+/// program per analysis of an error-free document, freed with the result.
+fn copy_warnings(
+    files: &[nvs_types::ProgramFile<'_>],
+    module: &nvs_hir::Module,
+    exprs: &ExprTypeTable,
+    interner: &nvs_types::TypeInterner,
+    enums: &nvs_types::EnumTable,
+    map: &SourceMap,
+    entry: SourceId,
+) -> Vec<nvs_diagnostics::Diagnostic> {
+    let lowered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let layouts = nvs_types::build_class_layouts(files, &module.graph);
+        nvs_ir::lower::lower_program(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            files,
+            exprs,
+            interner,
+            enums,
+            &layouts,
+        )
+    }));
+    let Ok(program) = lowered else {
+        return Vec::new();
+    };
+    nvs_ir::copies::warnings(&program.copies, map)
+        .into_iter()
+        .filter(|warning| {
+            warning
+                .primary_span()
+                .is_some_and(|span| span.file == entry)
+        })
+        .collect()
 }
 
 /// The key every file of one analysis's graph shares (`crate::session`): the

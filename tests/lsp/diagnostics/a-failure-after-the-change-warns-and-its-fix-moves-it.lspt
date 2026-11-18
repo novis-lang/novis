@@ -1,0 +1,27 @@
+--TEST--
+a lent value changed before a call that may throw warns W1033 on the change, and the warning names the call to move above it, `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Cart {
+    public array<int> $items = [];
+
+    public function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        $this->check($x);
+        return $items;
+    }
+
+    private function check(int $x): void {
+        if ($x > 5) {
+            throw new LogicError('too big');
+        }
+    }
+
+    public function put(int $x): void {
+        $this->items = $this->add($this->items, $x);
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+6:9-6:23 warning W1033 this change copies the value, because a statement after it can throw an error

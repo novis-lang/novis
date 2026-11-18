@@ -1,0 +1,21 @@
+--TEST--
+the W1032 fix moves the read of the property above the change, which removes the copy, `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Cart {
+    public array<int> $items = [];
+
+    public function add(array<int> $items, int $x): array<int> {
+        <|>$items[] = $x;
+        echo Core\Arr::count($this->items);
+        return $items;
+    }
+
+    public function put(int $x): void {
+        $this->items = $this->add($this->items, $x);
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+6:1-8:1 quickfix move this statement above the change -> "        echo Core\Arr::count($this->items);\n        $items[] = $x;\n"
