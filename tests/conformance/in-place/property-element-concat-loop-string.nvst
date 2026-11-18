@@ -1,0 +1,29 @@
+--TEST--
+A string element of an object's property replaced in a loop by a concatenation of itself has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+}
+
+Box $box = new Box();
+string $before = $box->rows["a"];
+array<string> $xs = ["x", "y", "z"];
+// Each pass adds one letter to the end, so the element is `abxyz`.
+foreach ($xs as string $x) {
+    $box->rows["a"] = $box->rows["a"] . $x;
+    echo $box->rows["a"], "\n";
+}
+echo "before: ", $before, "\n";
+echo $box->rows["a"], " and ", $box->rows["b"], "\n";
+--EXPECT--
+abx
+abxy
+abxyz
+before: ab
+abxyz and q

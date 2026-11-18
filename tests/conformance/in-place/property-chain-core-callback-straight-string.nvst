@@ -1,0 +1,30 @@
+--TEST--
+A string property reached through another property and replaced by a `Core` function with a callback has the new value, and a copy read before it keeps the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+Box $box = new Box("shop");
+string $before = $box->inner->text;
+// `Core\Regex::replaceWith` calls the function for each `o`, so `$box->inner->text` is `sh0p`.
+$box->inner->text = Core\Regex::replaceWith($box->inner->text, "o", fn(Core\Regex\Match $m): string => "0");
+echo $box->inner->text, "\n";
+// `$before` was read before the change, so it is still `shop`.
+echo $before, "\n";
+--EXPECT--
+sh0p
+shop

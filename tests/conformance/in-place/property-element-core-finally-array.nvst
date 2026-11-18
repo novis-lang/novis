@@ -1,0 +1,30 @@
+--TEST--
+An element of an object's array property replaced by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor(array<int> $a) {
+        $this->rows["a"] = $a;
+        $this->rows["b"] = [7];
+    }
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2, 3]);
+try {
+    // `Core\Arr::slice` drops the first value, so `$box->rows["a"]` is `2,3`.
+    $box->rows["a"] = Core\Arr::slice($box->rows["a"], 1);
+} finally {
+    echo "finally: ", Lib::show($box->rows["a"]), "\n";
+}
+echo Lib::show($box->rows["a"]), " ", Lib::show($box->rows["b"]), "\n";
+--EXPECT--
+finally: 2,3
+2,3 7

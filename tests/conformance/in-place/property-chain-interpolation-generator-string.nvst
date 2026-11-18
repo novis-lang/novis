@@ -1,0 +1,34 @@
+--TEST--
+A generator's inner object property replaced through a property chain by an interpolation of itself between two `yield`s yields its old string and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "ab";
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor() {
+        $this->inner = new Inner();
+    }
+}
+
+final class Lib {
+    public static function steps(): Iterator<string> {
+        Box $box = new Box();
+        yield $box->inner->text;
+        // The new string is the property followed by `x`, so the property is `abx`.
+        $box->inner->text = "{$box->inner->text}x";
+        yield $box->inner->text;
+    }
+}
+
+// The first value is still `ab` after the property changed.
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+ab,abx

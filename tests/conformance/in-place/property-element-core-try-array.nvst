@@ -1,0 +1,33 @@
+--TEST--
+An element of an array property replaced through `$this` by an owning `Core` call before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor(array<int> $a) {
+        $this->rows["a"] = $a;
+        $this->rows["b"] = [7];
+    }
+
+    public function grow(): void {
+        try {
+            // `Core\Arr::append` adds 3 to the end, so `$this->rows["a"]` is `1,2,3`.
+            $this->rows["a"] = Core\Arr::append($this->rows["a"], 3);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", Box::show($this->rows["a"]), "\n";
+        }
+        echo Box::show($this->rows["a"]), " ", Box::show($this->rows["b"]), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $box = new Box([1, 2]);
+$box->grow();
+--EXPECT--
+stop: 1,2,3
+1,2,3 7

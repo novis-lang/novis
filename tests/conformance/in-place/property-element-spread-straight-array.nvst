@@ -1,0 +1,23 @@
+--TEST--
+An array element of an object's property replaced by a literal that spreads it has the new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+// The new array has the values of the element and then 9, so it is `1,2,9`.
+$box->rows["a"] = [...$box->rows["a"], 9];
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+1,2,9 and 5

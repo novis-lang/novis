@@ -1,0 +1,34 @@
+--TEST--
+An array element of a property replaced by a Novis function in a loop has every value the loop added — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+array<int> $before = $box->rows["a"];
+foreach ([3, 4, 5] as var $x) {
+    $box->rows["a"] = Box::add($box->rows["a"], $x);
+}
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+// The copy made before the loop still has `1,2`.
+echo Box::show($before), "\n";
+--EXPECT--
+1,2,3,4,5 and 5
+1,2

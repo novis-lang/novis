@@ -1,0 +1,44 @@
+--TEST--
+An array property reached through another property and replaced by a Novis function inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items = [];
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+array<int> $before = $box->inner->items;
+try {
+    $box->inner->items = Lib::add($box->inner->items, 3);
+} finally {
+    echo "finally: ", Lib::show($box->inner->items), "\n";
+}
+// The copy made before the `try` still has `1,2`.
+echo Lib::show($before), "\n";
+--EXPECT--
+finally: 1,2,3
+1,2

@@ -1,0 +1,37 @@
+--TEST--
+An array element of an object's property replaced between two `yield`s by a literal that spreads it yields its old array and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+final class Lib {
+    public static function steps(Box $box): Iterator<array<int>> {
+        yield $box->rows["a"];
+        // The new array has the values of the element and then 9, so it is `1,2,9`.
+        $box->rows["a"] = [...$box->rows["a"], 9];
+        yield $box->rows["a"];
+    }
+}
+
+Box $box = new Box();
+array<array<int>> $seen = [];
+foreach (Lib::steps($box) as array<int> $v) {
+    $seen[] = $v;
+}
+// The first value is still `1,2` after the element changed.
+echo Box::show($seen[0]), " then ", Box::show($seen[1]), "\n";
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+1,2 then 1,2,9
+1,2,9 and 5

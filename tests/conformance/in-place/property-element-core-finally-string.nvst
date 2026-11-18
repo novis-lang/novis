@@ -1,0 +1,24 @@
+--TEST--
+A string element of an object's array property replaced by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor(string $a) {
+        $this->words["a"] = $a;
+        $this->words["b"] = "cart";
+    }
+}
+
+Box $box = new Box("shop");
+try {
+    // `Core\Str::upper` changes each letter to upper case, so `$box->words["a"]` is `SHOP`.
+    $box->words["a"] = Core\Str::upper($box->words["a"]);
+} finally {
+    echo "finally: ", $box->words["a"], "\n";
+}
+echo $box->words["a"], " ", $box->words["b"], "\n";
+--EXPECT--
+finally: SHOP
+SHOP cart

@@ -1,0 +1,40 @@
+--TEST--
+A string property reached through another property and replaced by a Novis function that can throw, called so it does not, has its new value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "";
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+string $before = $box->inner->text;
+// `c` is not `!`, so the call returns `abc`.
+$box->inner->text = Lib::add($box->inner->text, "c");
+echo $box->inner->text, "\n";
+echo $before, "\n";
+--EXPECT--
+abc
+ab

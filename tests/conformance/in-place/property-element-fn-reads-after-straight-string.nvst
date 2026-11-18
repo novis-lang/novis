@@ -1,0 +1,31 @@
+--TEST--
+A method that reads a string element of a class property after it changes its parameter still sees the old value, and the element then has the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "xy";
+    }
+
+    // Adds `$x` to the end of `$text`, then prints `$this->rows["a"]` and returns `$text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->rows["a"], "\n";
+        return $text;
+    }
+
+    public function run(): void {
+        // The element changes only when the call returns, so the method prints `ab`.
+        $this->rows["a"] = $this->add($this->rows["a"], "c");
+        echo $this->rows["a"], " and ", $this->rows["b"], "\n";
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+saw: ab
+abc and xy

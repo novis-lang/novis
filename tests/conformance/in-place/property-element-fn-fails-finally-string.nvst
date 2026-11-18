@@ -1,0 +1,34 @@
+--TEST--
+A string element of a property replaced inside a `try` by a Novis function that can throw, called so it does not, has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor() {
+        $this->words["a"] = "ab";
+        $this->words["b"] = "z";
+    }
+
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+Box $box = new Box();
+string $before = $box->words["a"];
+try {
+    // `c` is not `!`, so the call returns `abc`.
+    $box->words["a"] = Box::add($box->words["a"], "c");
+} finally {
+    echo "finally: ", $box->words["a"], " and ", $box->words["b"], "\n";
+}
+echo $before, "\n";
+--EXPECT--
+finally: abc and z
+ab

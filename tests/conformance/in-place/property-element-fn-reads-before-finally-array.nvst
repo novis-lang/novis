@@ -1,0 +1,40 @@
+--TEST--
+A method inside a `try` that reads an array element of a class property before it changes its parameter sees the old value, and the `finally` sees the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Prints `$this->rows["a"]`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        echo "saw: ", self::show($this->rows["a"]), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function run(): void {
+        try {
+            $this->rows["a"] = $this->add($this->rows["a"], 3);
+        } finally {
+            // The `finally` block prints `1,2,3`.
+            echo "finally: ", self::show($this->rows["a"]), "\n";
+        }
+        echo self::show($this->rows["a"]), " and ", self::show($this->rows["b"]), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+saw: 1,2
+finally: 1,2,3
+1,2,3 and 5

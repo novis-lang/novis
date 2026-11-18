@@ -1,0 +1,33 @@
+--TEST--
+An array element of an object's property replaced in a loop by a literal that spreads it has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+array<int> $before = $box->rows["a"];
+array<int> $xs = [7, 8, 9];
+// Each pass adds one item to the end, so the element is `1,2,7,8,9`.
+foreach ($xs as int $x) {
+    $box->rows["a"] = [...$box->rows["a"], $x];
+    echo Box::show($box->rows["a"]), "\n";
+}
+echo "before: ", Box::show($before), "\n";
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+1,2,7
+1,2,7,8
+1,2,7,8,9
+before: 1,2
+1,2,7,8,9 and 5

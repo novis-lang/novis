@@ -1,0 +1,29 @@
+--TEST--
+A string element of an array property replaced through `$this` by a `Core` function with a callback before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor(string $a) {
+        $this->words["a"] = $a;
+        $this->words["b"] = "cart";
+    }
+
+    public function zero(): void {
+        try {
+            // `Core\Regex::replaceWith` calls the function for each `o`, so `$this->words["a"]` is `sh0p`.
+            $this->words["a"] = Core\Regex::replaceWith($this->words["a"], "o", fn(Core\Regex\Match $m): string => "0");
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->words["a"], "\n";
+        }
+        echo $this->words["a"], " ", $this->words["b"], "\n";
+    }
+}
+
+var $box = new Box("shop");
+$box->zero();
+--EXPECT--
+stop: sh0p
+sh0p cart

@@ -1,0 +1,24 @@
+--TEST--
+An inner object's string property replaced through a property chain in a loop by an interpolation of itself grows once per pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "ab";
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor() {
+        $this->inner = new Inner();
+    }
+}
+
+Box $box = new Box();
+// Each pass adds `x`, so three passes give `abxxx`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->inner->text = "{$box->inner->text}x";
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+abxxx

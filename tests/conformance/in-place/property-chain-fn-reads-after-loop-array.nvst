@@ -1,0 +1,44 @@
+--TEST--
+A Novis function called in a loop that reads an array property of an object's property after it changes its parameter still sees the value from the previous pass each time — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    // Appends `$x` to `$items`, then prints `$box->inner->items` and returns `$items`.
+    public static function add(Box $box, array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        echo "saw: ", Lib::show($box->inner->items), "\n";
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+// Each call prints the property as it was before that call.
+foreach ([3, 4, 5] as var $x) {
+    $box->inner->items = Lib::add($box, $box->inner->items, $x);
+}
+echo Lib::show($box->inner->items), "\n";
+--EXPECT--
+saw: 1,2
+saw: 1,2,3
+saw: 1,2,3,4
+1,2,3,4,5

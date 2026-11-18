@@ -1,0 +1,35 @@
+--TEST--
+A method called in a loop that reads a string element of a class property before it changes its parameter sees the value from the previous pass each time — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "xy";
+    }
+
+    // Prints `$this->rows["a"]`, then adds `$x` to the end of `$text` and returns it.
+    private function add(string $text, string $x): string {
+        echo "saw: ", $this->rows["a"], "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        // Each call prints the element as it was before that call.
+        foreach (["c", "d", "e"] as var $x) {
+            $this->rows["a"] = $this->add($this->rows["a"], $x);
+        }
+        echo $this->rows["a"], " and ", $this->rows["b"], "\n";
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+saw: ab
+saw: abc
+saw: abcd
+abcde and xy

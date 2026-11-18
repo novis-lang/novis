@@ -1,0 +1,43 @@
+--TEST--
+A Novis function inside a `try` that reads a string property of an object's property after it changes its parameter still sees the old value, and the `finally` sees the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text`, then prints `$box->inner->text` and returns `$text`.
+    public static function add(Box $box, string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $box->inner->text, "\n";
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+try {
+    // The property changes only when the call returns, so the call prints `ab`.
+    $box->inner->text = Lib::add($box, $box->inner->text, "c");
+    echo "try: ", $box->inner->text, "\n";
+} finally {
+    echo "finally: ", $box->inner->text, "\n";
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+saw: ab
+try: abc
+finally: abc
+abc

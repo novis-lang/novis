@@ -1,0 +1,39 @@
+--TEST--
+A string property reached through another property and replaced by a Novis function in a loop has every piece the loop added — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "";
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+string $before = $box->inner->text;
+for (int $i = 0; $i < 3; $i++) {
+    $box->inner->text = Lib::add($box->inner->text, "c");
+}
+echo $box->inner->text, "\n";
+// The copy made before the loop still has `ab`.
+echo $before, "\n";
+--EXPECT--
+abccc
+ab

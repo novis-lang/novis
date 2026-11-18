@@ -1,0 +1,42 @@
+--TEST--
+A generator's inner object property replaced through a property chain by a spread of itself between two `yield`s yields its old array and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        Box $box = new Box([1, 2]);
+        yield $box->inner->items;
+        // The new array has the values of the property and then 9, so it is `1,2,9`.
+        $box->inner->items = [...$box->inner->items, 9];
+        yield $box->inner->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+// The first value is still `1,2` after the property changed.
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+1,2 then 1,2,9

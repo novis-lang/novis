@@ -1,0 +1,29 @@
+--TEST--
+A string element of a class property replaced by an interpolation of itself before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+
+    public function run(): void {
+        try {
+            $this->rows["a"] = "{$this->rows["a"]}x";
+            // The error comes after the statement, so the element is already `abx`.
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->rows["a"], "\n";
+        }
+        echo $this->rows["a"], " and ", $this->rows["b"], "\n";
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+stop: abx
+abx and q

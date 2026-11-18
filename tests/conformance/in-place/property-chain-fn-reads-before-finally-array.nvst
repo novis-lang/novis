@@ -1,0 +1,47 @@
+--TEST--
+A Novis function inside a `try` that reads an array property of an object's property before it changes its parameter sees the old value, and the `finally` sees the new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    // Prints `$box->inner->items`, then appends `$x` to `$items` and returns it.
+    public static function add(Box $box, array<int> $items, int $x): array<int> {
+        echo "saw: ", Lib::show($box->inner->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+try {
+    $box->inner->items = Lib::add($box, $box->inner->items, 3);
+    echo "try: ", Lib::show($box->inner->items), "\n";
+} finally {
+    // The `finally` block prints `1,2,3`.
+    echo "finally: ", Lib::show($box->inner->items), "\n";
+}
+echo Lib::show($box->inner->items), "\n";
+--EXPECT--
+saw: 1,2
+try: 1,2,3
+finally: 1,2,3
+1,2,3

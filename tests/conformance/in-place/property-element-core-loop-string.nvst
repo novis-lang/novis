@@ -1,0 +1,27 @@
+--TEST--
+A string element of an object's array property replaced by an owning `Core` call in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor(string $a) {
+        $this->words["a"] = $a;
+        $this->words["b"] = "cart";
+    }
+}
+
+Box $box = new Box("basket");
+string $before = $box->words["a"];
+// Each pass removes the first character, so three passes leave `ket`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->words["a"] = Core\Str::slice($box->words["a"], 1);
+}
+echo $box->words["a"], "\n";
+echo $before, "\n";
+// The other element is not changed, so `$box->words["b"]` is still `cart`.
+echo $box->words["b"], "\n";
+--EXPECT--
+ket
+basket
+cart

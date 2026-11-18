@@ -1,0 +1,45 @@
+--TEST--
+An inner object's array property replaced through a property chain in a loop by a Novis function that also writes that property ends with the last returned value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    // Sets the property to `7` and prints both arrays. Then it appends `$x` to `$items` and returns it.
+    public static function grow(Box $box, array<int> $items, int $x): array<int> {
+        $box->inner->items = [7];
+        echo "callee: ", Lib::show($items), " and ", Lib::show($box->inner->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+// Each pass appends `$i`, so three passes give `1,2,3,4,5`.
+for (int $i = 3; $i <= 5; $i++) {
+    $box->inner->items = Lib::grow($box, $box->inner->items, $i);
+}
+echo Lib::show($box->inner->items), "\n";
+--EXPECT--
+callee: 1,2 and 7
+callee: 1,2,3 and 7
+callee: 1,2,3,4 and 7
+1,2,3,4,5

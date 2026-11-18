@@ -1,0 +1,24 @@
+--TEST--
+A string element of an object's property replaced inside a `try` by a concatenation of itself has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+}
+
+Box $box = new Box();
+try {
+    // The new string is the element followed by `x`, so the element is `abx`.
+    $box->rows["a"] = $box->rows["a"] . "x";
+} finally {
+    echo "finally: ", $box->rows["a"], "\n";
+}
+echo $box->rows["a"], " and ", $box->rows["b"], "\n";
+--EXPECT--
+finally: abx
+abx and q

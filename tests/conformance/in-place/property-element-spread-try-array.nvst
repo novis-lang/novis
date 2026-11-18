@@ -1,0 +1,29 @@
+--TEST--
+An array element of an object's property replaced by a literal that spreads it before an error has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+try {
+    $box->rows["a"] = [...$box->rows["a"], 9];
+    // The error comes after the statement, so the element is already `1,2,9`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", Box::show($box->rows["a"]), "\n";
+}
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+stop: 1,2,9
+1,2,9 and 5

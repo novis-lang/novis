@@ -1,0 +1,42 @@
+--TEST--
+A generator's element of an object's array property replaced by an owning `Core` call between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor(array<int> $a) {
+        $this->rows["a"] = $a;
+        $this->rows["b"] = [7];
+    }
+}
+
+final class Lib {
+    public static function steps(): Iterator<array<int>> {
+        Box $box = new Box([1, 2]);
+        yield $box->rows["a"];
+        // `Core\Arr::append` adds 3 to the end, so `$box->rows["a"]` is `1,2,3`.
+        $box->rows["a"] = Core\Arr::append($box->rows["a"], 3);
+        yield $box->rows["a"];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+array<int> $first = [];
+int $n = 0;
+foreach (Lib::steps() as array<int> $items) {
+    if ($n == 0) {
+        $first = $items;
+    }
+    $n++;
+    echo Lib::show($items), "\n";
+}
+// The first value is still `1,2` after the generator changed the element.
+echo Lib::show($first), "\n";
+--EXPECT--
+1,2
+1,2,3
+1,2

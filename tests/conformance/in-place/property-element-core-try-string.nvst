@@ -1,0 +1,29 @@
+--TEST--
+A string element of an array property replaced through `$this` by an owning `Core` call before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor(string $a) {
+        $this->words["a"] = $a;
+        $this->words["b"] = "cart";
+    }
+
+    public function trim(): void {
+        try {
+            // `Core\Str::slice` removes the first character, so `$this->words["a"]` is `hop`.
+            $this->words["a"] = Core\Str::slice($this->words["a"], 1);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->words["a"], "\n";
+        }
+        echo $this->words["a"], " ", $this->words["b"], "\n";
+    }
+}
+
+var $box = new Box("shop");
+$box->trim();
+--EXPECT--
+stop: hop
+hop cart

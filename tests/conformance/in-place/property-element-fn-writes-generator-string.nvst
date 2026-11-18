@@ -1,0 +1,42 @@
+--TEST--
+A string element of a class property replaced between two `yield`s by a method that writes the same element yields its old value and then the returned one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+
+    // Sets `$this->rows["a"]` to `z`, then appends `$x` to `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $this->rows["a"] = "z";
+        echo "callee: ", $text, " / ", $this->rows["a"], "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public function steps(): Iterator<string> {
+        yield $this->rows["a"];
+        $this->rows["a"] = $this->add($this->rows["a"], "c");
+        yield $this->rows["a"];
+    }
+}
+
+Box $box = new Box();
+array<string> $seen = [];
+foreach ($box->steps() as string $v) {
+    $seen[] = $v;
+    echo $v, "\n";
+}
+// The first value is still `ab` after the change.
+echo "first: ", $seen[0], "\n";
+echo $box->rows["a"], " and ", $box->rows["b"], "\n";
+--EXPECT--
+ab
+callee: ab / z
+abc
+first: ab
+abc and q

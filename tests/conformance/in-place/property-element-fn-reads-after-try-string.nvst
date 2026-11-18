@@ -1,0 +1,37 @@
+--TEST--
+A string element of a class property replaced by a method that reads it after its change has the new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "xy";
+    }
+
+    // Adds `$x` to the end of `$text`, then prints `$this->rows["a"]` and returns `$text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->rows["a"], "\n";
+        return $text;
+    }
+
+    public function run(): void {
+        try {
+            // The method prints `ab`, and the element is then `abc`.
+            $this->rows["a"] = $this->add($this->rows["a"], "c");
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", $this->rows["a"], "\n";
+        }
+        echo $this->rows["a"], " and ", $this->rows["b"], "\n";
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+saw: ab
+stop: abc
+abc and xy

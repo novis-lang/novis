@@ -1,0 +1,42 @@
+--TEST--
+A generator's string property reached through another property and replaced by a `Core` function with a callback between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+
+    public function steps(): Iterator<string> {
+        yield $this->inner->text;
+        // The callback puts each `b` in angle brackets, so `$this->inner->text` is `a<b>`.
+        $this->inner->text = Core\Regex::replaceWith($this->inner->text, "b", fn(Core\Regex\Match $m): string => "<" . $m->text() . ">");
+        yield $this->inner->text;
+    }
+}
+
+var $box = new Box("ab");
+string $first = "";
+bool $got = false;
+foreach ($box->steps() as string $v) {
+    if (!$got) {
+        $first = $v;
+        $got = true;
+    }
+}
+// The first value is still `ab` after the generator changed the property.
+echo $first, "\n";
+echo $box->inner->text, "\n";
+--EXPECT--
+ab
+a<b>

@@ -1,0 +1,50 @@
+--TEST--
+A generator's inner object property replaced through a property chain by a Novis function that also writes that property yields its old value and then the returned one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    // Sets the property to `7` and prints both arrays. Then it appends `$x` to `$items` and returns it.
+    public static function grow(Box $box, array<int> $items, int $x): array<int> {
+        $box->inner->items = [7];
+        echo "callee: ", Lib::show($items), " and ", Lib::show($box->inner->items), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function steps(): Iterator<array<int>> {
+        Box $box = new Box([1, 2]);
+        yield $box->inner->items;
+        $box->inner->items = Lib::grow($box, $box->inner->items, 3);
+        yield $box->inner->items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+// The first value is still `1,2` after the property changed.
+array<array<int>> $seen = [];
+foreach (Lib::steps() as array<int> $v) {
+    $seen[] = $v;
+}
+echo Lib::show($seen[0]), " then ", Lib::show($seen[1]), "\n";
+--EXPECT--
+callee: 1,2 and 7
+1,2 then 1,2,3

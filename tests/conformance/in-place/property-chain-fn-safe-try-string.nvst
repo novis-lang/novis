@@ -1,0 +1,40 @@
+--TEST--
+A string property reached through another property and replaced by a Novis function inside a `try` has its new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "";
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+final class Lib {
+    // Adds `$x` to the end of `$text` and returns it.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box("ab");
+try {
+    $box->inner->text = Lib::add($box->inner->text, "c");
+    // The error comes after the call, so `$box->inner->text` is already `abc`.
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->inner->text, "\n";
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+stop: abc
+abc

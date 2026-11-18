@@ -1,0 +1,28 @@
+--TEST--
+An array element of an object's property replaced inside a `try` by a literal that spreads it has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+try {
+    // The new array has the values of the element and then 9, so it is `1,2,9`.
+    $box->rows["a"] = [...$box->rows["a"], 9];
+} finally {
+    echo "finally: ", Box::show($box->rows["a"]), "\n";
+}
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+finally: 1,2,9
+1,2,9 and 5

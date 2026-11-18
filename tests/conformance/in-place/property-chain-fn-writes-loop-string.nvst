@@ -1,0 +1,37 @@
+--TEST--
+An inner object's string property replaced through a property chain in a loop by a Novis function that also writes that property ends with the last returned value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "ab";
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor() {
+        $this->inner = new Inner();
+    }
+}
+
+final class Lib {
+    // Sets the property to `z` and prints both strings. Then it adds `$x` to `$text` and returns it.
+    public static function grow(Box $box, string $text, string $x): string {
+        $box->inner->text = "z";
+        echo "callee: ", $text, " and ", $box->inner->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+
+Box $box = new Box();
+// Each pass adds `c`, so three passes give `abccc`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->inner->text = Lib::grow($box, $box->inner->text, "c");
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+callee: ab and z
+callee: abc and z
+callee: abcc and z
+abccc

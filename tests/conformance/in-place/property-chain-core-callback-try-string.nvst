@@ -1,0 +1,32 @@
+--TEST--
+A string property reached through another property and replaced by a `Core` function with a callback inside a `try` has its new value in the `catch` of a later error — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+Box $box = new Box("shop");
+try {
+    // The callback replaces each `o` with `0`, so `$box->inner->text` is `sh0p` before the error.
+    $box->inner->text = Core\Regex::replaceWith($box->inner->text, "o", fn(Core\Regex\Match $m): string => "0");
+    throw new LogicError("stop");
+} catch (LogicError $e) {
+    echo $e->message, ": ", $box->inner->text, "\n";
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+stop: sh0p
+sh0p

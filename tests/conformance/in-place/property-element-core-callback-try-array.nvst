@@ -1,0 +1,33 @@
+--TEST--
+An element of an array property replaced through `$this` by a `Core` function with a callback before an error has the new value in the `catch` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor(array<int> $a) {
+        $this->rows["a"] = $a;
+        $this->rows["b"] = [7];
+    }
+
+    public function evens(): void {
+        try {
+            // `Core\Arr::filter` keeps the even values, so `$this->rows["a"]` is `2,4` before the error.
+            $this->rows["a"] = Core\Arr::filter($this->rows["a"], fn(int $v): bool => $v % 2 == 0);
+            throw new LogicError("stop");
+        } catch (LogicError $e) {
+            echo $e->message, ": ", Box::show($this->rows["a"]), "\n";
+        }
+        echo Box::show($this->rows["a"]), " ", Box::show($this->rows["b"]), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+var $box = new Box([1, 2, 3, 4]);
+$box->evens();
+--EXPECT--
+stop: 2,4
+2,4 7

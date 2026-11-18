@@ -1,0 +1,32 @@
+--TEST--
+A string element of a class property replaced by a method that writes the same element gets the method's return value — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+
+    // Sets `$this->rows["a"]` to `z`, then appends `$x` to `$text` and returns it.
+    private function add(string $text, string $x): string {
+        $this->rows["a"] = "z";
+        echo "callee: ", $text, " / ", $this->rows["a"], "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public function run(): void {
+        // The call returns `abc`, and that value replaces the `z` the method stored.
+        $this->rows["a"] = $this->add($this->rows["a"], "c");
+        echo $this->rows["a"], " and ", $this->rows["b"], "\n";
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+callee: ab / z
+abc and q

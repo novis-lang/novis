@@ -1,0 +1,40 @@
+--TEST--
+An array element of a class property replaced between two `yield`s by a method that reads it before its change leaves the first yielded value unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Prints `$this->rows["a"]`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        echo "saw: ", self::show($this->rows["a"]), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function steps(): Iterator<array<int>> {
+        yield $this->rows["a"];
+        $this->rows["a"] = $this->add($this->rows["a"], 3);
+        yield $this->rows["a"];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+array<array<int>> $seen = [];
+foreach ($box->steps() as array<int> $step) {
+    $seen[] = $step;
+}
+// The first value is still `1,2` after the change.
+echo Box::show($seen[0]), " then ", Box::show($seen[1]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+saw: 1,2
+1,2 then 1,2,3 and 5

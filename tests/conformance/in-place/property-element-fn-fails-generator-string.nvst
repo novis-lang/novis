@@ -1,0 +1,38 @@
+--TEST--
+A string element of a property replaced through `$this` by a Novis function that can throw between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor() {
+        $this->words["a"] = "ab";
+        $this->words["b"] = "z";
+    }
+
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+
+    public function steps(): Iterator<string> {
+        yield $this->words["a"];
+        // `c` is not `!`, so this call returns `abc`.
+        $this->words["a"] = Box::add($this->words["a"], "c");
+        yield $this->words["a"];
+    }
+}
+
+Box $box = new Box();
+array<string> $seen = [];
+foreach ($box->steps() as string $v) {
+    $seen[] = $v;
+}
+// The first value is still `ab` after the generator changed `$this->words["a"]`.
+echo Core\Str::join($seen, ","), " and ", $box->words["b"], "\n";
+--EXPECT--
+ab,abc and z

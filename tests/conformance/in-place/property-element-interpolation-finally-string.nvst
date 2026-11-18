@@ -1,0 +1,28 @@
+--TEST--
+A string element of a class property replaced inside a `try` by an interpolation of itself has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+
+    public function run(): void {
+        try {
+            // The new string is the element followed by `x`, so the element is `abx`.
+            $this->rows["a"] = "{$this->rows["a"]}x";
+        } finally {
+            echo "finally: ", $this->rows["a"], "\n";
+        }
+        echo $this->rows["a"], " and ", $this->rows["b"], "\n";
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+finally: abx
+abx and q

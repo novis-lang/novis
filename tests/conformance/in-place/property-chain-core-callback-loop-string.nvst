@@ -1,0 +1,31 @@
+--TEST--
+A string property reached through another property and replaced by a `Core` function with a callback in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+Box $box = new Box("a");
+string $before = $box->inner->text;
+// Each pass doubles every `a`, so three passes leave eight of them.
+for (int $i = 0; $i < 3; $i++) {
+    $box->inner->text = Core\Regex::replaceWith($box->inner->text, "a", fn(Core\Regex\Match $m): string => "aa");
+}
+echo $box->inner->text, "\n";
+echo $before, "\n";
+--EXPECT--
+aaaaaaaa
+a

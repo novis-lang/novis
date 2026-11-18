@@ -1,0 +1,36 @@
+--TEST--
+A string element of a class property replaced between two `yield`s by a method that reads it after its change leaves the first yielded value unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "xy";
+    }
+
+    // Adds `$x` to the end of `$text`, then prints `$this->rows["a"]` and returns `$text`.
+    private function add(string $text, string $x): string {
+        $text .= $x;
+        echo "saw: ", $this->rows["a"], "\n";
+        return $text;
+    }
+
+    public function steps(): Iterator<string> {
+        yield $this->rows["a"];
+        $this->rows["a"] = $this->add($this->rows["a"], "c");
+        yield $this->rows["a"];
+    }
+}
+
+Box $box = new Box();
+array<string> $seen = [];
+foreach ($box->steps() as string $step) {
+    $seen[] = $step;
+}
+// The first value is still `ab` after the change.
+echo $seen[0], " then ", $seen[1], " and ", $box->rows["b"], "\n";
+--EXPECT--
+saw: ab
+ab then abc and xy

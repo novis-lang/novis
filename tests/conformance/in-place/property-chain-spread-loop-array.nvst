@@ -1,0 +1,34 @@
+--TEST--
+An inner object's array property replaced through a property chain in a loop by a spread of itself grows once per pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+// Each pass adds 9 to the end, so three passes give `1,2,9,9,9`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->inner->items = [...$box->inner->items, 9];
+}
+echo Lib::show($box->inner->items), "\n";
+--EXPECT--
+1,2,9,9,9

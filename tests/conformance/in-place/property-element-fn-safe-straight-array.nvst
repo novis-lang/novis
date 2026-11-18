@@ -1,0 +1,33 @@
+--TEST--
+An array element of a property replaced by a Novis function has its new value, and a copy made before has the old one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Appends `$x` to `$items` and returns it.
+    public static function add(array<int> $items, int $x): array<int> {
+        $items[] = $x;
+        return $items;
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+array<int> $before = $box->rows["a"];
+$box->rows["a"] = Box::add($box->rows["a"], 3);
+// Only `"a"` changed. The element `"b"` is still `5`.
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+// The copy made before the call still has `1,2`.
+echo Box::show($before), "\n";
+--EXPECT--
+1,2,3 and 5
+1,2

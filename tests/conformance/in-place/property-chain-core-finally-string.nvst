@@ -1,0 +1,31 @@
+--TEST--
+A string property reached through another property and replaced by an owning `Core` call inside a `try` has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+Box $box = new Box("shop");
+try {
+    // `Core\Str::slice` drops the first character, so `$box->inner->text` is `hop`.
+    $box->inner->text = Core\Str::slice($box->inner->text, 1);
+} finally {
+    echo "finally: ", $box->inner->text, "\n";
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+finally: hop
+hop

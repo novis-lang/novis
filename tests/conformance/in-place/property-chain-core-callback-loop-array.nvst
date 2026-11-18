@@ -1,0 +1,35 @@
+--TEST--
+An array property reached through another property and replaced by a `Core` function with a callback in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(array<int> $items) {
+        $this->inner = new Inner($items);
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2, 3]);
+array<int> $before = $box->inner->items;
+// Each pass adds 1 to every value, so three passes leave `4,5,6`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->inner->items = Core\Arr::map($box->inner->items, fn(int $v): int => $v + 1);
+}
+echo Box::show($box->inner->items), "\n";
+echo Box::show($before), "\n";
+--EXPECT--
+4,5,6
+1,2,3

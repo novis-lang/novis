@@ -1,0 +1,27 @@
+--TEST--
+An inner object's string property replaced through a property chain inside a `try` by a concatenation of itself has its new value in the `finally` — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text = "ab";
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor() {
+        $this->inner = new Inner();
+    }
+}
+
+Box $box = new Box();
+try {
+    // The `.` operator adds `x` to the end, so the property is `abx`.
+    $box->inner->text = $box->inner->text . "x";
+} finally {
+    echo "finally: ", $box->inner->text, "\n";
+}
+echo $box->inner->text, "\n";
+--EXPECT--
+finally: abx
+abx

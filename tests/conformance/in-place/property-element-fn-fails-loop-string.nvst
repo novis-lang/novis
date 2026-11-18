@@ -1,0 +1,33 @@
+--TEST--
+A string element of a property replaced in a loop by a Novis function that can throw, called so it does not, has every piece the loop added — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor() {
+        $this->words["a"] = "ab";
+        $this->words["b"] = "z";
+    }
+
+    // Adds `$x` to the end of `$text`, then throws when `$x` is `!`.
+    public static function add(string $text, string $x): string {
+        $text .= $x;
+        if ($x == "!") {
+            throw new LogicError("bad text");
+        }
+        return $text;
+    }
+}
+
+Box $box = new Box();
+string $before = $box->words["a"];
+for (int $i = 0; $i < 3; $i++) {
+    $box->words["a"] = Box::add($box->words["a"], "c");
+}
+echo $box->words["a"], " and ", $box->words["b"], "\n";
+// The copy made before the loop still has `ab`.
+echo $before, "\n";
+--EXPECT--
+abccc and z
+ab

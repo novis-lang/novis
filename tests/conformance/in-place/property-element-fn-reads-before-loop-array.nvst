@@ -1,0 +1,39 @@
+--TEST--
+A method called in a loop that reads an array element of a class property before it changes its parameter sees the value from the previous pass each time — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Prints `$this->rows["a"]`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        echo "saw: ", self::show($this->rows["a"]), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function run(): void {
+        // Each call prints the element as it was before that call.
+        foreach ([3, 4, 5] as var $x) {
+            $this->rows["a"] = $this->add($this->rows["a"], $x);
+        }
+        echo self::show($this->rows["a"]), " and ", self::show($this->rows["b"]), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+saw: 1,2
+saw: 1,2,3
+saw: 1,2,3,4
+1,2,3,4,5 and 5

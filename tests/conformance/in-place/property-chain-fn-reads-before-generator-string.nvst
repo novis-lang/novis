@@ -1,0 +1,45 @@
+--TEST--
+A Novis function between two `yield`s that reads a string property of an object's property before it changes its parameter sees the old value, and the value yielded before it stays unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Inner {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+final class Box {
+    public Inner $inner;
+
+    public function constructor(string $text) {
+        $this->inner = new Inner($text);
+    }
+}
+
+final class Lib {
+    // Prints `$box->inner->text`, then adds `$x` to the end of `$text` and returns it.
+    public static function add(Box $box, string $text, string $x): string {
+        echo "saw: ", $box->inner->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+
+    public static function steps(): Iterator<string> {
+        Box $box = new Box("ab");
+        yield $box->inner->text;
+        $box->inner->text = Lib::add($box, $box->inner->text, "c");
+        yield $box->inner->text;
+    }
+}
+
+array<string> $seen = [];
+foreach (Lib::steps() as string $v) {
+    $seen[] = $v;
+}
+// The first value is still `ab` after the generator changed the property.
+echo Core\Str::join($seen, ","), "\n";
+--EXPECT--
+saw: ab
+ab,abc

@@ -1,0 +1,41 @@
+--TEST--
+An array element of a class property replaced in a loop by a method that writes the same element has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Sets `$this->rows["a"]` to `7`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        $this->rows["a"] = [7];
+        echo "callee: ", self::show($items), " / ", self::show($this->rows["a"]), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function run(): void {
+        array<int> $xs = [3, 4, 5];
+        // Each pass replaces the `7` with the returned array, so the element ends as `1,2,3,4,5`.
+        foreach ($xs as int $x) {
+            $this->rows["a"] = $this->add($this->rows["a"], $x);
+        }
+        echo self::show($this->rows["a"]), " and ", self::show($this->rows["b"]), "\n";
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+$box->run();
+--EXPECT--
+callee: 1,2 / 7
+callee: 1,2,3 / 7
+callee: 1,2,3,4 / 7
+1,2,3,4,5 and 5

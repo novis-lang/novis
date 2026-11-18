@@ -1,0 +1,38 @@
+--TEST--
+A generator's string element of an object's array property replaced by an owning `Core` call between two `yield`s leaves the value yielded before it unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $words = [];
+
+    public function constructor(string $a) {
+        $this->words["a"] = $a;
+        $this->words["b"] = "cart";
+    }
+}
+
+final class Gen {
+    public static function steps(): Iterator<string> {
+        Box $box = new Box("shop");
+        yield $box->words["a"];
+        // `Core\Str::upper` changes each letter to upper case, so `$box->words["a"]` is `SHOP`.
+        $box->words["a"] = Core\Str::upper($box->words["a"]);
+        yield $box->words["a"];
+    }
+}
+
+string $first = "";
+int $n = 0;
+foreach (Gen::steps() as string $v) {
+    if ($n == 0) {
+        $first = $v;
+    }
+    $n++;
+    echo $v, "\n";
+}
+// The first value is still `shop` after the generator changed the element.
+echo $first, "\n";
+--EXPECT--
+shop
+SHOP
+shop

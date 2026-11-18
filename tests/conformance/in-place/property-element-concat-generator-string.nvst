@@ -1,0 +1,33 @@
+--TEST--
+A string element of an object's property replaced between two `yield`s by a concatenation of itself yields its old value and then its new one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<string> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = "ab";
+        $this->rows["b"] = "q";
+    }
+}
+
+final class Lib {
+    public static function steps(Box $box): Iterator<string> {
+        yield $box->rows["a"];
+        // The new string is the element followed by `x`, so the element is `abx`.
+        $box->rows["a"] = $box->rows["a"] . "x";
+        yield $box->rows["a"];
+    }
+}
+
+Box $box = new Box();
+array<string> $seen = [];
+foreach (Lib::steps($box) as string $v) {
+    $seen[] = $v;
+}
+// The first value is still `ab` after the element changed.
+echo $seen[0], " then ", $seen[1], "\n";
+echo $box->rows["a"], " and ", $box->rows["b"], "\n";
+--EXPECT--
+ab then abx
+abx and q

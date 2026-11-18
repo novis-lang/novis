@@ -1,0 +1,33 @@
+--TEST--
+An element of an object's array property replaced by a `Core` function with a callback in a loop has the value of the last pass — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor(array<int> $a) {
+        $this->rows["a"] = $a;
+        $this->rows["b"] = [7];
+    }
+}
+
+final class Lib {
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box([1, 2]);
+array<int> $before = $box->rows["a"];
+// Each pass doubles every value, so three passes leave `8,16`.
+for (int $i = 0; $i < 3; $i++) {
+    $box->rows["a"] = Core\Arr::map($box->rows["a"], fn(int $v): int => $v * 2);
+}
+echo Lib::show($box->rows["a"]), "\n";
+echo Lib::show($before), "\n";
+// The other element is not changed, so `$box->rows["b"]` is still `7`.
+echo Lib::show($box->rows["b"]), "\n";
+--EXPECT--
+8,16
+1,2
+7

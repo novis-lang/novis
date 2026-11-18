@@ -1,0 +1,43 @@
+--TEST--
+An array element of a class property replaced between two `yield`s by a method that writes the same element yields its old array and then the returned one — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+final class Box {
+    public array<array<int>> $rows = [];
+
+    public function constructor() {
+        $this->rows["a"] = [1, 2];
+        $this->rows["b"] = [5];
+    }
+
+    // Sets `$this->rows["a"]` to `7`, then appends `$x` to `$items` and returns it.
+    private function add(array<int> $items, int $x): array<int> {
+        $this->rows["a"] = [7];
+        echo "callee: ", self::show($items), " / ", self::show($this->rows["a"]), "\n";
+        $items[] = $x;
+        return $items;
+    }
+
+    public function steps(): Iterator<array<int>> {
+        yield $this->rows["a"];
+        $this->rows["a"] = $this->add($this->rows["a"], 3);
+        yield $this->rows["a"];
+    }
+
+    public static function show(array<int> $items): string {
+        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+    }
+}
+
+Box $box = new Box();
+array<array<int>> $seen = [];
+foreach ($box->steps() as array<int> $v) {
+    $seen[] = $v;
+}
+// The first value is still `1,2` after the element changed.
+echo Box::show($seen[0]), " then ", Box::show($seen[1]), "\n";
+echo Box::show($box->rows["a"]), " and ", Box::show($box->rows["b"]), "\n";
+--EXPECT--
+callee: 1,2 / 7
+1,2 then 1,2,3
+1,2,3 and 5
