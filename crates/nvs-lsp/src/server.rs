@@ -2168,6 +2168,7 @@ fn code_lens(
         )
     });
     let queries = query_lenses(index, settings, &path, file, encoding);
+    let copies = copy_lenses(settings, &path, file, encoding);
     Some(
         lenses
             .into_iter()
@@ -2211,8 +2212,71 @@ fn code_lens(
                 }
             })
             .chain(queries)
+            .chain(copies)
             .collect(),
     )
+}
+
+/// One lens on each line of `path` where the newest recorded request that ran this text of the
+/// file copied a value the compiler could not change in place, titled with how many copies it
+/// made and the help of the copy's reason
+/// (`rule:types/a-replaced-value-is-changed-in-place`).
+///
+/// The lines are the debug index's ([`recorded::copies_in`]), matched on the BLAKE3 of `file`'s
+/// text, so an edited buffer gets no lens until a request ran its text. The lens covers the line
+/// from its first character that is not a space. A click opens the request in the viewer, as a
+/// query lens's does.
+fn copy_lenses(
+    settings: &Settings,
+    path: &Path,
+    file: &nvs_diagnostics::SourceFile,
+    encoding: PositionEncoding,
+) -> Vec<CodeLens> {
+    let Some(db) = settings.debug_index.as_deref().and_then(recorded::open) else {
+        return Vec::new();
+    };
+    let text = file.text();
+    let hash = blake3::hash(text.as_bytes()).to_hex().to_string();
+    let mut viewer = None;
+    recorded::copies_in(&db, settings.root.as_deref(), path, &hash)
+        .into_iter()
+        .filter_map(|copied| {
+            let start = file.line_start(copied.line.checked_sub(1)?)?;
+            let end = match file.line_start(copied.line) {
+                Some(end) => end,
+                None => nvs_diagnostics::BytePos::try_from(text.len()).ok()?,
+            };
+            let line = text.get(start as usize..end as usize)?;
+            let lead = line.len() - line.trim_start().len();
+            let start = start + nvs_diagnostics::BytePos::try_from(lead).ok()?;
+            let end = start + nvs_diagnostics::BytePos::try_from(line.trim().len()).ok()?;
+            let title = recorded::copies_title(&copied);
+            let command = if settings.client.open {
+                let (listen, tls) = viewer.get_or_insert_with(|| viewer_of(path));
+                Command {
+                    title,
+                    command: Client::OPEN.to_owned(),
+                    arguments: Some(vec![serde_json::json!(recorded::viewer_url(
+                        listen,
+                        *tls,
+                        &copied.trace,
+                        copied.span.as_deref()
+                    ))]),
+                }
+            } else {
+                Command {
+                    title,
+                    command: String::new(),
+                    arguments: None,
+                }
+            };
+            Some(CodeLens {
+                range: range_of(file, start, end, encoding),
+                command: Some(command),
+                data: None,
+            })
+        })
+        .collect()
 }
 
 /// `textDocument/codeLens`: [`code_lens`]'s answer, with its rows held in
@@ -2290,7 +2354,10 @@ fn query_lenses(
                     title,
                     command: Client::OPEN.to_owned(),
                     arguments: Some(vec![serde_json::json!(recorded::viewer_url(
-                        listen, *tls, &ran
+                        listen,
+                        *tls,
+                        &ran.trace,
+                        ran.span.as_deref()
                     ))]),
                 }
             } else {

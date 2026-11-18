@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/stmt.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 7
     title: every copy the compiler keeps is reported where it is written, with its reason and its fix
-    status: open
+    status: done
     context: [crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs, crates/nvs-lsp/src/recorded.rs, crates/nvs-cli/src/debug/index.rs]
   - id: 8
     title: the fuzzer, Miri and an attack hold the guarantee
@@ -708,16 +708,16 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
   - [x] `CheckCache::left_out` counts the files a partial check left out of the fold.
   - [x] `analyse_through` lowers an error-free program whose table is whole (`copy_warnings`).
   - [x] The two diagnostics cases and two `tests/lsp/actions/` cases for the fixes pass, run once.
-- [ ] The copy path counts by site when a request is recorded. `crates/nvs-cli/src/debug/index.rs`
+- [x] The copy path counts by site when a request is recorded. `crates/nvs-cli/src/debug/index.rs`
   stores the counts, the debug viewer lists the hottest sites with their help, and
   `crates/nvs-lsp/src/recorded.rs` shows the lens.
   - [x] `InstKind::CopyCount` after each row's call or change, and `nvs_copy_count` in codegen.
   - [x] `CopySites`, the armed counts on `Ctx`, and the `copies` spool record at `finish`.
   - [x] The index's `copies` table and its ingest; `a_recorded_request_counts_its_copies_by_site`
     and `a_kept_copy_is_counted_right_after_its_call` pass, run once by name.
-  - [ ] The debug viewer lists the hottest copy sites with `Reason::help`.
-  - [ ] `crates/nvs-lsp/src/recorded.rs` shows the lens, and its `.lspt` case.
-- [ ] The four tests and the three `.lspt` cases the `copy-report` checks name. Run once.
+  - [x] The debug viewer lists the hottest copy sites with `Reason::help`.
+  - [x] `crates/nvs-lsp/src/recorded.rs` shows the lens, and its `.lspt` case.
+- [x] The four tests and the three `.lspt` cases the `copy-report` checks name. Run once.
 
 ### 8. the fuzzer, Miri and an attack hold the guarantee
 
@@ -741,40 +741,42 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 
 ### State
 
-Stages 1 to 6 are done, and stage 7's first three items. The sweep's `env-secret-proofs` red is
-stale: no goal defines it, and `git log -S` finds it only in this goal's handoffs and a retired goal.
+Stages 1 to 7 are done; `copy-report` and `copy-report-editor` are green, run once. The sweep's
+`env-secret-proofs` red is stale: no goal defines it, its log file does not exist, and `git log -S`
+finds it only in this goal's handoffs and a retired goal's retire commit.
 
-This session landed the counting pipeline (standing decision "How it is counted"). The pass puts
-`CopyCount` after each row (`ownership.rs` `count_copies`, `Count`; `lent.rs` `body` returns
-`BodyRow`s), codegen calls `nvs_copy_count` (`emit.rs` `emit_copy_count`), the runtime counts on
-`Ctx::copy_counts` (`ctx/trace.rs` `CopySites`, `take_copies`), `nvs-host` `isolate.rs` `finish`
-writes `Record::Copies`, and `debug/index.rs` (schema 8) and `ingest.rs` keep one `copies` row per
-site, keyed `(writer, seq, part)`. `nvs-cli` `script.rs` `copy_sites` numbers by `Program::copies`
-index, calling `skip()` for a row whose file `copy_table` leaves out. `nvs run` and `nvs test`
-write no `copies` record: only a request that ends in `finish` does.
+This session landed the viewer and the lens. `GET /api/request` gives `copies`, the request's copy
+sites, most units first, at most `COPIES_MAX` (200), each with `help` from
+`nvs_ir::copies::Reason::from_name` (`crates/nvs-cli/src/debug/api.rs` `CopySite`, `cut.copies`).
+The page lists them under "Copies" (`viewer/src/views/request.tsx`). `Reason::name` replaced
+`script.rs`'s `reason_name`. The editor's lens is `crates/nvs-lsp/src/server.rs` `copy_lenses` over
+`recorded::copies_in`, one query per document by hash, one lens per line, summing that line's rows
+of the newest request that copied there; `recorded::viewer_url` now takes the trace and span. The
+sample spool (`spool.rs` `one_of_each`, `one-of-each.spool`), `debug_api.rs`'s spool and the
+viewer's `request.json` fixture have a `copies` line.
 
-The editor's warnings are `crates/nvs-lsp/src/document.rs` `copy_warnings`, gated on
-`nvs_types::CheckCache::left_out()` being zero.
-
-The sessions before landed `W1032` and `W1033` (`crates/nvs-diagnostics/src/code/warnings.rs`,
-`nvs_ir::copies::warnings`, printed by `nvs check` from `front_end_in`) and the copy table
-(`crates/nvs-ir/src/copies.rs`, `Program::copies`, `Unit::copies`; the cache payload stores
-nothing more, standing decision of 2026-11-18).
+The counting pipeline is `ownership.rs` `count_copies`, `emit.rs` `emit_copy_count`,
+`ctx/trace.rs` `CopySites`, `isolate.rs` `finish` and the index's `copies` table (schema 8); only a
+request that ends in `finish` writes a `copies` record. The warnings are `W1032` and `W1033`
+(`nvs_ir::copies::warnings`), and the editor's are `nvs-lsp` `document.rs` `copy_warnings`.
 
 ### Next
 
-- **Stage 7, the viewer and the lens.** The viewer (`crates/nvs-cli/src/debug/api.rs` and its
-  page) lists a request's copy sites from the `copies` table, highest `units` first, with the help
-  of the row's `reason` (a snake-case `Reason` name; add `Reason::from_name` beside `help` in
-  `crates/nvs-ir/src/copies.rs`). `crates/nvs-lsp/src/recorded.rs` reads the newest request's
-  `copies` row at each `(hash, line)` on the `copies_site` index, as the query lens reads
-  `events_site`, and shows the count, the units and the help. Then write
-  `tests/lsp/lens/a-recorded-copy-shows-its-count-and-its-help.lspt`, copying an existing case
-  under `tests/lsp/lens/`. Run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe lsp-test <case>`
-  to see one case's answer; `bun nv suite lsp-test` prints only the first failure's name.
-- `crates/nvs-runtime/src/spool.rs` `one_of_each` and
-  `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool` have no `copies` line yet. Add one to
-  both, so the round trip covers it.
+- **Stage 8, the replacement fuzzer.** Write `crates/nvs-fuzz-checks/src/in_place.rs` beside the
+  crate's other generators (`lib.rs` lists the modules; `compile.rs` is the nearest shape, since it
+  compiles and runs a program). It draws small programs over the matrix's axes (the value slugs and
+  contexts of standing decision "The case brief"), with random sharing (`$b = $a`), errors and
+  catches, runs each with and without the pass (`nvs_ir::lower::without_in_place`), and compares
+  the output. `replacement_programs_print_the_same_without_in_place` runs a fixed seed set; add a
+  fuzz target for the open-ended search as the crate's other targets are added.
+- **Stage 8, Miri.** Add the in-place tests of `crates/nvs-runtime/src/array.rs` and `string.rs`
+  to the `miri` job's filter in `.github/workflows/ci.yml` (around line 1532). After the edit, run
+  `bun test tools/nv/test/ci.test.ts tools/nv/test/supply-chain.test.ts` by name, as the playbook
+  says for a workflow edit.
+- **Stage 8, the attack and the differential.** Write
+  `tests/conformance/in-place/a-value-from-the-configuration-is-cut-only-in-its-own-copy.nvst`
+  (an array and a string from `Core\Config`, cut with an owning member, then read again; both print
+  the original). Then run `bun nv suite tests/conformance/ --no-in-place-too` once.
 - Not run yet, because a stage checks with a build alone: the `fn-`, `concat`, `interpolation` and
   `spread` conformance cases under `tests/conformance/in-place/`. They are the first real runs of a
   lent body, a lent local, an owned spread and a moved `Concat`. Run them early in the gate, under a
@@ -789,7 +791,9 @@ copies too, because the lowering no longer moves it. Only the differential run u
 
 **Expected red at the gate.** An IR snapshot of a program with a kept `array`, `string` or `bytes`
 copy now prints `copy.count <site>, v<before>, v<after>` after the call or change; accept it after
-reading it. A test that pins `nvs_runtime::symbols()` or a key built from it sees
+reading it. A test that pins the viewer's API shape beyond `debug_api.rs` sees `copies` in a
+request's answer and in its `cut`. A test that pins `recorded::viewer_url`'s old signature, or a
+lens case whose index has a `copies` table, may see the new lens. A test that pins `nvs_runtime::symbols()` or a key built from it sees
 `nvs_copy_count`. A debug index test that reads `SCHEMA` sees 8. A `.lspt` diagnostics case or an `nvs-lsp` test whose error-free
 document has such a callee now shows `W1032` or `W1033` too. A `nvs check` test whose program has a callee that changes a lent
 value and then reads the slot or throws may now print `W1032` or `W1033`; and a program that type

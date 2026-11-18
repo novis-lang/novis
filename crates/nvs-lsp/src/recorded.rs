@@ -1,5 +1,6 @@
 //! What the newest recorded request ran at each `Core\Db` call of a document
-//! (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`).
+//! (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`), and what it copied on
+//! each line where the compiler kept a copy (`rule:types/a-replaced-value-is-changed-in-place`).
 //!
 //! **The debug index is read, never written.** It is `nvs debug`'s SQLite file in the data folder
 //! (`nvs_config::data::Folder::debug_index`), opened read-only with no busy wait, so an index that
@@ -23,11 +24,17 @@
 //! **The site's line is where its call expression starts.** A call written as `$db` on one line
 //! and `->query(...)` on the next has the receiver's line, and its lens sits there.
 //!
+//! **A copy is counted by line, from the `copies` table.** A recorded request writes one row per
+//! copy site it copied at, with the site's file, line and hash. [`copies_in`] reads every row of
+//! the document's hash, and for each line keeps the rows of the newest request that copied there,
+//! so two sites on one line are one lens that sums them and shows the help of the larger one.
+//!
 //! # What it costs
 //!
 //! In the editor process, one connection and a few numbers per query site for each lens request,
 //! freed with the answer. One lookup per site on the index's `events_site` index, then one
-//! aggregate over that request's rows at the site.
+//! aggregate over that request's rows at the site. One lookup per document on the `copies_site`
+//! index, and one small row per line that copied.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -50,6 +57,24 @@ pub struct Ran {
     pub slowest_us: u64,
     /// How many times the most frequent statement text ran there.
     pub repeated: u64,
+}
+
+/// What the newest recorded request that copied on one line of a file copied there.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Copied {
+    /// The 1-based line.
+    pub line: usize,
+    /// The request's trace id, which names it in the viewer.
+    pub trace: String,
+    /// The request's span id, where the record has one.
+    pub span: Option<String>,
+    /// How many copies it made on the line.
+    pub copies: u64,
+    /// The entries or bytes those copies copied.
+    pub units: u64,
+    /// The help of the reason of the site that copied the most on the line, or `None` for a
+    /// reason this build does not know.
+    pub help: Option<&'static str>,
 }
 
 /// The debug index at `path`, opened for reading, or `None` where it is absent or cannot be
@@ -128,6 +153,96 @@ pub fn at_site(
     })
 }
 
+/// Each line of the file `file`, whose text hashes to `hash`, at which a recorded request copied
+/// a value, with what the newest such request copied there, in line order. A relative file name
+/// in the index is joined to `root`. Empty when no recorded request copied in this text of the
+/// file, and when the index cannot answer, such as one whose schema has no `copies` table.
+///
+/// One lookup on the `copies_site` index by the hash, which every site of the file shares, so a
+/// document costs one query whatever its number of sites.
+#[must_use]
+pub fn copies_in(db: &Connection, root: Option<&Path>, file: &Path, hash: &str) -> Vec<Copied> {
+    let key = canonical_key(file);
+    let Ok(mut statement) = db.prepare_cached(
+        "SELECT c.file, c.line, c.reason, c.copies, c.units, r.id, r.trace, r.span \
+         FROM copies c JOIN requests r ON r.trace = c.trace AND (c.span IS NULL OR r.span = c.span) \
+         WHERE c.hash = ?1 ORDER BY c.line, r.id DESC",
+    ) else {
+        return Vec::new();
+    };
+    let Ok(rows) = statement.query_map(params![hash], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, i64>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, String>(6)?,
+            row.get::<_, Option<String>>(7)?,
+        ))
+    }) else {
+        return Vec::new();
+    };
+    let whole = |value: i64| u64::try_from(value).unwrap_or(0);
+    let mut found: Vec<Copied> = Vec::new();
+    // The request each line's figures are from, and the units of the row whose help it shows.
+    let mut newest = (0_i64, 0_u64);
+    for row in rows {
+        let Ok((written, line, reason, copies, units, request, trace, span)) = row else {
+            return Vec::new();
+        };
+        let Ok(line) = usize::try_from(line) else {
+            continue;
+        };
+        if name_key(root, &written) != key {
+            continue;
+        }
+        let (copies, units) = (whole(copies), whole(units));
+        let help = nvs_ir::copies::Reason::from_name(&reason).map(nvs_ir::copies::Reason::help);
+        match found.last_mut() {
+            // Rows of an older request on a line already found are not its figures.
+            Some(last) if last.line == line && newest.0 != request => {}
+            Some(last) if last.line == line => {
+                last.copies += copies;
+                last.units += units;
+                if units > newest.1 {
+                    last.help = help;
+                    newest.1 = units;
+                }
+            }
+            _ => {
+                newest = (request, units);
+                found.push(Copied {
+                    line,
+                    trace,
+                    span,
+                    copies,
+                    units,
+                    help,
+                });
+            }
+        }
+    }
+    found
+}
+
+/// A copies lens's title: how many copies the line made and how much they copied, then the help.
+#[must_use]
+pub fn copies_title(copied: &Copied) -> String {
+    let times = if copied.copies == 1 {
+        "Copied once".to_owned()
+    } else {
+        format!("Copied {} times", copied.copies)
+    };
+    let mut title = format!("{times} here, {} entries or bytes.", copied.units);
+    if let Some(help) = copied.help {
+        title.push(' ');
+        title.push_str(help);
+    }
+    title
+}
+
 /// A file name the index holds, as [`canonical_key`] keys the document.
 fn name_key(root: Option<&Path>, written: &str) -> PathBuf {
     let path = Path::new(written);
@@ -168,12 +283,13 @@ fn duration(us: u64) -> String {
     }
 }
 
-/// The viewer's page for `ran`'s request, served at `listen`, over TLS where `tls` is set.
+/// The viewer's page for the request with trace id `trace` and span id `span`, served at
+/// `listen`, over TLS where `tls` is set.
 #[must_use]
-pub fn viewer_url(listen: &str, tls: bool, ran: &Ran) -> String {
+pub fn viewer_url(listen: &str, tls: bool, trace: &str, span: Option<&str>) -> String {
     let scheme = if tls { "https" } else { "http" };
-    match &ran.span {
-        Some(span) => format!("{scheme}://{listen}/requests/{}/{span}", ran.trace),
-        None => format!("{scheme}://{listen}/requests/{}", ran.trace),
+    match span {
+        Some(span) => format!("{scheme}://{listen}/requests/{trace}/{span}"),
+        None => format!("{scheme}://{listen}/requests/{trace}"),
     }
 }
