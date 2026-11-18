@@ -539,6 +539,12 @@ fn sources() -> Vec<Source> {
 /// The options-bag arm reads the `CoreOption` rows of the registry row the
 /// checker resolved the call to, the same rows it checks the bag against.
 ///
+/// The field names of a userland attribute's payload are read off the
+/// `Ty::Shape` the checker resolved the attribute's alias to and recorded
+/// under the attribute (`ExprTypeTable::attribute_shape`), the shape it checks
+/// the payload against. The strings in a set of allowed values inside that
+/// payload reach the completion-file arm as values, read off the same shape.
+///
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
 /// file itself. At a path or class-name parameter it adds those values to the
@@ -563,7 +569,7 @@ fn sources() -> Vec<Source> {
 /// An `@param` target reads the parameters of the method the parser attached
 /// the comment to, and an `@throws` target the hierarchy walk the checker holds
 /// that tag to.
-const SOURCED: [(&str, &str); 48] = [
+const SOURCED: [(&str, &str); 49] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -586,6 +592,7 @@ const SOURCED: [(&str, &str); 48] = [
     ("route_keys", "exprs.routes()"),
     ("option_keys", "&[CoreOption]"),
     ("attribute_keys", "&AttributeDoc"),
+    ("shape_keys", "Ty::Shape("),
     ("scheme_names", ".schemes()"),
     ("file_values", "completion_files::Value"),
     ("value_item", "completion_files::Value"),

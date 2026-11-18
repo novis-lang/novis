@@ -19,8 +19,11 @@
 //! `Core\Router` link or of `Match::is`, a bare position offers the methods
 //! that carry a `#[Route]` first ([`routed_methods`]). Outside a string, a
 //! field name in the `{…}` options bag a `Core` member takes last is offered
-//! that member's options ([`option_key_at`]), and a field name in a compiler
-//! attribute's payload the fields its card lists ([`attribute_key_at`]).
+//! that member's options ([`option_key_at`]), and a field name in an
+//! attribute's payload the fields a compiler attribute's card lists, or the
+//! fields of the shape a named attribute's alias resolved to
+//! ([`attribute_key_at`]). Inside a string in such a payload, the strings in
+//! the set of allowed values its field's type lists ([`attribute_values`]).
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -450,7 +453,8 @@ pub fn at(
         }
         Asked::Literal(Literal::Scheme(text_start)) => scheme_names(&cursor, text_start),
         Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
-        Asked::AttributeKey(written, doc) => attribute_keys(&cursor, written, doc),
+        Asked::AttributeKey(written, Fields::Card(doc)) => attribute_keys(&cursor, written, doc),
+        Asked::AttributeKey(written, Fields::Shape(shape)) => shape_keys(&cursor, written, shape),
         Asked::DocTag(DocTag::Name(written)) => doc_tag_names(&cursor, written),
         Asked::DocTag(DocTag::See(start)) => see_targets(&cursor, start),
         Asked::DocTag(DocTag::Param(start)) => param_targets(&cursor, start),
@@ -608,9 +612,9 @@ enum Asked {
     /// last, this many bytes of it written, and the options that member
     /// declares.
     OptionKey(usize, &'static [CoreOption]),
-    /// The name half of a field in a compiler attribute's payload, this many
-    /// bytes of it written, and the attribute's card.
-    AttributeKey(usize, &'static AttributeDoc),
+    /// The name half of a field in an attribute's payload, this many bytes of
+    /// it written, and where its fields are listed.
+    AttributeKey(usize, Fields),
     /// The tag of a `///` line, or the target after one.
     DocTag(DocTag),
     /// No access at all — what may be written where a statement or an
@@ -780,6 +784,9 @@ fn literal_at(
     }
     if let Some(text_start) = scheme_at(analysed, path, offset) {
         return Some(Literal::Scheme(text_start));
+    }
+    if let Some((literal, values)) = attribute_values(analysed, path, offset) {
+        return Some(Literal::Values(literal, values));
     }
     if let Some(argument) = crate::arguments::at(analysed, offset)
         && argument.text == ParamText::Path
@@ -1356,29 +1363,42 @@ fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> V
         .collect()
 }
 
-/// The compiler attribute whose payload the cursor at `offset` is writing a
-/// field name in, as the length written so far and the attribute's card.
+/// Where the fields of an attribute's payload are listed.
+enum Fields {
+    /// A compiler attribute's card.
+    Card(&'static AttributeDoc),
+    /// The shape type the checker resolved a named attribute's alias to, or
+    /// the shape a field of it gives a nested `{…}`.
+    Shape(TypeId),
+}
+
+/// The attribute payload the cursor at `offset` is writing a field name in,
+/// as the length written so far and where its fields are listed.
 ///
-/// The attribute is the innermost node, so a cursor inside a field's value is
-/// not here, and the text between the payload's `(` or the last `,` and the
-/// cursor is a name or nothing. The name the attribute wrote is resolved the
-/// way the checker resolves it (`rule:core-classes/derive-attribute`), so a
-/// `use`d short name reaches the same card and a userland attribute reaches
-/// none.
+/// The payload is the innermost node: the attribute itself, or a `{…}`
+/// written as a value inside it. A cursor inside a field's value is therefore
+/// not here, and the text between the payload's `(` or `{` or the last `,` and
+/// the cursor is a name or nothing. The name the attribute wrote is resolved
+/// the way the checker resolves it (`rule:core-classes/derive-attribute`), so a
+/// `use`d short name reaches the same card. A name that reaches no card lists
+/// the fields of the shape the checker resolved its alias to
+/// ([`nvs_types::ExprTypeTable::attribute_shape`]).
 fn attribute_key_at(
     analysed: &Analysed,
     path: &NodePath,
     offset: BytePos,
-) -> Option<(usize, &'static AttributeDoc)> {
-    let [attribute, ..] = path.nodes() else {
+) -> Option<(usize, Fields)> {
+    let [payload, outer @ ..] = path.nodes() else {
         return None;
     };
-    if attribute.kind != "Attribute" {
-        return None;
-    }
+    let opener = match payload.kind {
+        "Attribute" => '(',
+        "AnonObject" => '{',
+        _ => return None,
+    };
     let text = analysed.map.file(analysed.entry).text();
-    let upto = text.get(attribute.span.start as usize..offset as usize)?;
-    let (_, inside) = upto.split_once('(')?;
+    let upto = text.get(payload.span.start as usize..offset as usize)?;
+    let (_, inside) = upto.split_once(opener)?;
     let name = inside
         .trim_end_matches(|ch: char| ch.is_ascii_alphanumeric() || ch == '_')
         .len();
@@ -1386,8 +1406,139 @@ fn attribute_key_at(
     if !(before.is_empty() || before.ends_with(',')) {
         return None;
     }
-    let doc = attribute_named(analysed, attribute.span, upto)?;
-    (!doc.fields.is_empty()).then_some((inside.len() - name, doc))
+    let written = inside.len() - name;
+    if payload.kind == "AnonObject" {
+        let shape = payload_type(analysed, payload.span, outer)?;
+        return Some((written, Fields::Shape(shape)));
+    }
+    if let Some(doc) = attribute_named(analysed, payload.span, upto) {
+        return (!doc.fields.is_empty()).then_some((written, Fields::Card(doc)));
+    }
+    let shape = analysed.exprs.attribute_shape(payload.span)?;
+    Some((written, Fields::Shape(shape)))
+}
+
+/// The fields of a shape, each replacing the `written` bytes of the name
+/// before the cursor with the name and its `: `. The detail is the field's
+/// type, and `optional` where a value may leave it out. Nothing where the
+/// type, `null` aside, is not one shape.
+fn shape_keys(cursor: &Cursor<'_>, written: usize, shape: TypeId) -> Vec<CompletionItem> {
+    let interner = &cursor.analysed.interner;
+    let Some(Ty::Shape(fields)) = without_null(interner, shape).map(|ty| interner.get(ty)) else {
+        return Vec::new();
+    };
+    fields
+        .iter()
+        .map(|field| {
+            let ty = interner.describe(field.ty);
+            let detail = if field.required {
+                ty
+            } else {
+                format!("{ty} (optional)")
+            };
+            CompletionItem {
+                text_edit: Some(cursor.replacing(written, format!("{}: ", field.name))),
+                ..item(field.name.clone(), CompletionItemKind::FIELD, detail)
+            }
+        })
+        .collect()
+}
+
+/// The string the cursor at `offset` is writing in a named attribute's
+/// payload, quotes included, and the single-value strings of the type the
+/// attribute's shape gives that place (`rule:types/single-value-types`). The
+/// string may be a field's value, an element of an array, or either inside a
+/// nested `{…}`. `None` where the type is not made only of single-value
+/// strings and `null`.
+fn attribute_values(
+    analysed: &Analysed,
+    path: &NodePath,
+    offset: BytePos,
+) -> Option<(Span, Vec<Arc<completion_files::Value>>)> {
+    let [string, outer @ ..] = path.nodes() else {
+        return None;
+    };
+    if string.kind != "Str" || !(string.span.start < offset && offset < string.span.end) {
+        return None;
+    }
+    let ty = payload_type(analysed, string.span, outer)?;
+    let values: Vec<_> = crate::arguments::string_members(analysed, ty)
+        .into_iter()
+        .map(|member| Arc::new(completion_files::Value::member(member)))
+        .collect();
+    (!values.is_empty()).then_some((string.span, values))
+}
+
+/// The type a named attribute's shape gives the value at `value`, where
+/// `outer` is the chain of nodes that holds it, innermost first: array
+/// literals and `{…}` objects, up to the attribute itself.
+///
+/// A field's name is no node, so it is read off the text in front of its
+/// value: a name and a `:` after the container's opener or the previous
+/// value. `None` where a node in the chain is anything else, a name is not in
+/// the shape, or the attribute's name resolved to no shape alias.
+fn payload_type(analysed: &Analysed, value: Span, outer: &[IndexNode]) -> Option<TypeId> {
+    let mut steps: Vec<Option<&str>> = Vec::new();
+    let mut inner = value;
+    for node in outer {
+        match node.kind {
+            "ArrayLiteral" => steps.push(None),
+            "AnonObject" | "Attribute" => steps.push(Some(key_before(analysed, *node, inner)?)),
+            _ => return None,
+        }
+        if node.kind == "Attribute" {
+            let interner = &analysed.interner;
+            let mut ty = analysed.exprs.attribute_shape(node.span)?;
+            for step in steps.iter().rev() {
+                let base = without_null(interner, ty)?;
+                ty = match (interner.get(base), step) {
+                    (Ty::Array(element), None) => *element,
+                    (Ty::Shape(fields), Some(key)) => {
+                        fields.iter().find(|field| field.name == *key)?.ty
+                    }
+                    _ => return None,
+                };
+            }
+            return Some(ty);
+        }
+        inner = node.span;
+    }
+    None
+}
+
+/// The field name written in front of the value at `value` inside
+/// `holder`, an attribute or a `{…}`: the name before the `:` that follows
+/// the holder's opener or the value before this one.
+fn key_before(analysed: &Analysed, holder: IndexNode, value: Span) -> Option<&str> {
+    let from = analysed
+        .index
+        .children_of(holder)
+        .iter()
+        .map(|child| child.span.end)
+        .filter(|end| *end <= value.start)
+        .max()
+        .unwrap_or(holder.span.start);
+    let text = analysed.map.file(analysed.entry).text();
+    let before = text
+        .get(from as usize..value.start as usize)?
+        .trim_end()
+        .strip_suffix(':')?
+        .trim_end();
+    let key = name_run(before);
+    (!key.is_empty()).then_some(key)
+}
+
+/// `ty` with `null` taken out of it, where one type is left.
+fn without_null(interner: &nvs_types::TypeInterner, ty: TypeId) -> Option<TypeId> {
+    let Ty::Union(members) = interner.get(ty) else {
+        return Some(ty);
+    };
+    let mut rest = members
+        .iter()
+        .copied()
+        .filter(|member| !matches!(interner.get(*member), Ty::Null));
+    let one = rest.next()?;
+    rest.next().is_none().then_some(one)
 }
 
 /// The card of the compiler attribute whose text starts `upto`, written at
@@ -1598,8 +1749,8 @@ fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: 
     if let Some((written, options)) = option_key_at(analysed, path, offset) {
         return Asked::OptionKey(written, options);
     }
-    if let Some((written, doc)) = attribute_key_at(analysed, path, offset) {
-        return Asked::AttributeKey(written, doc);
+    if let Some((written, fields)) = attribute_key_at(analysed, path, offset) {
+        return Asked::AttributeKey(written, fields);
     }
     if let Some(prefix) = namespace_written(analysed, offset) {
         return Asked::Namespace(prefix);

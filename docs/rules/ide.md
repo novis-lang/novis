@@ -2027,7 +2027,9 @@ attribute's payload, such as `#[Api]`'s, from the attribute's card, which is hel
 checker reads the payload against; the security schemes the program declares with `#[Api\Scheme]`, at
 an entry of an `#[Api]` `security` list, from the route table the checker holds each such name against
 ([`routing/a-security-scheme-is-declared-in-code`](routing.md#routing-a-security-scheme-is-declared-in-code)); every attribute's anonymous object, whose shape
-is a declared type; and enum cases, members off a resolved receiver
+is a declared type, which completes as the fields of the shape the checker resolved the attribute's
+alias to, and a string in it, which completes as the set of allowed values its field's type lists, in an
+array and a nested shape too; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
 A path list is one directory: the text between the opening quote and the cursor is split at its last

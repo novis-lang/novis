@@ -976,3 +976,82 @@ fn a_parameter_typed_string_offers_no_allowed_values() {
         assert!(!triggered, "{call}");
     }
 }
+
+/// A shape alias used as an attribute: a set of allowed strings, an array of them, a nested shape
+/// with one, and a plain `string`.
+const LINK: &str = "type Link = { onRemove?: 'keep'|'clear'|\"it's\", order?: array<'asc'|'desc'>, \
+     page?: { size: 'small'|'large' }, note?: string };\n\n";
+
+/// The list offered at the cursor in `attribute`, written on a class after [`LINK`], with no
+/// completion file, and whether a trigger character there opens it.
+fn linked(name: &str, attribute: &str) -> (Vec<CompletionItem>, bool) {
+    let workspace = Workspace::new(name);
+    offered(
+        &workspace,
+        &CompletionFiles::default(),
+        &format!("{LINK}{attribute}\nclass Post {{\n}}\n"),
+    )
+}
+
+#[test]
+fn a_string_in_an_attribute_payload_offers_the_allowed_values_of_its_field() {
+    for (name, attribute, want) in [
+        ("field", "#[Link(onRemove: '<|>')]", &["clear", "it's", "keep"][..]),
+        ("element", "#[Link(order: ['asc', '<|>'])]", &["asc", "desc"][..]),
+        ("nested", "#[Link(page: { size: \"<|>\" })]", &["large", "small"][..]),
+        (
+            "after",
+            "#[Link(note: 'x', onRemove: '<|>')]",
+            &["clear", "it's", "keep"][..],
+        ),
+    ] {
+        let (items, triggered) = linked(name, attribute);
+        assert_eq!(labels(&items), want, "{attribute}");
+        for item in &items {
+            assert_eq!(item.kind, Some(CompletionItemKind::VALUE), "{}", item.label);
+        }
+        assert!(triggered, "{attribute}: a quote opens the list");
+    }
+
+    // Each item replaces the text between the quotes, escaped for the quote.
+    let (items, _) = linked("escaped", "#[Link(onRemove: 'cl<|>')]");
+    assert_eq!(edit(&items, "it's").0, "it\\'s");
+}
+
+#[test]
+fn a_plain_string_field_in_an_attribute_payload_offers_no_values() {
+    let (items, triggered) = linked("plain", "#[Link(note: '<|>')]");
+    assert!(
+        !items
+            .iter()
+            .any(|item| item.kind == Some(CompletionItemKind::VALUE)),
+        "{items:?}"
+    );
+    assert!(!triggered);
+}
+
+#[test]
+fn a_field_name_in_an_attribute_payload_offers_the_fields_of_its_shape() {
+    let (items, _) = linked("keys", "#[Link(<|>)]");
+    assert_eq!(labels(&items), ["note", "onRemove", "order", "page"]);
+    for item in &items {
+        assert_eq!(item.kind, Some(CompletionItemKind::FIELD), "{}", item.label);
+    }
+    assert_eq!(edit(&items, "page").0, "page: ");
+    assert_eq!(
+        named(&items, "order").detail.as_deref(),
+        Some("array<\"asc\"|\"desc\"> (optional)")
+    );
+
+    // A name half written after another field replaces only what is written of it.
+    let (items, _) = linked("half", "#[Link(note: 'x', or<|>)]");
+    assert_eq!(edit(&items, "order").0, "order: ");
+
+    // The fields of a nested shape, where a `{…}` is the value of a field.
+    let (items, _) = linked("nested-keys", "#[Link(page: { <|> })]");
+    assert_eq!(labels(&items), ["size"]);
+    assert_eq!(
+        named(&items, "size").detail.as_deref(),
+        Some("\"small\"|\"large\"")
+    );
+}

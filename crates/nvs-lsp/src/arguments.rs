@@ -408,7 +408,7 @@ fn key_classes(analysed: &Analysed, ty: TypeId, path: bool) -> Vec<String> {
 /// lists them, where `ty` is made only of single-value string types and `null`.
 /// Any other member, a single-value `int` type or `string` included, makes it
 /// empty.
-fn string_members(analysed: &Analysed, ty: TypeId) -> Vec<String> {
+pub(crate) fn string_members(analysed: &Analysed, ty: TypeId) -> Vec<String> {
     let interner = &analysed.interner;
     let members = match interner.get(ty) {
         Ty::Union(members) => members.clone(),

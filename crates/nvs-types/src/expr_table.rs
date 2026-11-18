@@ -1682,6 +1682,7 @@ pub struct ExprTypeTable {
     callable_markers: Vec<(TypeId, String)>,
     callable_conformance: FxHashMap<Span, Vec<String>>,
     attribute_names: Vec<(Span, QName)>,
+    attribute_shapes: FxHashMap<Span, TypeId>,
     deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
     capability_guards: FxHashMap<Span, CapabilityGuard>,
@@ -1869,6 +1870,7 @@ impl ExprTypeTable {
             callable_markers,
             callable_conformance,
             attribute_names,
+            attribute_shapes,
             deprecation_checks,
             deprecated_entries,
             capability_guards,
@@ -1929,6 +1931,7 @@ impl ExprTypeTable {
         self.callable_markers.extend(callable_markers);
         self.callable_conformance.extend(callable_conformance);
         self.attribute_names.extend(attribute_names);
+        self.attribute_shapes.extend(attribute_shapes);
         self.deprecation_checks.extend(deprecation_checks);
         self.deprecated_entries.extend(deprecated_entries);
         self.capability_guards.extend(capability_guards);
@@ -2016,6 +2019,7 @@ impl ExprTypeTable {
         section("callable_markers", sorted(&self.callable_markers));
         section("callable_conformance", sorted(&self.callable_conformance));
         section("attribute_names", sorted(&self.attribute_names));
+        section("attribute_shapes", sorted(&self.attribute_shapes));
         section("deprecation_checks", sorted(&self.deprecation_checks));
         section("deprecated_entries", sorted(&self.deprecated_entries));
         section("capability_guards", sorted(&self.capability_guards));
@@ -2146,6 +2150,22 @@ impl ExprTypeTable {
     /// [`crate::attributes`] writes it at the one place the name is resolved.
     pub(crate) fn record_attribute_name(&mut self, span: Span, name: QName) {
         self.attribute_names.push((span, name));
+    }
+
+    /// Records the shape a named attribute's alias resolved to, at the span of
+    /// the whole attribute, which is the span of its `Attribute` node in the
+    /// syntax index. An editor reads the field names and each field's type off
+    /// it while the payload is still being written.
+    pub(crate) fn record_attribute_shape(&mut self, span: Span, shape: TypeId) {
+        self.attribute_shapes.insert(span, shape);
+    }
+
+    /// The shape the named attribute written at `span` resolved to, or `None`
+    /// for a bare attribute, a compiler attribute and a name that resolved to
+    /// no shape alias.
+    #[must_use]
+    pub fn attribute_shape(&self, span: Span) -> Option<TypeId> {
+        self.attribute_shapes.get(&span).copied()
     }
 
     /// Every attribute name the checker resolved, with the span it was written

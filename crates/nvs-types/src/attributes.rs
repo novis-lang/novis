@@ -286,6 +286,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let Some(shape) = shape else {
         return;
     };
+    env.exprs.record_attribute_shape(attr.span, shape);
     // A payload with a computed value has already been reported once, and
     // inferring that value would report it a second time — as an undeclared
     // variable, or as a mismatch against the field the shape declares. The
