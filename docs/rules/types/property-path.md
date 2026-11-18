@@ -3,11 +3,24 @@ whose **values** are dotted chains of public declared property names starting at
 `customer.address.city`, `lines.product.name`. What is carried at run time is the dotted text, a string
 in the representation but **not** in the type.
 
-Every segment but the last names a property whose declared type is a class `C`, a `?C`, or an array of
-`C` (`array<C>`), and the next segment is looked up on `C`. The last segment is any public
-property. A segment that names nothing, names a `private` or `protected` property, or steps through a
-property whose type is not one of those three forms is the same failure, and fails the same way at
-every segment. `T` follows `rule:types/property-key` exactly: one class, `E0799` for anything else or
+Every segment but the last names a property whose declared type is a class `C`, a `?C`, an array
+`array<E>` or a `?array<E>`, for any `E`. After a class, the next segment is a public property of `C`.
+After an array, the next segment is one of two **steps**, or a property of the element class:
+
+- `@key` names an element's key, and ends the path.
+- `@value` names the element itself, of type `E`. It ends the path, or the path continues from `E` as
+  it does from a property of type `E`: into a class's properties, or into a nested array's steps,
+  `grid.@value.@key`.
+- A property of `E`'s class directly after the array is shorthand for `@value` and that property:
+  `authors.name` is `authors.@value.name`.
+
+The `@` keeps a step apart from a property. A class's own `$key` or `$value` is reached by its name,
+`authors.value`, and a path never changes meaning when a property is added or removed. `@` cannot
+start a property name, and means nothing else in an expression. The last segment is any public
+property or step. A segment that names nothing, names a `private` or `protected` property, steps past
+a property whose type is none of those forms, takes `@key` or `@value` after something that is not an
+array, continues after `@key`, or is any other `@` word is the same failure, and fails the same way
+at every segment. `T` follows `rule:types/property-key` exactly: one class, `E0799` for anything else or
 for a class with no public property; visibility decided at the conversion, once; the argument
 contravariant (`rule:types/property-key-variance`); and its own equality domain, two paths equal when
 their text is equal, with ordering refused. `propertyPath` is a keyword only in type position, as
@@ -36,9 +49,16 @@ no second walk.
 
 - **Memory:** a path is one string value, its dotted text. The checker keeps one roster per class a
   path reaches, as `property<T>` does, for the length of the analysis. Nothing is spent per request
-  beyond the string, and the run-time conversion allocates nothing past it.
+  beyond the string, and the run-time conversion allocates nothing past it. The encoded graph the
+  run-time walk reads, a compile-time constant, has one node per class and one per distinct array
+  type a path can reach. An array's node lists `@key`, `@value` and a copy of its element class's
+  rows for the shorthand, so the walk reads one node per segment either way, and a program that
+  writes no step pays nothing for them.
 
 **Declined:**
+- **Unprefixed `key` and `value` as the array steps.** A class may have a property of either name.
+  Whichever of the step and the property wins, the other cannot be reached, or a path changes meaning
+  when such a property is added to the element class.
 - **Reading or writing through a path, `$obj->{$path}`, for now.** A path through an array would read
   an array of values, and what that read returns, and what a write through it means, is a decision of
   its own. A library walks the path with `Core\Reflect::steps`
