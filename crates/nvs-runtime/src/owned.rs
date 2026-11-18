@@ -169,7 +169,15 @@ impl Entry {
 /// never reaches it, because the first parameter's type is declared.
 const NOT_THE_SUBJECT: &str = "internal error: an owning member's subject is not its declared kind";
 
-/// The borrowed entry's body: `check`, then `apply` over a handle of its own.
+/// The borrowed entry's body: a handle of its own on the subject, then
+/// `check`, then `apply` over that handle.
+///
+/// The handle is taken before `check`, because `check` runs the callbacks.
+/// The caller lends the subject with no reference of its own, as a property
+/// read is passed. So a callback that writes the subject's slot would
+/// otherwise find a count of 1 and change the array or string under the walk
+/// in place, or free it. With the handle, that write copies, and the walk
+/// reads what it started with. A failing `check` drops the handle again.
 ///
 /// Kept public because [`crate::nvs_helper!`]'s expansion names it.
 ///
@@ -186,11 +194,11 @@ pub fn run_borrowed<S: OwnedSubject, P>(
     if !args.get(slot).is_some_and(S::fits) {
         return Err(Fault::fatal(NOT_THE_SUBJECT));
     }
-    let plan = check(ctx, args)?;
     let subject = args
         .get(slot)
         .and_then(S::share)
         .ok_or_else(|| Fault::fatal(NOT_THE_SUBJECT))?;
+    let plan = check(ctx, args)?;
     Ok(apply(plan, subject))
 }
 
