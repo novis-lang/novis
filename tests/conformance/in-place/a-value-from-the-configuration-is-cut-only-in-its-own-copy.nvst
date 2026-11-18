@@ -1,0 +1,32 @@
+--TEST--
+A program that cuts an array and a string it read from the configuration changes only its own copy, and the next read of the configuration is unchanged — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+// Attack: a program changes values it read from the configuration, which every
+// request shares. Each change should make a copy, so the configuration stays the same.
+
+// 1. Cut the list of all settings down to its first entry.
+array<string> $settings = Core\Config::all();
+uint $count = Core\Arr::count($settings);
+$settings = Core\Arr::slice($settings, 0, 1);
+echo "cut: ", Core\Arr::count($settings), "\n";
+
+// 2. Cut the memory limit `128M` down to its first character.
+string $memory = Core\Config::get("memory") ?? "";
+$memory = Core\Str::slice($memory, 0, 1);
+echo "cut: ", $memory, "\n";
+
+// 3. Append to a second read of the memory limit.
+string $again = Core\Config::get("memory") ?? "";
+$again .= "!";
+echo "appended: ", $again, "\n";
+
+// The configuration still has every setting and the memory limit `128M`.
+echo "all: ", Core\Arr::count(Core\Config::all()) == $count ? "same" : "changed", "\n";
+echo "memory: ", Core\Config::get("memory") ?? "unset", "\n";
+--EXPECT--
+cut: 1
+cut: 1
+appended: 128M!
+all: same
+memory: 128M
