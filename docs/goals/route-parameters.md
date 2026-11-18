@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/arguments.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/reach.rs, crates/nvs-lsp/tests/completion_edits.rs, crates/nvs-cli/src/code.rs, crates/nvs-cli/tests/code.rs, tests/lsp/references/a-routed-method-answers-every-link-to-it.lspt, docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md]
   - id: 4
     title: the feature's proofs and its pages
-    status: open
+    status: done
     context: [docs/examples/lang/attributes/chapter.md, docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/agent/prose.md, docs/rules/testing/feature-proofs.md, website/src/content/docs/syntax/attributes/routes.mdx, benches/members/lang/attributes/core-route-and-core-access-the-route-table.nvs, tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/01-capture-values-that-try-to-leave-their-route.nvs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -356,32 +356,32 @@ written `about.md`: one writes the three examples and their `.out` files, one th
 bench. Each is told the `about.md` path and stage 2's error text. The session writes the chapter
 heading, `about.md`, `details.md` and the website section, and runs the `feature-proofs` check once.
 
-- [ ] `docs/examples/lang/attributes/chapter.md:13`: the heading
+- [x] `docs/examples/lang/attributes/chapter.md:13`: the heading
   ``# `#[Core\Router\Target]` and `#[Core\Router\Params]`: a method that takes a route`` after the
   route table's, which makes the feature and its help (`nvs agent find` reaches it). The keywords at
   `:5` gain `Router\Target`, `Router\Params`, `Target`, `Params`. If `bun nv proofs` spells the id
   differently, the `feature-proofs` check takes its spelling.
-- [ ] `docs/examples/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/about.md:1`
+- [x] `docs/examples/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/about.md:1`
   and `details.md:1`: what the two attributes do, what a call checks, that a reference passed as a
   variable is checked when the call runs, that a `private` route method is passed only from its own
   class, and that a link to another module is written with `Core\Router::url`.
-- [ ] Three examples in the same folder, each with its `.out`: `01-a-wrapper-that-builds-a-link`
+- [x] Three examples in the same folder, each with its `.out`: `01-a-wrapper-that-builds-a-link`
   (`Links::url` calls `Core\Router::url` with both arguments), `02-a-wrapper-that-signs-a-link`
   (`Links::signed` calls `Core\Router::urlSigned` and fills in the keys and expiry), and
   `03-a-menu-built-from-route-methods` (an array of references forwarded through the `Target`
   parameter and resolved when the call runs).
-- [ ] Attacks in `tests/hostile/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/`,
+- [x] Attacks in `tests/hostile/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/`,
   laid out as the route table's attacks are: `01-take-another-classes-private-method`, marked
   `// hostile: expect-refusal` (a class passes another class's `private` route method to its own
   `Target` parameter, to call it), and `02-a-capture-value-that-leaves-its-segment`, which runs to its
   last line (a `$params` value with `/` and `..` passed through the wrapper stays in one encoded
   segment).
-- [ ] `benches/members/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route.nvs:1`:
+- [x] `benches/members/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route.nvs:1`:
   one link built through a wrapper with a `Target`, which a page does for every link it renders.
   `// bench: complexity constant`.
-- [ ] `website/src/content/docs/syntax/attributes/routes.mdx:55`: a `FeatureSection` for the feature
+- [x] `website/src/content/docs/syntax/attributes/routes.mdx:55`: a `FeatureSection` for the feature
   after *Link to another module*, and its id in the page's `covers` list at `:3`.
-- [ ] The `feature-proofs` check run once, and every proof it names written.
+- [x] The `feature-proofs` check run once, and every proof it names written.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -393,36 +393,38 @@ heading, `about.md`, `details.md` and the website section, and runs the `feature
 
 ### State
 
-Stages 1, 2 and 3 are done. `attribute-sites`, `call-checked`, `call-checked-rust`, `editor` and
-`editor-rust` are green.
+Stages 1 to 4 are done. `attribute-sites`, `call-checked`, `call-checked-rust`, `editor`,
+`editor-rust` and `feature-proofs` are green.
 
-Stage 3: `crates/nvs-lsp/src/arguments.rs` `route_key_at` and `route_argument_at` read
-`ResolvedCall::route_slots` first and fall back to the `route`/`params` names for `Core` links and
-`Match::is`. Completion, hover and `nvs code refs` needed no other code. The "used by" lens reads
-"at least" and does not count a test that passes the reference: see the decision *The lens does
-not count a test that passes the reference*.
-Stage 2 checks a `Target` call in `crates/nvs-types/src/links.rs` `record_target_site` and
-`resolve`, and an omitted `Params` is not checked (decision *An omitted `Params`*).
+Stage 4: the chapter heading at `docs/examples/lang/attributes/chapter.md:14` makes the feature
+`lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route`. Its folder
+holds `about.md`, `details.md` and three examples; its two attacks and its bench (`complexity
+constant`, `calls 3`) are written, and the routes page has its section *A method that takes a route*.
+The fifteen `.nvst` cases and the five `links.rs` tests carry its `covers:` marker, placed as the last
+line of each case's `--FILE--` so no expected line number moved. Perf is recorded for the eight
+attributes features on a release binary built from the tree.
 
 The sweep's reds: `env-secret-proofs` is stale (its newest `git log -S` hit is a retire commit), and
-the nightly `supply chain` failure (`chrono` unmaintained, through `rxing`) is already fixed on disk
-by `0fe2fdef25`, which removed both from `Cargo.lock` after that run.
+the nightly `supply chain` failure (`chrono` through `rxing`) is fixed on disk by `0fe2fdef25`.
 
-The working tree carries edits this goal did not make, in `crates/nvs-lsp/src/index.rs`,
-`crates/nvs-lsp/tests/progress.rs`, `crates/nvs-runtime/src/lib.rs` and
-`crates/nvs-types/src/check.rs`. Leave them unstaged.
+The working tree carries edits this goal did not make, in `crates/nvs-lsp/`, `crates/nvs-runtime/`,
+`crates/nvs-types/src/check.rs`, `crates/nvs-types/src/expr/members.rs`, `docs/rules/types*`,
+`website/` and the two untracked `string<K>` union cases. Leave them unstaged.
+`docs/reference/lang/20-types.md` re-renders from them, and was restored, not committed.
 
 ### Next
 
-Stage 4 from its first item: `docs/examples/lang/attributes/chapter.md:13`, then `about.md`, the
-three examples, the attacks, the bench and the `FeatureSection` in
-`website/src/content/docs/syntax/attributes/routes.mdx:55`. Run
-`bun nv proofs --id lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route`
-for the paths it owes. The pages quote the error text in the ten new `.nvst` cases under
-`tests/conformance/{reject,lang}/a-route-*.nvst`. The examples cannot use `$params = []`: write the
-`Params` parameter as required. A route method passed from top-level code must be `static`.
-`feature-proofs` stays red until stage 4 ends. No existing test is expected to go red: the `Core`
-link path keeps its `route`/`params` lookup.
+Stage 5: run `looper verify` with `run_in_background`, fix every failure in one pass, run it once
+more. Then the goal-end gates of AGENTS.md: `bun nv verify --doc`, `bun nv owners --closes
+route-parameters`, `bun nv ci --check`.
+Expected reds, both owed to the other session's uncommitted runtime edits, not this goal:
+- `lang:attributes/reading-attributes-back-core-attributes-get-and-all`'s bench declares
+  `allocations 8` and did 7 on that binary, so its perf was not recorded. If the drop holds once
+  those edits land, lower the declaration to 7.
+- `lang:types/*` perf reads stale once `20-types.md` is rendered from those edits.
+The new bench has no entry in `data/perf/bench-budget.json`: `bun nv scaling --budget --write`
+writes it, and rewrites the whole file, so run it in the gate on the release binary. The pages that
+cover the attributes features may need `bun nv site --stamp`.
 
 ### Backlog
 

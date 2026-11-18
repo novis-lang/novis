@@ -17,6 +17,7 @@ class Links {
 
 // The path needs `id`, and the array is empty, so this call does not compile.
 echo Links::entry(Shop::show, []), "\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 
 --EXPECTF-ERROR--

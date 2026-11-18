@@ -23,5 +23,6 @@ class Links {
 
 // This prints "/shop/9".
 echo Links::forward(Shop::show), "\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 /shop/9

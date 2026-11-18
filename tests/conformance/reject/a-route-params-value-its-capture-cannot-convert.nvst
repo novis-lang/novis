@@ -17,6 +17,7 @@ class Links {
 
 // `id` is a `uint`. The text "abc" does not convert to a number, so this call does not compile.
 echo Links::entry(Shop::show, ["id" => "abc"]), "\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 
 --EXPECTF-ERROR--

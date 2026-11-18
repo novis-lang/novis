@@ -20,6 +20,7 @@ echo Links::entry(Shop::show, ["id" => 1, "sort" => "name"]), "\n";
 
 // `nope` is not in the path and is not a query parameter. This call does not compile.
 echo Links::entry(Shop::show, ["id" => 1, "nope" => "x"]), "\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 
 --EXPECTF-ERROR--

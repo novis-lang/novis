@@ -12,6 +12,7 @@ class Menu {
 }
 
 echo "unreachable\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 
 --EXPECTF-ERROR--

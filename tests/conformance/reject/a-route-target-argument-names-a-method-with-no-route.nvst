@@ -20,6 +20,7 @@ class Links {
 
 // `Shop::plain` has no route, so this call does not compile.
 echo Links::entry(Shop::plain, ["id" => 1]), "\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 
 --EXPECTF-ERROR--

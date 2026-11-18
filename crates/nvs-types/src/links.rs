@@ -1431,6 +1431,7 @@ mod tests {
     /// `rule:routing/a-route-target-parameter-is-checked-like-a-link`: the
     /// route is declared in a file the walk reaches after the call, and the
     /// call is still checked against it.
+    // covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
     #[test]
     fn a_route_target_is_checked_against_a_route_declared_in_a_later_file() {
         let pages = "<?nvs\nnamespace Blog;\n\nclass Pages\n{\n\
@@ -1460,6 +1461,7 @@ mod tests {
 
     /// The check records nothing over the call: its span still looks up an
     /// ordinary `Call`, and no `RouteLink` exists.
+    // covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
     #[test]
     fn a_route_target_call_stays_an_ordinary_call() {
         let checked = check(&format!(
@@ -1479,6 +1481,7 @@ mod tests {
 
     /// A class under a links root is never compiled, so a `Target` argument
     /// that names one is `E0897`.
+    // covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
     #[test]
     fn a_route_target_naming_a_links_root_class_does_not_compile() {
         let checked = check(&format!(
@@ -1493,6 +1496,7 @@ mod tests {
 
     /// A `Target` with no `Params` is checked for its route and nothing else:
     /// a method with no route is `E0754`, and a route with a capture compiles.
+    // covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
     #[test]
     fn a_route_target_without_params_checks_only_the_route() {
         let good = check(&format!("{SHOP}{LINKS}Links::only(Shop::show);\n"));
@@ -1503,6 +1507,7 @@ mod tests {
 
     /// A method with neither attribute has no route slots, and takes any
     /// method as before.
+    // covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
     #[test]
     fn a_method_without_route_attributes_has_no_route_slots() {
         let checked = check(&format!(

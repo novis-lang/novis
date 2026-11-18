@@ -33,6 +33,7 @@ class Shop {
 
 echo Shop::link(), "\n";
 echo new Shop()->self(), "\n";
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 /shop/3
 /page/4

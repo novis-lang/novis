@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a class passes another class's `private` route method to its own
+// method, and then calls it. Only the class that owns a `private` method may
+// pass it, so the program should not compile.
+// hostile: expect-refusal
+
+class Account
+{
+    // This route method is `private`. Only `Account` may call it or pass it.
+    #[Core\Route(path: '/account/{id}/secret', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    private static function secret(uint $id): string
+    {
+        return 'the secret of account ' . $id;
+    }
+}
+
+class Thief
+{
+    // `$route` must be a route method, and `$params` fills its path.
+    // This method calls the route method that it gets.
+    public static function steal(#[Core\Router\Target] callable(uint): string $route, #[Core\Router\Params] array<mixed> $params): string
+    {
+        return $route(3);
+    }
+
+    public static function run(): string
+    {
+        // 1. Passes the `private` method `Account::secret` from inside a different class.
+        return Thief::steal(Account::secret, ['id' => 3]);
+    }
+}
+
+echo Thief::run(), "\n";

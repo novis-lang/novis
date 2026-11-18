@@ -1,0 +1,44 @@
+<?nvs
+// Shows how to build a menu from a list of route methods.
+
+class Pages
+{
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function home(): string
+    {
+        return 'home';
+    }
+
+    #[Core\Route(path: '/about', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function about(): string
+    {
+        return 'about';
+    }
+
+    #[Core\Route(path: '/contact', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function contact(): string
+    {
+        return 'contact';
+    }
+}
+
+class Menu
+{
+    // These routes have no captures, so the method needs no `Params` parameter.
+    public static function item(#[Core\Router\Target] callable $route, string $label): string
+    {
+        return '<a href="' . Core\Router::url($route) . '">' . $label . '</a>';
+    }
+}
+
+// Each key is the text of a link, and each value is a route method.
+array<callable> $pages = ['Home' => Pages::home, 'About' => Pages::about, 'Contact' => Pages::contact];
+
+// `$route` is a variable, so the route is found when the program runs.
+// This prints one link for each page. The first is `<a href="/">Home</a>`.
+foreach ($pages as string $label => callable $route) {
+    echo Menu::item($route, $label), "\n";
+}

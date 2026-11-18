@@ -16,5 +16,6 @@ class Links {
 
 // This calls `Shop::plain` with 5 and prints "plain 5".
 Links::call(Shop::plain, 5);
+// covers: lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route
 --EXPECT--
 plain 5

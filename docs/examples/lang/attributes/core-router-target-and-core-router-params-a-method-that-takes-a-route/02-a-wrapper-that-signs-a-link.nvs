@@ -1,0 +1,35 @@
+<?nvs
+// Shows a method that signs a link, so the caller only gives the route and its values.
+
+class Reports
+{
+    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function download(uint $year): string
+    {
+        return 'the report';
+    }
+}
+
+class Links
+{
+    // This method makes the key and the expiry time itself.
+    // The signed link works for one hour.
+    public static function signed(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string
+    {
+        secret bytes $key = Core\Crypto::generateKey();
+        array<secret bytes> $keys = [$key];
+        Core\Time\Instant $until = Core\Time::now()->plus(1h);
+        return Core\Router::urlSigned($route, $params, { keys: $keys, until: $until });
+    }
+}
+
+string $plain = Core\Router::url(Reports::download, ['year' => 2024]);
+string $signed = Links::signed(Reports::download, ['year' => 2024]);
+
+// This prints `/reports/2024`.
+echo $plain, "\n";
+
+// The signed link is the plain link with `?_sig=` and the signature at the end.
+// This prints `yes`.
+echo Core\Str::startsWith($signed, $plain . '?_sig=') ? 'yes' : 'no', "\n";

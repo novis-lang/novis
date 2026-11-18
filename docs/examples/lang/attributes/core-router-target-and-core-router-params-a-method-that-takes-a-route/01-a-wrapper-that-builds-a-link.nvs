@@ -1,0 +1,26 @@
+<?nvs
+// Shows how your own method can take a route and its values, like `Core\Router::url` does.
+
+class Shop
+{
+    #[Core\Route(path: '/shop/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string
+    {
+        return 'product ' . $id;
+    }
+}
+
+class Links
+{
+    // `$route` must be a route method, and `$params` fills its path.
+    // The method passes both to `Core\Router::url` and returns the link.
+    public static function url(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string
+    {
+        return Core\Router::url($route, $params);
+    }
+}
+
+// The compiler checks this call like a call to `Core\Router::url`.
+// This prints `/shop/3`.
+echo Links::url(Shop::show, ['id' => 3]), "\n";

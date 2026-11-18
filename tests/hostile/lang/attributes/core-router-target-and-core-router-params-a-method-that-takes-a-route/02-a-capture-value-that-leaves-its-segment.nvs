@@ -1,0 +1,63 @@
+<?nvs
+// Attack: your own method builds links from values that try to leave their path
+// segment. The method passes them to `Core\Router::url`, which encodes them. The
+// program should run to its last line.
+
+class Files
+{
+    #[Core\Route(path: '/files/{name}/view', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function view(string $name): string
+    {
+        return $name;
+    }
+}
+
+class Links
+{
+    // `$route` must be a route method, and `$params` fills its path.
+    public static function entry(#[Core\Router\Target] callable $route, #[Core\Router\Params] array<mixed> $params): string
+    {
+        return Core\Router::url($route, $params);
+    }
+
+    // This returns 1 when the link starts with `/files/`, ends with `/view`
+    // and has no `?` or `#`.
+    public static function inside(string $url): uint
+    {
+        if (!Core\Str::startsWith($url, '/files/')) {
+            return 0;
+        }
+        if (!Core\Str::endsWith($url, '/view')) {
+            return 0;
+        }
+        if (Core\Str::contains($url, '?') || Core\Str::contains($url, '#')) {
+            return 0;
+        }
+        return 1;
+    }
+}
+
+array<string> $values = [
+    // 1. Two steps up the directory tree, to reach another file.
+    '../../etc/passwd',
+    // 2. A slash, to add a second segment.
+    'a/b/c',
+    // 3. A `?` and a `#`, to start a query string and a fragment.
+    'a?admin=1#top',
+    // 4. A value with nothing in it.
+    '',
+];
+
+uint $safe = 0;
+foreach ($values as string $value) {
+    string $url = Links::entry(Files::view, ['name' => $value]);
+    echo $url, "\n";
+    $safe = $safe + Links::inside($url);
+}
+
+// 5. Many steps up the directory tree in one value.
+string $huge = Core\Str::repeat('../', 40000);
+$safe = $safe + Links::inside(Links::entry(Files::view, ['name' => $huge]));
+
+echo $safe, " of 5 links stay in their segment\n";

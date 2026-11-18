@@ -1,6 +1,6 @@
 ---
 title: Routes and access
-covers: ['lang:attributes/core-route-and-core-access-the-route-table', 'lang:attributes/core-api-and-the-openapi-document', 'Core\Router::dispatch', 'Core\Router\Gate', 'Core\Router\Responder', 'Core\Router\Refusal']
+covers: ['lang:attributes/core-route-and-core-access-the-route-table', 'lang:attributes/core-api-and-the-openapi-document', 'lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route', 'Core\Router::dispatch', 'Core\Router\Gate', 'Core\Router\Responder', 'Core\Router\Refusal']
 description: How #[Core\Route] and #[Core\Access] declare the URLs of a web app, and how Core\Router builds links and calls the route method for a request.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
@@ -67,6 +67,19 @@ another module. It declares the classes of the other modules with `autoload link
 - `Core\Router::urlSigned` cannot link to another module. Such a call does not compile.
 
 The page [Many modules on one server](/guides/how-to-use/modules/) shows a complete setup.
+
+## A method that takes a route
+
+Your own method can take a route method and its values, as `Core\Router::url` does. Write
+`#[Core\Router\Target]` on its `callable` parameter and `#[Core\Router\Params]` on its `array`
+parameter. The compiler then checks each call that writes the route method directly, as it checks a
+link.
+
+<FeatureSection examples="lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route" heading="Core\Router\Target and Core\Router\Params" id="core-router-target-and-core-router-params" />
+
+- A `private` route method can only be passed from inside its own class. Your method gets a
+  `callable` that it can call, so the compiler checks who may call it.
+- A route of another module does not compile here. Write that link with `Core\Router::url`.
 
 <FeatureSection examples="lang/attributes/core-api-and-the-openapi-document" heading="An OpenAPI document" id="an-openapi-document" />
 
