@@ -3376,6 +3376,11 @@ fn property_path_miss<'a>(path: &'a [u8], graph: &'a [u8]) -> Option<PathMiss<'a
 /// Each segment of `path` with the class it is looked up on, walked over the
 /// encoded `graph` [`property_path_miss`] reads, or `None` when `path` is not a
 /// valid path. `Core\Reflect::steps` reads a property row per pair.
+///
+/// An array's node is labelled with its type, such as `array<Author>`. A
+/// property segment on it is the shorthand for `@value` and that property, so
+/// its class is the label of the node `@value` leads to. A `@key` or `@value`
+/// segment keeps the array's label.
 #[must_use]
 pub fn property_path_segments<'a>(
     path: &'a [u8],
@@ -3385,7 +3390,12 @@ pub fn property_path_segments<'a>(
     let mut out = Vec::new();
     let mut segments = path.split(|&b| b == b'.').peekable();
     while let Some(segment) = segments.next() {
-        let (class, step) = path_node_step(graph, node, segment);
+        let (mut class, step) = path_node_step(graph, node, segment);
+        if segment.first() != Some(&b'@')
+            && let (_, Some(Some(element))) = path_node_step(graph, node, b"@value")
+        {
+            class = path_node_step(graph, element, b"").0;
+        }
         match step? {
             None if segments.peek().is_some() => return None,
             None => {}

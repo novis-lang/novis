@@ -1,0 +1,68 @@
+--TEST--
+After an array property, a `propertyPath<T>` takes `@key` for an element's key and `@value` for the element, on an `array<string>`, an `array<Author>`, an `array<array<Author>>` and a `?array<Author>`, the shorthand `authors.name` beside `authors.@value.name`, and a class property named `value` is still reached by its name; each written with `as`, as a literal at a parameter and as a `string<propertyPath<T>>` hole — `rule:types/property-path`
+--FILE--
+<?nvs
+// After an array, `@key` is an element's key and `@value` is the element.
+class Author {
+    public string $name = "Ada";
+    public string $value = "high";
+}
+
+class Book {
+    public array<string> $tags = [];
+    public array<Author> $authors = [];
+    public array<array<Author>> $grid = [];
+    public ?array<Author> $editors = null;
+
+    public static function sortBy(propertyPath<static> $path): string {
+        return "sorted by " . $path;
+    }
+
+    public static function where(string<propertyPath<static>> $condition): string {
+        return "where " . ($condition as string);
+    }
+}
+
+// `tags` is an `array<string>`. Its keys and its elements are both a path.
+echo "tags.@key" as propertyPath<Book> as string, "\n";
+echo "tags.@value" as propertyPath<Book> as string, "\n";
+
+// `@value` of `authors` is an `Author`, so the path goes on to `name`.
+echo Book::sortBy("authors.@value.name"), "\n";
+
+// `authors.name` is a shorter way to write `authors.@value.name`.
+echo Book::sortBy("authors.name"), "\n";
+
+// `value` without `@` is the property `$value` of `Author`.
+echo Book::sortBy("authors.value"), "\n";
+echo Book::sortBy("authors.@value.value"), "\n";
+
+// `grid` is an array of arrays, so `@value` reaches an inner array.
+echo "grid.@value.@key" as propertyPath<Book> as string, "\n";
+echo Book::sortBy("grid.@value.@value.name"), "\n";
+echo Book::sortBy("grid.@value.name"), "\n";
+
+// `editors` is a `?array<Author>`. It takes the same steps as `authors`.
+echo Book::sortBy("editors.@key"), "\n";
+echo Book::sortBy("editors.name"), "\n";
+
+// The same paths work inside the holes of a `string<propertyPath<Book>>`.
+echo Book::where("{tags.@value} = 'new' AND {authors.@key} < 3"), "\n";
+echo Book::where("{authors.@value.name} = {editors.value}"), "\n";
+echo Book::where("{grid.@value.@value.name} <> ''"), "\n";
+// covers: lang:types/property-paths
+--EXPECT--
+tags.@key
+tags.@value
+sorted by authors.@value.name
+sorted by authors.name
+sorted by authors.value
+sorted by authors.@value.value
+grid.@value.@key
+sorted by grid.@value.@value.name
+sorted by grid.@value.name
+sorted by editors.@key
+sorted by editors.name
+where {tags.@value} = 'new' AND {authors.@key} < 3
+where {authors.@value.name} = {editors.value}
+where {grid.@value.@value.name} <> ''

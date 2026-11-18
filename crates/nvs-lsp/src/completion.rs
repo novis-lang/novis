@@ -927,7 +927,7 @@ fn open_hole(
 /// (`rule:ide/a-field-path-completes-one-segment-at-a-time`).
 ///
 /// The text up to the last `.` before the cursor is stepped over the rosters
-/// the checker recorded, with [`nvs_types::path_step_class`], and the names of
+/// the checker recorded, with [`nvs_types::path_step`], and the names of
 /// the class it reaches are offered. Each value is that text and one name,
 /// split on `.`, so [`file_values`] replaces only the segment being written
 /// and a `.` asks for the next list. Nothing where a segment before the cursor
@@ -951,7 +951,8 @@ fn path_steps(
                 .property_keys(&reached)
                 .iter()
                 .find(|(name, _)| name == segment)
-                .and_then(|(_, ty)| nvs_types::path_step_class(*ty, &analysed.interner))
+                .and_then(|(_, ty)| nvs_types::path_step(*ty, &analysed.interner))
+                .and_then(|target| target.property_class(&analysed.interner))
             else {
                 return Vec::new();
             };

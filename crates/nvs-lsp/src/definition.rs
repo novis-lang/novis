@@ -1119,7 +1119,7 @@ pub(crate) struct PathSegment<'a> {
 /// to over the rosters the checker recorded (`rule:types/property-path`).
 ///
 /// Each segment before it is looked up on the class the path has reached, and
-/// [`nvs_types::path_step_class`] gives the next class, the step the checker
+/// [`nvs_types::path_step`] gives the next class, the step the checker
 /// takes. `None` where a segment before the cursor names nothing, and for a
 /// literal with an escape in it, whose text does not map to its source byte for
 /// byte. The property is named on the class the path reached, so one inherited
@@ -1165,7 +1165,8 @@ pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Optio
                 ty: *ty,
             });
         }
-        class = nvs_types::path_step_class(*ty, &analysed.interner)?;
+        class =
+            nvs_types::path_step(*ty, &analysed.interner)?.property_class(&analysed.interner)?;
         start = end + 1;
     }
     None

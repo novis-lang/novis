@@ -230,7 +230,8 @@ pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr::calls::method_ref_arity;
 pub use expr::members::{
-    HoleKind, hole_kind, is_written_class_side, path_step_class, string_holes_key,
+    HoleKind, PATH_KEY_STEP, PATH_VALUE_STEP, PathTarget, hole_kind, is_written_class_side,
+    path_step, string_holes_key,
 };
 pub use expr_table::{
     Delegation, EnumSpelling, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, LocalBinding,

@@ -874,61 +874,133 @@ pub(crate) fn key_parameter_class(
     }
 }
 
-/// The class the next segment of a `rule:types/property-path` path is looked
-/// up on, where `ty` is the declared type of the property a segment names: a
-/// class `C`, a `?C` or an `array<C>`. `None` for every other type, which a
-/// path cannot step past. `nvs_lsp` steps a path over the recorded rosters
-/// with this, so the editor and the checker step the same way.
-pub fn path_step_class(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
-    let class_of = |id: TypeId| match interner.get(id) {
-        Ty::Class(qname, _) => Some(qname.clone()),
-        _ => None,
-    };
-    match interner.get(ty) {
-        Ty::Class(qname, _) => Some(qname.clone()),
-        Ty::Array(elem) => class_of(*elem),
-        Ty::Union(members) => match members.as_slice() {
-            [a, b] if matches!(interner.get(*a), Ty::Null) => class_of(*b),
-            [a, b] if matches!(interner.get(*b), Ty::Null) => class_of(*a),
-            _ => None,
-        },
-        _ => None,
+/// What a `rule:types/property-path` segment reaches, read off the declared
+/// type of the property or step it names ([`path_step`]).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PathTarget {
+    /// A class `C` or a `?C`: the next segment is a public property of `C`.
+    Class(QName),
+    /// An `array<E>` or a `?array<E>`: the next segment is `@key`, `@value`,
+    /// or a property of `E`'s class.
+    Array {
+        /// The `array<E>` itself, which a graph node and a diagnostic name.
+        array: TypeId,
+        /// `E`, what `@value` reaches.
+        element: TypeId,
+    },
+}
+
+impl PathTarget {
+    /// The class whose public properties the next segment may name: the
+    /// class itself, or an array's element class for the shorthand
+    /// `authors.name`. `None` for an array whose element is not a class.
+    #[must_use]
+    pub fn property_class(&self, interner: &TypeInterner) -> Option<QName> {
+        match self {
+            Self::Class(qname) => Some(qname.clone()),
+            Self::Array { element, .. } => match path_step(*element, interner)? {
+                Self::Class(qname) => Some(qname),
+                Self::Array { .. } => None,
+            },
+        }
     }
 }
 
-/// The class a path steps to after `name` on `qname`, under
-/// [`path_step_class`].
-fn path_step_after(qname: &QName, name: &str, env: &Env<'_>) -> Option<QName> {
-    let (_, ty) =
-        crate::signatures::resolve_property_owned(qname, name, env.signatures, env.graph)?;
-    path_step_class(ty, env.interner)
+/// What a path reaches through a property or `@value` step of type `ty`: a
+/// class `C` or `?C`, or an `array<E>` or `?array<E>` for any `E`
+/// (`rule:types/property-path`). `None` for every other type, which a path
+/// cannot step past. This is the one step rule: the checker, the run-time
+/// graph and `nvs_lsp` all read it, so the editor and the checker step the
+/// same way.
+#[must_use]
+pub fn path_step(ty: TypeId, interner: &TypeInterner) -> Option<PathTarget> {
+    let direct = |id: TypeId| match interner.get(id) {
+        Ty::Class(qname, _) => Some(PathTarget::Class(qname.clone())),
+        Ty::Array(element) => Some(PathTarget::Array {
+            array: id,
+            element: *element,
+        }),
+        _ => None,
+    };
+    match interner.get(ty) {
+        Ty::Union(members) => match members.as_slice() {
+            [a, b] if matches!(interner.get(*a), Ty::Null) => direct(*b),
+            [a, b] if matches!(interner.get(*b), Ty::Null) => direct(*a),
+            _ => None,
+        },
+        _ => direct(ty),
+    }
 }
 
-/// Every class a `rule:types/property-path` path can reach from `root`, the
-/// first being `root`, each with its public properties and where they lead.
-/// One roster per class, so a path that loops back to a class adds nothing.
+/// What a path reaches after the property `name` of `qname`, under
+/// [`path_step`].
+fn path_step_after(qname: &QName, name: &str, env: &Env<'_>) -> Option<PathTarget> {
+    let (_, ty) =
+        crate::signatures::resolve_property_owned(qname, name, env.signatures, env.graph)?;
+    path_step(ty, env.interner)
+}
+
+/// The array step that names an element's key, and ends a path.
+pub const PATH_KEY_STEP: &str = "@key";
+/// The array step that names the element itself.
+pub const PATH_VALUE_STEP: &str = "@value";
+
+/// The rows of `target`'s node in [`property_path_graph`], sorted by name: a
+/// class's public properties, each with what it reaches; and for an array,
+/// `@key`, `@value`, and its element class's rows for the shorthand.
+fn path_rows(target: &PathTarget, env: &Env<'_>) -> Vec<(String, Option<PathTarget>)> {
+    match target {
+        PathTarget::Class(class) => public_property_names(class, env)
+            .into_iter()
+            .map(|name| {
+                let next = path_step_after(class, &name, env);
+                (name, next)
+            })
+            .collect(),
+        PathTarget::Array { element, .. } => {
+            let value = path_step(*element, env.interner);
+            let mut rows = vec![
+                (PATH_KEY_STEP.to_owned(), None),
+                (PATH_VALUE_STEP.to_owned(), value.clone()),
+            ];
+            if let Some(class @ PathTarget::Class(_)) = value {
+                rows.extend(path_rows(&class, env));
+            }
+            rows
+        }
+    }
+}
+
+/// Every class and array type a `rule:types/property-path` path can reach
+/// from `root`, the first being `root`, each with its rows ([`path_rows`]) and
+/// the node each leads to. One node per class and per distinct array type, so
+/// a path that loops back adds nothing. An array's node is labelled with its
+/// type rendered, such as `array<Author>`.
 pub(crate) fn property_path_graph(root: &QName, env: &Env<'_>) -> Vec<crate::expr_table::PathNode> {
-    let mut order = vec![root.clone()];
-    let mut index: rustc_hash::FxHashMap<QName, usize> = rustc_hash::FxHashMap::default();
-    index.insert(root.clone(), 0);
+    let mut order = vec![PathTarget::Class(root.clone())];
+    let mut index: rustc_hash::FxHashMap<PathTarget, usize> = rustc_hash::FxHashMap::default();
+    index.insert(order[0].clone(), 0);
     let mut nodes = Vec::new();
     let mut at = 0;
     while at < order.len() {
-        let class = order[at].clone();
-        let mut steps = Vec::new();
-        for name in public_property_names(&class, env) {
-            let next = path_step_after(&class, &name, env).map(|next| {
-                *index.entry(next.clone()).or_insert_with(|| {
-                    order.push(next);
-                    order.len() - 1
-                })
-            });
-            steps.push((name, next));
-        }
-        nodes.push(crate::expr_table::PathNode {
-            class: class.to_string(),
-            steps,
-        });
+        let target = order[at].clone();
+        let steps = path_rows(&target, env)
+            .into_iter()
+            .map(|(name, next)| {
+                let next = next.map(|next| {
+                    *index.entry(next.clone()).or_insert_with(|| {
+                        order.push(next);
+                        order.len() - 1
+                    })
+                });
+                (name, next)
+            })
+            .collect();
+        let class = match &target {
+            PathTarget::Class(class) => class.to_string(),
+            PathTarget::Array { array, .. } => env.interner.describe(*array),
+        };
+        nodes.push(crate::expr_table::PathNode { class, steps });
         at += 1;
     }
     nodes
@@ -936,18 +1008,21 @@ pub(crate) fn property_path_graph(root: &QName, env: &Env<'_>) -> Vec<crate::exp
 
 /// Records [`record_property_keys`] for every class a `rule:types/property-path`
 /// path can reach from `root`, `root` first, so the editor offers the names of
-/// the class each `.` reaches. Each class is listed once, so a path that loops
-/// back to a class adds nothing.
+/// the class each `.` reaches. The walk passes through array types to their
+/// element classes, and lists each class and array type once, so a path that
+/// loops back adds nothing.
 pub(crate) fn record_path_property_keys(root: &QName, env: &mut Env<'_>) {
-    let mut order = vec![root.clone()];
+    let mut order = vec![PathTarget::Class(root.clone())];
     let mut seen = FxHashSet::default();
-    seen.insert(root.clone());
+    seen.insert(order[0].clone());
     let mut at = 0;
     while at < order.len() {
-        let class = order[at].clone();
-        record_property_keys(&class, env);
-        for name in public_property_names(&class, env) {
-            if let Some(next) = path_step_after(&class, &name, env)
+        let target = order[at].clone();
+        if let PathTarget::Class(class) = &target {
+            record_property_keys(class, env);
+        }
+        for (_, next) in path_rows(&target, env) {
+            if let Some(next) = next
                 && seen.insert(next.clone())
             {
                 order.push(next);
@@ -1005,9 +1080,12 @@ fn check_path_segments(
     env: &mut Env<'_>,
 ) -> bool {
     let segments: Vec<&str> = path.split('.').collect();
-    let mut class = root.clone();
+    let mut target = Some(PathTarget::Class(root.clone()));
+    // What the segment before this one named, for a diagnostic about it.
+    let mut before = PathBefore::Root(root.to_string());
+    let mut before_underline = written.underline(base, 0);
     let mut at = base;
-    for (i, segment) in segments.iter().enumerate() {
+    for segment in segments {
         let underline = written.underline(at, segment.len());
         if segment.is_empty() {
             env.diags.report(
@@ -1020,49 +1098,168 @@ fn check_path_segments(
             );
             return false;
         }
-        let roster = public_property_names(&class, env);
-        if !roster.iter().any(|name| name == segment) {
-            let listed = roster
-                .iter()
-                .map(|property| format!("`${property}`"))
-                .collect::<Vec<_>>()
-                .join(", ");
+        let step = segment.starts_with('@');
+        if step && segment != PATH_KEY_STEP && segment != PATH_VALUE_STEP {
             env.diags.report(
                 Diagnostic::error(
                     code::E_UNKNOWN_MEMBER,
-                    format!("`{class}` has no public property `${segment}`"),
+                    format!("a property path has no step `{segment}`"),
                 )
                 .with_primary(underline, "this part of the path is checked here")
-                .with_help(format!(
-                    "each part of a property path names a public property of the class \
-                     the path has reached: `{class}` has {listed}"
-                )),
+                .with_help("an array's steps are `@key` and `@value`"),
             );
             return false;
         }
-        if i + 1 < segments.len() {
-            let Some(next) = path_step_after(&class, segment, env) else {
+        let Some(reached) = target.take() else {
+            report_path_dead_end(&before, segment, step, underline, before_underline, env);
+            return false;
+        };
+        if step {
+            let PathTarget::Array { array, element } = reached else {
+                report_path_dead_end(&before, segment, true, underline, before_underline, env);
+                return false;
+            };
+            if segment == PATH_KEY_STEP {
+                before = PathBefore::Key;
+            } else {
+                target = path_step(element, env.interner);
+                before = PathBefore::Value {
+                    array: env.interner.describe(array),
+                    element: env.interner.describe(element),
+                };
+            }
+        } else {
+            let Some(class) = reached.property_class(env.interner) else {
+                let PathTarget::Array { array, .. } = reached else {
+                    unreachable!("a class target always has a property class");
+                };
+                let array = env.interner.describe(array);
                 env.diags.report(
                     Diagnostic::error(
                         code::E_UNKNOWN_MEMBER,
-                        format!(
-                            "`{class}`'s property `${segment}` is not an object, so the path \
-                             cannot continue after it"
-                        ),
+                        format!("`{array}` has no public property `${segment}`"),
                     )
-                    .with_primary(underline, "the path continues after this property")
+                    .with_primary(underline, "this part of the path is checked here")
                     .with_help(
-                        "every part of a property path but the last names a property whose \
-                         type is a class, a nullable class or an array of a class",
+                        "after an array, a property path takes `@key`, `@value` or a property \
+                         of the element class",
                     ),
                 );
                 return false;
             };
-            class = next;
+            let roster = public_property_names(&class, env);
+            if !roster.iter().any(|name| name == segment) {
+                let listed = roster
+                    .iter()
+                    .map(|property| format!("`${property}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let steps = if matches!(reached, PathTarget::Array { .. }) {
+                    ". After an array, a path can also take `@key` and `@value`"
+                } else {
+                    ""
+                };
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNKNOWN_MEMBER,
+                        format!("`{class}` has no public property `${segment}`"),
+                    )
+                    .with_primary(underline, "this part of the path is checked here")
+                    .with_help(format!(
+                        "each part of a property path names a public property of the class \
+                         the path has reached: `{class}` has {listed}{steps}"
+                    )),
+                );
+                return false;
+            }
+            target = path_step_after(&class, segment, env);
+            before = PathBefore::Property {
+                class: class.to_string(),
+                name: segment.to_owned(),
+            };
         }
+        before_underline = underline;
         at += segment.len() + 1;
     }
     true
+}
+
+/// What the segment before the one being checked named, so a path that cannot
+/// go on says why.
+enum PathBefore {
+    /// Nothing yet: the path starts at this class.
+    Root(String),
+    /// A property of a class.
+    Property { class: String, name: String },
+    /// `@value` of an array, whose element type is `element`.
+    Value { array: String, element: String },
+    /// `@key`, which ends a path.
+    Key,
+}
+
+/// Reports a path that cannot go on to `segment` after `before`. A step after
+/// something that is not an array is underlined at the step. Any other
+/// segment is underlined at `before`, the part the path cannot continue after.
+fn report_path_dead_end(
+    before: &PathBefore,
+    segment: &str,
+    step: bool,
+    underline: Span,
+    before_underline: Span,
+    env: &mut Env<'_>,
+) {
+    let diagnostic = match before {
+        PathBefore::Key => Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            "`@key` ends a property path, so nothing can follow it",
+        )
+        .with_primary(before_underline, "the path continues after this step")
+        .with_help("`@key` is an array element's key, which has no properties"),
+        PathBefore::Root(class) if step => Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{class}` is a class, so the path cannot start with `{segment}`"),
+        )
+        .with_primary(underline, "this part of the path is checked here")
+        .with_help("`@key` and `@value` follow a property whose type is an array"),
+        PathBefore::Property { name, .. } if step => Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`${name}` is not an array, so the path cannot take `{segment}` after it"),
+        )
+        .with_primary(underline, "this part of the path is checked here")
+        .with_help("`@key` and `@value` follow a property whose type is an array"),
+        PathBefore::Value { .. } if step => Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`@value` is not an array, so the path cannot take `{segment}` after it"),
+        )
+        .with_primary(underline, "this part of the path is checked here")
+        .with_help("`@key` and `@value` follow a property whose type is an array"),
+        PathBefore::Root(_) => unreachable!("a path starts at a class"),
+        PathBefore::Property { class, name } => Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!(
+                "`{class}`'s property `${name}` is not an object, so the path cannot continue \
+                 after it"
+            ),
+        )
+        .with_primary(before_underline, "the path continues after this property")
+        .with_help(
+            "every part of a property path but the last names a property whose type is a \
+             class, a nullable class or an array",
+        ),
+        PathBefore::Value { array, element } => Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!(
+                "`@value` of `{array}` is a `{element}`, which is not an object, so the path \
+                 cannot continue after it"
+            ),
+        )
+        .with_primary(before_underline, "the path continues after this step")
+        .with_help(
+            "after `@value`, a property path goes on only when the element is a class or an \
+             array",
+        ),
+    };
+    env.diags.report(diagnostic);
 }
 
 /// What the holes of a `rule:types/string-holes` string may contain, read off

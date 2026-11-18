@@ -47,7 +47,7 @@ error[E0405]: `Order`'s property `$total` is not an object, so the path cannot c
    |
 24 | echo Report::column("total.amount"), "\n";
    |                      ^^^^^ the path continues after this property
-   = help: every part of a property path but the last names a property whose type is a class, a nullable class or an array of a class
+   = help: every part of a property path but the last names a property whose type is a class, a nullable class or an array
 
 error[E0405]: a property path has an empty part
    --> %s:26:21

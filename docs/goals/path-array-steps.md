@@ -6,7 +6,7 @@ context: [crates/nvs-types/src/expr/members.rs, docs/rules/types/property-path.m
 stages:
   - id: 1
     title: the rule is written, and the checker steps into an array with @key and @value
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr_table.rs, docs/rules/types/string-holes.md, tests/conformance/lang/a-property-path-steps-through-objects-nullable-objects-and-arrays.nvst, tests/conformance/lang/a-misspelled-property-path-does-not-compile.nvst]
   - id: 2
     title: the run-time walk and Core\Reflect::steps take the two steps
@@ -66,8 +66,9 @@ property name.
 `E`: a class `C` or `?C` continues into `C`'s properties, an array takes `@key`/`@value` again
 (`{grid.@value.@key}`), and anything else ends the path. The existing shorthand stays: a property of the
 element class directly after an array property, `{authors.name}`, is `{authors.@value.name}`. A
-`?array<C>` steps like `array<C>`, shorthand included; today it cannot step at all
-(`crates/nvs-types/src/expr/members.rs:893`). `@key` after a non-array, `@value` after a non-array, a
+`?array<C>` steps like `array<C>`, shorthand included. The shorthand applies after every array a path
+reaches, so `grid.@value.name` is `grid.@value.@value.name`, and an `array<?C>` element counts as a
+class: both fall out of one rule, `path_step` applied to `E`, with no special case. `@key` after a non-array, `@value` after a non-array, a
 step after `@key`, and any other `@` word (`@Key`, `@index`, `@`) is the same unknown-member diagnostic
 (`E0405`), placed on that segment, with its own message: "`$name` is not an array, so the path cannot
 take `@key` after it" and "an array's steps are `@key` and `@value`".
@@ -121,23 +122,23 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** writes the rule and builds the keystone: one step rule the checker and the graph builder read.
 
-- [ ] `docs/rules/types/property-path.md:6`: the step paragraph gains `@key` and `@value`, the types that
+- [x] `docs/rules/types/property-path.md:6`: the step paragraph gains `@key` and `@value`, the types that
   take them, the shorthand and `?array<E>`, written from § *Standing decisions*, with the Declined entry
   for unprefixed `key` and `value`. `data/rules/types/property-path.json` follows. Then
   `bun nv rules --render`, and `bun nv rules --check` is green.
-- [ ] `crates/nvs-types/src/expr/members.rs:882` `path_step_class`: returns a step target, a class or an
+- [x] `crates/nvs-types/src/expr/members.rs:882` `path_step_class`: returns a step target, a class or an
   array with its element `TypeId`, for `C`, `?C`, `array<E>` and `?array<E>`. Every caller
   (`bun nv peek --locate path_step_class`) reads it, the LSP callers included, so the tree builds.
-- [ ] `crates/nvs-types/src/expr/members.rs:1000` `check_path_segments`: walks a step target. On an array
+- [x] `crates/nvs-types/src/expr/members.rs:1000` `check_path_segments`: walks a step target. On an array
   it takes `@key` (last segment only), `@value`, or a property of a class element. Every wrong use is
   `E0405` at its segment with the messages in § *Standing decisions*, held to `docs/agent/prose.md`.
-- [ ] `crates/nvs-types/src/expr/members.rs:910` `property_path_graph` and `:941`
+- [x] `crates/nvs-types/src/expr/members.rs:910` `property_path_graph` and `:941`
   `record_path_property_keys`: an array node per distinct array type, as § *Standing decisions* says.
-- [ ] `tests/conformance/lang/a-property-path-steps-into-an-array-with-key-and-value.nvst:1`: `@key`
+- [x] `tests/conformance/lang/a-property-path-steps-into-an-array-with-key-and-value.nvst:1`: `@key`
   and `@value` on an `array<string>`, an `array<Author>`, an `array<array<Author>>` and a
   `?array<Author>`, the shorthand beside `@value.name`, and a class with its own `$value` reached by
   `value`; each as a `propertyPath<T>` literal and as a `string<propertyPath<T>>` hole, printed.
-- [ ] `tests/conformance/reject/a-misplaced-array-step-in-a-property-path-does-not-compile.nvst:1`:
+- [x] `tests/conformance/reject/a-misplaced-array-step-in-a-property-path-does-not-compile.nvst:1`:
   `@key` after a non-array, a step after `@key`, `@Key`, `@index` and a lone `@`, each one `E0405` at
   its segment.
 
@@ -207,16 +208,30 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### State
 
-Written on 2026-11-18 from a user report. Nothing is built yet. The person chose the `@key`/`@value`
-syntax, so a property named `key` or `value` keeps its name, and placed the goal on the chain behind
-`in-place-everywhere`. Every other choice in § *Standing decisions* is the authoring session's call
-under the priority ordering, and stands until the person picks another.
+Stage 1 is done. The rule fragment has the steps and the Declined entry. `path_step_class` is now
+`path_step` (`crates/nvs-types/src/expr/members.rs:916`), returning a `PathTarget` (`:880`): a class,
+or an array with its `array<E>` and `E` type ids. `PathTarget::property_class` gives the class a
+property segment is looked up on, the shorthand included. The LSP callers read it that way and behave
+as before. `check_path_segments` (`:1075`) walks targets, and `report_path_dead_end` (`:1203`) has
+every misplaced-step message. The graph has an array node per distinct array type, labelled with the
+rendered type, with `@key`, `@value` and the element class's rows copied in. The two stage 1 cases and
+the edited `a-misspelled-property-path-does-not-compile.nvst` are green, run by name.
+
+One stage 2 piece already landed so nothing regressed: `property_path_segments`
+(`crates/nvs-runtime/src/helpers.rs:3385`) gives a shorthand segment on an array node the class of the
+node `@value` leads to, so `reflect-steps-gives-each-segment-of-a-path.nvst` stays green. A `@key` or
+`@value` segment still carries the array's label, so `Core\Reflect::steps` on such a path dies with
+"found no class `array<…>`" until stage 2 gives those two rows.
+
+The sweep's `env-secret-proofs` red is stale: its log does not exist, and the newest `git log -S` hit
+is `in-place-everywhere`'s retire commit.
 
 ### Next
 
-Stage 1 from its first item: the rule fragment, then `path_step_class`
-(`crates/nvs-types/src/expr/members.rs:882`) and its callers, then the checker walk and the graph, then
-the two conformance cases. The `cases` and `editor` checks name cases that do not exist yet, and are
-expected to fail until stages 2 and 3 write them.
+Stage 2 from its first item: the throw messages (`crates/nvs-runtime/src/helpers.rs`
+`nvs_property_path_mismatch` and the string-holes mismatch below it) for an array node, then
+`nvs_core_reflect_steps` (`crates/nvs-stdlib/src/reflect.rs:2257`) for the `@key` and `@value` rows,
+then the rule, the two cases and the Rust test. Expect red until written: the `cases` check (two of
+its four cases do not exist yet) and the `editor` check (stage 3).
 
 ### Backlog

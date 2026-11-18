@@ -373,16 +373,17 @@ pub struct GuardCalls {
     pub unset: Option<String>,
 }
 
-/// One class a `rule:types/property-path` path can reach, as
+/// One class or array type a `rule:types/property-path` path can reach, as
 /// [`ExprInfo::PropertyPath`] carries it to the run-time walk.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PathNode {
-    /// The class, rendered, which the throw names.
+    /// The class or array type, rendered, which the throw names.
     pub class: String,
-    /// Each public property of the class, sorted by name, with the index of
-    /// the node the next segment is looked up on. `None` is a property the
-    /// path cannot step past, because its type is not a class, a nullable
-    /// class or an array of a class.
+    /// Each row, sorted by name, with the index of the node the next segment
+    /// is looked up on. A class's rows are its public properties. An array's
+    /// are `@key`, `@value` and its element class's rows, for the shorthand.
+    /// `None` is a row the path cannot step past, because its type is not a
+    /// class, a nullable class or an array, or because it is `@key`.
     pub steps: Vec<(String, Option<usize>)>,
 }
 

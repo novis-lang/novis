@@ -1,0 +1,87 @@
+--TEST--
+In a `propertyPath<T>`, `@key` or `@value` after something that is not an array, a part after `@key`, and any other word that starts with `@` is the unknown-member error at that part — `rule:types/property-path`
+--FILE--
+<?nvs
+// `@key` and `@value` are allowed only after an array.
+class Author {
+    public string $name = "Ada";
+}
+
+class Book {
+    public string $title = "Novis";
+    public array<Author> $authors = [];
+    public ?Author $editor = null;
+}
+
+class Shelf {
+    public static function sortBy(propertyPath<Book> $path): string {
+        return "sorted by " . ($path as string);
+    }
+}
+
+// `title` is a `string`, not an array.
+echo Shelf::sortBy("title.@key"), "\n";
+// `editor` is an `Author`, not an array.
+echo Shelf::sortBy("editor.@value"), "\n";
+// A path starts at the class `Book`, which is not an array.
+echo "@key" as propertyPath<Book> as string, "\n";
+// `@key` is the last part of a path.
+echo Shelf::sortBy("authors.@key.name"), "\n";
+// The steps are written in lowercase.
+echo Shelf::sortBy("authors.@Key"), "\n";
+// `@index` is not a step.
+echo Shelf::sortBy("authors.@index"), "\n";
+// A lone `@` is not a step.
+echo Shelf::sortBy("authors.@"), "\n";
+--EXPECTF-ERROR--
+error[E0405]: `$title` is not an array, so the path cannot take `@key` after it
+   --> %s:20:27
+   |
+20 | echo Shelf::sortBy("title.@key"), "\n";
+   |                           ^^^^ this part of the path is checked here
+   = help: `@key` and `@value` follow a property whose type is an array
+
+error[E0405]: `$editor` is not an array, so the path cannot take `@value` after it
+   --> %s:22:28
+   |
+22 | echo Shelf::sortBy("editor.@value"), "\n";
+   |                            ^^^^^^ this part of the path is checked here
+   = help: `@key` and `@value` follow a property whose type is an array
+
+error[E0405]: `Book` is a class, so the path cannot start with `@key`
+   --> %s:24:7
+   |
+24 | echo "@key" as propertyPath<Book> as string, "\n";
+   |       ^^^^ this part of the path is checked here
+   = help: `@key` and `@value` follow a property whose type is an array
+
+error[E0405]: `@key` ends a property path, so nothing can follow it
+   --> %s:26:29
+   |
+26 | echo Shelf::sortBy("authors.@key.name"), "\n";
+   |                             ^^^^ the path continues after this step
+   = help: `@key` is an array element's key, which has no properties
+
+error[E0405]: a property path has no step `@Key`
+   --> %s:28:29
+   |
+28 | echo Shelf::sortBy("authors.@Key"), "\n";
+   |                             ^^^^ this part of the path is checked here
+   = help: an array's steps are `@key` and `@value`
+
+error[E0405]: a property path has no step `@index`
+   --> %s:30:29
+   |
+30 | echo Shelf::sortBy("authors.@index"), "\n";
+   |                             ^^^^^^ this part of the path is checked here
+   = help: an array's steps are `@key` and `@value`
+
+error[E0405]: a property path has no step `@`
+   --> %s:32:29
+   |
+32 | echo Shelf::sortBy("authors.@"), "\n";
+   |                             ^ this part of the path is checked here
+   = help: an array's steps are `@key` and `@value`
+
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
