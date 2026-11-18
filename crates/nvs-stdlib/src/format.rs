@@ -199,8 +199,9 @@ nvs_runtime::nvs_helper! {
 
 /// The address of this module's one symbol, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    (symbol == PIECE_SYMBOL).then(|| (nvs_core_str_format_piece as *const ()).cast())
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    (symbol == PIECE_SYMBOL)
+        .then(|| nvs_runtime::Entry::borrowed((nvs_core_str_format_piece as *const ()).cast()))
 }
 
 /// Which arguments a placeholder has read: one bit per argument, and a list

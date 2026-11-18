@@ -138,13 +138,13 @@ const MEMORY_LIMIT_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_budget_memory_held" => (nvs_core_budget_memory_held as *const ()).cast(),
         "nvs_core_budget_memory_peak" => (nvs_core_budget_memory_peak as *const ()).cast(),
         "nvs_core_budget_memory_limit" => (nvs_core_budget_memory_limit as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// A byte count as the `uint` all three members answer with, saturating rather

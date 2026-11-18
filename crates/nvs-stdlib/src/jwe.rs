@@ -441,8 +441,8 @@ const KEY_OWN_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_jwe_encrypt" => (nvs_core_jwe_encrypt as *const ()).cast(),
         "nvs_core_jwe_decrypt" => (nvs_core_jwe_decrypt as *const ()).cast(),
         "nvs_core_jwe_key_shared" => (nvs_core_jwe_key_shared as *const ()).cast(),
@@ -450,7 +450,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_jwe_key_recipient" => (nvs_core_jwe_key_recipient as *const ()).cast(),
         "nvs_core_jwe_key_own" => (nvs_core_jwe_key_own as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The one refusal `decrypt` has for a token, whatever was wrong with it.

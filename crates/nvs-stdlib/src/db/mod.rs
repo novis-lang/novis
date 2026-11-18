@@ -642,8 +642,8 @@ const VALUES_AT: usize = 0;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_db_connect" => (nvs_core_db_connect as *const ()).cast(),
         "nvs_core_db_open" => (nvs_core_db_open as *const ()).cast(),
         "nvs_core_db_in_list" => (nvs_core_db_in_list as *const ()).cast(),
@@ -721,5 +721,5 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_write_changed" => (nvs_core_db_write_changed as *const ()).cast(),
         "nvs_core_db_write_last_id" => (nvs_core_db_write_last_id as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }

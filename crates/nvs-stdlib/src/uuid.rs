@@ -346,8 +346,8 @@ const LOW_SLOT: usize = 1;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_uuid_v4" => (nvs_core_uuid_v4 as *const ()).cast(),
         "nvs_core_uuid_v7" => (nvs_core_uuid_v7 as *const ()).cast(),
         "nvs_core_uuid_parse" => (nvs_core_uuid_parse as *const ()).cast(),
@@ -356,7 +356,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_uuid_to_string" => (nvs_core_uuid_to_string as *const ()).cast(),
         "nvs_core_uuid_to_bytes" => (nvs_core_uuid_to_bytes as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

@@ -360,8 +360,8 @@ const STOP_PROFILE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_debug_dump" => (nvs_core_debug_dump as *const ()).cast(),
         "nvs_core_debug_render" => (nvs_core_debug_render as *const ()).cast(),
         "nvs_core_debug_start_coverage" => (nvs_core_debug_start_coverage as *const ()).cast(),
@@ -372,7 +372,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_debug_start_profile" => (nvs_core_debug_start_profile as *const ()).cast(),
         "nvs_core_debug_stop_profile" => (nvs_core_debug_stop_profile as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

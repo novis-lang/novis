@@ -1780,8 +1780,8 @@ fn reason(fault: &Fault) -> &str {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_session_start" => (nvs_core_session_start as *const ()).cast(),
         "nvs_core_session_get" => (nvs_core_session_get as *const ()).cast(),
         "nvs_core_session_set" => (nvs_core_session_set as *const ()).cast(),
@@ -1792,7 +1792,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_session_set_secret" => (nvs_core_session_set_secret as *const ()).cast(),
         "nvs_core_session_get_secret" => (nvs_core_session_get_secret as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 #[cfg(test)]

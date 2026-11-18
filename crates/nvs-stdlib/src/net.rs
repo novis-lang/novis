@@ -1055,8 +1055,8 @@ const MESSAGE_PORT_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_net_connect" => (nvs_core_net_connect as *const ()).cast(),
         "nvs_core_net_listen" => (nvs_core_net_listen as *const ()).cast(),
         "nvs_core_net_bind_datagram" => (nvs_core_net_bind_datagram as *const ()).cast(),
@@ -1076,7 +1076,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_net_message_host" => (nvs_core_net_message_host as *const ()).cast(),
         "nvs_core_net_message_port" => (nvs_core_net_message_port as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// A connected socket, in the shape the request's table holds — over TCP or

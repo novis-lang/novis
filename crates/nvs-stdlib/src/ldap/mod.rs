@@ -1010,8 +1010,8 @@ nvs_runtime::nvs_helper! {
 
 /// The address of one of this module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_ldap_connect" => (nvs_core_ldap_connect as *const ()).cast(),
         "nvs_core_ldap_open" => (nvs_core_ldap_open as *const ()).cast(),
         _ => {
@@ -1020,7 +1020,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
                 .or_else(|| sid::address(symbol))
                 .or_else(|| flags::address(symbol))
                 .or_else(|| value::address(symbol))
-                .or_else(|| write::address(symbol));
+                .or_else(|| write::address(symbol))
+                .map(nvs_runtime::Entry::borrowed);
         }
-    })
+    }))
 }

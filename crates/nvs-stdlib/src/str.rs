@@ -1688,8 +1688,8 @@ const WRAP_OPTIONS: &[CoreOption] = &[
 ///
 /// [`crate::symbols`] chains one of these per domain, so a new class adds an
 /// arm here rather than to a single workspace-wide match.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_str_length" => (nvs_core_str_length as *const ()).cast(),
         "nvs_core_str_at" => (nvs_core_str_at as *const ()).cast(),
         "nvs_core_str_is_empty" => (nvs_core_str_is_empty as *const ()).cast(),
@@ -1731,7 +1731,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_str_normalize" => (nvs_core_str_normalize as *const ()).cast(),
         "nvs_core_str_format" => (nvs_core_str_format as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// One `string` argument's text.

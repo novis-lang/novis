@@ -644,8 +644,8 @@ const FROM_HEX_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_encoding_encode_text" => (nvs_core_encoding_encode_text as *const ()).cast(),
         "nvs_core_encoding_decode_text" => (nvs_core_encoding_decode_text as *const ()).cast(),
         "nvs_core_encoding_is_valid_text" => (nvs_core_encoding_is_valid_text as *const ()).cast(),
@@ -660,7 +660,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_encoding_to_hex" => (nvs_core_encoding_to_hex as *const ()).cast(),
         "nvs_core_encoding_from_hex" => (nvs_core_encoding_from_hex as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

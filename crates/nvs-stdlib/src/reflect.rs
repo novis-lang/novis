@@ -2030,8 +2030,8 @@ fn kind_of(tag: Tag) -> Option<i64> {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_reflect_for_class" => (nvs_core_reflect_for_class as *const ()).cast(),
         "nvs_core_reflect_for_object" => (nvs_core_reflect_for_object as *const ()).cast(),
         "nvs_core_reflect_type_of" => (nvs_core_reflect_type_of as *const ()).cast(),
@@ -2134,7 +2134,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_reflect_class_info_construct as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 /// A slot of the receiving description, retained because it is being answered.

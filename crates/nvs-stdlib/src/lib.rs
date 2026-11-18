@@ -16,7 +16,9 @@
 //! holds everything about its class: the
 //! implementations, each an `rule:errors/propagation` helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
-//! for its own symbols and nothing else. A domain with more than one class —
+//! for its own symbols and nothing else, with each symbol's `nvs_runtime::Entry`:
+//! the borrowed address, and the owning one for a member that owns its subject
+//! (see [`owning_entry`]). A domain with more than one class —
 //! [`regex`], [`time`] — names each `CLASS` after it and keeps one `address`
 //! arm per class, so the "one file per domain" rule still holds.
 //!
@@ -66,7 +68,11 @@
 //!   `&[Value]` and releases nothing, so the caller keeps owning every
 //!   reference it passed. This is the opposite of an Novis method call, whose
 //!   callee owns its parameters — and it is what `rule:core-api/shape-rules`'s R3 purity rule
-//!   makes safe: no `Core` member stores its argument.
+//!   makes safe: no `Core` member stores its argument. A member whose
+//!   signature makes it own its subject has a second entry, written by
+//!   `nvs_runtime::nvs_helper!`'s owning form, which consumes the first
+//!   argument's reference on success and leaves it with the caller on an
+//!   error.
 //! * **A returned heap value carries one fresh reference**, which the caller
 //!   owns, exactly like `nvs_str_concat`'s result.
 //! * **Failure is a `Fault`**, which becomes `rule:errors/propagation`'s `THROWN` or `FATAL`
@@ -393,16 +399,51 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // call's own lowering reaches — `format::PIECE_SYMBOL` owns why it has
         // no row.
         .chain([format::PIECE_SYMBOL])
-        .map(|symbol| (symbol, address_of(symbol)))
+        // A member written in `nvs_helper!`'s owning form has a second entry,
+        // `<symbol>_owned`, which the JIT resolves beside the borrowed one.
+        .flat_map(|symbol| {
+            let entry = entry_of(symbol);
+            std::iter::once((symbol, entry.address))
+                .chain(entry.owned.map(|owned| (owned.symbol, owned.address)))
+        })
         .collect()
 }
 
-/// One registered symbol's address, asking each domain module in turn.
+/// The owning entry of the `Core` member whose borrowed symbol is `symbol`,
+/// or `None` for a member that borrows its subject.
+///
+/// The lowering calls the entry's symbol where it moves or lends the subject
+/// in the entry's slot (`nvs_runtime`'s `owned` module states the protocol). A
+/// symbol no domain claims has no owning entry, so a wrong answer can only
+/// miss a move.
+#[must_use]
+pub fn owning_entry(symbol: &str) -> Option<nvs_runtime::Owned> {
+    lookup(symbol)?.owned
+}
+
+/// One registered symbol's borrowed address, asking each domain module in
+/// turn.
 ///
 /// # Panics
 ///
 /// Panics naming the symbol if no domain claims it.
 fn address_of(symbol: &'static str) -> *const u8 {
+    entry_of(symbol).address
+}
+
+/// [`lookup`], for a symbol a row registers.
+///
+/// # Panics
+///
+/// Panics naming the symbol if no domain claims it.
+fn entry_of(symbol: &'static str) -> nvs_runtime::Entry {
+    lookup(symbol)
+        .unwrap_or_else(|| panic!("nvs-stdlib registers `{symbol}` with no implementation address"))
+}
+
+/// One symbol's entries, asking each domain module in turn, or `None` where
+/// no domain claims it.
+fn lookup(symbol: &str) -> Option<nvs_runtime::Entry> {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
         .or_else(|| ast::address(symbol))
@@ -486,7 +527,6 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| validate::address(symbol))
         .or_else(|| webpush::address(symbol))
         .or_else(|| xml::address(symbol))
-        .unwrap_or_else(|| panic!("nvs-stdlib registers `{symbol}` with no implementation address"))
 }
 
 #[cfg(test)]

@@ -372,8 +372,8 @@ const IP_VERSION: &[CoreTy] = &[CoreTy::SingleValueInt(4), CoreTy::SingleValueIn
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_validate_is_email" => (nvs_core_validate_is_email as *const ()).cast(),
         "nvs_core_validate_is_domain" => (nvs_core_validate_is_domain as *const ()).cast(),
         "nvs_core_validate_is_ip" => (nvs_core_validate_is_ip as *const ()).cast(),
@@ -381,7 +381,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_validate_is_ascii" => (nvs_core_validate_is_ascii as *const ()).cast(),
         "nvs_core_validate_is_printable" => (nvs_core_validate_is_printable as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

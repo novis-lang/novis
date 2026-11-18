@@ -212,8 +212,8 @@ const CURRENT: usize = 4;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         NEW_SYMBOL => (nvs_core_channel_new as *const ()).cast(),
         "nvs_core_channel_send" => (nvs_core_channel_send as *const ()).cast(),
         "nvs_core_channel_close" => (nvs_core_channel_close as *const ()).cast(),
@@ -221,7 +221,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         ADVANCE_SYMBOL => (nvs_core_channel_advance as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_channel_current as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

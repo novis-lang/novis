@@ -548,8 +548,8 @@ const SANITIZE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
         "nvs_core_html_join" => (nvs_core_html_join as *const ()).cast(),
         "nvs_core_html_later" => (nvs_core_html_later as *const ()).cast(),
@@ -562,7 +562,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         ESCAPE_TEXT_SYMBOL => (nvs_core_html_escape_text as *const ()).cast(),
         MARKUP_TEXT_SYMBOL => (nvs_core_html_markup_text as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// [`nvs_render::html::escape`] over a `Value`, which is the whole of

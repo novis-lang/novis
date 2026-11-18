@@ -1775,8 +1775,8 @@ pub(crate) const PART_CONTENT: CoreClass = CoreClass {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_request_method" => (nvs_core_request_method as *const ()).cast(),
         "nvs_core_request_route" => (nvs_core_request_route as *const ()).cast(),
         "nvs_core_request_mount" => (nvs_core_request_mount as *const ()).cast(),
@@ -1824,7 +1824,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         BODY_STREAM_ADVANCE_SYMBOL => (nvs_core_request_body_stream_advance as *const ()).cast(),
         BODY_STREAM_CURRENT_SYMBOL => (nvs_core_request_body_stream_current as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// Claims this request's body for `member`, which needs `need` of it, or

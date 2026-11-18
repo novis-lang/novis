@@ -390,13 +390,13 @@ const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See `crate::address`.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         SUBSCRIBE_SYMBOL => (nvs_core_topic_subscribe as *const ()).cast(),
         PUBLISH_SYMBOL => (nvs_core_topic_publish as *const ()).cast(),
         UNSUBSCRIBE_SYMBOL => (nvs_core_topic_unsubscribe as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 thread_local! {

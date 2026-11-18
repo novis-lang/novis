@@ -89,12 +89,12 @@ pub(crate) const CURRENT_SYMBOL: &str = "nvs_core_cursor_current";
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         ADVANCE_SYMBOL => (nvs_core_cursor_advance as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_cursor_current as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// A fresh cursor over `items`, taking over its reference — what every

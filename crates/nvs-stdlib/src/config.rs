@@ -293,8 +293,8 @@ const SECRET_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_config_get" => (nvs_core_config_get as *const ()).cast(),
         "nvs_core_config_set" => (nvs_core_config_set as *const ()).cast(),
         "nvs_core_config_restore" => (nvs_core_config_restore as *const ()).cast(),
@@ -302,7 +302,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_config_setting" => (nvs_core_config_setting as *const ()).cast(),
         "nvs_core_config_secret" => (nvs_core_config_secret as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// One `string` argument, or the engine fault a wrongly-tagged one is: the

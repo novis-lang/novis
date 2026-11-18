@@ -135,13 +135,13 @@ const ALL_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_attributes_get" | "nvs_core_attributes_all" => {
             (folded_at_compile_time as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 /// The body both rows name, and the one this crate hopes is never entered:

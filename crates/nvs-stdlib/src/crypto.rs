@@ -1403,8 +1403,8 @@ const KEY_PAIR_PUBLIC_KEY_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_crypto_generate_key" => (nvs_core_crypto_generate_key as *const ()).cast(),
         "nvs_core_crypto_seal" => (nvs_core_crypto_seal as *const ()).cast(),
         "nvs_core_crypto_open" => (nvs_core_crypto_open as *const ()).cast(),
@@ -1427,7 +1427,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_crypto_key_pair_public_key as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 /// The `bytes` in slot `index`.

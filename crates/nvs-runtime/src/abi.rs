@@ -1103,8 +1103,155 @@ pub(crate) fn panic_message(
 /// let mut ctx = Ctx::buffered();
 /// assert_eq!(call(nvs_double, &mut ctx, &[Value::int(21)]).unwrap().as_int(), Some(42));
 /// ```
+///
+/// # The owning form
+///
+/// A member that owns its subject (`crate::owned`'s module doc states the
+/// protocol) is written as `check` and `apply`. `check` is the body after
+/// `-> Plan, owns Subject`, and `apply` follows it:
+///
+/// ```
+/// use nvs_runtime::{Ctx, Fault, NvsStr, Value, call, nvs_helper};
+///
+/// nvs_helper! {
+///     /// Returns its string unchanged.
+///     fn nvs_same(_ctx, args: [1]) -> Value, owns NvsStr {
+///         args[0].as_text().ok_or_else(|| Fault::fatal("not a string"))?;
+///         Ok(Value::null())
+///     } apply(_plan, subject) {
+///         Value::str(subject)
+///     }
+/// }
+///
+/// let mut ctx = Ctx::buffered();
+/// let text = Value::str(NvsStr::new(b"kept"));
+/// let same = call(nvs_same, &mut ctx, &[text]).unwrap();
+/// assert_eq!(same.as_text(), Some("kept"));
+/// # unsafe { same.release(); text.release() };
+/// ```
+///
+/// `check` reads the arguments borrowed and returns `Result<Plan, Fault>`;
+/// `apply` takes the plan and the owned subject and returns a `Value`. The form
+/// takes the subject from argument slot 0, and an instance member, whose
+/// receiver is slot 0, writes `owns Subject, at 1`. The form
+/// emits the member's own symbol, which borrows as every helper does, and a
+/// module of the same name holding both halves, the owning entry `owned`
+/// (exported as `<symbol>_owned`) and `entry()`, the [`crate::Entry`] its
+/// stdlib module's `address` returns.
 #[macro_export]
 macro_rules! nvs_helper {
+    (
+        $(#[$meta:meta])*
+        fn $name:ident($ctx:ident, $args:ident: [$arity:expr]) -> $plan:ty, owns $subject_ty:ty $(, at $slot:literal)?
+        $check:block
+        apply($plan_arg:ident, $subject:ident) $apply:block
+    ) => {
+        $(#[$meta])*
+        ///
+        /// # Safety
+        ///
+        /// `ctx`, `args` and `out` must each be non-null, aligned and valid for
+        /// the duration of the call; `args` must point at as many values as
+        /// this helper's arity; and `out` must be writable. Compiled Novis code
+        /// satisfies this by construction — hand callers go through
+        /// [`call`](crate::call).
+        #[allow(
+            unsafe_code,
+            reason = "a runtime helper's signature is fixed by `rule:errors/propagation`; the \
+                      pointer contract cannot be expressed in the type, so the \
+                      function is honestly marked unsafe"
+        )]
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn $name(
+            ctx: *mut $crate::Ctx,
+            args: *const $crate::Value,
+            out: *mut $crate::Value,
+        ) -> i32 {
+            let arity: usize = $arity;
+            let body = |ctx: &mut $crate::Ctx, args: &[$crate::Value]| {
+                $crate::run_borrowed::<$subject_ty, $plan>(ctx, args, $name::SLOT, $name::check, $name::apply)
+            };
+            #[allow(
+                unsafe_code,
+                reason = "the caller's contract is exactly `run_helper`'s"
+            )]
+            unsafe {
+                $crate::run_helper(ctx, args, arity, out, body)
+            }
+        }
+
+        #[doc = concat!("The two halves of [`", stringify!($name), "`] and its owning entry.")]
+        pub mod $name {
+            #[allow(unused_imports, reason = "the halves are written in the parent's scope")]
+            use super::*;
+
+            /// The argument slot of the subject.
+            pub const SLOT: usize = 0 $(+ $slot)?;
+
+            /// Reads every argument borrowed and returns the plan, or the
+            /// fault the subject is left with its caller on.
+            ///
+            /// # Errors
+            ///
+            /// What the member throws.
+            pub fn check(
+                $ctx: &mut $crate::Ctx,
+                $args: &[$crate::Value],
+            ) -> ::core::result::Result<$plan, $crate::Fault> $check
+
+            /// Makes the result from the plan and the owned subject.
+            #[must_use]
+            pub fn apply($plan_arg: $plan, $subject: $subject_ty) -> $crate::Value $apply
+
+            /// The entry that takes the first argument's reference.
+            ///
+            /// # Safety
+            ///
+            /// As the borrowed entry's, and the caller must have transferred
+            /// the first argument's reference. It releases that reference
+            /// again only when this returns a status other than `OK`.
+            #[allow(
+                unsafe_code,
+                reason = "a runtime helper's signature is fixed by `rule:errors/propagation`, \
+                          and the transferred reference is this entry's contract"
+            )]
+            #[unsafe(export_name = concat!(stringify!($name), "_owned"))]
+            pub unsafe extern "C" fn owned(
+                ctx: *mut $crate::Ctx,
+                args: *const $crate::Value,
+                out: *mut $crate::Value,
+            ) -> i32 {
+                let arity: usize = $arity;
+                #[allow(
+                    unsafe_code,
+                    reason = "the caller transferred the first argument's reference"
+                )]
+                let body = |ctx: &mut $crate::Ctx, args: &[$crate::Value]| unsafe {
+                    $crate::run_owned::<$subject_ty, $plan>(ctx, args, SLOT, check, apply)
+                };
+                #[allow(
+                    unsafe_code,
+                    reason = "the caller's contract is exactly `run_helper`'s"
+                )]
+                unsafe {
+                    $crate::run_helper(ctx, args, arity, out, body)
+                }
+            }
+
+            /// Both entries, as the stdlib module's `address` returns them.
+            #[must_use]
+            pub fn entry() -> $crate::Entry {
+                $crate::Entry {
+                    address: (super::$name as *const ()).cast(),
+                    owned: Some($crate::Owned {
+                        symbol: concat!(stringify!($name), "_owned"),
+                        address: (owned as *const ()).cast(),
+                        slot: SLOT,
+                    }),
+                }
+            }
+        }
+    };
     (
         $(#[$meta:meta])*
         fn $name:ident($ctx:ident, $args:ident: [$arity:expr]) $body:block

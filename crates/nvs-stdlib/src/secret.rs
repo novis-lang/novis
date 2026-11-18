@@ -125,12 +125,12 @@ const REVEAL_BYTES_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_secret_reveal" => (nvs_core_secret_reveal as *const ()).cast(),
         "nvs_core_secret_reveal_bytes" => (nvs_core_secret_reveal_bytes as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

@@ -205,6 +205,7 @@ mod abi;
 mod alloc;
 pub mod arith;
 pub mod array;
+mod owned;
 mod beneath;
 pub mod budget;
 pub mod callable;
@@ -289,6 +290,7 @@ pub use abi::{
     affordable, bounded_loop, call, poll_deadline, quoted, run_helper, run_task,
 };
 pub use arith::nvs_float_pow;
+pub use owned::{Entry, Owned, OwnedSubject, run_borrowed, run_owned};
 pub use array::{
     ARRAY_REFCOUNT_OFFSET, ArrayHeader, ArrayRef, NvsArray, SlotKey, nvs_array_append,
     nvs_array_count, nvs_array_get, nvs_array_get_index, nvs_array_has_key, nvs_array_key_at,

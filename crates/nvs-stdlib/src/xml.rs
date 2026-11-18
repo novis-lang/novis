@@ -1107,8 +1107,8 @@ const FINISHED: usize = 2;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_xml_parse" => (nvs_core_xml_parse as *const ()).cast(),
         "nvs_core_xml_node_kind" => (nvs_core_xml_node_kind as *const ()).cast(),
         "nvs_core_xml_node_name" => (nvs_core_xml_node_name as *const ()).cast(),
@@ -1138,7 +1138,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_xml_writer_instruction" => (nvs_core_xml_writer_instruction as *const ()).cast(),
         "nvs_core_xml_writer_doctype" => (nvs_core_xml_writer_doctype as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

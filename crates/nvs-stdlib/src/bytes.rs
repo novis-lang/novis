@@ -649,8 +649,8 @@ const INDEX_OF_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_bytes_length" => (nvs_core_bytes_length as *const ()).cast(),
         "nvs_core_bytes_at" => (nvs_core_bytes_at as *const ()).cast(),
         "nvs_core_bytes_slice" => (nvs_core_bytes_slice as *const ()).cast(),
@@ -665,7 +665,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_bytes_pack" => (nvs_core_bytes_pack as *const ()).cast(),
         "nvs_core_bytes_unpack" => (nvs_core_bytes_unpack as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

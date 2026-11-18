@@ -733,8 +733,8 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_bigint_of" => (nvs_core_bigint_of as *const ()).cast(),
         "nvs_core_bigint_of_uint" => (nvs_core_bigint_of_uint as *const ()).cast(),
         "nvs_core_bigint_parse" => (nvs_core_bigint_parse as *const ()).cast(),
@@ -760,7 +760,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_bigint_to_string" => (nvs_core_bigint_to_string as *const ()).cast(),
         "nvs_core_bigint_format" => (nvs_core_bigint_format as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

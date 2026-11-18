@@ -145,14 +145,14 @@ const ASSERT_TRUSTED_BYTES_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See `crate::address_of`.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_taint_assert_trusted" => (nvs_core_taint_assert_trusted as *const ()).cast(),
         "nvs_core_taint_assert_trusted_bytes" => {
             (nvs_core_taint_assert_trusted_bytes as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

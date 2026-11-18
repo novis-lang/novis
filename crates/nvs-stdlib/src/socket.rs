@@ -661,8 +661,8 @@ const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         UPGRADE_SYMBOL => (nvs_core_socket_upgrade as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_socket_current as *const ()).cast(),
         RECEIVE_SYMBOL => (nvs_core_socket_receive as *const ()).cast(),
@@ -673,7 +673,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         MESSAGE_BYTES_SYMBOL => (nvs_core_socket_message_bytes as *const ()).cast(),
         MESSAGE_VALUE_SYMBOL => (nvs_core_socket_message_value as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s entry, resolved into the one thing a connection runs.

@@ -208,11 +208,11 @@ const WRITE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_log_write" => (nvs_core_log_write as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

@@ -580,8 +580,8 @@ const SEEDED_SHUFFLE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_random_int" => (nvs_core_random_int as *const ()).cast(),
         "nvs_core_random_float" => (nvs_core_random_float as *const ()).cast(),
         "nvs_core_random_bytes" => (nvs_core_random_bytes as *const ()).cast(),
@@ -598,7 +598,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_random_seeded_sample" => (nvs_core_random_seeded_sample as *const ()).cast(),
         "nvs_core_random_seeded_shuffle" => (nvs_core_random_seeded_shuffle as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

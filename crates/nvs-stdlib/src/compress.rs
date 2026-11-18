@@ -574,8 +574,8 @@ const DECOMPRESSOR_FINISH_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_compress_compress" => (nvs_core_compress_compress as *const ()).cast(),
         "nvs_core_compress_decompress" => (nvs_core_compress_decompress as *const ()).cast(),
         "nvs_core_compress_compressor" => (nvs_core_compress_compressor as *const ()).cast(),
@@ -593,7 +593,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_compress_decompressor_finish as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

@@ -389,8 +389,8 @@ const IDENTITY_READ_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_http_allow_url" => (nvs_core_http_allow_url as *const ()).cast(),
         "nvs_core_http_method_name" => (nvs_core_http_method_name as *const ()).cast(),
         "nvs_core_http_identity_read" => (nvs_core_http_identity_read as *const ()).cast(),
@@ -423,8 +423,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         // classes rather than here: they are this module's symbols, and
         // [`stream`] and [`socket`] are modules of this one for [`transport`]'s
         // reason.
-        other => return stream::address(other).or_else(|| socket::address(other)),
-    })
+        other => {
+            return stream::address(other)
+                .or_else(|| socket::address(other))
+                .map(nvs_runtime::Entry::borrowed);
+        }
+    }))
 }
 
 /// The `string` in slot 0.

@@ -279,11 +279,11 @@ const SEND_DOC: MethodDoc = MethodDoc {
 };
 
 /// The `Core` symbol table's arm for this module — see [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_mail_send" => (nvs_core_mail_send as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// What `[mail.<name>]` said, once every question this member asks of it has an

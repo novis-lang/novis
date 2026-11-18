@@ -1077,8 +1077,8 @@ const SHELL_DOC: EnumDoc = EnumDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_cli_arguments" => (nvs_core_cli_arguments as *const ()).cast(),
         "nvs_core_cli_write" => (nvs_core_cli_write as *const ()).cast(),
         "nvs_core_cli_escape" => (nvs_core_cli_escape as *const ()).cast(),
@@ -1105,7 +1105,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_multi_select" => (nvs_core_cli_multi_select as *const ()).cast(),
         "nvs_core_cli_secret" => (nvs_core_cli_secret as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The runtime's [`Stream`] a `Core\Cli::Stream` argument names.

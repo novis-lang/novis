@@ -892,15 +892,15 @@ const KEY_SET_READ_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_jwt_sign" => (nvs_core_jwt_sign as *const ()).cast(),
         "nvs_core_jwt_sign_object" => (nvs_core_jwt_sign_object as *const ()).cast(),
         "nvs_core_jwt_verify" => (nvs_core_jwt_verify as *const ()).cast(),
         "nvs_core_jwt_verify_issued" => (nvs_core_jwt_verify_issued as *const ()).cast(),
         "nvs_core_jwt_key_set_read" => (nvs_core_jwt_key_set_read as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The one sentence every failed verification produces before the signature

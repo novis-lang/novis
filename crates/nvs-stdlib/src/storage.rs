@@ -367,14 +367,14 @@ const LIST_DOC: MethodDoc = MethodDoc {
 };
 
 /// The `Core` symbol table's arm for this module — see [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_storage_put" => (nvs_core_storage_put as *const ()).cast(),
         "nvs_core_storage_get" => (nvs_core_storage_get as *const ()).cast(),
         "nvs_core_storage_delete" => (nvs_core_storage_delete as *const ()).cast(),
         "nvs_core_storage_list" => (nvs_core_storage_list as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The directory `[storage.<disk>] root` names, with an empty value read as

@@ -451,8 +451,8 @@ const RETRY_AFTER_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_ratelimit_consume" => (nvs_core_ratelimit_consume as *const ()).cast(),
         "nvs_core_ratelimit_shed" => (nvs_core_ratelimit_shed as *const ()).cast(),
         "nvs_core_ratelimit_decision_allowed" => {
@@ -468,7 +468,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_ratelimit_decision_retry_after as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 /// The GCRA step, atomic because the store runs it as one — the module doc's

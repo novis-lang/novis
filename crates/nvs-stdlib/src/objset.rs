@@ -258,8 +258,8 @@ const ENTRIES: usize = 0;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         NEW_SYMBOL => (nvs_core_object_set_new as *const ()).cast(),
         "nvs_core_object_set_add" => (nvs_core_object_set_add as *const ()).cast(),
         "nvs_core_object_set_has" => (nvs_core_object_set_has as *const ()).cast(),
@@ -272,7 +272,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_object_set_clear" => (nvs_core_object_set_clear as *const ()).cast(),
         ITERATE_SYMBOL => (nvs_core_object_set_iterate as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The receiver of one of this class's instance members.

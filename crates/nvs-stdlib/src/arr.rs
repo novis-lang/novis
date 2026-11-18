@@ -2267,8 +2267,8 @@ const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
 ///
 /// [`crate::symbols`] chains one of these per domain, so a new class adds an
 /// arm here rather than to a single workspace-wide match.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_arr_count" => (nvs_core_arr_count as *const ()).cast(),
         "nvs_core_arr_filter" => (nvs_core_arr_filter as *const ()).cast(),
         "nvs_core_arr_map" => (nvs_core_arr_map as *const ()).cast(),
@@ -2280,7 +2280,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_arr_is_list" => (nvs_core_arr_is_list as *const ()).cast(),
         "nvs_core_arr_keys" => (nvs_core_arr_keys as *const ()).cast(),
         "nvs_core_arr_values" => (nvs_core_arr_values as *const ()).cast(),
-        "nvs_core_arr_reverse" => (nvs_core_arr_reverse as *const ()).cast(),
+        "nvs_core_arr_reverse" => return Some(nvs_core_arr_reverse::entry()),
         "nvs_core_arr_flip" => (nvs_core_arr_flip as *const ()).cast(),
         "nvs_core_arr_sort" => (nvs_core_arr_sort as *const ()).cast(),
         "nvs_core_arr_sort_by_key" => (nvs_core_arr_sort_by_key as *const ()).cast(),
@@ -2329,7 +2329,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_arr_average" => (nvs_core_arr_average as *const ()).cast(),
         "nvs_core_arr_shape_as" => (nvs_core_arr_shape_as as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {
@@ -3768,7 +3768,7 @@ nvs_runtime::nvs_helper! {
     /// ordered hash has no backward cursor, so this collects the slots first
     /// and then writes them out in reverse. One `Vec<usize>` of scratch, which
     /// `rule:programs/memory-priority`'s ordering buys without discussion.
-    fn nvs_core_arr_reverse(_ctx, args: [2]) {
+    fn nvs_core_arr_reverse(_ctx, args: [2]) -> Value, owns NvsArray {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
         let array = args[0].array_ptr().ok_or_else(|| {
@@ -3812,6 +3812,8 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::array(out))
+    } apply(result, _subject) {
+        result
     }
 }
 

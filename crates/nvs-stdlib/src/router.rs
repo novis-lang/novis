@@ -1285,8 +1285,8 @@ pub mod link {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_router_url" => (nvs_core_router_url as *const ()).cast(),
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
         "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
@@ -1310,7 +1310,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_match_access_as" => (nvs_core_router_match_access_as as *const ()).cast(),
         "nvs_core_router_match_attribute" => (nvs_core_router_match_attribute as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The conversion a capture declared at `ty` takes, for each type the matcher

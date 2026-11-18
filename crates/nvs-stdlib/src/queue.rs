@@ -5831,8 +5831,8 @@ nvs_runtime::nvs_helper! {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_queue_push" => (nvs_core_queue_push as *const ()).cast(),
         "nvs_core_queue_id_parse" => (nvs_core_queue_id_parse as *const ()).cast(),
         "nvs_core_queue_id_try_parse" => (nvs_core_queue_id_try_parse as *const ()).cast(),
@@ -5855,7 +5855,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_queue_stats_non_transactional as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 #[cfg(test)]

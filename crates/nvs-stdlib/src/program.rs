@@ -238,14 +238,14 @@ const ID_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_program_implementing"
         | "nvs_core_program_implementing_with"
         | "nvs_core_program_constructors" => (expanded_at_compile_time as *const ()).cast(),
         "nvs_core_program_id" => (nvs_core_program_id as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

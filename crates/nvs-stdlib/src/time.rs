@@ -656,7 +656,7 @@ const NANOS_SLOT: usize = 0;
 ///
 /// One arm per class rather than one match over all of them: `Core\Time` is one
 /// domain but several classes, and a class's symbols stay beside the class.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     duration_address(symbol)
         .or_else(|| time_address(symbol))
         .or_else(|| instant_address(symbol))
@@ -664,6 +664,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         .or_else(|| date_address(symbol))
         .or_else(|| time_of_day_address(symbol))
         .or_else(|| zone_address(symbol))
+        .map(nvs_runtime::Entry::borrowed)
 }
 
 /// [`DURATION`]'s symbols.

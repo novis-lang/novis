@@ -630,8 +630,8 @@ fn line_end(value: &Value) -> Result<&'static [u8], Fault> {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_csv_parse" => (nvs_core_csv_parse as *const ()).cast(),
         "nvs_core_csv_format" => (nvs_core_csv_format as *const ()).cast(),
         "nvs_core_csv_rows" => (nvs_core_csv_rows as *const ()).cast(),
@@ -642,7 +642,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         ROWS_ADVANCE_SYMBOL => (nvs_core_csv_rows_advance as *const ()).cast(),
         ROWS_CURRENT_SYMBOL => (nvs_core_csv_rows_current as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

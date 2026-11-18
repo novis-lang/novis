@@ -3096,12 +3096,12 @@ pub fn plural_category_name(count: &str, subtag: &str, ordinal: bool) -> Option<
     })
 }
 
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_cldr_plural_category" => (nvs_core_cldr_plural_category as *const ()).cast(),
         "nvs_core_cldr_ordinal_category" => (nvs_core_cldr_ordinal_category as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 #[cfg(test)]

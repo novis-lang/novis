@@ -361,13 +361,13 @@ const NEEDS_REHASH_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_password_hash" => (nvs_core_password_hash as *const ()).cast(),
         "nvs_core_password_verify" => (nvs_core_password_verify as *const ()).cast(),
         "nvs_core_password_needs_rehash" => (nvs_core_password_needs_rehash as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// The argument at `slot` as text.

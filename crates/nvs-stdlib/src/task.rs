@@ -298,13 +298,13 @@ const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_task_all" => (nvs_core_task_all as *const ()).cast(),
         "nvs_core_task_map" => (nvs_core_task_map as *const ()).cast(),
         "nvs_core_task_after_response" => (nvs_core_task_after_response as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

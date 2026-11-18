@@ -556,8 +556,8 @@ const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::registry::CLASSES`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         UPGRADE_SYMBOL => (nvs_core_sse_upgrade as *const ()).cast(),
         STREAM_SYMBOL => (nvs_core_sse_stream as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_sse_current as *const ()).cast(),
@@ -567,7 +567,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         MESSAGE_TOPIC_SYMBOL => (nvs_core_sse_message_topic as *const ()).cast(),
         MESSAGE_VALUE_SYMBOL => (nvs_core_sse_message_value as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

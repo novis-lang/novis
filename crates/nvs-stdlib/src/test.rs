@@ -2834,8 +2834,8 @@ fn sent_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault>
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
         "nvs_core_test_assert_completes" => (nvs_core_test_assert_completes as *const ()).cast(),
         "nvs_core_test_answer_http" => (nvs_core_test_answer_http as *const ()).cast(),
@@ -2882,7 +2882,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_test_assert_never_called as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

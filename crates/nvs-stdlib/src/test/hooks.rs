@@ -232,8 +232,8 @@ const SUMMARY_FAILED_TESTS_DOC: MethodDoc = MethodDoc {
 };
 
 /// Where each member's helper lives.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_test_outcome_class" => (nvs_core_test_outcome_class as *const ()).cast(),
         "nvs_core_test_outcome_name" => (nvs_core_test_outcome_name as *const ()).cast(),
         "nvs_core_test_outcome_attempt" => (nvs_core_test_outcome_attempt as *const ()).cast(),
@@ -248,7 +248,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_test_summary_failed_tests as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 fn text(value: &str) -> Value {

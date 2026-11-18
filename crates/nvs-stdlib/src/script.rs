@@ -501,8 +501,8 @@ pub(crate) const FAILURE_FIELDS: &[&str] = &["class", "message"];
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         SPAWN_SYMBOL => (nvs_core_script_spawn as *const ()).cast(),
         SPAWN_METHOD_SYMBOL => (nvs_core_script_spawn_method as *const ()).cast(),
         AWAIT_SYMBOL => (nvs_core_script_await as *const ()).cast(),
@@ -514,7 +514,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         ERROR_SYMBOL => (nvs_core_script_exit_report_error as *const ()).cast(),
         MEMORY_PEAK_SYMBOL => (nvs_core_script_exit_report_memory_peak as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// One ending, as the report `rule:observability/three-endings-fire-the-exit-queue`'s table describes it.

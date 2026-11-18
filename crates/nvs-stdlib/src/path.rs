@@ -522,8 +522,8 @@ const SEPARATOR: &str = std::path::MAIN_SEPARATOR_STR;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_path_basename" => (nvs_core_path_basename as *const ()).cast(),
         "nvs_core_path_dirname" => (nvs_core_path_dirname as *const ()).cast(),
         "nvs_core_path_extension" => (nvs_core_path_extension as *const ()).cast(),
@@ -537,7 +537,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_path_this_file" => (nvs_core_path_this_file as *const ()).cast(),
         "nvs_core_path_this_dir" => (nvs_core_path_this_dir as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

@@ -876,8 +876,8 @@ const ENCODE_EACH_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_json_encode" => (nvs_core_json_encode as *const ()).cast(),
         "nvs_core_json_decode" => (nvs_core_json_decode as *const ()).cast(),
         "nvs_core_json_decode_as" => (nvs_core_json_decode_as as *const ()).cast(),
@@ -893,7 +893,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         PIECES_ADVANCE_SYMBOL => (pieces::nvs_core_json_pieces_advance as *const ()).cast(),
         PIECES_CURRENT_SYMBOL => (pieces::nvs_core_json_pieces_current as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

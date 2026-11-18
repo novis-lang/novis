@@ -675,8 +675,8 @@ struct Attested<'a> {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_passkey_register_options" => {
             (nvs_core_passkey_register_options as *const ()).cast()
         }
@@ -702,7 +702,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_passkey_credential_sign_count as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 /// The `string` argument at `slot`.

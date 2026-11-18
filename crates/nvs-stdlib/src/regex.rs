@@ -802,8 +802,8 @@ const SPLIT_OPTIONS: &[CoreOption] = &[
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_regex_compile" => (nvs_core_regex_compile as *const ()).cast(),
         "nvs_core_regex_matches" => (nvs_core_regex_matches as *const ()).cast(),
         "nvs_core_regex_match" => (nvs_core_regex_match as *const ()).cast(),
@@ -817,7 +817,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_regex_split" => (nvs_core_regex_split as *const ()).cast(),
         "nvs_core_regex_quote" => (nvs_core_regex_quote as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

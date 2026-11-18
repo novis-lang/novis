@@ -1399,8 +1399,8 @@ const FORMAT_OPTIONS: &[CoreOption] = &[
 
 /// This module's own symbols, for [`crate::symbols`] to ask about — one arm
 /// per member, and no other module answers for any of them.
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_math_abs" => (nvs_core_math_abs as *const ()).cast(),
         "nvs_core_math_sign" => (nvs_core_math_sign as *const ()).cast(),
         "nvs_core_math_min" => (nvs_core_math_min as *const ()).cast(),
@@ -1441,7 +1441,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_math_from_base" => (nvs_core_math_from_base as *const ()).cast(),
         "nvs_core_math_format" => (nvs_core_math_format as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 // ============================================================================

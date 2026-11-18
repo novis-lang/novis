@@ -558,8 +558,8 @@ fn flatten(children: &Value, out: &mut NvsArray) {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_ast_parse" => (nvs_core_ast_parse as *const ()).cast(),
         "nvs_core_ast_node_kind" => (nvs_core_ast_node_kind as *const ()).cast(),
         "nvs_core_ast_node_children" => (nvs_core_ast_node_children as *const ()).cast(),
@@ -568,7 +568,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ast_node_column" => (nvs_core_ast_node_column as *const ()).cast(),
         "nvs_core_ast_node_offset" => (nvs_core_ast_node_offset as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 nvs_runtime::nvs_helper! {

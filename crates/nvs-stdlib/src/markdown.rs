@@ -522,8 +522,8 @@ const FROM_HTML_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_markdown_from_html" => (nvs_core_markdown_from_html as *const ()).cast(),
         "nvs_core_markdown_to_html" => (nvs_core_markdown_to_html as *const ()).cast(),
         "nvs_core_markdown_to_html_each" => {
@@ -544,7 +544,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (live::nvs_core_markdown_update_open as *const ()).cast()
         }
         _ => return None,
-    })
+    }))
 }
 
 /// How much output a document may add beyond its own length:

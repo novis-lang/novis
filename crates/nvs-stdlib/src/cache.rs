@@ -773,8 +773,8 @@ const SECRET_ENTRY_OF_DOC: MethodDoc = MethodDoc {
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
-pub(crate) fn address(symbol: &str) -> Option<*const u8> {
-    Some(match symbol {
+pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
+    Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_cache_memory" => (nvs_core_cache_memory as *const ()).cast(),
         "nvs_core_cache_shared" => (nvs_core_cache_shared as *const ()).cast(),
         "nvs_core_cache_put" => (nvs_core_cache_put as *const ()).cast(),
@@ -784,7 +784,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cache_get_secret" => (nvs_core_cache_get_secret as *const ()).cast(),
         "nvs_core_cache_secret_entry_of" => (nvs_core_cache_secret_entry_of as *const ()).cast(),
         _ => return None,
-    })
+    }))
 }
 
 /// `[cache.memory] max_size` — what this process's entries may hold together.
