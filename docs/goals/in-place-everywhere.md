@@ -736,85 +736,47 @@ copying the shape of an existing case under `tests/lsp/diagnostics/` and `tests/
 ### 9. the goal is verified once, and every failure is fixed
 
 - [x] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
   - [x] render, rules-render and the test step's fourteen reds, fixed and run by name
   - [x] the heap corruption in `nvs-stdlib`'s parallel unit tests, fixed
-  - [ ] the steps after `test`: conformance, reference, soundness, clippy and extension
-- [ ] Run `looper verify` once more, and it is green.
+  - [x] the steps after `test`: conformance, reference, soundness, clippy and extension
+- [x] Run `looper verify` once more, and it is green.
+- [ ] The goal-end gates are green: `bun nv verify --doc`, `bun nv owners --closes` and `bun nv ci --check`.
+  - [x] `verify --doc`, `owners --closes`, the rulebook render, the roadmap and the questions page
+  - [ ] every stale `Core` perf record measured again
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done, and stage 9, the gate, is under way. The sweep's `env-secret-proofs` red
-is stale: no goal defines it, its log file does not exist, and `git log -S` finds it only in this
-goal's handoffs and a retired goal's retire commit.
+Stages 1 to 8 are done. In stage 9, `looper verify` is green over the whole goal (one run, 484 s,
+on `08ae5d463d`). The sweep's `env-secret-proofs` red is stale: no goal defines it and its log
+file does not exist.
 
-This session ran `looper verify` four times. Every step up to and including `test` is now fixed;
-the last run's only red was `nvs-stdlib lib` exiting 116, which is fixed and committed but not yet
-seen green by a verify run. What landed, one commit each:
+The goal-end gates, commit `fix(docs): the goal-end gates are green but for the perf records`:
 
-- `ownership.rs`: a walk ends at the value's own definition, so a loop that reassigns a local
-  moves it; `staged_retain` lets a move cross a later argument that can fail.
-- `owned.rs` `run_borrowed` takes its handle before `check`. Before, a callback that wrote the
-  subject's slot freed the array under the walk: heap corruption, `nv`'s "exit 116".
-- `registry::member_label` names each `_owned` entry; five primitives carry the deny list.
-- The test-side fixes are in the commits `fix(stdlib)`, `fix(runtime)` and `test:` of this session.
+- `verify --doc` failed on 13 ambiguous rustdoc links in `nvs-stdlib` (`arr.rs`, `cli.rs`,
+  `path.rs`, `uri.rs`). The owning helper form makes a module named like its function, so each
+  link now names the function with `()`. It is green.
+- `owners --closes` named `rule:types/a-replaced-value-is-changed-in-place` as still `designed`. Its
+  record is now `shipped`, and `docs/rules/types/arrays.md` cites it instead of its old,
+  narrower sentence about `$x = f($x)`.
+- `ci --check`: the rulebook render, the roadmap (a theme for `path-array-steps` and
+  `attribute-property-names`) and the `temporaryDir` questions page are fixed. Its one other red
+  was 874 stale `Core` perf records, because stage 2's owning form touched every module.
 
 ### Next
 
-- **Stage 9, the gate.** Run `looper verify` in the background. Steps 1 to 18 were fixed this
-  session; the steps after `test` (conformance, reference, soundness, clippy, extension) have not
-  run yet. The two `ownership.rs` changes add moves, so a conformance case or an IR snapshot that
-  now moves where it kept a retain is the likely red: read it, and check that each removed retain
-  sits beside a removed release. Fix every red in one pass and run it once more. Then the goal-end
-  gates of AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes
-  in-place-everywhere` and `bun nv ci --check`.
-- `crates/nvs-stdlib/src/arr.rs` changed, so every `Core\Arr` perf record is stale. Record them at
-  the goal's end as the playbook's perf bullet says, after the last edit to that file.
+- **The perf records.** `bun nv proofs --record-perf --perf-report` measures every stale record on
+  the release binary. When it ends, `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe`
+  must list no `perf: stale`. Commit `data/perf/` and `data/perf/members.md` as `chore(perf)`.
+  Then `bun nv ci --check` once more, and the goal is reached.
 
 **What the pass-off run now spends.** With `--no-in-place`, every one-level write into a plain
 property copies its array, so a loop of such writes is quadratic. `$s = $s . $x` on a local now
 copies too, because the lowering no longer moves it. Only the differential run uses it.
 
-**Expected red at the gate.** An IR snapshot of a program with a kept `array`, `string` or `bytes`
-copy now prints `copy.count <site>, v<before>, v<after>` after the call or change; accept it after
-reading it. A test that pins the viewer's API shape beyond `debug_api.rs` sees `copies` in a
-request's answer and in its `cut`. A test that pins `recorded::viewer_url`'s old signature, or a
-lens case whose index has a `copies` table, may see the new lens. A test that pins `nvs_runtime::symbols()` or a key built from it sees
-`nvs_copy_count`. A debug index test that reads `SCHEMA` sees 8. A `.lspt` diagnostics case or an `nvs-lsp` test whose error-free
-document has such a callee now shows `W1032` or `W1033` too. A `nvs check` test whose program has a callee that changes a lent
-value and then reads the slot or throws may now print `W1032` or `W1033`; and a program that type
-checks but whose lowering panics now panics in `nvs check` too, which is a lowering bug. Snapshot tests that lower a whole program now show the pass's moves:
-a `Core` call on a dead local prints its `_owned` symbol, and a call at a local's last use prints no
-retain. `crates/nvs-ir/tests/*.rs` and `crates/nvs-codegen`'s snapshot tests are the likely ones.
-Accept each after reading it: a removed retain must sit beside a removed release. A snapshot made
-by `lower_first_method` (no pass) of `$s = $s . $x` on a local now prints a `retain` before the
-`concat` and a `release` of the old value after; a whole-program one prints neither. A snapshot of a
-literal that opens with a spread of a dead local prints `array.spread.owned`. The whole suite
-also runs stage 2's 117 owning entries for the first time through real calls. A snapshot with a
-by-value `foreach` that writes `$a[$k]` now walks the header phi with no `retain` of the subject, and
-`crates/nvs-runtime`'s array tests that assert a separated hashed array's vector length may change,
-because the copy keeps its holes. A snapshot of a generator's `advance` now prints `field.take`
-where it printed `field.get` and a `retain` at each resume. A snapshot of `$this->p = M($this->p)`
-or `C::$s = M(C::$s)` with an owning `M` now prints `_owned`, and no second read of the slot and no
-release of it after the store. One of `$this->g['a'] = M($this->g['a'])` prints `array.sole` and a
-store after the slot's read, and `array.set.lent`. A snapshot of `$this->o .= $x` is unchanged
-with the pass on; with it off (`--no-in-place`), the conformance output is the same, but the IR
-shows a `retain` before `str.append` and a second read and release around the store. A snapshot
-of a lent property or static property now prints `lend.poison` after the slot's read and after the
-call, and `lend.restore` before the call. A snapshot of `$this->p[k] = v`, `$this->p[] = v` or
-`C::$s[k] = v` now also prints `lend.poison` around the `array.set` or `array.append`, and with the
-pass off a `retain` of the root and a second read and release around the store. The same holds for
-a nested write, a nested `.=` and an `unset` on a property or static property root, guarded and
-`lateinit` roots included. A snapshot of an element `unset` now lowers its keys before the root's
-read, and a guarded one reads the root again after the guard. A `Core` call with a callback that
-calls a known function writing none of the slot's chain is now lent where it kept its retain.
-A snapshot of `$this->p = $this->f($this->p)` with a known `f` now calls `T::f#lent1`, prints
-`lend.poison` around it, and has no retain of the slot's read; the program gains that lent body.
-A snapshot of a call that passes a local inside a `try` whose `catch` reads it, to a known Novis
-callee, now calls `<callee>#lent<i>` with no retain, and the normal path has no release of the
-local. A `reduce` test that counts the carry's references during the callback now sees one fewer.
+**Expected red.** None: verify is green, and the perf records change no test.
 
 ### Backlog
 
