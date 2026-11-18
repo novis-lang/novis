@@ -31,7 +31,7 @@ stages:
   - id: 7
     title: the website explains revocable objects and lists the change
     status: open
-    context: [website/src/content/docs/syntax/classes/standard-interfaces.mdx, website/src/content/docs/syntax/errors/error-types.mdx, website/src/content/docs/guides/cookbook/cache-value.mdx, website/src/content/docs/in-depth/what-changed.mdx, docs/agent/prose.md]
+    context: [website/src/content/docs/syntax/classes/standard-interfaces.mdx, website/src/content/docs/syntax/errors/error-types.mdx, website/src/content/docs/guides/cookbook/cache-value.mdx, website/src/data/changes.json, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -151,7 +151,7 @@ checks:
     timeout: 900
   - id: site-changes
     stage: 7
-    name: "every added or changed feature of this goal has its What changed entry"
+    name: "every added or changed feature of this goal has its changes.json entry"
     run: [bun, nv, site, --check, changes]
     timeout: 900
   - id: site-review
@@ -589,7 +589,7 @@ user reads*.
   `website/snippets/guides/cookbook/remove-deleted-row/remove-deleted-row.nvs` and `.out`. Its sidebar
   entry is beside *Cache a slow result* (`website/astro.config.ts:510`), and its line goes in
   `website/src/content/docs/guides/cookbook/index.mdx:21`.
-- [ ] `website/src/content/docs/in-depth/what-changed.mdx:1`: one `new` entry for revocable objects
+- [ ] `website/src/data/changes.json:1`: one `new` entry for revocable objects
   and `RevokedObjectError`, in the shape `website-follows-changes` set.
 - [ ] `bun nv site --stale` lists the pages this goal made stale. Each is read, corrected and stamped
   with `bun nv site --stamp`.

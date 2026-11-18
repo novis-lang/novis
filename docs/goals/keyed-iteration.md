@@ -19,7 +19,7 @@ stages:
   - id: 4
     title: every page that says a map loop gives only keys says what it gives now
     status: open
-    context: [website/src/content/docs/syntax/control-flow/foreach.mdx, website/src/content/docs/syntax/control-flow/iterators.mdx, website/src/content/docs/syntax/basics/variables.mdx, docs/reference/core/ObjectMap.md, website/src/content/docs/in-depth/what-changed.mdx, docs/agent/prose.md]
+    context: [website/src/content/docs/syntax/control-flow/foreach.mdx, website/src/content/docs/syntax/control-flow/iterators.mdx, website/src/content/docs/syntax/basics/variables.mdx, docs/reference/core/ObjectMap.md, website/src/data/changes.json, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -94,7 +94,7 @@ checks:
     timeout: 900
   - id: site-changes
     stage: 4
-    name: "What changed lists the keyed loop as new"
+    name: "changes.json lists the keyed loop as new"
     run: [bun, nv, site, --check, changes]
     timeout: 900
   - id: site-review
@@ -250,7 +250,7 @@ phase keeps and not this goal's.
 - The new section's `about.md` opens: "A `foreach` loop over a `Core\ObjectMap` can give you each key
   with its value. Write `foreach ($map as var $key => var $value)`. `$key` gets the map's key type, and
   `$value` gets its value type."
-- The `What changed` entry: "`foreach` gives the key and the value of a `Core\ObjectMap`: write
+- The `changes.json` entry, which the release puts in its release notes: "`foreach` gives the key and the value of a `Core\ObjectMap`: write
   `foreach ($map as var $key => var $value)`. A class of your own can do the same by implementing
   `KeyedIterable<K, V>`."
 
@@ -455,7 +455,7 @@ their `.out` files, which must print what they print today. The session writes t
   `KeyedIterator`, the opening at `:9` names them, and a table of the keyed methods follows the one at
   `:17`. `website/src/content/docs/syntax/basics/variables.mdx:1` takes the new key sentence through its
   feature's `about.md`.
-- [ ] `website/src/content/docs/in-depth/what-changed.mdx:1`: the `new` entry in the wording of
+- [ ] `website/src/data/changes.json:1`: the `new` entry in the wording of
   § *Standing decisions*, in the form the `website-follows-changes` rule gives. Every page covering a
   changed feature is restamped as that rule says. The `site-changes` check run once.
 

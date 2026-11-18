@@ -1,7 +1,7 @@
 ---
 looper: 1
-title: "every change to Novis reaches the website: stale on a behaviour change, listed on What changed, and read by a newcomer"
-summary: "Reached when a feature's tests are part of the hash that makes its about.md, help and covering pages stale, bun nv site --check changes fails on an added, removed or changed feature with no What changed entry, bun nv site --check review fails on a changed user text with no review stamp, the rule and the Reviewed proof are written, and the tree is green under all three."
+title: "every change to Novis reaches the website: stale on a behaviour change, listed in the release notes, and read by a newcomer"
+summary: "Reached when a feature's tests are part of the hash that makes its about.md, help and covering pages stale, bun nv site --check changes fails on an added, removed or changed feature with no changes.json entry, bun nv site --check review fails on a changed user text with no review stamp, the rule and the Reviewed proof are written, and the tree is green under all three."
 context: [tools/nv/cmd/site.ts, docs/rules/testing/website-pages-are-stamped.md, docs/rules/testing/feature-proofs.md]
 stages:
   - id: 1
@@ -9,13 +9,13 @@ stages:
     status: open
     context: [tools/nv/proofs/markers.ts, tools/nv/test/site.test.ts, data/rules/testing/website-pages-are-stamped.json, data/rules/testing.json]
   - id: 2
-    title: "an added, removed or changed feature needs an entry in changes.json, and a release moves the entries onto What changed"
+    title: "an added, removed or changed feature needs an entry in changes.json, and a release moves the entries into its release notes"
     status: open
-    context: [website/src/content/docs/in-depth/what-changed.mdx, website/src/lib/feature.ts, website/src/components/MethodChangelog.astro, tools/nv/schema/proofs.ts, .github/workflows/release.yml, tools/nv/cmd/ci.ts]
+    context: [tools/nv/cmd/release.ts, website/src/lib/feature.ts, website/src/components/MethodChangelog.astro, tools/nv/schema/proofs.ts, .github/workflows/release.yml, tools/nv/cmd/ci.ts]
   - id: 3
     title: every feature changed since the last release has its entry
     status: open
-    context: [website/src/content/docs/in-depth/what-changed.mdx, docs/agent/prose.md]
+    context: [website/src/data/changes.json, docs/agent/prose.md]
   - id: 4
     title: "a changed user text needs a review stamp, and Reviewed is a feature proof"
     status: open
@@ -49,7 +49,7 @@ checks:
     timeout: 900
   - id: changes-tool
     stage: 2
-    name: "an added, removed or changed feature with no entry is named, an entry is held to its shape, and the release moves the entries onto What changed, the feature changelog and a new snapshot"
+    name: "an added, removed or changed feature with no entry is named, an entry is held to its shape, and the release moves the entries into its release notes, the feature changelog and a new snapshot"
     run: [bun, test, tools/nv/test/site-changes.test.ts]
     timeout: 900
     tests:
@@ -60,7 +60,7 @@ checks:
       - an entry over three sentences or outside the prose bounds is named
       - an entry naming a feature neither the roster nor the snapshot has is named
       - a highlight entry may name a feature whose hash did not move
-      - the release moves each entry under its version heading on What changed and empties the file
+      - the release notes start with each entry in its part, and the release empties the file
       - the release adds each entry to the changelog of every feature it names
       - the release writes a new snapshot named after its version
   - id: changes-green
@@ -93,7 +93,7 @@ checks:
     timeout: 1800
 ---
 
-# every change to Novis reaches the website: stale on a behaviour change, listed on What changed, and read by a newcomer
+# every change to Novis reaches the website: stale on a behaviour change, listed in the release notes, and read by a newcomer
 
 ## Why
 
@@ -106,9 +106,10 @@ the roster's 1,598 features from its `about.md`, examples and help. A handwritte
 - **A behaviour change with no doc change passes.** The site hash covers the help card, `about.md` and
   the examples, not the tests. A change to what a feature does lands with a changed test, and nothing
   asks for the description, the help or the pages to be reread.
-- **No change is listed for users.** `website/src/content/docs/in-depth/what-changed.mdx` promises
-  highlights, new features and breaking changes per release, and has no entry. `CHANGELOG.md` is
-  rendered from commit subjects, which are written for contributors.
+- **No change is listed for users.** The release notes on GitHub, which are also the version's
+  section of `CHANGELOG.md`, are rendered from commit subjects alone, and those are written for
+  contributors. The website's Changelog page (`website/src/content/docs/in-depth/what-changed.mdx`)
+  only links each release's page on GitHub.
 - **Nothing checks that the text is good.** `bun nv proofs --comments` and `--check prose` count words
   and dashes. Nobody reads a text the way a newcomer does before it ships.
 
@@ -128,7 +129,10 @@ are the first to owe entries and reviews under it. This goal has no gate on anot
 `covers:` marker names the feature. The feature's own `about.md` and help card become stamped texts.
 A test-only edit, such as a rename, also makes them stale, and there is no exception list for it.
 `changes.json` holds the unreleased entries, `bun nv site --check changes` fails on a moved feature
-with no entry, and a release moves the entries onto What changed. Reviewed is a feature proof, a
+with no entry, and a release moves the entries into its release notes. The person's later call
+(2026-11-18) replaced the first destination, the website's What changed page: that page is now the
+Changelog, a list of links to each release's page on GitHub and nothing more, and no change is written
+onto it. Reviewed is a feature proof, a
 `reader` subagent does the review in each gate stage with the three questions below, and existing texts
 go on a baseline that never grows. Declined, each recorded in the new rule: a periodic review pass, a
 check of the wording by word lists, and a changelog generated from commit messages.
@@ -152,8 +156,8 @@ cycle. Every function takes `root`, as `featureHash` does today, so the tests ru
   person's acceptance covered the description, the help and the pages.
 - An `about.md` stamp leaves out `about.md`, and a help stamp leaves out the card, so rewriting the text
   never makes the same text stale. Rewriting `about.md` still makes every covering page stale.
-- The behaviour hash is the tests alone, so a rewritten description or example owes no What changed
-  entry. Every kind owes at least one test (`rule:testing/feature-proofs`), so a finished feature has
+- The behaviour hash is the tests alone, so a rewritten description or example owes no
+  `changes.json` entry. Every kind owes at least one test (`rule:testing/feature-proofs`), so a finished feature has
   one to move.
 
 **A feature's tests (my call).** The tests whose `covers:` marker names the feature, as `markersIn`
@@ -219,33 +223,29 @@ the tag, checks out the current `tools/nv` into that worktree, and runs `bun nv 
 the download is refused, the snapshot is taken from the tree at the commit that lands stage 2, with
 that commit's hash as `since`. `CHANGELOG.md` then lists the commits in between, and the handoff says so.
 
-**The release step (my call).** `bun nv site --changes --release <version> --nvs <binary>` does three
-things, and `.github/workflows/release.yml` runs it after *Bump the manifests and prepend the
-changelog* (`:353`), with the Linux x86_64 binary from `dist/`. Its files join that job's `git add`
-(`:368`).
+**The release notes (the person's call: the entries go to GitHub, not the website; the shape is
+mine).** `bun nv release --notes <version>` (`renderNotes`, `tools/nv/cmd/release.ts:439`) starts the
+section it renders with the entries of `changes.json`, in up to four parts in this order:
+`### Highlights`, `### New features`, `### Changes`, `### Changes that can break your code`. Each entry
+is one list item, its `text` and then its `instead`. A `removed` entry and a breaking one go in the
+last part. The commit-log sections follow under `### Details`. That section is both the GitHub release
+body and what `--apply --notes-file` prepends to `CHANGELOG.md`, so the release page and the file say
+the same. The website's Changelog page lists the releases from `CHANGELOG.md`'s headings
+(`website/src/data/release.ts`), so it needs no change.
 
-- It writes `## <version>` at the top of the release list on `what-changed.mdx`, with up to four parts
-  in this order: `### Highlights`, `### New features`, `### Changes`, `### Changes that can break your
-  code`. Each entry is one list item, its `text` and then its `instead`. A `removed` entry and a
-  breaking one go in the last part.
+**The release step (my call).** `bun nv site --changes --release <version> --nvs <binary>` does two
+things, and `.github/workflows/release.yml` runs it after *Bump the manifests and prepend the
+changelog* (`:353`), with the Linux x86_64 binary from `dist/`, so the notes are rendered before the
+entries are emptied. Its files join that job's `git add` (`:368`).
+
 - It adds `{ version, change: text }` to `website/src/data/core-changelog.json` for each feature the
   entry names, in the key `changesFor` reads (`website/src/lib/feature.ts:27`).
 - It empties `entries` and `unseen`, and writes a new snapshot with `since: "v<version>"`.
 
-**The page (my call).** What changed shows the entries not yet released, under `## Not released yet`
-above the newest version, from a component `website/src/components/UnreleasedChanges.astro`. The
-website deploys from `main`, and the reference already shows features not yet released. The
-generated reference page for a non-`Core` feature (`website/src/pages/reference/[area]/[...slug].astro`)
-shows the same changelog section the `Core` member page shows
-(`website/src/pages/reference/core/[...slug].astro:110`).
-
-The wording to use, changed only where the page's other prose requires it:
-
-- `what-changed.mdx:12` becomes: "This page lists the changes in each release of Novis, newest first.
-  Each release has up to four parts: the highlights, the new features, the other changes, and the
-  changes that can break your code. The changes that are not released yet are at the top."
-- The component prints each entry as one list item: its `text`, then its `instead`. It prints nothing
-  when `entries` is empty, and the heading says "Not released yet".
+**The reference pages (my call).** The generated reference page for a non-`Core` feature
+(`website/src/pages/reference/[area]/[...slug].astro`) shows the same changelog section the `Core`
+member page shows (`website/src/pages/reference/core/[...slug].astro:110`). No page shows the
+unreleased entries: the Changelog page lists links alone (the person's call, 2026-11-18).
 
 **The user texts (my call).** Each has a key and a hash of its text:
 
@@ -312,7 +312,7 @@ pass (it finds drift late, and never says which change caused it); a check of th
 (AGENTS.md says nothing checks the wording, and a word check was declined before); a changelog
 generated from commit messages (a commit subject is written for contributors, not for a user).
 
-**This goal owes the website** the What changed page and its component. `bun nv` is a contributor's
+**This goal owes the website** the changelog section of the generic reference page. `bun nv` is a contributor's
 tool and no roster feature, so the goal owes no feature proof and no entry of its own.
 
 **Lanes.** Stages 1, 2 and 4 share `tools/nv/cmd/site.ts` and `tools/nv/lib/texts.ts`, so they run in
@@ -359,14 +359,13 @@ hash, stamps every `about.md` and help card, and takes the first stamps.
 - [ ] `bun nv site --stamp --baseline` once, then the `stale-green` check. A page stale before this
   goal is reread and stamped as the rule says, never left for the baseline.
 
-### 2. an added, removed or changed feature needs an entry in changes.json, and a release moves the entries onto What changed
+### 2. an added, removed or changed feature needs an entry in changes.json, and a release moves the entries into its release notes
 
-**Does:** adds `changes.json`, the snapshot and `--check changes`, takes the first snapshot, adds the
-release step, and shows the unreleased entries on What changed.
+**Does:** adds `changes.json`, the snapshot and `--check changes`, takes the first snapshot, puts the
+entries at the top of the release notes, and adds the release step.
 
-**Split:** the session writes the code. One writing subagent writes
-`website/src/components/UnreleasedChanges.astro` and the changelog section of the generic reference
-page from § *The page*, once the data file's shape is on disk.
+**Split:** the session writes the code. One writing subagent writes the changelog section of the
+generic reference page from § *The reference pages*, once the data file's shape is on disk.
 
 - [ ] `tools/nv/schema/proofs.ts:86`: the `released` record for `data/proofs/released.json`, beside
   `helpBacklog`. `testing/every-change-reaches-the-website` (new)
@@ -378,14 +377,16 @@ page from § *The page*, once the data file's shape is on disk.
   `testing/every-change-reaches-the-website` (new)
 - [ ] `.github/workflows/release.yml:353`: a step after *Bump the manifests* that unpacks the Linux
   x86_64 archive from `dist/` and runs `bun nv site --changes --release "$VERSION" --nvs <it>`. The
-  commit step's `git add` (`:368`) adds `what-changed.mdx`, `changes.json`, `core-changelog.json` and
+  commit step's `git add` (`:368`) adds `changes.json`, `core-changelog.json` and
   `data/proofs/released.json`. `testing/every-change-reaches-the-website` (new)
+- [ ] `tools/nv/cmd/release.ts:439`: `renderNotes` starts with the parts of § *The release notes*,
+  read from `website/src/data/changes.json`, and the commit-log sections follow under `### Details`.
+  `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:608`: the website stale guard runs
   `changes` too. The comment above the CI step says what it checks.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `website/src/content/docs/in-depth/what-changed.mdx:12`: the sentence of § *The page*, and
-  `<UnreleasedChanges />` under `## Not released yet`. `website/src/components/UnreleasedChanges.astro:1`
-  and `website/src/pages/reference/[area]/[...slug].astro:90` (the changelog section), from the subagent.
+- [ ] `website/src/pages/reference/[area]/[...slug].astro:90`: the changelog section of § *The
+  reference pages*, from the subagent.
   `testing/every-change-reaches-the-website` (new)
 - [ ] `tools/nv/test/site-changes.test.ts:1`: the ten tests the `changes-tool` check names, then the
   check run once by name.
@@ -465,7 +466,7 @@ commands and `--check review`, and makes Reviewed a feature proof.
 ### 6. the goal is verified once, and every failure is fixed
 
 - [ ] The review of `docs/agent/prose.md` § *A newcomer reads it* over every text `bun nv site
-  --review` lists. This goal's own `what-changed.mdx` and `changes.json` are among them.
+  --review` lists. This goal's own `changes.json` is among them.
 - [ ] Run `looper verify` over the whole goal.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
 - [ ] Run `looper verify` once more, and it is green.

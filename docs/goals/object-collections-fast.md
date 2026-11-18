@@ -23,7 +23,7 @@ stages:
   - id: 5
     title: the figures after, the trade-offs and the pages
     status: open
-    context: [docs/reference/core/ObjectMap.md, docs/reference/core/ObjectSet.md, website/src/content/docs/in-depth/what-changed.mdx, docs/agent/prose.md, docs/rules/core-api/reference-card.md]
+    context: [docs/reference/core/ObjectMap.md, docs/reference/core/ObjectSet.md, website/src/data/changes.json, docs/agent/prose.md, docs/rules/core-api/reference-card.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -88,7 +88,7 @@ checks:
     timeout: 1800
   - id: pages
     stage: 5
-    name: "no page is stale, the change has its What changed entry, and every changed user text has its review stamp"
+    name: "no page is stale, the change has its changes.json entry, and every changed user text has its review stamp"
     run: [bun, nv, site, --check, stale, changes, review]
     timeout: 900
 ---
@@ -232,8 +232,8 @@ reported.
 chain or the copy (a Grep of `docs/rules/` for `snapshot`, `ObjectMap` and `ObjectSet` finds none),
 so no rule changes. A rule a session finds that does state either is rewritten in the same slice.
 
-**The website (the rules of `website-follows-changes`).** The change gets one *What changed*
-highlight. `docs/reference/core/ObjectMap.md` and `docs/reference/core/ObjectSet.md`, and every page
+**The website (the rules of `website-follows-changes`).** The change gets one highlight
+entry in `website/src/data/changes.json`, which the release puts in its release notes. `docs/reference/core/ObjectMap.md` and `docs/reference/core/ObjectSet.md`, and every page
 `bun nv site --stale` names, are reread and restamped. Every code comment and doc that describes the
 old copy or the old chain is rewritten as a whole.
 
@@ -426,9 +426,8 @@ docs, and brings the pages up to date under the website rules of `website-follow
   `foreach` does not copy the map. If the loop changes the map, the loop still walks the entries the
   map had when it began." Restamp both, and every page `bun nv site --stale` names
   (`rule:core-api/reference-card`).
-- [ ] The *What changed* highlight in `website/src/content/docs/in-depth/what-changed.mdx:12`, in the
-  form the rule `website-follows-changes` wrote gives it (Grep `docs/rules/website/` for *What
-  changed*). In end-user prose, such as: "`Core\ObjectMap` and `Core\ObjectSet` are faster. A lookup
+- [ ] The highlight entry in `website/src/data/changes.json:1`, in the form the rule
+  `website-follows-changes` wrote gives it (Grep `docs/rules/` for `changes.json`). In end-user prose, such as: "`Core\ObjectMap` and `Core\ObjectSet` are faster. A lookup
   with a `string`, `int` or object key is one hash lookup, as in an array. A `foreach` over either
   does not copy it." Run the `pages` check once (`rule:core-api/reference-card`).
 
