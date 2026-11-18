@@ -2880,6 +2880,52 @@ fn every_copy_the_pass_keeps_is_in_the_table() {
     assert!(off.copies.is_empty(), "the pass did not run");
 }
 
+/// Only a separated change whose offending statement can move above it
+/// warns: the read after the change does, with `W1032`, its span on the
+/// change and its fix moving the read. The failure that cannot move, the
+/// still-used local and the lent calls do not.
+#[test]
+fn a_warning_is_raised_exactly_where_an_easy_fix_removes_a_copy() {
+    let src = "<?nvs\nfinal class T {\n  public array<int> $p = [];\n  \
+               public function fails(array<int> $items, int $x): array<int> {\n    \
+               $items[] = $x;\n    if ($x > 5) { throw new LogicError('no'); }\n    return $items;\n  }\n  \
+               public function reads(array<int> $items, int $x): array<int> {\n    \
+               $items[] = $x;\n    echo Core\\Arr::count($this->p);\n    return $items;\n  }\n  \
+               public function m(int $x): void {\n    \
+               $this->p = $this->fails($this->p, $x);\n    \
+               $this->p = $this->reads($this->p, $x);\n    \
+               array<int> $l = [1, 2];\n    \
+               array<int> $k = Core\\Arr::append($l, $x);\n    \
+               echo Core\\Arr::count($l), Core\\Arr::count($k);\n  }\n}\n";
+    let (program, map, _) = lower_whole_file_with_src(src);
+    let warnings = crate::copies::warnings(&program.copies, &map);
+    assert_eq!(warnings.len(), 1, "{warnings:#?}");
+    let warning = &warnings[0];
+    assert_eq!(
+        warning.code,
+        Some(nvs_diagnostics::code::W_COPY_READ_AFTER_CHANGE)
+    );
+    let line = |span: nvs_diagnostics::Span| src[..span.start as usize].matches('\n').count() + 1;
+    assert_eq!(line(warning.primary_span().expect("a primary label")), 10);
+    assert_eq!(line(warning.labels[1].span), 11);
+    let fix = &warning.suggestions[0];
+    assert!(!fix.safe, "a moved statement is reviewed: {fix:#?}");
+    let mut fixed = src.to_owned();
+    fixed.replace_range(
+        fix.span.start as usize..fix.span.end as usize,
+        &fix.replacement,
+    );
+    assert!(
+        fixed.contains("    echo Core\\Arr::count($this->p);\n    $items[] = $x;\n    return $items;"),
+        "{fixed}"
+    );
+    let (fixed_program, fixed_map, _) = lower_whole_file_with_src(&fixed);
+    assert!(
+        crate::copies::warnings(&fixed_program.copies, &fixed_map).is_empty(),
+        "the fix removes the copy"
+    );
+}
+
 /// A callee that writes the slot it would be lent keeps the call's retain:
 /// its write cannot free the array it is changing, and the caller's store
 /// still releases the slot's old value.

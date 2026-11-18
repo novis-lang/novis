@@ -329,4 +329,26 @@ codes! {
          in this program, so the entry has no effect. Check the name for a typo. Delete the \
          entry if the code it named is gone.",
     );
+    /// A function changes a value it was given from a property, and then reads
+    /// that property, so the change copies the value
+    /// (`rule:types/a-replaced-value-is-changed-in-place`). Raised only where
+    /// the read can move above the change, and the fix moves it.
+    /// `nvs_ir::copies::warnings` raises it from the ownership pass's table, for
+    /// `nvs check` and for the editor.
+    pub const W_COPY_READ_AFTER_CHANGE: Code = Code::new("W1032").card(
+        "This function changes a value that came from a property. Later, it reads that property \
+         again. The read must see the old value, so the change copies the whole value. Move the \
+         read above the change. Then the value is changed in place, and nothing is copied.",
+    );
+    /// A function changes a value it was given from a property or a variable,
+    /// and then a statement can throw an error, so the change copies the value
+    /// (`rule:types/a-replaced-value-is-changed-in-place`). Raised only where
+    /// that statement can move above the change, and the fix moves it.
+    /// `nvs_ir::copies::warnings` raises it, as it raises `W1032`.
+    pub const W_COPY_FAILURE_AFTER_CHANGE: Code = Code::new("W1033").card(
+        "This function changes a value that it was given. A statement after the change can throw \
+         an error. If it throws, the caller must still have the old value, so the change copies \
+         the whole value. Move that statement above the change. Then the value is changed in \
+         place, and nothing is copied.",
+    );
 }

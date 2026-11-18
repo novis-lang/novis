@@ -1479,6 +1479,38 @@ fn front_end_in(
         let unused = nvs_lsp::diagnostics::unused_uses(&map, owned, &module.imports);
         diags.extend(unused);
     }
+    // `nvs check`'s too: the copies an easy edit removes
+    // (`rule:types/a-replaced-value-is-changed-in-place`). They come from the
+    // ownership pass's own table, so the program is lowered as `nvs run`
+    // lowers it. Before the secret literals are concealed, so a warning's
+    // snippet hides them too.
+    if matches!(sink, Sink::Check { .. })
+        && let Some(layouts) = &layouts
+    {
+        let files: Vec<_> = loaded
+            .iter()
+            .map(|file| nvs_types::ProgramFile {
+                src: map.file(file.id),
+                stmts: &file.stmts,
+            })
+            .collect();
+        let program = nvs_ir::lower::lower_program(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &files,
+            &exprs,
+            &interner,
+            &enums,
+            layouts,
+        );
+        let copies = nvs_ir::copies::warnings(&program.copies, &map);
+        drop(files);
+        diags.extend(copies.into_iter().filter(|warning| {
+            warning
+                .primary_span()
+                .and_then(|span| map.get(span.file))
+                .is_none_or(|file| !file.path().is_some_and(check::vendored))
+        }));
+    }
     conceal_secret_literals(&mut map, &diags, &loaded, &exprs, &interner);
     let Some(layouts) = layouts else {
         autoload.note_searched_roots(

@@ -22,7 +22,7 @@
 //! **What it spends:** one row per kept copy per compiled program, and while
 //! compiling one walk back to the statement marker per row.
 
-use nvs_diagnostics::{SourceMap, Span};
+use nvs_diagnostics::{Diagnostic, SourceMap, Span, code};
 
 /// Why the pass keeps a copy at a statement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -154,6 +154,59 @@ pub fn table(copies: &[KeptCopy], map: &SourceMap) -> Vec<CopySite> {
                 reason: copy.reason,
                 edit: copy.fix.and_then(|fix| edit(file.text(), fix)),
             })
+        })
+        .collect()
+}
+
+/// The warnings of `copies`: one for each row whose [`Reason::warns`] and
+/// whose fix is a whole-line [`TextEdit`], in the rows' order, with each
+/// row once. Its span is the change, its second label the statement to
+/// move, and its fix one replacement from the change's line to the end of
+/// the moved lines, so the edit is one [`nvs_diagnostics::Suggestion`]. The
+/// fix moves code, so a person reviews it and `nvs check --fix` does not
+/// apply it. `nvs check` and the language server both call this, so they
+/// show the same warnings.
+#[must_use]
+pub fn warnings(copies: &[KeptCopy], map: &SourceMap) -> Vec<Diagnostic> {
+    let mut seen = rustc_hash::FxHashSet::default();
+    copies
+        .iter()
+        .filter(|copy| copy.reason.warns() && seen.insert((copy.span, copy.reason)))
+        .filter_map(|copy| {
+            let fix = copy.fix?;
+            let file = map.get(copy.span.file)?;
+            let text = file.text();
+            let edit = edit(text, fix)?;
+            let (code, message, moved) = match copy.reason {
+                Reason::ReadAfterChange => (
+                    code::W_COPY_READ_AFTER_CHANGE,
+                    "this change copies the value, because the property is read after it",
+                    "this reads the property after the change",
+                ),
+                _ => (
+                    code::W_COPY_FAILURE_AFTER_CHANGE,
+                    "this change copies the value, because a statement after it can throw an error",
+                    "this can throw an error after the change",
+                ),
+            };
+            let (start, end) = (edit.insert_at, edit.delete.1);
+            let replacement = format!(
+                "{}{}",
+                edit.text,
+                text.get(start as usize..edit.delete.0 as usize)?
+            );
+            let whole = Span {
+                file: copy.span.file,
+                start,
+                end,
+            };
+            Some(
+                Diagnostic::warning(code, message)
+                    .with_primary(copy.span, "the value is copied here")
+                    .with_secondary(fix.moved, moved)
+                    .with_help(copy.reason.help())
+                    .with_unsafe_fix(whole, replacement, "move this statement above the change"),
+            )
         })
         .collect()
 }
