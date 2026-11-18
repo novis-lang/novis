@@ -13,7 +13,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs]
   - id: 3
     title: the per-value bookkeeping is paid only where it is used, and the ledger records the counts
-    status: open
+    status: done
     context: [benches/members/core/Request/jsonAs.nvs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -111,7 +111,19 @@ the request ends.
 
 **What it spends.** Nothing held past the decode. Per decode, one `(class, constructor)` pair per
 class it builds and one argument vector per object open at once. Each decoded object makes four
-allocations fewer than before.
+allocations fewer than before. The first four pairs and spare vectors sit inline in `Levels`, so a
+decode of up to four classes allocates nothing for them (stage 3's call: stage 2's heap vectors had
+raised `decodeAs`'s bytes per op from 368 to 477).
+
+**The deadline count (stage 3's call).** The count to the next poll is a `Cell` in `Deadline`, not in
+the `Builder`: `fill` and the `build` it calls for a generic value share one poll, and two counters
+would let 510 values pass between two reads of the word. A poll that found the deadline passed
+reads the batch again on every later value, so it stays stopped as before.
+
+**`keep_arrays` stays for every contract (stage 3's call).** Any property can hold a generic array:
+a document that writes `[1]` or `{}` for an `int` property puts one in its slot, noted in `Lists`.
+Freeing it at its object's close would free its address for a later array, which `Lists` would then
+call a JSON list, so a later issue could say "a list" where it says "an object" today.
 
 **Limits: what stops this goal.** Counts decide and never the clock. An item gets one attempt. An
 item whose change would alter a value, an issue, a path, a message or the order of constructor calls
@@ -167,19 +179,26 @@ one line each.
 
 ### 3. the per-value bookkeeping is paid only where it is used, and the ledger records the counts
 
-- [ ] `json.rs:2674` `stopped`: the count to the next poll is a plain integer in the `Builder`, and the
+- [x] `json.rs:2674` `stopped`: the count to the next poll is a plain integer in the `Builder`, and the
   shared word is read every 256 values as today.
+  - [x] The count is a `Cell` in `Deadline` (`json.rs:2359`), since `build` and `fill` share one poll.
+  - [x] `DeadlineBatch::poll` (`nvs-runtime/src/abi.rs`) reads the word with no step counted.
+  - [x] `a_deadline_poll_reads_once_per_batch_and_stays_stopped`, run once by name: passes.
 - [ ] `json.rs:3667` `Builder::close`: `keep_arrays` (`:3682`) runs only for a contract that has a
-  property that can hold a generic array.
-- [ ] `crates/nvs-stdlib/src/request.rs:3285` and `json.rs:2853`: `check_codec` runs once for a
+  property that can hold a generic array. Declined, see `### Backlog`.
+- [x] `crates/nvs-stdlib/src/request.rs:3285` and `json.rs:2853`: `check_codec` runs once for a
   `jsonAs` call.
-- [ ] `json.rs:277` *`decodeAs` reads the text against the class* and its *What it spends* at `:299`
+  - [x] `decode_checked` is `decode_as` without the check, for both `jsonAs` members.
+- [x] `json.rs:277` *`decodeAs` reads the text against the class* and its *What it spends* at `:299`
   are rewritten as a whole with the count law.
-- [ ] `bun nv proofs --record-perf --group 'Core\Json'` and `--group 'Core\Request'`, once each. The
+- [x] `bun nv proofs --record-perf --group 'Core\Json'` and `--group 'Core\Request'`, once each. The
   `allocations` line of `benches/members/core/Request/jsonAs.nvs` and of
   `benches/members/core/Json/decodeAs.nvs` is the new count. No count of either member rises.
-- [ ] `bun nv scaling --check json/` once. Every ladder is linear.
-- [ ] `bun nv bench-compare --profile json-api` once. Write the share of `nvs_core_request_json_as`
+  - [x] Bytes had risen with stage 2's `Spares`; `Spares` now keeps its vectors in `Levels`.
+  - [x] `decodeAs` 4 allocations and 317 bytes per op, `jsonAs` 16 and 1832.
+  - [x] The 45 other records `test.rs` and `request.rs` staled are recorded.
+- [x] `bun nv scaling --check json/` once. Every ladder is linear.
+- [x] `bun nv bench-compare --profile json-api` once. Write the share of `nvs_core_request_json_as`
   into `### State`.
 
 ### 4. the goal is verified once, and every failure is fixed
@@ -196,39 +215,39 @@ Written on 2026-11-17 from a conversation with the person, who asked why Novis i
 in the comparison. Their calls: write goals for it, and give up nothing else for these cases. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stage 1 is done in one session. Stage 2 is done in two. Stage 3 has used no session.
+Stage 1 is done in one session. Stage 2 is done in two. Stage 3 is done in one. Stage 4 has used no
+session.
 
-Stage 2's second session met the count law without the slot rewrite (§ *Spares, not slots*).
-`Spares` (`json.rs:5237`) is one per decode, on the `Builder` for a typed read and made by
-`hydrate` and `decode_as` for the others. It finds each constructor once and lends each `Fields`
-frame an argument vector, which `Fields::finish` gives back. `Filled` (`:5288`) is a `u64` for
-up to 64 parameters. `walk`, `decode_fields`, `decode_object`, `decode_document` and
-`decode_each` take `&mut Spares`, and `build_shape` takes a slice. A list of n rows with two
-string properties now makes n × 3 allocations, which is n × (1 + s): the object is one allocation.
+Stage 3 is in two commits: `Deadline` (`json.rs:2386`) counts in a `Cell` and reads the word via
+`DeadlineBatch::poll`; `decode_checked` serves both `jsonAs` members; `Spares` (`:5320`) keeps its
+pairs and spare vectors in `Levels`. `keep_arrays` is declined (§ *Standing decisions*).
 
-The `one-touch` check's three tests pass, run once by name, and
-`a_decode_as_builds_no_array_for_the_object_it_fills` still passes. Build and clippy are green. No
-test is expected to go red. The agreement test draws 2,000 documents from a fixed seed and compares
-`decode_as` with `read_polled` and `hydrate`, written as JSON or as the fault and its slots.
+Ledger: `decodeAs` 4 allocations and 317 bytes per op (was 6 and 368), `jsonAs` 16 and 1832 (was
+27 and 2195). No record is stale, and `bun nv scaling --check json/` is green. On `json-api`, Novis
+serves 23,639 requests/sec on one core, and `nvs_core_request_json_as` with callees is 37.07%.
+
+Build and clippy are green; the new deadline test and `one-touch`'s three pass, run once by name.
+May go red at the gate: an example `.out` under `docs/examples/` that pins a `count:` for either
+member, and the two expired-deadline tests in `json.rs` and `json/each.rs`.
 
 The sweep's reds are stale: `env-secret-proofs` has no log and no goal defines it, and the nightly
-`supply chain` run 44073672172 built `2934ebe1ae`, before `chrono` was removed.
+`supply chain` run 44073672172 built `2934ebe1ae`, before `chrono` was removed. The tree's edits to
+`nvs-lsp` and `nvs-types/src/check.rs` are not this goal's, and no session of it commits them.
 
 ### Next
 
-Stage 3, one session. Its items in order:
-
-- `json.rs:2674` `stopped`: the count to the next poll as a plain integer in the `Builder`.
-- `json.rs:3667` `Builder::close` and `:3772` `keep_arrays`: run only for a contract with a
-  property that can hold a generic array.
-- `request.rs:3285` and `json.rs:2853`: `check_codec` (`json.rs:4127`) once per `jsonAs` call.
-- `json.rs:277` § *`decodeAs` reads the text against the class*, rewritten whole with the count law
-  n × (1 + s), and its *What it spends* naming `Spares`. Edit docs before measuring: a comment edit
-  in `json.rs` stales the perf records (playbook, *A goal that changes a `Core` member's source*).
-- Then the ledger: `bun nv relink --build`, `--record-perf` for `Core\Json` and `Core\Request`,
-  `bun nv scaling --check json/`, and `bun nv bench-compare --profile json-api`.
+Stage 4, the gate, one session: start `looper verify` with `run_in_background`, fix every failure
+it names in one pass, and run it once more. Then the goal-end gates: `bun nv verify --doc`,
+`bun nv owners --closes json-one-touch`, and `bun nv ci --check`. A fix that edits `json.rs` or
+`request.rs` stales the perf records again: list them with `bun nv proofs --gate --limit 0 --nvs
+target/release/nvs.exe`, grepped for `perf: stale`, and record them after `bun nv relink --build`.
 
 ### Backlog
+
+Declined at stage 3, under § *Limits*: `json.rs:3842` `Builder::close` running `keep_arrays` only
+for a contract with a property that can hold a generic array. Every property can hold one in a
+mistyped document, and freeing it changes what a later issue names (§ *Standing decisions*,
+*`keep_arrays` stays for every contract*).
 
 Declined at stage 2's second session, under § *Limits*: the count law was met without them, they
 would only save the second read of each slot, which costs time and no allocation, and the rewrite
