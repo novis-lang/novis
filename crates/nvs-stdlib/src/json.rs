@@ -2878,7 +2878,12 @@ pub(crate) unsafe fn decode_as(
     let read = read_against(text, max, contract, list, &mut builder, Some(&deadline));
     // The slots of an object the read left open, and the arrays kept for
     // `Lists`, drop with this and release what they hold.
-    let Builder { ctx, kept, .. } = builder;
+    let Builder {
+        ctx,
+        kept,
+        mut spares,
+        ..
+    } = builder;
     // A read the deadline stopped is the deadline's FATAL. What it read is
     // dropped with `read`.
     deadline_finished(&deadline, ctx, member)?;
@@ -2897,9 +2902,9 @@ pub(crate) unsafe fn decode_as(
     )]
     let decoded = unsafe {
         if list {
-            decode_each(ctx, contract, found.seen(), member)
+            decode_each(ctx, &mut spares, contract, found.seen(), member)
         } else {
-            decode_object(ctx, contract, found.seen(), None, member)
+            decode_object(ctx, &mut spares, contract, found.seen(), None, member)
         }
     };
     // What the calls above returned took a reference of its own, so this
@@ -3678,8 +3683,8 @@ fn fill_slot<'a>(slot: &mut Option<Found<'a>>, found: Found<'a>) -> bool {
 /// One per typed decode.
 ///
 /// **What it spends:** the slot stack, `size_of::<Option<Found>>()` per field
-/// of the objects open on it at once, and the arrays [`Builder::close`] keeps.
-/// Both are freed when the decode returns.
+/// of the objects open on it at once, the arrays [`Builder::close`] keeps, and
+/// its [`Spares`]. All are freed when the decode returns.
 struct Builder<'a> {
     /// The context a constructor runs with. [`decode_as`] takes it back
     /// once the read has ended.
@@ -3691,6 +3696,9 @@ struct Builder<'a> {
     /// returns, because [`Lists`] knows a JSON list by its address, and a freed
     /// address may be given to an array the read builds later.
     kept: Vec<Found<'a>>,
+    /// Each class's constructor and the argument vectors, reused from object
+    /// to object.
+    spares: Spares,
 }
 
 /// What [`Halt::Built`] prints. [`decode_as`] returns the fault itself, so no
@@ -3711,6 +3719,10 @@ impl<'a> Builder<'a> {
             ctx,
             slots: Vec::new(),
             kept: Vec::new(),
+            spares: Spares {
+                constructors: Vec::new(),
+                args: Vec::new(),
+            },
         }
     }
 
@@ -3816,7 +3828,14 @@ fn build_object<'a>(
         reason = "the descriptor is the caller's or one `nvs-codegen` resolved out of the \
                   same class table, and the slots live across the call"
     )]
-    let outcome = unsafe { decode_fields(builder.ctx, contract, Object::Slots(source)) };
+    let outcome = unsafe {
+        decode_fields(
+            builder.ctx,
+            &mut builder.spares,
+            contract,
+            Object::Slots(source),
+        )
+    };
     let found = match outcome {
         Ok(value) => Found::Built(value),
         Err(DecodeFailure::Issues(issues)) => Found::Failed(issues),
@@ -4271,10 +4290,18 @@ pub(crate) unsafe fn hydrate(
         reason = "the same live descriptor the caller vouched for"
     )]
     let decoded = unsafe {
+        let mut spares = Spares::default();
         if list {
-            decode_each(ctx, contract, Seen::Value(document), member)
+            decode_each(ctx, &mut spares, contract, Seen::Value(document), member)
         } else {
-            decode_object(ctx, contract, Seen::Value(document), None, member)
+            decode_object(
+                ctx,
+                &mut spares,
+                contract,
+                Seen::Value(document),
+                None,
+                member,
+            )
         }
     };
     // Released here whichever branch ran and whether or not it failed: every
@@ -4574,6 +4601,7 @@ fn nested<'a>(contract: Contract<'a>, index: usize) -> Option<Contract<'a>> {
 )]
 unsafe fn decode_each<'a>(
     ctx: &mut nvs_runtime::Ctx,
+    spares: &mut Spares,
     contract: Contract<'a>,
     document: Seen<'a>,
     member: &str,
@@ -4626,7 +4654,7 @@ unsafe fn decode_each<'a>(
             unsafe_code,
             reason = "the same live descriptor, and the document's own element"
         )]
-        let value = unsafe { decode_object(ctx, contract, element, Some(index), member)? };
+        let value = unsafe { decode_object(ctx, spares, contract, element, Some(index), member)? };
         decoded.append(value);
     }
     Ok(Value::array(decoded))
@@ -4650,6 +4678,7 @@ unsafe fn decode_each<'a>(
 )]
 unsafe fn decode_object<'a>(
     ctx: &mut nvs_runtime::Ctx,
+    spares: &mut Spares,
     contract: Contract<'a>,
     document: Seen<'a>,
     at: Option<usize>,
@@ -4677,7 +4706,7 @@ unsafe fn decode_object<'a>(
     )]
     let outcome = match taken(document) {
         Some(outcome) => outcome,
-        None => unsafe { decode_document(ctx, contract, document, at, member)? },
+        None => unsafe { decode_document(ctx, spares, contract, document, at, member)? },
     };
     match outcome {
         Ok(value) => Ok(value),
@@ -4725,6 +4754,7 @@ unsafe fn decode_object<'a>(
 )]
 unsafe fn decode_document<'a>(
     ctx: &mut nvs_runtime::Ctx,
+    spares: &mut Spares,
     contract: Contract<'a>,
     document: Seen<'a>,
     at: Option<usize>,
@@ -4763,7 +4793,7 @@ unsafe fn decode_document<'a>(
         unsafe_code,
         reason = "the same live descriptor, and a borrow of the document's own object"
     )]
-    Ok(unsafe { decode_fields(ctx, contract, source) })
+    Ok(unsafe { decode_fields(ctx, spares, contract, source) })
 }
 
 /// How one field, or one whole nested object, failed.
@@ -4871,6 +4901,7 @@ impl<'a> Issue<'a> {
 )]
 unsafe fn decode_fields<'a>(
     ctx: &mut nvs_runtime::Ctx,
+    spares: &mut Spares,
     contract: Contract<'a>,
     source: Object<'a>,
 ) -> Result<Value, DecodeFailure<'a>> {
@@ -4879,7 +4910,7 @@ unsafe fn decode_fields<'a>(
         reason = "the caller's descriptor, and a borrow the caller keeps alive"
     )]
     unsafe {
-        walk(ctx, Build::Fields(Fields::new(contract, source)))
+        walk(ctx, spares, Build::Fields(Fields::new(contract, source)))
     }
 }
 
@@ -4928,6 +4959,7 @@ const _: () = assert!(std::mem::size_of::<Build<'static>>() <= 128);
 )]
 unsafe fn walk<'a>(
     ctx: &mut nvs_runtime::Ctx,
+    spares: &mut Spares,
     root: Build<'a>,
 ) -> Result<Value, DecodeFailure<'a>> {
     // The innermost frame is held apart from its ancestors, so the root
@@ -4944,7 +4976,7 @@ unsafe fn walk<'a>(
         )]
         let step = unsafe {
             match &mut top {
-                Build::Fields(fields) => fields.resume(ctx, finished.take()),
+                Build::Fields(fields) => fields.resume(ctx, spares, finished.take()),
                 Build::Positions(positions) => positions.resume(ctx, finished.take()),
             }
         };
@@ -4973,10 +5005,12 @@ struct Fields<'a> {
     source: Object<'a>,
     /// The index of the next field to read.
     next: usize,
-    /// One owned reference per position filled, and `null` in the others.
+    /// One owned reference per position filled, and `null` in the others,
+    /// after the receiver's place. Empty until the first resume takes a
+    /// vector from [`Spares`].
     args: Vec<Value>,
     /// Which positions a field has filled.
-    filled: Vec<bool>,
+    filled: Filled,
     /// `rule:core-classes/derive-reports-every-field`'s accumulation, each
     /// path relative to this object.
     issues: Vec<Issue<'a>>,
@@ -4998,10 +5032,8 @@ impl<'a> Fields<'a> {
             contract,
             source,
             next: 0,
-            // The receiver's place first, so the constructor takes this
-            // vector as its slots and no second one is built.
-            args: vec![Value::null(); arity.saturating_add(1)],
-            filled: vec![false; arity],
+            args: Vec::new(),
+            filled: Filled::new(arity),
             issues: Vec::new(),
         }
     }
@@ -5019,8 +5051,14 @@ impl<'a> Fields<'a> {
     unsafe fn resume(
         &mut self,
         ctx: &mut nvs_runtime::Ctx,
+        spares: &mut Spares,
         finished: Option<Result<Value, DecodeFailure<'a>>>,
     ) -> Step<'a> {
+        if self.args.is_empty() {
+            // The receiver's place first, so the constructor takes this
+            // vector as its slots and no second one is built.
+            self.args = spares.args(self.contract.arity().saturating_add(1));
+        }
         if let Some(outcome) = finished {
             // The child is the field read last. Its presence was answered
             // before the step into it, so what comes back is a conversion.
@@ -5048,7 +5086,7 @@ impl<'a> Fields<'a> {
             }
         }
         #[expect(unsafe_code, reason = "the same live descriptor")]
-        Step::Done(unsafe { self.finish(ctx) })
+        Step::Done(unsafe { self.finish(ctx, spares) })
     }
 
     /// The `index`th field's value written into the position it fills, or its
@@ -5065,7 +5103,7 @@ impl<'a> Fields<'a> {
             Ok(value) => match self.args.get_mut(field.param.saturating_add(1)) {
                 Some(slot) => {
                     *slot = value;
-                    self.filled[field.param] = true;
+                    self.filled.set(field.param);
                     Ok(())
                 }
                 None => {
@@ -5115,7 +5153,11 @@ impl<'a> Fields<'a> {
         unsafe_code,
         reason = "the caller owes the liveness of a descriptor no signature can express"
     )]
-    unsafe fn finish(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<Value, DecodeFailure<'a>> {
+    unsafe fn finish(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+        spares: &mut Spares,
+    ) -> Result<Value, DecodeFailure<'a>> {
         if !self.issues.is_empty() {
             return Err(DecodeFailure::Issues(std::mem::take(&mut self.issues)));
         }
@@ -5130,7 +5172,7 @@ impl<'a> Fields<'a> {
         // right for `?T $x = null` and silently wrong for everything else. A shape
         // reaches this with every position filled, an absent optional key included:
         // what fills that one is the never-written marker.
-        if let Some(index) = self.filled.iter().position(|done| !done) {
+        if let Some(index) = self.filled.first_unset(self.contract.arity()) {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
                  property, which `E0820` refuses at the call that names such a class",
@@ -5138,14 +5180,15 @@ impl<'a> Fields<'a> {
             ))));
         }
         if self.contract.is_shape() {
+            let mut args = std::mem::take(&mut self.args);
             #[expect(
                 unsafe_code,
                 reason = "the same live descriptor, and every value is one this frame \
                           owns and hands over"
             )]
-            return unsafe {
-                build_shape(self.contract, std::mem::take(&mut self.args), 1)
-            };
+            let built = unsafe { build_shape(self.contract, &mut args, 1) };
+            spares.give(args);
+            return built;
         }
         // `rule:errors/on-limit`'s soft address, compared before each
         // constructor. The walk itself takes no native frame per level, but a
@@ -5159,7 +5202,7 @@ impl<'a> Fields<'a> {
         }
         let mut args = std::mem::take(&mut self.args);
         #[expect(unsafe_code, reason = "the same live descriptor")]
-        let constructor = match unsafe { constructor_of(self.contract.class()) } {
+        let constructor = match unsafe { spares.constructor(self.contract.class()) } {
             Ok(constructor) => constructor,
             Err(fault) => {
                 release_all(&args);
@@ -5171,8 +5214,123 @@ impl<'a> Fields<'a> {
             reason = "the same live descriptor and its constructor, and every argument \
                       is one this frame owns and hands over"
         )]
-        unsafe { nvs_runtime::construct_found(ctx, self.contract.class(), constructor, &mut args) }
-            .map_err(DecodeFailure::Fault)
+        let built = unsafe {
+            nvs_runtime::construct_found(ctx, self.contract.class(), constructor, &mut args)
+        };
+        // The constructor took every reference the vector held, so it goes
+        // back empty for the next object.
+        spares.give(args);
+        built.map_err(DecodeFailure::Fault)
+    }
+}
+
+/// What one decode reuses from object to object: each class's constructor,
+/// found once, and the argument vectors of the objects already built.
+///
+/// One per decode, so a list of n objects of one class looks its constructor
+/// up once and builds its argument vector once.
+///
+/// **What it spends:** one pair per class the decode builds, and one vector per
+/// object open at once, each one place longer than its class's constructor has
+/// parameters. Both are freed with the decode.
+#[derive(Default)]
+struct Spares {
+    /// Each class the decode has built, with its constructor.
+    constructors: Vec<(*const nvs_runtime::ClassDesc, nvs_runtime::Constructor)>,
+    /// Argument vectors given back empty.
+    args: Vec<Vec<Value>>,
+}
+
+impl Spares {
+    /// The constructor of `class`, looked up on the first object of that class.
+    ///
+    /// # Safety
+    ///
+    /// As [`decode_as`]'s.
+    #[expect(
+        unsafe_code,
+        reason = "the caller owes the liveness of a descriptor no signature can express"
+    )]
+    unsafe fn constructor(
+        &mut self,
+        class: *const nvs_runtime::ClassDesc,
+    ) -> Result<nvs_runtime::Constructor, Fault> {
+        if let Some((_, found)) = self
+            .constructors
+            .iter()
+            .find(|(known, _)| std::ptr::eq(*known, class))
+        {
+            return Ok(*found);
+        }
+        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+        let found = unsafe { constructor_of(class) }?;
+        self.constructors.push((class, found));
+        Ok(found)
+    }
+
+    /// A vector of `len` `null`s, reused where one was given back.
+    fn args(&mut self, len: usize) -> Vec<Value> {
+        let mut args = self.args.pop().unwrap_or_default();
+        args.resize(len, Value::null());
+        args
+    }
+
+    /// Keeps `args` for the next object. Its values are no longer this
+    /// decode's to release.
+    fn give(&mut self, mut args: Vec<Value>) {
+        args.clear();
+        self.args.push(args);
+    }
+}
+
+/// Which constructor positions an object's fields have filled: one bit each
+/// for a class of up to 64, and a vector only for a class with more.
+enum Filled {
+    /// Bit `n` is position `n`.
+    Few(u64),
+    /// One flag per position.
+    Many(Vec<bool>),
+}
+
+impl Filled {
+    /// No position filled, of `arity`.
+    fn new(arity: usize) -> Self {
+        if arity <= 64 {
+            Self::Few(0)
+        } else {
+            Self::Many(vec![false; arity])
+        }
+    }
+
+    /// Notes position `at` as filled. `at` is below the arity.
+    fn set(&mut self, at: usize) {
+        match self {
+            Self::Few(bits) => {
+                *bits |= 1_u64
+                    .checked_shl(u32::try_from(at).unwrap_or(u32::MAX))
+                    .unwrap_or(0)
+            }
+            Self::Many(flags) => {
+                if let Some(flag) = flags.get_mut(at) {
+                    *flag = true;
+                }
+            }
+        }
+    }
+
+    /// The first of `arity` positions not filled, or `None` where every one is.
+    fn first_unset(&self, arity: usize) -> Option<usize> {
+        match self {
+            Self::Few(bits) => {
+                let all = u32::try_from(arity)
+                    .ok()
+                    .and_then(|arity| 1_u64.checked_shl(arity))
+                    .map_or(u64::MAX, |past| past - 1);
+                let missing = !*bits & all;
+                (missing != 0).then(|| missing.trailing_zeros() as usize)
+            }
+            Self::Many(flags) => flags.iter().take(arity).position(|done| !done),
+        }
     }
 }
 
@@ -5358,7 +5516,7 @@ impl<'a> Positions<'a> {
 )]
 unsafe fn build_shape<'a>(
     contract: Contract<'a>,
-    mut values: Vec<Value>,
+    values: &mut [Value],
     skip: usize,
 ) -> Result<Value, DecodeFailure<'a>> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
@@ -6908,6 +7066,369 @@ pub(crate) mod tests {
         unsafe {
             value.release();
         }
+    }
+
+    /// A constructor that keeps nothing, for a class of three parameters: it
+    /// releases the receiver and each argument, as an emitted epilogue does.
+    #[expect(unsafe_code, reason = "as `answers_a_number`'s")]
+    unsafe extern "C" fn drops_three(
+        _ctx: *mut nvs_runtime::Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "`construct_found` passes the receiver and three arguments, all \
+                      live, and a writable out-pointer"
+        )]
+        unsafe {
+            for at in 0..4 {
+                (*args.add(at)).release();
+            }
+            *out = Value::null();
+        }
+        nvs_runtime::OK
+    }
+
+    /// A class `Row` of two `string` properties and one `int`, whose
+    /// constructor is [`drops_three`]. Leaked for [`holder_class`]'s reason.
+    fn row_class() -> *const ClassDesc {
+        let field = |key: &str, at: usize, ty| CodecField {
+            key: key.to_owned(),
+            slot: at,
+            param: at,
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            allowed: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        };
+        let mut table = ClassTable::new();
+        let id = table.define("Row", &["a", "b", "c"], &[]);
+        table.set_codec(
+            id,
+            vec![
+                field("a", 0, CodecTy::Str),
+                field("b", 1, CodecTy::Str),
+                field("c", 2, CodecTy::Int),
+            ],
+            3,
+            vec![std::ptr::null(); 3],
+            vec![std::ptr::null(); 3],
+        );
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CONSTRUCTOR.to_owned(),
+                code: (drops_three as *const ()).cast::<u8>(),
+                arity: 3,
+                param_tags: 0,
+                param_names: vec!["a".to_owned(), "b".to_owned(), "c".to_owned()],
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
+            }],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        table.desc(id)
+    }
+
+    /// A list of `count` [`row_class`] objects, each with the same values.
+    fn rows(count: usize) -> String {
+        let row = r#"{"a":"first","b":"second","c":3}"#;
+        format!("[{}]", vec![row; count].join(","))
+    }
+
+    /// Decodes `text` as an `array<Row>`, releases what it gave, and returns
+    /// how many allocations the decode made.
+    fn row_allocations(class: *const ClassDesc, text: &str) -> usize {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let before = nvs_runtime::budget::allocations();
+        #[expect(
+            unsafe_code,
+            reason = "`row_class` leaks its table, so the descriptor outlives the decode"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                None,
+                text,
+                DEFAULT_MAX_DEPTH_U32,
+                true,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let made = nvs_runtime::budget::allocations() - before;
+        let Ok(value) = decoded else {
+            panic!("every row matches its class");
+        };
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+        made
+    }
+
+    /// The count law: a list of n objects of one class with s string
+    /// properties allocates n × (1 + s) times, plus a number that does not grow
+    /// with n. Each object is the instance, whose storage is inline behind its
+    /// header, and its strings. Nothing per object is spent on the decode's own
+    /// bookkeeping.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_typed_decode_allocates_the_object_its_storage_and_its_strings() {
+        let class = row_class();
+        let small = row_allocations(class, &rows(10));
+        let large = row_allocations(class, &rows(100));
+        let strings = 2;
+        // The list of rows doubles its backing as it grows, so the two reads
+        // differ by a few growths that are not per object.
+        let per_object = (large - small) / 90;
+        assert_eq!(
+            per_object,
+            1 + strings,
+            "100 rows made {large} allocations and 10 made {small}"
+        );
+    }
+
+    /// A list of many objects of one class looks its constructor up once.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_constructor_is_found_once_for_a_whole_decode() {
+        let class = row_class();
+        let before = CONSTRUCTORS_FOUND.with(std::cell::Cell::get);
+        row_allocations(class, &rows(50));
+        let found = CONSTRUCTORS_FOUND.with(std::cell::Cell::get) - before;
+        assert_eq!(found, 1, "50 rows looked the constructor up {found} times");
+    }
+
+    /// A shape over every wire type the fuzz below writes, in sorted key
+    /// order as a shape's slots are: `meta` nests `{n: int}`, `l` is a list of
+    /// `int`, `n` is `?int` and `o` is optional. Leaked for [`holder_class`]'s
+    /// reason.
+    fn every_type_shape() -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let field = |key: &str, at: usize, ty| CodecField {
+            key: key.to_owned(),
+            slot: at,
+            param: at,
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            allowed: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        };
+        let mut table = ClassTable::new();
+        let inner_id = table.define("$shape{n}", &["n"], &[]);
+        let inner = table.define_shape_codec(
+            vec![field("n", 0, CodecTy::Int)],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let keys = ["b", "f", "i", "l", "m", "meta", "n", "o", "s"];
+        let fields = vec![
+            field("b", 0, CodecTy::Bool),
+            field("f", 1, CodecTy::Float),
+            field("i", 2, CodecTy::Int),
+            CodecField {
+                element: Some(nvs_runtime::CodecElement::leaf(CodecTy::Int)),
+                ..field("l", 3, CodecTy::List)
+            },
+            field("m", 4, CodecTy::Mixed),
+            CodecField {
+                class: Some("$shape{n}".to_owned()),
+                shape: Some("$codec{n:Int}".to_owned()),
+                ..field("meta", 5, CodecTy::Shape)
+            },
+            CodecField {
+                nullable: true,
+                ..field("n", 6, CodecTy::Int)
+            },
+            CodecField {
+                required: false,
+                ..field("o", 7, CodecTy::Str)
+            },
+            field("s", 8, CodecTy::Str),
+        ];
+        let id = table.define("$shape{every}", &keys, &[]);
+        let inner_desc = table.desc(inner_id);
+        let mut classes = vec![std::ptr::null(); keys.len()];
+        let mut shapes = vec![std::ptr::null(); keys.len()];
+        classes[5] = inner_desc;
+        shapes[5] = inner;
+        let shape = table.define_shape_codec(fields, classes, shapes);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// One object of [`every_type_shape`], drawn from `next`: each key may be
+    /// missing, `null`, of the wrong type or right, an undeclared key may be
+    /// added, and the order may be reversed.
+    fn drawn_object(next: &mut impl FnMut(usize) -> usize) -> String {
+        let right = |key: &str, pick: usize| -> String {
+            match key {
+                "b" => ["true", "false"][pick % 2].to_owned(),
+                "f" => ["1.5", "-2", "0.25e3"][pick % 3].to_owned(),
+                "i" => ["7", "-12", "9007199254740993"][pick % 3].to_owned(),
+                "l" => ["[]", "[1,2,3]", "[4]"][pick % 3].to_owned(),
+                "m" => ["1", "\"x\"", "[1,{\"y\":2}]", "{\"z\":null}"][pick % 4].to_owned(),
+                "meta" => ["{\"n\":1}", "{\"n\":2,\"extra\":true}"][pick % 2].to_owned(),
+                "n" => ["5", "-1"][pick % 2].to_owned(),
+                _ => ["\"text\"", "\"caf\\u00e9\"", "\"\""][pick % 3].to_owned(),
+            }
+        };
+        let wrong = [
+            "\"w\"",
+            "7",
+            "true",
+            "[1,\"a\"]",
+            "{\"n\":\"x\"}",
+            "{}",
+            "2.5",
+            "[]",
+        ];
+        let keys = ["b", "f", "i", "l", "m", "meta", "n", "o", "s"];
+        let mut members: Vec<String> = Vec::new();
+        for key in keys {
+            let value = match next(10) {
+                0 => continue,
+                1 => "null".to_owned(),
+                2 | 3 => wrong[next(wrong.len())].to_owned(),
+                _ => right(key, next(4)),
+            };
+            members.push(format!("\"{key}\":{value}"));
+        }
+        if next(4) == 0 {
+            members.insert(next(members.len() + 1), "\"undeclared\":[1,2]".to_owned());
+        }
+        if next(2) == 0 {
+            members.reverse();
+        }
+        format!("{{{}}}", members.join(","))
+    }
+
+    /// What one decode gave, as text two decodes can be compared on: the
+    /// value written as JSON, or the fault's class, message and slots.
+    fn shown(ctx: &mut nvs_runtime::Ctx, outcome: Result<Value, Fault>) -> String {
+        match outcome {
+            Ok(value) => {
+                let text = written(ctx, value, r"Core\Json::encode")
+                    .unwrap_or_else(|fault| format!("unwritable {fault:?}"));
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                format!("ok {text}")
+            }
+            Err(Fault::ThrownWithSlots(class, message, slots)) => {
+                let mut text = format!("thrown {class:?} {message:?}");
+                for (at, value) in slots {
+                    let slot = written(ctx, value, r"Core\Json::encode")
+                        .unwrap_or_else(|fault| format!("unwritable {fault:?}"));
+                    text.push_str(&format!(" | {at} {slot}"));
+                    #[expect(unsafe_code, reason = "the fault owned its one reference")]
+                    unsafe {
+                        value.release();
+                    }
+                }
+                text
+            }
+            Err(fault) => format!("fault {fault:?}"),
+        }
+    }
+
+    /// The typed decode and the generic one agree on every document: the
+    /// same value, or the same issues with the same paths and messages in the
+    /// same order. The documents are drawn from a fixed seed over every wire
+    /// type, missing and extra keys, wrong types, nulls, nesting and lists.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn a_typed_decode_agrees_with_the_generic_decode_on_every_document() {
+        let (class, shape) = every_type_shape();
+        let member = r"Core\Json::decodeAs";
+        let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = |below: usize| -> usize {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            usize::try_from(state % u64::try_from(below.max(1)).unwrap_or(1)).unwrap_or(0)
+        };
+        let mut decoded = 0;
+        for case in 0..2_000 {
+            let list = next(4) == 0;
+            let text = if list {
+                let count = next(4);
+                let objects: Vec<String> = (0..count).map(|_| drawn_object(&mut next)).collect();
+                format!("[{}]", objects.join(","))
+            } else {
+                drawn_object(&mut next)
+            };
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            #[expect(
+                unsafe_code,
+                reason = "`every_type_shape` leaks its table, so both addresses outlive the decode"
+            )]
+            let typed = unsafe {
+                decode_as(
+                    &mut ctx,
+                    class,
+                    Some(shape),
+                    &text,
+                    DEFAULT_MAX_DEPTH_U32,
+                    list,
+                    member,
+                )
+            };
+            let typed = shown(&mut ctx, typed);
+            let lists = Lists::default();
+            let generic =
+                match read_polled(&ctx, member, &text, DEFAULT_MAX_DEPTH_U32, Some(&lists)) {
+                    Err(fault) => Err(fault),
+                    Ok(Err(why)) => {
+                        let message = format!("{member}(): {why}");
+                        let issues = crate::issue::list([("", message.as_str())]);
+                        Err(Fault::thrown_with_issues(
+                            ThrownClass::Parse,
+                            message,
+                            issues,
+                        ))
+                    }
+                    #[expect(
+                        unsafe_code,
+                        reason = "the same leaked addresses, and the document this frame owns"
+                    )]
+                    Ok(Ok(document)) => unsafe {
+                        hydrate(
+                            &mut ctx,
+                            class,
+                            Some(shape),
+                            document,
+                            list,
+                            Reading::Wire(&lists),
+                            member,
+                        )
+                    },
+                };
+            let generic = shown(&mut ctx, generic);
+            assert!(!typed.contains("unwritable"), "case {case}: {typed}");
+            assert_eq!(typed, generic, "case {case}: {text}");
+            decoded += usize::from(typed.starts_with("ok {"));
+        }
+        // The seed reaches the success path too, not only the issues.
+        assert!(decoded >= 10, "only {decoded} objects decoded");
     }
 
     /// An object whose fields are all scalars arrives from the parse already
