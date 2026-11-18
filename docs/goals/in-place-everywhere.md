@@ -428,7 +428,9 @@ Arrays are `array<int>` joined with `,` to print. Each case
 is 15 to 35 lines, cites `rule:types/a-replaced-value-is-changed-in-place` in its `--TEST--` line,
 passes under `nvs test` and `nvs test --no-in-place` by path, and runs no `cargo`. A block-body
 anonymous function is `callable $f = fn(): string => { …; return …; };`, and a plain `callable` call
-gives `mixed`, so a generator that yields one declares `callable(): string $f`.
+gives `mixed`, so a generator that yields one declares `callable(): string $f`. A property default
+may be only `[]` for an array (E0472), so a class sets `[1, 2]` in its `constructor`, which is the
+constructor's name.
 
 ## Stages
 
@@ -461,7 +463,7 @@ disjoint and they run side by side. The session runs the test once all batches e
   **The case brief**, written to a scratch file the subagents read.
   - [x] `local` and `parameter` (110 cases)
   - [x] `inout` and `captured` (44 and 55; no `inout` in a generator)
-  - [ ] `this-property` and `local-property` (85 each)
+  - [x] `this-property` and `local-property` (85 each)
   - [ ] `static-property` and `element` (85 and 55)
   - [ ] `property-element` and `property-chain` (85 each), then the test is green
 
@@ -583,22 +585,27 @@ generator's local after a resume. The person agreed to add the first three; the 
 after they asked why some findings were untested, and is the authoring session's call. Goal `cheaper-forms` holds the rest of that review.
 
 Stage 1 has its rule (`f2a676192e`), the switch (`bdb63ad386`) and the matrix test (`157a84b101`,
-689 cells). The `local`, `parameter`, `inout` and `captured` cells are written, 209 cases, each green
-both ways (`92eebe1ad5`, `1b024fd514`); none printed differently. The sweep's two reds are stale:
-`env-secret-proofs` was last named by `route-parameters`' retire commit, and the nightly's head lacks
-`0fe2fdef25`. An `inout` callee that throws writes nothing back, so `inout-*-try-*` print the old value.
+689 cells). The `local`, `parameter`, `inout` and `captured` cells are written, 209 cases
+(`92eebe1ad5`, `1b024fd514`), and the `this-property` and `local-property` cells, 170 cases
+(`0cd5a69925`). Each is green both ways, and none printed differently. A callee that reads or writes
+the property sees the old value in it, because the store happens when the call returns. The sweep's
+two reds are stale, checked again on 2026-11-18: `env-secret-proofs` was last named by
+`route-parameters`' retire commit, and nightly run 44073672172's head `2934ebe1ae` lacks `0fe2fdef25`.
+An `inout` callee that throws writes nothing back, so `inout-*-try-*` print the old value.
 
 ### Next
 
-Stage 1's last item, from the checkpoint `this-property` and `local-property` (85 each). Write the
-brief from § *Standing decisions*' **The case brief** to `.agent-tmp/in-place-brief.md`, adding the
-run commands (`target/debug/nvs.exe test <paths>` and the same with `--no-in-place`, no `cargo`, no
-commit), the file names of each batch, and a report of at most 15 lines. Send about six writing
-subagents per checkpoint, one target and one or two values each, 15 to 25 cases apiece; that fit
-in about 45k tokens per subagent. The `fn-reads-before`, `fn-reads-after` and `fn-writes` values need
-a Novis method that reads or writes the same property or static property while it changes its
-parameter. `every_replacement_form_has_a_case` lists what is missing, and stays red until the last
-checkpoint. Stage 2 can run beside stage 1.
+Stage 1's last two checkpoints: `static-property` and `element` (85 and 55), then
+`property-element` and `property-chain` (85 each). Both fit in one session. Write the brief from
+§ *Standing decisions*' **The case brief** to `.agent-tmp/in-place-brief.md`, adding the run
+commands (`target/debug/nvs.exe test <paths>` and the same with `--no-in-place`, no `cargo`, no
+commit, Write only and never `sed -i`), each target's shape, and a report of at most 15 lines. Send
+four writing subagents per 85-cell target, split by value: `core`+`core-callback`,
+`fn-safe`+`fn-fails`, `fn-reads-before`+`fn-reads-after`, and `fn-writes`+`concat`+`interpolation`+`spread`.
+Each took about 45k tokens and under three minutes. `element` has no `fn-reads-*` or `fn-writes`, so
+three subagents cover it. Then run every new case both ways and `bun nv proofs --comments` on them,
+and `cargo test --lib -- every_replacement_form_has_a_case`, which goes green at the last checkpoint.
+Stage 2 can run beside stage 1.
 
 ### Backlog
 
