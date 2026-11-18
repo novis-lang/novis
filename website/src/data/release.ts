@@ -1,10 +1,11 @@
 /**
- * The released version and the names of its downloads. The version is the workspace version in the
+ * The released version, the list of every release, and the names of its downloads. The version is the workspace version in the
  * root `Cargo.toml`, read at build time, so no page writes a version number by hand. An archive is
  * named `nvs-<version>-<name>` as `bun nv release --package` writes it, and the `.vsix` is the
  * editor extension the same release attaches.
  */
 import cargo from '../../../Cargo.toml?raw'
+import changelog from '../../../CHANGELOG.md?raw'
 
 const found = /^\[workspace\.package\][^[]*?^version\s*=\s*"([^"]+)"/m.exec(cargo)
 if (!found) throw new Error('release.ts: Cargo.toml has no [workspace.package] version')
@@ -22,6 +23,26 @@ export const repository = 'https://github.com/novis-lang/novis'
 
 /** The release page of this version. */
 export const releaseUrl = `${repository}/releases/tag/v${version}`
+
+/** The page that lists every release. */
+export const releasesUrl = `${repository}/releases`
+
+export interface Release {
+  version: string
+  /** The release date, such as `2026-11-15`. */
+  date: string
+  /** The release's page on GitHub. */
+  url: string
+}
+
+/**
+ * Every release, newest first, from the `## [<version>] - <date>` headings of `CHANGELOG.md`. The
+ * release workflow writes that heading in the commit it tags, so the list needs no hand edit.
+ */
+export const releases: Release[] = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$/gm)].map(
+  ([, v, date]) => ({ version: v, date, url: `${repository}/releases/tag/v${v}` }),
+)
+if (releases.length === 0) throw new Error('release.ts: CHANGELOG.md has no release heading')
 
 /** The image every release pushes. */
 export const image = 'ghcr.io/novis-lang/novis'

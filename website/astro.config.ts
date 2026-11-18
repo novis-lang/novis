@@ -814,7 +814,7 @@ export default defineConfig({
             { label: 'Personal opinions', link: '/in-depth/personal-opinions/' },
             { label: 'All questions', link: '/in-depth/questions/' },
             { label: 'Roadmap', link: '/in-depth/roadmap/' },
-            { label: 'What changed', link: '/in-depth/what-changed/' },
+            { label: 'Changelog', link: '/in-depth/what-changed/' },
           ],
         },
         {

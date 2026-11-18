@@ -811,7 +811,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "f2e2f63f85cb3e34",
+    "hash": "9b77c331c17c67ec",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -1009,7 +1009,7 @@
   },
   "/in-depth/roadmap/": {
     "feature": "in-depth/roadmap.mdx",
-    "hash": "8f0c4e1fa69b0cfb",
+    "hash": "72a221131267d846",
     "questions": [
       "What features are planned for Novis?",
       "What comes after the current Novis release?",
@@ -1030,11 +1030,12 @@
   },
   "/in-depth/what-changed/": {
     "feature": "in-depth/what-changed.mdx",
-    "hash": "c7a2ed5a4084d732",
+    "hash": "dc6ac5d1ff265ff1",
     "questions": [
       "Release notes for each version of Novis",
-      "Which changes in a new release can break my code?",
       "Changelog of the Novis language",
+      "List of all Novis releases with their dates",
+      "Which version update can break my code?",
       "What does the version number of Novis mean?",
       "What stays the same between releases from version 0.1.0 on?"
     ]

@@ -1,20 +1,30 @@
 ---
-title: What changed
+title: Changelog
 covers: []
-description: The changes in each Novis release, newest first.
+description: Links to the release notes of each Novis release on GitHub, newest first.
 tableOfContents:
   minHeadingLevel: 2
   maxHeadingLevel: 2
 ---
 
-import { version, status, releaseUrl } from '@data/release'
+import { status, releases, releasesUrl } from '@data/release'
 
-This page lists the changes in each release of Novis, newest first. Each release has three parts:
-the highlights, the new features and the changes that can break your code.
+The release notes of each Novis release are on GitHub. Each release has its own page. That page
+lists the new features, the fixes and the other changes in that release. GitHub also shows
+<a href={releasesUrl}>all releases on one page</a>.
 
-The first release is <code>{version}</code>. Its notes are on the <a href={releaseUrl}>release
-page</a>. Novis is {status}. Any release can change the language, and Novis is not ready for
-production use. The [Roadmap](/in-depth/roadmap/) lists the planned work.
+Novis is {status}. Any release can change the language, and Novis is not ready for production use.
+The [Roadmap](/in-depth/roadmap/) lists the planned work.
+
+## Releases
+
+<ul>
+  {releases.map((r) => (
+    <li>
+      <a href={r.url}>Novis {r.version}</a>, released on {r.date}
+    </li>
+  ))}
+</ul>
 
 ## Version numbers
 
