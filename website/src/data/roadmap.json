@@ -6,7 +6,6 @@
       "title": "Less work for each request",
       "text": "Every request does only the work its response needs. JSON decoding reads each property once. Arrays and strings change in place, and the compiler picks the faster of two forms that give the same result. The comparison with other runtimes shows what each figure measures.",
       "goals": [
-        "strings-in-place",
         "cheaper-forms"
       ]
     },
