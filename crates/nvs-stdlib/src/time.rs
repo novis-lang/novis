@@ -73,6 +73,17 @@
 //! resolved forward where the zone skips midnight as [`nvs_core_time_at`] resolves
 //! a gap, and [`nvs_core_time_datetime_with_time`] puts a `TimeOfDay` onto it.
 //!
+//! **Decision: `atStartOfDay`, not an instance `at`.** `Date::at` is already the static
+//! constructor, and one name with two meanings is surface a reader has to tell apart at
+//! every call. A time of day goes on with the existing `withTime`, so no second member
+//! takes a `TimeOfDay`. **Decision: the weekday enum keeps its name.** `Date::weekday()`
+//! answers `Core\Time\DateTime::Weekday`; a `Core\Time\Weekday` would break every caller
+//! and buy nothing a reader needs. **Decision: real code reads the readers, a case keeps
+//! `format`.** The intl extension's `DateFormat.nvs` reads fields through the readers,
+//! because it runs on a request path and `format` compiles a pattern at run time. A
+//! conformance case that computes its expected value with `format` keeps it, because
+//! there `format` is the independent oracle the readers are checked against.
+//!
 //! # `sleep` parks the task, and a wait off a core still blocks its thread
 //!
 //! `Core\Time::sleep` parks the task rather than blocking the core, and what is
@@ -102,6 +113,14 @@
 //! `nvs_types::expr::operators::require_stringable` where the operand's type
 //! names this class and `nvs_stdlib::instance`'s descriptor renderer where it
 //! names none.
+//!
+//! **Decision: a `DateTime` has no `compareTo`, so `<` does not compile on one.** Two
+//! values in different zones can be the same instant with every civil field different,
+//! so "which comes first" has two answers, and a `compareTo` would pick one silently.
+//! The caller names the one meant: `$a->toInstant() < $b->toInstant()` orders instants,
+//! and `$a->date() < $b->date()` orders calendar days. `==` on any of these classes is
+//! identity, as `rule:expressions/object-identity-equality` says for every class
+//! instance; `$a->compareTo($b) == 0` is the value test.
 //!
 //! # A written pattern is prepared, an assembled one is not
 //!

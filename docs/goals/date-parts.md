@@ -22,7 +22,7 @@ stages:
     context: [docs/agent/prose.md, docs/examples/core/Time-DateTime/dayOfYear/about.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: rust-date
@@ -240,43 +240,35 @@ kind as its model.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 landed in one commit, written by three subagents:
+Every stage is done. Stage 5 closed the goal: `cargo build` and `cargo clippy --all-targets -- -D
+warnings` are green, and so is every check by name: `rust-date`, `table`, `case-date`, `rust-fields`,
+`case-datetime`, `case-time-of-day`, `proofs-date` and `proofs-fields`. `bun nv owners --closes
+date-parts` names no gap.
 
-- `docs/examples/core/Time-DateTime/<member>/` (seven) and `docs/examples/core/Time-TimeOfDay/<member>/`
-  (four): `about.md` and three examples with `.out` each. Every `DateTime` `about.md` says the field
-  is read in the value's own zone, and each shows the matching `with` call.
-- `tests/hostile/core/Time-DateTime/<member>/01-….nvs` and `Time-TimeOfDay/<member>/01-….nvs`: one
-  attack each (range ends, Samoa's skipped day, Berlin's skipped and repeated hours, LMT offsets with
-  odd minutes and seconds, the 2016 leap second, the wrap at midnight). All eleven pass under
-  `bun nv proofs --run`.
-- `benches/members/core/Time-DateTime/<member>.nvs` and `Time-TimeOfDay/<member>.nvs`: each declares
-  `calls 1` and `allocations 0`, measured with `nvs run --count`; all eleven flat under
-  `bun nv scaling --growth` and `--iterations --sized`. `Time-DateTime/month.nvs` runs 256 iterations.
-- `proofs-fields` is green (`looper check --name proofs-fields`), and `bun nv proofs --comments`
-  passes on the new files. The only proof still owed is perf, which no new member has recorded yet.
-- The sweep's reds are stale: `env-secret-proofs` names no check, and nightly run 44510687786 is at
-  `adc7487822`, before the fix commits `4c82a2409a`, `eb5c02e983` and `656f5b2f2d`.
+The decisions only this file held are now in `crates/nvs-stdlib/src/time.rs`'s module doc: the
+`atStartOfDay` name, the weekday enum's name, and which `format` reads switched (§ *Each class answers
+its own fields*). The pattern table's decision is the doc of `cldr.rs`'s
+`the_reference_table_lists_every_letter_the_compiler_accepts`. The backlog is closed in the same
+module doc (§ *`Comparable` and `Stringable`*). `==` on a `Date` or `TimeOfDay` is identity, which is
+`rule:expressions/object-identity-equality`, so it is not a bug. A `DateTime` has no `compareTo` on
+purpose, because two zones give two orders, and the caller orders by `toInstant()` or `date()`.
+
+The sweep's reds are stale: `env-secret-proofs` names no check (`git log -S` lands on
+`reflect-parent`'s retire), and nightly run 44510687786 is at `adc7487822`, before the fix commits.
 
 ### Next
 
-Stage 5, a close: this goal is not the chain's full gate. Run `cargo build`, `cargo clippy
---all-targets -- -D warnings`, and this goal's checks by name (`looper check --name rust-date`,
-`table`, `case-date`, `rust-fields`, `case-datetime`, `case-time-of-day`, `proofs-date`,
-`proofs-fields`). Then `bun nv owners --closes date-parts`, move any decision only this file holds
-into `crates/nvs-stdlib/src/time.rs`'s module doc or a rule, and claim `DONE`. Expected red until
-the next full gate: `bun nv proofs --gate` for the perf of all eighteen new members, the stale perf
-records of every `Core\Time` member from the `time.rs` edits, and `website/public/llms-full.txt`,
-which may need `bun nv render --website` for the new cards.
+The goal is reached. Expected red until the next full gate: `bun nv proofs --gate` for the perf of
+the eighteen new members, the stale perf records of every `Core\Time` member from the `time.rs`
+edits, and `website/public/llms-full.txt`, which may need `bun nv render --website` for the new cards.
 
 ### Backlog
 
-- Two subagents found `==` false for two `TimeOfDay` values (and two `DateTime` values) with the
-  same fields, which looks like identity comparison on a value class; and `DateTime` has no
-  `compareTo`, so `<` does not compile on it. Both are outside this goal; a later goal decides them.
+- None.
