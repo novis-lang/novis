@@ -4487,7 +4487,13 @@ fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
         (span.to_string(), span.duration())
     };
     let target = trace_target(&call.url);
-    ctx.record_site_event(nvs_runtime::TraceKind::Http, &line, took, Some(target), site);
+    ctx.record_site_event(
+        nvs_runtime::TraceKind::Http,
+        &line,
+        took,
+        Some(target),
+        site,
+    );
 }
 
 /// The host and path of `url`, as a trace event names its target: the scheme,
@@ -4502,7 +4508,9 @@ fn trace_target(url: &str) -> String {
         Some(slash) => rest.split_at(slash),
         None => (rest, ""),
     };
-    let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    let host = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
     format!("{host}{path}")
 }
 
@@ -5593,8 +5601,14 @@ mod tests {
             super::trace_target("https://user:secret@api.example.test/v1/pay?token=x#top"),
             "api.example.test/v1/pay"
         );
-        assert_eq!(super::trace_target("http://example.test:8080?q=1"), "example.test:8080");
-        assert_eq!(super::trace_target("http://example.test/a#b"), "example.test/a");
+        assert_eq!(
+            super::trace_target("http://example.test:8080?q=1"),
+            "example.test:8080"
+        );
+        assert_eq!(
+            super::trace_target("http://example.test/a#b"),
+            "example.test/a"
+        );
     }
 
     /// The rule's *one event carrying its attempt count*: a call the origin

@@ -99,14 +99,26 @@ pub fn at(
     let mut passed: Option<String> = None;
     for call in calls {
         let typed = if call.site.path == here {
-            passed_at(analysed, &call.site.path, call.site.start, call.site.end, position)
+            passed_at(
+                analysed,
+                &call.site.path,
+                call.site.start,
+                call.site.end,
+                position,
+            )
         } else {
             others
                 .entry(call.site.path.clone())
                 .or_insert_with(|| analyse_file(documents, &call.site.path, 0))
                 .as_ref()
                 .and_then(|caller| {
-                    passed_at(caller, &call.site.path, call.site.start, call.site.end, position)
+                    passed_at(
+                        caller,
+                        &call.site.path,
+                        call.site.start,
+                        call.site.end,
+                        position,
+                    )
                 })
         }?;
         match &passed {

@@ -165,7 +165,10 @@ fn base_written(interner: &TypeInterner, id: TypeId, depth: u32, result: bool) -
             if depth >= MAX_ARRAY_DEPTH {
                 return None;
             }
-            format!("array<{}>", base_written(interner, *elem, depth + 1, false)?)
+            format!(
+                "array<{}>",
+                base_written(interner, *elem, depth + 1, false)?
+            )
         }
         Ty::Union(members) => {
             let mut written: Vec<String> = members

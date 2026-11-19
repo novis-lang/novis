@@ -7431,14 +7431,9 @@ fn a_method_that_returns_one_property_is_the_property_read() {
                final class Run {\n  \
                public static function name(User $u): string { return $u->getName(); }\n  \
                public static function shown(User $u): string { return $u->getShown(); }\n}\n";
-    let getter_call =
-        |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "User::getName");
-    let hooked_call = |kind: &InstKind| {
-        matches!(kind, InstKind::Call { target, .. } if target == "User::getShown")
-    };
-    let name_read = |kind: &InstKind| {
-        matches!(kind, InstKind::FieldGet { class, field, .. } if class == "User" && field == "name")
-    };
+    let getter_call = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "User::getName");
+    let hooked_call = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "User::getShown");
+    let name_read = |kind: &InstKind| matches!(kind, InstKind::FieldGet { class, field, .. } if class == "User" && field == "name");
     let on = lower_whole_file_with_src(src).0;
     let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
     assert_eq!(insts_where(&on, getter_call), 0);

@@ -1941,7 +1941,11 @@ mod tests {
     /// A `cache` event names its call site and its key.
     #[test]
     fn a_cache_event_line_names_its_site() {
-        a_site_event_line("spool-cache-site", crate::TraceKind::Cache, EventKind::Cache);
+        a_site_event_line(
+            "spool-cache-site",
+            crate::TraceKind::Cache,
+            EventKind::Cache,
+        );
     }
 
     /// A `session` event names its call site and its key.

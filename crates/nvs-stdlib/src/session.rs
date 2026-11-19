@@ -3221,7 +3221,10 @@ mod tests {
         let filed = ctx.trace().iter().any(|event| {
             event.kind == nvs_runtime::TraceKind::Session && event.callee == r"Core\Session::get"
         });
-        assert!(filed, "the read files one `session` event named after the member");
+        assert!(
+            filed,
+            "the read files one `session` event named after the member"
+        );
     }
 
     /// A context with a session open over an empty record, as `start` leaves one.

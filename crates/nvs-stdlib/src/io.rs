@@ -4547,7 +4547,11 @@ mod tests {
         let refused = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
         assert!(refused.contains("not valid UTF-8"), "{refused}");
 
-        let args = [Value::int(0), Value::text(&path.to_string_lossy()), Value::int(0)];
+        let args = [
+            Value::int(0),
+            Value::text(&path.to_string_lossy()),
+            Value::int(0),
+        ];
         let answered = nvs_runtime::call(nvs_core_io_lines, &mut ctx, &args);
         assert!(answered.is_err(), "`lines` of a file that is not text");
         let refused = ctx.take_pending().expect("the refusal is a thrown error");
@@ -7026,8 +7030,12 @@ mod tests {
         let target = Value::text(spelled(&path));
         let content = Value::text("recorded");
 
-        nvs_runtime::call(nvs_core_io_write, &mut ctx, &[target, content, Value::int(1)])
-            .expect("`fs.write` is granted everywhere");
+        nvs_runtime::call(
+            nvs_core_io_write,
+            &mut ctx,
+            &[target, content, Value::int(1)],
+        )
+        .expect("`fs.write` is granted everywhere");
 
         let filed = ctx
             .trace()
@@ -7036,7 +7044,10 @@ mod tests {
                 event.kind == nvs_runtime::TraceKind::File && event.callee == r"Core\IO::write"
             })
             .count();
-        assert_eq!(filed, 1, "the write files one `file` event named after the member");
+        assert_eq!(
+            filed, 1,
+            "the write files one `file` event named after the member"
+        );
 
         #[expect(unsafe_code, reason = "the case owns the two values it built")]
         unsafe {

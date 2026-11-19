@@ -1850,7 +1850,11 @@ fn direct_body(
         return (None, None);
     };
     if body != owner {
-        let Some(found) = env.signatures.get(body).and_then(|sig| sig.methods.get(name)) else {
+        let Some(found) = env
+            .signatures
+            .get(body)
+            .and_then(|sig| sig.methods.get(name))
+        else {
             return (None, None);
         };
         let same = found.params == declared.params

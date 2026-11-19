@@ -7018,7 +7018,10 @@ mod tests {
         let rfind = |hay: &str, needle: &str, walk: &mut super::Walk<'_>| {
             super::rfind_from(hay, needle, true, walk).expect("the deadline has not passed")
         };
-        assert_eq!(find("Content-Type: text", "content-TYPE", walk), Some((0, 12)));
+        assert_eq!(
+            find("Content-Type: text", "content-TYPE", walk),
+            Some((0, 12))
+        );
         assert_eq!(find("aaaab", "AAB", walk), Some((2, 3)));
         assert_eq!(find("abc", "abd", walk), None);
         assert_eq!(find("a\r\nb", "\r", walk), None);

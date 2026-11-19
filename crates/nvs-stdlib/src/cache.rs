@@ -4825,7 +4825,10 @@ pub(crate) mod tests {
         let filed = ctx.trace().iter().any(|event| {
             event.kind == super::TraceKind::Cache && event.callee == r"Core\Cache\Store::get"
         });
-        assert!(filed, "the read files one `cache` event named after the member");
+        assert!(
+            filed,
+            "the read files one `cache` event named after the member"
+        );
 
         #[expect(
             unsafe_code,
