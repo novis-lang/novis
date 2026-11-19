@@ -1,0 +1,45 @@
+--TEST--
+`Core\Time`: one nanosecond added to the last nanosecond of a year carries through every field in UTC, and the readers of `DateTime`, its `Date` and its `TimeOfDay` each show it; in a zone 14 hours ahead the same instant is already the next year and only the time moves
+--FILE--
+<?nvs
+// covers: Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanos, Core\Time\Date::year, Core\Time\Date::month, Core\Time\Date::day, Core\Time\Date::weekday, Core\Time\Date::atStartOfDay, Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanos
+// One nanosecond moves the value across every field boundary at once.
+// A reader that keeps an old field shows the old value.
+var $last = Core\Time::fromIso("2023-12-31T23:59:59.999999999Z");
+array<string> $zoneIds = ["UTC", "Pacific/Kiritimati"];
+foreach ($zoneIds as string $zoneId) {
+    var $zone = Core\Time\Zone::of($zoneId);
+    var $before = $last->in($zone);
+    array<Core\Time\DateTime> $both = [$before, $before->plus(1, Core\Unit::Nanosecond)];
+    foreach ($both as Core\Time\DateTime $d) {
+        echo $zoneId, " ", $d->year() as string, "-", $d->month() as string, "-", $d->day() as string,
+            " ", $d->hour() as string, ":", $d->minute() as string, ":", $d->second() as string,
+            ".", $d->nanos() as string, "|\n";
+        var $date = $d->date();
+        echo "  date ", $date->year() as string, "-", $date->month() as string, "-", $date->day() as string,
+            " weekday ", $date->weekday() as int as string, "|\n";
+        var $time = $d->timeOfDay();
+        echo "  time ", $time->hour() as string, ":", $time->minute() as string, ":", $time->second() as string,
+            ".", $time->nanos() as string, "|\n";
+        // The start of the same day in the same zone is the same date at midnight.
+        var $start = $date->atStartOfDay($zone);
+        echo "  start ", $start->format("yyyy-MM-dd HH:mm:ss XXX"), "|\n";
+    }
+}
+--EXPECT--
+UTC 2023-12-31 23:59:59.999999999|
+  date 2023-12-31 weekday 6|
+  time 23:59:59.999999999|
+  start 2023-12-31 00:00:00 Z|
+UTC 2024-1-1 0:0:0.0|
+  date 2024-1-1 weekday 0|
+  time 0:0:0.0|
+  start 2024-01-01 00:00:00 Z|
+Pacific/Kiritimati 2024-1-1 13:59:59.999999999|
+  date 2024-1-1 weekday 0|
+  time 13:59:59.999999999|
+  start 2024-01-01 00:00:00 +14:00|
+Pacific/Kiritimati 2024-1-1 14:0:0.0|
+  date 2024-1-1 weekday 0|
+  time 14:0:0.0|
+  start 2024-01-01 00:00:00 +14:00|

@@ -1,0 +1,31 @@
+--TEST--
+`ClassInfo::parent` walks a program's own error classes up to the built-in class they extend, and names each level as it is declared — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::parent
+// A program's error classes extend a built-in one. The walk names each of the
+// program's own levels with its namespace, then the built-in classes above.
+namespace Shop;
+
+use RuntimeError;
+
+class ShopError extends RuntimeError {}
+
+class OrderError extends ShopError {}
+
+final class OrderNotFound extends OrderError {}
+
+?Core\Reflect\ClassInfo $level = Core\Reflect::forObject(new OrderNotFound("missing"));
+int $depth = 0;
+while ($level != null) {
+    ?string $parent = $level->parent();
+    echo $depth as string, " ", $level->name(), " -> ", $parent ?? "<null>", "\n";
+    $level = $parent == null ? null : Core\Reflect::forClass($parent);
+    $depth = $depth + 1;
+}
+--EXPECT--
+0 Shop\OrderNotFound -> Shop\OrderError
+1 Shop\OrderError -> Shop\ShopError
+2 Shop\ShopError -> RuntimeError
+3 RuntimeError -> Throwable
+4 Throwable -> <null>

@@ -1,0 +1,28 @@
+--TEST--
+`ClassInfo::parent` describes the class, not the object: two objects of one class give the same parent, a class read by name gives it too, and a sibling class gives the shared parent — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::parent
+namespace Blog;
+
+abstract class Content {
+    public string $title = "";
+}
+
+class Article extends Content {}
+
+class Page extends Content {}
+
+var $first = new Article();
+var $second = new Article();
+$second->title = "changed";
+
+?string $fromFirst = Core\Reflect::forObject($first)->parent();
+?string $fromSecond = Core\Reflect::forObject($second)->parent();
+?string $byName = Core\Reflect::forClass("Blog\\Article")?->parent();
+?string $sibling = Core\Reflect::forObject(new Page())->parent();
+echo $fromFirst ?? "<null>", "|", $fromSecond ?? "<null>", "|", $byName ?? "<null>", "|", $sibling ?? "<null>", "|\n";
+echo ($fromFirst == $sibling) as string, "|\n";
+--EXPECT--
+Blog\Content|Blog\Content|Blog\Content|Blog\Content|
+1|

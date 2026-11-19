@@ -1,0 +1,26 @@
+--TEST--
+`Core\Time\Date::atStartOfDay` gives the first instant of one date in each zone: the local date and time are the same, and the instant moves with the zone's offset
+--FILE--
+<?nvs
+// covers: Core\Time\Date::atStartOfDay
+// One calendar date starts at a different instant in every zone. Each row
+// prints the local start, then the same instant read in UTC, so the offset is
+// visible in the difference between the two lines.
+var $date = Core\Time\Date::at(2024, 7, 1);
+array<string> $zoneIds = ["Pacific/Kiritimati", "Asia/Kolkata", "UTC", "America/New_York", "Pacific/Pago_Pago"];
+foreach ($zoneIds as string $zoneId) {
+    var $start = $date->atStartOfDay(Core\Time\Zone::of($zoneId));
+    echo $zoneId, ": ", $start->format("yyyy-MM-dd HH:mm XXX"), " = ",
+        $start->toInstant()->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm"), " UTC|\n";
+}
+// Two starts of one date are as far apart as the two offsets: 25 hours here.
+var $east = $date->atStartOfDay(Core\Time\Zone::of("Pacific/Kiritimati"));
+var $west = $date->atStartOfDay(Core\Time\Zone::of("Pacific/Pago_Pago"));
+echo $east->difference($west, Core\Unit::Hour) as string, "|\n";
+--EXPECT--
+Pacific/Kiritimati: 2024-07-01 00:00 +14:00 = 2024-06-30 10:00 UTC|
+Asia/Kolkata: 2024-07-01 00:00 +05:30 = 2024-06-30 18:30 UTC|
+UTC: 2024-07-01 00:00 Z = 2024-07-01 00:00 UTC|
+America/New_York: 2024-07-01 00:00 -04:00 = 2024-07-01 04:00 UTC|
+Pacific/Pago_Pago: 2024-07-01 00:00 -11:00 = 2024-07-01 11:00 UTC|
+25|
