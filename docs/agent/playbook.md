@@ -36,6 +36,15 @@ session the bullets it ranks highest for the live goal, and names how many more 
   sessions searched the tree for `env-secret-proofs`, which a retired goal's sweep left behind. Run
   `git log -S '<name>' --oneline` once: when the newest hit is a goal's retire commit, the red is
   stale, and the handoff says so. See `.looper/loops/main/checks/`.
+- **A suite that is red only through `bun nv` and green from the shell has `LLVM Profile Error`
+  lines in each case's stderr.** The covws `nvs` writes its counters into a shared discard pool, and
+  a profile an older build left there fails to merge. Every case that expects an error then fails,
+  811 of them once. Print one failing case's whole report before searching the compiler. The sweep
+  now empties the pool after its build. See `tools/nv/lib/covws.ts` `emptyDiscardPool`.
+- **`looper check --name <text>` matches by substring, and does not count a `should panic ... ok`
+  line as a pass.** `--name table` ran `table`, `differential` and `members`. A test that must panic
+  catches it with `catch_unwind` and asserts the message. See
+  `crates/nvs-runtime/src/callable.rs`.
 - **A goal that changes a `Core` member's source file makes that member's perf record stale, and
   `bun nv ci --check` shows only the first 29.** Recording those 29 brought the next batch to
   light. List every one with `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe`, grepped
