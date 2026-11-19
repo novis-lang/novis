@@ -42,6 +42,11 @@ use super::*;
 ///
 /// What it spends: one cell and one shared reference to the request head, per
 /// in-flight request with slots, for the length of its slots.
+///
+/// Declined: opening the session before every slot run, because a request with
+/// slots and a session cookie would pay a store round trip it may not need; and
+/// a child holding a pointer to its parent's context, because it would alias
+/// the parent's `&mut` while the parent is parked in the group.
 #[derive(Debug)]
 pub(crate) struct LentSession {
     /// The session, once it is open.

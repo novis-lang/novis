@@ -430,6 +430,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A `--GET--` case fills `Core\Html::later` slots with no host, on the request's own context.** A
+  slot there sees everything the main script sees, and under a real host it sees none of the request.
+  `session-a-read-inside-later-or-after-response-compiles.nvst` passed while every session read in a
+  served slot threw. Test what a slot reads with a routed case through `Core\Test::request`. See
+  `crates/nvs-runtime/src/later.rs` `assemble`.
 - **A `.lspt` case whose code does not compile can pass for the wrong reason.** A case wrote
   `$shop = new Shop();` with no declaration, so its calls resolved to nothing. Its `none` expectation
   passed, and the index listed no call. Run `nvs check` on a case's code before trusting a `none`.

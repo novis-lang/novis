@@ -38,7 +38,7 @@ stages:
     context: [website/src/content/docs/guides/cookbook/upload-file.mdx, website/src/content/docs/guides/example-apps/chat.mdx, website/src/content/docs/guides/example-apps/notes.mdx]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: checker
@@ -288,6 +288,19 @@ session, and sends no cookie for a session opened by hand. A failure to find an 
 attempt goes into the handoff with its cause, and the stage moves on to its other items. A stage still
 open after two sessions stops the loop with `BLOCKED` naming the item.
 
+**A slot reads the request's session through a lent cell (my call, stage 9, built).** A slot runs
+on a child context with no session and no inbound. While the slots run, the request moves its
+session into an `Rc<LentSession>` (a `OnceCell<Session>` and `Inbound::head_alone`, the shared head),
+and `Ctx::child` copies the `Rc` into each slot. `Ctx::session` reads the cell in a slot, and the
+first slot that needs a session opens it from the lent head, into the cell, so the slots load it once
+between them. The request takes the cell's session back when the group returns, so the write-back
+sees it. `session_mut` stays the context's own, so a slot can never write the cell; every write
+member already throws by `head_open` first. Declined: **opening the session before every slot run**
+(a request with slots and a session cookie would pay a round trip it may not need), and **a child
+holding a pointer to its parent's context** (it aliases the parent's `&mut` while it is parked in the
+group, which Miri rejects). Cost: one small cell and one reference count per request with slots,
+for the length of the slots.
+
 **A session read after the response throws (my call, stage 9).** Deferred work has no session, so
 `get` and `getSecret` compile inside `Core\Task::afterResponse` and throw `LogicError`. A program
 captures the value before it calls `afterResponse`. A read-only view kept for the work would hold the
@@ -464,48 +477,41 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 ### 9. the goal is verified once, and every failure is fixed
 
 - [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done. Stage 9: the third `looper verify` is **green**, `bun nv verify --doc` is
-green, and `bun nv ci --check` is green (exit 0). One defect of this goal is open (Next), so the goal
-is not `DONE` yet. `cargo build`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check`
-are green.
+Stages 1 to 8 are done. Stage 9: the session read inside a `Core\Html::later` slot is fixed and
+committed (`5c3f087ed9`). The defect was wider than the handoff said. Under the host, a slot could
+not read the session at all, not even after the main script opened it. A `--GET--` case fills slots
+with no host, on the request's own context, so it never showed this. The fix is
+`Ctx::lend_session` / `reclaim_session` around both `run_group` calls in `crates/nvs-runtime/src/later.rs`
+(see Standing decisions). `tests/conformance/core/session-a-first-use-inside-later-reads-the-request-session.nvst`
+pins it through `Core\Test::request`, and it passes. `docs/rules/core-classes/html-later.md` says so,
+and says that `Csrf::token` for a new visitor throws in a slot.
 
-Committed this session: the `in_place`, `enum_owners` and `conformance_coverage` reds (`split`'s
-last-piece row, the enum renamed `Core\Time\Weekday`, four new cases), rustfmt and a rustdoc link.
-The chat and registry apps' test browsers send both session cookies. Attribution, website data,
-question stamps, two roadmap themes and 243 perf records are current.
+The same defect hits `Core\Request` in a slot, which the rule also allows. It is older than this
+goal, so it got its own goal at the chain's end: `docs/goals/later-reads-the-request.md`
+(`9ffaa106e7`). `bun nv owners --closes session-lifetimes` names no gap.
 
-`bun nv owners --closes session-lifetimes` named no gap last session. The sweep's reds are stale:
-`env-secret-proofs` is a retired goal's check, and nightly 44510687786 built `adc7487822`.
+After the fix, `looper verify` was red only on the stale `docs/rules/core-classes.md`. That file is
+rendered now (`89c0a5b32c`), and the next `looper verify` is **green**. `bun nv verify --doc` is green.
+`bun nv ci --check` is green (exit 0) after the roadmap theme for the new goal (`6317dca8d5`) and the
+twelve `Core\Session` perf records (`f30c0ebbfd`). `cargo build`,
+`cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` are green.
+
+The sweep's reds are stale. `env-secret-proofs` is a retired goal's check. Nightly 44510687786 built
+`adc7487822`, and every red job has a fix commit after it: `eb5c02e983` (wasmtime advisories),
+`4c82a2409a` (the Miri immortal-string retag, every Miri shard), `656f5b2f2d` (the debug viewer's
+shots), and `1c75c4ef0e` (the registry browser test).
 
 ### Next
 
-Stage 9, one fix, then `DONE`. **A session's first use inside a `Core\Html::later` slot throws.**
-A route whose main script never touches the session, and whose slot calls `Core\Session::get("x")`
-or `Core\Csrf::token()`, gets `LogicError: …(): there is no request here` from the slot. The rule
-says reading the session inside `later` is allowed (`docs/rules/core-classes/html-later.md:47`).
-With `start` gone, a component that reads the session in a slot now fails. A slot works when the
-main script opened the session first (`session-a-read-inside-later-or-after-response-compiles.nvst`).
-- Cause: `first_use` → `opened_under` → `crate::request::served`
-  (`crates/nvs-stdlib/src/session.rs` `opened_under`, `crates/nvs-stdlib/src/request.rs:2138`) finds no
-  `inbound` on the slot's context. The slot runs on a child context
-  (`crates/nvs-runtime/src/ctx/isolate.rs:396` `Ctx::child`, set up by `crates/nvs-runtime/src/later.rs`
-  `fill`). Read what `child` copies: the session record and the inbound.
-- Fix to choose by the priorities: open the session on the request's context before the slots run
-  when a slot may use it, or let the child reach the parent's session and inbound. A first write in
-  the slot must still throw (head closed). `Csrf::token` for a new visitor draws an identifier and a
-  cookie, so in a slot it throws by `head_open`; say so in the html-later rule.
-- Pin it with a `--GET--`-style case (model: `tests/conformance/core/csrf-token-binds-to-the-session-the-response-sends.nvst`):
-  route `/read` echoes `Core\Html::later(fn => Core\Session::get("x"))` with no session use before it;
-  expect the read to return `null`. A second route calls `Csrf::token()` in the slot for a new visitor.
-- The fix touches `session.rs` or `later.rs`, so run `looper verify` once after it, then
-  `bun nv ci --check`. The perf records for the changed source go stale again; record them per the
-  playbook's `perf: stale` bullet, edit first and measure last.
+Nothing. Every stage is done, and the goal is claimed `DONE`. The lent-session decision is also in
+`LentSession`'s doc (`crates/nvs-runtime/src/ctx/wiring.rs`). The Backlog's copy cost below has no
+owner on the chain yet. A later perf goal may take it.
 
 ### Backlog
 
