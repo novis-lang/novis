@@ -10,11 +10,11 @@ use Core\Json;
 use Core\Random;
 use Core\Test;
 
-// Plays a browser with one passkey device in the tests. It keeps the session cookie between requests.
+// Plays a browser with one passkey device in the tests. It keeps the session cookies between requests.
 // The answers of the device follow the WebAuthn standard. A real browser makes them.
 final class BrowserTest
 {
-    private string $cookie = '';
+    private array<string> $cookies = [];
     private Core\Crypto\KeyPair $key;
     private bytes $passkeyId;
     private int $counter = 0;
@@ -25,20 +25,29 @@ final class BrowserTest
         $this->passkeyId = Random::bytes(16);
     }
 
-    // Sends a request with the session cookie, and keeps the cookie the answer sets.
+    // Sends a request with the session cookies, and keeps every cookie the answer sets.
+    // A cookie with an empty value is deleted, as a browser deletes an expired cookie.
     // A `$token` is sent in the `authorization` header, as `nvs pkg` sends it.
     public function send(Method $method, string $path, tainted string $body = '', tainted string $token = ''): Core\Test\Response
     {
         array<string> $headers = ['content-type' => 'application/json'];
-        if ($this->cookie != '') {
-            $headers['cookie'] = $this->cookie;
+        array<string> $pairs = [];
+        foreach ($this->cookies as string $name => string $value) {
+            $pairs[] = $name . '=' . $value;
+        }
+        if (Core\Arr::count($pairs) > 0) {
+            $headers['cookie'] = Core\Str::join($pairs, '; ');
         }
         if ($token != '') {
             $headers['authorization'] = 'Bearer ' . Core\Taint::assertTrusted($token, 'the app under test made this token');
         }
         var $response = Test::request($method, $path, { headers: $headers, body: Core\Taint::assertTrusted($body, 'the test wrote this body') });
         foreach ($response->cookies() as string $name => string $value) {
-            $this->cookie = $name . '=' . $value;
+            if ($value == '') {
+                unset($this->cookies[$name]);
+            } else {
+                $this->cookies[$name] = $value;
+            }
         }
         return $response;
     }
