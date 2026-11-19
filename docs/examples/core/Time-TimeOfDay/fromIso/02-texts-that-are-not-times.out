@@ -1,0 +1,4 @@
+18:45
+Core\Time\TimeOfDay::fromIso(): the hour is `24`, and an hour is `00` to `23`
+Core\Time\TimeOfDay::fromIso(): the second is `60`, and a second is `00` to `59`
+Core\Time\TimeOfDay::fromIso(): the hour is 2 digits, in the form `HH:MM:SS`

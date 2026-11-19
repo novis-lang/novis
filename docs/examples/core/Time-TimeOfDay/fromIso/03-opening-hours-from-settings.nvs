@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read opening hours from settings text and check whether a shop is open.
+
+// Settings files often store times as text like this.
+array<string> $settings = ['opens' => '08:30', 'closes' => '17:00'];
+Core\Time\TimeOfDay $opens = Core\Time\TimeOfDay::fromIso($settings['opens']);
+Core\Time\TimeOfDay $closes = Core\Time\TimeOfDay::fromIso($settings['closes']);
+
+// Times of day compare with `<` and `>=`. This prints "closed", "open" and "closed".
+array<string> $orders = ['07:55', '12:10:30', '17:00'];
+foreach ($orders as string $text) {
+    Core\Time\TimeOfDay $at = Core\Time\TimeOfDay::fromIso($text);
+    if ($at >= $opens && $at < $closes) {
+        echo $text, ': open', "\n";
+    } else {
+        echo $text, ': closed', "\n";
+    }
+}

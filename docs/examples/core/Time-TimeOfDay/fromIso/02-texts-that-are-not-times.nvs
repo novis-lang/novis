@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when a text is not a valid time of day.
+
+// These texts are read when the program runs. The first one is valid.
+// Each other text throws a `ParseError`, and its message says which part is wrong.
+array<string> $inputs = ['18:45', '24:00', '23:59:60', '9:30'];
+foreach ($inputs as string $text) {
+    try {
+        echo Core\Time\TimeOfDay::fromIso($text)->format('HH:mm'), "\n";
+    } catch (ParseError $error) {
+        echo $error->message, "\n";
+    }
+}

@@ -1,0 +1,23 @@
+<?nvs
+// Reads a time of day written as text, as a program does with opening hours from a settings file.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $texts = ['09:30', '17:45:10', '23:59:59.250'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the text is picked by last round's total
+            Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::fromIso($texts[$total % 3]);
+            $total = $total + 1 + $t->minute();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
