@@ -6,7 +6,7 @@ var $day = Core\Time\Date::at(2024, 5, 1);
 int $working = 0;
 while ($day->month() == 5) {
     var $weekday = $day->weekday();
-    if ($weekday != Core\Time\DateTime::Weekday::Saturday && $weekday != Core\Time\DateTime::Weekday::Sunday) {
+    if ($weekday != Core\Time\Weekday::Saturday && $weekday != Core\Time\Weekday::Sunday) {
         $working = $working + 1;
     }
     $day = $day->plus(1, Core\Unit::Day);

@@ -9,7 +9,7 @@ pattern and a zone, and call `->date()` on the result. A date that does not exis
 when it is built.
 
 `year()`, `month()` and `day()` return the three fields as numbers. `weekday()` returns a
-`Core\Time\DateTime::Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
+`Core\Time\Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
 `isLeapYear()` checks the year. `atStartOfDay($zone)` returns a `DateTime` at the first moment of
 the date in that zone. This is usually midnight. Add a time of day to it with `withTime`.
 

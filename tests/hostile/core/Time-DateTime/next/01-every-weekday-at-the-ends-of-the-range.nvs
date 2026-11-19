@@ -2,14 +2,14 @@
 // Attack: `next` looks for every weekday from the last days that can exist, and walks one million weeks.
 // A day past the range should throw a `RuntimeError`, and nothing should crash.
 
-array<Core\Time\DateTime::Weekday> $days = [
-    Core\Time\DateTime::Weekday::Monday,
-    Core\Time\DateTime::Weekday::Tuesday,
-    Core\Time\DateTime::Weekday::Wednesday,
-    Core\Time\DateTime::Weekday::Thursday,
-    Core\Time\DateTime::Weekday::Friday,
-    Core\Time\DateTime::Weekday::Saturday,
-    Core\Time\DateTime::Weekday::Sunday,
+array<Core\Time\Weekday> $days = [
+    Core\Time\Weekday::Monday,
+    Core\Time\Weekday::Tuesday,
+    Core\Time\Weekday::Wednesday,
+    Core\Time\Weekday::Thursday,
+    Core\Time\Weekday::Friday,
+    Core\Time\Weekday::Saturday,
+    Core\Time\Weekday::Sunday,
 ];
 
 // 1. Every weekday is looked for after the last second, and after each of the seven days before it.
@@ -20,7 +20,7 @@ int $refused = 0;
 int $back = 0;
 while ($back < 8) {
     var $from = $last->minus($back, Core\Unit::Day);
-    foreach ($days as Core\Time\DateTime::Weekday $day) {
+    foreach ($days as Core\Time\Weekday $day) {
         try {
             $from->next($day);
             $found = $found + 1;

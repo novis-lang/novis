@@ -55,7 +55,7 @@
 //! # There is no `Core\Month`, and there is not going to be one
 //!
 //! No `Core\Time` member takes or answers with one: a month is the `uint` `month()`
-//! answers and `with({ month: … })` takes. `Core\Time\DateTime::Weekday` exists only
+//! answers and `with({ month: … })` takes. `Core\Time\Weekday` exists only
 //! because `weekday()` answers one, on a `DateTime` and on a `Date`, and an enum
 //! nothing names is surface no member needs.
 //!
@@ -76,9 +76,9 @@
 //! **Decision: `atStartOfDay`, not an instance `at`.** `Date::at` is already the static
 //! constructor, and one name with two meanings is surface a reader has to tell apart at
 //! every call. A time of day goes on with the existing `withTime`, so no second member
-//! takes a `TimeOfDay`. **Decision: the weekday enum keeps its name.** `Date::weekday()`
-//! answers `Core\Time\DateTime::Weekday`; a `Core\Time\Weekday` would break every caller
-//! and buy nothing a reader needs. **Decision: real code reads the readers, a case keeps
+//! takes a `TimeOfDay`. **Decision: the weekday enum is `Core\Time\Weekday`.** `Date` and
+//! `DateTime` both answer it, so `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+//! declares it in their namespace. **Decision: real code reads the readers, a case keeps
 //! `format`.** The intl extension's `DateFormat.nvs` reads fields through the readers,
 //! because it runs on a request path and `format` compiles a pattern at run time. A
 //! conformance case that computes its expected value with `format` keeps it, because
@@ -1532,7 +1532,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Time\DateTime::Weekday`, Monday-first — ISO-8601's own order, which is
+/// `Core\Time\Weekday`, Monday-first — ISO-8601's own order, which is
 /// what `date("N")` already answers and what [`crate::cldr`]'s tables index
 /// by.
 ///
@@ -1540,7 +1540,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
 /// a case an ordinary integer constant and nothing here reads it as a
 /// day number; `$d->weekday()` answers the case, not the index.
 pub const WEEKDAY: CoreEnum = CoreEnum {
-    name: r"Core\Time\DateTime::Weekday",
+    name: r"Core\Time\Weekday",
     cases: &[
         ("Monday", 0),
         ("Tuesday", 1),
@@ -4491,7 +4491,7 @@ fn unit_of(args: &[Value], at: usize, member: &str) -> Result<(jiff::Unit, i64),
     }
 }
 
-/// The [`Weekday`] a `Core\Time\DateTime::Weekday` case names.
+/// The [`Weekday`] a `Core\Time\Weekday` case names.
 ///
 /// # Errors
 ///
@@ -4501,11 +4501,7 @@ fn weekday_of(args: &[Value], at: usize, member: &str) -> Result<Weekday, Fault>
         .as_int()
         .and_then(|held| i8::try_from(held).ok())
         .and_then(|index| Weekday::from_monday_zero_offset(index).ok())
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "{member} expected a `Core\\Time\\DateTime::Weekday` case"
-            ))
-        })
+        .ok_or_else(|| Fault::fatal(format!("{member} expected a `Core\\Time\\Weekday` case")))
 }
 
 /// `value` of `unit` as a [`jiff::Span`].
@@ -4583,7 +4579,7 @@ fn floored(at: &Zoned, unit: jiff::Unit, scale: i64, member: &str) -> Result<Zon
             civil::DateTime::from_parts(date.first_of_month(), civil::Time::midnight())
         }
         // ISO-8601's week, which starts on Monday — the same order
-        // `Core\Time\DateTime::Weekday`'s cases are in.
+        // `Core\Time\Weekday`'s cases are in.
         jiff::Unit::Week => civil::DateTime::from_parts(
             date.checked_sub(
                 jiff::Span::new().days(i64::from(date.weekday().to_monday_zero_offset())),
@@ -8286,7 +8282,7 @@ mod tests {
         datetime_rebuilt(member, at, &[Value::int(count), Value::int(unit)])
     }
 
-    /// `member` called on the `DateTime` `at` with the `Core\Time\DateTime::Weekday` case at
+    /// `member` called on the `DateTime` `at` with the `Core\Time\Weekday` case at
     /// index `weekday` (Monday 0 to Sunday 6), the way `next` and `previous`
     /// are called.
     fn datetime_to_weekday(

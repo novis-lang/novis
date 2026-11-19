@@ -37789,13 +37789,13 @@ echo $d->format("EEEE, d MMMM yyyy 'at' h:mm a"), "\n";
 
 echo $d->plus(1, Core\Unit::Month)->format('yyyy-MM-dd'), "\n";
 echo $d->minus(1, Core\Unit::Week)->format('yyyy-MM-dd'), "\n";
-echo $d->next(Core\Time\DateTime::Weekday::Monday)->format('yyyy-MM-dd HH:mm'), "\n";
+echo $d->next(Core\Time\Weekday::Monday)->format('yyyy-MM-dd HH:mm'), "\n";
 echo $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), "\n";
 echo $d->startOf(Core\Unit::Day)->format('HH:mm'), ' ',
     $d->endOf(Core\Unit::Month)->format('dd HH:mm:ss.SSS'), "\n";
 
 echo $d->difference(Core\Time::at(2026, 8, 30, $utc), Core\Unit::Year), "\n";
-echo $d->weekday() == Core\Time\DateTime::Weekday::Wednesday ? 'midweek' : 'other', "\n";
+echo $d->weekday() == Core\Time\Weekday::Wednesday ? 'midweek' : 'other', "\n";
 echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', "\n";
 echo $d->toInstant()->toIso(), "\n";
 ```
@@ -37818,8 +37818,8 @@ midweek
 | [`Core\Time\DateTime->format`](#core-core-time-datetime-format) | `format(string $pattern): string` |
 | [`Core\Time\DateTime->plus`](#core-core-time-datetime-plus) | `plus(int $count, Core\Unit $unit): Core\Time\DateTime` |
 | [`Core\Time\DateTime->minus`](#core-core-time-datetime-minus) | `minus(int $count, Core\Unit $unit): Core\Time\DateTime` |
-| [`Core\Time\DateTime->next`](#core-core-time-datetime-next) | `next(Core\Time\DateTime::Weekday $w): Core\Time\DateTime` |
-| [`Core\Time\DateTime->previous`](#core-core-time-datetime-previous) | `previous(Core\Time\DateTime::Weekday $w): Core\Time\DateTime` |
+| [`Core\Time\DateTime->next`](#core-core-time-datetime-next) | `next(Core\Time\Weekday $w): Core\Time\DateTime` |
+| [`Core\Time\DateTime->previous`](#core-core-time-datetime-previous) | `previous(Core\Time\Weekday $w): Core\Time\DateTime` |
 | [`Core\Time\DateTime->with`](#core-core-time-datetime-with) | `with({ year?: int, month?: uint, day?: uint, hour?: uint, minute?: uint, second?: uint, nanos?: uint }): Core\Time\DateTime` |
 | [`Core\Time\DateTime->withTime`](#core-core-time-datetime-withtime) | `withTime(Core\Time\TimeOfDay $t): Core\Time\DateTime` |
 | [`Core\Time\DateTime->startOf`](#core-core-time-datetime-startof) | `startOf(Core\Unit $u): Core\Time\DateTime` |
@@ -37829,7 +37829,7 @@ midweek
 | [`Core\Time\DateTime->date`](#core-core-time-datetime-date) | `date(): Core\Time\Date` |
 | [`Core\Time\DateTime->timeOfDay`](#core-core-time-datetime-timeofday) | `timeOfDay(): Core\Time\TimeOfDay` |
 | [`Core\Time\DateTime->zone`](#core-core-time-datetime-zone) | `zone(): Core\Time\Zone` |
-| [`Core\Time\DateTime->weekday`](#core-core-time-datetime-weekday) | `weekday(): Core\Time\DateTime::Weekday` |
+| [`Core\Time\DateTime->weekday`](#core-core-time-datetime-weekday) | `weekday(): Core\Time\Weekday` |
 | [`Core\Time\DateTime->dayOfYear`](#core-core-time-datetime-dayofyear) | `dayOfYear(): uint` |
 | [`Core\Time\DateTime->isLeapYear`](#core-core-time-datetime-isleapyear) | `isLeapYear(): bool` |
 | [`Core\Time\DateTime->year`](#core-core-time-datetime-year) | `year(): int` |
@@ -37897,14 +37897,14 @@ Moves the value back by `$count` calendar steps of `$unit`. It is `plus` with th
 #### `Core\Time\DateTime->next`
 
 ```nvs skip
-$dateTime->next(Core\Time\DateTime::Weekday $w): Core\Time\DateTime
+$dateTime->next(Core\Time\Weekday $w): Core\Time\DateTime
 ```
 
 Finds the first day after this one that falls on `$w`. The time of day stays the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$w` | `Core\Time\DateTime::Weekday` | The weekday to move to. |
+| `$w` | `Core\Time\Weekday` | The weekday to move to. |
 
 **Returns** `Core\Time\DateTime` — A new `DateTime` one to seven days later — a full week when the receiver already falls on `$w`; the receiver is unchanged.
 
@@ -37914,14 +37914,14 @@ Finds the first day after this one that falls on `$w`. The time of day stays the
 #### `Core\Time\DateTime->previous`
 
 ```nvs skip
-$dateTime->previous(Core\Time\DateTime::Weekday $w): Core\Time\DateTime
+$dateTime->previous(Core\Time\Weekday $w): Core\Time\DateTime
 ```
 
 Finds the last day before this one that falls on `$w`. The time of day stays the same.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$w` | `Core\Time\DateTime::Weekday` | The weekday to move to. |
+| `$w` | `Core\Time\Weekday` | The weekday to move to. |
 
 **Returns** `Core\Time\DateTime` — A new `DateTime` one to seven days earlier — a full week when the receiver already falls on `$w`; the receiver is unchanged.
 
@@ -38067,12 +38067,12 @@ Returns the zone of this value. It is always a zone the program named, because t
 #### `Core\Time\DateTime->weekday`
 
 ```nvs skip
-$dateTime->weekday(): Core\Time\DateTime::Weekday
+$dateTime->weekday(): Core\Time\Weekday
 ```
 
 Returns the day of the week, as a `Weekday` enum case.
 
-**Returns** `Core\Time\DateTime::Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
+**Returns** `Core\Time\Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
 
 <a id="core-core-time-datetime-dayofyear"></a>
 #### `Core\Time\DateTime->dayOfYear`
@@ -38184,7 +38184,7 @@ pattern and a zone, and call `->date()` on the result. A date that does not exis
 when it is built.
 
 `year()`, `month()` and `day()` return the three fields as numbers. `weekday()` returns a
-`Core\Time\DateTime::Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
+`Core\Time\Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
 `isLeapYear()` checks the year. `atStartOfDay($zone)` returns a `DateTime` at the first moment of
 the date in that zone. This is usually midnight. Add a time of day to it with `withTime`.
 
@@ -38240,7 +38240,7 @@ Tue 30 Jan
 | [`Core\Time\Date->minus`](#core-core-time-date-minus) | `minus(int $count, Core\Unit $unit): Core\Time\Date` |
 | [`Core\Time\Date->with`](#core-core-time-date-with) | `with({ year?: int, month?: uint, day?: uint }): Core\Time\Date` |
 | [`Core\Time\Date->compareTo`](#core-core-time-date-compareto) | `compareTo(Core\Time\Date $other): int` |
-| [`Core\Time\Date->weekday`](#core-core-time-date-weekday) | `weekday(): Core\Time\DateTime::Weekday` |
+| [`Core\Time\Date->weekday`](#core-core-time-date-weekday) | `weekday(): Core\Time\Weekday` |
 | [`Core\Time\Date->dayOfYear`](#core-core-time-date-dayofyear) | `dayOfYear(): uint` |
 | [`Core\Time\Date->isLeapYear`](#core-core-time-date-isleapyear) | `isLeapYear(): bool` |
 | [`Core\Time\Date->year`](#core-core-time-date-year) | `year(): int` |
@@ -38358,12 +38358,12 @@ Orders two dates on the calendar, as `Comparable` requires.
 #### `Core\Time\Date->weekday`
 
 ```nvs skip
-$date->weekday(): Core\Time\DateTime::Weekday
+$date->weekday(): Core\Time\Weekday
 ```
 
 Returns the day of the week of this date, as a `Weekday` enum case.
 
-**Returns** `Core\Time\DateTime::Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
+**Returns** `Core\Time\Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
 
 <a id="core-core-time-date-dayofyear"></a>
 #### `Core\Time\Date->dayOfYear`
@@ -58342,19 +58342,19 @@ The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `st
 | `Core\Unit::Year` | One calendar year, with 29 February clamped to the 28th where the target has none. |
 
 <a id="enum-core-time-datetime-weekday"></a>
-#### `Core\Time\DateTime::Weekday`
+#### `Core\Time\Weekday`
 
 A day of the week, in ISO 8601 order with Monday first. `$d->weekday()` returns one, and `next` and `previous` take one. The cases are numbered from zero: `Monday as int` is `0` and `Sunday` is `6`.
 
 | Case | Meaning |
 |---|---|
-| `Core\Time\DateTime::Weekday::Monday` | The first day of the ISO week. |
-| `Core\Time\DateTime::Weekday::Tuesday` | The second day of the ISO week. |
-| `Core\Time\DateTime::Weekday::Wednesday` | The third day of the ISO week. |
-| `Core\Time\DateTime::Weekday::Thursday` | The fourth day of the ISO week. |
-| `Core\Time\DateTime::Weekday::Friday` | The fifth day of the ISO week. |
-| `Core\Time\DateTime::Weekday::Saturday` | The sixth day of the ISO week. |
-| `Core\Time\DateTime::Weekday::Sunday` | The seventh and last day of the ISO week. |
+| `Core\Time\Weekday::Monday` | The first day of the ISO week. |
+| `Core\Time\Weekday::Tuesday` | The second day of the ISO week. |
+| `Core\Time\Weekday::Wednesday` | The third day of the ISO week. |
+| `Core\Time\Weekday::Thursday` | The fourth day of the ISO week. |
+| `Core\Time\Weekday::Friday` | The fifth day of the ISO week. |
+| `Core\Time\Weekday::Saturday` | The sixth day of the ISO week. |
+| `Core\Time\Weekday::Sunday` | The seventh and last day of the ISO week. |
 
 <a id="enum-core-hash-digest"></a>
 #### `Core\Hash::Digest`

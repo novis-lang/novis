@@ -18058,7 +18058,7 @@
     ]
   },
   "/reference/types/time-datetime-weekday/": {
-    "feature": "Core\\Time\\DateTime::Weekday",
+    "feature": "Core\\Time\\Weekday",
     "hash": "ea2ef67ad574418d",
     "questions": [
       "How do I get the day of the week for a date?",

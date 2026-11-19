@@ -176,7 +176,6 @@ The `Core` enums that move:
 | `Core\NormalForm` | `Core\Str::NormalForm` |
 | `Core\Digest` | `Core\Hash::Digest` |
 | `Core\Codec` | `Core\Compress::Codec` |
-| `Core\Weekday` | `Core\Time\DateTime::Weekday` |
 | `Core\Crypto\Cipher` | `Core\Crypto::Cipher` |
 | `Core\Crypto\KeyFormat` | `Core\Crypto\PublicKey::Format` |
 | `Core\Mime\Type` | `Core\Mime::Type` |
@@ -204,6 +203,7 @@ The `Core` enums that move:
 
 The `Core` enums that stay, each with the classes that share it: `Core\RoundMode` (`Math`,
 `Decimal`), `Core\Charset` (`Encoding`, `IO`), `Core\Unit` (`DateTime`, `Date`, `TimeOfDay`),
+`Core\Time\Weekday` (`DateTime`, `Date`),
 `Core\Crypto\KeyKind` (four classes), `Core\Http\Method` (seven classes and `#[Route]`),
 `Core\Db\Driver` (`Db`, `Db\Connection`), `Core\Db\Isolation` (`Db\Connection`,
 `Db\Transaction`) and `Core\Audience` (`#[Access]` alone). A use site this table missed is placed by

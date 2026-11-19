@@ -3,8 +3,8 @@
 
 var $holiday = Core\Time\Date::at(2024, 12, 25);
 
-// `weekday` returns a case of the `Core\Time\DateTime::Weekday` enum. This prints Wednesday.
-if ($holiday->weekday() == Core\Time\DateTime::Weekday::Wednesday) {
+// `weekday` returns a case of the `Core\Time\Weekday` enum. This prints Wednesday.
+if ($holiday->weekday() == Core\Time\Weekday::Wednesday) {
     echo "Wednesday\n";
 }
 

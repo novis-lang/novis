@@ -301,7 +301,7 @@
     "Core\\RoundMode": "cf234c100a0c3584",
     "Core\\Script\\ExitReport::Reason": "886869a487e62b1a",
     "Core\\Str::NormalForm": "cb76b3ce4476f5b2",
-    "Core\\Time\\DateTime::Weekday": "462d38fa64bee316",
+    "Core\\Time\\Weekday": "462d38fa64bee316",
     "Core\\Unit": "a7d8af8decb1030b",
     "Core\\Xml\\Node::Kind": "c4eb257baafe13ee",
     "lang:enums/a-case-is-its-integer": "7209d488032577bb",

@@ -4,23 +4,23 @@
 
 class Week
 {
-    public static function name(Core\Time\DateTime::Weekday $day): string
+    public static function name(Core\Time\Weekday $day): string
     {
         return match ($day) {
-            Core\Time\DateTime::Weekday::Monday => 'Monday',
-            Core\Time\DateTime::Weekday::Tuesday => 'Tuesday',
-            Core\Time\DateTime::Weekday::Wednesday => 'Wednesday',
-            Core\Time\DateTime::Weekday::Thursday => 'Thursday',
-            Core\Time\DateTime::Weekday::Friday => 'Friday',
-            Core\Time\DateTime::Weekday::Saturday => 'Saturday',
-            Core\Time\DateTime::Weekday::Sunday => 'Sunday',
+            Core\Time\Weekday::Monday => 'Monday',
+            Core\Time\Weekday::Tuesday => 'Tuesday',
+            Core\Time\Weekday::Wednesday => 'Wednesday',
+            Core\Time\Weekday::Thursday => 'Thursday',
+            Core\Time\Weekday::Friday => 'Friday',
+            Core\Time\Weekday::Saturday => 'Saturday',
+            Core\Time\Weekday::Sunday => 'Sunday',
         };
     }
 
     // The two days at the end of the week are the ones most offices are shut.
-    public static function isWeekend(Core\Time\DateTime::Weekday $day): bool
+    public static function isWeekend(Core\Time\Weekday $day): bool
     {
-        return $day == Core\Time\DateTime::Weekday::Saturday || $day == Core\Time\DateTime::Weekday::Sunday;
+        return $day == Core\Time\Weekday::Saturday || $day == Core\Time\Weekday::Sunday;
     }
 }
 

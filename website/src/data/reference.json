@@ -1925,12 +1925,12 @@
       "area": "types",
       "slug": "time-datetime-weekday",
       "url": "/reference/types/time-datetime-weekday/",
-      "title": "Core\\Time\\DateTime::Weekday",
+      "title": "Core\\Time\\Weekday",
       "group": "Enums",
       "intro": {
-        "id": "Core\\Time\\DateTime::Weekday",
-        "title": "Core\\Time\\DateTime::Weekday",
-        "examples": "types/Time-DateTime-Weekday"
+        "id": "Core\\Time\\Weekday",
+        "title": "Core\\Time\\Weekday",
+        "examples": "types/Time-Weekday"
       },
       "keys": []
     },
