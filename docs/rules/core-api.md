@@ -786,7 +786,9 @@ One operation is reachable exactly one way. A stateless operation is a static me
 anything with identity or a lifetime is an object ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)). Nothing is
 reachable both ways — there is no procedural twin of a class API and no class wrapper around a static one —
 and a domain class's static members never mirror an object's own methods: `Time::format($instant, $fmt)`
-may not exist beside `$instant->format($fmt)`.
+may not exist beside `$instant->format($fmt)`. A constructor is a static member of the class it returns,
+and a value has one constructor per shape of input: `Core\Time` keeps the clock, and `Date`, `TimeOfDay`,
+`Instant` and `DateTime` each build themselves ([`core-classes/a-time-class-builds-its-own-values`](core-classes.md#core-classes-a-time-class-builds-its-own-values)).
 
 This closes the second and less visible kind of duplication, the one a function list cannot show: a
 procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
@@ -870,7 +872,8 @@ one enum declaration per mode family, which is also what makes them documentable
   string, and it hides the calendar-versus-exact distinction the `DateTime`/`Instant` split makes
   visible. A `DateTime` moves by typed calls such as `plus(int $count, Unit $unit)`, an `Instant` by a
   `Duration`, and the one runtime string a program needs is a duration, which `Duration::parse` reads
-  in the literal grammar ([`types/duration`](types.md#types-duration)).
+  in the literal grammar ([`types/duration`](types.md#types-duration)). A date or a time read from text has one ISO form
+  per class, read by that class's `fromIso` ([`core-classes/a-time-class-builds-its-own-values`](core-classes.md#core-classes-a-time-class-builds-its-own-values)).
 
 <sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/single-value-types`](types.md#types-single-value-types), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 

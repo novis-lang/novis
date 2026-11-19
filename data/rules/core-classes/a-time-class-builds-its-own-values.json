@@ -1,0 +1,16 @@
+{
+  "title": "Each `Core\\Time` value class builds its own values, each has a checked `fromIso`, and `Core\\Time` is the clock",
+  "status": "designed",
+  "seeAlso": [
+    "core-api/one-paradigm-per-operation",
+    "core-api/verb-lexicon",
+    "expressions/intrinsic-constant-arguments",
+    "types/duration",
+    "types/property-key",
+    "core-api/a-moved-name-says-where-it-went"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/time.rs"
+  ],
+  "goal": "time-constructors"
+}

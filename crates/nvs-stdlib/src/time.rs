@@ -1,7 +1,20 @@
 //! `Core\Time` and the types it answers with, one module because they are one domain:
 //! `Duration` (the type of a duration such as `30s` or `1h30m`, `rule:types/duration`),
-//! `Instant`, `Zone` and `DateTime`. The pattern grammar `DateTime::format` and `Time::parse`
-//! share is [`crate::cldr`], which is a grammar of its own and so a module of its own.
+//! `Instant`, `Zone`, `Date`, `TimeOfDay` and `DateTime`. The pattern grammar
+//! `DateTime::format` and `DateTime::parse` share is [`crate::cldr`], which is a grammar of
+//! its own and so a module of its own.
+//!
+//! # Each class builds its own values, and `Core\Time` is the clock
+//!
+//! `rule:core-classes/a-time-class-builds-its-own-values` places every constructor on the
+//! class it returns. `Core\Time` keeps `now`, `monotonic` and `sleep`, the members that read
+//! the outside world. `Instant` builds with `fromEpoch` and `fromIso`, `Date` with `at` and
+//! `fromIso`, `TimeOfDay` with `at` and `fromIso`, and `DateTime` with
+//! `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)` and `parse(text, pattern, Zone)`. Each
+//! `fromIso` reads the one ISO 8601 extended form of its class, and a literal text is checked
+//! while compiling. A zone fixed in the source is written as text at a `Zone` parameter and
+//! built once. That rule is designed: `Core\Time::at`, `fromEpoch`, `fromIso` and `parse` and
+//! `Date::atStartOfDay` still register here until the `time-constructors` goal moves them.
 //!
 //! # Two arithmetics, and the type says which one
 //!
@@ -68,15 +81,12 @@
 //! by parsing `format`'s output. Each
 //! reader has the name and type of the `with` option for the same field — `year` is
 //! `int`, every other field `uint` — so `$d->with({ month: $d->month() + 1 })` is one
-//! vocabulary. A reader allocates nothing. The way between the classes is a member
-//! each: `Date::atStartOfDay($zone)` is the first instant of the day in a zone,
-//! resolved forward where the zone skips midnight as [`nvs_core_time_at`] resolves
-//! a gap, and [`nvs_core_time_datetime_with_time`] puts a `TimeOfDay` onto it.
+//! vocabulary. A reader allocates nothing. The way from the parts to a `DateTime` is
+//! `DateTime::at($date, $time, $zone)`, which resolves a skipped local time forward as
+//! [`nvs_core_time_at`] resolves a gap, and [`nvs_core_time_datetime_with_time`] puts a
+//! `TimeOfDay` onto an existing `DateTime`.
 //!
-//! **Decision: `atStartOfDay`, not an instance `at`.** `Date::at` is already the static
-//! constructor, and one name with two meanings is surface a reader has to tell apart at
-//! every call. A time of day goes on with the existing `withTime`, so no second member
-//! takes a `TimeOfDay`. **Decision: the weekday enum is `Core\Time\Weekday`.** `Date` and
+//! **Decision: the weekday enum is `Core\Time\Weekday`.** `Date` and
 //! `DateTime` both answer it, so `rule:enums/an-enum-lives-in-the-class-that-uses-it`
 //! declares it in their namespace. **Decision: real code reads the readers, a case keeps
 //! `format`.** The intl extension's `DateFormat.nvs` reads fields through the readers,

@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/time.rs, crates/nvs-types/src/intrinsics.rs, cra
 stages:
   - id: 1
     title: the rule says which class builds which value, and Core\Time is the clock
-    status: open
+    status: done
     context: [docs/rules/core-api/one-paradigm-per-operation.md, docs/rules/core-api/verb-lexicon.md, docs/rules/core-api/no-mode-strings.md]
   - id: 2
     title: each class builds itself, and a fromIso literal is checked while compiling
@@ -213,12 +213,12 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** writes the rule and the module doc. No code changes.
 
-- [ ] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: the new rule with its JSON
+- [x] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: the new rule with its JSON
   under `data/rules/core-classes/`, written from § *Standing decisions*: the table, `now` on the clock,
   the `fromIso` grammar, the compile-time check, the cost, and the Declined list.
   `docs/rules/core-api/no-mode-strings.md:15` and `docs/rules/core-api/one-paradigm-per-operation.md:1`
   cite it. Then `bun nv rules --render`, and `bun nv rules --check` is green.
-- [ ] `crates/nvs-stdlib/src/time.rs:1`: the module doc names the new home of each constructor, cites
+- [x] `crates/nvs-stdlib/src/time.rs:1`: the module doc names the new home of each constructor, cites
   the rule, and drops the *atStartOfDay* decision at `:76`.
 
 ### 2. each class builds itself, and a fromIso literal is checked while compiling
@@ -387,17 +387,26 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Written on 2026-11-19 from the person's question about why `Core\Time` builds `DateTime` values.
-Nothing is built yet. The person chose: each class builds itself, `Core\Time` is the clock,
-`DateTime::at(Date, TimeOfDay, Zone)`, a `fromIso` on every class as the short form, a zone written as
-text where it is fixed, built once and never per use, and editor completion for every zone name. Every other
-choice in § *Standing decisions* is the authoring session's call under the priority ordering, and
-stands until the person picks another.
+Stage 1 is done. `rule:core-classes/a-time-class-builds-its-own-values` is written, `designed`, owned by
+this goal, and guarded by `crates/nvs-stdlib/src/time.rs` alone until stage 2 writes its cases; add
+them to its `guardedBy` then. `one-paradigm-per-operation` and `no-mode-strings` cite it, and
+`bun nv rules --check` is green. The `time.rs` module doc has a section *Each class builds its own
+values* naming each constructor's home, says the old members still register under `Core\Time` until
+this goal moves them, and no longer carries the *atStartOfDay* decision. Stage 2 rewrites that last
+sentence once the members move.
+
+The acceptance sweep's nightly failures (run 44510687786, on `adc7487`) were all fixed on disk before
+this session: supply chain by `eb5c02e983` (wasmtime 50.0.2), every Miri shard by `4c82a2409a` (all
+UB at `string.rs:1817`, the immortal string handle), `proofs / linux-x86_64` by `656f5b2f2d` (the
+debug viewer's shots), and `browser` by `1c75c4ef0e` (a page waits for its body text).
 
 ### Next
 
-Stage 1 from its first item: the rule fragment, then the module doc. The `constructors`, `zones`,
-`zone-completion` and `moved` checks name cases and tests that do not exist yet, and are expected to
-fail until stages 2 to 4 write them.
+Stage 2 from its first item: `crates/nvs-stdlib/src/time.rs:2307` `TIME` keeps `now`, `monotonic`
+and `sleep`; `fromEpoch` and `fromIso` move to `INSTANT`, `parse` and `at` to `DATETIME`
+(`nvs_core_time_at` is at `:5076`, its registration at `:2409`, its address row at `:2616`), and
+`atStartOfDay` (`:2786`, card `:3004`, body `:5412`) goes. A new member needs its address row in the
+module's `match`, or every program panics at startup. The `constructors`, `zones`,
+`zone-completion` and `moved` checks are expected red until stages 2 to 4 write their cases.
 
 ### Backlog

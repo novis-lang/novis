@@ -17,4 +17,5 @@ one enum declaration per mode family, which is also what makes them documentable
   string, and it hides the calendar-versus-exact distinction the `DateTime`/`Instant` split makes
   visible. A `DateTime` moves by typed calls such as `plus(int $count, Unit $unit)`, an `Instant` by a
   `Duration`, and the one runtime string a program needs is a duration, which `Duration::parse` reads
-  in the literal grammar (`rule:types/duration`).
+  in the literal grammar (`rule:types/duration`). A date or a time read from text has one ISO form
+  per class, read by that class's `fromIso` (`rule:core-classes/a-time-class-builds-its-own-values`).

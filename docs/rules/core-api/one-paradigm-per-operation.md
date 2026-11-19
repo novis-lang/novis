@@ -2,7 +2,9 @@ One operation is reachable exactly one way. A stateless operation is a static me
 anything with identity or a lifetime is an object (`rule:core-api/a-lifetime-is-an-object`). Nothing is
 reachable both ways — there is no procedural twin of a class API and no class wrapper around a static one —
 and a domain class's static members never mirror an object's own methods: `Time::format($instant, $fmt)`
-may not exist beside `$instant->format($fmt)`.
+may not exist beside `$instant->format($fmt)`. A constructor is a static member of the class it returns,
+and a value has one constructor per shape of input: `Core\Time` keeps the clock, and `Date`, `TimeOfDay`,
+`Instant` and `DateTime` each build themselves (`rule:core-classes/a-time-class-builds-its-own-values`).
 
 This closes the second and less visible kind of duplication, the one a function list cannot show: a
 procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
