@@ -288,6 +288,12 @@ session, and sends no cookie for a session opened by hand. A failure to find an 
 attempt goes into the handoff with its cause, and the stage moves on to its other items. A stage still
 open after two sessions stops the loop with `BLOCKED` naming the item.
 
+**A session read after the response throws (my call, stage 9).** Deferred work has no session, so
+`get` and `getSecret` compile inside `Core\Task::afterResponse` and throw `LogicError`. A program
+captures the value before it calls `afterResponse`. A read-only view kept for the work would hold the
+record past the response and could show values another request has since changed. The deferred-work
+rule and the roster say so, and `session-a-read-inside-later-or-after-response-compiles.nvst` pins it.
+
 ## Stages
 
 ### 1. the rules say what a session with two lifetimes is
@@ -457,50 +463,58 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### 9. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done. `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+Stages 1 to 8 are done. Stage 9 is under way: the full gate's `looper verify` ran twice and is red.
+`cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
-Stage 8: the three pages name no removed member. `upload-file.mdx` and `notes.mdx` call
-`Core\Csrf::token()` alone, and `chat.mdx` links `/reference/core/session/setshortlived/`.
-`bun nv render --website` rewrote `core.json`, `llms-full.txt` and `numbers.json`, and `bun nv render
---check` is green. `questions.json` drops the five retired Session pages and has questions for 48
-pages, stamped. That includes the Time and `Reflect\ClassInfo` member pages earlier goals left owed,
-and `bun nv site --check questions` is green. `bun nv site --check reference` still names 27 pages
-"not in the built site": the local `website/dist` predates them, and a site build clears it.
+Fixed and committed this session (`b5c52dcb8f`, `c49a3e165b`, `cbcfc89ee3`):
+- `bun nv rules --check`: eleven rule records named session and passkey cases the first-use open
+  renamed. Each names its successor now.
+- `nvs-fmt` identity: four corpus files and the `Time-Date.md` block were reformatted, and the website
+  data rerendered.
+- `nvs-ir` keyed-literal snapshots run under `without_cheaper_forms`. The `nvs-lsp` index scan, and
+  both `capability.rs` scans (`trace_target` moved to `http/span.rs`; the argument splitter ignores a
+  trailing comma). All eight tests pass by name.
+- The Backlog's `afterResponse` read is settled (Standing decisions, stage 9).
 
-Stage 7: all twelve `Core\Session` members owe no proof, and their perf is recorded in
-`data/perf/members.ndjson`.
-
-The sweep's reds are stale: `env-secret-proofs` is a retired goal's check, and nightly 44510687786
-built `adc7487822`, fixed on `main`.
+`bun nv owners --closes session-lifetimes` names no gap. The sweep's reds are stale:
+`env-secret-proofs` is a retired goal's check, and nightly 44510687786 built `adc7487822`.
 
 ### Next
 
-Stage 9: the check the pack names (a full gate's `looper verify`, or a close's build and this
-goal's tests), then the goal-end gates in AGENTS.md. Expect `perf: stale` for the Passkey and Csrf
-members (`passkey.rs` and `csrf.rs` changed). Record them per the playbook's `perf: stale` bullet.
-Expect `bun nv site --check reference` red until the site is built again (`bun nv site --build`, or
-`bun nv ci --check`). Settle the two Backlog items that need a design (gap records) before `DONE`.
+Stage 9, the same pass: fix the three reds the gate still names, then run `looper verify` once more.
+Each came from an earlier goal in this gate (date-parts, cheaper-forms), not from this one.
+- `nvs-stdlib --test in_place`: `every_member_owns_exactly_what_its_signature_says` and
+  `every_string_member_has_a_row_here`. `00aa18de62` made `Core\Str::split` own its subject
+  (`crates/nvs-stdlib/src/str.rs` module doc), so the result is an array, not a string. The test's
+  `signature_owns` (`crates/nvs-stdlib/tests/in_place.rs:63`) and `TEXT_ROWS` (`:751`) need a row
+  kind for a member whose last array piece is the subject, with a check that the piece reuses the
+  allocation. `rule:types/a-replaced-value-is-changed-in-place` should name `split` as well.
+- `nvs-stdlib --test enum_owners`: `Core\Time\DateTime::Weekday` is used by `Core\Time\Date` too, so
+  by `crates/nvs-stdlib/tests/enum_owners.rs:146` it is declared in its namespace, as
+  `Core\Time\Weekday`. That rename covers the registry, the checker's enum table, examples and docs.
+  Run `bun nv brief --where enum` for the rule. The goal `time-constructors` is next on the chain and
+  touches the same classes.
+- `nvs-stdlib --test conformance_coverage`: 17 `Core\Time\DateTime` members (`day`, `hour`, `minute`,
+  `month`, `nanos` and more) are asked by 2 cases, and the floor is 3. Write one case that asks all
+  of them, under `tests/conformance/core/`. The full list is in `.agent-tmp/verify-test.log`, or comes
+  from `cargo test --test conformance_coverage`.
+Verify stopped at its test step, so the steps after it have not run yet. Then the goal-end gates:
+`bun nv verify --doc` and `bun nv ci --check`. Expect `perf: stale` for the Passkey, Csrf, Str and
+Http members whose source changed. Record them per the playbook's `perf: stale` bullet.
 
 ### Backlog
 
-- `Core\Csrf::token` inside a `Core\Html::later` slot throws for a new visitor, because it draws a
-  session identifier and the head is closed. It works for a visitor with a session. That is the same
-  trap as a session write there, but refusing it in the checker would forbid forms in a slot. It needs
-  its own design, and becomes a gap record if this goal ends with it open.
-- A `Core\Session::get` inside `Core\Task::afterResponse` throws the no-request `LogicError`: the
-  deferred work runs on a context with no inbound request and no session (`nvs-host`), so it never
-  sees the session the request saved. This was true before this goal too, where it threw the
-  "start first" error. The roster rule says `get` stays allowed there, which compiles but does not
-  run. Either the deferred context gets a read-only view of the request's session, or the rule says
-  a read there throws. It needs its own design, and becomes a gap record if this goal ends with it
-  open.
+- `Core\Csrf::token` inside a `Core\Html::later` slot: the last handoff said it throws for a new
+  visitor. A `--GET--` case on a normal route showed it returns a token there. It is not checked yet
+  on a slotted route, where the head is out before the slots run. Settle it with a case on a slotted
+  route before `DONE`. If it throws there, the html-later rule says so; that needs no gap.
 - A session write counts about five bytes per byte of its value in `nvs run --count` (the value, its
   encoding and the write-back's copies). It is linear, so no proof fails, but each copy is bytes moved
   on the request path. A later perf goal may cut the copies.
