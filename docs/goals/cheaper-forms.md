@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-lsp/src/actions.rs]
   - id: 6
     title: a callback the checker proved is called without the check of each call
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/dispatch.rs, crates/nvs-ir/src/ir.rs]
   - id: 7
     title: a recorded request shows its HTTP, cache, session and file calls by line
@@ -364,6 +364,26 @@ A subject whose static type is `mixed`, `array<mixed>` or a union keeps the chec
 the check on a proven callback too and aborts on a mismatch, so the tests and the fuzzer find a wrong
 proof before a release build can.
 
+**How the proof is marked, as built in stage 6 (my call).** The default flag is the first padding
+byte of the callable's `Value` in the member's argument slot (`Value::PROVEN_CALLABLE_BIT`, bit 8
+of the tag word). Codegen writes it in `store_proven_callable` for each bit of
+`InstKind::CoreCall`'s `proven` mask. Four limits keep the mark from leaving that slot:
+
+- The argument is an anonymous function written at the call. A callable held in a variable may be
+  any callable its type admits, including one that needs `int` widened to `float`.
+- The member's parameter is a `callable(...)` before its type variables are bound.
+  `Core\Arr::fill(3, fn() => 1)` binds `T` to a signature and stores the value.
+- The member is in `Core\Arr`. None of its members keeps a callback past the call, so a marked tag
+  word never reaches storage that compiled code reads back as a tagged value. A member of another
+  class that stores its callback would carry the mark into that storage.
+- Every type the member passes has one representation (`assign::has_one_representation`), and each
+  parameter takes it with `Widening::InPlace`.
+
+A fast form that `forms.rs` writes in place of the call (`find` for `first` of `filter`) drops the
+mask, so the callback is checked there. **What it spends:** nothing at run time; the mask is a
+`u32` on each `CoreCall` and a span set in the expression table while compiling. A debug build
+copies the arguments once for each proven call to check them.
+
 **A recorded request names more sites (my call).** The debug index gives an `http` event, a cache
 read or write, a session read or write and a file open the site its call was written at, the way a
 `query` event has one (`rule:observability/a-query-span-names-its-call-site`). The lens that shows a
@@ -632,15 +652,15 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
 
 ### 6. a callback the checker proved is called without the check of each call
 
-- [ ] An `Explore` subagent lists first: where the checker accepts a callback argument against a
+- [x] An `Explore` subagent lists first: where the checker accepts a callback argument against a
   `Core` member's signature (`crates/nvs-types/src/expr/calls.rs`), and where a callable argument of a
   `CoreCall` is written to its slot (`crates/nvs-codegen/src/emit.rs:3070`).
-- [ ] The checker records, for each callback argument of a `Core` member call, whether every parameter
+- [x] The checker records, for each callback argument of a `Core` member call, whether every parameter
   of the callable is proven by the subject's static types. The lowering marks the argument.
-- [ ] `crates/nvs-runtime/src/callable.rs:253`: `call_callable` takes the mark as `TagCheck::Proven` and
+- [x] `crates/nvs-runtime/src/callable.rs:253`: `call_callable` takes the mark as `TagCheck::Proven` and
   skips both checks. In a debug build it runs them and aborts on a mismatch.
-- [ ] The three tests the `proven-callbacks` check names. Run once.
-- [ ] `bun nv scaling --check arrays/forms-a-map-over-rows` once: constant in the row width. It needs
+- [x] The three tests the `proven-callbacks` check names. Run once.
+- [x] `bun nv scaling --check arrays/forms-a-map-over-rows` once: constant in the row width. It needs
   `// scaling: rounds N` from stage 4; a stage 6 that runs first builds that item itself.
 
 ### 7. a recorded request shows its HTTP, cache, session and file calls by line
@@ -711,27 +731,24 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 used two sessions. `W1034` is raised by `nvs_ir::forms::warnings`
-and `W1035` by `nvs_ir::rereads::warnings`; both reach `nvs check` and the editor. The session row
-was measured under `nvs serve` with a 16 KiB record and Redis: 946 µs with two reads against 945 µs
-with one (1.0x), so it is declined in the rule and the `warnings-editor` check names a cache-key
-case instead. That check ran once through `looper check`, green. The sweep found five `W1035` sites
-and no `W1034`; one was a false pair, fixed in `rereads.rs` (`Row::may_change`), and the rest are
-examples about the member they read twice. An `.lspt` case holds one request, so the "offers find"
-half of the filter case was checked by hand: `quickfix` offers the `Core\Arr::find` rewrite and
-`source.fixAll.nvs` offers nothing. The sweep's `env-secret-proofs` red is stale: its log does not
-exist, and `git log -S` names only a retired goal's and this goal's doc commits.
+Stages 1 to 6 are done. Stage 6 took one session. The checker records a proven anonymous function
+in `ExprTypeTable::callback_is_proven` (`crates/nvs-types/src/expr/args.rs`, in
+`check_generic_args`, through `assign::callback_is_proven`). The lowering sets
+`InstKind::CoreCall`'s `proven` mask for a `Core\Arr` call (`lower/expr.rs`, `proven_bits`).
+Codegen writes `Value::PROVEN_CALLABLE_BIT` into the slot (`emit.rs` `store_proven_callable`).
+`call_prepared` in `crates/nvs-runtime/src/callable.rs` takes it as `TagCheck::Proven`, and a debug
+build runs `assert_proven`. The three `proven-callbacks` tests ran once by name, green, and
+`bun nv scaling --check arrays/forms-a-map-over-rows` is flat. The sweep's `env-secret-proofs` red
+is stale: `looper check --name env-secret-proofs` says no check matches, and no file in the tree
+defines it.
 
 ### Next
 
-Stage 6, from its first item: an `Explore` subagent lists where the checker accepts a callback
-argument against a `Core` member's signature (`crates/nvs-types/src/expr/calls.rs`) and where a
-callable argument of a `CoreCall` is written to its slot (`crates/nvs-codegen/src/emit.rs:3070`).
-Then the mark through the lowering, and `call_callable` (`crates/nvs-runtime/src/callable.rs:253`)
-skipping `check_param_tags` and `check_param_types` for it, with the debug build still checking.
-Stages 7, 8 and 10 are disjoint from 6 and can run beside it. `bun nv suite lsp-test --case` builds
-into `target/covws` and runs the whole tree; `looper check --name <id>` is the cheaper way to run
-one goal check.
+Stage 7, from its first item: an `Explore` subagent lists where a `query` event takes its site,
+where an `http` event is made, and where `crates/nvs-cli/src/debug/index.rs` stores the site
+columns. Stages 8 and 10 are disjoint from 7 and can run beside it. `bun nv suite lsp-test --case`
+builds into `target/covws` and runs the whole tree; `looper check --name <id>` is the cheaper way to
+run one goal check.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
@@ -739,7 +756,9 @@ a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `fi
 or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
 does. Also any case or `.term` snippet that pins `nvs check`'s output for
 `docs/examples/core/Cache-Store/get/01-reading-a-value.nvs` or the two `Uri/queryParameter`
-examples, which now print `W1035`.
+examples, which now print `W1035`. Also any test that pins `ExprTypeTable::canonical_text`, which
+now has a `proven_callbacks` section. A wrong proof from stage 6 shows as a debug-build panic that
+says "called as a proven callback".
 
 ### Backlog
 
