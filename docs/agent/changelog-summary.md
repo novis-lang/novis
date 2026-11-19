@@ -27,7 +27,8 @@ the ones that carry `BREAKING CHANGE:` with `git log --grep='BREAKING' <range>`.
 Three sources say what a user sees, in this order of trust:
 
 1. **`website/src/data/changes.json`, where it exists.** Each entry is already written for users. It is
-   used as written, and a commit that it covers adds nothing.
+   used as written, under the section its `kind` and flags name, and a commit that it covers adds
+   nothing. An entry with `highlight: true` leads its section, and the opening names it.
 2. **The goals the range retired.** A `chore(goals): <slug> is reached and retired` commit marks one.
    The goal's theme in `website/src/data/roadmap.json`, read at the commit before the one that drops
    it, is already user text: `git show <commit>^:website/src/data/roadmap.json`. These themes feed the
@@ -41,7 +42,7 @@ Each commit goes to the section of **what a user sees**, not to the section its 
 |---|---|---|
 | a vulnerability closed | Security fixes | type or scope `security` only |
 | code or a setting that must change | Breaking changes | `!` after the type, or `BREAKING CHANGE:` in the body |
-| something they can now write or run | New | `feat` on a `Core` class, the language, a setting, a command, the editor |
+| something they can now write or run, or a feature that now works differently with no edit needed | New | `feat` on a `Core` class, the language, a setting, a command, the editor |
 | the same program, faster or smaller | Faster | `perf`, and a `feat` in the compiler that changes no result |
 | a wrong result, a crash or an error that is gone | Fixes | `fix` |
 | nothing | Internal changes | `refactor`, `build`, `test`, `chore`, `docs`, and any type scoped `nv`, `test`, `site`, `ci`, `looper`, `goals`, `docs`, `bench`, `release`, `roadmap` or `proofs` |
