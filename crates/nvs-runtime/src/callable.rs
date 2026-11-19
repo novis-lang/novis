@@ -1282,10 +1282,11 @@ mod tests {
     /// A proven callable called with the argument it declares runs, and an
     /// unproven one called with the wrong argument throws. A debug build
     /// checks the proven one too, and a `bool` where it declares an `int`
-    /// stops the test at the check, before the callee reads it.
+    /// stops the test at the check, before the callee reads it. The trap is
+    /// caught here and its message asserted, not declared with
+    /// `#[should_panic]`, so a runner that counts `... ok` lines counts it.
     #[test]
     #[cfg(debug_assertions)]
-    #[should_panic(expected = "called as a proven callback")]
     fn a_debug_build_checks_a_proven_callback_and_traps_a_mismatch() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let callable = one_int_param();
@@ -1297,6 +1298,18 @@ mod tests {
         let proven = callable.proven_callable();
         assert!(proven.is_proven_callable());
         assert!(call_callable(&mut ctx, proven, &[Value::int(3)]).is_ok());
-        let _ = call_callable(&mut ctx, proven, &[Value::bool(true)]);
+        let trapped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = call_callable(&mut ctx, proven, &[Value::bool(true)]);
+        }));
+        let payload = trapped.expect_err("a mismatch on a proven callback traps");
+        let message = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .unwrap_or_default();
+        assert!(
+            message.contains("called as a proven callback"),
+            "the trap names the proof: {message}"
+        );
     }
 }
