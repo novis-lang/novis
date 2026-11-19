@@ -14,11 +14,11 @@ stages:
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/cldr.rs, crates/nvs-stdlib/src/lib.rs]
   - id: 3
     title: a zone written as text is one shared value built while compiling, and the editor completes every zone name
-    status: open
+    status: done
     context: [crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/object.rs, crates/nvs-lsp/src/completion.rs]
   - id: 4
     title: an old constructor name is a compile error that names the new one, with a fix
-    status: open
+    status: done
     context: [tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst, docs/rules/core-api/a-moved-name-says-where-it-went.md]
   - id: 5
     title: every program, test and tool outside the feature proofs uses the new names
@@ -152,7 +152,10 @@ its own instance, as each written duration is, so `==` stays identity
 resolves the zone's id again (`resolve_zone`, `crates/nvs-stdlib/src/time.rs:3902`, through
 `TimeZone::get`). Stage 3 counts what one `->in($zone)` spends on that lookup. Only if it shows does a
 cache from id to `TimeZone` land, built while compiling for a written zone, so nothing on the request
-path is made on first use.
+path is made on first use. **Measured (stage 3): it does not show, so no cache lands.** One
+`TimeZone::get` of a cached name is about 21 ns and allocates nothing (jiff 0.2.38, release, a
+scratch bench of the lookup alone against `Zoned::new` plus one civil read, 12 ns). The `in` bench
+makes two lookups per operation, about 42 ns, against a recorded 1,823 ns per operation: about 2%.
 
 **The editor completes every zone name (the person's call).** Inside a string literal at a `Zone`
 parameter, `Zone::of`'s included, completion offers the names from `jiff::tz::db().available()`, the
@@ -274,7 +277,7 @@ the checker, IR and codegen. Their files are disjoint, and no one builds until b
 - [x] `crates/nvs-codegen/src/emit.rs:853`: `ConstZone` emits one immortal instance with
   `immortal_object_bytes`, its slot an immortal string. `crates/nvs-codegen/tests/core_members.rs:70`
   gains a test that a written zone emits no call and no allocation.
-- [ ] Measure the lookup: the counts `bun nv proofs --record-perf --group 'Core\Time\Instant'` gives
+- [x] Measure the lookup: the counts `bun nv proofs --record-perf --group 'Core\Time\Instant'` gives
   for `in`, against the same member with the lookup stubbed in a scratch build under `.agent-tmp/`.
   Record the figure in the handoff. Only if the lookup is a visible share of `in`: an id-to-`TimeZone`
   table filled while compiling for written zones, and the figure goes into the rule.
@@ -298,15 +301,15 @@ the checker, IR and codegen. Their files are disjoint, and no one builds until b
 **Does:** extends the move table to static members, so stage 5 and 6 can let `nvs check --fix` do
 the renames.
 
-- [ ] `crates/nvs-stdlib/src/moved.rs:28` `MOVES`: rows for `Core\Time::fromEpoch`, `fromIso`, `parse`,
+- [x] `crates/nvs-stdlib/src/moved.rs:28` `MOVES`: rows for `Core\Time::fromEpoch`, `fromIso`, `parse`,
   `at` and `Core\Time\Date::atStartOfDay`. A row says whether it carries a fix. The test at `:45` holds a
   member row to the registry: the new member exists and the old one does not.
-- [ ] `crates/nvs-types/src/moved.rs:34` `moved_subject`: also matches the unknown-member diagnostic on a
+- [x] `crates/nvs-types/src/moved.rs:34` `moved_subject`: also matches the unknown-member diagnostic on a
   `Core` class (`E0405`), for a static call and for `use Core\Time;` then `Time::fromIso`. The fix writes
   the full new name, as `written_fix` (`:99`) does for a type.
-- [ ] `docs/rules/core-api/a-moved-name-says-where-it-went.md:1`: says a member moves too, and a member
+- [x] `docs/rules/core-api/a-moved-name-says-where-it-went.md:1`: says a member moves too, and a member
   whose arguments changed gets the help line alone.
-- [ ] `tests/conformance/lang/a-moved-core-member-says-where-it-went.nvst:1`: each of the five old names,
+- [x] `tests/conformance/lang/a-moved-core-member-says-where-it-went.nvst:1`: each of the five old names,
   with its help line, and the fix applied for the three renames. The `moved` check runs once.
 
 ### 5. every program, test and tool outside the feature proofs uses the new names
@@ -388,20 +391,15 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 is done but for measuring the zone lookup. Each time class builds
-itself (`crates/nvs-stdlib/src/time.rs`), and one reader per class, `validate_iso`, serves the member
-and the checker's `Grammar::Iso` rows.
+Stages 1 to 4 are done. A written zone is checked in `crates/nvs-types/src/zones.rs` and built once
+as `InstKind::ConstZone`. The zone lookup is about 2% of `in`, so no id-to-`TimeZone` table landed.
+`crates/nvs-stdlib/src/moved.rs` `MOVES` has a row per old constructor, and `Move::call` is the call
+to write for `at` and `atStartOfDay`. `crates/nvs-types/src/moved.rs` reads an `E0405` back, and
+`member_fix` writes the new `Class::member`, a short name included. `nvs check --fix` also deletes a
+`use Core\Time;` that is unused afterwards. The nightly failures of run 44510687786 were fixed on
+main after it ran (`4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`, `eb5c02e983`).
 
-A string literal at a `Zone` or `?Zone` parameter is checked in `crates/nvs-types/src/zones.rs`
-against `nvs_stdlib::time::written_zone`. An unknown one is `E0769` at the literal, with the near
-names as help. A valid one is recorded in `ExprTypeTable::written_zone`, under the literal's span, or
-the call's span for `Zone::of('…')` and `Zone::fixed(<duration>)`. `nvs-ir` lowers it to
-`InstKind::ConstZone`, and `Zone::UTC` folds in `emit_const_arg` (`lower/call.rs`). Codegen's
-`emit_const_zone` writes one immortal `Zone`. The editor offers zone names by segment (`Europe`, then
-`Berlin`) and hovers the current offset. The two new cases, the codegen test and both editor tests
-pass by name, and `zone-completion` is green.
-
-**Red until stage 5, as expected:** the `zones` check, for the reason below, and the `constructors` check exits 1, because `bun nv suite --case`
+**Red until stage 5, as expected:** the `zones`, `constructors` and `moved` checks exit 1, because `bun nv suite --case`
 reruns every red case, and over a hundred conformance cases still write `Core\Time::at`, `fromEpoch`, `fromIso`,
 `parse` or `atStartOfDay`. So do `crates/nvs-cli/tests/spreadsheet_reader.rs`, all 8 tests, through
 the Spreadsheet package's `Reader.nvs:178` and `:646` (`Core\Time::parse`), every example, attack
@@ -409,15 +407,11 @@ and bench under `Core/Time`, and the website snippets. The perf records of the m
 
 ### Next
 
-Stage 3's last item: measure what the name lookup costs `Instant->in` (`resolve_zone`,
-`crates/nvs-stdlib/src/time.rs`, `TimeZone::get`), with `bun nv proofs --record-perf --group
-'Core\Time\Instant'` against a scratch build with the lookup stubbed. Record the figure here, and add
-the id-to-`TimeZone` table only if it shows. Then set stage 3 to done.
-
-Stage 4 next, because stage 5 runs `nvs check --fix` with its rows. Stage 4: member rows in
-`crates/nvs-stdlib/src/moved.rs` `MOVES`, read by `crates/nvs-types/src/moved.rs` `note_moves` for an
-`E0405` (``Core\Time` has no member named `parse``, the code the old calls now get). The `moved`
-check stays red until stage 4 writes its cases. Stage 5 rewrites `Zone::of('…')` and `Zone::UTC`
-arguments to the written string where the decisions say so.
+Stage 5, following its **Split:** line. An `Explore` subagent lists the files first. Then three
+writing subagents run side by side. Each runs `target/debug/nvs.exe check --fix <files>` for the
+three renames, then rewrites `at` and `atStartOfDay` by hand, as § *Rewriting callers* says. A
+`Zone::of('…')` or `Zone::UTC` argument becomes the string literal. Then the session builds and runs
+`spreadsheet_reader` and the three stage checks once. Stage 6 may run beside stage 5, because their
+trees are disjoint.
 
 ### Backlog
