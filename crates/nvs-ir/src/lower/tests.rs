@@ -6997,6 +6997,86 @@ fn a_callback_that_can_fail_keeps_the_form_and_is_recorded() {
     );
 }
 
+/// A second read of the same value is a `W1035` on the second call, and only
+/// where the first call runs whenever its statement does and nothing between
+/// them can change the answer.
+#[test]
+fn a_second_read_of_the_same_value_warns_only_in_straight_code() {
+    let src = "<?nvs
+final class Shop {
+  private static function other(): void {}
+  public static function cache(Core\\Cache\\Store $s): void {
+    var $a = $s->get(\"k\");
+    echo \"between\";
+    var $b = $s->get(\"k\");
+    var $c = $s->get(\"k\");
+  }
+  public static function query(Core\\Uri $u): void {
+    var $a = $u->queryParameter(\"a\");
+    var $b = $u->queryParameter(\"b\");
+  }
+  public static function file(string $p): void {
+    var $a = Core\\IO::isFile($p);
+    var $b = Core\\IO::size($p);
+  }
+  public static function branch(Core\\Cache\\Store $s, bool $f): void {
+    if ($f) {
+      $s->get(\"k\");
+    }
+    $s->get(\"k\");
+  }
+  public static function and(string $p, bool $f): void {
+    var $a = $f && Core\\IO::isFile($p);
+    var $b = Core\\IO::isFile($p);
+  }
+  public static function assigned(string $q): void {
+    string $p = $q;
+    var $a = Core\\IO::isDir($p);
+    $p = \"other\";
+    var $b = Core\\IO::isDir($p);
+  }
+  public static function novis(Core\\Uri $u): void {
+    var $a = $u->queryParameter(\"a\");
+    self::other();
+    var $b = $u->queryParameter(\"b\");
+  }
+  public static function callable(Core\\Cache\\Store $s, callable $f): void {
+    var $a = $s->get(\"k\");
+    $f();
+    var $b = $s->get(\"k\");
+  }
+  public static function keys(Core\\Cache\\Store $s): void {
+    var $a = $s->get(\"k\");
+    var $b = $s->get(\"j\");
+  }
+  public static function callback(Core\\Cache\\Store $s, array<int> $l, callable(int): int $f): void {
+    var $a = $s->get(\"k\");
+    var $m = Core\\Arr::map($l, $f);
+    var $b = $s->get(\"k\");
+  }
+}
+";
+    let program = lower_whole_file_with_src(src).0;
+    let warnings = crate::rereads::warnings(&program.rereads);
+    let line_of = |span: nvs_diagnostics::Span| src[..span.start as usize].lines().count();
+    let found: Vec<_> = warnings
+        .iter()
+        .map(|w| (w.code, line_of(w.primary_span().expect("a primary label"))))
+        .collect();
+    let w = Some(nvs_diagnostics::code::W_REPEATED_READ);
+    assert_eq!(
+        found,
+        vec![(w, 7), (w, 8), (w, 12), (w, 16)],
+        "{warnings:#?}"
+    );
+    assert!(
+        warnings[0].message.contains("cache key `k`"),
+        "{warnings:#?}"
+    );
+    assert!(warnings[2].message.contains("query"), "{warnings:#?}");
+    assert!(warnings[3].message.contains("`$p`"), "{warnings:#?}");
+}
+
 /// A recorded form is a `W1034` over the written form. Its message names the
 /// member to use, and its one fix is the fast form's text, marked an
 /// alternative so no batch applies it.

@@ -46,6 +46,9 @@ pub struct Program {
     /// in the order the pass found them ([`crate::forms::run`]). Empty when
     /// the cheaper forms are switched off.
     pub forms: Vec<crate::forms::Recorded>,
+    /// Every second call of a reading `Core` member that does the first
+    /// one's work again, in the order of each file ([`crate::rereads::find`]).
+    pub rereads: Vec<crate::rereads::Reread>,
 }
 
 impl Program {

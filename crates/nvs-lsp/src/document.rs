@@ -1363,10 +1363,11 @@ pub(crate) fn analyse_through(
 }
 
 /// The `W1032` and `W1033` warnings of the entry file
-/// (`rule:types/a-replaced-value-is-changed-in-place`), and its `W1034`
+/// (`rule:types/a-replaced-value-is-changed-in-place`), and its `W1034` and
+/// `W1035`
 /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`):
-/// the program is lowered as `nvs check` lowers it, and the ownership pass's
-/// and the forms pass's tables give each one, so the editor and the compiler
+/// the program is lowered as `nvs check` lowers it, and the ownership pass's,
+/// the forms pass's and the rereads' tables give each one, so the editor and the compiler
 /// cannot disagree.
 ///
 /// A lowering that panics is a compiler bug that `nvs check` shows. Here it
@@ -1399,6 +1400,7 @@ fn copy_warnings(
     };
     let mut warnings = nvs_ir::copies::warnings(&program.copies, map);
     warnings.extend(nvs_ir::forms::warnings(&program.forms));
+    warnings.extend(nvs_ir::rereads::warnings(&program.rereads));
     warnings
         .into_iter()
         .filter(|warning| {

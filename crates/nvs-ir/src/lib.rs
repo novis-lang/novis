@@ -631,6 +631,7 @@ pub mod ir;
 pub mod lower;
 pub mod ownership;
 pub mod print;
+pub mod rereads;
 pub mod ty;
 
 pub use ir::{Function, Program, QuerySite};

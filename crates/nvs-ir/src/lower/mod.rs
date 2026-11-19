@@ -1531,6 +1531,9 @@ fn lower_program_as(
     } else {
         Vec::new()
     };
+    // The same value read twice is a warning alone, so it is found on the
+    // written tree and changes nothing that is compiled.
+    let rereads = crate::rereads::find(files, exprs, checked_types);
     // The lowering decides no move; the ownership pass decides every one, and
     // the off switch skips it whole.
     let copies = if in_place_on() {
@@ -1548,6 +1551,7 @@ fn lower_program_as(
         cheaper_forms: cheaper_forms_on(),
         copies,
         forms,
+        rereads,
     }
 }
 

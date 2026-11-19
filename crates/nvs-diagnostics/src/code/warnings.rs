@@ -364,4 +364,18 @@ codes! {
          faster form may not throw an error that this code throws. Use the faster form if that \
          error does not matter for the calls it skips.",
     );
+    /// Two calls of one reading `Core` member in one function, where the
+    /// second does the work of the first again: a cache key read twice, a
+    /// query parsed twice, or the file system asked twice about one path
+    /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+    /// Raised only where nothing between the two calls can change the result.
+    /// `nvs_ir::rereads::warnings` raises it from the program's rows, for
+    /// `nvs check` and for the editor. It has no fix, because the fix needs a
+    /// variable name.
+    pub const W_REPEATED_READ: Code = Code::new("W1035").card(
+        "This code reads the same value twice. The second call does all the work of the first \
+         call again. Keep the first result in a variable and use it both times. For several \
+         facts about one file path, call `Core\\IO::stat` once. For several query parameters, \
+         call `Core\\Uri::parseQuery` once.",
+    );
 }

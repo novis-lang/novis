@@ -96,7 +96,9 @@ more function for each comparator row. At run time, nothing.
 **Two warnings, both raised by the compiler once.** A form the compiler could not choose is `W1034`,
 raised by `nvs_ir::forms::warnings` from the table's pass's own decision, never from a second
 analysis, so the editor and `nvs check` cannot disagree. Its span is the written form, its message
-names the member to use, and its one fix is the fast form's text as an `alternative`. The same value read twice warns where two calls of one reading member in one
+names the member to use, and its one fix is the fast form's text as an `alternative`. The same
+value read twice is `W1035`, found on the written tree by `nvs_ir::rereads::find` and raised by its
+`warnings`, and a `Core` call between the two that takes a callable stops it as a Novis call does. The same value read twice warns where two calls of one reading member in one
 function do the same work again: `Core\Session::get` of one key, `get` on a cache store of one key,
 two or more `queryParameter` calls on one `Core\Uri`, and two or more of `Core\IO::isFile`, `isDir`,
 `size` and `modifiedAt` on one path. It carries no fix, because the fix needs a variable name. The
