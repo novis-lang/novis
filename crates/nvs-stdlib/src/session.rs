@@ -1,24 +1,25 @@
 //! `rule:http-server/a-session-store-answers-five-operations`'s session store:
-//! the identifier a store issues, the record it keeps under it, and the two directives that decide
-//! where that store is and how long a record survives.
+//! the identifier a store issues, the keys it keeps under it, and the two directives that decide
+//! where that store is and how long a session survives.
 //!
 //! **What is on disk is the store `rule:http-server/a-session-store-answers-five-operations` names
-//! and all seven members of `rule:core-api/session-roster`.** The four operations a backend
-//! answers are here — [`mint`], [`load`], [`create`], [`replace`], [`destroy`] and the key they
-//! share — over the shared tier's wire, and [`sqlite`]'s over the data folder's SQLite file.
-//! `create` is the only write that inserts a row, and `replace` changes only a row that still
-//! exists, so a destroyed session stays destroyed. [`opened`] picks
-//! one as a [`Store`], and [`nvs_core_session_start`] is the member that reaches it: it takes the
-//! identifier the client presented, loads the record the store issued it for, and opens a fresh,
-//! empty one where there is none, which reaches the store only once something is written to it.
-//! The other six operate on the record `start` left on the request
-//! ([`nvs_runtime::Session`]), and each of them throws until `start` has run — the whole benefit
+//! and all seven members of `rule:core-api/session-roster`.** The five operations a backend
+//! answers are here — [`issue`], [`load`], [`save`], [`relocate`] (the rule's `move`) and
+//! [`destroy`], with [`mint`] and the key they share — over the shared tier's wire, one hash per
+//! session, and [`sqlite`]'s over the data folder's SQLite file. `issue` is the only write that
+//! creates a session, and `save` and `move` change only a session that still exists, so a
+//! destroyed session stays destroyed. [`opened`] picks one as a [`Store`], and
+//! [`nvs_core_session_start`] is the member that reaches it: it takes the identifier the client
+//! presented, loads every key the store keeps under it, and opens a fresh, empty session where
+//! there is none, which reaches the store only once something is written to it. The other six
+//! operate on the session `start` left on the request ([`nvs_runtime::Session`]), and each of them
+//! throws until `start` has run — the whole benefit
 //! `rule:core-classes/session-is-started-explicitly` was buying, and worth nothing if
 //! the first `get` can silently start one.
 //!
 //! **The write-back of `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` is on disk
-//! too.** [`write_back`] marks the record changed on the request,
-//! [`send_at_end`] sends it when the program that opened it ends, and
+//! too.** [`write`] changes one key on the request and marks it touched, [`send_at_end`] sends the
+//! touched keys when the program that opened the session ends, and
 //! [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`] reach the store as they land
 //! because that rule makes those two immediate. The section below is where the send is decided.
 //!
@@ -134,7 +135,7 @@ use nvs_config::session::Backend;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, TraceKind, Value};
 use nvs_syntax::duration;
 
-use crate::cache::redis::Connection;
+use crate::cache::redis::{Connection, Renamed, Replay};
 use crate::cache::{application, bound, configured, on_shared, open_configured, sealed_key};
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -163,7 +164,7 @@ const CARD: ClassDoc = ClassDoc {
 /// what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
 /// `start` is the member that talks to the store — [`crate::session`]'s own
 /// module doc owns which of
-/// `rule:http-server/a-session-store-answers-five-operations`'s four operations are on disk, why the local
+/// `rule:http-server/a-session-store-answers-five-operations`'s five operations are on disk, why the local
 /// tier is unreachable from there rather than merely unselected, and why a
 /// presented identifier this store cannot have issued is *absent* rather
 /// than a second question about validity.
@@ -352,8 +353,8 @@ const GET_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The saved session contains an object of a class this program does not declare. \
-                   This happens when another program saved it.",
+            desc: "The value under `$key` contains an object of a class this program does not \
+                   declare. This happens when another program saved it.",
         },
     ],
 };
@@ -376,8 +377,10 @@ const SET_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. The session is saved to the store once, when the request ends. The first \
-          value saved in a new session also sends the session cookie.",
+    ret: "Nothing. When the request ends, the keys it changed are saved to the store. The first \
+          value saved in a new session also sends the session cookie. Two requests that change \
+          different keys at the same time keep both changes. If they change the same key, the \
+          request that ends last wins.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -390,10 +393,6 @@ const SET_DOC: MethodDoc = MethodDoc {
             desc: "`$value` cannot be saved: it is a callable or a resource, or it contains one. \
                    It is also thrown on the first save in a new session after the response was \
                    sent, because the cookie cannot be sent then.",
-        },
-        ErrorDoc {
-            error: "ParseError",
-            desc: "As `get()`, because `set()` reads the whole session first.",
         },
     ],
 };
@@ -409,22 +408,11 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     }],
     ret: "Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values. \
           To delete every key, use `clear()`.",
-    errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-                   session to change.",
-        },
-        ErrorDoc {
-            error: "LogicError",
-            desc: "As `set()`. The values that are left are saved again, and a value `set()` does \
-                   not allow cannot be saved.",
-        },
-        ErrorDoc {
-            error: "ParseError",
-            desc: "As `get()`, because `remove()` reads the whole session first.",
-        },
-    ],
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "This request has not called `start()`, or it called `destroy()`. There is no \
+               session to change.",
+    }],
 };
 
 /// `Core\Session::clear`'s reference card — `rule:core-api/reference-card`.
@@ -432,8 +420,10 @@ const CLEAR_DOC: MethodDoc = MethodDoc {
     short: "Removes every value from the session of this request. The session stays open and \
             keeps its identifier.",
     params: &[],
-    ret: "Nothing. The client keeps the same session cookie, and `set()` works again at once. To \
-          end the session completely, for example when a user signs out, use `destroy()`.",
+    ret: "Nothing. The client keeps the same session cookie, and `set()` works again at once. When \
+          the request ends, every key in the store is deleted. This also deletes keys that \
+          another request saved in the meantime. Keys you set after `clear()` are saved. To end \
+          the session completely, for example when a user signs out, use `destroy()`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "This request has not called `start()`, or it called `destroy()`. There is no \
@@ -446,8 +436,9 @@ const REGENERATE_DOC: MethodDoc = MethodDoc {
     short: "Gives the session a new identifier and deletes the old one from the store. Call it \
             when a user signs in, so an identifier that somebody else knew stops working.",
     params: &[],
-    ret: "Nothing. The data in the session does not change. The response sends the new identifier \
-          in the session cookie. The old identifier no longer finds the session.",
+    ret: "Nothing. Every key in the session is kept, also a key that another request saved in \
+          the meantime. The response sends the new identifier in the session cookie. The old \
+          identifier no longer finds the session.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -509,7 +500,8 @@ const SET_SECRET_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "Nothing. The session is saved to the store once, when the request ends.",
+    ret: "Nothing. The secret is saved to the store when the request ends, as `set()` saves a \
+          value.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -519,10 +511,6 @@ const SET_SECRET_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "`$keys` is empty, or its first key is not 32 bytes long.",
-        },
-        ErrorDoc {
-            error: "ParseError",
-            desc: "As `get()`, because `setSecret()` reads the whole session first.",
         },
     ],
 };
@@ -561,7 +549,9 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "As `get()`, because `getSecret()` reads the whole session first.",
+            desc: "The value under the secret's key contains an object of a class this program \
+                   does not declare. This happens only when a program used `set()` to save a \
+                   value there.",
         },
     ],
 };
@@ -571,8 +561,142 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 ///
 /// [`crate::ratelimit`]'s `PREFIX` is the same decision, and the two must not collide: a session id
 /// is drawn and a limiter's key is application-supplied, so without the prefixes an application
-/// could name a limiter key that reads a session record.
-pub(crate) const PREFIX: &str = "nvs:session:";
+/// could name a limiter key that reads a session.
+///
+/// `-keys` names the layout: one hash per session, so an entry an earlier build wrote as one string
+/// under `nvs:session:` is never read as a hash. Those expire by their own lifetime.
+pub(crate) const PREFIX: &str = "nvs:session-keys:";
+
+/// A session's keys and their encoded values, as a store loads them and the request keeps them.
+pub(crate) type Entries = std::collections::BTreeMap<Vec<u8>, Vec<u8>>;
+
+/// What every session key's field in the shared store's hash starts with.
+///
+/// The one other field is `m`, which [`ISSUE`] and [`SAVE`] write. It holds the session's counted
+/// size, and it keeps a session with no keys in the store: Redis deletes a hash when its last field
+/// goes, and the next write-back would then find the session destroyed. A program cannot reach `m`,
+/// because every field a program writes starts with this.
+const KEY_FIELD: &[u8] = b"k:";
+
+/// The bytes each session key costs beyond its name and value in the counted size: `HGETALL`'s RESP
+/// framing for one field and one value.
+const FRAMING: usize = 32;
+
+/// The most counted bytes the shared store keeps under one session.
+///
+/// [`crate::cache::redis::REPLY_CEILING`] bounds the one reply `HGETALL` reads at `start`, so a
+/// session past it could never be loaded again until it expired. 64 KiB is left for `m`, the
+/// reply's own framing and the counting's rounding.
+const SIZE_CEILING: usize = crate::cache::redis::REPLY_CEILING - 64 * 1024;
+
+/// The most session keys the shared store keeps under one session: `HGETALL`'s element ceiling, as
+/// fields, less the one `m` takes.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "32 767 fits every pointer width Novis builds for"
+)]
+const KEY_CEILING: usize = (crate::cache::redis::STRING_ELEMENT_CEILING / 2) as usize - 1;
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `issue` on the shared store, run where
+/// the session lives.
+///
+/// `KEYS[1]` is the session's hash. `ARGV[1]` is the lifetime in milliseconds, `ARGV[2]` the counted
+/// size, and every pair after it a field and its value. It answers `{0}` for a key that exists, which
+/// keeps what it has, and `{1}` once the hash is written. Each field is written by its own `HSET`, so
+/// no call takes more arguments than Lua's stack holds.
+const ISSUE: &str = "\
+if redis.call('EXISTS', KEYS[1]) == 1 then return {0} end
+redis.call('HSET', KEYS[1], 'm', ARGV[2])
+for i = 3, #ARGV, 2 do redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1]) end
+redis.call('PEXPIRE', KEYS[1], ARGV[1])
+return {1}";
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `save` on the shared store, run where
+/// the session lives.
+///
+/// `KEYS[1]` is the session's hash. `ARGV[1]` is the lifetime in milliseconds, `ARGV[2]` is `1` when
+/// the request called `clear`, `ARGV[3]` the size ceiling, `ARGV[4]` the key ceiling, and `ARGV[5]`
+/// how many removed fields follow. Every pair after those is a changed field and its value.
+///
+/// It answers `{0}` for a session that is gone and writes nothing. Then it counts the new size: `m`,
+/// less each old field it replaces or removes, plus each new one, each field as its name, its value
+/// and [`FRAMING`]. A size or a key count past its ceiling answers `{-1, size}` and writes nothing.
+/// Otherwise it deletes every key on `clear`, deletes the removed fields, sets the changed ones and
+/// `m`, refreshes the expiry, and answers `{1, size}`. Each step reads the hash as it is then, so a
+/// second run leaves the same hash.
+const SAVE: &str = "\
+local key = KEYS[1]
+if redis.call('EXISTS', key) == 0 then return {0} end
+local cleared = ARGV[2] == '1'
+local first = 6 + tonumber(ARGV[5])
+local size, count = 0, 0
+if not cleared then
+  size = tonumber(redis.call('HGET', key, 'm')) or 0
+  count = redis.call('HLEN', key) - 1
+end
+for i = 6, #ARGV do
+  local changed = i >= first
+  if (not changed or (i - first) % 2 == 0) and not cleared and redis.call('HEXISTS', key, ARGV[i]) == 1 then
+    size = size - #ARGV[i] - redis.call('HSTRLEN', key, ARGV[i]) - 32
+    count = count - 1
+  end
+  if changed and (i - first) % 2 == 0 then
+    size = size + #ARGV[i] + #ARGV[i + 1] + 32
+    count = count + 1
+  end
+end
+if size > tonumber(ARGV[3]) or count > tonumber(ARGV[4]) then return {-1, size} end
+if cleared then
+  for _, field in ipairs(redis.call('HKEYS', key)) do
+    if field ~= 'm' then redis.call('HDEL', key, field) end
+  end
+end
+for i = 6, first - 1 do redis.call('HDEL', key, ARGV[i]) end
+for i = first, #ARGV, 2 do redis.call('HSET', key, ARGV[i], ARGV[i + 1]) end
+redis.call('HSET', key, 'm', size)
+redis.call('PEXPIRE', key, ARGV[1])
+return {1, size}";
+
+/// One request's changes to its session, as the write-back sends them to `save`.
+#[derive(Debug, Default)]
+pub(crate) struct Changes<'a> {
+    /// Whether the request called `clear`, so every key the store holds is deleted first.
+    pub(crate) cleared: bool,
+    /// The keys the request removed.
+    pub(crate) removed: Vec<&'a [u8]>,
+    /// The keys the request set, each with its encoded value.
+    pub(crate) changed: Vec<(&'a [u8], &'a [u8])>,
+}
+
+impl<'a> Changes<'a> {
+    /// The changes `open` owes the store: each touched key with a value is a change, and each one
+    /// without is a removal.
+    fn of(open: &'a nvs_runtime::Session) -> Self {
+        let mut changes = Self {
+            cleared: open.cleared,
+            ..Self::default()
+        };
+        for key in &open.touched {
+            match open.entries.get(key) {
+                Some(value) => changes.changed.push((key, value)),
+                None => changes.removed.push(key),
+            }
+        }
+        changes
+    }
+}
+
+/// What `save` did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Saved {
+    /// The changes are written, and the expiry is refreshed.
+    Done,
+    /// The session is gone, and nothing was written.
+    Gone,
+    /// The session would have been this many counted bytes, past the shared store's ceiling, and
+    /// nothing was written.
+    TooLarge(i64),
+}
 
 /// `[session] backend` — `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s store, as `nvs_config::session::Backend` spells it.
 const BACKEND: &str = "session.backend";
@@ -648,7 +772,7 @@ pub(crate) enum Store {
     File(std::path::PathBuf),
 }
 
-/// The store this deployment's records live in, ready for one of the four operations.
+/// The store this deployment's sessions live in, ready for one of the five operations.
 ///
 /// `shared` opens this core's connection, so a store that is unconfigured or not granted throws
 /// here. `db`, which is also the store a tree that writes no `backend` gets, is the data folder's
@@ -682,51 +806,90 @@ pub(crate) fn opened(ctx: &Ctx, member: &str, remedy: &str) -> Result<Store, Fau
 ///
 /// A thrown `IOError` for a store that cannot be reached. Never an answer that looks like absence:
 /// [`load`]'s doc says why.
-fn fetched(store: &Store, app: &[u8], member: &str, id: &str) -> Result<Option<Vec<u8>>, Fault> {
+fn fetched(store: &Store, app: &[u8], member: &str, id: &str) -> Result<Option<Entries>, Fault> {
     match store {
         Store::Shared => on_shared(NAME, member, |open| load(open, app, id)),
         Store::File(path) => on_file(member, sqlite::load(path, app, id)),
     }
 }
 
-/// `create` on `store`, as [`fetched`]: `true` once a new row holds `record`, and `false` for an
-/// `id` that already has a live row, which keeps its record.
+/// `issue` on `store`, as [`fetched`]: `true` once a new session holds `entries`, and `false` for an
+/// `id` that is already live, which keeps what it has.
 ///
 /// # Errors
 ///
-/// As [`fetched`].
-fn created(
+/// As [`fetched`], and a thrown `RuntimeError` for `entries` past the shared store's ceiling.
+fn issued(
     store: &Store,
     app: &[u8],
     member: &str,
     id: &str,
-    record: &[u8],
+    entries: &Entries,
     ttl: Duration,
 ) -> Result<bool, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| create(open, app, id, record, ttl)),
-        Store::File(path) => on_file(member, sqlite::create(path, app, id, record, ttl)),
+        Store::Shared => {
+            let size = counted(entries);
+            if size > SIZE_CEILING || entries.len() > KEY_CEILING {
+                return Err(too_large(member, size));
+            }
+            on_shared(NAME, member, |open| issue(open, app, id, entries, size, ttl))
+        }
+        Store::File(path) => on_file(member, sqlite::issue(path, app, id, entries, ttl)),
     }
 }
 
-/// `replace` on `store`, as [`fetched`]: `true` once the live row under `id` holds `record`, and
-/// `false` for an `id` with no live row, which stays absent.
+/// `save` on `store`, as [`fetched`]: what it did with `changes` to the session under `id`.
 ///
 /// # Errors
 ///
 /// As [`fetched`].
-fn replaced(
+fn saved(
     store: &Store,
     app: &[u8],
     member: &str,
     id: &str,
-    record: &[u8],
+    changes: &Changes<'_>,
     ttl: Duration,
-) -> Result<bool, Fault> {
+) -> Result<Saved, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| replace(open, app, id, record, ttl)),
-        Store::File(path) => on_file(member, sqlite::replace(path, app, id, record, ttl)),
+        Store::Shared => on_shared(NAME, member, |open| save(open, app, id, changes, ttl)),
+        Store::File(path) => on_file(member, sqlite::save(path, app, id, changes, ttl)).map(
+            |done| {
+                if done { Saved::Done } else { Saved::Gone }
+            },
+        ),
     }
+}
+
+/// `move` on `store`, as [`fetched`]: the session under `old` moved to `new`, the new one taken, or
+/// the old one gone.
+///
+/// # Errors
+///
+/// As [`fetched`].
+fn moved(store: &Store, app: &[u8], member: &str, old: &str, new: &str) -> Result<Renamed, Fault> {
+    match store {
+        Store::Shared => on_shared(NAME, member, |open| relocate(open, app, old, new)),
+        Store::File(path) => on_file(member, sqlite::relocate(path, app, old, new)),
+    }
+}
+
+/// The size the shared store counts for `entries`, as the write-back script counts it: each key's
+/// field name, its value, and [`FRAMING`].
+fn counted(entries: &Entries) -> usize {
+    entries
+        .iter()
+        .map(|(key, value)| KEY_FIELD.len() + key.len() + value.len() + FRAMING)
+        .sum()
+}
+
+/// The throw for a session the shared store would not keep, naming its size.
+fn too_large(member: &str, size: impl std::fmt::Display) -> Fault {
+    Fault::thrown(format!(
+        "{NAME}::{member}: the session would be {size} bytes. The shared store keeps at most \
+         {SIZE_CEILING} bytes and {KEY_CEILING} keys for one session."
+    ))
 }
 
 /// `destroy` on `store`, as [`fetched`]: whether a row was deleted.
@@ -806,16 +969,27 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// The store's own failure as text, for [`crate::cache::on_shared`] to classify. Never an answer
 /// that looks like absence: a store that cannot be reached must not read as a forged id, because
 /// the two have opposite responses.
-pub(crate) fn load(open: &mut Connection, app: &[u8], id: &str) -> Result<Option<Vec<u8>>, String> {
-    open.get(&key_of(app, id))
+pub(crate) fn load(open: &mut Connection, app: &[u8], id: &str) -> Result<Option<Entries>, String> {
+    let Some(fields) = open.hash_all(&key_of(app, id))? else {
+        return Ok(None);
+    };
+    // `m` and any field without the key prefix are the store's own, and never a key.
+    Ok(Some(
+        fields
+            .into_iter()
+            .filter_map(|(field, value)| {
+                field
+                    .strip_prefix(KEY_FIELD)
+                    .map(|key| (key.to_vec(), value))
+            })
+            .collect(),
+    ))
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `destroy` — the record under `id`,
-/// forgotten, and whether there was one.
+/// `rule:http-server/a-session-store-answers-five-operations`'s `destroy` — the session under `id`,
+/// deleted, and whether there was one. `DEL` of its hash.
 ///
-/// One key, as [`create`] writes one: a session is one entry, so there is nothing here that a
-/// store with no multi-key atomic step could not do. `false` tells `regenerate` that another
-/// request destroyed the session first.
+/// `false` tells `regenerate` that another request destroyed the session first.
 ///
 /// # Errors
 ///
@@ -824,49 +998,113 @@ pub(crate) fn destroy(open: &mut Connection, app: &[u8], id: &str) -> Result<boo
     open.del(&key_of(app, id))
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `issue` — a new entry under `id`,
-/// and whether it was written. `SET … NX PX`: `false` is a key that already holds a record, which
-/// keeps it.
-///
-/// The whole record and not one key of it, per
-/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: one session is one entry, which
-/// is what keeps `clear`, `regenerate` and `destroy` single-key operations over a store
-/// `rule:core-classes/ratelimit-two-members` gives no multi-key atomic step.
-///
-/// The expiry is the store's own, per `rule:http-server/session-expiry-belongs-to-the-store`: a
-/// record written with no expiry at all is the sweeper that rule declines coming back.
-///
-/// # Errors
-///
-/// As [`load`].
-pub(crate) fn create(
-    open: &mut Connection,
-    app: &[u8],
-    id: &str,
-    record: &[u8],
-    ttl: Duration,
-) -> Result<bool, String> {
-    open.set_if_absent(&key_of(app, id), record, ttl)
+/// The hash field a session key is kept under: [`KEY_FIELD`] and the key.
+fn field_of(key: &[u8]) -> Vec<u8> {
+    let mut field = Vec::with_capacity(KEY_FIELD.len() + key.len());
+    field.extend_from_slice(KEY_FIELD);
+    field.extend_from_slice(key);
+    field
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `save` — the record under `id`
-/// replaced, with its expiry refreshed, **only while the entry still exists**, and whether it did.
-/// `SET … XX PX`: `false` is a key that is gone, and it stays gone.
+/// A lifetime in whole milliseconds, as `PEXPIRE` takes it, and never zero.
+fn millis(ttl: Duration) -> Vec<u8> {
+    ttl.as_millis().max(1).to_string().into_bytes()
+}
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `issue` — a new session under `id`
+/// holding `entries`, and whether it was written. One `EVAL` of [`ISSUE`]: `false` is a key that
+/// already exists, which keeps what it has.
 ///
-/// That is what keeps a destroyed session destroyed: a request that loaded the session before
-/// another request destroyed it cannot write the row back at its end. As [`create`] for the rest.
+/// `size` is [`counted`]'s, which the caller has already held to the ceiling. The expiry is the
+/// store's own, per `rule:http-server/session-expiry-belongs-to-the-store`. A lost reply is not
+/// replayed past a request that reached the store: a replay would find the key its own first run
+/// wrote, and answer `false` about it.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn replace(
+pub(crate) fn issue(
     open: &mut Connection,
     app: &[u8],
     id: &str,
-    record: &[u8],
+    entries: &Entries,
+    size: usize,
     ttl: Duration,
 ) -> Result<bool, String> {
-    open.set_if_present(&key_of(app, id), record, ttl)
+    let fields: Vec<Vec<u8>> = entries.keys().map(|key| field_of(key)).collect();
+    let (ttl, size) = (millis(ttl), size.to_string().into_bytes());
+    let mut argv: Vec<&[u8]> = Vec::with_capacity(2 + 2 * entries.len());
+    argv.push(&ttl);
+    argv.push(&size);
+    for (field, value) in fields.iter().zip(entries.values()) {
+        argv.push(field);
+        argv.push(value);
+    }
+    let answer = open.eval(ISSUE, &key_of(app, id), &argv, Replay::OnlyIfUnsent)?;
+    match answer.as_slice() {
+        [1] => Ok(true),
+        [0] => Ok(false),
+        other => Err(format!("the issue script answered {other:?}")),
+    }
+}
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `save` — one request's `changes`
+/// applied to the session under `id`, with its expiry refreshed, **only while the session still
+/// exists**. One `EVAL` of [`SAVE`].
+///
+/// That is what keeps a destroyed session destroyed: a request that loaded the session before
+/// another request destroyed it writes nothing at its end. A lost reply is replayed, because a second
+/// run leaves the same hash.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn save(
+    open: &mut Connection,
+    app: &[u8],
+    id: &str,
+    changes: &Changes<'_>,
+    ttl: Duration,
+) -> Result<Saved, String> {
+    let removed: Vec<Vec<u8>> = changes.removed.iter().map(|key| field_of(key)).collect();
+    let changed: Vec<Vec<u8>> = changes.changed.iter().map(|(key, _)| field_of(key)).collect();
+    let ttl = millis(ttl);
+    let ceiling = SIZE_CEILING.to_string().into_bytes();
+    let keys = KEY_CEILING.to_string().into_bytes();
+    let count = removed.len().to_string().into_bytes();
+    let mut argv: Vec<&[u8]> = Vec::with_capacity(5 + removed.len() + 2 * changed.len());
+    argv.push(&ttl);
+    argv.push(if changes.cleared { b"1" } else { b"0" });
+    argv.push(&ceiling);
+    argv.push(&keys);
+    argv.push(&count);
+    argv.extend(removed.iter().map(Vec::as_slice));
+    for (field, (_, value)) in changed.iter().zip(&changes.changed) {
+        argv.push(field);
+        argv.push(value);
+    }
+    let answer = open.eval(SAVE, &key_of(app, id), &argv, Replay::Idempotent)?;
+    match answer.as_slice() {
+        [1, _] => Ok(Saved::Done),
+        [0] => Ok(Saved::Gone),
+        [-1, size] => Ok(Saved::TooLarge(*size)),
+        other => Err(format!("the save script answered {other:?}")),
+    }
+}
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `move` — the session under `old`
+/// renamed to `new` with its expiry, as one `RENAMENX`.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn relocate(
+    open: &mut Connection,
+    app: &[u8],
+    old: &str,
+    new: &str,
+) -> Result<Renamed, String> {
+    open.rename_if_absent(&key_of(app, old), &key_of(app, new))
 }
 
 /// How long an identifier [`mint`] draws renders to, derived from the draw rather than written.
@@ -972,12 +1210,11 @@ nvs_runtime::nvs_helper! {
         .filter(|id| issuable(id));
         let opened = match presented {
             Some(id) => fetched(&store, crate::cache::application(ctx), "start", &id)?
-                .map(|record| nvs_runtime::Session {
+                .map(|entries| nvs_runtime::Session {
                     id,
-                    record,
-                    dirty: false,
+                    entries,
                     stored: true,
-                    write_back: send_at_end,
+                    ..fresh_session()
                 }),
             None => None,
         };
@@ -996,7 +1233,9 @@ nvs_runtime::nvs_helper! {
 fn fresh_session() -> nvs_runtime::Session {
     nvs_runtime::Session {
         id: String::new(),
-        record: Vec::new(),
+        entries: Entries::new(),
+        touched: std::collections::BTreeSet::new(),
+        cleared: false,
         dirty: false,
         stored: false,
         write_back: send_at_end,
@@ -1081,7 +1320,7 @@ fn secret_at<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// and the application can all be the same, and the first octet under the tag is not.
 const SEAL_DOMAIN: u8 = 2;
 
-/// Seals `value` under the ring's newest key and writes it into `held` under the sealed name.
+/// Seals `value` under the ring's newest key and writes it into the session under the sealed name.
 ///
 /// **The additional data is the domain octet, the application and the key, and never the session
 /// identifier** — `rule:http-server/a-session-holds-a-secret-only-sealed`: `regenerate` issues a
@@ -1093,10 +1332,9 @@ const SEAL_DOMAIN: u8 = 2;
 /// # Errors
 ///
 /// [`crate::keyring`]'s `LogicError` for a ring whose newest entry is not a key, and a
-/// `RuntimeError` for a sealed value this process cannot spare the buffer for.
+/// `RuntimeError` for a sealed value this process cannot spare the buffer for, and [`write`]'s.
 fn sealed_into(
     ctx: &mut Ctx,
-    held: &mut NvsArray,
     key: &str,
     value: &[u8],
     ring: &NvsArray,
@@ -1106,47 +1344,35 @@ fn sealed_into(
     let cipher = crate::keyring::cipher_at(&newest, slot, who)?;
     let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
     let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, value, who)?;
-    held.set(
-        NvsStr::new(&sealed_key(key.as_bytes())),
-        Value::bytes(NvsStr::new(&sealed)),
-    );
-    Ok(())
+    let encoded = encoded(Value::bytes(NvsStr::new(&sealed)), "setSecret")?;
+    write(ctx, "setSecret", &sealed_key(key.as_bytes()), Some(encoded))
 }
 
-/// The secret `held` carries under `key`, or `None` for every way of not opening one.
+/// The secret the session carries under `key`, or `None` for every way of not opening one.
 ///
 /// **Every way of not opening is the same miss**, which is [`crate::cache`]'s answer at its own
 /// sealed door and buys the same thing: a caller that could tell a rotated ring from a tampered
 /// payload would learn something about the ring from a value it cannot read. Every key of the ring
 /// is tried rather than the newest alone, so a value sealed before a rotation stays readable.
 ///
-/// A record entry in the sealed space that is not bytes is that same miss. A program can reach the
+/// A session value in the sealed space that is not bytes is that same miss. A program can reach the
 /// space — a session key is arbitrary text, and `set` will write whatever it is handed under one —
 /// and what it finds there is a value no ring opens. A plaintext that opens but is not UTF-8 is the
 /// same miss too, because a `string` must be UTF-8.
 ///
 /// # Errors
 ///
-/// [`crate::keyring`]'s `LogicError` for an entry of the ring that is not a key, and a
-/// `RuntimeError` for a plaintext this process cannot spare the buffer for.
-fn opened_from(
-    ctx: &Ctx,
-    held: &NvsArray,
-    key: &str,
-    ring: &NvsArray,
-    who: &str,
-) -> Result<Option<Value>, Fault> {
-    let Some(found) = held.get(&sealed_key(key.as_bytes())) else {
-        return Ok(None);
-    };
-    let Some(sealed) = found.as_bytes() else {
+/// [`read_bytes`]'s, [`crate::keyring`]'s `LogicError` for an entry of the ring that is not a key,
+/// and a `RuntimeError` for a plaintext this process cannot spare the buffer for.
+fn opened_from(ctx: &Ctx, key: &str, ring: &NvsArray, who: &str) -> Result<Option<Value>, Fault> {
+    let Some(sealed) = read_bytes(ctx, "getSecret", &sealed_key(key.as_bytes()))? else {
         return Ok(None);
     };
 
     let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
     for (slot, entry) in crate::keyring::entries(ring) {
         let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
-        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, sealed, who)?
+        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, &sealed, who)?
             && let Ok(text) = std::str::from_utf8(&plain)
         {
             return Ok(Some(Value::text(text)));
@@ -1155,105 +1381,101 @@ fn opened_from(
     Ok(None)
 }
 
-/// The record this request has open, decoded — or an empty array where it holds none.
+/// The value this request's session holds under `key`, decoded, with one reference that is the
+/// caller's — or `None` where it holds none.
 ///
-/// Every member below reaches the record through this and none of them reads
-/// [`nvs_runtime::Session`]'s bytes directly, because the decode is where a record naming a class
+/// Every member below reads a value through this and none of them decodes
+/// [`nvs_runtime::Session`]'s bytes directly, because the decode is where a value naming a class
 /// this unit cannot resolve is refused and a second reader would be a second place that could
-/// forget. An empty record is zero bytes rather than the encoding of an empty array — that
-/// struct's own doc owns why — so the empty case builds an array here and decodes nothing.
+/// forget. Only `key`'s own value is decoded, so a `get` costs one value's walk, whatever else the
+/// session holds.
 ///
 /// # Errors
 ///
-/// [`unstarted`] while this request has started no session. A thrown `ParseError` for a record
+/// [`unstarted`] while this request has started no session. A thrown `ParseError` for a value
 /// [`nvs_runtime::decode`] refuses, which is [`crate::cache`]'s `get` refusal over the same
 /// resolver — the program's own class table — and for the same reason.
-fn record(ctx: &Ctx, member: &str) -> Result<NvsArray, Fault> {
+fn read(ctx: &Ctx, member: &str, key: &[u8]) -> Result<Option<Value>, Fault> {
     let Some(session) = ctx.session() else {
         return Err(unstarted(member));
     };
-    if session.record.is_empty() {
-        return Ok(NvsArray::new());
-    }
-
-    let decoded = nvs_runtime::decode(&session.record, &ctx.receiving()).map_err(|why| {
-        Fault::thrown_as(ThrownClass::Parse, format!("{NAME}::{member}(): {why}"))
-    })?;
-    match decoded.array_ptr() {
-        // The reference `decode` handed back becomes this handle's, and the handle releases it.
-        Some(array) =>
-        {
-            #[expect(
-                unsafe_code,
-                reason = "`decode` answers with one reference it no longer holds, \
-                          and this handle takes over exactly that reference"
-            )]
-            Ok(unsafe { NvsArray::from_raw(array) })
-        }
-        // Unreachable from source: nothing but `write_back` writes a session record, and it
-        // encodes an array. Released rather than leaked, because the answer is still a reference.
-        None => {
-            #[expect(
-                unsafe_code,
-                reason = "`decode` answers with one reference nothing else holds"
-            )]
-            unsafe {
-                decoded.release();
-            }
-            Err(Fault::fatal(format!(
-                "{NAME}::{member}(): the stored record is not an array"
-            )))
-        }
-    }
+    let Some(bytes) = session.entries.get(key) else {
+        return Ok(None);
+    };
+    nvs_runtime::decode(bytes, &ctx.receiving())
+        .map(Some)
+        .map_err(|why| Fault::thrown_as(ThrownClass::Parse, format!("{NAME}::{member}(): {why}")))
 }
 
-/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "mutate the copy in the request's
-/// own heap": `record` encoded back onto the request, and
-/// marked as owing the store a write.
-///
-/// **The record is written whole**, per that rule — one session is one entry, so there is no key-wise
-/// update to send and no lock to hold while sending it. **Empty is zero bytes**, never the encoding
-/// of an empty array, which is the invariant [`nvs_runtime::Session`] states and `start` already
-/// relies on for a session it minted.
+/// The `bytes` value this request's session holds under `key`, copied out — or `None` where it
+/// holds none, or holds a value that is not `bytes`.
 ///
 /// # Errors
 ///
-/// A thrown `LogicError` for a record holding something the byte carrier refuses, which is
-/// [`crate::cache`]'s `put` refusal over the same walk: the two carriers refuse the same graphs
-/// because they share the walk that decides. [`unstarted`] cannot fire here — every caller reached
-/// [`record`] first — and is answered rather than asserted for that member's reason.
-fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fault> {
-    let payload = if record.is_empty() {
-        drop(record);
-        Vec::new()
-    } else {
-        nvs_runtime::encode(Value::array(record)).map_err(|why| {
-            Fault::thrown_as(ThrownClass::Logic, format!("{NAME}::{member}(): {why}"))
-        })?
+/// As [`read`].
+fn read_bytes(ctx: &Ctx, member: &str, key: &[u8]) -> Result<Option<Vec<u8>>, Fault> {
+    let Some(found) = read(ctx, member, key)? else {
+        return Ok(None);
     };
+    let copied = found.as_bytes().map(<[u8]>::to_vec);
+    #[expect(
+        unsafe_code,
+        reason = "`read` answers with one reference nothing else holds, and nothing reads \
+                  `found` after this"
+    )]
+    unsafe {
+        found.release();
+    }
+    Ok(copied)
+}
 
+/// `value` encoded by the byte carrier, as one session value. **Consumes one reference to
+/// `value`.**
+///
+/// # Errors
+///
+/// A thrown `LogicError` for a value holding something the byte carrier refuses, which is
+/// [`crate::cache`]'s `put` refusal over the same walk: the two carriers refuse the same graphs
+/// because they share the walk that decides.
+fn encoded(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
+    nvs_runtime::encode(value)
+        .map_err(|why| Fault::thrown_as(ThrownClass::Logic, format!("{NAME}::{member}(): {why}")))
+}
+
+/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "change the copy in the
+/// request's own heap": `key` set to the encoded `value`, or removed for `None`, and marked as
+/// owing the store a write.
+///
+/// **Only `key` is marked.** The write-back sends the keys this request touched and no other, so
+/// a request that sets `cart` never writes back the `userId` it only read. A removal on a session
+/// nobody has written yet is nothing: there is no key to remove and no row to send it to.
+///
+/// # Errors
+///
+/// [`unstarted`] before `start`, and for the first write to a session with no identifier,
+/// [`crate::response::head_open`]'s and [`issue_cookie`]'s.
+fn write(ctx: &mut Ctx, member: &str, key: &[u8], value: Option<Vec<u8>>) -> Result<(), Fault> {
     let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
     if session.id.is_empty() {
-        if payload.is_empty() {
-            // Still empty, so there is still nothing to keep and nothing to send.
-            session.record = payload;
-            return Ok(Value::null());
+        if value.is_none() {
+            return Ok(());
         }
-        // The first write to a session `start` opened with no record: the identifier is drawn
-        // and sent now, before the record changes, so a cookie that cannot be sent leaves the
+        // The first write to a session `start` opened with no identifier: the identifier is drawn
+        // and sent now, before the session changes, so a cookie that cannot be sent leaves the
         // session as it was.
         crate::response::head_open(ctx, &format!("{NAME}::{member}"))?;
         let id = mint(ctx);
         issue_cookie(ctx, &format!("{NAME}::{member}"), &id)?;
-        let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
-        session.id = id;
-        session.record = payload;
-        session.dirty = true;
-        return Ok(Value::null());
+        ctx.session_mut().ok_or_else(|| unstarted(member))?.id = id;
     }
-    session.record = payload;
+    let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
+    match value {
+        Some(value) => session.entries.insert(key.to_vec(), value),
+        None => session.entries.remove(key),
+    };
+    session.touched.insert(key.to_vec());
     session.dirty = true;
-    Ok(Value::null())
+    Ok(())
 }
 
 /// The identifier the response sends for this request's session. `Core\Csrf::token` binds its
@@ -1299,40 +1521,38 @@ pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
 /// visitor's state between two of their requests: `Core\Passkey`'s challenge.
 ///
 /// The caller checks that a session is started first and throws its own sentence, so this never
-/// meets [`unstarted`] from a program. The record is written whole, as [`nvs_core_session_set`]
+/// meets [`unstarted`] from a program. Only `key` is written back, as [`nvs_core_session_set`]
 /// writes it.
 ///
 /// # Errors
 ///
-/// As [`nvs_core_session_set`]: [`record`]'s and [`write_back`]'s.
+/// As [`nvs_core_session_set`]: [`encoded`]'s and [`write`]'s.
 pub(crate) fn put_bytes(ctx: &mut Ctx, key: &str, value: &[u8]) -> Result<(), Fault> {
-    let mut held = record(ctx, "set")?;
-    held.set(
-        NvsStr::new(key.as_bytes()),
-        Value::bytes(NvsStr::new(value)),
-    );
-    write_back(ctx, held, "set").map(drop)
+    let value = encoded(Value::bytes(NvsStr::new(value)), "set")?;
+    write(ctx, "set", key.as_bytes(), Some(value))
 }
 
-/// The `bytes` saved under `key` in the started session's record, taken out of it: [`put_bytes`]'s
-/// other half, and what makes `Core\Passkey`'s challenge single-use.
+/// The `bytes` saved under `key` in the started session, taken out of it: [`put_bytes`]'s other
+/// half, and what makes `Core\Passkey`'s challenge single-use.
 ///
 /// The key is removed whatever it held, so a value that is not `bytes` is `None` and is gone
-/// too. A key the record does not have is `None` and writes nothing, as
+/// too. A key the session does not have is `None` and writes nothing, as
 /// [`nvs_core_session_remove`] writes nothing.
 ///
 /// # Errors
 ///
-/// As [`nvs_core_session_remove`].
+/// As [`nvs_core_session_remove`], and [`read`]'s.
 pub(crate) fn take_bytes(ctx: &mut Ctx, key: &str) -> Result<Option<Vec<u8>>, Fault> {
-    let mut held = record(ctx, "remove")?;
-    let Some(found) = held.get(key.as_bytes()) else {
-        drop(held);
+    let held = ctx
+        .session()
+        .ok_or_else(|| unstarted("remove"))?
+        .entries
+        .contains_key(key.as_bytes());
+    if !held {
         return Ok(None);
-    };
-    let taken = found.as_bytes().map(<[u8]>::to_vec);
-    held.unset(key.as_bytes());
-    write_back(ctx, held, "remove")?;
+    }
+    let taken = read_bytes(ctx, "remove", key.as_bytes())?;
+    write(ctx, "remove", key.as_bytes(), None)?;
     Ok(taken)
 }
 
@@ -1352,8 +1572,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// As [`record`]: [`unstarted`] before `start`, and a thrown `ParseError` for a record naming
-    /// a class this program cannot resolve.
+    /// As [`read`]: [`unstarted`] before `start`, and a thrown `ParseError` for a value naming a
+    /// class this program cannot resolve. Only `$key`'s value is decoded.
     ///
     /// The last slot is the call site's id, which [`crate::registry::RECORDED_SITE_MEMBERS`] puts
     /// last, and [`crate::site::watched`] files the call's `session` event under it.
@@ -1362,44 +1582,26 @@ nvs_runtime::nvs_helper! {
         let target = args[0].as_text();
         crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::get", target, |ctx| {
             let key = crate::string_arg(&args[0], format_args!("{NAME}::get's $key"))?;
-            let held = record(ctx, "get")?;
-            // `NvsArray::get` borrows rather than retains, and the handle releases the whole record
-            // when it is dropped below — so the answer needs a reference of its own first.
-            let answer = match held.get(key.as_bytes()) {
-                Some(found) => {
-                    #[expect(
-                        unsafe_code,
-                        reason = "the record holds a live reference to this value until \
-                                  the handle is dropped, which is after the retain"
-                    )]
-                    unsafe {
-                        found.retain();
-                    }
-                    found
-                }
-                None => Value::null(),
-            };
-            drop(held);
-            Ok(answer)
+            // The decoded value's one reference is the answer's.
+            Ok(read(ctx, "get", key.as_bytes())?.unwrap_or_else(Value::null))
         })
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Session::set(string $key, mixed $value): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write into the
-    /// request's own copy of the record, replacing `$_SESSION[$key] = …`.
+    /// request's own copy of the session, replacing `$_SESSION[$key] = …`.
     ///
     /// **Nothing reaches the store here.** `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`
-    /// loads the record once and writes it whole when the
-    /// request ends, so this member encodes the changed record onto the request and sets the flag
-    /// that write-back reads. Two requests writing one session concurrently is last-write-wins over
-    /// the whole record, which that section states rather than repairs.
+    /// loads the session once and writes back the keys a request changed when it ends, so this
+    /// member encodes `$value` alone onto the request and marks `$key` touched. Two requests that
+    /// change different keys keep both; two that change this key keep the last write, which that
+    /// rule states rather than repairs.
     ///
     /// # Errors
     ///
-    /// As [`record`] and [`write_back`]: [`unstarted`] before `start`, a thrown `ParseError` for a
-    /// record this unit cannot decode, and a thrown `LogicError` for a `$value` the cross-boundary
-    /// copy refuses.
+    /// As [`encoded`] and [`write`]: [`unstarted`] before `start`, and a thrown `LogicError` for a
+    /// `$value` the cross-boundary copy refuses. Nothing is decoded, so there is no `ParseError`.
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is.
     fn nvs_core_session_set(ctx, args: [3]) {
@@ -1407,8 +1609,10 @@ nvs_runtime::nvs_helper! {
         let target = args[0].as_text();
         crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::set", target, |ctx| {
             let key = crate::string_arg(&args[0], format_args!("{NAME}::set's $key"))?;
-            let mut held = record(ctx, "set")?;
-            // The record takes over one reference and the argument slot keeps its own, which is the
+            if ctx.session().is_none() {
+                return Err(unstarted("set"));
+            }
+            // The encode takes over one reference and the argument slot keeps its own, which is the
             // same split `Core\Cache\Store::put` makes before handing a value to the carrier.
             #[expect(
                 unsafe_code,
@@ -1418,8 +1622,8 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 args[1].retain();
             }
-            held.set(NvsStr::new(key.as_bytes()), args[1]);
-            write_back(ctx, held, "set")
+            let value = encoded(args[1], "set")?;
+            write(ctx, "set", key.as_bytes(), Some(value)).map(|()| Value::null())
         })
     }
 }
@@ -1445,22 +1649,24 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// As [`record`] and [`write_back`], plus [`crate::keyring`]'s `LogicError` for a ring that is
-    /// empty or holds something that is not a key.
+    /// [`unstarted`] before `start`, [`sealed_into`]'s, and [`crate::keyring`]'s `LogicError` for a
+    /// ring that is empty or holds something that is not a key.
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is. Its event names no
     /// target, because the key is a secret's.
     fn nvs_core_session_set_secret(ctx, args: [4]) {
         let site = args[3];
         crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::setSecret", None, |ctx| {
-            let mut held = record(ctx, "setSecret")?;
+            if ctx.session().is_none() {
+                return Err(unstarted("setSecret"));
+            }
             let key = crate::string_arg(&args[0], format_args!("{NAME}::setSecret's $key"))?;
             let value = secret_at(&args[1], "setSecret")?;
 
             let who = format!("{NAME}::setSecret");
             let ring = crate::keyring::borrow(args, 2, &who)?;
-            sealed_into(ctx, &mut held, key, value.as_bytes(), &ring, &who)?;
-            write_back(ctx, held, "setSecret")
+            sealed_into(ctx, key, value.as_bytes(), &ring, &who)?;
+            Ok(Value::null())
         })
     }
 }
@@ -1483,21 +1689,22 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// As [`record`], plus [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
-    /// something that is not a key.
+    /// As [`read`], for the sealed value alone, plus [`crate::keyring`]'s `LogicError` for a ring
+    /// that is empty or holds something that is not a key.
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is. Its event names no
     /// target.
     fn nvs_core_session_get_secret(ctx, args: [3]) -> Value, owns NvsStr {
         let site = args[2];
         crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::getSecret", None, |ctx| {
-            let held = record(ctx, "getSecret")?;
+            if ctx.session().is_none() {
+                return Err(unstarted("getSecret"));
+            }
             let key = crate::string_arg(&args[0], format_args!("{NAME}::getSecret's $key"))?;
 
             let who = format!("{NAME}::getSecret");
             let ring = crate::keyring::borrow(args, 1, &who)?;
-            let answer = opened_from(ctx, &held, key, &ring, &who)?;
-            drop(held);
+            let answer = opened_from(ctx, key, &ring, &who)?;
             Ok(answer.unwrap_or_else(Value::null))
         })
     } apply(result, _subject) {
@@ -1524,13 +1731,11 @@ nvs_runtime::nvs_helper! {
         let target = args[0].as_text();
         crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::remove", target, |ctx| {
             let key = crate::string_arg(&args[0], format_args!("{NAME}::remove's $key"))?;
-            let mut held = record(ctx, "remove")?;
-            if !held.has_key(key.as_bytes()) {
-                drop(held);
+            let session = ctx.session().ok_or_else(|| unstarted("remove"))?;
+            if !session.entries.contains_key(key.as_bytes()) {
                 return Ok(Value::null());
             }
-            held.unset(key.as_bytes());
-            write_back(ctx, held, "remove")
+            write(ctx, "remove", key.as_bytes(), None).map(|()| Value::null())
         })
     }
 }
@@ -1538,27 +1743,32 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Session::clear(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `$_SESSION = []`.
     ///
-    /// **The session survives; only the record goes.** The identifier stays live in the store and
+    /// **The session survives; only its keys go.** The identifier stays live in the store and
     /// in the client's cookie, which is what separates this from `destroy()`: a program clearing a
     /// basket is not signing anybody out, and one signing a user out must not leave the identifier
     /// that request arrived with usable.
     ///
-    /// **The one member that does not decode the record**, because it does not read it: a record
-    /// naming a class this unit can no longer resolve is still clearable, which is the answer a
-    /// program recovering from exactly that needs.
+    /// **A whole-session act, as `destroy` is.** The write-back deletes every key the store holds,
+    /// also one another request saved after this one loaded, and then sends the keys this request
+    /// set after the `clear`. So a session with an identifier is always written back after a
+    /// `clear`, even one this request saw empty, because the store may hold keys it did not see.
+    ///
+    /// **It decodes nothing**, because it reads nothing: a value naming a class this unit can no
+    /// longer resolve is still clearable, which is the answer a program recovering from exactly
+    /// that needs.
     ///
     /// # Errors
     ///
     /// [`unstarted`] before `start`, and nothing else — there is no encode to refuse.
     fn nvs_core_session_clear(ctx, _args: [0]) {
         let session = ctx.session_mut().ok_or_else(|| unstarted("clear"))?;
-        // An empty record cleared is not a change, so it does not earn the write the dirty flag is
-        // there to withhold — [`nvs_core_session_remove`] makes the same judgement for a key the
-        // record does not hold.
-        if session.record.is_empty() {
+        // A session nobody has written has no row and no keys, so there is nothing to clear.
+        if session.id.is_empty() {
             return Ok(Value::null());
         }
-        session.record = Vec::new();
+        session.entries.clear();
+        session.touched.clear();
+        session.cleared = true;
         session.dirty = true;
         Ok(Value::null())
     }
@@ -1568,13 +1778,10 @@ nvs_runtime::nvs_helper! {
     /// `Core\Session::regenerate(): void` — `rule:core-api/session-roster`'s move to a new identifier, replacing
     /// `session_regenerate_id`.
     ///
-    /// **In `rule:core-api/session-roster`'s order: issue, move the record, forget the old entry.**
-    /// A failure between the
-    /// second step and the third leaves the record readable under two identifiers until
-    /// `[session] ttl` expires the old one; the same failure in the other order leaves it readable
-    /// under none, which is a signed-out user. The first is the recoverable one, so it is the one
-    /// this member risks. [`regenerated`] is the move, and it moves only a session whose old row
-    /// still exists.
+    /// **One step: the store's `move`.** [`regenerated`] renames the stored session to a fresh
+    /// identifier, so every key the store holds is kept, also one another request saved after this
+    /// one loaded. It moves only a session that still exists. The changes this request has not sent
+    /// yet stay on the request, and the write-back sends them to the fresh identifier.
     ///
     /// **A session this request drew and has not stored yet makes no store call.** A new
     /// identifier is drawn and sent, and the write-back creates the row under it.
@@ -1618,52 +1825,48 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// `regenerate`'s move of a stored session on `store`: the row is created under a fresh
-/// identifier, then the old row is destroyed, and the cookie names the fresh one.
+/// `regenerate`'s move of a stored session on `store`: the store's `move` renames it to a fresh
+/// identifier in one step, and the cookie names the fresh one.
 ///
-/// **A destroy that finds no old row means another request destroyed the session first.** The
-/// fresh row is destroyed too, no cookie is sent, and the request is left with a fresh, empty
-/// session with no identifier, as `start` opens for an absent one. So a session that was signed
-/// out elsewhere never moves to a new identifier. What it spends: one more delete, in that race
-/// alone.
+/// **The old one gone means another request destroyed the session first.** Nothing moves, no
+/// cookie is sent, and the request is left with a fresh, empty session with no identifier, as
+/// `start` opens for an absent one. So a session that was signed out elsewhere never moves to a
+/// new identifier.
+///
+/// The request's own keys, and what it has not sent yet, stay as they are: the store holds the
+/// same session under the new identifier, and the write-back sends the rest there. What it spends:
+/// one round trip, where an issue and a destroy took two.
 ///
 /// # Errors
 ///
 /// [`unstarted`] before `start`; the store's failure, as [`fetched`]'s; a thrown `RuntimeError`
-/// where the store already has a row under the drawn identifier; and [`issue_cookie`]'s.
+/// where the store already has a session under the drawn identifier; and [`issue_cookie`]'s.
 fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     let Some(open) = ctx.session() else {
         return Err(unstarted("regenerate"));
     };
-    // Copied rather than taken, so a store that fails halfway leaves the request holding the
-    // session it already had. O(record), which this member spends once and no other does.
-    let (retired, record) = (open.id.clone(), open.record.clone());
+    let retired = open.id.clone();
     let fresh = mint(ctx);
-    let lifetime = ttl(ctx);
     let app = crate::cache::application(ctx);
-    if !created(store, app, "regenerate", &fresh, &record, lifetime)? {
-        return Err(Fault::thrown(format!(
-            "{NAME}::regenerate(): the store already has a session under the new identifier. \
-             Call `regenerate()` again to draw another one."
-        )));
+    match moved(store, app, "regenerate", &retired, &fresh)? {
+        Renamed::Done => {}
+        Renamed::Taken => {
+            return Err(Fault::thrown(format!(
+                "{NAME}::regenerate(): the store already has a session under the new \
+                 identifier. Call `regenerate()` again to draw another one."
+            )));
+        }
+        Renamed::Gone => {
+            ctx.open_session(fresh_session());
+            return Ok(());
+        }
     }
-    if !forgot(store, app, "regenerate", &retired)? {
-        forgot(store, app, "regenerate", &fresh)?;
-        ctx.open_session(fresh_session());
-        return Ok(());
+    // The identifier changes before the cookie is written, so a cookie that cannot be written
+    // still leaves the write-back aimed at the session the store now holds.
+    if let Some(open) = ctx.session_mut() {
+        open.id.clone_from(&fresh);
     }
-    issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
-
-    // Not dirty: the record was written whole a line ago, so the write-back has nothing left
-    // to send. `Ctx::open_session` replaces rather than refuses for exactly this call.
-    ctx.open_session(nvs_runtime::Session {
-        id: fresh,
-        record,
-        dirty: false,
-        stored: true,
-        write_back: send_at_end,
-    });
-    Ok(())
+    issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)
 }
 
 nvs_runtime::nvs_helper! {
@@ -1747,42 +1950,47 @@ fn send_at_end(ctx: &mut Ctx) {
 
 /// [`send_at_end`]'s write on `store`.
 ///
-/// **A stored session is replaced, and a session this request drew is created.** A replace changes
-/// only a row that still exists. So when another request destroyed the session, or it expired,
+/// **A stored session is saved, and a session this request drew is issued.** A save sends only the
+/// keys this request set or removed, and whether it called `clear`, in one atomic step, and changes
+/// only a session that still exists. So when another request destroyed the session, or it expired,
 /// nothing is written, this request's changes are dropped, and nothing is reported: that is what a
-/// destroyed session means. A create sets [`nvs_runtime::Session::stored`], so a second end of the
-/// same program replaces the row it made.
+/// destroyed session means. An issue writes every key, because the store has none yet, and sets
+/// [`nvs_runtime::Session::stored`], so a second end of the same program saves into the session it
+/// made. Once the store has the changes they are no longer owed, so a second end sends only what
+/// changed after the first.
 ///
 /// # Errors
 ///
-/// The store's failure, as [`fetched`]'s, and a thrown `RuntimeError` where the store already has
-/// a row under the identifier this request drew.
+/// The store's failure, as [`fetched`]'s; a thrown `RuntimeError` where the store already has a
+/// session under the identifier this request drew; and [`too_large`]'s, naming the size, where the
+/// shared store would not keep the session.
 fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     let lifetime = ttl(ctx);
     let app = crate::cache::application(ctx);
-    // Nothing is copied out of the record: the store calls borrow it, and the context is changed
-    // only after the borrow has ended. A write-back that cloned the record would spend O(record)
-    // on the request path to say exactly what the bytes already on the context say.
+    // Nothing is copied out of the session: the store calls borrow it, and the context is changed
+    // only after the borrow has ended.
     let Some(open) = ctx.session().filter(|open| !open.id.is_empty()) else {
         return Ok(());
     };
     if open.stored {
-        replaced(
+        match saved(
             store,
             app,
             "the write-back",
             &open.id,
-            &open.record,
+            &Changes::of(open),
             lifetime,
-        )?;
-        return Ok(());
-    }
-    if !created(
+        )? {
+            Saved::Done => {}
+            Saved::Gone => return Ok(()),
+            Saved::TooLarge(size) => return Err(too_large("the write-back", size)),
+        }
+    } else if !issued(
         store,
         app,
         "the write-back",
         &open.id,
-        &open.record,
+        &open.entries,
         lifetime,
     )? {
         return Err(Fault::thrown(format!(
@@ -1791,6 +1999,8 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     }
     if let Some(open) = ctx.session_mut() {
         open.stored = true;
+        open.touched.clear();
+        open.cleared = false;
     }
     Ok(())
 }
@@ -1830,7 +2040,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{BTreeMap, HashMap, HashSet};
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -1839,12 +2049,13 @@ mod tests {
     use std::time::Duration;
 
     use nvs_config::session::{BACKENDS, Backend};
-    use nvs_runtime::{Ctx, NvsArray, NvsStr, Value};
+    use nvs_runtime::{Ctx, NvsStr, Value};
 
     use super::{
-        DEFAULT_TTL, PREFIX, SEAL_DOMAIN, Store, backend, cookie, create, created, destroy,
-        fetched, forgot, key_of, load, mint, opened, opened_from, record, regenerated, replaced,
-        sealed_into, sealed_key, sent_to, sqlite, ttl, write_back,
+        Changes, DEFAULT_TTL, Entries, KEY_FIELD, PREFIX, SEAL_DOMAIN, Saved, Store, backend,
+        cookie, counted, destroy, encoded, fetched, field_of, forgot, issue, issued, key_of, load,
+        mint, opened, opened_from, read, read_bytes, regenerated, saved, sealed_into, sealed_key,
+        sent_to, sqlite, ttl, write,
     };
     use crate::cache::redis::Connection;
     use crate::cache::tests::memory_held;
@@ -1856,9 +2067,69 @@ mod tests {
     /// The application of a context with no `[[app]]` block, which is every case's but one.
     const NO_APP: &[u8] = b"";
 
-    /// The record two cores exchange, and the id it lives under.
+    /// The id the session two cores exchange lives under.
     const ID: &str = "PmA5tKz1QvR3sYbN";
-    const RECORD: &[u8] = b"user=17;csrf=aa";
+
+    /// The session two cores exchange: two keys, each with bytes the store keeps without reading.
+    fn record() -> Entries {
+        Entries::from([
+            (b"user".to_vec(), b"17".to_vec()),
+            (b"csrf".to_vec(), b"aa".to_vec()),
+        ])
+    }
+
+    /// One session's hash, as the fake shared store keeps it: each field and its value.
+    type Hash = BTreeMap<Vec<u8>, Vec<u8>>;
+
+    /// The hash [`super::ISSUE`] writes for `entries`: `m` with the counted size, and one `k:` field
+    /// per key.
+    fn hash_of(entries: &Entries) -> Hash {
+        let mut hash: Hash = entries
+            .iter()
+            .map(|(key, value)| (field_of(key), value.clone()))
+            .collect();
+        hash.insert(b"m".to_vec(), counted(entries).to_string().into_bytes());
+        hash
+    }
+
+    /// The session keys a hash holds, as [`load`] reads them: every `k:` field, and not `m`.
+    fn entries_in(hash: &Hash) -> Entries {
+        hash.iter()
+            .filter_map(|(field, value)| {
+                field
+                    .strip_prefix(KEY_FIELD)
+                    .map(|key| (key.to_vec(), value.clone()))
+            })
+            .collect()
+    }
+
+    /// A stored session under [`ID`] with `entries`, nothing changed yet, written back to the
+    /// configured store.
+    fn loaded(entries: Entries) -> nvs_runtime::Session {
+        nvs_runtime::Session {
+            id: ID.to_owned(),
+            entries,
+            touched: std::collections::BTreeSet::new(),
+            cleared: false,
+            dirty: false,
+            stored: true,
+            write_back: super::send_at_end,
+        }
+    }
+
+    /// `value` written under `key` as `Core\Session::set` writes it. Consumes one reference.
+    fn put(ctx: &mut Ctx, key: &[u8], value: Value) {
+        let value = encoded(value, "set").expect("the value encodes");
+        write(ctx, "set", key, Some(value)).expect("a started session takes the value");
+    }
+
+    /// The integer the session holds under `key`, read as `Core\Session::get` reads it.
+    fn int_at(ctx: &Ctx, key: &[u8]) -> Option<i64> {
+        let value = read(ctx, "get", key).expect("the value decodes")?;
+        let int = value.as_int();
+        dropped(value);
+        int
+    }
 
     /// A listener on loopback and the address it took — `crate::cache::redis`'s own cases' shape.
     fn listening() -> (TcpListener, SocketAddr) {
@@ -1903,31 +2174,32 @@ mod tests {
         address: SocketAddr,
         stop: Arc<AtomicBool>,
         accepting: Option<thread::JoinHandle<()>>,
-        /// The keys whose expiry has passed. The store still has them, and answers each one as
-        /// absent, as a real store answers an expired key.
+        /// The keys whose expiry has passed. The store still has them until a command names one,
+        /// and then deletes it first, as a real store expires a key when it is read.
         lapsed: Arc<Mutex<HashSet<Vec<u8>>>>,
-        /// How many `SET` commands the store received, written or not.
-        sets: Arc<AtomicUsize>,
+        /// How many `EVAL` commands the store received, which are its only writes: one per
+        /// `issue` and one per `save`, written or not.
+        writes: Arc<AtomicUsize>,
     }
 
     impl Serving {
-        fn start(listener: TcpListener, held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>) -> Self {
+        fn start(listener: TcpListener, held: Rows) -> Self {
             let address = listener.local_addr().expect("the port it took");
             let stop = Arc::new(AtomicBool::new(false));
             let stopping = Arc::clone(&stop);
             let lapsed = Arc::new(Mutex::new(HashSet::new()));
             let expired = Arc::clone(&lapsed);
-            let sets = Arc::new(AtomicUsize::new(0));
-            let counted = Arc::clone(&sets);
+            let writes = Arc::new(AtomicUsize::new(0));
+            let counting = Arc::clone(&writes);
             let accepting = thread::spawn(move || {
-                serving(&listener, &held, &expired, &counted, &stopping);
+                serving(&listener, &held, &expired, &counting, &stopping);
             });
             Self {
                 address,
                 stop,
                 accepting: Some(accepting),
                 lapsed,
-                sets,
+                writes,
             }
         }
     }
@@ -1949,16 +2221,17 @@ mod tests {
 
     /// [`Serving`]'s accept loop, which joins each connection's thread once `stop` is set.
     ///
-    /// `SET … PX` with `NX`, `XX` or neither, `GET` and `DEL` only, because those are the commands
-    /// [`create`], [`super::replace`], [`load`] and [`destroy`] send. Anything else is a panic
-    /// rather than a silent `+OK`, so a command added upstream fails here instead of passing
-    /// untested. A key in `lapsed` is absent to every command, and `DEL` of it answers `0`.
-    /// Each `SET` adds one to `sets`.
+    /// `HGETALL`, `RENAMENX`, `DEL`, and `EVAL` of [`super::ISSUE`] or [`super::SAVE`] only,
+    /// because those are the commands [`load`], [`super::relocate`], [`destroy`], [`issue`] and
+    /// [`super::save`] send. Each script is run as the same steps in Rust, over the same hash.
+    /// Any other command or script is a panic rather than a silent `+OK`, so one added upstream
+    /// fails here instead of passing untested. A key in `lapsed` is deleted before any command
+    /// that names it runs. Each `EVAL` adds one to `writes`.
     fn serving(
         listener: &TcpListener,
-        held: &Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>,
+        held: &Rows,
         lapsed: &Arc<Mutex<HashSet<Vec<u8>>>>,
-        sets: &Arc<AtomicUsize>,
+        writes: &Arc<AtomicUsize>,
         stop: &AtomicBool,
     ) {
         let mut connections = Vec::new();
@@ -1968,65 +2241,82 @@ mod tests {
             }
             let held = Arc::clone(held);
             let lapsed = Arc::clone(lapsed);
-            let sets = Arc::clone(sets);
+            let writes = Arc::clone(writes);
             let handler = thread::spawn(move || {
                 let mut writing = stream.try_clone().expect("the write half");
                 let mut reading = BufReader::new(stream);
                 while let Some(parts) = command(&mut reading) {
+                    let mut store = held.lock().expect("the store");
+                    {
+                        let mut expired = lapsed.lock().expect("the lapsed keys");
+                        for part in &parts[1..] {
+                            if expired.remove(part) {
+                                store.remove(part);
+                            }
+                        }
+                    }
                     let reply = match parts[0].as_slice() {
-                        b"SET" => {
-                            sets.fetch_add(1, Ordering::SeqCst);
-                            let (condition, px) = match parts[3].as_slice() {
-                                b"PX" => (None, 3),
-                                word => (Some(word.to_vec()), 4),
-                            };
-                            assert_eq!(
-                                parts[px], b"PX",
-                                "a record is always written with an expiry"
-                            );
-                            let mut store = held.lock().expect("the store");
-                            if lapsed.lock().expect("the lapsed keys").remove(&parts[1]) {
-                                store.remove(&parts[1]);
+                        b"HGETALL" => match store.get(&parts[1]) {
+                            Some(hash) => {
+                                let mut array = format!("*{}\r\n", hash.len() * 2).into_bytes();
+                                for (field, value) in hash {
+                                    for part in [field, value] {
+                                        array.extend_from_slice(
+                                            format!("${}\r\n", part.len()).as_bytes(),
+                                        );
+                                        array.extend_from_slice(part);
+                                        array.extend_from_slice(b"\r\n");
+                                    }
+                                }
+                                array
                             }
-                            let present = store.contains_key(&parts[1]);
-                            let writes = match condition.as_deref() {
-                                None => true,
-                                Some(b"NX") => !present,
-                                Some(b"XX") => present,
-                                Some(other) => panic!(
-                                    "the session store sends no SET {:?}",
-                                    String::from_utf8_lossy(other)
-                                ),
-                            };
-                            if writes {
-                                store.insert(parts[1].clone(), parts[2].clone());
-                                b"+OK\r\n".to_vec()
-                            } else {
-                                b"$-1\r\n".to_vec()
-                            }
-                        }
-                        b"GET" if lapsed.lock().expect("the lapsed keys").contains(&parts[1]) => {
-                            b"$-1\r\n".to_vec()
-                        }
-                        b"GET" => match held.lock().expect("the store").get(&parts[1]) {
-                            Some(record) => {
-                                let mut bulk = format!("${}\r\n", record.len()).into_bytes();
-                                bulk.extend_from_slice(record);
-                                bulk.extend_from_slice(b"\r\n");
-                                bulk
-                            }
-                            None => b"$-1\r\n".to_vec(),
+                            None => b"*0\r\n".to_vec(),
                         },
+                        b"RENAMENX" => {
+                            if !store.contains_key(&parts[1]) {
+                                b"-ERR no such key\r\n".to_vec()
+                            } else if store.contains_key(&parts[2]) {
+                                b":0\r\n".to_vec()
+                            } else {
+                                let hash = store.remove(&parts[1]).expect("the old key");
+                                store.insert(parts[2].clone(), hash);
+                                b":1\r\n".to_vec()
+                            }
+                        }
                         b"DEL" => {
-                            let expired = lapsed.lock().expect("the lapsed keys").remove(&parts[1]);
-                            let gone = held.lock().expect("the store").remove(&parts[1]);
-                            format!(":{}\r\n", usize::from(gone.is_some() && !expired)).into_bytes()
+                            format!(":{}\r\n", usize::from(store.remove(&parts[1]).is_some()))
+                                .into_bytes()
+                        }
+                        b"EVAL" => {
+                            writes.fetch_add(1, Ordering::SeqCst);
+                            assert_eq!(parts[2], b"1", "every script names one key");
+                            let (key, argv) = (&parts[3], &parts[4..]);
+                            assert!(
+                                number(&argv[0]) > 0,
+                                "a session is always written with an expiry"
+                            );
+                            let answer = if parts[1] == super::ISSUE.as_bytes() {
+                                issued_in(&mut store, key, argv)
+                            } else if parts[1] == super::SAVE.as_bytes() {
+                                saved_in(&mut store, key, argv)
+                            } else {
+                                panic!(
+                                    "the session store sends no script {:?}",
+                                    String::from_utf8_lossy(&parts[1])
+                                )
+                            };
+                            let mut array = format!("*{}\r\n", answer.len()).into_bytes();
+                            for integer in answer {
+                                array.extend_from_slice(format!(":{integer}\r\n").as_bytes());
+                            }
+                            array
                         }
                         other => panic!(
                             "the session store sends no {:?}",
                             String::from_utf8_lossy(other)
                         ),
                     };
+                    drop(store);
                     writing.write_all(&reply).expect("the reply");
                 }
             });
@@ -2039,13 +2329,90 @@ mod tests {
         }
     }
 
+    /// An argument a script reads with `tonumber`.
+    fn number(argument: &[u8]) -> i64 {
+        std::str::from_utf8(argument)
+            .ok()
+            .and_then(|text| text.parse().ok())
+            .unwrap_or_else(|| panic!("{argument:?} is a number"))
+    }
+
+    /// The bytes one field costs in the counted size, as [`super::SAVE`] counts it.
+    fn cost(field: &[u8], value: &[u8]) -> i64 {
+        i64::try_from(field.len() + value.len() + 32).expect("a small field")
+    }
+
+    /// [`super::ISSUE`]'s steps over `store`: `{0}` for a key that exists, and otherwise the hash
+    /// written with `m` and every pair, and `{1}`.
+    fn issued_in(store: &mut HashMap<Vec<u8>, Hash>, key: &[u8], argv: &[Vec<u8>]) -> Vec<i64> {
+        if store.contains_key(key) {
+            return vec![0];
+        }
+        let mut hash = Hash::new();
+        hash.insert(b"m".to_vec(), argv[1].clone());
+        for pair in argv[2..].chunks(2) {
+            hash.insert(pair[0].clone(), pair[1].clone());
+        }
+        store.insert(key.to_vec(), hash);
+        vec![1]
+    }
+
+    /// [`super::SAVE`]'s steps over `store`: `{0}` for a gone key, `{-1, size}` past a ceiling, and
+    /// otherwise the changes applied and `{1, size}`.
+    fn saved_in(store: &mut HashMap<Vec<u8>, Hash>, key: &[u8], argv: &[Vec<u8>]) -> Vec<i64> {
+        let Some(hash) = store.get_mut(key) else {
+            return vec![0];
+        };
+        let cleared = argv[1] == b"1";
+        let first = 5 + usize::try_from(number(&argv[4])).expect("a count");
+        let (removed, changed) = (&argv[5..first], &argv[first..]);
+        assert!(
+            changed.len().is_multiple_of(2),
+            "each changed field has a value"
+        );
+        let (mut size, mut count) = if cleared {
+            (0, 0)
+        } else {
+            let size = hash
+                .get(b"m".as_slice())
+                .and_then(|held| std::str::from_utf8(held).ok()?.parse::<i64>().ok())
+                .unwrap_or(0);
+            (size, i64::try_from(hash.len()).expect("a count") - 1)
+        };
+        let replaced = removed.iter().chain(changed.iter().step_by(2));
+        for field in replaced {
+            if let Some(old) = hash.get(field).filter(|_| !cleared) {
+                size -= cost(field, old);
+                count -= 1;
+            }
+        }
+        for pair in changed.chunks(2) {
+            size += cost(&pair[0], &pair[1]);
+            count += 1;
+        }
+        if size > number(&argv[2]) || count > number(&argv[3]) {
+            return vec![-1, size];
+        }
+        if cleared {
+            hash.retain(|field, _| field == b"m");
+        }
+        for field in removed {
+            hash.remove(field);
+        }
+        for pair in changed.chunks(2) {
+            hash.insert(pair[0].clone(), pair[1].clone());
+        }
+        hash.insert(b"m".to_vec(), size.to_string().into_bytes());
+        vec![1, size]
+    }
+
     /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, as the roster and as the write.
     ///
     /// Three claims, because each alone passes something broken. The roster admits no memory tier —
     /// so no later reader can select one — and it is read from `nvs_config` rather than spelled
     /// here, so adding a variant there fails this. The word is refused by `Backend::of` rather than
-    /// resolving to something. And a record actually written through [`create`] is **absent from the
-    /// process's map** afterwards: a module that wrote into the memory tier on some branch would
+    /// resolving to something. And a session actually written through [`issue`] is **absent from
+    /// the process's map** afterwards: a module that wrote into the memory tier on some branch would
     /// satisfy the first two and fail this one, which is the failure the section is about.
     #[test]
     fn a_session_is_never_backed_by_the_memory_cache_tier() {
@@ -2056,7 +2423,7 @@ mod tests {
         assert_eq!(Backend::of("memory"), None);
 
         let (listener, address) = listening();
-        let held = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
 
@@ -2064,9 +2431,17 @@ mod tests {
             Dial::configured(Target::Tcp(address), None, None),
             Duration::from_secs(5),
         );
+        let written = record();
         assert!(
-            create(&mut open, NO_APP, ID, RECORD, DEFAULT_TTL)
-                .expect("the record reaches the configured store")
+            issue(
+                &mut open,
+                NO_APP,
+                ID,
+                &written,
+                counted(&written),
+                DEFAULT_TTL
+            )
+            .expect("the session reaches the configured store")
         );
 
         assert_eq!(
@@ -2074,8 +2449,8 @@ mod tests {
                 .expect("the store")
                 .get(&key_of(NO_APP, ID))
                 .cloned(),
-            Some(RECORD.to_vec()),
-            "the record is in the shared store"
+            Some(hash_of(&written)),
+            "the session is in the shared store, with its counted size"
         );
         assert_eq!(
             memory_held(&key_of(NO_APP, ID)),
@@ -2095,7 +2470,7 @@ mod tests {
     #[test]
     fn a_session_survives_a_request_landing_on_another_core() {
         let (listener, address) = listening();
-        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         let _serving = Serving::start(listener, held);
 
         let wrote = thread::spawn(move || {
@@ -2103,8 +2478,17 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
+            let written = record();
             assert!(
-                create(&mut open, NO_APP, ID, RECORD, DEFAULT_TTL).expect("the record is written")
+                issue(
+                    &mut open,
+                    NO_APP,
+                    ID,
+                    &written,
+                    counted(&written),
+                    DEFAULT_TTL
+                )
+                .expect("the session is written")
             );
         });
         wrote.join().expect("the first core");
@@ -2120,87 +2504,70 @@ mod tests {
 
         assert_eq!(
             shared,
-            Some(RECORD.to_vec()),
+            Some(record()),
             "the session the first core wrote is the session the second core reads"
         );
     }
 
-    /// `rule:core-api/session-roster`'s read and write over one record, as
-    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` keeps it: what `set` put there,
-    /// `get` reads back, and
-    /// `remove` takes out again — with the record's own bytes asserted beside the answers.
+    /// `rule:core-api/session-roster`'s read and write over one session, as
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` keeps it: what `set` put
+    /// there, `get` reads back, and `remove` takes out again — with the session's own entries and
+    /// touched keys asserted beside the answers.
     ///
     /// **Here rather than in a `.nvst` case**, because no conformance case can reach a session
-    /// store and none of this needs one: the record is loaded once and every change until the end
+    /// store and none of this needs one: the session is loaded once and every change until the end
     /// of the request happens in the request's own heap, so the members below never touch a socket.
     /// The corpus asks the *language* rule instead — that a member called before `start` throws.
     ///
-    /// **The bytes are asserted, not only the answers.** A member that kept a decoded array of its
-    /// own on the side would satisfy every assertion about what `get` said and leave
-    /// `nvs_runtime::Session::record` empty, so the write-back at the end of the request would send
-    /// nothing. And the empty record is asserted as *zero bytes* rather than as the encoding of an
-    /// empty array, which is the invariant `start` already relies on for a session it minted.
+    /// **The entries are asserted, not only the answers.** A member that kept a decoded array of
+    /// its own on the side would satisfy every assertion about what `get` said and leave
+    /// `nvs_runtime::Session::entries` empty, so the write-back at the end of the request would send
+    /// nothing. And a removed key stays touched, so the write-back sends its removal.
     #[test]
-    fn the_record_carries_what_set_wrote_and_loses_what_remove_took() {
+    fn the_entries_carry_what_set_wrote_and_lose_what_remove_took() {
         let mut ctx = Ctx::buffered();
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
+        ctx.open_session(loaded(Entries::new()));
 
-        let empty = record(&ctx, "get").expect("a started session has a record to read");
-        assert!(
-            empty.is_empty(),
-            "a record of zero bytes decodes to no keys, rather than refusing as a payload that \
-             carries no marker"
-        );
-        drop(empty);
+        assert_eq!(int_at(&ctx, b"cart"), None, "an empty session has no keys");
 
-        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
-        writing.set(NvsStr::new(b"cart"), Value::int(17));
-        write_back(&mut ctx, writing, "set").expect("the changed record encodes");
-
+        put(&mut ctx, b"cart", Value::int(17));
         let after = ctx.session().expect("the session is still open");
         assert!(
             after.dirty,
             "the end-of-request write-back is what the flag earns, and a `set` that left it clear would be a \
              change the store never hears about"
         );
-        assert!(!after.record.is_empty());
-
-        let reading = record(&ctx, "get").expect("the record decodes again");
+        assert!(after.entries.contains_key(b"cart".as_slice()));
+        assert!(
+            after.touched.contains(b"cart".as_slice()),
+            "the key is owed to the store"
+        );
         assert_eq!(
-            reading.get(b"cart").and_then(Value::as_int),
+            int_at(&ctx, b"cart"),
             Some(17),
             "what `set` wrote is what `get` reads, across the encode and the decode between them"
         );
-        drop(reading);
 
-        let mut removing = record(&ctx, "remove").expect("the record decodes to be changed");
-        removing.unset(b"cart");
-        write_back(&mut ctx, removing, "remove").expect("what is left of the record encodes");
-
+        write(&mut ctx, "remove", b"cart", None).expect("a held key is removed");
         let emptied = ctx.session().expect("the session is still open");
+        assert!(emptied.entries.is_empty(), "the session has no keys left");
         assert!(
-            emptied.record.is_empty(),
-            "a record with no keys left is zero bytes again, not the encoding of an empty array — \
-             `nvs_runtime::Session::record`'s own doc owns why, and `start` relies on it"
+            emptied.touched.contains(b"cart".as_slice()),
+            "and the removal is still owed to the store"
         );
     }
 
-    /// `clear` empties the record and keeps the session: the identifier is the one the request
-    /// had, the record is zero bytes and marked changed, and a clear of an empty record changes
-    /// nothing, the flag included.
+    /// `clear` empties the session and keeps it: the identifier is the one the request had, no
+    /// key is left, and the session is marked changed and cleared. A second `clear` of the now
+    /// empty session earns a write too, because the store may hold keys this request did not see.
+    /// A session with no identifier has no row, so clearing it changes nothing.
     ///
-    /// The record starts as bytes no decode accepts, because `clear` is the one member that does
-    /// not read the record, and a record this unit cannot decode is exactly what it recovers from.
+    /// A value starts as bytes no decode accepts, because `clear` is the one member that does not
+    /// read the session, and a value this unit cannot decode is exactly what it recovers from.
     /// Before a session is open, and after it, the member throws.
     // covers: Core\Session::clear
     #[test]
-    fn clear_empties_the_record_and_keeps_the_session_open() {
+    fn clear_empties_the_session_keeps_it_open_and_always_earns_a_write() {
         let mut ctx = Ctx::buffered();
         assert!(
             nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[]).is_err(),
@@ -2208,33 +2575,49 @@ mod tests {
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: b"no decode accepts this".to_vec(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
+        ctx.open_session(loaded(Entries::from([(
+            b"cart".to_vec(),
+            b"no decode accepts this".to_vec(),
+        )])));
+        ctx.session_mut()
+            .expect("the session is open")
+            .touched
+            .insert(b"cart".to_vec());
         nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
-            .expect("a record this unit cannot decode is still clearable");
+            .expect("a value this unit cannot decode is still clearable");
 
         let cleared = ctx.session().expect("the session is still open");
         assert_eq!(
             cleared.id, ID,
             "clearing keeps the identifier the client holds"
         );
-        assert!(cleared.record.is_empty(), "the record is zero bytes");
+        assert!(cleared.entries.is_empty(), "no key is left");
+        assert!(
+            cleared.touched.is_empty(),
+            "and no key is owed, because the clear deletes them all"
+        );
+        assert!(cleared.cleared, "the write-back deletes every key in the store");
         assert!(
             cleared.dirty,
-            "an emptied record is a change the store must hear about"
+            "an emptied session is a change the store must hear about"
         );
 
         ctx.session_mut().expect("the session is still open").dirty = false;
         nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
-            .expect("an empty record is clearable too");
+            .expect("an empty session is clearable too");
         assert!(
-            !ctx.session().expect("the session is still open").dirty,
-            "clearing an empty record is not a change, so it earns no write"
+            ctx.session().expect("the session is still open").dirty,
+            "the store may hold keys this request did not see, so clearing an empty session \
+             still earns a write"
+        );
+
+        ctx.open_session(super::fresh_session());
+        nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
+            .expect("a session nobody wrote is clearable");
+        let fresh = ctx.session().expect("the session is still open");
+        assert!(
+            !fresh.dirty && !fresh.cleared,
+            "a session with no identifier has no row to clear, so it earns no write"
         );
 
         ctx.close_session();
@@ -2253,12 +2636,12 @@ mod tests {
     /// session — the cost that rule names when it says only a changed record is written — and a build
     /// that never sent would satisfy "a read-only request makes one round trip" perfectly.
     ///
-    /// **The flag is earned through the real member path**, by the same [`write_back`] `set` calls,
+    /// **The flag is earned through the real member path**, by the same [`write`] `set` calls,
     /// rather than written by hand: a `set` that stopped marking the record would pass a test that
     /// set `dirty` itself and lose every write in production.
     ///
     /// **The send is a test's own function pointer**, which is what the seam is for: whether the
-    /// bytes reach a store is [`create`]'s question and three cases above already ask it, while what
+    /// bytes reach a store is [`issue`]'s question and three cases above already ask it, while what
     /// is unproven here is that `Ctx::end_session` calls what the record carries exactly when the
     /// flag says to. The third assertion is the idempotence that method promises — sending clears
     /// the flag — which is what lets both ends of a program call it without agreeing on which of
@@ -2274,15 +2657,12 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
             write_back: counting,
+            ..loaded(Entries::new())
         });
 
         // The read-only request, made of the one member that reads.
-        drop(record(&ctx, "get").expect("a started session has a record to read"));
+        assert_eq!(int_at(&ctx, b"cart"), None);
         ctx.end_session();
         assert_eq!(
             SENT.with(std::cell::Cell::get),
@@ -2291,9 +2671,7 @@ mod tests {
              reason for the flag"
         );
 
-        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
-        writing.set(NvsStr::new(b"cart"), Value::int(17));
-        write_back(&mut ctx, writing, "set").expect("the changed record encodes");
+        put(&mut ctx, b"cart", Value::int(17));
 
         ctx.end_session();
         assert_eq!(
@@ -2322,7 +2700,7 @@ mod tests {
     #[test]
     fn a_destroyed_record_is_gone_and_forgetting_it_twice_is_not_a_failure() {
         let (listener, address) = listening();
-        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         let _serving = Serving::start(listener, held);
 
         let answered = thread::spawn(move || {
@@ -2330,8 +2708,17 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
+            let written = record();
             assert!(
-                create(&mut open, NO_APP, ID, RECORD, DEFAULT_TTL).expect("the record is written")
+                issue(
+                    &mut open,
+                    NO_APP,
+                    ID,
+                    &written,
+                    counted(&written),
+                    DEFAULT_TTL
+                )
+                .expect("the session is written")
             );
             let before = load(&mut open, NO_APP, ID).expect("the store answers");
             let first = destroy(&mut open, NO_APP, ID).expect("the record is forgotten");
@@ -2342,7 +2729,7 @@ mod tests {
         });
         let (before, after, first, second) = answered.join().expect("the core");
 
-        assert_eq!(before, Some(RECORD.to_vec()));
+        assert_eq!(before, Some(record()));
         assert_eq!(after, None);
         assert!(first, "the first destroy removed the record");
         assert!(!second, "and the second found nothing to remove");
@@ -2366,7 +2753,7 @@ mod tests {
     /// What keeps one store of [`BACKENDS`] alive for a case.
     enum Kept {
         /// The fake shared store, and the map it keeps.
-        Shared(Serving, Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>),
+        Shared(Serving, Rows),
         /// The SQLite file, and the scratch folder that deletes it when the case ends.
         Db {
             path: std::path::PathBuf,
@@ -2444,22 +2831,18 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-destroyed-stays", *backend);
             assert!(
-                created(&store, NO_APP, "a case", ID, &[], DEFAULT_TTL).expect("the row is issued")
+                issued(&store, NO_APP, "a case", ID, &Entries::new(), DEFAULT_TTL)
+                    .expect("the row is issued")
             );
-            let loaded = fetched(&store, NO_APP, "a case", ID)
+            let entries = fetched(&store, NO_APP, "a case", ID)
                 .expect("the store answers")
                 .expect("the row the case issued");
             CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
             ctx.open_session(nvs_runtime::Session {
-                id: ID.to_owned(),
-                record: loaded,
-                dirty: false,
-                stored: true,
                 write_back: to_the_case_store,
+                ..loaded(entries)
             });
-            let mut writing = record(&ctx, "set").expect("a started session has a record");
-            writing.set(NvsStr::new(b"cart"), Value::int(17));
-            write_back(&mut ctx, writing, "set").expect("the changed record encodes");
+            put(&mut ctx, b"cart", Value::int(17));
 
             assert!(
                 forgot(&store, NO_APP, "a case", ID).expect("another request destroys the session"),
@@ -2487,16 +2870,10 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-regenerate-gone", *backend);
             assert!(
-                created(&store, NO_APP, "a case", ID, RECORD, DEFAULT_TTL)
+                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_TTL)
                     .expect("the row is issued")
             );
-            ctx.open_session(nvs_runtime::Session {
-                id: ID.to_owned(),
-                record: RECORD.to_vec(),
-                dirty: false,
-                stored: true,
-                write_back: super::send_at_end,
-            });
+            ctx.open_session(loaded(record()));
             assert!(
                 forgot(&store, NO_APP, "a case", ID).expect("another request destroys the session"),
                 "{word}: the row was there to destroy"
@@ -2508,7 +2885,7 @@ mod tests {
             assert_eq!(kept.rows(), 0, "{word}: no row moved to a new identifier");
             let left = ctx.session().expect("the request keeps a session");
             assert!(left.id.is_empty(), "{word}: the session has no identifier");
-            assert!(left.record.is_empty(), "{word}: and an empty record");
+            assert!(left.entries.is_empty(), "{word}: and no keys");
             assert!(!left.stored && !left.dirty, "{word}: and nothing to write");
             assert!(
                 ctx.take_headers().is_empty(),
@@ -2517,8 +2894,8 @@ mod tests {
         }
     }
 
-    /// The map the fake shared store keeps, by key.
-    type Rows = Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>;
+    /// The map the fake shared store keeps: each session's hash, by key.
+    type Rows = Arc<Mutex<HashMap<Vec<u8>, Hash>>>;
 
     /// A context configured with the fake shared store as its session store and a CSRF key, the
     /// server, and the map it keeps.
@@ -2553,14 +2930,8 @@ mod tests {
             let (mut ctx, serving, held) = tokened();
             held.lock()
                 .expect("the store")
-                .insert(key_of(NO_APP, ID), Vec::new());
-            ctx.open_session(nvs_runtime::Session {
-                id: ID.to_owned(),
-                record: Vec::new(),
-                dirty: false,
-                stored: true,
-                write_back: super::send_at_end,
-            });
+                .insert(key_of(NO_APP, ID), hash_of(&Entries::new()));
+            ctx.open_session(loaded(Entries::new()));
             token(&mut ctx);
             token(&mut ctx);
             if changes {
@@ -2574,7 +2945,7 @@ mod tests {
             }
             ctx.end_session();
             assert_eq!(
-                serving.sets.load(Ordering::SeqCst),
+                serving.writes.load(Ordering::SeqCst),
                 usize::from(changes),
                 "a token writes nothing, and a set writes once (set called: {changes})"
             );
@@ -2603,7 +2974,7 @@ mod tests {
             "the cookie carries the drawn identifier: {headers:?}"
         );
         ctx.end_session();
-        assert_eq!(serving.sets.load(Ordering::SeqCst), 1, "one row is created");
+        assert_eq!(serving.writes.load(Ordering::SeqCst), 1, "one row is created");
         assert!(
             held.lock()
                 .expect("the store")
@@ -2635,11 +3006,10 @@ mod tests {
             under(&mut blog, "/srv/blog");
             CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
             blog.open_session(nvs_runtime::Session {
-                id: ID.to_owned(),
-                record: RECORD.to_vec(),
                 dirty: true,
                 stored: false,
                 write_back: to_the_case_store,
+                ..loaded(record())
             });
             blog.end_session();
             assert_eq!(
@@ -2659,13 +3029,19 @@ mod tests {
                 None,
                 "{word}: the second application finds no session under the id"
             );
-            assert!(
-                !replaced(&store, shop_app, "a case", ID, b"taken", DEFAULT_TTL)
+            let taking = Changes {
+                changed: vec![(b"user".as_slice(), b"taken".as_slice())],
+                ..Changes::default()
+            };
+            assert_eq!(
+                saved(&store, shop_app, "a case", ID, &taking, DEFAULT_TTL)
                     .expect("the store answers"),
+                Saved::Gone,
                 "{word}: and cannot write over the first application's row"
             );
+            let its_own = Entries::from([(b"user".to_vec(), b"its own".to_vec())]);
             assert!(
-                created(&store, shop_app, "a case", ID, b"its own", DEFAULT_TTL)
+                issued(&store, shop_app, "a case", ID, &its_own, DEFAULT_TTL)
                     .expect("the store answers"),
                 "{word}: its own session under that id is a row of its own"
             );
@@ -2678,50 +3054,57 @@ mod tests {
             assert_eq!(
                 fetched(&store, crate::cache::application(&again), "start", ID)
                     .expect("the store answers"),
-                Some(RECORD.to_vec()),
+                Some(record()),
                 "{word}: the first application still loads its record"
             );
             CASE_STORE.with_borrow_mut(Option::take);
         }
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`: on every store, `replace`
-    /// writes nothing for an absent id or an expired row, and `create` on an id that has a row
-    /// fails and keeps that row's record.
+    /// `rule:http-server/a-session-store-answers-five-operations`: on every store, `save`
+    /// writes nothing for an absent id or an expired row, and `issue` on an id that has a row
+    /// fails and keeps that row's keys.
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
-    fn only_create_inserts_a_session_row() {
+    fn only_issue_inserts_a_session_row() {
+        let changes = Changes {
+            changed: vec![(b"user".as_slice(), b"late".as_slice())],
+            ..Changes::default()
+        };
         for (word, backend) in BACKENDS {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-only-create", *backend);
-            assert!(
-                !replaced(&store, NO_APP, "a case", ID, RECORD, DEFAULT_TTL)
+            assert_eq!(
+                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_TTL)
                     .expect("the store answers"),
-                "{word}: a replace of an absent id writes nothing"
+                Saved::Gone,
+                "{word}: a save of an absent id writes nothing"
             );
             assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
 
             assert!(
-                created(&store, NO_APP, "a case", ID, RECORD, DEFAULT_TTL)
+                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_TTL)
                     .expect("the store answers"),
-                "{word}: a create of an absent id inserts the row"
+                "{word}: an issue of an absent id inserts the row"
             );
+            let another = Entries::from([(b"user".to_vec(), b"another".to_vec())]);
             assert!(
-                !created(&store, NO_APP, "a case", ID, b"another", DEFAULT_TTL)
+                !issued(&store, NO_APP, "a case", ID, &another, DEFAULT_TTL)
                     .expect("the store answers"),
-                "{word}: a create of a held id fails"
+                "{word}: an issue of a held id fails"
             );
             assert_eq!(
                 fetched(&store, NO_APP, "a case", ID).expect("the store answers"),
-                Some(RECORD.to_vec()),
-                "{word}: and the held record stays"
+                Some(record()),
+                "{word}: and the held keys stay"
             );
 
             kept.lapse(ID);
-            assert!(
-                !replaced(&store, NO_APP, "a case", ID, b"late", DEFAULT_TTL)
+            assert_eq!(
+                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_TTL)
                     .expect("the store answers"),
-                "{word}: a replace of an expired row writes nothing"
+                Saved::Gone,
+                "{word}: a save of an expired row writes nothing"
             );
             assert_eq!(
                 fetched(&store, NO_APP, "a case", ID).expect("the store answers"),
@@ -2750,13 +3133,7 @@ mod tests {
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: RECORD.to_vec(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
+        ctx.open_session(loaded(record()));
         assert!(
             nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
             "no `[cache.shared] url`, so no store heard the sign-out"
@@ -2766,13 +3143,13 @@ mod tests {
             .session()
             .expect("a refused destroy leaves the session open");
         assert_eq!(kept.id, ID);
-        assert_eq!(kept.record, RECORD);
+        assert_eq!(kept.entries, record());
 
         let (listener, address) = listening();
-        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         held.lock()
             .expect("the store")
-            .insert(key_of(NO_APP, ID), RECORD.to_vec());
+            .insert(key_of(NO_APP, ID), hash_of(&record()));
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
@@ -2798,13 +3175,13 @@ mod tests {
         drop(ctx.take_pending());
     }
 
-    /// `Core\Session::regenerate` as a program reaches it: the record moves to a new identifier in
-    /// the store and the old entry is forgotten, before the request's own session changes.
+    /// `Core\Session::regenerate` as a program reaches it: the session moves to a new identifier
+    /// in the store and the old entry is forgotten, before the request's own session changes.
     ///
-    /// With no store configured the member throws and the request keeps the id and record it had,
+    /// With no store configured the member throws and the request keeps the id and keys it had,
     /// so a login that did not harden is never reported as one. Over [`serving`] the store holds
-    /// the record under the new id alone, and the request holds the same record, not dirty, because
-    /// the move already wrote it.
+    /// the session under the new id alone, and the request holds the same keys, not dirty, because
+    /// the move changed no key.
     // covers: Core\Session::regenerate
     #[test]
     fn regenerate_moves_the_record_to_a_new_id_and_forgets_the_old_one() {
@@ -2816,13 +3193,7 @@ mod tests {
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: RECORD.to_vec(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
+        ctx.open_session(loaded(record()));
         assert!(
             nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[]).is_err(),
             "no `[cache.shared] url`, so no store can take the record"
@@ -2832,13 +3203,13 @@ mod tests {
             .session()
             .expect("a refused regenerate leaves the session open");
         assert_eq!(kept.id, ID);
-        assert_eq!(kept.record, RECORD);
+        assert_eq!(kept.entries, record());
 
         let (listener, address) = listening();
-        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         held.lock()
             .expect("the store")
-            .insert(key_of(NO_APP, ID), RECORD.to_vec());
+            .insert(key_of(NO_APP, ID), hash_of(&record()));
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         ctx.set_config(crate::tests::granting(&format!(
@@ -2850,10 +3221,10 @@ mod tests {
             .expect("a configured store takes the record under a new id");
         let moved = ctx.session().expect("the request keeps a session");
         assert_ne!(moved.id, ID, "the identifier is new");
-        assert_eq!(moved.record, RECORD, "and the record is the one it had");
+        assert_eq!(moved.entries, record(), "and the keys are the ones it had");
         assert!(
             !moved.dirty,
-            "the move wrote the record, so nothing is left to write"
+            "the move changed no key, so nothing is left to write"
         );
 
         let entries = held.lock().expect("the store");
@@ -2862,9 +3233,9 @@ mod tests {
             "the old entry is gone from the store"
         );
         assert_eq!(
-            entries.get(&key_of(NO_APP, &moved.id)).map(Vec::as_slice),
-            Some(RECORD),
-            "and the record is under the new id"
+            entries.get(&key_of(NO_APP, &moved.id)).map(entries_in),
+            Some(record()),
+            "and the keys are under the new id"
         );
     }
 
@@ -2905,10 +3276,10 @@ mod tests {
         assert!(ctx.session().is_none());
 
         let (listener, address) = listening();
-        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         held.lock()
             .expect("the store")
-            .insert(key_of(NO_APP, HELD), RECORD.to_vec());
+            .insert(key_of(NO_APP, HELD), hash_of(&record()));
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         let config = crate::tests::granting(&format!(
@@ -2921,7 +3292,8 @@ mod tests {
             .expect("the cookie names a record the store holds");
         let opened = ctx.session().expect("the request has a session");
         assert_eq!(opened.id, HELD, "the presented identifier is kept");
-        assert_eq!(opened.record, RECORD, "and its record is the stored one");
+        assert_eq!(opened.entries, record(), "and its keys are the stored ones");
+        assert!(opened.stored, "the session is the stored one");
         assert!(!opened.dirty, "opening a record is not a change");
         assert!(
             ctx.take_headers().is_empty(),
@@ -2950,7 +3322,7 @@ mod tests {
             issued.id.is_empty(),
             "the forged identifier is not used, and none is drawn before the first write"
         );
-        assert!(issued.record.is_empty(), "the fresh record is empty");
+        assert!(issued.entries.is_empty(), "the fresh session has no keys");
         assert!(
             fresh.take_headers().is_empty(),
             "no cookie is sent for a session nobody wrote"
@@ -2973,7 +3345,7 @@ mod tests {
     #[test]
     fn a_session_nobody_wrote_leaves_no_row_and_sends_no_cookie() {
         let (listener, address) = listening();
-        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        let held: Rows = Arc::new(Mutex::new(HashMap::new()));
         let _serving = Serving::start(listener, Arc::clone(&held));
         let config = crate::tests::granting(&format!(
             "[capabilities.cache]\nshared = true\n[session]\nbackend = \"shared\"\n\
@@ -3038,8 +3410,8 @@ mod tests {
     ///
     /// The flag is asserted because it is the member's other half: a `get` that marked the record
     /// changed would answer every key correctly and cost a read-only request a second round trip.
-    /// A record no decode accepts throws rather than answering `null`, so a session this unit
-    /// cannot read is never mistaken for an empty one.
+    /// A value no decode accepts throws rather than answering `null`, so a value this unit cannot
+    /// read is never mistaken for an absent one.
     // covers: Core\Session::get
     #[test]
     fn get_answers_a_held_key_and_null_for_the_rest_and_earns_no_write() {
@@ -3058,17 +3430,9 @@ mod tests {
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
-        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
-        writing.set(NvsStr::new(b"cart"), Value::int(17));
-        writing.set(NvsStr::new(b"note"), Value::null());
-        write_back(&mut ctx, writing, "set").expect("the record encodes");
+        ctx.open_session(loaded(Entries::new()));
+        put(&mut ctx, b"cart", Value::int(17));
+        put(&mut ctx, b"note", Value::null());
         ctx.session_mut().expect("the session is open").dirty = false;
 
         let cart = got(&mut ctx, b"cart").expect("a held key is read");
@@ -3088,10 +3452,13 @@ mod tests {
             "reading is not a change, so it earns no write"
         );
 
-        ctx.session_mut().expect("the session is open").record = b"no decode accepts this".to_vec();
+        ctx.session_mut()
+            .expect("the session is open")
+            .entries
+            .insert(b"cart".to_vec(), b"no decode accepts this".to_vec());
         assert!(
             got(&mut ctx, b"cart").is_err(),
-            "a record this unit cannot decode throws rather than reading as empty"
+            "a value this unit cannot decode throws rather than reading as absent"
         );
         drop(ctx.take_pending());
     }
@@ -3120,37 +3487,27 @@ mod tests {
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
-        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
-        writing.set(NvsStr::new(b"cart"), Value::int(17));
-        writing.set(NvsStr::new(b"user"), Value::int(4));
-        write_back(&mut ctx, writing, "set").expect("the record encodes");
-        ctx.session_mut().expect("the session is open").dirty = false;
+        ctx.open_session(loaded(Entries::new()));
+        put(&mut ctx, b"cart", Value::int(17));
+        put(&mut ctx, b"user", Value::int(4));
+        let session = ctx.session_mut().expect("the session is open");
+        session.dirty = false;
+        session.touched.clear();
 
-        let before = ctx.session().expect("the session is open").record.clone();
+        let before = ctx.session().expect("the session is open").entries.clone();
         dropped(removed(&mut ctx, b"missing").expect("an absent key is not an error"));
         let session = ctx.session().expect("the session is open");
         assert!(!session.dirty, "removing an absent key is not a change");
-        assert_eq!(
-            session.record, before,
-            "and leaves the record's bytes as they were"
-        );
+        assert!(session.touched.is_empty(), "and owes the store nothing");
+        assert_eq!(session.entries, before, "and leaves the keys as they were");
 
         dropped(removed(&mut ctx, b"cart").expect("a held key is removed"));
         assert!(
             ctx.session().expect("the session is open").dirty,
             "removing a held key is a change, so it earns a write"
         );
-        let held = record(&ctx, "get").expect("the record decodes");
-        assert!(!held.has_key(b"cart"), "the removed key is gone");
-        assert!(held.has_key(b"user"), "and the other key stays");
-        drop(held);
+        assert_eq!(int_at(&ctx, b"cart"), None, "the removed key is gone");
+        assert_eq!(int_at(&ctx, b"user"), Some(4), "and the other key stays");
     }
 
     /// `Core\Session::set` through the member: the value is saved and earns a write, a second
@@ -3161,7 +3518,7 @@ mod tests {
     // covers: Core\Session::set
     #[test]
     fn set_saves_a_value_replaces_it_and_earns_a_write() {
-        fn saved(ctx: &mut Ctx, key: &[u8], value: &[u8]) -> Result<Value, i32> {
+        fn set(ctx: &mut Ctx, key: &[u8], value: &[u8]) -> Result<Value, i32> {
             let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
             let value = Value::text(std::str::from_utf8(value).expect("the test writes UTF-8"));
             let args = [key, value, Value::int(0)];
@@ -3170,38 +3527,30 @@ mod tests {
             dropped(value);
             answer
         }
-        fn read(ctx: &Ctx, key: &[u8]) -> Option<String> {
-            let held = record(ctx, "get").expect("the record decodes");
-            let text = held
-                .get(key)
-                .and_then(|value| value.as_text().map(str::to_owned));
-            drop(held);
+        fn text_at(ctx: &Ctx, key: &[u8]) -> Option<String> {
+            let value = read(ctx, "get", key).expect("the value decodes")?;
+            let text = value.as_text().map(str::to_owned);
+            dropped(value);
             text
         }
 
         let mut ctx = Ctx::buffered();
         assert!(
-            saved(&mut ctx, b"language", b"en").is_err(),
+            set(&mut ctx, b"language", b"en").is_err(),
             "a request that never started a session has no record to write"
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
-        dropped(saved(&mut ctx, b"language", b"en").expect("a started session saves"));
+        ctx.open_session(loaded(Entries::new()));
+        dropped(set(&mut ctx, b"language", b"en").expect("a started session saves"));
         assert!(
             ctx.session().expect("the session is open").dirty,
             "saving is a change, so it earns a write"
         );
-        assert_eq!(read(&ctx, b"language").as_deref(), Some("en"));
+        assert_eq!(text_at(&ctx, b"language").as_deref(), Some("en"));
 
-        dropped(saved(&mut ctx, b"language", b"de").expect("a second value replaces the first"));
-        assert_eq!(read(&ctx, b"language").as_deref(), Some("de"));
+        dropped(set(&mut ctx, b"language", b"de").expect("a second value replaces the first"));
+        assert_eq!(text_at(&ctx, b"language").as_deref(), Some("de"));
     }
 
     /// A `get` in a recorded request files one `session` event under the member's name.
@@ -3231,13 +3580,7 @@ mod tests {
     fn started() -> Ctx {
         let mut ctx = Ctx::buffered();
         ctx.set_random_state(11);
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
+        ctx.open_session(loaded(Entries::new()));
         ctx
     }
 
@@ -3307,16 +3650,16 @@ mod tests {
             ctx.session().expect("the session is open").dirty,
             "sealing a value is a change, so it earns a write"
         );
-        let held = record(&ctx, "get").expect("the record decodes");
         assert!(
-            !held.has_key(b"refresh"),
+            !ctx.session()
+                .expect("the session is open")
+                .entries
+                .contains_key(b"refresh".as_slice()),
             "`get` finds nothing under the plain key"
         );
-        let sealed = held
-            .get(&sealed_key(b"refresh"))
-            .and_then(|value| value.as_bytes().map(<[u8]>::to_vec))
+        let sealed = read_bytes(&ctx, "get", &sealed_key(b"refresh"))
+            .expect("the sealed entry decodes")
             .expect("the sealed entry is bytes");
-        drop(held);
         assert!(
             !sealed.windows(9).any(|window| window == b"sk-live-7"),
             "what the store receives is ciphertext"
@@ -3380,11 +3723,17 @@ mod tests {
 
     /// The key is prefixed and carries the id, so one store holding a cache, a limiter and a
     /// session store keeps the three apart — and an application-named limiter key cannot be
-    /// spelled to read a session record.
+    /// spelled to read a session record. The prefix names the one-hash-per-session layout, so a
+    /// key an earlier build wrote as one string under `nvs:session:` is never read as a hash.
     #[test]
     fn a_record_is_keyed_under_its_own_prefix() {
         let key = key_of(b"/srv/blog", ID);
+        assert_eq!(PREFIX, "nvs:session-keys:");
         assert!(key.starts_with(PREFIX.as_bytes()));
+        assert!(
+            !key.starts_with(b"nvs:session:"),
+            "a key of the one-string layout is never read as a hash"
+        );
         assert_eq!(
             &key[PREFIX.len()..],
             b"/srv/blog\0PmA5tKz1QvR3sYbN".as_slice()
@@ -3480,56 +3829,45 @@ mod tests {
     /// A user's secret reaches the record only sealed: the entry `setSecret` leaves holds
     /// ciphertext, the ordinary read is blind to it, and the sealed door reads it back.
     ///
-    /// Asserted over the **encoded** record as well as the entry, because a member that sealed the
-    /// value and then also left it somewhere in the clear would pass on the entry alone — and what
-    /// crosses to the store is those bytes, not the array this process decoded.
+    /// Asserted over the **encoded** entries as well as the decoded value, because a member that
+    /// sealed the value and then also left it somewhere in the clear would pass on the value alone —
+    /// and what crosses to the store is those bytes, not the value this process decoded.
     #[test]
     fn session_secret_is_stored_as_ciphertext_in_the_record() {
         const TOKEN: &[u8] = b"sk-live-7";
 
         let mut ctx = Ctx::buffered();
         ctx.set_random_state(23);
-        ctx.open_session(nvs_runtime::Session {
-            id: ID.to_owned(),
-            stored: true,
-            record: Vec::new(),
-            dirty: false,
-            write_back: super::send_at_end,
-        });
+        ctx.open_session(loaded(Entries::new()));
 
         let ring = crate::keyring::tests::ring_of(&[&[7_u8; 32]]);
         let keys = crate::keyring::tests::borrowed(&ring);
 
-        let mut writing = record(&ctx, "setSecret").expect("a started session has a record");
-        sealed_into(&mut ctx, &mut writing, "token", TOKEN, &keys, "test")
+        sealed_into(&mut ctx, "token", TOKEN, &keys, "test")
             .expect("a ring of one key seals a short value");
-        write_back(&mut ctx, writing, "setSecret").expect("the changed record encodes");
 
-        let stored = ctx
-            .session()
-            .expect("the session is still open")
-            .record
-            .clone();
+        let session = ctx.session().expect("the session is still open");
         assert!(
-            !stored.windows(TOKEN.len()).any(|window| window == TOKEN),
+            session.entries.iter().all(|(key, value)| {
+                ![key, value]
+                    .iter()
+                    .any(|bytes| bytes.windows(TOKEN.len()).any(|window| window == TOKEN))
+            }),
             "the bytes the store is handed carry the secret nowhere in the clear"
         );
 
-        let reading = record(&ctx, "getSecret").expect("the record decodes again");
-        let entry = reading
-            .get(&sealed_key(b"token"))
+        let entry = read_bytes(&ctx, "getSecret", &sealed_key(b"token"))
+            .expect("the sealed entry decodes")
             .expect("the sealed entry is under the sealed name");
-        assert_ne!(
-            entry.as_bytes(),
-            Some(TOKEN),
-            "and neither does the entry itself"
-        );
+        assert_ne!(entry, TOKEN, "and neither does the entry itself");
         assert!(
-            reading.get(b"token").is_none(),
+            read(&ctx, "get", b"token")
+                .expect("an absent key reads")
+                .is_none(),
             "`get` is blind to it, so the sealed door is the only door here too"
         );
 
-        let opened = opened_from(&ctx, &reading, "token", &keys, "test")
+        let opened = opened_from(&ctx, "token", &keys, "test")
             .expect("nothing here is unaffordable")
             .expect("its own ring opens what it sealed");
         assert_eq!(
@@ -3539,7 +3877,6 @@ mod tests {
         );
 
         dropped(opened);
-        drop(reading);
         dropped(ring);
     }
 
@@ -3555,8 +3892,7 @@ mod tests {
         const TOKEN: &[u8] = b"sk-live-7";
         const KEY: &[u8] = b"token";
 
-        let mut ctx = Ctx::buffered();
-        ctx.set_random_state(29);
+        let mut ctx = started();
         let ring = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
         let keys = crate::keyring::tests::borrowed(&ring);
         let (slot, newest) = crate::keyring::newest(&keys);
@@ -3567,26 +3903,26 @@ mod tests {
         let cached = crate::cache::bound(crate::cache::SEAL_DOMAIN, &app, KEY);
         let sessioned = crate::cache::bound(SEAL_DOMAIN, &app, KEY);
 
-        let mut held = NvsArray::new();
         let for_the_cache = crate::crypto::seal_under(&mut ctx, &cipher, &cached, TOKEN, "test")
             .expect("a short value seals");
-        held.set(
-            NvsStr::new(&sealed_key(KEY)),
+        put(
+            &mut ctx,
+            &sealed_key(KEY),
             Value::bytes(NvsStr::new(&for_the_cache)),
         );
         assert!(
-            opened_from(&ctx, &held, "token", &keys, "test")
+            opened_from(&ctx, "token", &keys, "test")
                 .expect("nothing here is unaffordable")
                 .is_none(),
             "a ciphertext an operator moved out of a cache and into a record is a miss"
         );
 
-        sealed_into(&mut ctx, &mut held, "token", TOKEN, &keys, "test")
+        sealed_into(&mut ctx, "token", TOKEN, &keys, "test")
             .expect("a ring of one key seals a short value");
-        let entry = held
-            .get(&sealed_key(KEY))
-            .expect("the sealed entry is there");
-        let sealed = entry.as_bytes().expect("a sealed entry is bytes");
+        let sealed = read_bytes(&ctx, "getSecret", &sealed_key(KEY))
+            .expect("the sealed entry decodes")
+            .expect("a sealed entry is bytes");
+        let sealed = sealed.as_slice();
         assert!(
             crate::crypto::open_under(&cipher, &cached, sealed, "test")
                 .expect("nothing here is unaffordable")
@@ -3601,7 +3937,6 @@ mod tests {
              thing under test"
         );
 
-        drop(held);
         dropped(ring);
     }
 }

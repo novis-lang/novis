@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-stdlib/src/cache/redis.rs, data/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.json, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md]
   - id: 2
     title: the session is kept and written back per key on both stores
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-stdlib/src/cache/redis.rs]
   - id: 3
     title: tests prove that two requests keep both keys and that the script holds on a real store
@@ -201,6 +201,10 @@ travel. Each `get` and `set` encodes or decodes one value, where it took the who
 side holds one small hash per session, which Redis stores compactly. The SQLite side holds one row per
 key. The code gains two Lua scripts, a second table and the touched set.
 
+**`clear` always earns a write (stage 2's call, from security and request isolation).** A `clear` on
+a session with an identifier marks it dirty, even when this request saw it empty, because the store may
+hold keys another request saved. A session with no identifier has nothing to clear and writes nothing.
+
 **Lanes.** Stages 1 to 3 run in order: each one changes `session.rs` or `redis.rs`. Stage 4 touches
 `docs/examples/core/Session/` and `benches/members/core/Session/` alone, and may run as a side goal
 once stage 2 is done. Its bench record needs stage 2's code.
@@ -252,30 +256,30 @@ constants and applies the same steps in Rust, and any other script panics, as an
 now. The real script is proved against Redis in stage 3. The session runs `cargo test --lib --
 session::` once after the subagent ends.
 
-- [ ] `crates/nvs-runtime/src/ctx/wiring.rs:47`: `Session` takes `entries`, `touched` and `cleared`
+- [x] `crates/nvs-runtime/src/ctx/wiring.rs:47`: `Session` takes `entries`, `touched` and `cleared`
   in place of `record`, with doc comments that state what each spends. Every place that builds a
   `Session` follows: `crates/nvs-stdlib/src/session.rs:975`, `:996` `fresh_session` and `:1626`.
-- [ ] `crates/nvs-stdlib/src/session.rs:1171` `record` and `:1225` `write_back` become a read of one
+- [x] `crates/nvs-stdlib/src/session.rs:1171` `record` and `:1225` `write_back` become a read of one
   key and a write of one key. `get` (`:1357`), `set` (`:1396`), `setSecret` (`:1437`), `getSecret`
   (`:1469`), `remove` (`:1493`), `clear` (`:1520`), `put_bytes` (`:1308`) and `take_bytes` (`:1327`)
   use them. A removal of an absent key still marks nothing (`:1320-1322`).
-- [ ] `crates/nvs-stdlib/src/session.rs:575` `PREFIX` becomes `nvs:session-keys:`. `:809-870` become
+- [x] `crates/nvs-stdlib/src/session.rs:575` `PREFIX` becomes `nvs:session-keys:`. `:809-870` become
   the five shared-store operations with the two scripts as module constants. `:685-742` dispatch the
   five on both stores, with `moved` beside `forgot`. The `a_record_is_keyed_under_its_own_prefix`
   test (`:3323`) takes the new prefix.
-- [ ] `crates/nvs-stdlib/src/session/sqlite.rs:55` `SCHEMA`, `:75` `STATEMENTS`, `:161` `load`,
+- [x] `crates/nvs-stdlib/src/session/sqlite.rs:55` `SCHEMA`, `:75` `STATEMENTS`, `:161` `load`,
   `:216` `create`, `:245` `replace`, `:272` `written`, `:306` `destroy`, `:324` `sweep`, `:340` `rows`
   and `:354` `lapse` follow the `db` layout, and a new `move` is added. The test at `:397` becomes
   `two_requests_of_one_session_keep_both_keys_in_the_file`.
-- [ ] `crates/nvs-stdlib/src/session.rs:1601` `regenerated` uses `moved`, and `:1727` `sent_to` sends
+- [x] `crates/nvs-stdlib/src/session.rs:1601` `regenerated` uses `moved`, and `:1727` `sent_to` sends
   the touched keys through `save` or `issue`. `:1696` `send_at_end` reports the ceiling refusal with
   its size. Their doc comments, the `:1388` comment about last-write-wins and the module doc say what
   is now true.
-- [ ] The cards in end-user prose (`AGENTS.md` § *Text an end user reads*). `SET_DOC` (`:362`) gains
+- [x] The cards in end-user prose (`AGENTS.md` § *Text an end user reads*). `SET_DOC` (`:362`) gains
   "Two requests that change different keys at the same time keep both changes. If they change the
   same key, the request that ends last wins." `CLEAR_DOC` (`:431`) says that `clear()` also deletes
   keys that another request saved meanwhile. `REGENERATE_DOC` (`:445`) says that every key is kept.
-- [ ] The split's subagent ends, and `cargo test --lib -- session::` runs once and is green.
+- [x] The split's subagent ends, and `cargo test --lib -- session::` runs once and is green.
 
 ### 3. tests prove that two requests keep both keys and that the script holds on a real store
 
@@ -323,28 +327,30 @@ line here is text an end user reads, held to `AGENTS.md` § *Text an end user re
 
 ### State
 
-Stage 1 is done. Both rules are renamed, rewritten and rendered, and every citation follows
-(`53675ef01a`). The rules already describe the per-key store, which stage 2 builds. The Rust doc
-comments in `session.rs`, `wiring.rs` and `sqlite.rs` cite the new ids and still describe the
-whole-record code. Stage 2 rewrites them with the code.
+Stages 1 and 2 are done. The session is kept per key (`nvs_runtime::Session` has `entries`, `touched`
+and `cleared`), and both stores answer the five operations. On the shared store: `load` (`HGETALL`),
+`issue` (`EVAL` of `ISSUE`, `session.rs:607`), `save` (`EVAL` of `SAVE`, `:627`), `relocate` (the rule's
+`move`, `RENAMENX`) and `destroy`. On the `db` store, the same five in `sqlite.rs`, over
+`nvs_session_heads` and `nvs_session_entries`, each write in one `BEGIN IMMEDIATE` transaction
+(`atomically`). `set_if_present` is removed from `redis.rs`, and `REPLY_CEILING` and
+`STRING_ELEMENT_CEILING` are `pub(crate)`. The cards say what two requests at once do. `set`, `remove`
+and `setSecret` no longer throw `ParseError`, because they decode nothing. One standing decision is new:
+*`clear` always earns a write*.
 
-`redis.rs` reads an array of bulk strings (`Reply::Strings`, bounded by the new
-`STRING_ELEMENT_CEILING`), and has `hash_all` (`HGETALL`), `rename_if_absent` (`RENAMENX`, returning
-`Renamed::{Done, Taken, Gone}`), the `Field` alias and a public `Replay` that `eval` now takes from its
-caller. The limiter and the lease pass `OnlyIfUnsent`. `hash_all`, `rename_if_absent`, `Renamed` and
-`Reply::Strings` carry `#[cfg_attr(not(test), expect(dead_code, …))]` until `session.rs` calls them.
-The `wire` check is green. One standing decision is new: *What the ceiling counts*.
+The subagent ported the test module. The fake store `serving` (`session.rs:2230`) answers `HGETALL`,
+`RENAMENX`, `DEL` and the two scripts by exact text (`issued_in` `:2347`, `saved_in` `:2362`). Build
+and `cargo clippy --all-targets -D warnings` are green. `cargo test --lib -- session::` passed 30 of 30
+in nvs-stdlib. The fixtures in `csrf.rs` and `passkey.rs` tests build the new `Session`.
 
-The sweep's reds were stale again. `env-secret-proofs` has no log, and `git log -S` lands on a retire
-commit. Nightly run 44510687786 ran on `adc7487822`, before `4c82a2409a` (miri) and `eb5c02e983`
-(supply chain). Nothing has been pushed since, so no newer CI run exists.
+The sweep's reds are stale, as the last handoff found: no push since nightly run 44510687786.
 
 ### Next
 
-Stage 2 from its first item, `crates/nvs-runtime/src/ctx/wiring.rs:47` `Session`. When
-`session.rs` calls `hash_all` and `rename_if_absent`, remove their four `expect(dead_code)`
-attributes in `redis.rs`, or the build warns that each expectation is unfulfilled. The write-back
-script counts what *What the ceiling counts* says. Every existing session test in `session.rs` and
-`sqlite.rs` is expected to go red until the stage's subagent changes the fake store `serving`.
+Stage 3 from its first item. The seven `per-key` cases go beside
+`a_destroyed_session_is_not_written_back_on_any_store` (`session.rs:2829`), through `a_store` (`:2799`).
+The four `script` cases need `real_store(label)` in the shape of `lease_case`
+(`crates/nvs-stdlib/src/cache/redis.rs`). The ceiling case passes a small ceiling as `SAVE`'s `ARGV[3]`
+through `eval` directly. No test is expected to go red. The rest of the tree has not run since this
+stage. Conformance cases about `Core\Session` throwing `ParseError` from `set` may go red at the gate.
 
 ### Backlog

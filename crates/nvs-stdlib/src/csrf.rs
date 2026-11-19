@@ -476,7 +476,9 @@ mod tests {
         ctx.open_session(nvs_runtime::Session {
             id: String::new(),
             stored: false,
-            record: Vec::new(),
+            entries: std::collections::BTreeMap::new(),
+            touched: std::collections::BTreeSet::new(),
+            cleared: false,
             dirty: false,
             write_back: |_| {},
         });

@@ -27,22 +27,21 @@
 
 use super::*;
 
-/// The session one request has open — `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "loaded once and written
-/// whole", as what a request holds between `Core\Session::start` and the
-/// write-back at its end.
+/// The session one request has open — what a request holds between
+/// `Core\Session::start` and the write-back at its end, kept per key as
+/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` says.
 ///
-/// **Deliberately not a [`Value`].** The record crosses the store boundary as
-/// `rule:classes/two-copy-depths`'s
-/// byte carrier in both directions — `rule:http-server/a-session-store-answers-five-operations` says so, for the same reason
-/// a `Core\Cache` entry does — so holding the bytes means the context has
-/// nothing to release at teardown and holds no object that could name a
-/// `ClassDesc` an `rule:config/an-edit-reaches-the-next-request-without-a-restart`
-/// unit swap has retired. Decoding is [`crate::decode`]'s, once per member that
-/// reads, over bytes this struct already owns.
+/// **Deliberately not a [`Value`].** Each value crosses the store boundary as
+/// `rule:classes/two-copy-depths`'s byte carrier in both directions, for the
+/// same reason a `Core\Cache` entry does, so holding the bytes means the
+/// context has nothing to release at teardown and holds no object that could
+/// name a `ClassDesc` an
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` unit swap
+/// has retired. Decoding is [`crate::decode`]'s, of one key's value per `get`.
 ///
-/// What it spends: one identifier and one decoded record per **in-flight**
-/// request that started a session, freed with the request — never O(sessions
-/// served).
+/// What it spends: one identifier, one encoded value per key, and the names of
+/// the keys the request set or removed, per **in-flight** request that started
+/// a session, freed with the request — never O(sessions served).
 #[derive(Debug)]
 pub struct Session {
     /// The identifier the store issued, as it rides in the cookie.
@@ -51,37 +50,51 @@ pub struct Session {
     /// store and no cookie, and `Core\Session`'s first write draws the
     /// identifier.
     pub id: String,
-    /// The record under [`Self::id`], as the byte carrier wrote it.
+    /// Each key of the session and its value, encoded alone by
+    /// [`crate::encode`].
     ///
-    /// **Empty is the empty session.** A record with no keys is zero bytes
-    /// rather than the encoding of an empty map, so `start` can mint one
-    /// without building a `Value` to encode, and a store that answered an empty
-    /// entry and one that answered a freshly minted one are the same record.
-    pub record: Vec<u8>,
-    /// Whether anything has changed [`Self::record`] since it was loaded.
+    /// A `BTreeMap` rather than a hash map, so the write-back sends the keys in
+    /// one order and a test can read them back in it. What it spends: the
+    /// loaded session's bytes, once, per in-flight request.
+    pub entries: std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
+    /// The keys this request set or removed since the load: what the
+    /// write-back sends.
     ///
-    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "writing only when the record changed" is what keeps a read-only
+    /// A touched key that is in [`Self::entries`] is a change, and one that is
+    /// not is a removal. A key the request only read is never here, so a stale
+    /// value it read cannot overwrite a newer one another request wrote. What it
+    /// spends: one key name per key the request wrote.
+    pub touched: std::collections::BTreeSet<Vec<u8>>,
+    /// Whether the request called `clear` since the load, so the write-back
+    /// deletes every key the store holds before it sends [`Self::touched`].
+    pub cleared: bool,
+    /// Whether the write-back owes the store a write.
+    ///
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s
+    /// "writing only when the session changed" is what keeps a read-only
     /// request off the write path: a request that starts a session and reads it
-    /// makes one round trip, not two.
+    /// makes one round trip, not two. It is also set for an identifier the
+    /// request drew while the session is still empty, whose row the write-back
+    /// creates.
     pub dirty: bool,
     /// Whether the store holds a row under [`Self::id`].
     ///
     /// `start` sets it for a row it loaded, and the write-back sets it after the
     /// write that creates the row. The write-back reads it to choose its write:
-    /// a stored session is *replaced*, which changes only a row that still
-    /// exists, and a session this request drew is *created*. So a session that
+    /// a stored session is *saved*, which changes only a session that still
+    /// exists, and a session this request drew is *issued*. So a session that
     /// another request destroyed while this one ran stays destroyed, and this
     /// request's changes to it are dropped
     /// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
     /// What it spends: one `bool` per in-flight session, and no round trip.
     pub stored: bool,
-    /// How [`Self::record`] is sent when the program that opened it ends —
-    /// that rule's write-back, travelling **with the record** rather than being
-    /// reached for at the end.
+    /// How [`Self::touched`] is sent when the program that opened the session
+    /// ends — that rule's write-back, travelling **with the session** rather
+    /// than being reached for at the end.
     ///
     /// It has to travel, because none of the three crates involved can name
     /// the other two. The store is `nvs-stdlib`'s —
-    /// `rule:http-server/a-session-store-answers-five-operations`'s four operations are
+    /// `rule:http-server/a-session-store-answers-five-operations`'s five operations are
     /// over `Core\Cache`'s wire — while the two places a program *ends* are
     /// `nvs-host`'s isolate teardown, which an HTTP request is
     /// (`rule:security/isolate-shares-nothing`), and

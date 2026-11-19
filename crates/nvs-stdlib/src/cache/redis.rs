@@ -48,9 +48,9 @@
 //! (`rule:http-server/a-session-store-answers-five-operations`). Its commands
 //! here are [`Connection::hash_all`], `HGETALL`, which reads every key at
 //! `start`; [`Connection::rename_if_absent`], `RENAMENX`, which moves a session
-//! to a new identifier; [`Connection::del`], `DEL`; [`Connection::eval`], whose
-//! caller says whether its script may run twice; `set_if_absent`; and
-//! [`Connection::set_if_present`], `SET … XX PX`. A compare-and-set a
+//! to a new identifier; [`Connection::del`], `DEL`; and [`Connection::eval`],
+//! whose caller says whether its script may run twice, for the issue and the
+//! write-back scripts. A compare-and-set a
 //! *program* could reach is new cross-request coordination
 //! (`rule:concurrency/cross-request-state-is-explicit`), so the tier's own wire
 //! stays `put` and `get` and every other command is internal to this crate.
@@ -106,7 +106,7 @@ pub(super) const DEFAULT_PORT: u16 = 6379;
 /// reply is bytes another host chose, so "until memory runs out" is that host
 /// deciding this process's footprint. An entry this tier wrote is bounded by
 /// what the request could build; an entry something else wrote is not.
-const REPLY_CEILING: usize = 8 * 1024 * 1024;
+pub(crate) const REPLY_CEILING: usize = 8 * 1024 * 1024;
 
 /// How much is read from the socket at a time.
 const CHUNK: usize = 4096;
@@ -126,7 +126,7 @@ const ELEMENT_CEILING: i64 = 64;
 /// under it are bounded by [`REPLY_CEILING`] already; this bounds the one
 /// buffer header each element costs, 24 bytes each and 1.5 MiB at most, per
 /// in-flight `HGETALL`.
-const STRING_ELEMENT_CEILING: i64 = 65_536;
+pub(crate) const STRING_ELEMENT_CEILING: i64 = 65_536;
 
 /// The fleet lease's renewal, run where the lease lives.
 ///
@@ -347,36 +347,6 @@ impl Connection {
         }
     }
 
-    /// `SET key payload XX PX milliseconds` — the entry replaced **only while
-    /// the key still holds one**, and whether it was.
-    ///
-    /// `false` is a key that is absent or expired, and nothing is written.
-    /// [`crate::session`]'s write-back is the caller: a session row another
-    /// request destroyed stays destroyed, because this command cannot create it
-    /// again (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
-    /// The lifetime is not optional, for [`Connection::set_expiring`]'s reason.
-    ///
-    /// # Errors
-    ///
-    /// As [`Connection::set`]. Replayable: a second `XX` write over a key the
-    /// first one wrote reaches the same state.
-    pub(crate) fn set_if_present(
-        &mut self,
-        key: &[u8],
-        payload: &[u8],
-        ttl: Duration,
-    ) -> Result<bool, String> {
-        let millis = expiry(ttl);
-        match self.command(
-            &[b"SET", key, payload, b"XX", b"PX", millis.as_bytes()],
-            Replay::Idempotent,
-        )? {
-            Reply::Simple(word) if word == "OK" => Ok(true),
-            Reply::Nil => Ok(false),
-            other => Err(other.unexpected("SET")),
-        }
-    }
-
     /// `DEL key` — the entry forgotten, and whether this command removed one.
     ///
     /// `Core\Cache` discards the answer: an entry that was not there is already
@@ -459,10 +429,6 @@ impl Connection {
     /// As [`Connection::set`], plus an array of an odd length, which is not a
     /// hash. A key holding another type is the store's `WRONGTYPE` refusal.
     /// Replayable: a read leaves nothing.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the session store's load reads a hash next")
-    )]
     pub(crate) fn hash_all(&mut self, key: &[u8]) -> Result<Option<Vec<Field>>, String> {
         match self.command(&[b"HGETALL", key], Replay::Idempotent)? {
             Reply::Array(numbers) if numbers.is_empty() => Ok(None),
@@ -495,10 +461,6 @@ impl Connection {
     /// As [`Connection::set`], and any other refusal. Not replayed once sent:
     /// a replay after the first attempt landed would find `old` gone and
     /// answer [`Renamed::Gone`] about the move it made itself.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the session store's move renames a hash next")
-    )]
     pub(crate) fn rename_if_absent(&mut self, old: &[u8], new: &[u8]) -> Result<Renamed, String> {
         match self.command(&[b"RENAMENX", old, new], Replay::OnlyIfUnsent)? {
             Reply::Number(1) => Ok(Renamed::Done),
@@ -740,10 +702,6 @@ pub(crate) type Field = (Vec<u8>, Vec<u8>);
 
 /// What [`Connection::rename_if_absent`] answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the session store's move renames a hash next")
-)]
 pub(crate) enum Renamed {
     /// The entry is under the new key now, with its expiry.
     Done,
@@ -782,10 +740,6 @@ enum Reply {
     /// field and its value in turn. An array mixing the two shapes, or holding
     /// any other, is refused where it is read, because no command this client
     /// sends answers one.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the session store's load reads a hash next")
-    )]
     Strings(Vec<Vec<u8>>),
 }
 

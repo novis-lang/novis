@@ -1,20 +1,24 @@
 //! The `db` session store: one SQLite file in the data folder, in WAL mode
 //! (`rule:http-server/no-session-block-means-the-data-folder-store`).
 //!
-//! It answers `rule:http-server/a-session-store-answers-five-operations`'s operations over one
-//! table, `nvs_sessions`, keyed by the application and the identifier, with the record as a blob
-//! and its expiry as milliseconds since the epoch. The application is the innermost `[[app]]`
-//! block's path, the one `crate::cache::application` reads, so an id one application issued is
-//! absent in every other one that shares the data folder. Each operation is one short statement in SQLite's own autocommit
-//! transaction, so nothing is held between `start` and the write-back at the end of the request:
-//! two requests of one session never wait on each other, and the last write wins
-//! (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). WAL mode lets every reader run
-//! beside the one writer, and `busy_timeout` covers the moment two writers meet.
+//! It answers `rule:http-server/a-session-store-answers-five-operations`'s five operations over two
+//! tables keyed by the application and the identifier: `nvs_session_heads`, one row per session
+//! with its expiry as milliseconds since the epoch, and `nvs_session_entries`, one row per key with
+//! its encoded value. The application is the innermost `[[app]]` block's path, the one
+//! `crate::cache::application` reads, so an id one application issued is absent in every other one
+//! that shares the data folder.
 //!
-//! **An expired row is absent at once and deleted later.** [`load`] reads only a row whose expiry
-//! is still ahead, so expiry needs no sweep to be correct. [`sweep`] deletes the expired rows at
-//! most once a minute per core, from a write, so the file holds O(live sessions) rather than
-//! O(sessions ever issued) (`rule:http-server/session-expiry-belongs-to-the-store`).
+//! `load` is one statement, and every write is one short transaction on this core's connection,
+//! so nothing is held between `start` and the write-back at the end of the request. Two requests
+//! of one session never wait on each other beyond the few statements of a write, two that change
+//! different keys keep both, and two that change one key keep the last
+//! (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). WAL mode lets every
+//! reader run beside the one writer, and `busy_timeout` covers the moment two writers meet.
+//!
+//! **An expired head is absent at once and deleted later.** [`load`] reads only a head whose
+//! expiry is still ahead, so expiry needs no sweep to be correct. [`sweep`] deletes the expired
+//! sessions at most once a minute per core, from a write, so the file holds O(live sessions)
+//! rather than O(sessions ever issued) (`rule:http-server/session-expiry-belongs-to-the-store`).
 //!
 //! **The file is Novis's own, so no capability is asked.** The operator chose the data folder, the
 //! name is fixed, and no program-supplied path reaches it; it is `Core\Cache`'s artifact cache
@@ -26,9 +30,10 @@
 //! rather than finding the slot borrowed. Every statement runs on the blocking pool
 //! ([`nvs_db::SqliteConn::query`]), so a core never waits on the disk.
 //!
-//! Cost: one connection and its statement cache per core, O(cores). Per request, one indexed read at
-//! `start`, and one indexed update for a changed record or one insert for a new one, plus one
-//! indexed delete per core per minute.
+//! Cost: one connection and its statement cache per core, O(cores). Per request, one indexed range
+//! read at `start`, and for a changed session one transaction that writes one row per changed key
+//! and the head, plus two indexed deletes per core per minute. The file holds one row per key of
+//! each live session.
 
 use std::cell::RefCell;
 use std::io;
@@ -36,6 +41,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use nvs_db::{SqliteConn, SqliteTarget, SqliteValue};
+
+use super::{Changes, Entries};
+use crate::cache::redis::Renamed;
 
 /// What a new connection runs as it opens, before the driver's pragma allow list applies.
 ///
@@ -47,22 +55,32 @@ const SETUP: &[&str] = &["PRAGMA synchronous = NORMAL"];
 
 /// What a new connection runs before its first statement, in order.
 ///
-/// `WITHOUT ROWID` stores the record in the key's own b-tree, so a read is one lookup.
+/// `nvs_session_heads` has one row per session, with its expiry, and `nvs_session_entries` one row
+/// per key. `WITHOUT ROWID` stores each row in its key's own b-tree, so a session's entries sit
+/// together and a load is one range read.
 ///
-/// The `DROP` removes the table an earlier build keyed by the identifier alone. Its rows name no
-/// application, so no application may open them. It runs once per connection, and finds nothing
-/// after the first.
+/// The two `DROP`s remove the tables earlier builds kept a session in whole, `nvs_session` keyed
+/// by the identifier alone and `nvs_sessions` with one record per session. Their sessions are not
+/// converted, so every user of an earlier build is signed out once. Each `DROP` runs once per
+/// connection, and finds nothing after the first.
 const SCHEMA: &[&str] = &[
     "PRAGMA busy_timeout = 5000",
     "DROP TABLE IF EXISTS nvs_session",
-    "CREATE TABLE IF NOT EXISTS nvs_sessions (\
+    "DROP TABLE IF EXISTS nvs_sessions",
+    "CREATE TABLE IF NOT EXISTS nvs_session_heads (\
          app BLOB NOT NULL, \
          id TEXT NOT NULL, \
-         record BLOB NOT NULL, \
          expires_at INTEGER NOT NULL, \
          PRIMARY KEY (app, id)\
      ) WITHOUT ROWID",
-    "CREATE INDEX IF NOT EXISTS nvs_sessions_expiry ON nvs_sessions (expires_at)",
+    "CREATE INDEX IF NOT EXISTS nvs_session_heads_expiry ON nvs_session_heads (expires_at)",
+    "CREATE TABLE IF NOT EXISTS nvs_session_entries (\
+         app BLOB NOT NULL, \
+         id TEXT NOT NULL, \
+         key BLOB NOT NULL, \
+         value BLOB NOT NULL, \
+         PRIMARY KEY (app, id, key)\
+     ) WITHOUT ROWID",
 ];
 
 /// How often one core deletes the expired rows.
@@ -71,8 +89,8 @@ const SCHEMA: &[&str] = &[
 /// file's size, and a minute of expired rows is nothing beside `[session] ttl`'s two hours.
 const SWEEP_EVERY: Duration = Duration::from_secs(60);
 
-/// How many prepared statements one connection keeps: the five this module runs.
-const STATEMENTS: usize = 5;
+/// How many prepared statements one connection keeps: the fourteen this module runs.
+const STATEMENTS: usize = 14;
 
 /// One core's open connection, the file it is open on, and when it last swept.
 struct Held {
@@ -146,158 +164,325 @@ fn expiry(now: i64, lifetime: Duration) -> i64 {
     now.saturating_add(i64::try_from(lifetime.as_millis()).unwrap_or(i64::MAX))
 }
 
-/// `load`: the record under `id`, or absent for an identifier with no row or an expired one.
+/// `load`: every key of the session under `id`, or absent for an identifier with no live head.
+///
+/// One statement: the live head `LEFT JOIN` its entries. No row is absent, and one row with a
+/// `NULL` key is a session with no keys.
 ///
 /// # Errors
 ///
-/// SQLite's refusal, which `start` throws as an `IOError` and never reads as absent. A record
+/// SQLite's refusal, which `start` throws as an `IOError` and never reads as absent. A session
 /// larger than the request's memory has left is that error too, and its refusal is recorded, so
 /// the member ends with the memory `FATAL`.
 ///
-/// The record is asked of the request's memory ceiling before it is held. The query reads the
-/// record's length and gives the record only when it fits the request's headroom, so a record
-/// that does not fit is never read out of the file. `save` always writes a blob, so the length
-/// is in bytes. What this spends: one length read per load, in the same statement.
-pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Vec<u8>>> {
+/// The session is asked of the request's memory ceiling before it is held. The query reads the
+/// session's total length beside each row and gives the keys and values only when that fits the
+/// request's headroom, so a session that does not fit is never read out of the file. Every key and
+/// value is a blob, so the length is in bytes. What this spends: one sum over the session's
+/// entries per load, in the same statement.
+pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Entries>> {
     let now = crate::queue::now_millis();
     let room = nvs_runtime::budget::headroom()
         .and_then(|room| i64::try_from(room).ok())
         .unwrap_or(i64::MAX);
     with(path, |held| {
         let mut rows = held.conn.query(
-            "SELECT length(record), CASE WHEN length(record) <= ?3 THEN record END \
-             FROM nvs_sessions WHERE app = ?4 AND id = ?1 AND expires_at > ?2",
+            "SELECT size.total, \
+                    CASE WHEN size.total <= ?4 THEN e.key END, \
+                    CASE WHEN size.total <= ?4 THEN e.value END \
+             FROM nvs_session_heads h \
+             CROSS JOIN (SELECT coalesce(sum(length(key) + length(value)), 0) AS total \
+                         FROM nvs_session_entries WHERE app = ?1 AND id = ?2) size \
+             LEFT JOIN nvs_session_entries e ON e.app = h.app AND e.id = h.id \
+             WHERE h.app = ?1 AND h.id = ?2 AND h.expires_at > ?3",
             vec![
+                SqliteValue::Blob(app.to_vec()),
                 SqliteValue::Text(id.to_owned()),
                 SqliteValue::Int(now),
                 SqliteValue::Int(room),
-                SqliteValue::Blob(app.to_vec()),
             ],
         )?;
-        let Some(row) = rows.next_row() else {
-            return Ok(None);
-        };
-        let mut row = row.into_iter();
-        let length = match row.next() {
-            Some(SqliteValue::Int(length)) => usize::try_from(length).unwrap_or(usize::MAX),
-            // An empty record is zero bytes, which SQLite may hand back as `NULL`.
-            _ => 0,
-        };
-        let record = match row.next() {
-            Some(SqliteValue::Blob(record)) => record,
-            Some(SqliteValue::Text(record)) => record.into_bytes(),
-            _ => Vec::new(),
-        };
-        if record.len() < length {
-            nvs_runtime::affordable(Some(length), "Core\\Session").map_err(|_| {
-                io::Error::other(
-                    "the stored session is larger than the request's memory limit has left",
-                )
-            })?;
-            // The headroom was read before the query, which allocates too.
-            return Err(io::Error::other(
-                "the stored session did not fit the memory the request had left",
-            ));
+        let mut entries = Entries::new();
+        let mut live = false;
+        while let Some(row) = rows.next_row() {
+            live = true;
+            let mut row = row.into_iter();
+            let total = match row.next() {
+                Some(SqliteValue::Int(total)) => usize::try_from(total).unwrap_or(usize::MAX),
+                _ => 0,
+            };
+            let (Some(key), Some(value)) = (row.next().and_then(blob), row.next().and_then(blob))
+            else {
+                if total > 0 {
+                    nvs_runtime::affordable(Some(total), "Core\\Session").map_err(|_| {
+                        io::Error::other(
+                            "the stored session is larger than the request's memory limit has left",
+                        )
+                    })?;
+                    // The headroom was read before the query, which allocates too.
+                    return Err(io::Error::other(
+                        "the stored session did not fit the memory the request had left",
+                    ));
+                }
+                // A head with no entries: a session with no keys.
+                continue;
+            };
+            entries.insert(key, value);
         }
-        Ok(Some(record))
+        Ok(live.then_some(entries))
     })
 }
 
-/// `create`: a new row under `id`, with its expiry `lifetime` from now, and whether it was written.
-///
-/// An insert and never a replace of a live row. `false` is an `id` that already has a live row,
-/// which keeps its record. An expired row is absent, as [`load`] reads it, so its `id` is taken
-/// over, as the shared store's `SET … NX` takes an expired key. A due [`sweep`] runs after it on
-/// the same connection.
-///
-/// # Errors
-///
-/// As [`load`].
-pub(crate) fn create(
-    path: &Path,
-    app: &[u8],
-    id: &str,
-    record: &[u8],
-    lifetime: Duration,
-) -> io::Result<bool> {
-    written(
-        path,
-        "INSERT INTO nvs_sessions (app, id, record, expires_at) VALUES (?5, ?1, ?2, ?3) \
-         ON CONFLICT (app, id) DO UPDATE SET record = excluded.record, \
-         expires_at = excluded.expires_at WHERE nvs_sessions.expires_at <= ?4",
-        app,
-        id,
-        record,
-        lifetime,
-    )
+/// A column's bytes, for a `BLOB` or a `TEXT` one, and `None` for `NULL`.
+fn blob(value: SqliteValue) -> Option<Vec<u8>> {
+    match value {
+        SqliteValue::Blob(bytes) => Some(bytes),
+        SqliteValue::Text(text) => Some(text.into_bytes()),
+        _ => None,
+    }
 }
 
-/// `replace`: the record under `id`, replaced whole, with its expiry `lifetime` from now, and
-/// whether a row was changed.
+/// Runs `steps` in one `BEGIN IMMEDIATE` transaction on `conn`. It commits when `steps` answers
+/// `(true, _)`, and rolls back when it answers `(false, _)` or fails.
 ///
-/// An update of a row whose expiry is still ahead, and never an insert. `false` is an `id` with no
-/// live row, which stays absent: another request destroyed the session, or it expired
-/// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). A due [`sweep`] runs after it.
+/// `IMMEDIATE` takes the write lock at the start, so two writers never both read and then both
+/// try to upgrade: the second waits `busy_timeout` for the first's few statements. The
+/// transaction lasts only as long as its own statements, so no request holds it between `start`
+/// and the write-back.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn replace(
-    path: &Path,
-    app: &[u8],
-    id: &str,
-    record: &[u8],
-    lifetime: Duration,
-) -> io::Result<bool> {
-    written(
-        path,
-        "UPDATE nvs_sessions SET record = ?2, expires_at = ?3 \
-         WHERE app = ?5 AND id = ?1 AND expires_at > ?4",
-        app,
-        id,
-        record,
-        lifetime,
-    )
+fn atomically<T>(
+    conn: &SqliteConn,
+    steps: impl FnOnce(&SqliteConn) -> io::Result<(bool, T)>,
+) -> io::Result<T> {
+    conn.begin_immediate()?;
+    match steps(conn) {
+        Ok((true, answer)) => {
+            conn.commit()?;
+            Ok(answer)
+        }
+        Ok((false, answer)) => {
+            conn.roll_back()?;
+            Ok(answer)
+        }
+        Err(why) => {
+            // The connection is dropped after a failure, which ends the transaction too; the roll
+            // back here only makes that explicit, and its own failure says nothing new.
+            drop(conn.roll_back());
+            Err(why)
+        }
+    }
 }
 
-/// Runs `statement`, the write of [`create`] or [`replace`], and then a due [`sweep`].
-///
-/// The statement takes the id, the record, the new expiry, now and the application as `?1` to
-/// `?5`. It answers
-/// whether it changed a row.
+/// Runs a due [`sweep`] on `held`'s connection, after a write.
 ///
 /// # Errors
 ///
 /// As [`load`].
-fn written(
+fn swept(held: &mut Held, now: i64) -> io::Result<()> {
+    if held.swept.is_none_or(|last| last.elapsed() >= SWEEP_EVERY) {
+        sweep(&held.conn, now)?;
+        held.swept = Some(Instant::now());
+    }
+    Ok(())
+}
+
+/// The application and identifier as the first two parameters every statement here takes.
+fn named(app: &[u8], id: &str) -> Vec<SqliteValue> {
+    vec![
+        SqliteValue::Blob(app.to_vec()),
+        SqliteValue::Text(id.to_owned()),
+    ]
+}
+
+/// `key` and `value` as the third and fourth parameters, after [`named`]'s.
+fn entry_of(app: &[u8], id: &str, key: &[u8], value: &[u8]) -> Vec<SqliteValue> {
+    let mut row = named(app, id);
+    row.push(SqliteValue::Blob(key.to_vec()));
+    row.push(SqliteValue::Blob(value.to_vec()));
+    row
+}
+
+/// The upsert of one entry, which [`issue`] and [`save`] share.
+const UPSERT: &str = "INSERT INTO nvs_session_entries (app, id, key, value) VALUES (?1, ?2, ?3, ?4) \
+     ON CONFLICT (app, id, key) DO UPDATE SET value = excluded.value";
+
+/// The insert of a head that takes over an expired one, which [`issue`] and [`relocate`] share. It
+/// takes the application, the identifier, the expiry and now, and changes no row for a live head.
+const NEW_HEAD: &str = "INSERT INTO nvs_session_heads (app, id, expires_at) VALUES (?1, ?2, ?3) \
+     ON CONFLICT (app, id) DO UPDATE SET expires_at = excluded.expires_at \
+     WHERE nvs_session_heads.expires_at <= ?4";
+
+/// The delete of every entry of one session.
+const DROP_ENTRIES: &str = "DELETE FROM nvs_session_entries WHERE app = ?1 AND id = ?2";
+
+/// `issue`: a new session under `id` holding `entries`, with its expiry `lifetime` from now, and
+/// whether it was written.
+///
+/// One transaction, and never a write over a live session. `false` is an `id` that is already
+/// live, which keeps what it has. An expired head is absent, as [`load`] reads it, so its `id` is
+/// taken over, as the shared store's issue takes an expired key, and the entries it left are
+/// deleted first. A due [`sweep`] runs after it on the same connection.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn issue(
     path: &Path,
-    statement: &str,
     app: &[u8],
     id: &str,
-    record: &[u8],
+    entries: &Entries,
     lifetime: Duration,
 ) -> io::Result<bool> {
     let now = crate::queue::now_millis();
     with(path, |held| {
-        let parameters = vec![
-            SqliteValue::Text(id.to_owned()),
-            SqliteValue::Blob(record.to_vec()),
-            SqliteValue::Int(expiry(now, lifetime)),
-            SqliteValue::Int(now),
-            SqliteValue::Blob(app.to_vec()),
-        ];
-        let changed = held.conn.query(statement, parameters)?.affected() > 0;
-        if held.swept.is_none_or(|last| last.elapsed() >= SWEEP_EVERY) {
-            sweep(&held.conn, now)?;
-            held.swept = Some(Instant::now());
-        }
-        Ok(changed)
+        let issued = atomically(&held.conn, |conn| {
+            let mut head = named(app, id);
+            head.push(SqliteValue::Int(expiry(now, lifetime)));
+            head.push(SqliteValue::Int(now));
+            if conn.query(NEW_HEAD, head)?.affected() == 0 {
+                return Ok((false, false));
+            }
+            drop(conn.query(DROP_ENTRIES, named(app, id))?);
+            if !entries.is_empty() {
+                let rows = entries
+                    .iter()
+                    .map(|(key, value)| entry_of(app, id, key, value))
+                    .collect();
+                conn.execute_many(UPSERT, rows)?;
+            }
+            Ok((true, true))
+        })?;
+        swept(held, now)?;
+        Ok(issued)
     })
 }
 
-/// `destroy`: the row under `id`, deleted, and whether there was one.
+/// `save`: one request's `changes` applied to the session under `id`, with its expiry `lifetime`
+/// from now, and whether the session was still live.
 ///
-/// Deleting a row that is not there is not a failure. `false` tells `regenerate` that another
+/// One transaction. It first moves a live head's expiry, and a head that is gone or expired
+/// changes no row: the transaction rolls back and answers `false`, so the session stays absent —
+/// another request destroyed it, or it expired
+/// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). Then, in order: every
+/// entry deleted on `clear`, the removed keys deleted, and the changed keys upserted. A due
+/// [`sweep`] runs after it.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn save(
+    path: &Path,
+    app: &[u8],
+    id: &str,
+    changes: &Changes<'_>,
+    lifetime: Duration,
+) -> io::Result<bool> {
+    let now = crate::queue::now_millis();
+    with(path, |held| {
+        let saved = atomically(&held.conn, |conn| {
+            let mut head = named(app, id);
+            head.push(SqliteValue::Int(expiry(now, lifetime)));
+            head.push(SqliteValue::Int(now));
+            let live = conn
+                .query(
+                    "UPDATE nvs_session_heads SET expires_at = ?3 \
+                     WHERE app = ?1 AND id = ?2 AND expires_at > ?4",
+                    head,
+                )?
+                .affected()
+                > 0;
+            if !live {
+                return Ok((false, false));
+            }
+            if changes.cleared {
+                drop(conn.query(DROP_ENTRIES, named(app, id))?);
+            }
+            if !changes.removed.is_empty() {
+                let rows = changes
+                    .removed
+                    .iter()
+                    .map(|key| {
+                        let mut row = named(app, id);
+                        row.push(SqliteValue::Blob(key.to_vec()));
+                        row
+                    })
+                    .collect();
+                conn.execute_many(
+                    "DELETE FROM nvs_session_entries WHERE app = ?1 AND id = ?2 AND key = ?3",
+                    rows,
+                )?;
+            }
+            if !changes.changed.is_empty() {
+                let rows = changes
+                    .changed
+                    .iter()
+                    .map(|(key, value)| entry_of(app, id, key, value))
+                    .collect();
+                conn.execute_many(UPSERT, rows)?;
+            }
+            Ok((true, true))
+        })?;
+        swept(held, now)?;
+        Ok(saved)
+    })
+}
+
+/// `move`: the session under `old` moved to `new` with its expiry, as one transaction that runs
+/// only while the old head is live.
+///
+/// It reads the old head's expiry, inserts the new head with it, which changes no row for a live
+/// one, re-points the entries, and deletes the old head. A gone old head and a taken new one roll
+/// back and move nothing.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn relocate(path: &Path, app: &[u8], old: &str, new: &str) -> io::Result<Renamed> {
+    let now = crate::queue::now_millis();
+    with(path, |held| {
+        atomically(&held.conn, |conn| {
+            let mut head = named(app, old);
+            head.push(SqliteValue::Int(now));
+            let mut rows = conn.query(
+                "SELECT expires_at FROM nvs_session_heads \
+                 WHERE app = ?1 AND id = ?2 AND expires_at > ?3",
+                head,
+            )?;
+            let Some(SqliteValue::Int(expires)) =
+                rows.next_row().and_then(|row| row.into_iter().next())
+            else {
+                return Ok((false, Renamed::Gone));
+            };
+            drop(rows);
+            let mut fresh = named(app, new);
+            fresh.push(SqliteValue::Int(expires));
+            fresh.push(SqliteValue::Int(now));
+            if conn.query(NEW_HEAD, fresh)?.affected() == 0 {
+                return Ok((false, Renamed::Taken));
+            }
+            drop(conn.query(DROP_ENTRIES, named(app, new))?);
+            let mut moving = named(app, old);
+            moving.push(SqliteValue::Text(new.to_owned()));
+            drop(conn.query(
+                "UPDATE nvs_session_entries SET id = ?3 WHERE app = ?1 AND id = ?2",
+                moving,
+            )?);
+            drop(conn.query(
+                "DELETE FROM nvs_session_heads WHERE app = ?1 AND id = ?2",
+                named(app, old),
+            )?);
+            Ok((true, Renamed::Done))
+        })
+    })
+}
+
+/// `destroy`: the session under `id`, its head and its entries deleted in one transaction, and
+/// whether there was a head.
+///
+/// Deleting a session that is not there is not a failure. `false` tells a caller that another
 /// request destroyed the session first.
 ///
 /// # Errors
@@ -305,25 +490,34 @@ fn written(
 /// As [`load`].
 pub(crate) fn destroy(path: &Path, app: &[u8], id: &str) -> io::Result<bool> {
     with(path, |held| {
-        let rows = held.conn.query(
-            "DELETE FROM nvs_sessions WHERE app = ?1 AND id = ?2",
-            vec![
-                SqliteValue::Blob(app.to_vec()),
-                SqliteValue::Text(id.to_owned()),
-            ],
-        )?;
-        Ok(rows.affected() > 0)
+        atomically(&held.conn, |conn| {
+            drop(conn.query(DROP_ENTRIES, named(app, id))?);
+            let rows = conn.query(
+                "DELETE FROM nvs_session_heads WHERE app = ?1 AND id = ?2",
+                named(app, id),
+            )?;
+            Ok((true, rows.affected() > 0))
+        })
     })
 }
 
-/// Deletes every row whose expiry is at or before `now`, and returns how many it deleted.
+/// Deletes every session whose expiry is at or before `now`, its entries first and then its head,
+/// and returns how many heads it deleted.
+///
+/// Two statements and no transaction: an entry is deleted only while its head is expired, and a
+/// head an [`issue`] takes over between the two is live again and stays.
 ///
 /// # Errors
 ///
 /// As [`load`].
 fn sweep(conn: &SqliteConn, now: i64) -> io::Result<u64> {
+    drop(conn.query(
+        "DELETE FROM nvs_session_entries WHERE (app, id) IN \
+         (SELECT app, id FROM nvs_session_heads WHERE expires_at <= ?1)",
+        vec![SqliteValue::Int(now)],
+    )?);
     let rows = conn.query(
-        "DELETE FROM nvs_sessions WHERE expires_at <= ?1",
+        "DELETE FROM nvs_session_heads WHERE expires_at <= ?1",
         vec![SqliteValue::Int(now)],
     )?;
     Ok(rows.affected())
@@ -335,13 +529,13 @@ pub(crate) fn closed() {
     HELD.with_borrow_mut(Option::take);
 }
 
-/// How many rows the file holds, expired or not, read through a connection of its own.
+/// How many sessions the file holds, expired or not, read through a connection of its own.
 #[cfg(test)]
 pub(crate) fn rows(path: &Path) -> i64 {
     let held = opened(path).expect("a second connection");
     let mut answer = held
         .conn
-        .query("SELECT COUNT(*) FROM nvs_sessions", Vec::new())
+        .query("SELECT COUNT(*) FROM nvs_session_heads", Vec::new())
         .expect("the count");
     match answer.next_row().and_then(|row| row.into_iter().next()) {
         Some(SqliteValue::Int(count)) => count,
@@ -349,16 +543,13 @@ pub(crate) fn rows(path: &Path) -> i64 {
     }
 }
 
-/// Moves the expiry of `app`'s row under `id` into the past, as if its lifetime had run out.
+/// Moves the expiry of `app`'s session under `id` into the past, as if its lifetime had run out.
 #[cfg(test)]
 pub(crate) fn lapse(path: &Path, app: &[u8], id: &str) {
     with(path, |held| {
         drop(held.conn.query(
-            "UPDATE nvs_sessions SET expires_at = 0 WHERE app = ?1 AND id = ?2",
-            vec![
-                SqliteValue::Blob(app.to_vec()),
-                SqliteValue::Text(id.to_owned()),
-            ],
+            "UPDATE nvs_session_heads SET expires_at = 0 WHERE app = ?1 AND id = ?2",
+            named(app, id),
         )?);
         Ok(())
     })
@@ -372,10 +563,26 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use super::{closed, create, load, replace, rows, sweep, with};
+    use super::{Changes, Entries, closed, issue, load, rows, save, sweep, with};
 
     /// The application every case here writes under.
     const APP: &[u8] = b"/srv/blog";
+
+    /// A session holding `pairs`.
+    fn entries(pairs: &[(&[u8], &[u8])]) -> Entries {
+        pairs
+            .iter()
+            .map(|(key, value)| (key.to_vec(), value.to_vec()))
+            .collect()
+    }
+
+    /// One request's changes that set `key` to `value`.
+    fn setting<'a>(key: &'a [u8], value: &'a [u8]) -> Changes<'a> {
+        Changes {
+            changed: vec![(key, value)],
+            ..Changes::default()
+        }
+    }
 
     /// A store file in a scratch directory one case owns, and the guard that deletes the
     /// directory when the case ends.
@@ -386,20 +593,21 @@ mod tests {
     }
 
     /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: two requests of one session
-    /// both load it, the second saves and finishes while the first is still running, and then the
-    /// first saves. Neither waits for the other, and the record is the last write.
+    /// both load it, the second saves one key and finishes while the first is still running, and
+    /// then the first saves another key. Neither waits for the other, and the session keeps both
+    /// keys.
     ///
     /// Two threads are two cores, each with its own connection, which is what two concurrent
     /// requests are. The first thread is held between its load and its save until the second has
     /// finished, so a lock taken at `load` would hang this test instead of passing it.
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
-    fn two_requests_of_one_session_both_finish_and_the_last_write_wins() {
+    fn two_requests_of_one_session_keep_both_keys_in_the_file() {
         const ID: &str = "PmA5tKz1QvR3sYbNqLwXe2";
         let (_dir, path) = store("session-two-requests");
+        let start = entries(&[(b"cart", b"empty")]);
         assert!(
-            create(&path, APP, ID, b"start", Duration::from_secs(60))
-                .expect("the session is issued")
+            issue(&path, APP, ID, &start, Duration::from_secs(60)).expect("the session is issued")
         );
 
         let (loaded, first_loaded) = mpsc::channel();
@@ -413,8 +621,14 @@ mod tests {
                     .recv_timeout(Duration::from_secs(30))
                     .expect("the second request finishes while the first is still open");
                 assert!(
-                    replace(&path, APP, ID, b"first", Duration::from_secs(60))
-                        .expect("the first saves")
+                    save(
+                        &path,
+                        APP,
+                        ID,
+                        &setting(b"cart", b"three books"),
+                        Duration::from_secs(60)
+                    )
+                    .expect("the first saves")
                 );
                 seen
             })
@@ -428,30 +642,30 @@ mod tests {
             thread::spawn(move || {
                 let seen = load(&path, APP, ID).expect("the second request loads");
                 assert!(
-                    replace(&path, APP, ID, b"second", Duration::from_secs(60))
-                        .expect("the second saves")
+                    save(
+                        &path,
+                        APP,
+                        ID,
+                        &setting(b"userId", b"17"),
+                        Duration::from_secs(60)
+                    )
+                    .expect("the second saves")
                 );
                 seen
             })
         };
-        assert_eq!(
-            second.join().expect("the second request"),
-            Some(b"start".to_vec())
-        );
+        assert_eq!(second.join().expect("the second request"), Some(start.clone()));
         assert_eq!(
             load(&path, APP, ID).expect("a read between the two"),
-            Some(b"second".to_vec())
+            Some(entries(&[(b"cart", b"empty"), (b"userId", b"17")]))
         );
         go_on.send(()).expect("the first request is waiting");
-        assert_eq!(
-            first.join().expect("the first request"),
-            Some(b"start".to_vec())
-        );
+        assert_eq!(first.join().expect("the first request"), Some(start));
 
         assert_eq!(
-            load(&path, APP, ID).expect("the record after both"),
-            Some(b"first".to_vec()),
-            "the last write wins over the whole record"
+            load(&path, APP, ID).expect("the session after both"),
+            Some(entries(&[(b"cart", b"three books"), (b"userId", b"17")])),
+            "each request's key is kept"
         );
         closed();
     }
@@ -465,8 +679,9 @@ mod tests {
     fn a_record_survives_into_a_connection_another_process_would_open() {
         const ID: &str = "QvR3sYbNqLwXe2PmA5tKz1";
         let (_dir, path) = store("session-another-process");
+        let written = entries(&[(b"user", b"17")]);
         assert!(
-            create(&path, APP, ID, b"user=17", Duration::from_secs(60))
+            issue(&path, APP, ID, &written, Duration::from_secs(60))
                 .expect("the first process writes")
         );
         closed();
@@ -475,10 +690,7 @@ mod tests {
             let path = path.clone();
             thread::spawn(move || load(&path, APP, ID).expect("the second process reads"))
         };
-        assert_eq!(
-            read.join().expect("the second process"),
-            Some(b"user=17".to_vec())
-        );
+        assert_eq!(read.join().expect("the second process"), Some(written));
     }
 
     /// `rule:http-server/session-expiry-belongs-to-the-store`: an expired row is absent at once,
@@ -489,12 +701,11 @@ mod tests {
         const LIVE: &str = "LwXe2PmA5tKz1QvR3sYbNq";
         const GONE: &str = "A5tKz1QvR3sYbNqLwXe2Pm";
         let (_dir, path) = store("session-expired");
+        let live = entries(&[(b"state", b"live")]);
+        assert!(issue(&path, APP, LIVE, &live, Duration::from_secs(3600)).expect("a live session"));
         assert!(
-            create(&path, APP, LIVE, b"live", Duration::from_secs(3600)).expect("a live record")
-        );
-        assert!(
-            create(&path, APP, GONE, b"gone", Duration::ZERO)
-                .expect("a record that expires at once")
+            issue(&path, APP, GONE, &entries(&[(b"state", b"gone")]), Duration::ZERO)
+                .expect("a session that expires at once")
         );
 
         assert_eq!(load(&path, APP, GONE).expect("the store answers"), None);
@@ -506,7 +717,7 @@ mod tests {
         assert_eq!(rows(&path), 1);
         assert_eq!(
             load(&path, APP, LIVE).expect("the store answers"),
-            Some(b"live".to_vec())
+            Some(live)
         );
         closed();
     }
