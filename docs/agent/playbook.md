@@ -386,6 +386,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A `.lspt` case whose code does not compile can pass for the wrong reason.** A case wrote
+  `$shop = new Shop();` with no declaration, so its calls resolved to nothing. Its `none` expectation
+  passed, and the index listed no call. Run `nvs check` on a case's code before trusting a `none`.
+  See `tests/lsp/actions/a-parameter-whose-callers-differ-is-offered-no-type.lspt`.
 - **Examples in one folder share its `disk` and run at the same time.** An example that printed
   `Storage::list` of the whole disk also saw a file its sibling had just written, and `floor-debt`
   went red on a refused DONE. An example that writes to a shared disk reads back only its own keys.
