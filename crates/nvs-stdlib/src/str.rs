@@ -6,8 +6,10 @@
 //! arguments and throws, and its `apply` changes a sole subject in its own
 //! allocation. A cutting member moves the subject's ends ([`kept`]), an
 //! extending one writes into its room ([`extended`]), and a rewriting one
-//! writes over it or copies its built result into it ([`rewritten`]). Every
-//! other member borrows its subject.
+//! writes over it or copies its built result into it ([`rewritten`]).
+//! [`nvs_core_str_split`] owns its subject too: with a positive `limit`, its
+//! last piece is the subject with its start moved. Every other member borrows
+//! its subject.
 //!
 //! # `string` is valid UTF-8, so this module never validates
 //!
@@ -1715,7 +1717,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_str_reverse" => return Some(nvs_core_str_reverse::entry()),
         "nvs_core_str_wrap" => return Some(nvs_core_str_wrap::entry()),
         "nvs_core_str_join" => (nvs_core_str_join as *const ()).cast(),
-        "nvs_core_str_split" => (nvs_core_str_split as *const ()).cast(),
+        "nvs_core_str_split" => return Some(nvs_core_str_split::entry()),
         "nvs_core_str_parts" => (nvs_core_str_parts as *const ()).cast(),
         "nvs_core_str_chunk" => (nvs_core_str_chunk as *const ()).cast(),
         "nvs_core_str_lines" => (nvs_core_str_lines as *const ()).cast(),
@@ -2166,7 +2168,14 @@ nvs_runtime::nvs_helper! {
     /// **An empty separator throws**, as PHP's `explode` does: there is no
     /// sensible piece boundary, and returning the subject unsplit would hide
     /// a computed separator that came out empty by mistake.
-    fn nvs_core_str_split(ctx, args: [3]) {
+    ///
+    /// **A positive limit reads only what it keeps.** The count of pieces
+    /// stops at the limit, so `{ limit: 2 }` reads the subject up to its first
+    /// separator. The remainder is the subject with its start moved
+    /// ([`NvsStr::keep`]), so a sole subject gives its allocation to the last
+    /// piece and only the earlier pieces are copied. That makes `split` own
+    /// its subject, though its result is an array.
+    fn nvs_core_str_split(ctx, args: [3]) -> (NvsArray, Option<usize>), owns NvsStr {
         let subject = text(&args[0], "split", "the subject")?;
         let separator = text(&args[1], "split", "the separator")?;
         let limit = integer(&args[2], "split", "the `limit` option")?;
@@ -2175,52 +2184,80 @@ nvs_runtime::nvs_helper! {
                 "Core\\Str::split(): the separator must not be empty",
             ));
         }
-
-        // **The list is paid for before it is built**, as in [`lines_array`]:
-        // the pieces are counted first, and the whole entry storage goes
-        // through `nvs_runtime::affordable` and [`NvsArray::try_reserve`]. A
-        // subject of separators alone costs sixteen times its own length in
-        // entries, and an append asks no budget. Counting only reads the
-        // subject, and it keeps no list of pieces aside, so a negative limit
-        // walks the pieces a second time instead of collecting them.
-        // A limit of `0` means one piece — see the docs above.
         let walk = &mut Walk::new(ctx, r"Core\Str::split");
+        let (out, rest) = split_pieces(subject, separator, limit, walk)?;
+        Ok((out, rest))
+    } apply(plan, subject) {
+        let (mut out, rest) = plan;
+        if let Some(start) = rest {
+            let range = start..subject.len();
+            out.append(kept(Cut { range, removed: None }, subject));
+        }
+        Value::array(out)
+    }
+}
+
+/// [`nvs_core_str_split`]'s pieces: every piece but a positive limit's last
+/// one, and the byte offset the remainder starts at where the limit is
+/// positive. `apply` appends the remainder, cut from the subject it owns.
+///
+/// **The list is paid for before it is built**, as in [`lines_array`]: the
+/// pieces are counted first, and the whole entry storage goes through
+/// `nvs_runtime::affordable` and [`NvsArray::try_reserve`]. A subject of
+/// separators alone costs sixteen times its own length in entries, and an
+/// append asks no budget. Counting only reads the subject, and it keeps no
+/// list of pieces aside, so a negative limit walks the pieces a second time
+/// instead of collecting them. A positive limit's count stops at the limit,
+/// so no piece past it is read. A limit of `0` means one piece.
+fn split_pieces(
+    subject: &str,
+    separator: &str,
+    limit: i64,
+    walk: &mut Walk<'_>,
+) -> Result<(NvsArray, Option<usize>), Fault> {
+    let count = if limit >= 0 {
+        let most = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
+        let mut found = 0usize;
+        for piece in separated(subject, separator, walk) {
+            piece?;
+            found += 1;
+            if found == most {
+                break;
+            }
+        }
+        found
+    } else {
         let mut found = 0usize;
         for piece in separated(subject, separator, walk) {
             piece?;
             found += 1;
         }
-        let count = if limit >= 0 {
-            found.min(usize::try_from(limit).unwrap_or(usize::MAX).max(1))
-        } else {
-            found.saturating_sub(usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX))
-        };
-        let member = walk.member;
-        nvs_runtime::affordable(count.checked_mul(std::mem::size_of::<Value>()), member)?;
-        let mut out = NvsArray::new();
-        if !out.try_reserve(count) {
-            return Err(Fault::thrown(format!(
-                "{member}: the result is larger than any array this process could hold"
-            )));
-        }
-        if limit >= 0 {
-            // `count` is at least one, and the last piece is the remainder.
-            let mut rest = subject;
-            for _ in 1..count {
-                let Some((at, matched)) = find_from(rest, separator, false, walk)? else {
-                    break;
-                };
-                out.append(Value::text(&rest[..at]));
-                rest = &rest[at + matched..];
-            }
-            out.append(Value::text(rest));
-        } else {
-            for piece in separated(subject, separator, walk).take(count) {
-                out.append(Value::text(piece?));
-            }
-        }
-        Ok(Value::array(out))
+        found.saturating_sub(usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX))
+    };
+    let member = walk.member;
+    nvs_runtime::affordable(count.checked_mul(std::mem::size_of::<Value>()), member)?;
+    let mut out = NvsArray::new();
+    if !out.try_reserve(count) {
+        return Err(Fault::thrown(format!(
+            "{member}: the result is larger than any array this process could hold"
+        )));
     }
+    if limit >= 0 {
+        // `count` is at least one, and the last piece is the remainder.
+        let mut rest = 0usize;
+        for _ in 1..count {
+            let Some((at, matched)) = find_from(&subject[rest..], separator, false, walk)? else {
+                break;
+            };
+            out.append(Value::text(&subject[rest..rest + at]));
+            rest += at + matched;
+        }
+        return Ok((out, Some(rest)));
+    }
+    for piece in separated(subject, separator, walk).take(count) {
+        out.append(Value::text(piece?));
+    }
+    Ok((out, None))
 }
 
 nvs_runtime::nvs_helper! {
@@ -2884,6 +2921,15 @@ fn find_counted(
             return Ok(Some((at, needle.len())));
         }
     }
+    // Where the table's scan starts. A plain-ASCII scan that reaches a byte
+    // outside ASCII has checked every match that ends before that byte.
+    let mut from = 0usize;
+    if case_insensitive && plain_needle(needle) {
+        match ascii_find(haystack, needle.as_bytes(), walk, step)? {
+            Ascii::Found(at) => return Ok(at.map(|at| (at, needle.len()))),
+            Ascii::Outside(at) => from = at.saturating_sub(needle.len() - 1),
+        }
+    }
     let wanted: Vec<Lowered> = needle.chars().map(|c| key(c, case_insensitive)).collect();
     if wanted.is_empty() {
         return Ok(Some((0, 0)));
@@ -2893,7 +2939,8 @@ fn find_counted(
     // start is known when its last character is read.
     let mut starts = vec![0usize; wanted.len()];
     let mut q = 0usize;
-    for (j, (at, found)) in haystack.char_indices().enumerate() {
+    for (j, (at, found)) in haystack[from..].char_indices().enumerate() {
+        let at = from + at;
         step();
         walk.walked(1)?;
         starts[j % wanted.len()] = at;
@@ -2949,6 +2996,17 @@ fn rfind_from(
             return Ok(Some(at));
         }
     }
+    // Where the table's scan ends. A plain-ASCII scan from the end that
+    // reaches a byte outside ASCII has checked every match that starts after
+    // that byte. Each byte after it is one character, so a match that holds
+    // it ends at most `needle.len() - 1` bytes later.
+    let mut to = haystack.len();
+    if case_insensitive && plain_needle(needle) {
+        match ascii_rfind(haystack, needle.as_bytes(), walk)? {
+            Ascii::Found(at) => return Ok(at),
+            Ascii::Outside(at) => to = haystack.len().min(at + needle.len()),
+        }
+    }
     let wanted: Vec<Lowered> = needle
         .chars()
         .rev()
@@ -2962,7 +3020,7 @@ fn rfind_from(
     // match's end is known when its first character is read.
     let mut ends = vec![0usize; wanted.len()];
     let mut q = 0usize;
-    for (j, (at, found)) in haystack.char_indices().rev().enumerate() {
+    for (j, (at, found)) in haystack[..to].char_indices().rev().enumerate() {
         walk.walked(1)?;
         ends[j % wanted.len()] = at + found.len_utf8();
         let next = key(found, case_insensitive);
@@ -2981,6 +3039,112 @@ fn rfind_from(
         }
     }
     Ok(None)
+}
+
+/// The longest needle the plain-ASCII search takes. Its failure table is an
+/// array on the stack of this many bytes.
+const ASCII_NEEDLE: usize = 64;
+
+/// Whether a search that ignores case may take the plain-ASCII path for
+/// `needle`: it is not empty, every byte is ASCII, and its failure table fits
+/// on the stack.
+fn plain_needle(needle: &str) -> bool {
+    !needle.is_empty() && needle.len() <= ASCII_NEEDLE && needle.is_ascii()
+}
+
+/// What a plain-ASCII scan found.
+enum Ascii {
+    /// The scan read every byte it needed, and this is the answer.
+    Found(Option<usize>),
+    /// The byte at this offset is outside ASCII, so the scan stopped there.
+    Outside(usize),
+}
+
+/// Knuth–Morris–Pratt's failure table for an ASCII `needle` compared without
+/// case, in an array on the stack. `needle` is at most [`ASCII_NEEDLE`] bytes.
+fn ascii_fallback(needle: &[u8]) -> [u8; ASCII_NEEDLE] {
+    let mut fallback = [0u8; ASCII_NEEDLE];
+    let mut k = 0usize;
+    for i in 1..needle.len() {
+        while k > 0 && !needle[i].eq_ignore_ascii_case(&needle[k]) {
+            k = usize::from(fallback[k - 1]);
+        }
+        if needle[i].eq_ignore_ascii_case(&needle[k]) {
+            k += 1;
+        }
+        // `k` is below `needle.len()`, which is at most 64.
+        fallback[i] = u8::try_from(k).unwrap_or(u8::MAX);
+    }
+    fallback
+}
+
+/// [`find_counted`] without case, for a [`plain_needle`], folding each byte
+/// as it is read. It builds no table on the heap. ASCII letters fold only to
+/// ASCII letters, but a letter outside ASCII can fold to an ASCII one (the
+/// Kelvin sign folds to `k`), so the scan stops at the first byte outside
+/// ASCII and gives its offset. `step` is called as [`find_counted`] calls it.
+fn ascii_find(
+    haystack: &str,
+    needle: &[u8],
+    walk: &mut Walk<'_>,
+    step: &mut impl FnMut(),
+) -> Result<Ascii, Fault> {
+    let fallback = ascii_fallback(needle);
+    let mut q = 0usize;
+    for (at, &byte) in haystack.as_bytes().iter().enumerate() {
+        step();
+        walk.walked(1)?;
+        if !byte.is_ascii() {
+            return Ok(Ascii::Outside(at));
+        }
+        while q > 0 && !byte.eq_ignore_ascii_case(&needle[q]) {
+            step();
+            q = usize::from(fallback[q - 1]);
+        }
+        if byte.eq_ignore_ascii_case(&needle[q]) {
+            q += 1;
+        }
+        if q == needle.len() {
+            let start = at + 1 - needle.len();
+            if whole_clusters(haystack, start, at + 1) {
+                return Ok(Ascii::Found(Some(start)));
+            }
+            q = usize::from(fallback[q - 1]);
+        }
+    }
+    Ok(Ascii::Found(None))
+}
+
+/// [`ascii_find`] from the end, as [`rfind_from`] is [`find_from`] from the
+/// end: the needle is compared backwards. [`Ascii::Outside`] gives the offset
+/// of the last byte of the character outside ASCII.
+fn ascii_rfind(haystack: &str, needle: &[u8], walk: &mut Walk<'_>) -> Result<Ascii, Fault> {
+    let mut reversed = [0u8; ASCII_NEEDLE];
+    for (slot, &byte) in reversed.iter_mut().zip(needle.iter().rev()) {
+        *slot = byte;
+    }
+    let wanted = &reversed[..needle.len()];
+    let fallback = ascii_fallback(wanted);
+    let mut q = 0usize;
+    for (at, &byte) in haystack.as_bytes().iter().enumerate().rev() {
+        walk.walked(1)?;
+        if !byte.is_ascii() {
+            return Ok(Ascii::Outside(at));
+        }
+        while q > 0 && !byte.eq_ignore_ascii_case(&wanted[q]) {
+            q = usize::from(fallback[q - 1]);
+        }
+        if byte.eq_ignore_ascii_case(&wanted[q]) {
+            q += 1;
+        }
+        if q == wanted.len() {
+            if whole_clusters(haystack, at, at + wanted.len()) {
+                return Ok(Ascii::Found(Some(at)));
+            }
+            q = usize::from(fallback[q - 1]);
+        }
+    }
+    Ok(Ascii::Found(None))
 }
 
 /// Whether `haystack[start..end]` is a run of whole grapheme clusters: both
@@ -3019,6 +3183,13 @@ fn key(c: char, case_insensitive: bool) -> Lowered {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// How many failure tables [`fallback_counted`] built on this thread. A
+    /// test reads it to check that a plain-ASCII search builds none.
+    static TABLES_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Knuth–Morris–Pratt's failure table for `wanted`: entry `i` is the length of
 /// the longest proper prefix of `wanted[..=i]` that is also its suffix.
 ///
@@ -3029,6 +3200,8 @@ fn fallback_counted(
     walk: &mut Walk<'_>,
     step: &mut impl FnMut(),
 ) -> Result<Vec<usize>, Fault> {
+    #[cfg(test)]
+    TABLES_BUILT.with(|built| built.set(built.get() + 1));
     let mut fallback = vec![0usize; wanted.len()];
     let mut k = 0usize;
     for i in 1..wanted.len() {
@@ -6801,6 +6974,72 @@ mod tests {
                 subject.len() + needle.len()
             );
         }
+    }
+
+    /// `split` with a positive limit reads the subject up to the limit's last
+    /// separator and no further. The walk counts each byte read, so a line of
+    /// many pieces costs the same steps as one with two.
+    #[test]
+    fn a_split_with_a_limit_visits_no_piece_past_its_limit() {
+        let line = format!("key={}", "value=".repeat(4000));
+        let ctx = Ctx::new(OutputSink::Sink);
+        for (limit, kept) in [(1i64, 0usize), (2, 1), (3, 2)] {
+            let walk = &mut super::Walk::new(&ctx, r"Core\Str::split");
+            let (pieces, rest) =
+                super::split_pieces(&line, "=", limit, walk).expect("the deadline has not passed");
+            let read = super::POLL_STEPS - walk.until_poll;
+            assert_eq!(pieces.count(), kept, "limit {limit}");
+            assert!(rest.is_some(), "a positive limit leaves a remainder");
+            assert!(
+                read <= 64,
+                "limit {limit} read {read} bytes of a line of {}",
+                line.len()
+            );
+        }
+        assert_eq!(split_at(&line, "=", 2), ["key", &line[4..]]);
+        assert_eq!(split_at("a=b=c", "=", 2), ["a", "b=c"]);
+        assert_eq!(split_at("abc", "=", 2), ["abc"]);
+        assert_eq!(split_at("a=b=c", "=", 0), ["a=b=c"]);
+        assert_eq!(split_at("a=b=c", "=", -1), ["a", "b"]);
+    }
+
+    /// A search that ignores case over plain ASCII folds each byte as it reads
+    /// it, and builds no failure table. A letter outside ASCII that folds to an
+    /// ASCII one is still found, by the table, and so is a match across it.
+    #[test]
+    fn a_search_that_ignores_case_builds_no_table_for_plain_text() {
+        let ctx = Ctx::new(OutputSink::Sink);
+        let walk = &mut super::Walk::new(&ctx, r"Core\Str::indexOf");
+        let built = || super::TABLES_BUILT.with(std::cell::Cell::get);
+        let before = built();
+        let find = |hay: &str, needle: &str, walk: &mut super::Walk<'_>| {
+            super::find_from(hay, needle, true, walk).expect("the deadline has not passed")
+        };
+        let rfind = |hay: &str, needle: &str, walk: &mut super::Walk<'_>| {
+            super::rfind_from(hay, needle, true, walk).expect("the deadline has not passed")
+        };
+        assert_eq!(find("Content-Type: text", "content-TYPE", walk), Some((0, 12)));
+        assert_eq!(find("aaaab", "AAB", walk), Some((2, 3)));
+        assert_eq!(find("abc", "abd", walk), None);
+        assert_eq!(find("a\r\nb", "\r", walk), None);
+        assert_eq!(rfind("abAB", "ab", walk), Some(2));
+        assert_eq!(rfind("baaaa", "BAA", walk), Some(0));
+        assert_eq!(rfind("abc", "x", walk), None);
+        assert_eq!(built(), before, "a plain-ASCII search built a table");
+        // The Kelvin sign folds to `k`, so the table finds it.
+        assert_eq!(find("my \u{212A}ey", "KEY", walk), Some((3, 5)));
+        assert_eq!(find("keep \u{e9} key", "KEY", walk), Some((8, 3)));
+        assert_eq!(rfind("\u{212A}ey ab", "KEY", walk), Some(0));
+        assert_eq!(rfind("ab \u{212A}ey", "key", walk), Some(3));
+        assert_eq!(rfind("key \u{e9} ab", "KEY", walk), Some(0));
+        // A needle of the longest plain length still scans in linear steps.
+        let haystack = "a".repeat(1 << 14);
+        let needle = format!("{}B", "A".repeat(super::ASCII_NEEDLE - 1));
+        let mut steps = 0usize;
+        let found = super::find_counted(&haystack, &needle, true, walk, &mut || steps += 1)
+            .expect("the deadline has not passed");
+        assert_eq!(found, None);
+        assert!(steps <= 2 * (haystack.len() + 1), "{steps} steps");
     }
 
     /// `rule:http-server/time-is-bounded-inside-a-helper`: every member that

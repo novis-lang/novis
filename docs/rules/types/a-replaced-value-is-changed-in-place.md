@@ -78,7 +78,9 @@ read the sole array. It keeps its retain.
 
 **Which `Core` members own their subject: the signature decides.** A member owns its first parameter
 when that parameter is `array<…>`, `string` or `bytes` and its result is the same kind, nullable or
-not. There is no list and no opt-out. A member that keeps nothing of its subject still owns it, builds
+not. There is no list and no opt-out. One member owns a subject of another kind than its result:
+`Core\Str::split` with a positive `limit`, whose last piece is the subject with its start moved, so a
+sole line gives its allocation to that piece and `{ limit: 2 }` copies only the key. A member that keeps nothing of its subject still owns it, builds
 its result and releases the subject. The helper's macro form declares the ABI once, the module's
 symbol table returns it, and the lowering reads it there, so a wrong row can only miss a move, never
 free twice. An owning helper is `check` then `apply`: `check` reads every argument borrowed, runs every

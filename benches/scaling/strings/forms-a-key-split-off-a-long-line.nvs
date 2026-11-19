@@ -1,0 +1,25 @@
+<?nvs
+// Splits the first key off a long line with a limit of 2, as a parser does when it reads one field at a time.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect constant
+// scaling: rounds 20
+
+class Bench
+{
+    public static function run(uint $size, uint $rounds): uint
+    {
+        string $line = Core\Str::repeat('key=', $size);
+        uint $total = 0;
+        uint $round = 0;
+        while ($round < $rounds) {
+            array<string> $parts = Core\Str::split($line, '=', { limit: 2 });
+            $total = $total + Core\Str::length($parts[0]);
+            $line = $parts[1];
+            $round = $round + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000, 20), "\n";

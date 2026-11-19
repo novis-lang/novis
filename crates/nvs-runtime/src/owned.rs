@@ -3,7 +3,8 @@
 //!
 //! A member whose first parameter is an `array<…>`, a `string` or a `bytes`,
 //! and whose result is the same kind, owns that subject
-//! (`rule:types/a-replaced-value-is-changed-in-place`). [`crate::nvs_helper!`]'s
+//! (`rule:types/a-replaced-value-is-changed-in-place`), and so does
+//! `Core\Str::split`, whose last piece may be the subject. [`crate::nvs_helper!`]'s
 //! owning form writes such a member as two halves, and the split is what makes
 //! the protocol structural rather than a convention each body keeps:
 //!
