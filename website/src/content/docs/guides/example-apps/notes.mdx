@@ -160,8 +160,8 @@ on the internet, add a login and a CSRF token to each form. A CSRF token is a va
 form came from your own page.
 
 1. In `nvs.toml`, set `csrf_key` under `[http]`. The key is 32 random bytes, written in base64.
-2. In the method that shows a form, call `Core\Session::start()`. Then call `Core\Csrf::token()`.
-   It returns the token, and the response sends the session cookie.
+2. In the method that shows a form, call `Core\Csrf::token()`. It returns the token, and the
+   response sends the session cookie.
 3. Put the token in a hidden field of the form:
    `<input type="hidden" name="_csrf" value="{$token}">`
 

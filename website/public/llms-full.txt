@@ -37727,36 +37727,58 @@ Returns the instant as RFC 3339 text in UTC. This is the date format that JSON a
 <a id="core-core-time-datetime"></a>
 ### `Core\Time\DateTime`
 
-Keywords: date, time, datetime, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear
+Keywords: date, time, datetime, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear, year, month, day, hour, minute, second, nanos
 
 A `DateTime` is a civil reading — year, month, day, hour, minute, second, nanosecond — in one `Zone`,
 built by `Core\Time::at` or `Core\Time::parse` or read off an `Instant` with `->in($zone)`. It is
 immutable: every member answers a new value. Its arithmetic is calendar arithmetic: `plus(1,
 Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
 across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
-zone. `format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
+zone.
+
+`year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanos()` return the fields as
+numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
+return a `uint`. These are the same names and types that `with` takes.
+
+`format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
 and `TimeOfDay::format` use them for their own fields. A pattern written directly
 in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
 computed at run time throws a `LogicError` instead. Month and weekday names are always in English.
 
 | Letter | Field | Counts |
 |---|---|---|
-| `y` | year | `yy` two digits; any other count zero-pads to it |
-| `M` | month | `M`/`MM` numeric, `MMM` `Mar`, `MMMM` `March`, `MMMMM` `M` |
+| `G` | era | `G`–`GGG` `AD` or `BC`, `GGGG` `Anno Domini`, `GGGGG` `A` |
+| `y` / `U` | year, such as `-0043` before year 1 | `yy` two digits; any other count zero-pads to it |
+| `u` / `r` | year | zero-pads to the count; `parse` also reads a `-` with these |
+| `Y` | the year the `w` week belongs to | as `y` |
+| `Q` / `q` | quarter | `Q`/`QQ` numeric, `QQQ` `Q1`, `QQQQ` `1st quarter`, `QQQQQ` `1` |
+| `M` / `L` | month | `M`/`MM` numeric, `MMM` `Mar`, `MMMM` `March`, `MMMMM` `M` |
+| `w` | week of the year | ISO 8601 weeks: a week starts on Monday |
+| `W` | week of the month | the same rule; `0` for a short first week |
 | `d` | day of month | numeric, zero-padded to the count |
 | `D` | day of year | numeric |
+| `F` | which of that weekday in the month | `1` for the first Friday of the month |
+| `g` | modified Julian day | numeric |
 | `E` | weekday | `E`–`EEE` `Tue`, `EEEE` `Tuesday`, `EEEEE` `T`, `EEEEEE` `Tu` |
+| `e` / `c` | weekday | `e`/`ee`/`c` the number, Monday `1`; three or more letters as `E` |
 | `a` | AM/PM | any count |
+| `b` | AM/PM, or `noon` and `midnight` at those times | 1–4 the name, 5 short |
+| `B` | part of the day, such as `in the morning` | 1–4 the name, 5 short |
 | `h` / `H` / `K` / `k` | hour 1–12 / 0–23 / 0–11 / 1–24 | numeric |
 | `m` | minute | numeric |
 | `s` | second | numeric |
 | `S` | fractional second | one digit per count, truncated |
+| `A` | milliseconds since the start of the day | numeric, zero-padded to the count |
 | `X` | offset, `Z` at zero | `X` `+01`, `XX` `+0100`, `XXX` `+01:00` |
 | `x` | offset, never `Z` | the same three counts |
+| `Z` | offset | `Z`–`ZZZ` `+0100`, `ZZZZ` `GMT+01:00`, `ZZZZZ` as `XXX` |
+| `O` | offset after `GMT` | `O` `GMT+1`, `OOOO` `GMT+01:00` |
+| `z` | offset after `GMT` | `z`–`zzz` `GMT+1`, `zzzz` `GMT+01:00` |
+| `v` | offset after `GMT` | `v` `GMT+1`, `vvvv` `GMT+01:00` |
 | `VV` | the zone's IANA identifier | `VV` only |
 
-Text between `'…'` is printed as it is, and `''` is one apostrophe. `G`, `Q`, `w`, `W`, `L`, `c`, `F` and `u`
-are refused.
+Text between `'…'` is printed as it is, and `''` is one apostrophe. These letters do not compile: `C`,
+`f`, `i`, `I`, `j`, `J`, `l`, `n`, `N`, `o`, `p`, `P`, `R`, `t` and `T`.
 
 ```nvs
 <?nvs
@@ -37810,6 +37832,13 @@ midweek
 | [`Core\Time\DateTime->weekday`](#core-core-time-datetime-weekday) | `weekday(): Core\Time\DateTime::Weekday` |
 | [`Core\Time\DateTime->dayOfYear`](#core-core-time-datetime-dayofyear) | `dayOfYear(): uint` |
 | [`Core\Time\DateTime->isLeapYear`](#core-core-time-datetime-isleapyear) | `isLeapYear(): bool` |
+| [`Core\Time\DateTime->year`](#core-core-time-datetime-year) | `year(): int` |
+| [`Core\Time\DateTime->month`](#core-core-time-datetime-month) | `month(): uint` |
+| [`Core\Time\DateTime->day`](#core-core-time-datetime-day) | `day(): uint` |
+| [`Core\Time\DateTime->hour`](#core-core-time-datetime-hour) | `hour(): uint` |
+| [`Core\Time\DateTime->minute`](#core-core-time-datetime-minute) | `minute(): uint` |
+| [`Core\Time\DateTime->second`](#core-core-time-datetime-second) | `second(): uint` |
+| [`Core\Time\DateTime->nanos`](#core-core-time-datetime-nanos) | `nanos(): uint` |
 
 <a id="core-core-time-datetime-format"></a>
 #### `Core\Time\DateTime->format`
@@ -38067,18 +38096,103 @@ Checks whether the value's year has a 29 February.
 
 **Returns** `bool` — `true` in a leap year of the proleptic Gregorian calendar.
 
+<a id="core-core-time-datetime-year"></a>
+#### `Core\Time\DateTime->year`
+
+```nvs skip
+$dateTime->year(): int
+```
+
+Returns the year, as the clock in the value's own time zone shows it.
+
+**Returns** `int` — The year, from `-9999` to `9999`. The year before `1` is `0`.
+
+<a id="core-core-time-datetime-month"></a>
+#### `Core\Time\DateTime->month`
+
+```nvs skip
+$dateTime->month(): uint
+```
+
+Returns the month as a number, in the value's own time zone.
+
+**Returns** `uint` — The month, from `1` for January to `12` for December.
+
+<a id="core-core-time-datetime-day"></a>
+#### `Core\Time\DateTime->day`
+
+```nvs skip
+$dateTime->day(): uint
+```
+
+Returns the day of the month, in the value's own time zone.
+
+**Returns** `uint` — The day, from `1` to the last day of the month.
+
+<a id="core-core-time-datetime-hour"></a>
+#### `Core\Time\DateTime->hour`
+
+```nvs skip
+$dateTime->hour(): uint
+```
+
+Returns the hour, as the clock in the value's own time zone shows it.
+
+**Returns** `uint` — The hour, from `0` to `23`.
+
+<a id="core-core-time-datetime-minute"></a>
+#### `Core\Time\DateTime->minute`
+
+```nvs skip
+$dateTime->minute(): uint
+```
+
+Returns the minute, as the clock in the value's own time zone shows it.
+
+**Returns** `uint` — The minute, from `0` to `59`.
+
+<a id="core-core-time-datetime-second"></a>
+#### `Core\Time\DateTime->second`
+
+```nvs skip
+$dateTime->second(): uint
+```
+
+Returns the second, as the clock in the value's own time zone shows it.
+
+**Returns** `uint` — The second, from `0` to `59`.
+
+<a id="core-core-time-datetime-nanos"></a>
+#### `Core\Time\DateTime->nanos`
+
+```nvs skip
+$dateTime->nanos(): uint
+```
+
+Returns the part of the second after the whole seconds, in nanoseconds.
+
+**Returns** `uint` — The nanoseconds, from `0` to `999999999`. `500000000` is half a second.
+
 <a id="core-core-time-date"></a>
 ### `Core\Time\Date`
 
-Keywords: date, calendar date, day-month-year, zone-free, valid date, days in month, leap year, at, format, plus, minus, with, compareTo
+Keywords: date, calendar date, day-month-year, zone-free, valid date, days in month, leap year, at, format, plus, minus, with, compareTo, weekday, dayOfYear, isLeapYear, year, month, day, atStartOfDay
 
-A `Date` is the year, month and day alone — no time of day and no zone — built by `Date::at` or read
-off a `DateTime` with `->date()`. There is no `Date::parse`: text is read with `Core\Time::parse`
-(a pattern and a zone), and the `DateTime` it answers gives up its date. A date that does not exist throws where it is built.
-It steps by `Core\Unit::Day` and larger, with the same month-end clamping as
-`DateTime::plus`; a smaller unit is refused. `format` takes the date letters of the CLDR grammar
-`DateTime::format` uses, and a time or zone letter in the pattern is refused because a `Date` has
-none to render. Two dates are ordered with `compareTo`; the `<` operators do not compile on a `Date`.
+A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::at` builds one, and
+`->date()` gives the date of a `DateTime`. To read a date from text, use `Core\Time::parse` with a
+pattern and a zone, and call `->date()` on the result. A date that does not exist throws an error
+when it is built.
+
+`year()`, `month()` and `day()` return the three fields as numbers. `weekday()` returns a
+`Core\Time\DateTime::Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
+`isLeapYear()` checks the year. `atStartOfDay($zone)` returns a `DateTime` at the first moment of
+the date in that zone. This is usually midnight. Add a time of day to it with `withTime`.
+
+`plus` and `minus` move a date by `Core\Unit::Day` or a larger unit. A smaller unit throws an
+error. Moving by months keeps the day inside the new month, as `DateTime::plus` does. `format`
+takes the date letters of the patterns `DateTime::format` uses. A time letter or a zone letter
+does not compile, because a `Date` has no time and no zone. `<`, `>`, `<=`, `>=` and `compareTo`
+order two dates.
 
 ```nvs
 <?nvs
@@ -38099,6 +38213,10 @@ try {
 
 var $utc = Core\Time\Zone::UTC;
 echo Core\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), "\n";
+
+echo $d->year(), " ", $d->month(), " ", $d->day(), "\n";
+echo $d->dayOfYear(), " ", $d->isLeapYear() ? "leap year" : "not a leap year", "\n";
+echo $d->atStartOfDay(Core\Time\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
 ```
 ```output
 2024-01-31
@@ -38109,6 +38227,9 @@ Tue 30 Jan
 -1
 2023-02-29 does not exist
 1/3/2024
+2024 1 31
+31 leap year
+2024-01-31 00:00 +01:00
 ```
 
 | Member | Signature |
@@ -38119,6 +38240,13 @@ Tue 30 Jan
 | [`Core\Time\Date->minus`](#core-core-time-date-minus) | `minus(int $count, Core\Unit $unit): Core\Time\Date` |
 | [`Core\Time\Date->with`](#core-core-time-date-with) | `with({ year?: int, month?: uint, day?: uint }): Core\Time\Date` |
 | [`Core\Time\Date->compareTo`](#core-core-time-date-compareto) | `compareTo(Core\Time\Date $other): int` |
+| [`Core\Time\Date->weekday`](#core-core-time-date-weekday) | `weekday(): Core\Time\DateTime::Weekday` |
+| [`Core\Time\Date->dayOfYear`](#core-core-time-date-dayofyear) | `dayOfYear(): uint` |
+| [`Core\Time\Date->isLeapYear`](#core-core-time-date-isleapyear) | `isLeapYear(): bool` |
+| [`Core\Time\Date->year`](#core-core-time-date-year) | `year(): int` |
+| [`Core\Time\Date->month`](#core-core-time-date-month) | `month(): uint` |
+| [`Core\Time\Date->day`](#core-core-time-date-day) | `day(): uint` |
+| [`Core\Time\Date->atStartOfDay`](#core-core-time-date-atstartofday) | `atStartOfDay(Core\Time\Zone $zone): Core\Time\DateTime` |
 
 <a id="core-core-time-date-at"></a>
 #### `Core\Time\Date::at`
@@ -38226,17 +38354,103 @@ Orders two dates on the calendar, as `Comparable` requires.
 
 **Returns** `int` — `-1` when the receiver is earlier than `$other`, `0` when they are the same day, `1` when it is later.
 
+<a id="core-core-time-date-weekday"></a>
+#### `Core\Time\Date->weekday`
+
+```nvs skip
+$date->weekday(): Core\Time\DateTime::Weekday
+```
+
+Returns the day of the week of this date, as a `Weekday` enum case.
+
+**Returns** `Core\Time\DateTime::Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
+
+<a id="core-core-time-date-dayofyear"></a>
+#### `Core\Time\Date->dayOfYear`
+
+```nvs skip
+$date->dayOfYear(): uint
+```
+
+Returns the day of the year, counted from `1`.
+
+**Returns** `uint` — `1` for 1 January, up to `365`, or `366` in a leap year.
+
+<a id="core-core-time-date-isleapyear"></a>
+#### `Core\Time\Date->isLeapYear`
+
+```nvs skip
+$date->isLeapYear(): bool
+```
+
+Checks whether the year of this date has a 29 February.
+
+**Returns** `bool` — `true` in a leap year of the Gregorian calendar, otherwise `false`.
+
+<a id="core-core-time-date-year"></a>
+#### `Core\Time\Date->year`
+
+```nvs skip
+$date->year(): int
+```
+
+Returns the year of this date.
+
+**Returns** `int` — The year, from `-9999` to `9999`. The year before `1` is `0`.
+
+<a id="core-core-time-date-month"></a>
+#### `Core\Time\Date->month`
+
+```nvs skip
+$date->month(): uint
+```
+
+Returns the month of this date as a number.
+
+**Returns** `uint` — The month, from `1` for January to `12` for December.
+
+<a id="core-core-time-date-day"></a>
+#### `Core\Time\Date->day`
+
+```nvs skip
+$date->day(): uint
+```
+
+Returns the day of the month of this date.
+
+**Returns** `uint` — The day, from `1` to the last day of the month.
+
+<a id="core-core-time-date-atstartofday"></a>
+#### `Core\Time\Date->atStartOfDay`
+
+```nvs skip
+$date->atStartOfDay(Core\Time\Zone $zone): Core\Time\DateTime
+```
+
+Returns the first moment of this date in a time zone, as a `DateTime`. This is usually midnight. In some zones the clocks skip midnight on one day of the year. On that day, the result is the first time that exists, such as `01:00`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$zone` | `Core\Time\Zone` | The time zone the day starts in. |
+
+**Returns** `Core\Time\DateTime` — A new `DateTime` on this date in `$zone`. Use `withTime` on it to set another time.
+
+**Throws** `RuntimeError` — The first or the last day of the range, in a zone whose start of that day is outside the range of times Novis supports.
+
 <a id="core-core-time-timeofday"></a>
 ### `Core\Time\TimeOfDay`
 
-Keywords: wall clock, time of day, time without a date, clock reading, hour, minute, second, at, format, plus, minus, with, compareTo
+Keywords: wall clock, time of day, time without a date, clock reading, hour, minute, second, at, format, plus, minus, with, compareTo, hour, minute, second, nanos
 
 A `TimeOfDay` is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by
 `TimeOfDay::at` or read off a `DateTime` with `->timeOfDay()`. It steps by `Core\Unit::Hour` and
 smaller and wraps within the day, so `23:30` plus an hour is `00:30`; `Core\Unit::Day` and larger are
 refused, because a carry has no date to go to. `format` takes the time letters of the CLDR grammar
 `DateTime::format` uses, and a date or zone letter is refused. `DateTime::withTime` puts a reading
-back onto a date. Two readings are ordered with `compareTo`; the `<` operators do not compile.
+back onto a date. `<`, `>`, `<=`, `>=` and `compareTo` order two readings.
+
+`hour()`, `minute()`, `second()` and `nanos()` return the four fields as numbers. Each returns a
+`uint`, with the same name as the field `with` takes.
 
 ```nvs
 <?nvs
@@ -38273,6 +38487,10 @@ echo $d->timeOfDay()->format('HH:mm'), "\n";
 | [`Core\Time\TimeOfDay->minus`](#core-core-time-timeofday-minus) | `minus(int $count, Core\Unit $unit): Core\Time\TimeOfDay` |
 | [`Core\Time\TimeOfDay->with`](#core-core-time-timeofday-with) | `with({ hour?: uint, minute?: uint, second?: uint, nanos?: uint }): Core\Time\TimeOfDay` |
 | [`Core\Time\TimeOfDay->compareTo`](#core-core-time-timeofday-compareto) | `compareTo(Core\Time\TimeOfDay $other): int` |
+| [`Core\Time\TimeOfDay->hour`](#core-core-time-timeofday-hour) | `hour(): uint` |
+| [`Core\Time\TimeOfDay->minute`](#core-core-time-timeofday-minute) | `minute(): uint` |
+| [`Core\Time\TimeOfDay->second`](#core-core-time-timeofday-second) | `second(): uint` |
+| [`Core\Time\TimeOfDay->nanos`](#core-core-time-timeofday-nanos) | `nanos(): uint` |
 
 <a id="core-core-time-timeofday-at"></a>
 #### `Core\Time\TimeOfDay::at`
@@ -38381,6 +38599,50 @@ Checks which of two times comes first in the day, as `Comparable` requires. The 
 | `$other` | `Core\Time\TimeOfDay` | The time to compare against. |
 
 **Returns** `int` — `-1` when the receiver is earlier in the day than `$other`, `0` when both are the same time, `1` when it is later.
+
+<a id="core-core-time-timeofday-hour"></a>
+#### `Core\Time\TimeOfDay->hour`
+
+```nvs skip
+$timeOfDay->hour(): uint
+```
+
+Returns the hour of this time.
+
+**Returns** `uint` — The hour, from `0` to `23`.
+
+<a id="core-core-time-timeofday-minute"></a>
+#### `Core\Time\TimeOfDay->minute`
+
+```nvs skip
+$timeOfDay->minute(): uint
+```
+
+Returns the minute of this time.
+
+**Returns** `uint` — The minute, from `0` to `59`.
+
+<a id="core-core-time-timeofday-second"></a>
+#### `Core\Time\TimeOfDay->second`
+
+```nvs skip
+$timeOfDay->second(): uint
+```
+
+Returns the second of this time.
+
+**Returns** `uint` — The second, from `0` to `59`.
+
+<a id="core-core-time-timeofday-nanos"></a>
+#### `Core\Time\TimeOfDay->nanos`
+
+```nvs skip
+$timeOfDay->nanos(): uint
+```
+
+Returns the part of the second after the whole seconds, in nanoseconds.
+
+**Returns** `uint` — The nanoseconds, from `0` to `999999999`. `500000000` is half a second.
 
 <a id="core-core-time-duration"></a>
 ### `Core\Time\Duration`
@@ -44977,36 +45239,58 @@ Ends the body. The client receives the end of the body at once, and your program
 <a id="core-core-session"></a>
 ### `Core\Session`
 
-Keywords: start, get, set, remove, clear, regenerate, destroy, setSecret, getSecret
+Keywords: setShortLived, setLongLived, get, remove, clearShortLived, clearLongLived, clearAll, regenerate, setShortLivedSecret, setLongLivedSecret, getSecret, openWithIdentifier
 
 | Member | Signature |
 |---|---|
-| [`Core\Session::start`](#core-core-session-start) | `start(?string $presented = null): void` |
+| [`Core\Session::setShortLived`](#core-core-session-setshortlived) | `setShortLived(string $key, mixed $value): void` |
+| [`Core\Session::setLongLived`](#core-core-session-setlonglived) | `setLongLived(string $key, mixed $value): void` |
 | [`Core\Session::get`](#core-core-session-get) | `get(string $key): mixed` |
-| [`Core\Session::set`](#core-core-session-set) | `set(string $key, mixed $value): void` |
 | [`Core\Session::remove`](#core-core-session-remove) | `remove(string $key): void` |
-| [`Core\Session::clear`](#core-core-session-clear) | `clear(): void` |
+| [`Core\Session::clearShortLived`](#core-core-session-clearshortlived) | `clearShortLived(): void` |
+| [`Core\Session::clearLongLived`](#core-core-session-clearlonglived) | `clearLongLived(): void` |
+| [`Core\Session::clearAll`](#core-core-session-clearall) | `clearAll(): void` |
 | [`Core\Session::regenerate`](#core-core-session-regenerate) | `regenerate(): void` |
-| [`Core\Session::destroy`](#core-core-session-destroy) | `destroy(): void` |
-| [`Core\Session::setSecret`](#core-core-session-setsecret) | `setSecret(string $key, secret string $value, array<secret bytes> $keys): void` |
+| [`Core\Session::setShortLivedSecret`](#core-core-session-setshortlivedsecret) | `setShortLivedSecret(string $key, secret string $value, array<secret bytes> $keys): void` |
+| [`Core\Session::setLongLivedSecret`](#core-core-session-setlonglivedsecret) | `setLongLivedSecret(string $key, secret string $value, array<secret bytes> $keys): void` |
 | [`Core\Session::getSecret`](#core-core-session-getsecret) | `getSecret(string $key, array<secret bytes> $keys): ?secret string` |
+| [`Core\Session::openWithIdentifier`](#core-core-session-openwithidentifier) | `openWithIdentifier(string $id): void` |
 
-<a id="core-core-session-start"></a>
-#### `Core\Session::start`
+<a id="core-core-session-setshortlived"></a>
+#### `Core\Session::setShortLived`
 
 ```nvs skip
-Core\Session::start(?string $presented = null): void
+Core\Session::setShortLived(string $key, mixed $value): void
 ```
 
-Opens the session of this request. Call it once, before any other method of this class. The session identifier is read from the session cookie.
+Saves a short-lived value under one key in the session of this request. Use it for a login. The value is deleted when the browser closes, or when the visitor is inactive for `[session] short_lived`, which is 2 hours by default.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$presented` | `?string` (default `null`, neutral) | The identifier to open. Leave it out to read it from the cookie named by `[session] cookie`, which is `nvsid` by default. If the store has no session under the identifier, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up. |
+| `$key` | `string` (neutral) | The key to save the value under. If the key already has a value of either lifetime, it is replaced, and the key gets the lifetime of this call. |
+| `$value` | `mixed` | The value to save: a string, a number, a bool, `null`, an array or an object. A `tainted` value (text that came from the request) is not allowed here, so the call does not compile. |
 
-**Returns** `void` — Nothing. After it, the other methods of this class can read and change the session. A new session is not saved, and no cookie is sent, until the program saves a value in it. Then the response sends its identifier in the session cookie.
+**Returns** `void` — Nothing. When the request ends, the keys it changed are saved to the store. The first short-lived value in a session also sends a second cookie. Its name is `[session] cookie` with `-short` added. Two requests that change different keys at the same time keep both changes. If they change the same key, the request that ends last wins.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — This request already called `start()`. It is also thrown when the server has no data folder for the default store. With `[session] backend = "shared"`, it is thrown when `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `RuntimeError` — `[session] cookie` is not a valid cookie name. It is thrown when the call must send the cookie.
+
+<a id="core-core-session-setlonglived"></a>
+#### `Core\Session::setLongLived`
+
+```nvs skip
+Core\Session::setLongLived(string $key, mixed $value): void
+```
+
+Saves a long-lived value under one key in the session of this request. Use it for a choice the visitor made, such as their language or their cookie consent. The value is kept for `[session] long_lived`, which is 180 days by default. It is kept after the browser closes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The key to save the value under. If the key already has a value of either lifetime, it is replaced, and the key gets the lifetime of this call. |
+| `$value` | `mixed` | The value to save: a string, a number, a bool, `null`, an array or an object. A `tainted` value (text that came from the request) is not allowed here, so the call does not compile. |
+
+**Returns** `void` — Nothing. When the request ends, the keys it changed are saved to the store. While the session has a long-lived value, the session cookie has a `Max-Age`, so the browser keeps it after it closes. Do not save a login here: it would stay signed in after the browser closes.
+
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `RuntimeError` — `[session] cookie` is not a valid cookie name. It is thrown when the call must send the cookie.
 
 <a id="core-core-session-get"></a>
 #### `Core\Session::get`
@@ -45015,33 +45299,15 @@ Opens the session of this request. Call it once, before any other method of this
 Core\Session::get(string $key): mixed
 ```
 
-Returns the value saved under one key in the session of this request.
+Returns the value saved under one key in the session of this request. The value can be short-lived or long-lived.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$key` | `string` (neutral) | The key to read. If the session has no value under it, the result is `null`. A key that was set to `null` gives the same result. |
 
-**Returns** `mixed` — The value saved under `$key`, or `null`. Reading does not change the session, so a request that only reads its session does not write it back to the store.
+**Returns** `mixed` — The value saved under `$key`, or `null`. A short-lived value is `null` after the browser was closed, or after the visitor was inactive for `[session] short_lived`.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to read.; `ParseError` — The saved session contains an object of a class this program does not declare. This happens when another program saved it.
-
-<a id="core-core-session-set"></a>
-#### `Core\Session::set`
-
-```nvs skip
-Core\Session::set(string $key, mixed $value): void
-```
-
-Saves a value under one key in the session of this request. If the key already has a value, it is replaced.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$key` | `string` (neutral) | The key to save the value under. |
-| `$value` | `mixed` | The value to save: a string, a number, a bool, `null`, an array or an object. A `tainted` value (text that came from the request) is not allowed here, so the call does not compile. |
-
-**Returns** `void` — Nothing. The session is saved to the store once, when the request ends. The first value saved in a new session also sends the session cookie.
-
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into. It is also thrown on the first save in a new session when `[session] cookie` is not a valid cookie name.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one. It is also thrown on the first save in a new session after the response was sent, because the cookie cannot be sent then.; `ParseError` — As `get()`, because `set()` reads the whole session first.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `ParseError` — The value under `$key` contains an object of a class this program does not declare. This happens when another program saved it.
 
 <a id="core-core-session-remove"></a>
 #### `Core\Session::remove`
@@ -45050,28 +45316,54 @@ Saves a value under one key in the session of this request. If the key already h
 Core\Session::remove(string $key): void
 ```
 
-Deletes one key and its value from the session of this request.
+Deletes one key and its value from the session of this request. The value can be short-lived or long-lived.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$key` | `string` (neutral) | The key to delete. If the session has no value under it, `remove()` does not throw an error and the session does not change. |
 
-**Returns** `void` — Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values. To delete every key, use `clear()`.
+**Returns** `void` — Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to change.; `LogicError` — As `set()`. The values that are left are saved again, and a value `set()` does not allow cannot be saved.; `ParseError` — As `get()`, because `remove()` reads the whole session first.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
-<a id="core-core-session-clear"></a>
-#### `Core\Session::clear`
+<a id="core-core-session-clearshortlived"></a>
+#### `Core\Session::clearShortLived`
 
 ```nvs skip
-Core\Session::clear(): void
+Core\Session::clearShortLived(): void
 ```
 
-Removes every value from the session of this request. The session stays open and keeps its identifier.
+Deletes every short-lived value from the session of this request. Call it when a user signs out. The long-lived values are kept.
 
-**Returns** `void` — Nothing. The client keeps the same session cookie, and `set()` works again at once. To end the session completely, for example when a user signs out, use `destroy()`.
+**Returns** `void` — Nothing. The session gets a new identifier, and the response sends it in the session cookie. The old identifier no longer finds the session. Short-lived values that another request saved in the meantime are deleted too.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to empty.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The store cannot be opened, or `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed out.
+
+<a id="core-core-session-clearlonglived"></a>
+#### `Core\Session::clearLongLived`
+
+```nvs skip
+Core\Session::clearLongLived(): void
+```
+
+Deletes every long-lived value from the session of this request. The short-lived values are kept.
+
+**Returns** `void` — Nothing. The session gets a new identifier, and the response sends it in the session cookie. The cookie has no `Max-Age` any more, so the browser deletes it when it closes. Long-lived values that another request saved in the meantime are deleted too.
+
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The store cannot be opened, or `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed out.
+
+<a id="core-core-session-clearall"></a>
+#### `Core\Session::clearAll`
+
+```nvs skip
+Core\Session::clearAll(): void
+```
+
+Deletes the whole session of this request from the store, and tells the browser to delete both session cookies.
+
+**Returns** `void` — Nothing. After it, the request has an empty session with no identifier. If the request saves a value after `clearAll()`, a new session starts with a new identifier.
+
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The store cannot be opened, or `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The data is still in the store, and the session stays open, so you can try again.
 
 <a id="core-core-session-regenerate"></a>
 #### `Core\Session::regenerate`
@@ -45082,31 +45374,18 @@ Core\Session::regenerate(): void
 
 Gives the session a new identifier and deletes the old one from the store. Call it when a user signs in, so an identifier that somebody else knew stops working.
 
-**Returns** `void` — Nothing. The data in the session does not change. The response sends the new identifier in the session cookie. The old identifier no longer finds the session.
+**Returns** `void` — Nothing. Every value in the session is kept, also a value that another request saved in the meantime. The response sends the new identifier in the session cookie. The old identifier no longer finds the session.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. With `[session] backend = "shared"`, it is also thrown when `[cache.shared] url` is not set or the program does not have the `cache.shared` capability. It is also thrown when `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed in.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The store cannot be opened, or `[session] cookie` is not a valid cookie name.; `IOError` — The store cannot be reached. The old identifier may still work, so do not treat the user as signed out.
 
-<a id="core-core-session-destroy"></a>
-#### `Core\Session::destroy`
-
-```nvs skip
-Core\Session::destroy(): void
-```
-
-Ends the session of this request and deletes its data from the store. Call it when a user signs out.
-
-**Returns** `void` — Nothing. After it, this request has no session. The other methods of this class throw a `RuntimeError` until you call `start()` again, and that call opens a new, empty session.
-
-**Throws** `RuntimeError` — This request has not called `start()`, or it already called `destroy()`. With `[session] backend = "shared"`, it is also thrown when `[cache.shared] url` is not set or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The data is still in the store, and the session stays open, so you can try again.
-
-<a id="core-core-session-setsecret"></a>
-#### `Core\Session::setSecret`
+<a id="core-core-session-setshortlivedsecret"></a>
+#### `Core\Session::setShortLivedSecret`
 
 ```nvs skip
-Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys): void
+Core\Session::setShortLivedSecret(string $key, secret string $value, array<secret bytes> $keys): void
 ```
 
-Saves a secret, such as an access token, in the session of this request. The secret is encrypted with a key from `$keys`, so the store only sees encrypted bytes.
+Saves a short-lived secret, such as an access token, in the session of this request. The secret is encrypted with a key from `$keys`, so the store only sees encrypted bytes. Use it for a secret that belongs to a login.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -45114,9 +45393,28 @@ Saves a secret, such as an access token, in the session of this request. The sec
 | `$value` | `secret string` (neutral) | The secret to save, for example an access token or a refresh token of the user. |
 | `$keys` | `array<secret bytes>` | A list of encryption keys, newest first. `Core\Crypto::generateKey()` creates one. The first key encrypts the secret. |
 
-**Returns** `void` — Nothing. The session is saved to the store once, when the request ends.
+**Returns** `void` — Nothing. The secret is saved to the store when the request ends. It is deleted with the other short-lived values.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.; `ParseError` — As `get()`, because `setSecret()` reads the whole session first.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.
+
+<a id="core-core-session-setlonglivedsecret"></a>
+#### `Core\Session::setLongLivedSecret`
+
+```nvs skip
+Core\Session::setLongLivedSecret(string $key, secret string $value, array<secret bytes> $keys): void
+```
+
+Saves a long-lived secret in the session of this request. The secret is encrypted with a key from `$keys`, so the store only sees encrypted bytes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The key to save the secret under. `get()` returns `null` for this key. Only `getSecret()` with the same `$keys` can read the secret. |
+| `$value` | `secret string` (neutral) | The secret to save. |
+| `$keys` | `array<secret bytes>` | A list of encryption keys, newest first. `Core\Crypto::generateKey()` creates one. The first key encrypts the secret. |
+
+**Returns** `void` — Nothing. The secret is saved to the store when the request ends, and it is kept for `[session] long_lived`. Anybody with the session cookie can use it, also after the browser closes. Save a secret that belongs to a login with `setShortLivedSecret()`.
+
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.
 
 <a id="core-core-session-getsecret"></a>
 #### `Core\Session::getSecret`
@@ -45125,16 +45423,33 @@ Saves a secret, such as an access token, in the session of this request. The sec
 Core\Session::getSecret(string $key, array<secret bytes> $keys): ?secret string
 ```
 
-Reads a secret that `setSecret()` saved in the session of this request. If the secret cannot be decrypted with `$keys`, the result is `null`.
+Reads a secret that `setShortLivedSecret()` or `setLongLivedSecret()` saved in the session of this request. If the secret cannot be decrypted with `$keys`, the result is `null`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$key` | `string` (neutral) | The key the secret was saved under. A secret saved under one key cannot be read under another key. |
 | `$keys` | `array<secret bytes>` | A list of encryption keys, newest first. Every key in the list is tried. When you add a new key at the front, secrets saved with the older keys can still be read. |
 
-**Returns** `?secret string` — The secret saved under `$key`, or `null`. The result is `null` when nothing is saved under `$key`, when no key in `$keys` decrypts it, and when the saved bytes were changed. Reading does not change the session.
+**Returns** `?secret string` — The secret saved under `$key`, or `null`. The result is `null` when nothing is saved under `$key`, when no key in `$keys` decrypts it, and when the saved bytes were changed.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to read.; `LogicError` — `$keys` is empty, or a key in it is not 32 bytes long.; `ParseError` — As `get()`, because `getSecret()` reads the whole session first.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or a key in it is not 32 bytes long.; `ParseError` — The value under the secret's key contains an object of a class this program does not declare. This happens only when a program saved a plain value there.
+
+<a id="core-core-session-openwithidentifier"></a>
+#### `Core\Session::openWithIdentifier`
+
+```nvs skip
+Core\Session::openWithIdentifier(string $id): void
+```
+
+Opens the session of this request under an identifier that your program read, for example from a header. Most programs do not need it: the first call of any other method opens the session from the session cookie.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$id` | `string` (neutral) | The session identifier. If the store has no session under it, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up. |
+
+**Returns** `void` — Nothing. No cookie is read for this session. Short-lived values need only the identifier, because there is no browser that could close.
+
+**Throws** `LogicError` — Another method of this class was already called in this request, so the session is already open. The message names that method. It is also thrown when the program is not handling a request.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
 <a id="core-core-socket"></a>
 ### `Core\Socket`
@@ -46607,11 +46922,11 @@ Keywords: token, issue, verify
 Core\Csrf::token(): string
 ```
 
-Returns a CSRF token for the visitor's session. Put it in a form field named `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. The server checks it on the next request. Call `Core\Session::start()` first. If the visitor has no session yet, this call creates one and sends its cookie.
+Returns a CSRF token for the visitor's session. Put it in a form field named `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. The server checks it on the next request. If the visitor has no session yet, this call creates one and sends its cookie.
 
 **Returns** `string` — A different string on every call. Each one is valid for the whole session. It uses only `A-Za-z0-9-_`, so a form field, a header and a URL carry it unchanged.
 
-**Throws** `RuntimeError` — The request has not called `Core\Session::start()`, or `[http] csrf_key` is not set.; `LogicError` — The call runs inside a function passed to `Core\Task::afterResponse`, after the response was sent. The session cookie cannot be sent then.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — `[http] csrf_key` is not set.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call runs inside a function passed to `Core\Task::afterResponse`, after the response was sent. The session cookie cannot be sent then.
 
 <a id="core-core-csrf-issue"></a>
 #### `Core\Csrf::issue`
@@ -46716,7 +47031,7 @@ Keywords: registerOptions, verifyRegistration, signInOptions, credentialId, veri
 Core\Passkey::registerOptions(string $rpId, string $rpName, bytes $userId, string $userName, array<Core\Passkey\Credential> $existing = []): string
 ```
 
-Returns the options for `navigator.credentials.create()` as JSON. The options contain a new random challenge. The challenge is saved in the session, so call `Core\Session::start()` first.
+Returns the options for `navigator.credentials.create()` as JSON. The options contain a new random challenge. The challenge is saved in the session as a short-lived value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -46728,7 +47043,7 @@ Returns the options for `navigator.credentials.create()` as JSON. The options co
 
 **Returns** `string` — A JSON string. In the browser, pass it to `PublicKeyCredential.parseCreationOptionsFromJSON()`, and pass the result to `navigator.credentials.create()`.
 
-**Throws** `RuntimeError` — The request has not started a session.; `LogicError` — `$rpId` is empty, or `$userId` is empty or longer than 64 bytes.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the challenge cannot be saved in the session.; `LogicError` — `$rpId` is empty, or `$userId` is empty or longer than 64 bytes.
 
 <a id="core-core-passkey-verifyregistration"></a>
 #### `Core\Passkey::verifyRegistration`
@@ -46747,7 +47062,7 @@ Checks the browser's answer to `registerOptions` and returns the new passkey. Sa
 
 **Returns** `Core\Passkey\Credential` — The new passkey, with its id, its public key, its algorithm and its sign counter.
 
-**Throws** `RuntimeError` — The request has not started a session, no registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `RuntimeError` — No registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws.
 
 <a id="core-core-passkey-signinoptions"></a>
 #### `Core\Passkey::signInOptions`
@@ -46756,7 +47071,7 @@ Checks the browser's answer to `registerOptions` and returns the new passkey. Sa
 Core\Passkey::signInOptions(string $rpId, array<Core\Passkey\Credential> $allowed = []): string
 ```
 
-Returns the options for `navigator.credentials.get()` as JSON. The options contain a new random challenge. The challenge is saved in the session, so call `Core\Session::start()` first.
+Returns the options for `navigator.credentials.get()` as JSON. The options contain a new random challenge. The challenge is saved in the session as a short-lived value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -46765,7 +47080,7 @@ Returns the options for `navigator.credentials.get()` as JSON. The options conta
 
 **Returns** `string` — A JSON string. In the browser, pass it to `PublicKeyCredential.parseRequestOptionsFromJSON()`, and pass the result to `navigator.credentials.get()`.
 
-**Throws** `RuntimeError` — The request has not started a session.; `LogicError` — `$rpId` is empty.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::afterResponse`. The response headers are already sent there, so the challenge cannot be saved in the session.; `LogicError` — `$rpId` is empty.
 
 <a id="core-core-passkey-credentialid"></a>
 #### `Core\Passkey::credentialId`
@@ -46802,7 +47117,7 @@ Checks the browser's answer to `signInOptions` against the saved passkey. It ret
 
 **Returns** `Core\Passkey\Credential` — The passkey with its new sign counter.
 
-**Throws** `RuntimeError` — The request has not started a session, no sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `RuntimeError` — No sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws.
 
 <a id="core-core-passkey-credential"></a>
 ### `Core\Passkey\Credential`
@@ -50474,7 +50789,7 @@ Returns the property that each part of a property path names.
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, readableProperties, hasProperty, methods, constants, constant, hasMethod, attributes, get, set, call, construct
+Keywords: name, properties, readableProperties, hasProperty, methods, constants, constant, hasMethod, attributes, parent, get, set, call, construct
 
 | Member | Signature |
 |---|---|
@@ -50487,6 +50802,7 @@ Keywords: name, properties, readableProperties, hasProperty, methods, constants,
 | [`Core\Reflect\ClassInfo->constant`](#core-core-reflect-classinfo-constant) | `constant(string $name): mixed` |
 | [`Core\Reflect\ClassInfo->hasMethod`](#core-core-reflect-classinfo-hasmethod) | `hasMethod(string $name): bool` |
 | [`Core\Reflect\ClassInfo->attributes`](#core-core-reflect-classinfo-attributes) | `attributes(): array<Core\Reflect\AttributeInfo>` |
+| [`Core\Reflect\ClassInfo->parent`](#core-core-reflect-classinfo-parent) | `parent(): ?string` |
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
 | [`Core\Reflect\ClassInfo->set`](#core-core-reflect-classinfo-set) | `set(mixed $object, string $name, mixed $value): void` |
 | [`Core\Reflect\ClassInfo->call`](#core-core-reflect-classinfo-call) | `call(mixed $object, string $name, array<mixed> $arguments): mixed` |
@@ -50603,7 +50919,18 @@ $classInfo->attributes(): array<Core\Reflect\AttributeInfo>
 
 Returns every `#[...]` attribute written on the class's own declaration or on its own properties and methods.
 
-**Returns** `array<Core\Reflect\AttributeInfo>` — One `Core\Reflect\AttributeInfo` for each place an attribute is written, in source order. The class declaration's attributes come first, then those of each property and method. A method's parameters come after that method. **Only the class's own** declarations are included. `constants` also includes the parent classes. An attribute belongs to the declaration it is written on, so a parent class's attributes are not listed. `Core\Attributes::get` reads an attribute by the *shape* of its payload. It is checked at compile time and costs nothing at run time. Use `attributes` for a class whose name is not in your source code.
+**Returns** `array<Core\Reflect\AttributeInfo>` — One `Core\Reflect\AttributeInfo` for each place an attribute is written, in source order. The class declaration's attributes come first, then those of each property and method. A method's parameters come after that method. **Only the class's own** declarations are included. `constants` also includes the parent classes. An attribute belongs to the declaration it is written on, so a parent class's attributes are not listed. `Core\Attributes::get` reads an attribute by the *shape* of its payload. It is checked at compile time and costs nothing at run time. Use `attributes` for a class whose name is not in your source code. To read the parent classes' attributes too, call `parent` and describe each parent class with `Core\Reflect::forClass`.
+
+<a id="core-core-reflect-classinfo-parent"></a>
+#### `Core\Reflect\ClassInfo->parent`
+
+```nvs skip
+$classInfo->parent(): ?string
+```
+
+Returns the name of the class that the described class extends.
+
+**Returns** `?string` — The parent class's name, with its namespace, written as `name` writes a name. It is `null` for a class that extends no class. It is also `null` for an interface. To walk up to the top class, pass the name to `Core\Reflect::forClass` and call `parent` again. `forClass` returns `null` for a `Core` class, so the walk stops there too.
 
 <a id="core-core-reflect-classinfo-get"></a>
 #### `Core\Reflect\ClassInfo->get`
@@ -61076,7 +61403,7 @@ echo 'unknown: ', Config::set('no.such.key', '1') ? 'ok' : 'refused', "\n";
 Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
-    if ($name == 'limits.memory' || $name == 'log.level' || $name == 'session.ttl') {
+    if ($name == 'limits.memory' || $name == 'log.level' || $name == 'session.short_lived') {
         echo $name, ' = ', $value, "\n";
     }
 }
@@ -61091,7 +61418,7 @@ file_cache_dir: refused
 unknown: refused
 limits.memory = 256M
 log.level = debug
-session.ttl = 2h
+session.short_lived = 2h
 restored: 128M
 ```
 

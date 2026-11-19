@@ -7901,12 +7901,24 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns a CSRF token for the visitor's session. Put it in a form field named <code>_csrf</code>, in the <code>x-csrf-token</code> header or in a <code>_csrf</code> query parameter. The server checks it on the next request. Call <code>Core\\Session::start()</code> first. If the visitor has no session yet, this call creates one and sends its cookie.",
+            "shortHtml": "Returns a CSRF token for the visitor's session. Put it in a form field named <code>_csrf</code>, in the <code>x-csrf-token</code> header or in a <code>_csrf</code> query parameter. The server checks it on the next request. If the visitor has no session yet, this call creates one and sends its cookie.",
             "returnHtml": "A different string on every call. Each one is valid for the whole session. It uses only <code>A-Za-z0-9-_</code>, so a form field, a header and a URL carry it unchanged.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "The request has not called <code>Core\\Session::start()</code>, or <code>[http] csrf_key</code> is not set."
+                "descHtml": "<code>[http] csrf_key</code> is not set."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
               },
               {
                 "error": "LogicError",
@@ -34298,7 +34310,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the options for <code>navigator.credentials.create()</code> as JSON. The options contain a new random challenge. The challenge is saved in the session, so call <code>Core\\Session::start()</code> first.",
+            "shortHtml": "Returns the options for <code>navigator.credentials.create()</code> as JSON. The options contain a new random challenge. The challenge is saved in the session as a short-lived value.",
             "params": [
               {
                 "name": "rpId",
@@ -34324,8 +34336,20 @@
             "returnHtml": "A JSON string. In the browser, pass it to <code>PublicKeyCredential.parseCreationOptionsFromJSON()</code>, and pass the result to <code>navigator.credentials.create()</code>.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "The request has not started a session."
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the challenge cannot be saved in the session."
               },
               {
                 "error": "LogicError",
@@ -34391,8 +34415,20 @@
             "returnHtml": "The new passkey, with its id, its public key, its algorithm and its sign counter.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "The request has not started a session, no registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws."
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "No registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws."
               }
             ]
           },
@@ -34428,7 +34464,7 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns the options for <code>navigator.credentials.get()</code> as JSON. The options contain a new random challenge. The challenge is saved in the session, so call <code>Core\\Session::start()</code> first.",
+            "shortHtml": "Returns the options for <code>navigator.credentials.get()</code> as JSON. The options contain a new random challenge. The challenge is saved in the session as a short-lived value.",
             "params": [
               {
                 "name": "rpId",
@@ -34442,8 +34478,20 @@
             "returnHtml": "A JSON string. In the browser, pass it to <code>PublicKeyCredential.parseRequestOptionsFromJSON()</code>, and pass the result to <code>navigator.credentials.get()</code>.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "The request has not started a session."
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the challenge cannot be saved in the session."
               },
               {
                 "error": "LogicError",
@@ -34560,8 +34608,20 @@
             "returnHtml": "The passkey with its new sign counter.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "The request has not started a session, no sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws."
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "No sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws."
               }
             ]
           },
@@ -38054,11 +38114,29 @@
           "returnType": "array<Core\\Reflect\\AttributeInfo>",
           "doc": {
             "shortHtml": "Returns every <code>#[...]</code> attribute written on the class's own declaration or on its own properties and methods.",
-            "returnHtml": "One <code>Core\\Reflect\\AttributeInfo</code> for each place an attribute is written, in source order. The class declaration's attributes come first, then those of each property and method. A method's parameters come after that method. <strong>Only the class's own</strong> declarations are included. <code>constants</code> also includes the parent classes. An attribute belongs to the declaration it is written on, so a parent class's attributes are not listed. <code>Core\\Attributes::get</code> reads an attribute by the <em>shape</em> of its payload. It is checked at compile time and costs nothing at run time. Use <code>attributes</code> for a class whose name is not in your source code."
+            "returnHtml": "One <code>Core\\Reflect\\AttributeInfo</code> for each place an attribute is written, in source order. The class declaration's attributes come first, then those of each property and method. A method's parameters come after that method. <strong>Only the class's own</strong> declarations are included. <code>constants</code> also includes the parent classes. An attribute belongs to the declaration it is written on, so a parent class's attributes are not listed. <code>Core\\Attributes::get</code> reads an attribute by the <em>shape</em> of its payload. It is checked at compile time and costs nothing at run time. Use <code>attributes</code> for a class whose name is not in your source code. To read the parent classes' attributes too, call <code>parent</code> and describe each parent class with <code>Core\\Reflect::forClass</code>."
           },
           "slug": "attributes",
           "url": "/reference/core/reflect-classinfo/attributes/",
           "examples": "core/Reflect-ClassInfo/attributes"
+        },
+        {
+          "id": "Reflect.ClassInfo.parent",
+          "name": "parent",
+          "static": false,
+          "receiver": "classInfo",
+          "generics": null,
+          "signature": "parent(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the name of the class that the described class extends.",
+            "returnHtml": "The parent class's name, with its namespace, written as <code>name</code> writes a name. It is <code>null</code> for a class that extends no class. It is also <code>null</code> for an interface. To walk up to the top class, pass the name to <code>Core\\Reflect::forClass</code> and call <code>parent</code> again. <code>forClass</code> returns <code>null</code> for a <code>Core</code> class, so the walk stops there too."
+          },
+          "slug": "parent",
+          "url": "/reference/core/reflect-classinfo/parent/",
+          "examples": "core/Reflect-ClassInfo/parent"
         },
         {
           "id": "Reflect.ClassInfo.get",
@@ -42582,109 +42660,19 @@
     {
       "id": "Session",
       "name": "Core\\Session",
-      "summary": "Keeps values for one visitor from one request to the next. Call `start()` first, then use `get()` and `set()`. By default, the values are saved in a SQLite file in the data folder. `[session] backend = \"shared\"` saves them in the shared cache instead.",
+      "summary": "Keeps values for one visitor from one request to the next. A short-lived value is kept until the browser closes or the visitor is inactive for `[session] short_lived`. A long-lived value is kept for `[session] long_lived`. The first call of any method opens the session. By default, the values are saved in a SQLite file in the data folder. `[session] backend = \"shared\"` saves them in the shared cache instead.",
       "enums": [],
       "types": [],
       "constants": [],
       "properties": [],
       "members": [
         {
-          "id": "Session.start",
-          "name": "start",
+          "id": "Session.setShortLived",
+          "name": "setShortLived",
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "start(?string $presented = null): void",
-          "params": [
-            {
-              "kind": "param",
-              "name": "presented",
-              "type": "?string",
-              "default": "null",
-              "optional": true,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "void",
-          "doc": {
-            "shortHtml": "Opens the session of this request. Call it once, before any other method of this class. The session identifier is read from the session cookie.",
-            "params": [
-              {
-                "name": "presented",
-                "descHtml": "The identifier to open. Leave it out to read it from the cookie named by <code>[session] cookie</code>, which is <code>nvsid</code> by default. If the store has no session under the identifier, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up."
-              }
-            ],
-            "returnHtml": "Nothing. After it, the other methods of this class can read and change the session. A new session is not saved, and no cookie is sent, until the program saves a value in it. Then the response sends its identifier in the session cookie.",
-            "errors": [
-              {
-                "error": "LogicError",
-                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
-              },
-              {
-                "error": "RuntimeError",
-                "descHtml": "This request already called <code>start()</code>. It is also thrown when the server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, it is thrown when <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
-              },
-              {
-                "error": "IOError",
-                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
-              }
-            ]
-          },
-          "slug": "start",
-          "url": "/reference/core/session/start/",
-          "examples": "core/Session/start"
-        },
-        {
-          "id": "Session.get",
-          "name": "get",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "get(string $key): mixed",
-          "params": [
-            {
-              "kind": "param",
-              "name": "key",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "mixed",
-          "doc": {
-            "shortHtml": "Returns the value saved under one key in the session of this request.",
-            "params": [
-              {
-                "name": "key",
-                "descHtml": "The key to read. If the session has no value under it, the result is <code>null</code>. A key that was set to <code>null</code> gives the same result."
-              }
-            ],
-            "returnHtml": "The value saved under <code>$key</code>, or <code>null</code>. Reading does not change the session, so a request that only reads its session does not write it back to the store.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to read."
-              },
-              {
-                "error": "ParseError",
-                "descHtml": "The saved session contains an object of a class this program does not declare. This happens when another program saved it."
-              }
-            ]
-          },
-          "slug": "get",
-          "url": "/reference/core/session/get/",
-          "examples": "core/Session/get"
-        },
-        {
-          "id": "Session.set",
-          "name": "set",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "set(string $key, mixed $value): void",
+          "signature": "setShortLived(string $key, mixed $value): void",
           "params": [
             {
               "kind": "param",
@@ -42706,36 +42694,170 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Saves a value under one key in the session of this request. If the key already has a value, it is replaced.",
+            "shortHtml": "Saves a short-lived value under one key in the session of this request. Use it for a login. The value is deleted when the browser closes, or when the visitor is inactive for <code>[session] short_lived</code>, which is 2 hours by default.",
             "params": [
               {
                 "name": "key",
-                "descHtml": "The key to save the value under."
+                "descHtml": "The key to save the value under. If the key already has a value of either lifetime, it is replaced, and the key gets the lifetime of this call."
               },
               {
                 "name": "value",
                 "descHtml": "The value to save: a string, a number, a bool, <code>null</code>, an array or an object. A <code>tainted</code> value (text that came from the request) is not allowed here, so the call does not compile."
               }
             ],
-            "returnHtml": "Nothing. The session is saved to the store once, when the request ends. The first value saved in a new session also sends the session cookie.",
+            "returnHtml": "Nothing. When the request ends, the keys it changed are saved to the store. The first short-lived value in a session also sends a second cookie. Its name is <code>[session] cookie</code> with <code>-short</code> added. Two requests that change different keys at the same time keep both changes. If they change the same key, the request that ends last wins.",
             "errors": [
               {
-                "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to save into. It is also thrown on the first save in a new session when <code>[session] cookie</code> is not a valid cookie name."
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
               },
               {
                 "error": "LogicError",
-                "descHtml": "<code>$value</code> cannot be saved: it is a callable or a resource, or it contains one. It is also thrown on the first save in a new session after the response was sent, because the cookie cannot be sent then."
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
               },
               {
-                "error": "ParseError",
-                "descHtml": "As <code>get()</code>, because <code>set()</code> reads the whole session first."
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$value</code> cannot be saved: it is a callable or a resource, or it contains one."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>[session] cookie</code> is not a valid cookie name. It is thrown when the call must send the cookie."
               }
             ]
           },
-          "slug": "set",
-          "url": "/reference/core/session/set/",
-          "examples": "core/Session/set"
+          "slug": "setshortlived",
+          "url": "/reference/core/session/setshortlived/",
+          "examples": "core/Session/setShortLived"
+        },
+        {
+          "id": "Session.setLongLived",
+          "name": "setLongLived",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "setLongLived(string $key, mixed $value): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "key",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "value",
+              "type": "mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Saves a long-lived value under one key in the session of this request. Use it for a choice the visitor made, such as their language or their cookie consent. The value is kept for <code>[session] long_lived</code>, which is 180 days by default. It is kept after the browser closes.",
+            "params": [
+              {
+                "name": "key",
+                "descHtml": "The key to save the value under. If the key already has a value of either lifetime, it is replaced, and the key gets the lifetime of this call."
+              },
+              {
+                "name": "value",
+                "descHtml": "The value to save: a string, a number, a bool, <code>null</code>, an array or an object. A <code>tainted</code> value (text that came from the request) is not allowed here, so the call does not compile."
+              }
+            ],
+            "returnHtml": "Nothing. When the request ends, the keys it changed are saved to the store. While the session has a long-lived value, the session cookie has a <code>Max-Age</code>, so the browser keeps it after it closes. Do not save a login here: it would stay signed in after the browser closes.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$value</code> cannot be saved: it is a callable or a resource, or it contains one."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>[session] cookie</code> is not a valid cookie name. It is thrown when the call must send the cookie."
+              }
+            ]
+          },
+          "slug": "setlonglived",
+          "url": "/reference/core/session/setlonglived/",
+          "examples": "core/Session/setLongLived"
+        },
+        {
+          "id": "Session.get",
+          "name": "get",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "get(string $key): mixed",
+          "params": [
+            {
+              "kind": "param",
+              "name": "key",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "mixed",
+          "doc": {
+            "shortHtml": "Returns the value saved under one key in the session of this request. The value can be short-lived or long-lived.",
+            "params": [
+              {
+                "name": "key",
+                "descHtml": "The key to read. If the session has no value under it, the result is <code>null</code>. A key that was set to <code>null</code> gives the same result."
+              }
+            ],
+            "returnHtml": "The value saved under <code>$key</code>, or <code>null</code>. A short-lived value is <code>null</code> after the browser was closed, or after the visitor was inactive for <code>[session] short_lived</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "The value under <code>$key</code> contains an object of a class this program does not declare. This happens when another program saved it."
+              }
+            ]
+          },
+          "slug": "get",
+          "url": "/reference/core/session/get/",
+          "examples": "core/Session/get"
         },
         {
           "id": "Session.remove",
@@ -42757,26 +42879,30 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Deletes one key and its value from the session of this request.",
+            "shortHtml": "Deletes one key and its value from the session of this request. The value can be short-lived or long-lived.",
             "params": [
               {
                 "name": "key",
                 "descHtml": "The key to delete. If the session has no value under it, <code>remove()</code> does not throw an error and the session does not change."
               }
             ],
-            "returnHtml": "Nothing. After it, <code>get()</code> returns <code>null</code> for <code>$key</code>. The other keys keep their values. To delete every key, use <code>clear()</code>.",
+            "returnHtml": "Nothing. After it, <code>get()</code> returns <code>null</code> for <code>$key</code>. The other keys keep their values.",
             "errors": [
               {
-                "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to change."
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
               },
               {
                 "error": "LogicError",
-                "descHtml": "As <code>set()</code>. The values that are left are saved again, and a value <code>set()</code> does not allow cannot be saved."
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
               },
               {
-                "error": "ParseError",
-                "descHtml": "As <code>get()</code>, because <code>remove()</code> reads the whole session first."
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
               }
             ]
           },
@@ -42785,28 +42911,112 @@
           "examples": "core/Session/remove"
         },
         {
-          "id": "Session.clear",
-          "name": "clear",
+          "id": "Session.clearShortLived",
+          "name": "clearShortLived",
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "clear(): void",
+          "signature": "clearShortLived(): void",
           "params": [],
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Removes every value from the session of this request. The session stays open and keeps its identifier.",
-            "returnHtml": "Nothing. The client keeps the same session cookie, and <code>set()</code> works again at once. To end the session completely, for example when a user signs out, use <code>destroy()</code>.",
+            "shortHtml": "Deletes every short-lived value from the session of this request. Call it when a user signs out. The long-lived values are kept.",
+            "returnHtml": "Nothing. The session gets a new identifier, and the response sends it in the session cookie. The old identifier no longer finds the session. Short-lived values that another request saved in the meantime are deleted too.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to empty."
+                "descHtml": "The store cannot be opened, or <code>[session] cookie</code> is not a valid cookie name."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The old identifier may still work, so do not treat the user as signed out."
               }
             ]
           },
-          "slug": "clear",
-          "url": "/reference/core/session/clear/",
-          "examples": "core/Session/clear"
+          "slug": "clearshortlived",
+          "url": "/reference/core/session/clearshortlived/",
+          "examples": "core/Session/clearShortLived"
+        },
+        {
+          "id": "Session.clearLongLived",
+          "name": "clearLongLived",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "clearLongLived(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Deletes every long-lived value from the session of this request. The short-lived values are kept.",
+            "returnHtml": "Nothing. The session gets a new identifier, and the response sends it in the session cookie. The cookie has no <code>Max-Age</code> any more, so the browser deletes it when it closes. Long-lived values that another request saved in the meantime are deleted too.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The store cannot be opened, or <code>[session] cookie</code> is not a valid cookie name."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The old identifier may still work, so do not treat the user as signed out."
+              }
+            ]
+          },
+          "slug": "clearlonglived",
+          "url": "/reference/core/session/clearlonglived/",
+          "examples": "core/Session/clearLongLived"
+        },
+        {
+          "id": "Session.clearAll",
+          "name": "clearAll",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "clearAll(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Deletes the whole session of this request from the store, and tells the browser to delete both session cookies.",
+            "returnHtml": "Nothing. After it, the request has an empty session with no identifier. If the request saves a value after <code>clearAll()</code>, a new session starts with a new identifier.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The store cannot be opened, or <code>[session] cookie</code> is not a valid cookie name."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The data is still in the store, and the session stays open, so you can try again."
+              }
+            ]
+          },
+          "slug": "clearall",
+          "url": "/reference/core/session/clearall/",
+          "examples": "core/Session/clearAll"
         },
         {
           "id": "Session.regenerate",
@@ -42820,15 +43030,23 @@
           "returnType": "void",
           "doc": {
             "shortHtml": "Gives the session a new identifier and deletes the old one from the store. Call it when a user signs in, so an identifier that somebody else knew stops working.",
-            "returnHtml": "Nothing. The data in the session does not change. The response sends the new identifier in the session cookie. The old identifier no longer finds the session.",
+            "returnHtml": "Nothing. Every value in the session is kept, also a value that another request saved in the meantime. The response sends the new identifier in the session cookie. The old identifier no longer finds the session.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. With <code>[session] backend = &quot;shared&quot;</code>, it is also thrown when <code>[cache.shared] url</code> is not set or the program does not have the <code>cache.shared</code> capability. It is also thrown when <code>[session] cookie</code> is not a valid cookie name."
+                "descHtml": "The store cannot be opened, or <code>[session] cookie</code> is not a valid cookie name."
               },
               {
                 "error": "IOError",
-                "descHtml": "The store cannot be reached. The old identifier may still work, so do not treat the user as signed in."
+                "descHtml": "The store cannot be reached. The old identifier may still work, so do not treat the user as signed out."
               }
             ]
           },
@@ -42837,40 +43055,12 @@
           "examples": "core/Session/regenerate"
         },
         {
-          "id": "Session.destroy",
-          "name": "destroy",
+          "id": "Session.setShortLivedSecret",
+          "name": "setShortLivedSecret",
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "destroy(): void",
-          "params": [],
-          "options": [],
-          "returnType": "void",
-          "doc": {
-            "shortHtml": "Ends the session of this request and deletes its data from the store. Call it when a user signs out.",
-            "returnHtml": "Nothing. After it, this request has no session. The other methods of this class throw a <code>RuntimeError</code> until you call <code>start()</code> again, and that call opens a new, empty session.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it already called <code>destroy()</code>. With <code>[session] backend = &quot;shared&quot;</code>, it is also thrown when <code>[cache.shared] url</code> is not set or the program does not have the <code>cache.shared</code> capability."
-              },
-              {
-                "error": "IOError",
-                "descHtml": "The store cannot be reached. The data is still in the store, and the session stays open, so you can try again."
-              }
-            ]
-          },
-          "slug": "destroy",
-          "url": "/reference/core/session/destroy/",
-          "examples": "core/Session/destroy"
-        },
-        {
-          "id": "Session.setSecret",
-          "name": "setSecret",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "setSecret(string $key, secret string $value, array<secret bytes> $keys): void",
+          "signature": "setShortLivedSecret(string $key, secret string $value, array<secret bytes> $keys): void",
           "params": [
             {
               "kind": "param",
@@ -42900,7 +43090,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Saves a secret, such as an access token, in the session of this request. The secret is encrypted with a key from <code>$keys</code>, so the store only sees encrypted bytes.",
+            "shortHtml": "Saves a short-lived secret, such as an access token, in the session of this request. The secret is encrypted with a key from <code>$keys</code>, so the store only sees encrypted bytes. Use it for a secret that belongs to a login.",
             "params": [
               {
                 "name": "key",
@@ -42915,25 +43105,112 @@
                 "descHtml": "A list of encryption keys, newest first. <code>Core\\Crypto::generateKey()</code> creates one. The first key encrypts the secret."
               }
             ],
-            "returnHtml": "Nothing. The session is saved to the store once, when the request ends.",
+            "returnHtml": "Nothing. The secret is saved to the store when the request ends. It is deleted with the other short-lived values.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to save into."
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
               },
               {
                 "error": "LogicError",
                 "descHtml": "<code>$keys</code> is empty, or its first key is not 32 bytes long."
-              },
-              {
-                "error": "ParseError",
-                "descHtml": "As <code>get()</code>, because <code>setSecret()</code> reads the whole session first."
               }
             ]
           },
-          "slug": "setsecret",
-          "url": "/reference/core/session/setsecret/",
-          "examples": "core/Session/setSecret"
+          "slug": "setshortlivedsecret",
+          "url": "/reference/core/session/setshortlivedsecret/",
+          "examples": "core/Session/setShortLivedSecret"
+        },
+        {
+          "id": "Session.setLongLivedSecret",
+          "name": "setLongLivedSecret",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "setLongLivedSecret(string $key, secret string $value, array<secret bytes> $keys): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "key",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "value",
+              "type": "secret string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "keys",
+              "type": "array<secret bytes>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Saves a long-lived secret in the session of this request. The secret is encrypted with a key from <code>$keys</code>, so the store only sees encrypted bytes.",
+            "params": [
+              {
+                "name": "key",
+                "descHtml": "The key to save the secret under. <code>get()</code> returns <code>null</code> for this key. Only <code>getSecret()</code> with the same <code>$keys</code> can read the secret."
+              },
+              {
+                "name": "value",
+                "descHtml": "The secret to save."
+              },
+              {
+                "name": "keys",
+                "descHtml": "A list of encryption keys, newest first. <code>Core\\Crypto::generateKey()</code> creates one. The first key encrypts the secret."
+              }
+            ],
+            "returnHtml": "Nothing. The secret is saved to the store when the request ends, and it is kept for <code>[session] long_lived</code>. Anybody with the session cookie can use it, also after the browser closes. Save a secret that belongs to a login with <code>setShortLivedSecret()</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call is inside <code>Core\\Html::later</code> or <code>Core\\Task::afterResponse</code>. The response headers are already sent there, so the session cannot change. Most of these calls do not compile."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$keys</code> is empty, or its first key is not 32 bytes long."
+              }
+            ]
+          },
+          "slug": "setlonglivedsecret",
+          "url": "/reference/core/session/setlonglivedsecret/",
+          "examples": "core/Session/setLongLivedSecret"
         },
         {
           "id": "Session.getSecret",
@@ -42963,7 +43240,7 @@
           "options": [],
           "returnType": "?secret string",
           "doc": {
-            "shortHtml": "Reads a secret that <code>setSecret()</code> saved in the session of this request. If the secret cannot be decrypted with <code>$keys</code>, the result is <code>null</code>.",
+            "shortHtml": "Reads a secret that <code>setShortLivedSecret()</code> or <code>setLongLivedSecret()</code> saved in the session of this request. If the secret cannot be decrypted with <code>$keys</code>, the result is <code>null</code>.",
             "params": [
               {
                 "name": "key",
@@ -42974,11 +43251,19 @@
                 "descHtml": "A list of encryption keys, newest first. Every key in the list is tried. When you add a new key at the front, secrets saved with the older keys can still be read."
               }
             ],
-            "returnHtml": "The secret saved under <code>$key</code>, or <code>null</code>. The result is <code>null</code> when nothing is saved under <code>$key</code>, when no key in <code>$keys</code> decrypts it, and when the saved bytes were changed. Reading does not change the session.",
+            "returnHtml": "The secret saved under <code>$key</code>, or <code>null</code>. The result is <code>null</code> when nothing is saved under <code>$key</code>, when no key in <code>$keys</code> decrypts it, and when the saved bytes were changed.",
             "errors": [
               {
+                "error": "LogicError",
+                "descHtml": "The program is not handling a request. A command-line program, a job and a test have no session."
+              },
+              {
                 "error": "RuntimeError",
-                "descHtml": "This request has not called <code>start()</code>, or it called <code>destroy()</code>. There is no session to read."
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
               },
               {
                 "error": "LogicError",
@@ -42986,20 +43271,67 @@
               },
               {
                 "error": "ParseError",
-                "descHtml": "As <code>get()</code>, because <code>getSecret()</code> reads the whole session first."
+                "descHtml": "The value under the secret's key contains an object of a class this program does not declare. This happens only when a program saved a plain value there."
               }
             ]
           },
           "slug": "getsecret",
           "url": "/reference/core/session/getsecret/",
           "examples": "core/Session/getSecret"
+        },
+        {
+          "id": "Session.openWithIdentifier",
+          "name": "openWithIdentifier",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "openWithIdentifier(string $id): void",
+          "params": [
+            {
+              "kind": "param",
+              "name": "id",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "void",
+          "doc": {
+            "shortHtml": "Opens the session of this request under an identifier that your program read, for example from a header. Most programs do not need it: the first call of any other method opens the session from the session cookie.",
+            "params": [
+              {
+                "name": "id",
+                "descHtml": "The session identifier. If the store has no session under it, a new, empty session is opened. This happens when the identifier expired, and when somebody made it up."
+              }
+            ],
+            "returnHtml": "Nothing. No cookie is read for this session. Short-lived values need only the identifier, because there is no browser that could close.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "Another method of this class was already called in this request, so the session is already open. The message names that method. It is also thrown when the program is not handling a request."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+              },
+              {
+                "error": "IOError",
+                "descHtml": "The store cannot be reached. The user may still have a session there, so do not treat them as signed out."
+              }
+            ]
+          },
+          "slug": "openwithidentifier",
+          "url": "/reference/core/session/openwithidentifier/",
+          "examples": "core/Session/openWithIdentifier"
         }
       ],
       "slug": "session",
       "url": "/reference/core/session/",
       "summaryBlocks": [
         {
-          "html": "<p>Keeps values for one visitor from one request to the next. Call <code>start()</code> first, then use <code>get()</code> and <code>set()</code>. By default, the values are saved in a SQLite file in the data folder. <code>[session] backend = &quot;shared&quot;</code> saves them in the shared cache instead.</p>"
+          "html": "<p>Keeps values for one visitor from one request to the next. A short-lived value is kept until the browser closes or the visitor is inactive for <code>[session] short_lived</code>. A long-lived value is kept for <code>[session] long_lived</code>. The first call of any method opens the session. By default, the values are saved in a SQLite file in the data folder. <code>[session] backend = &quot;shared&quot;</code> saves them in the shared cache instead.</p>"
         }
       ],
       "returnedBy": []
@@ -49258,20 +49590,167 @@
           "slug": "compareto",
           "url": "/reference/core/time-date/compareto/",
           "examples": "core/Time-Date/compareTo"
+        },
+        {
+          "id": "Time.Date.weekday",
+          "name": "weekday",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "weekday(): Core\\Time\\DateTime::Weekday",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Time\\DateTime::Weekday",
+          "doc": {
+            "shortHtml": "Returns the day of the week of this date, as a <code>Weekday</code> enum case.",
+            "returnHtml": "The <code>Weekday</code> case, <code>Weekday::Monday</code> through <code>Weekday::Sunday</code>."
+          },
+          "slug": "weekday",
+          "url": "/reference/core/time-date/weekday/",
+          "examples": "core/Time-Date/weekday"
+        },
+        {
+          "id": "Time.Date.dayOfYear",
+          "name": "dayOfYear",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "dayOfYear(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the day of the year, counted from <code>1</code>.",
+            "returnHtml": "<code>1</code> for 1 January, up to <code>365</code>, or <code>366</code> in a leap year."
+          },
+          "slug": "dayofyear",
+          "url": "/reference/core/time-date/dayofyear/",
+          "examples": "core/Time-Date/dayOfYear"
+        },
+        {
+          "id": "Time.Date.isLeapYear",
+          "name": "isLeapYear",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "isLeapYear(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Checks whether the year of this date has a 29 February.",
+            "returnHtml": "<code>true</code> in a leap year of the Gregorian calendar, otherwise <code>false</code>."
+          },
+          "slug": "isleapyear",
+          "url": "/reference/core/time-date/isleapyear/",
+          "examples": "core/Time-Date/isLeapYear"
+        },
+        {
+          "id": "Time.Date.year",
+          "name": "year",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "year(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the year of this date.",
+            "returnHtml": "The year, from <code>-9999</code> to <code>9999</code>. The year before <code>1</code> is <code>0</code>."
+          },
+          "slug": "year",
+          "url": "/reference/core/time-date/year/",
+          "examples": "core/Time-Date/year"
+        },
+        {
+          "id": "Time.Date.month",
+          "name": "month",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "month(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the month of this date as a number.",
+            "returnHtml": "The month, from <code>1</code> for January to <code>12</code> for December."
+          },
+          "slug": "month",
+          "url": "/reference/core/time-date/month/",
+          "examples": "core/Time-Date/month"
+        },
+        {
+          "id": "Time.Date.day",
+          "name": "day",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "day(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the day of the month of this date.",
+            "returnHtml": "The day, from <code>1</code> to the last day of the month."
+          },
+          "slug": "day",
+          "url": "/reference/core/time-date/day/",
+          "examples": "core/Time-Date/day"
+        },
+        {
+          "id": "Time.Date.atStartOfDay",
+          "name": "atStartOfDay",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "atStartOfDay(Core\\Time\\Zone $zone): Core\\Time\\DateTime",
+          "params": [
+            {
+              "kind": "param",
+              "name": "zone",
+              "type": "Core\\Time\\Zone",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\DateTime",
+          "doc": {
+            "shortHtml": "Returns the first moment of this date in a time zone, as a <code>DateTime</code>. This is usually midnight. In some zones the clocks skip midnight on one day of the year. On that day, the result is the first time that exists, such as <code>01:00</code>.",
+            "params": [
+              {
+                "name": "zone",
+                "descHtml": "The time zone the day starts in."
+              }
+            ],
+            "returnHtml": "A new <code>DateTime</code> on this date in <code>$zone</code>. Use <code>withTime</code> on it to set another time.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The first or the last day of the range, in a zone whose start of that day is outside the range of times Novis supports."
+              }
+            ]
+          },
+          "slug": "atstartofday",
+          "url": "/reference/core/time-date/atstartofday/",
+          "examples": "core/Time-Date/atStartOfDay"
         }
       ],
       "slug": "time-date",
       "url": "/reference/core/time-date/",
       "summaryBlocks": [
         {
-          "html": "<p>A date with no time of day and no zone, such as a birthday or a due date. <code>Core\\Time\\Date::at</code> builds one from a year, a month and a day. <code>plus</code> and <code>minus</code> move it by days, months or years, and <code>format</code> turns it into text.</p>\n<p>A <code>Date</code> is the year, month and day alone — no time of day and no zone — built by <code>Date::at</code> or read off a <code>DateTime</code> with <code>-&gt;date()</code>. There is no <code>Date::parse</code>: text is read with <code>Core\\Time::parse</code> (a pattern and a zone), and the <code>DateTime</code> it answers gives up its date. A date that does not exist throws where it is built. It steps by <code>Core\\Unit::Day</code> and larger, with the same month-end clamping as <code>DateTime::plus</code>; a smaller unit is refused. <code>format</code> takes the date letters of the CLDR grammar <code>DateTime::format</code> uses, and a time or zone letter in the pattern is refused because a <code>Date</code> has none to render. Two dates are ordered with <code>compareTo</code>; the <code>&lt;</code> operators do not compile on a <code>Date</code>.</p>"
+          "html": "<p>A date with no time of day and no zone, such as a birthday or a due date. <code>Core\\Time\\Date::at</code> builds one from a year, a month and a day. <code>plus</code> and <code>minus</code> move it by days, months or years, and <code>format</code> turns it into text.</p>\n<p>A <code>Date</code> is a year, a month and a day. It has no time of day and no zone. <code>Date::at</code> builds one, and <code>-&gt;date()</code> gives the date of a <code>DateTime</code>. To read a date from text, use <code>Core\\Time::parse</code> with a pattern and a zone, and call <code>-&gt;date()</code> on the result. A date that does not exist throws an error when it is built.</p>\n<p><code>year()</code>, <code>month()</code> and <code>day()</code> return the three fields as numbers. <code>weekday()</code> returns a <code>Core\\Time\\DateTime::Weekday</code> case, <code>dayOfYear()</code> returns the day of the year from <code>1</code>, and <code>isLeapYear()</code> checks the year. <code>atStartOfDay($zone)</code> returns a <code>DateTime</code> at the first moment of the date in that zone. This is usually midnight. Add a time of day to it with <code>withTime</code>.</p>\n<p><code>plus</code> and <code>minus</code> move a date by <code>Core\\Unit::Day</code> or a larger unit. A smaller unit throws an error. Moving by months keeps the day inside the new month, as <code>DateTime::plus</code> does. <code>format</code> takes the date letters of the patterns <code>DateTime::format</code> uses. A time letter or a zone letter does not compile, because a <code>Date</code> has no time and no zone. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two dates.</p>"
         },
         {
-          "code": "<?nvs\nvar $d = Core\\Time\\Date::at(2024, 1, 31);\necho $d->format('yyyy-MM-dd'), \"\\n\";\necho $d->format('EEEE, d MMMM'), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Day)->format('EEE d MMM'), \"\\n\";\necho $d->with({ month: 3 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->compareTo(Core\\Time\\Date::at(2024, 2, 1)), \"\\n\";\n\ntry {\n    Core\\Time\\Date::at(2023, 2, 29);\n} catch (RuntimeError $bad) {\n    echo \"2023-02-29 does not exist\\n\";\n}\n\nvar $utc = Core\\Time\\Zone::UTC;\necho Core\\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), \"\\n\";",
+          "code": "<?nvs\nvar $d = Core\\Time\\Date::at(2024, 1, 31);\necho $d->format('yyyy-MM-dd'), \"\\n\";\necho $d->format('EEEE, d MMMM'), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Day)->format('EEE d MMM'), \"\\n\";\necho $d->with({ month: 3 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->compareTo(Core\\Time\\Date::at(2024, 2, 1)), \"\\n\";\n\ntry {\n    Core\\Time\\Date::at(2023, 2, 29);\n} catch (RuntimeError $bad) {\n    echo \"2023-02-29 does not exist\\n\";\n}\n\nvar $utc = Core\\Time\\Zone::UTC;\necho Core\\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), \"\\n\";\n\necho $d->year(), \" \", $d->month(), \" \", $d->day(), \"\\n\";\necho $d->dayOfYear(), \" \", $d->isLeapYear() ? \"leap year\" : \"not a leap year\", \"\\n\";\necho $d->atStartOfDay(Core\\Time\\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm XXX'), \"\\n\";",
           "lang": "nvs"
         },
         {
-          "code": "2024-01-31\nWednesday, 31 January\n2024-02-29\nTue 30 Jan\n2024-03-31\n-1\n2023-02-29 does not exist\n1/3/2024",
+          "code": "2024-01-31\nWednesday, 31 January\n2024-02-29\nTue 30 Jan\n2024-03-31\n-1\n2023-02-29 does not exist\n1/3/2024\n2024 1 31\n31 leap year\n2024-01-31 00:00 +01:00",
           "lang": "output"
         }
       ],
@@ -49900,13 +50379,139 @@
           "slug": "isleapyear",
           "url": "/reference/core/time-datetime/isleapyear/",
           "examples": "core/Time-DateTime/isLeapYear"
+        },
+        {
+          "id": "Time.DateTime.year",
+          "name": "year",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "year(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the year, as the clock in the value's own time zone shows it.",
+            "returnHtml": "The year, from <code>-9999</code> to <code>9999</code>. The year before <code>1</code> is <code>0</code>."
+          },
+          "slug": "year",
+          "url": "/reference/core/time-datetime/year/",
+          "examples": "core/Time-DateTime/year"
+        },
+        {
+          "id": "Time.DateTime.month",
+          "name": "month",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "month(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the month as a number, in the value's own time zone.",
+            "returnHtml": "The month, from <code>1</code> for January to <code>12</code> for December."
+          },
+          "slug": "month",
+          "url": "/reference/core/time-datetime/month/",
+          "examples": "core/Time-DateTime/month"
+        },
+        {
+          "id": "Time.DateTime.day",
+          "name": "day",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "day(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the day of the month, in the value's own time zone.",
+            "returnHtml": "The day, from <code>1</code> to the last day of the month."
+          },
+          "slug": "day",
+          "url": "/reference/core/time-datetime/day/",
+          "examples": "core/Time-DateTime/day"
+        },
+        {
+          "id": "Time.DateTime.hour",
+          "name": "hour",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "hour(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the hour, as the clock in the value's own time zone shows it.",
+            "returnHtml": "The hour, from <code>0</code> to <code>23</code>."
+          },
+          "slug": "hour",
+          "url": "/reference/core/time-datetime/hour/",
+          "examples": "core/Time-DateTime/hour"
+        },
+        {
+          "id": "Time.DateTime.minute",
+          "name": "minute",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "minute(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the minute, as the clock in the value's own time zone shows it.",
+            "returnHtml": "The minute, from <code>0</code> to <code>59</code>."
+          },
+          "slug": "minute",
+          "url": "/reference/core/time-datetime/minute/",
+          "examples": "core/Time-DateTime/minute"
+        },
+        {
+          "id": "Time.DateTime.second",
+          "name": "second",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "second(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the second, as the clock in the value's own time zone shows it.",
+            "returnHtml": "The second, from <code>0</code> to <code>59</code>."
+          },
+          "slug": "second",
+          "url": "/reference/core/time-datetime/second/",
+          "examples": "core/Time-DateTime/second"
+        },
+        {
+          "id": "Time.DateTime.nanos",
+          "name": "nanos",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "nanos(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the part of the second after the whole seconds, in nanoseconds.",
+            "returnHtml": "The nanoseconds, from <code>0</code> to <code>999999999</code>. <code>500000000</code> is half a second."
+          },
+          "slug": "nanos",
+          "url": "/reference/core/time-datetime/nanos/",
+          "examples": "core/Time-DateTime/nanos"
         }
       ],
       "slug": "time-datetime",
       "url": "/reference/core/time-datetime/",
       "summaryBlocks": [
         {
-          "html": "<p>A date and a time of day in one time zone, such as the start of a meeting in Berlin. <code>Core\\Time::at</code> builds one from its parts, and <code>in</code> on an <code>Instant</code> gives one for a moment. <code>date</code> and <code>timeOfDay</code> return its two halves, and <code>format</code> turns it into text.</p>\n<p>A <code>DateTime</code> is a civil reading — year, month, day, hour, minute, second, nanosecond — in one <code>Zone</code>, built by <code>Core\\Time::at</code> or <code>Core\\Time::parse</code> or read off an <code>Instant</code> with <code>-&gt;in($zone)</code>. It is immutable: every member answers a new value. Its arithmetic is calendar arithmetic: <code>plus(1, Core\\Unit::Month)</code> keeps the day-of-month clamped to the new month's length, <code>plus(1, Core\\Unit::Day)</code> across a DST boundary is a 23- or 25-hour day, and <code>difference</code> counts whole units in the receiver's zone. <code>format</code> takes a <strong>CLDR pattern</strong>. <code>Core\\Time::parse</code> reads the same patterns, and <code>Date::format</code> and <code>TimeOfDay::format</code> use them for their own fields. A pattern written directly in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern computed at run time throws a <code>LogicError</code> instead. Month and weekday names are always in English.</p>\n<table><thead><tr><th>Letter</th><th>Field</th><th>Counts</th></tr></thead><tbody><tr><td><code>y</code></td><td>year</td><td><code>yy</code> two digits; any other count zero-pads to it</td></tr><tr><td><code>M</code></td><td>month</td><td><code>M</code>/<code>MM</code> numeric, <code>MMM</code> <code>Mar</code>, <code>MMMM</code> <code>March</code>, <code>MMMMM</code> <code>M</code></td></tr><tr><td><code>d</code></td><td>day of month</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>D</code></td><td>day of year</td><td>numeric</td></tr><tr><td><code>E</code></td><td>weekday</td><td><code>E</code>–<code>EEE</code> <code>Tue</code>, <code>EEEE</code> <code>Tuesday</code>, <code>EEEEE</code> <code>T</code>, <code>EEEEEE</code> <code>Tu</code></td></tr><tr><td><code>a</code></td><td>AM/PM</td><td>any count</td></tr><tr><td><code>h</code> / <code>H</code> / <code>K</code> / <code>k</code></td><td>hour 1–12 / 0–23 / 0–11 / 1–24</td><td>numeric</td></tr><tr><td><code>m</code></td><td>minute</td><td>numeric</td></tr><tr><td><code>s</code></td><td>second</td><td>numeric</td></tr><tr><td><code>S</code></td><td>fractional second</td><td>one digit per count, truncated</td></tr><tr><td><code>X</code></td><td>offset, <code>Z</code> at zero</td><td><code>X</code> <code>+01</code>, <code>XX</code> <code>+0100</code>, <code>XXX</code> <code>+01:00</code></td></tr><tr><td><code>x</code></td><td>offset, never <code>Z</code></td><td>the same three counts</td></tr><tr><td><code>VV</code></td><td>the zone's IANA identifier</td><td><code>VV</code> only</td></tr></tbody></table>\n<p>Text between <code>'…'</code> is printed as it is, and <code>''</code> is one apostrophe. <code>G</code>, <code>Q</code>, <code>w</code>, <code>W</code>, <code>L</code>, <code>c</code>, <code>F</code> and <code>u</code> are refused.</p>"
+          "html": "<p>A date and a time of day in one time zone, such as the start of a meeting in Berlin. <code>Core\\Time::at</code> builds one from its parts, and <code>in</code> on an <code>Instant</code> gives one for a moment. <code>date</code> and <code>timeOfDay</code> return its two halves, and <code>format</code> turns it into text.</p>\n<p>A <code>DateTime</code> is a civil reading — year, month, day, hour, minute, second, nanosecond — in one <code>Zone</code>, built by <code>Core\\Time::at</code> or <code>Core\\Time::parse</code> or read off an <code>Instant</code> with <code>-&gt;in($zone)</code>. It is immutable: every member answers a new value. Its arithmetic is calendar arithmetic: <code>plus(1, Core\\Unit::Month)</code> keeps the day-of-month clamped to the new month's length, <code>plus(1, Core\\Unit::Day)</code> across a DST boundary is a 23- or 25-hour day, and <code>difference</code> counts whole units in the receiver's zone.</p>\n<p><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanos()</code> return the fields as numbers. Each one reads the clock in the value's own zone. <code>year()</code> returns an <code>int</code>, and the others return a <code>uint</code>. These are the same names and types that <code>with</code> takes.</p>\n<p><code>format</code> takes a <strong>CLDR pattern</strong>. <code>Core\\Time::parse</code> reads the same patterns, and <code>Date::format</code> and <code>TimeOfDay::format</code> use them for their own fields. A pattern written directly in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern computed at run time throws a <code>LogicError</code> instead. Month and weekday names are always in English.</p>\n<table><thead><tr><th>Letter</th><th>Field</th><th>Counts</th></tr></thead><tbody><tr><td><code>G</code></td><td>era</td><td><code>G</code>–<code>GGG</code> <code>AD</code> or <code>BC</code>, <code>GGGG</code> <code>Anno Domini</code>, <code>GGGGG</code> <code>A</code></td></tr><tr><td><code>y</code> / <code>U</code></td><td>year, such as <code>-0043</code> before year 1</td><td><code>yy</code> two digits; any other count zero-pads to it</td></tr><tr><td><code>u</code> / <code>r</code></td><td>year</td><td>zero-pads to the count; <code>parse</code> also reads a <code>-</code> with these</td></tr><tr><td><code>Y</code></td><td>the year the <code>w</code> week belongs to</td><td>as <code>y</code></td></tr><tr><td><code>Q</code> / <code>q</code></td><td>quarter</td><td><code>Q</code>/<code>QQ</code> numeric, <code>QQQ</code> <code>Q1</code>, <code>QQQQ</code> <code>1st quarter</code>, <code>QQQQQ</code> <code>1</code></td></tr><tr><td><code>M</code> / <code>L</code></td><td>month</td><td><code>M</code>/<code>MM</code> numeric, <code>MMM</code> <code>Mar</code>, <code>MMMM</code> <code>March</code>, <code>MMMMM</code> <code>M</code></td></tr><tr><td><code>w</code></td><td>week of the year</td><td>ISO 8601 weeks: a week starts on Monday</td></tr><tr><td><code>W</code></td><td>week of the month</td><td>the same rule; <code>0</code> for a short first week</td></tr><tr><td><code>d</code></td><td>day of month</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>D</code></td><td>day of year</td><td>numeric</td></tr><tr><td><code>F</code></td><td>which of that weekday in the month</td><td><code>1</code> for the first Friday of the month</td></tr><tr><td><code>g</code></td><td>modified Julian day</td><td>numeric</td></tr><tr><td><code>E</code></td><td>weekday</td><td><code>E</code>–<code>EEE</code> <code>Tue</code>, <code>EEEE</code> <code>Tuesday</code>, <code>EEEEE</code> <code>T</code>, <code>EEEEEE</code> <code>Tu</code></td></tr><tr><td><code>e</code> / <code>c</code></td><td>weekday</td><td><code>e</code>/<code>ee</code>/<code>c</code> the number, Monday <code>1</code>; three or more letters as <code>E</code></td></tr><tr><td><code>a</code></td><td>AM/PM</td><td>any count</td></tr><tr><td><code>b</code></td><td>AM/PM, or <code>noon</code> and <code>midnight</code> at those times</td><td>1–4 the name, 5 short</td></tr><tr><td><code>B</code></td><td>part of the day, such as <code>in the morning</code></td><td>1–4 the name, 5 short</td></tr><tr><td><code>h</code> / <code>H</code> / <code>K</code> / <code>k</code></td><td>hour 1–12 / 0–23 / 0–11 / 1–24</td><td>numeric</td></tr><tr><td><code>m</code></td><td>minute</td><td>numeric</td></tr><tr><td><code>s</code></td><td>second</td><td>numeric</td></tr><tr><td><code>S</code></td><td>fractional second</td><td>one digit per count, truncated</td></tr><tr><td><code>A</code></td><td>milliseconds since the start of the day</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>X</code></td><td>offset, <code>Z</code> at zero</td><td><code>X</code> <code>+01</code>, <code>XX</code> <code>+0100</code>, <code>XXX</code> <code>+01:00</code></td></tr><tr><td><code>x</code></td><td>offset, never <code>Z</code></td><td>the same three counts</td></tr><tr><td><code>Z</code></td><td>offset</td><td><code>Z</code>–<code>ZZZ</code> <code>+0100</code>, <code>ZZZZ</code> <code>GMT+01:00</code>, <code>ZZZZZ</code> as <code>XXX</code></td></tr><tr><td><code>O</code></td><td>offset after <code>GMT</code></td><td><code>O</code> <code>GMT+1</code>, <code>OOOO</code> <code>GMT+01:00</code></td></tr><tr><td><code>z</code></td><td>offset after <code>GMT</code></td><td><code>z</code>–<code>zzz</code> <code>GMT+1</code>, <code>zzzz</code> <code>GMT+01:00</code></td></tr><tr><td><code>v</code></td><td>offset after <code>GMT</code></td><td><code>v</code> <code>GMT+1</code>, <code>vvvv</code> <code>GMT+01:00</code></td></tr><tr><td><code>VV</code></td><td>the zone's IANA identifier</td><td><code>VV</code> only</td></tr></tbody></table>\n<p>Text between <code>'…'</code> is printed as it is, and <code>''</code> is one apostrophe. These letters do not compile: <code>C</code>, <code>f</code>, <code>i</code>, <code>I</code>, <code>j</code>, <code>J</code>, <code>l</code>, <code>n</code>, <code>N</code>, <code>o</code>, <code>p</code>, <code>P</code>, <code>R</code>, <code>t</code> and <code>T</code>.</p>"
         },
         {
           "code": "<?nvs\nvar $utc = Core\\Time\\Zone::UTC;\nvar $d = Core\\Time::at(2024, 1, 31, $utc, { hour: 9, minute: 30 });\necho $d->format('yyyy-MM-dd HH:mm:ss'), \"\\n\";\necho $d->format(\"EEEE, d MMMM yyyy 'at' h:mm a\"), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Week)->format('yyyy-MM-dd'), \"\\n\";\necho $d->next(Core\\Time\\DateTime::Weekday::Monday)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->startOf(Core\\Unit::Day)->format('HH:mm'), ' ',\n    $d->endOf(Core\\Unit::Month)->format('dd HH:mm:ss.SSS'), \"\\n\";\n\necho $d->difference(Core\\Time::at(2026, 8, 30, $utc), Core\\Unit::Year), \"\\n\";\necho $d->weekday() == Core\\Time\\DateTime::Weekday::Wednesday ? 'midweek' : 'other', \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', \"\\n\";\necho $d->toInstant()->toIso(), \"\\n\";",
@@ -49925,6 +50530,10 @@
         {
           "name": "Core\\Time::at",
           "url": "/reference/core/time/at/"
+        },
+        {
+          "name": "Core\\Time\\Date::atStartOfDay",
+          "url": "/reference/core/time-date/atstartofday/"
         },
         {
           "name": "Core\\Time\\Instant::in",
@@ -51225,13 +51834,85 @@
           "slug": "compareto",
           "url": "/reference/core/time-timeofday/compareto/",
           "examples": "core/Time-TimeOfDay/compareTo"
+        },
+        {
+          "id": "Time.TimeOfDay.hour",
+          "name": "hour",
+          "static": false,
+          "receiver": "timeOfDay",
+          "generics": null,
+          "signature": "hour(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the hour of this time.",
+            "returnHtml": "The hour, from <code>0</code> to <code>23</code>."
+          },
+          "slug": "hour",
+          "url": "/reference/core/time-timeofday/hour/",
+          "examples": "core/Time-TimeOfDay/hour"
+        },
+        {
+          "id": "Time.TimeOfDay.minute",
+          "name": "minute",
+          "static": false,
+          "receiver": "timeOfDay",
+          "generics": null,
+          "signature": "minute(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the minute of this time.",
+            "returnHtml": "The minute, from <code>0</code> to <code>59</code>."
+          },
+          "slug": "minute",
+          "url": "/reference/core/time-timeofday/minute/",
+          "examples": "core/Time-TimeOfDay/minute"
+        },
+        {
+          "id": "Time.TimeOfDay.second",
+          "name": "second",
+          "static": false,
+          "receiver": "timeOfDay",
+          "generics": null,
+          "signature": "second(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the second of this time.",
+            "returnHtml": "The second, from <code>0</code> to <code>59</code>."
+          },
+          "slug": "second",
+          "url": "/reference/core/time-timeofday/second/",
+          "examples": "core/Time-TimeOfDay/second"
+        },
+        {
+          "id": "Time.TimeOfDay.nanos",
+          "name": "nanos",
+          "static": false,
+          "receiver": "timeOfDay",
+          "generics": null,
+          "signature": "nanos(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the part of the second after the whole seconds, in nanoseconds.",
+            "returnHtml": "The nanoseconds, from <code>0</code> to <code>999999999</code>. <code>500000000</code> is half a second."
+          },
+          "slug": "nanos",
+          "url": "/reference/core/time-timeofday/nanos/",
+          "examples": "core/Time-TimeOfDay/nanos"
         }
       ],
       "slug": "time-timeofday",
       "url": "/reference/core/time-timeofday/",
       "summaryBlocks": [
         {
-          "html": "<p>A time on a clock, such as 10:30, with no date and no time zone. <code>TimeOfDay::at</code> makes one, and <code>DateTime::timeOfDay</code> returns the time of a <code>DateTime</code>. <code>plus</code> and <code>minus</code> move it and wrap around at midnight. <code>with</code> changes single fields, and <code>format</code> returns it as text.</p>\n<p>A <code>TimeOfDay</code> is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by <code>TimeOfDay::at</code> or read off a <code>DateTime</code> with <code>-&gt;timeOfDay()</code>. It steps by <code>Core\\Unit::Hour</code> and smaller and wraps within the day, so <code>23:30</code> plus an hour is <code>00:30</code>; <code>Core\\Unit::Day</code> and larger are refused, because a carry has no date to go to. <code>format</code> takes the time letters of the CLDR grammar <code>DateTime::format</code> uses, and a date or zone letter is refused. <code>DateTime::withTime</code> puts a reading back onto a date. Two readings are ordered with <code>compareTo</code>; the <code>&lt;</code> operators do not compile.</p>"
+          "html": "<p>A time on a clock, such as 10:30, with no date and no time zone. <code>TimeOfDay::at</code> makes one, and <code>DateTime::timeOfDay</code> returns the time of a <code>DateTime</code>. <code>plus</code> and <code>minus</code> move it and wrap around at midnight. <code>with</code> changes single fields, and <code>format</code> returns it as text.</p>\n<p>A <code>TimeOfDay</code> is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by <code>TimeOfDay::at</code> or read off a <code>DateTime</code> with <code>-&gt;timeOfDay()</code>. It steps by <code>Core\\Unit::Hour</code> and smaller and wraps within the day, so <code>23:30</code> plus an hour is <code>00:30</code>; <code>Core\\Unit::Day</code> and larger are refused, because a carry has no date to go to. <code>format</code> takes the time letters of the CLDR grammar <code>DateTime::format</code> uses, and a date or zone letter is refused. <code>DateTime::withTime</code> puts a reading back onto a date. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two readings.</p>\n<p><code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanos()</code> return the four fields as numbers. Each returns a <code>uint</code>, with the same name as the field <code>with</code> takes.</p>"
         },
         {
           "code": "<?nvs\nvar $t = Core\\Time\\TimeOfDay::at(23, 30);\necho $t->format('HH:mm:ss'), \"\\n\";\necho $t->format('h:mm a'), \"\\n\";\n\necho $t->plus(1, Core\\Unit::Hour)->format('HH:mm'), \"\\n\";\necho $t->minus(45, Core\\Unit::Minute)->format('HH:mm'), \"\\n\";\necho $t->with({ second: 45 })->format('HH:mm:ss'), \"\\n\";\necho $t->compareTo(Core\\Time\\TimeOfDay::at(9, 0)), \"\\n\";\n\nvar $utc = Core\\Time\\Zone::UTC;\nvar $d = Core\\Time::at(2024, 3, 1, $utc, { hour: 9 });\necho $d->withTime($t)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->timeOfDay()->format('HH:mm'), \"\\n\";",

@@ -127,7 +127,7 @@
   },
   "/guides/cookbook/upload-file/": {
     "feature": "guides/cookbook/upload-file.mdx",
-    "hash": "693046fc496b438c",
+    "hash": "f8696d4405cd03ad",
     "questions": [
       "Store user uploads safely on the server",
       "Example of a file upload to a folder on the server",
@@ -160,7 +160,7 @@
   },
   "/guides/example-apps/chat/": {
     "feature": "guides/example-apps/chat.mdx",
-    "hash": "27fc7bb13dce635c",
+    "hash": "60fbda379f3b1d03",
     "questions": [
       "Example chat app with rooms over WebSockets",
       "How do I send messages from the server to every browser in a room?",
@@ -172,7 +172,7 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "ab2796538bb2bffc",
+    "hash": "a38f38c8367d8ed8",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
@@ -1780,7 +1780,7 @@
   },
   "/reference/config/reading-and-changing-it-from-a-program-core-config/": {
     "feature": "tools:config/reading-and-changing-it-from-a-program-core-config",
-    "hash": "2f3cde81e72f28f7",
+    "hash": "e34163e0307a7636",
     "questions": [
       "How do I read a setting from my program?",
       "Change a setting for the current request only",
@@ -1838,11 +1838,12 @@
   },
   "/reference/config/session/": {
     "feature": "directive:session",
-    "hash": "caf992bec0dd2705",
+    "hash": "5af2013a3c6e71a2",
     "questions": [
       "Where are user sessions stored?",
       "Keep users logged in across several servers",
       "How long does a session last without activity?",
+      "How long does a remembered choice stay in the session?",
       "Change the name of the session cookie",
       "Store sessions in a database table"
     ]
@@ -4010,14 +4011,14 @@
   },
   "/reference/core/csrf/token/": {
     "feature": "Core\\Csrf::token",
-    "hash": "fc3ae3a120e1da29",
+    "hash": "7ccad229654001bc",
     "questions": [
       "Get the CSRF token for the current visitor session",
       "Which form field name should the CSRF token use?",
       "Send a CSRF token in a link as a query parameter",
       "Send the CSRF token in a header from JavaScript",
       "Why does my form post get status 403?",
-      "Why does Csrf::token throw an error before the session starts?"
+      "Why does Csrf::token throw an error in a command-line program?"
     ]
   },
   "/reference/core/csrf/verify/": {
@@ -11077,7 +11078,7 @@
   },
   "/reference/core/passkey/registeroptions/": {
     "feature": "Core\\Passkey::registerOptions",
-    "hash": "975300305dbe85bf",
+    "hash": "7e3aef97051d8969",
     "questions": [
       "How do I create the options for navigator.credentials.create()?",
       "Start adding a passkey to a user account",
@@ -11087,7 +11088,7 @@
   },
   "/reference/core/passkey/signinoptions/": {
     "feature": "Core\\Passkey::signInOptions",
-    "hash": "e63391ac668cfc9a",
+    "hash": "f38e4c336d7d9d58",
     "questions": [
       "How do I create the options for navigator.credentials.get()?",
       "Start a passkey sign-in on the server",
@@ -11097,7 +11098,7 @@
   },
   "/reference/core/passkey/verifyregistration/": {
     "feature": "Core\\Passkey::verifyRegistration",
-    "hash": "397e94dbb91c606b",
+    "hash": "798ffe42fb0c76fa",
     "questions": [
       "How do I check a new passkey the browser created?",
       "Verify a WebAuthn registration response on the server",
@@ -11107,7 +11108,7 @@
   },
   "/reference/core/passkey/verifysignin/": {
     "feature": "Core\\Passkey::verifySignIn",
-    "hash": "c3ee7d71d71b880d",
+    "hash": "9a927bd9d4439d1d",
     "questions": [
       "How do I verify a passkey sign-in?",
       "Check a WebAuthn assertion signature against a saved key",
@@ -11167,7 +11168,7 @@
   },
   "/reference/core/passkey-credential/signcount/": {
     "feature": "Core\\Passkey\\Credential::signCount",
-    "hash": "a1da8895a58e6544",
+    "hash": "89294fcd86fa8b5b",
     "questions": [
       "What is the passkey sign counter for?",
       "Detect a copied passkey with the signature counter",
@@ -12090,7 +12091,7 @@
   },
   "/reference/core/reflect-classinfo/": {
     "feature": "Core\\Reflect\\ClassInfo",
-    "hash": "d99ebcd96d580616",
+    "hash": "12acc002e15c2cc1",
     "questions": [
       "What can I find out about a class at runtime?",
       "Work with a class whose name is only known at runtime",
@@ -12100,7 +12101,7 @@
   },
   "/reference/core/reflect-classinfo/attributes/": {
     "feature": "Core\\Reflect\\ClassInfo::attributes",
-    "hash": "8fa97d1d9bd002f5",
+    "hash": "dd913365084c1b0e",
     "questions": [
       "How do I list all attributes of a class?",
       "Get every annotation on a class and its methods",
@@ -12200,6 +12201,17 @@
       "Print the real class of an object in a parent type variable",
       "How do I write the class of each job in a log?",
       "Class name of a described class as a string"
+    ]
+  },
+  "/reference/core/reflect-classinfo/parent/": {
+    "feature": "Core\\Reflect\\ClassInfo::parent",
+    "hash": "9258c55e3b9cbb26",
+    "questions": [
+      "How do I get the parent class of a class?",
+      "Find the class that a class extends",
+      "Walk up from a class to its root class",
+      "Read the attributes of every base class",
+      "What does parent return for an interface?"
     ]
   },
   "/reference/core/reflect-classinfo/properties/": {
@@ -13579,7 +13591,7 @@
   },
   "/reference/core/session/": {
     "feature": "Core\\Session",
-    "hash": "4738ccfce53e419a",
+    "hash": "36be45bb72ffcbc4",
     "questions": [
       "How do I remember a visitor between page loads?",
       "Store user data across requests",
@@ -13589,30 +13601,40 @@
       "Do sessions need a database or a cache server?"
     ]
   },
-  "/reference/core/session/clear/": {
-    "feature": "Core\\Session::clear",
-    "hash": "077d169fbbfa54ac",
+  "/reference/core/session/clearall/": {
+    "feature": "Core\\Session::clearAll",
+    "hash": "e9cf9bff4c39abcb",
     "questions": [
-      "How do I empty a session but keep it open?",
-      "Remove all values from the session at once",
-      "Add a Start over button to a form",
-      "Reset session data without signing the user out"
+      "How do I delete a session completely?",
+      "End the session and delete all of its data",
+      "Build a delete my data page",
+      "What happens to the session cookies after clearAll?",
+      "Start a fresh, empty session in the same request"
     ]
   },
-  "/reference/core/session/destroy/": {
-    "feature": "Core\\Session::destroy",
-    "hash": "e32fcf1d95f6c357",
+  "/reference/core/session/clearlonglived/": {
+    "feature": "Core\\Session::clearLongLived",
+    "hash": "99add0c783196206",
+    "questions": [
+      "How do I forget the choices a visitor saved?",
+      "Reset saved preferences and keep the user signed in",
+      "Delete every long-lived value from the session",
+      "Withdraw cookie consent stored in the session"
+    ]
+  },
+  "/reference/core/session/clearshortlived/": {
+    "feature": "Core\\Session::clearShortLived",
+    "hash": "1f4647d389d0afd4",
     "questions": [
       "How do I log a user out?",
-      "End the session completely and delete its data",
       "Build a sign-out page",
-      "Delete a session from the store right away",
-      "What happens to the session cookie after logout?"
+      "Sign out a user but keep their language choice",
+      "Delete login data from the session and change the session id"
     ]
   },
   "/reference/core/session/get/": {
     "feature": "Core\\Session::get",
-    "hash": "030e37a2618e5a3f",
+    "hash": "a1f1decbc7abf4e6",
     "questions": [
       "How do I read a value saved in the session?",
       "Get a value from the session with a default",
@@ -13623,7 +13645,7 @@
   },
   "/reference/core/session/getsecret/": {
     "feature": "Core\\Session::getSecret",
-    "hash": "1a511260f84da72d",
+    "hash": "23e961075dac0482",
     "questions": [
       "How do I read an encrypted value from the session?",
       "Load the user's access token for this request",
@@ -13631,9 +13653,19 @@
       "Why is my encrypted session value null?"
     ]
   },
+  "/reference/core/session/openwithidentifier/": {
+    "feature": "Core\\Session::openWithIdentifier",
+    "hash": "64f53fcbeebea6d5",
+    "questions": [
+      "How do I read the session id from a header?",
+      "Use sessions in an API without cookies",
+      "Open a session with an identifier my program reads itself",
+      "Why does openWithIdentifier throw when the session is already open?"
+    ]
+  },
   "/reference/core/session/regenerate/": {
     "feature": "Core\\Session::regenerate",
-    "hash": "c2486eee9ed7b749",
+    "hash": "462cf77210eea262",
     "questions": [
       "How do I change the session id after login?",
       "Prevent session fixation attacks",
@@ -13644,7 +13676,7 @@
   },
   "/reference/core/session/remove/": {
     "feature": "Core\\Session::remove",
-    "hash": "8a167d3fe94cc230",
+    "hash": "e053eeac2811d0ff",
     "questions": [
       "How do I delete one value from the session?",
       "Show a message only once and then forget it",
@@ -13652,36 +13684,46 @@
       "Flash messages that disappear after one page"
     ]
   },
-  "/reference/core/session/set/": {
-    "feature": "Core\\Session::set",
-    "hash": "d5b7311761e02021",
+  "/reference/core/session/setlonglived/": {
+    "feature": "Core\\Session::setLongLived",
+    "hash": "84998294d1a9be06",
+    "questions": [
+      "How do I remember a choice after the browser closes?",
+      "Keep the language a visitor chose for months",
+      "Save a cookie consent choice in the session",
+      "How long does a long-lived session value stay?",
+      "Keep a shopping cart between visits"
+    ]
+  },
+  "/reference/core/session/setlonglivedsecret/": {
+    "feature": "Core\\Session::setLongLivedSecret",
+    "hash": "605f45e5e73dc6ee",
+    "questions": [
+      "How do I keep an encrypted value after the browser closes?",
+      "Store an API key for a visitor for months",
+      "Is a long-lived secret safe after the user closes the browser?",
+      "Encrypt a remembered value in the session"
+    ]
+  },
+  "/reference/core/session/setshortlived/": {
+    "feature": "Core\\Session::setShortLived",
+    "hash": "9d66eb24f00941ef",
     "questions": [
       "How do I save a value in the session?",
-      "Keep a shopping cart between pages",
+      "Keep a user signed in until the browser closes",
       "Store data for the next request from the same visitor",
       "Replace an existing session value",
       "Which values can I put in a session?"
     ]
   },
-  "/reference/core/session/setsecret/": {
-    "feature": "Core\\Session::setSecret",
-    "hash": "9dbb72ebe9157866",
+  "/reference/core/session/setshortlivedsecret/": {
+    "feature": "Core\\Session::setShortLivedSecret",
+    "hash": "5c9bce063cec5647",
     "questions": [
       "How do I store an access token safely in the session?",
       "Encrypt a value before it goes into the session store",
-      "Keep a refresh token after the user signs in",
+      "Keep a refresh token while the user is signed in",
       "Save sensitive data so the session store cannot read it"
-    ]
-  },
-  "/reference/core/session/start/": {
-    "feature": "Core\\Session::start",
-    "hash": "2df1193f1e3bd3c1",
-    "questions": [
-      "How do I begin using sessions on a page?",
-      "Open the session before reading or writing values",
-      "Read the session id from a header instead of a cookie",
-      "Allow a page only for signed-in users",
-      "Which cookie name does the session use?"
     ]
   },
   "/reference/core/signal/": {
@@ -15201,7 +15243,7 @@
   },
   "/reference/core/time-date/": {
     "feature": "Core\\Time\\Date",
-    "hash": "18924894c946d385",
+    "hash": "260a928949bcf18e",
     "questions": [
       "How do I store a date without a time?",
       "Work with birthdays and due dates",
@@ -15221,6 +15263,16 @@
       "What happens when a date like 31 April is invalid?"
     ]
   },
+  "/reference/core/time-date/atstartofday/": {
+    "feature": "Core\\Time\\Date::atStartOfDay",
+    "hash": "498627741c0eff20",
+    "questions": [
+      "How do I get midnight of a date in a time zone?",
+      "Turn a date into a date and time at the start of the day",
+      "What if midnight does not exist because of summer time?",
+      "Start of a calendar day in a given city"
+    ]
+  },
   "/reference/core/time-date/compareto/": {
     "feature": "Core\\Time\\Date::compareTo",
     "hash": "0a27750e5d5964db",
@@ -15230,6 +15282,26 @@
       "Sort a list of dates from earliest to latest",
       "Check whether a coupon is still valid on the order date",
       "Are two dates the same day?"
+    ]
+  },
+  "/reference/core/time-date/day/": {
+    "feature": "Core\\Time\\Date::day",
+    "hash": "1118355143873523",
+    "questions": [
+      "How do I get the day of the month from a date?",
+      "Read the day number of a date",
+      "Get 1 to 31 from a calendar date",
+      "Check whether a date is the first of the month"
+    ]
+  },
+  "/reference/core/time-date/dayofyear/": {
+    "feature": "Core\\Time\\Date::dayOfYear",
+    "hash": "c500368c19b6099d",
+    "questions": [
+      "Which day of the year is a date?",
+      "Get the day number from 1 to 366 for a date",
+      "Count the days since 1 January for a date",
+      "Day of the year for a date with no time"
     ]
   },
   "/reference/core/time-date/format/": {
@@ -15243,6 +15315,16 @@
       "Why does an hour in a date pattern throw an error?"
     ]
   },
+  "/reference/core/time-date/isleapyear/": {
+    "feature": "Core\\Time\\Date::isLeapYear",
+    "hash": "59414308c75d2609",
+    "questions": [
+      "Is the year of this date a leap year?",
+      "Check if a date's year has 29 February",
+      "Leap year test for a calendar date",
+      "Does the year of a date have 366 days?"
+    ]
+  },
   "/reference/core/time-date/minus/": {
     "feature": "Core\\Time\\Date::minus",
     "hash": "4430198445a4aea4",
@@ -15252,6 +15334,16 @@
       "Find the date 18 years before today",
       "Check whether a customer is at least 18 years old",
       "Get the date one week earlier"
+    ]
+  },
+  "/reference/core/time-date/month/": {
+    "feature": "Core\\Time\\Date::month",
+    "hash": "c3ab56d42cf9c7ef",
+    "questions": [
+      "How do I get the month from a date?",
+      "Read the month number of a date",
+      "Get 1 to 12 from a calendar date",
+      "Group dates by month"
     ]
   },
   "/reference/core/time-date/plus/": {
@@ -15265,6 +15357,16 @@
       "Move a date forward by a year or a quarter"
     ]
   },
+  "/reference/core/time-date/weekday/": {
+    "feature": "Core\\Time\\Date::weekday",
+    "hash": "8ca2f16db64ab000",
+    "questions": [
+      "Which day of the week is a date?",
+      "Check whether a date is a working day",
+      "Is a calendar date a Saturday or a Sunday?",
+      "Get the weekday of a birthday"
+    ]
+  },
   "/reference/core/time-date/with/": {
     "feature": "Core\\Time\\Date::with",
     "hash": "6117d4542b164145",
@@ -15276,9 +15378,19 @@
       "What happens when I change 29 February to a non-leap year?"
     ]
   },
+  "/reference/core/time-date/year/": {
+    "feature": "Core\\Time\\Date::year",
+    "hash": "11e4d104f5f71afe",
+    "questions": [
+      "How do I get the year from a date?",
+      "Read the year number of a calendar date",
+      "Group dates by year",
+      "Get the year of a birthday"
+    ]
+  },
   "/reference/core/time-datetime/": {
     "feature": "Core\\Time\\DateTime",
-    "hash": "0fa10b1b5f8d2c24",
+    "hash": "2dcb20bf94800e7e",
     "questions": [
       "How do I work with a date and time in a time zone?",
       "Store a local time such as a meeting in Berlin",
@@ -15296,6 +15408,16 @@
       "Group orders by calendar day",
       "Get the day a timestamp falls on in a given city",
       "Compare a date and time with a due date"
+    ]
+  },
+  "/reference/core/time-datetime/day/": {
+    "feature": "Core\\Time\\DateTime::day",
+    "hash": "d0a3ee2eab9af267",
+    "questions": [
+      "How do I get the day of the month from a date and time?",
+      "Read the day of a timestamp in a time zone",
+      "Day number of a date and time from 1 to 31",
+      "Which day of the month is it in Tokyo now?"
     ]
   },
   "/reference/core/time-datetime/dayofyear/": {
@@ -15342,6 +15464,16 @@
       "Convert a date and time to a string for a page"
     ]
   },
+  "/reference/core/time-datetime/hour/": {
+    "feature": "Core\\Time\\DateTime::hour",
+    "hash": "4055df79c8e78aa6",
+    "questions": [
+      "How do I get the hour from a date and time?",
+      "Read the hour from 0 to 23 in a time zone",
+      "Check whether a time is in the morning",
+      "Hour of a timestamp in local time"
+    ]
+  },
   "/reference/core/time-datetime/isleapyear/": {
     "feature": "Core\\Time\\DateTime::isLeapYear",
     "hash": "9ed24400784285b6",
@@ -15362,6 +15494,36 @@
       "Get the date and time three hours earlier",
       "Go back two months from a date and time",
       "Subtract one day when the clocks change"
+    ]
+  },
+  "/reference/core/time-datetime/minute/": {
+    "feature": "Core\\Time\\DateTime::minute",
+    "hash": "196d45d5424a3b31",
+    "questions": [
+      "How do I get the minutes from a date and time?",
+      "Read the minute from 0 to 59 of a timestamp",
+      "Check whether a time is on the full hour",
+      "Minute part of a date and time"
+    ]
+  },
+  "/reference/core/time-datetime/month/": {
+    "feature": "Core\\Time\\DateTime::month",
+    "hash": "60af75846011bc49",
+    "questions": [
+      "How do I get the month from a date and time?",
+      "Read the month number of a timestamp in a time zone",
+      "Get 1 to 12 from a date and time",
+      "Group timestamps by month"
+    ]
+  },
+  "/reference/core/time-datetime/nanos/": {
+    "feature": "Core\\Time\\DateTime::nanos",
+    "hash": "f1e1408b9125ac60",
+    "questions": [
+      "How do I get the fraction of a second from a date and time?",
+      "Read the nanoseconds of a timestamp",
+      "Remove the part of a second from a date and time",
+      "Get milliseconds from a date and time"
     ]
   },
   "/reference/core/time-datetime/next/": {
@@ -15395,6 +15557,16 @@
       "Move back to the previous given day of the week",
       "Get the same time on the previous Wednesday",
       "Go back to the last Sunday"
+    ]
+  },
+  "/reference/core/time-datetime/second/": {
+    "feature": "Core\\Time\\DateTime::second",
+    "hash": "bbdf11d2a59671de",
+    "questions": [
+      "How do I get the seconds from a date and time?",
+      "Read the second from 0 to 59 of a timestamp",
+      "Whole seconds of a date and time",
+      "Check whether a timestamp has zero seconds"
     ]
   },
   "/reference/core/time-datetime/startof/": {
@@ -15461,6 +15633,16 @@
       "Keep the date and replace the time",
       "Copy a time of day onto another date",
       "Set the clock time and clear the old seconds"
+    ]
+  },
+  "/reference/core/time-datetime/year/": {
+    "feature": "Core\\Time\\DateTime::year",
+    "hash": "dcdcb18c6c5fa33e",
+    "questions": [
+      "How do I get the year from a date and time?",
+      "Read the year of a timestamp in a time zone",
+      "Group timestamps by year",
+      "Which year is it in a given city now?"
     ]
   },
   "/reference/core/time-datetime/zone/": {
@@ -15780,7 +15962,7 @@
   },
   "/reference/core/time-timeofday/": {
     "feature": "Core\\Time\\TimeOfDay",
-    "hash": "93472f7a349d2391",
+    "hash": "d6ac00549991d120",
     "questions": [
       "How do I store a clock time without a date?",
       "Work with times of day like opening hours",
@@ -15818,6 +16000,16 @@
       "Display a time of day in 12-hour format"
     ]
   },
+  "/reference/core/time-timeofday/hour/": {
+    "feature": "Core\\Time\\TimeOfDay::hour",
+    "hash": "7dd7d0826e71b8e4",
+    "questions": [
+      "How do I get the hour from a time of day?",
+      "Read the hour of a clock time",
+      "Get 0 to 23 from a clock time",
+      "Check whether a clock time is before noon"
+    ]
+  },
   "/reference/core/time-timeofday/minus/": {
     "feature": "Core\\Time\\TimeOfDay::minus",
     "hash": "a5c5c267ee35d2f8",
@@ -15828,6 +16020,26 @@
       "Get the clock time one hour earlier"
     ]
   },
+  "/reference/core/time-timeofday/minute/": {
+    "feature": "Core\\Time\\TimeOfDay::minute",
+    "hash": "25f3859693e8b02d",
+    "questions": [
+      "How do I get the minutes from a time of day?",
+      "Read the minute of a clock time",
+      "Get 0 to 59 from a clock time",
+      "Check whether a clock time is on the half hour"
+    ]
+  },
+  "/reference/core/time-timeofday/nanos/": {
+    "feature": "Core\\Time\\TimeOfDay::nanos",
+    "hash": "23fb85e24226db84",
+    "questions": [
+      "How do I get the fraction of a second from a clock time?",
+      "Read the nanoseconds of a time of day",
+      "Remove the part of a second from a clock time",
+      "Show milliseconds of a time of day"
+    ]
+  },
   "/reference/core/time-timeofday/plus/": {
     "feature": "Core\\Time\\TimeOfDay::plus",
     "hash": "368178a514cded81",
@@ -15836,6 +16048,16 @@
       "Move a clock time forward by minutes",
       "Add time to a clock time that wraps at midnight",
       "Get the clock time 15 minutes later"
+    ]
+  },
+  "/reference/core/time-timeofday/second/": {
+    "feature": "Core\\Time\\TimeOfDay::second",
+    "hash": "84170823fc955e1d",
+    "questions": [
+      "How do I get the seconds from a time of day?",
+      "Read the second of a clock time",
+      "Get 0 to 59 seconds from a clock time",
+      "Check whether a clock time has zero seconds"
     ]
   },
   "/reference/core/time-timeofday/with/": {

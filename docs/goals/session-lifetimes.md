@@ -34,7 +34,7 @@ stages:
     context: [docs/examples/core/Session/, benches/members/core/Session/, tests/hostile/core/Session/, docs/agent/prose.md]
   - id: 8
     title: the website pages use the new members
-    status: open
+    status: done
     context: [website/src/content/docs/guides/cookbook/upload-file.mdx, website/src/content/docs/guides/example-apps/chat.mdx, website/src/content/docs/guides/example-apps/notes.mdx]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -449,10 +449,10 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### 8. the website pages use the new members
 
-- [ ] `website/src/content/docs/guides/cookbook/upload-file.mdx:33`,
+- [x] `website/src/content/docs/guides/cookbook/upload-file.mdx:33`,
   `website/src/content/docs/guides/example-apps/chat.mdx:336` and
   `website/src/content/docs/guides/example-apps/notes.mdx:163` use the new members.
-- [ ] The generated `website/src/data/core.json`, `website/src/data/questions.json` and
+- [x] The generated `website/src/data/core.json`, `website/src/data/questions.json` and
   `website/public/llms-full.txt` are rebuilt by the command that owns each, never edited by hand.
 
 ### 9. the goal is verified once, and every failure is fixed
@@ -464,40 +464,29 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 to 7 are done. `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+Stages 1 to 8 are done. `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
-Stage 7: all twelve `Core\Session` members owe no proof. `bun nv proofs --id` exits 0 for each.
-`bun nv proofs --run` over the twelve passed 36 examples and 12 attacks, and `bun nv proofs
---comments` passed over the 68 files in `docs/examples/core/Session/`, `tests/hostile/core/Session/`
-and `benches/members/core/Session/`. The renamed members' folders were moved with `git mv` and
-rewritten. `setLongLived`, `setLongLivedSecret` and `clearLongLived` have new ones. `clearAll`'s
-examples changed purpose: sign-out is now `clearShortLived`'s, so its third example is a "delete my
-data" page. `openWithIdentifier`'s bench runs one operation, since the member opens once per request.
+Stage 8: the three pages name no removed member. `upload-file.mdx` and `notes.mdx` call
+`Core\Csrf::token()` alone, and `chat.mdx` links `/reference/core/session/setshortlived/`.
+`bun nv render --website` rewrote `core.json`, `llms-full.txt` and `numbers.json`, and `bun nv render
+--check` is green. `questions.json` drops the five retired Session pages and has questions for 48
+pages, stamped. That includes the Time and `Reflect\ClassInfo` member pages earlier goals left owed,
+and `bun nv site --check questions` is green. `bun nv site --check reference` still names 27 pages
+"not in the built site": the local `website/dist` predates them, and a site build clears it.
 
-Three existing Rust tests in `crates/nvs-stdlib/src/session.rs` gained the `covers:` line the
-proofs gate wanted: `a_long_lived_value_survives_a_new_browser_session_on_any_store`
-(`setLongLived`), `clear_long_lived_keeps_short_lived_values_under_a_new_identifier_on_any_store`
-(`clearLongLived`) and `a_long_lived_secret_survives_a_new_browser_session_and_stays_sealed_on_any_store`
-(`setLongLivedSecret`). The perf of every `Session` member is recorded in
-`data/perf/members.ndjson`, measured after that edit. The `setShortLived`, `setLongLived` and
-`regenerate` scale benches now ramp to `max 16384`: at `max 4096` the last three byte increments
-(2.0, 7.9, 5.0 per unit) read as faster than linear, and they are 5.0 at every size from 2048 up
-(playbook bullet under *Tooling*).
+Stage 7: all twelve `Core\Session` members owe no proof, and their perf is recorded in
+`data/perf/members.ndjson`.
 
 The sweep's reds are stale: `env-secret-proofs` is a retired goal's check, and nightly 44510687786
 built `adc7487822`, fixed on `main`.
 
 ### Next
 
-Stage 8, then stage 9. Stage 8's pages:
-`website/src/content/docs/guides/cookbook/upload-file.mdx:33`,
-`website/src/content/docs/guides/example-apps/chat.mdx:336` and
-`website/src/content/docs/guides/example-apps/notes.mdx:163`. Then rebuild the generated
-`website/src/data/core.json`, `website/src/data/questions.json` and `website/public/llms-full.txt`
-with the command that owns each. The `about.md` files changed, so `core.json` changes too. Expect red
-until stage 8 wherever a check compares those generated files with the tree. Expect `perf: stale` for
-the Passkey and Csrf members (`passkey.rs` changed). Stage 9 records them, per the playbook's
-`perf: stale` bullet.
+Stage 9: the check the pack names (a full gate's `looper verify`, or a close's build and this
+goal's tests), then the goal-end gates in AGENTS.md. Expect `perf: stale` for the Passkey and Csrf
+members (`passkey.rs` and `csrf.rs` changed). Record them per the playbook's `perf: stale` bullet.
+Expect `bun nv site --check reference` red until the site is built again (`bun nv site --build`, or
+`bun nv ci --check`). Settle the two Backlog items that need a design (gap records) before `DONE`.
 
 ### Backlog
 

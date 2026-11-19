@@ -30,7 +30,7 @@ the token from that body. So the form carries the token in the URL of its `actio
 
 `<form method="post" action="/upload?_csrf={$token}" enctype="multipart/form-data">`
 
-The page that shows the form calls `Core\Session::start()` and then sets `$token` with
-[`Core\Csrf::token()`](/reference/core/csrf/token/).
+The page that shows the form sets `$token` with
+[`Core\Csrf::token()`](/reference/core/csrf/token/). The session opens by itself.
 
 Read [Core\Request](/reference/core/request/) for the other parts of a form.
