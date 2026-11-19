@@ -5255,10 +5255,14 @@ impl<'a> Lowering<'a> {
         let named_class = call.static_class.as_ref().map(ToString::to_string);
         let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
         let checked_types = self.checked_types;
-        // `static::m()` never has a compile-time target; a resolved
-        // declaration with no body has none either, for a different
-        // reason — see `InstKind::CallVirtual::fallback`.
-        let late_bound = matches!(class.kind, ExprKind::StaticExpr) || !has_body;
+        // `static::m()` has a compile-time target only where no class in the
+        // program overrides `m` (row `static-member` of `crate::forms`, the
+        // fact an instance call reads); otherwise it binds to the called
+        // class. A resolved declaration with no body has no target either,
+        // for a different reason — see `InstKind::CallVirtual::fallback`.
+        let late_bound = (matches!(class.kind, ExprKind::StaticExpr)
+            && (call.overridden || !cheaper_forms_on()))
+            || !has_body;
         // As for an instance call: the receiver and the arguments are the
         // callee's from the `Call` below and this frame's until then. See
         // `Lowering::forget_transferred_since`.

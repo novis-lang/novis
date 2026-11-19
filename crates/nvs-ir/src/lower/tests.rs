@@ -7043,3 +7043,22 @@ fn a_literal_with_constant_keys_is_built_in_one_step() {
     assert_eq!(insts_where(&off, built), 0);
     assert_eq!(insts_where(&off, sets), 6);
 }
+
+/// Row `static-member`: `static::m()` is a direct call where no class in the
+/// program overrides `m`, and stays late-bound where one does.
+#[test]
+fn a_static_call_nothing_overrides_is_direct() {
+    let src = "<?nvs\nclass Base {\n  public static function kept(): string { return \"k\"; }\n  \
+               public static function swapped(): string { return \"b\"; }\n  \
+               public static function run(): string { return static::kept() . static::swapped(); }\n}\n\
+               class Child extends Base {\n  \
+               public static function swapped(): string { return \"c\"; }\n}\n";
+    let direct = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Base::kept");
+    let late = |kind: &InstKind| matches!(kind, InstKind::CallVirtual { .. });
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(insts_where(&on, direct), 1);
+    assert_eq!(insts_where(&on, late), 1);
+    assert_eq!(insts_where(&off, direct), 0);
+    assert_eq!(insts_where(&off, late), 2);
+}
