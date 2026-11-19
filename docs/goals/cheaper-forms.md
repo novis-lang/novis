@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-lsp/src/recorded.rs, crates/nvs-cli/src/debug/index.rs, docs/rules/observability/a-query-span-names-its-call-site.md]
   - id: 8
     title: a parameter declared callable or mixed takes the type every caller passes, as an editor action
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/actions.rs, docs/rules/ide/narrow-an-annotation-to-its-literal.md]
   - id: 9
     title: a method call the compiler can name is direct, and a method that returns one property reads it
@@ -418,6 +418,16 @@ every call passes an argument of one static type. It writes that type and nothin
 `refactor.rewrite`, never under `quickfix` or `source.fixAll.nvs`. Where callers differ, or one passes
 `mixed`, nothing is offered. Home: `rule:ide/a-code-action-writes-only-what-is-already-determined`.
 
+**How the editor action finds each caller's type, as built in stage 8 (my call).** The reference
+index holds no types, and the expression table recorded none for a resolved call's arguments. The
+checker now records one type for each argument at a bare `callable` or `mixed` parameter of a Novis
+method, keyed by the call's span and the parameter's position, widened to its base. The action finds
+each call from the index's occurrence (the method name's span, matched with `index::named`), analyses
+each calling file other than the entry, and compares the written text, because each analysis has an
+interner of its own. Recording every argument's type was declined: only these parameters need it. The
+action needs a settled index, so a code action never settles the queue: while an entry waits, it is
+not offered.
+
 **The off switch (my call).** A hidden `--no-cheaper-forms` on `run`, `test` and `serve` compiles every
 form as written. `bun nv suite … --no-cheaper-forms-too` runs each case both ways and fails on any
 difference in output. It is a test tool, not a setting: no `nvs.toml` key, no help text.
@@ -716,13 +726,13 @@ under `tests/lsp/lens/`.
 **Split:** one writing subagent writes the two `.lspt` cases, copying the shape of an existing case
 under `tests/lsp/actions/`.
 
-- [ ] An `Explore` subagent lists first: where the action of
+- [x] An `Explore` subagent lists first: where the action of
   `rule:ide/narrow-an-annotation-to-its-literal` is computed in `crates/nvs-lsp/src/`, and how a
   reference from the workspace index reaches the checker's type for an argument.
-- [ ] The action, under the conditions in § *Standing decisions*. For a `callable` it writes the
+- [x] The action, under the conditions in § *Standing decisions*. For a `callable` it writes the
   callable type with the parameter and result types the callers' values declare.
-- [ ] `rule:ide/a-code-action-writes-only-what-is-already-determined` gains the action.
-- [ ] The two `.lspt` cases the `typed-parameter-action` check names. Run once.
+- [x] `rule:ide/a-code-action-writes-only-what-is-already-determined` gains the action.
+- [x] The two `.lspt` cases the `typed-parameter-action` check names. Run once.
 
 ### 9. a method call the compiler can name is direct, and a method that returns one property reads it
 
@@ -764,25 +774,27 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 7 are done. Stage 7 took its two sessions. This one landed item 2: `TraceKind` and
-`spool::EventKind` have `Cache`, `Session` and `File` (`TraceKind::spelling`), and
-`Ctx::record_site_event` (`crates/nvs-runtime/src/ctx/trace.rs`) files a site event with its target
-and site row. The lowering passes the site constant to every `core_records_site` member, and each of
-the 25 roster helpers takes one more slot: the cache, session and `Core\IO` ones run under
-`crates/nvs-stdlib/src/site.rs` `watched`, and the HTTP ones pass the id to `http.rs` `traced`. The
-two observability rules say so. Build and clippy are green, the eleven new tests passed once by
-name, a compiled cache and file program ran, and `recorded-sites` is green. The sweep's
-`env-secret-proofs` red is stale: no goal defines it (`git log -S` hits only goal handoffs).
+Stages 1 to 8 are done. Stage 8 took one session. *Write the type every caller passes* is
+`crates/nvs-lsp/src/typed_parameter.rs`. The checker records the type each call passes to a bare
+`callable` or `mixed` parameter of a Novis method (`ExprTypeTable::bare_argument`, filled in
+`crates/nvs-types/src/expr/args.rs` `check_arg_list`), `nvs_types::narrow::parameter` writes it, and
+`actions::at` takes an `Option<&SymbolIndex>`: the server passes its own, and the `.lspt` runner
+builds one only when `typed_parameter::wanted` says the cursor is on such a type. The rule says so.
+Build and clippy are green, and `typed-parameter-action` is green. The sweep's `env-secret-proofs`
+red is stale: no goal defines it (`git log -S` hits only goal handoffs).
 
 ### Next
 
-Stage 8: *Write the type every caller passes* on a bare `callable` or `mixed` parameter, in
-`crates/nvs-lsp/src/actions.rs`, from the reference index's calls of the function
-(`crates/nvs-lsp/src/index.rs`). Its two `.lspt` cases are the `typed-parameter-action` check. Stage
-10 is disjoint from it (`crates/nvs-stdlib/src/str.rs` `split` and the case-folding search,
-`json.rs` `isValid`) and can run beside it. `looper check --name <id>` runs one goal check.
+Stage 9: a method call the compiler can name is direct, from a per-receiver-class override fact
+(`crates/nvs-types/src/signatures.rs:1125` `mark_overridden_methods`, read at
+`crates/nvs-ir/src/lower/expr.rs:5052`), and a method whose one body is `return $this->p;` is the
+read of `p`. Stage 10 is disjoint from it (`crates/nvs-stdlib/src/str.rs` `split` and the
+case-folding search, `json.rs` `isValid`) and can run beside it. `looper check --name <id>` runs one
+goal check.
 
-Tests expected red: any test that calls one of the 25 `RECORDED_SITE_MEMBERS` helpers with its old
+Tests expected red: any test that pins `ExprTypeTable::canonical_text`, which now has a
+`bare_arguments` section, and any `.lspt` case whose cursor sits on a bare `callable` or `mixed`
+parameter type of a method with calls, which may now list one more action. Also: any test that calls one of the 25 `RECORDED_SITE_MEMBERS` helpers with its old
 argument count from outside the five stdlib files that define them (none was found), and any test
 that pins `trace-events-carry-a-kind`'s title or the debug stream's kind list as five. Also: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
