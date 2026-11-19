@@ -2020,7 +2020,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// A negative index counts from the end, which is R8's range rule applied
     /// to a range of one.
-    fn nvs_core_str_at(_ctx, args: [2]) -> Value, owns NvsStr {
+    fn nvs_core_str_at(_ctx, args: [2]) -> Cut, owns NvsStr {
         let subject = text(&args[0], "at", "the subject")?;
         let index = integer(&args[1], "at", "the index")?;
         let unit = crate::granularity::DEFAULT;
@@ -2030,9 +2030,12 @@ nvs_runtime::nvs_helper! {
                 unit.length_of(&args[0], subject)
             ))
         })?;
-        produced(found)
-    } apply(result, _subject) {
-        result
+        // The result is one character, so a known count loses all the others.
+        let mut cut = Cut::to(subject, found);
+        cut.removed = args[0].known_grapheme_count().map(|held| held.saturating_sub(1));
+        Ok(cut)
+    } apply(cut, subject) {
+        kept(cut, subject)
     }
 }
 
@@ -2595,19 +2598,56 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::trim(string $s, { characters?: string }): string` — replacing
     /// PHP's `trim`. [`trimmed`] owns the two divergences from it, and
     /// `crate::registry`'s `TRIM_OPTIONS` owns the default set.
-    fn nvs_core_str_trim(_ctx, args: [2]) -> Value, owns NvsStr {
+    fn nvs_core_str_trim(_ctx, args: [2]) -> Cut, owns NvsStr {
         let subject = text(&args[0], "trim", "the subject")?;
         let characters = text(&args[1], "trim", "the `characters` option")?;
-        let kept = trimmed(subject, characters, true, true, r"Core\Str::trim")?;
-        // Trimming removes a prefix and a suffix, so the same length means the
-        // same text, and the argument itself is the result.
-        if kept.len() == subject.len() {
-            return unchanged(args[0]);
-        }
-        produced(kept)
-    } apply(result, _subject) {
-        result
+        Ok(Cut::to(subject, trimmed(subject, characters, true, true, r"Core\Str::trim")?))
+    } apply(cut, subject) {
+        kept(cut, subject)
     }
+}
+
+/// What a cutting member keeps of its subject: a byte range on character
+/// boundaries, and how many grapheme clusters the cut removes where the member
+/// counted them.
+pub(crate) struct Cut {
+    range: std::ops::Range<usize>,
+    removed: Option<usize>,
+}
+
+impl Cut {
+    /// The cut that keeps `part`, a slice of `subject`, with no count.
+    fn to(subject: &str, part: &str) -> Self {
+        let start = part.as_ptr().addr() - subject.as_ptr().addr();
+        Self {
+            range: start..start + part.len(),
+            removed: None,
+        }
+    }
+
+    /// The cut that keeps the bytes `start..end`, or nothing where that window
+    /// is not inside `subject`.
+    fn window(subject: &str, start: usize, end: usize) -> Self {
+        let range = if subject.get(start..end).is_some() {
+            start..end
+        } else {
+            0..0
+        };
+        Self {
+            range,
+            removed: None,
+        }
+    }
+}
+
+/// The subject with only `cut` kept. A sole subject keeps its allocation and
+/// no kept byte moves. A shared one is copied, and only the kept bytes are.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a cut on character boundaries of a `string` leaves UTF-8"
+)]
+fn kept(cut: Cut, subject: NvsStr) -> Value {
+    Value::str(subject.keep(cut.range, cut.removed))
 }
 
 /// The `string` argument itself, as the result of a member that found nothing to
@@ -2623,24 +2663,26 @@ pub(crate) fn unchanged(argument: Value) -> HelperResult {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::trimStart(string $s, { characters?: string }): string` —
     /// replacing PHP's `ltrim`. See [`nvs_core_str_trim`].
-    fn nvs_core_str_trim_start(_ctx, args: [2]) -> Value, owns NvsStr {
+    fn nvs_core_str_trim_start(_ctx, args: [2]) -> Cut, owns NvsStr {
         let subject = text(&args[0], "trimStart", "the subject")?;
         let characters = text(&args[1], "trimStart", "the `characters` option")?;
-        produced(trimmed(subject, characters, true, false, r"Core\Str::trimStart")?)
-    } apply(result, _subject) {
-        result
+        let part = trimmed(subject, characters, true, false, r"Core\Str::trimStart")?;
+        Ok(Cut::to(subject, part))
+    } apply(cut, subject) {
+        kept(cut, subject)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::trimEnd(string $s, { characters?: string }): string` —
     /// replacing PHP's `rtrim`/`chop`. See [`nvs_core_str_trim`].
-    fn nvs_core_str_trim_end(_ctx, args: [2]) -> Value, owns NvsStr {
+    fn nvs_core_str_trim_end(_ctx, args: [2]) -> Cut, owns NvsStr {
         let subject = text(&args[0], "trimEnd", "the subject")?;
         let characters = text(&args[1], "trimEnd", "the `characters` option")?;
-        produced(trimmed(subject, characters, false, true, r"Core\Str::trimEnd")?)
-    } apply(result, _subject) {
-        result
+        let part = trimmed(subject, characters, false, true, r"Core\Str::trimEnd")?;
+        Ok(Cut::to(subject, part))
+    } apply(cut, subject) {
+        kept(cut, subject)
     }
 }
 
@@ -3285,12 +3327,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// An offset past the end is `""` rather than a throw — PHP 8's answer, and
     /// the one that composes with a loop.
-    fn nvs_core_str_slice(_ctx, args: [3]) -> Value, owns NvsStr {
+    fn nvs_core_str_slice(_ctx, args: [3]) -> Cut, owns NvsStr {
         let subject = text(&args[0], "slice", "the subject")?;
         let (start, end) = window(&args[0], subject, &args[1], &args[2], "slice")?;
-        produced(subject.get(start..end).unwrap_or(""))
-    } apply(result, _subject) {
-        result
+        Ok(Cut::window(subject, start, end))
+    } apply(cut, subject) {
+        kept(cut, subject)
     }
 }
 
@@ -3787,17 +3829,14 @@ nvs_runtime::nvs_helper! {
     /// The needle itself is not included, and a needle that does not occur is
     /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5). `{ last: true }` cuts at
     /// the last occurrence instead of the first.
-    fn nvs_core_str_before(ctx, args: [3]) -> Value, owns NvsStr {
+    fn nvs_core_str_before(ctx, args: [3]) -> Option<Cut>, owns NvsStr {
         let subject = text(&args[0], "before", "the subject")?;
         let needle = text(&args[1], "before", "the needle")?;
         let last = boolean(&args[2], "before", "the `last` option")?;
         let walk = &mut Walk::new(ctx, r"Core\Str::before");
-        match cut_at(subject, needle, last, walk)? {
-            None => Ok(Value::null()),
-            Some((at, _)) => produced(&subject[..at]),
-        }
-    } apply(result, _subject) {
-        result
+        Ok(cut_at(subject, needle, last, walk)?.map(|(at, _)| Cut::window(subject, 0, at)))
+    } apply(cut, subject) {
+        cut.map_or_else(Value::null, |cut| kept(cut, subject))
     }
 }
 
@@ -3808,17 +3847,15 @@ nvs_runtime::nvs_helper! {
     ///
     /// The needle is not included, which is the one place this diverges from
     /// `strstr`, whose answer starts with the needle. Absence is `null`, not `false`.
-    fn nvs_core_str_after(ctx, args: [3]) -> Value, owns NvsStr {
+    fn nvs_core_str_after(ctx, args: [3]) -> Option<Cut>, owns NvsStr {
         let subject = text(&args[0], "after", "the subject")?;
         let needle = text(&args[1], "after", "the needle")?;
         let last = boolean(&args[2], "after", "the `last` option")?;
         let walk = &mut Walk::new(ctx, r"Core\Str::after");
-        match cut_at(subject, needle, last, walk)? {
-            None => Ok(Value::null()),
-            Some((at, matched)) => produced(&subject[at + matched..]),
-        }
-    } apply(result, _subject) {
-        result
+        Ok(cut_at(subject, needle, last, walk)?
+            .map(|(at, matched)| Cut::window(subject, at + matched, subject.len())))
+    } apply(cut, subject) {
+        cut.map_or_else(Value::null, |cut| kept(cut, subject))
     }
 }
 

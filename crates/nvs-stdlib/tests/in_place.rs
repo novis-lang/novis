@@ -8,10 +8,12 @@
 //! entry disagrees. `nvs_runtime`'s `owned` module states the protocol the
 //! second test holds: an owning entry that throws leaves the subject with its
 //! caller, and one that succeeds consumes it. The next two hold
-//! `Core\Arr::reduce`, which gives its carry to the callback. The last three
+//! `Core\Arr::reduce`, which gives its carry to the callback. The next three
 //! hold every owning `Core\Arr` member to its row in [`ARR_ROWS`]: a member
 //! that keeps its storage returns a sole subject's own array, and a shared
-//! subject copies only the entries the result keeps.
+//! subject copies only the entries the result keeps. The last two hold every
+//! owning `Core\Str` and `Core\Bytes` member to its row in [`TEXT_ROWS`] the
+//! same way: on a sole subject, the result is the subject's own allocation.
 
 use std::cell::RefCell;
 
@@ -726,4 +728,374 @@ fn a_shared_subject_builds_only_the_window_it_keeps() {
     assert_eq!(copied, 10, "the slice holds only the ten rows it keeps");
     dropped(result);
     drop(kept);
+}
+
+/// What an owning `Core\Str` or `Core\Bytes` member does with a sole subject.
+enum TextRow {
+    /// It changes the subject's own allocation and returns it. The subject is
+    /// `subject` with `room` spare bytes behind it, `args` gives the arguments
+    /// after it, and `result` is what the member returns.
+    Keeps {
+        subject: &'static str,
+        room: usize,
+        args: fn() -> Vec<Value>,
+        result: &'static str,
+    },
+    /// It builds a new string, because the result keeps no byte of the subject
+    /// in its place.
+    Builds,
+}
+
+/// Every owning `Core\Str` and `Core\Bytes` member, by its class and its name
+/// in the registry.
+const TEXT_ROWS: &[(&str, &str, TextRow)] = &[
+    (
+        r"Core\Str",
+        "slice",
+        TextRow::Keeps {
+            subject: "abcdef",
+            room: 0,
+            args: || vec![Value::int(1), Value::null()],
+            result: "bcdef",
+        },
+    ),
+    (
+        r"Core\Str",
+        "at",
+        TextRow::Keeps {
+            subject: "abcdef",
+            room: 0,
+            args: || vec![Value::int(2)],
+            result: "c",
+        },
+    ),
+    (
+        r"Core\Str",
+        "before",
+        TextRow::Keeps {
+            subject: "ab,cd",
+            room: 0,
+            args: || vec![text(","), Value::bool(false)],
+            result: "ab",
+        },
+    ),
+    (
+        r"Core\Str",
+        "after",
+        TextRow::Keeps {
+            subject: "ab,cd",
+            room: 0,
+            args: || vec![text(","), Value::bool(false)],
+            result: "cd",
+        },
+    ),
+    (
+        r"Core\Str",
+        "trim",
+        TextRow::Keeps {
+            subject: "  ab  ",
+            room: 0,
+            args: || vec![text(" ")],
+            result: "ab",
+        },
+    ),
+    (
+        r"Core\Str",
+        "trimStart",
+        TextRow::Keeps {
+            subject: "  ab  ",
+            room: 0,
+            args: || vec![text(" ")],
+            result: "ab  ",
+        },
+    ),
+    (
+        r"Core\Str",
+        "trimEnd",
+        TextRow::Keeps {
+            subject: "  ab  ",
+            room: 0,
+            args: || vec![text(" ")],
+            result: "  ab",
+        },
+    ),
+    (
+        r"Core\Bytes",
+        "slice",
+        TextRow::Keeps {
+            subject: "abcdef",
+            room: 0,
+            args: || vec![Value::int(1), Value::null()],
+            result: "bcdef",
+        },
+    ),
+    (
+        r"Core\Str",
+        "padEnd",
+        TextRow::Keeps {
+            subject: "ab",
+            room: 2,
+            args: || vec![Value::uint(4), text("-")],
+            result: "ab--",
+        },
+    ),
+    (
+        r"Core\Str",
+        "padStart",
+        TextRow::Keeps {
+            subject: "ab",
+            room: 2,
+            args: || vec![Value::uint(4), text("-")],
+            result: "--ab",
+        },
+    ),
+    (
+        r"Core\Str",
+        "repeat",
+        TextRow::Keeps {
+            subject: "ab",
+            room: 2,
+            args: || vec![Value::uint(2)],
+            result: "abab",
+        },
+    ),
+    (
+        r"Core\Bytes",
+        "repeat",
+        TextRow::Keeps {
+            subject: "ab",
+            room: 2,
+            args: || vec![Value::uint(2)],
+            result: "abab",
+        },
+    ),
+    (
+        r"Core\Str",
+        "replaceRange",
+        TextRow::Keeps {
+            subject: "abcdef",
+            room: 0,
+            args: || vec![Value::int(1), Value::int(2), text("X")],
+            result: "aXdef",
+        },
+    ),
+    (
+        r"Core\Str",
+        "replace",
+        TextRow::Keeps {
+            subject: "a-b-c",
+            room: 0,
+            args: || {
+                vec![
+                    text("-"),
+                    text("+"),
+                    Value::bool(false),
+                    Value::uint(u64::MAX),
+                ]
+            },
+            result: "a+b+c",
+        },
+    ),
+    (
+        r"Core\Str",
+        "replaceAll",
+        TextRow::Keeps {
+            subject: "a-b-c",
+            room: 0,
+            args: || {
+                let mut table = NvsArray::new();
+                table.set(NvsStr::new(b"-"), text("+"));
+                vec![Value::array(table), Value::bool(false)]
+            },
+            result: "a+b+c",
+        },
+    ),
+    (
+        r"Core\Str",
+        "lower",
+        TextRow::Keeps {
+            subject: "AbC",
+            room: 0,
+            args: Vec::new,
+            result: "abc",
+        },
+    ),
+    (
+        r"Core\Str",
+        "upper",
+        TextRow::Keeps {
+            subject: "AbC",
+            room: 0,
+            args: Vec::new,
+            result: "ABC",
+        },
+    ),
+    (
+        r"Core\Str",
+        "upperFirst",
+        TextRow::Keeps {
+            subject: "abc",
+            room: 0,
+            args: Vec::new,
+            result: "Abc",
+        },
+    ),
+    (
+        r"Core\Str",
+        "lowerFirst",
+        TextRow::Keeps {
+            subject: "ABC",
+            room: 0,
+            args: Vec::new,
+            result: "aBC",
+        },
+    ),
+    (
+        r"Core\Str",
+        "fold",
+        TextRow::Keeps {
+            subject: "AbC",
+            room: 0,
+            args: Vec::new,
+            result: "abc",
+        },
+    ),
+    (
+        r"Core\Str",
+        "normalize",
+        TextRow::Keeps {
+            subject: "e\u{301}",
+            room: 0,
+            args: || vec![Value::int(0)],
+            result: "\u{e9}",
+        },
+    ),
+    (
+        r"Core\Str",
+        "reverse",
+        TextRow::Keeps {
+            subject: "abc",
+            room: 0,
+            args: Vec::new,
+            result: "cba",
+        },
+    ),
+    (
+        r"Core\Str",
+        "wrap",
+        TextRow::Keeps {
+            subject: "ab cd",
+            room: 0,
+            args: || vec![Value::uint(2), text("\n"), Value::bool(false)],
+            result: "ab\ncd",
+        },
+    ),
+    (r"Core\Str", "format", TextRow::Builds),
+];
+
+/// A `string` value of `content`, with no spare room.
+fn text(content: &str) -> Value {
+    Value::text(content)
+}
+
+/// A sole subject of `content` with `room` spare bytes behind it, tagged as
+/// `class` says.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "every subject in TEXT_ROWS is a UTF-8 literal"
+)]
+fn text_subject(class: &str, content: &str, room: usize) -> Value {
+    let built = NvsStr::build(content.len() + room, |out| out.push(content.as_bytes()));
+    if class == r"Core\Bytes" {
+        Value::bytes(built)
+    } else {
+        Value::str(built)
+    }
+}
+
+/// The registry symbol of each owning `Core\Str` and `Core\Bytes` member, with
+/// its class and name.
+fn owning_text_members() -> Vec<(&'static str, &'static str, &'static str)> {
+    CLASSES
+        .iter()
+        .filter(|class| class.name == r"Core\Str" || class.name == r"Core\Bytes")
+        .flat_map(|class| {
+            class
+                .methods
+                .iter()
+                .filter(|method| nvs_stdlib::owning_entry(method.symbol).is_some())
+                .map(|method| (class.name, method.name, method.symbol))
+        })
+        .collect()
+}
+
+#[test]
+fn every_string_member_has_a_row_here() {
+    let owning = owning_text_members();
+    let mut wrong = Vec::new();
+    for (class, name, _) in &owning {
+        if !TEXT_ROWS.iter().any(|(c, n, _)| c == class && n == name) {
+            wrong.push(format!(
+                "{class}::{name} owns its subject and has no row in TEXT_ROWS"
+            ));
+        }
+    }
+    for (class, name, _) in TEXT_ROWS {
+        if !owning.iter().any(|(c, n, _)| c == class && n == name) {
+            wrong.push(format!(
+                "TEXT_ROWS names `{class}::{name}`, which is no owning member"
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn every_string_member_keeps_what_it_does_not_change() {
+    let mut wrong = Vec::new();
+    for (class, name, symbol) in owning_text_members() {
+        let Some((
+            _,
+            _,
+            TextRow::Keeps {
+                subject,
+                room,
+                args,
+                result: want,
+            },
+        )) = TEXT_ROWS.iter().find(|(c, n, _)| *c == class && *n == name)
+        else {
+            continue;
+        };
+        let entry = owned_entry(symbol);
+        let mut ctx = Ctx::buffered();
+        let passed = text_subject(class, subject, *room);
+        let storage = passed.buffer_ptr();
+        let rest = args();
+        let mut all = vec![passed];
+        all.extend(rest.iter().copied());
+        let result = call(entry, &mut ctx, &all)
+            .unwrap_or_else(|status| panic!("{class}::{name} returned status {status}"));
+        if result.buffer_ptr() != storage {
+            wrong.push(format!(
+                "{class}::{name} built a new string from a sole subject"
+            ));
+        }
+        let got = result
+            .as_text()
+            .map(str::as_bytes)
+            .or_else(|| result.as_bytes())
+            .map(<[u8]>::to_vec)
+            .unwrap_or_default();
+        if got != want.as_bytes() {
+            wrong.push(format!(
+                "{class}::{name} gave {:?}, not {want:?}",
+                String::from_utf8_lossy(&got)
+            ));
+        }
+        for value in rest.into_iter().chain([result]) {
+            dropped(value);
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

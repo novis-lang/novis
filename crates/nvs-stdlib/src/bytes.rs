@@ -935,7 +935,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// An offset past the end is the empty buffer rather than a throw, which
     /// is PHP 8's answer and the one that composes with a loop.
-    fn nvs_core_bytes_slice(_ctx, args: [3]) -> Value, owns NvsStr {
+    fn nvs_core_bytes_slice(_ctx, args: [3]) -> std::ops::Range<usize>, owns NvsStr {
         let subject = raw(&args[0], "slice", "the subject")?;
         let total = subject.len();
         let start = offset(total, integer(&args[1], "slice", "the offset")?);
@@ -956,11 +956,13 @@ nvs_runtime::nvs_helper! {
             }
         };
 
-        // `get` rather than an index: a window that closes before it opens is
-        // `None` here, and the empty buffer is what R8 says it answers.
-        produced(subject.get(start..end).unwrap_or(&[]))
-    } apply(result, _subject) {
-        result
+        // A window that closes before it opens is the empty buffer, which is
+        // what R8 says it answers.
+        Ok(if start <= end && end <= total { start..end } else { 0..0 })
+    } apply(range, subject) {
+        // A sole subject keeps its allocation and no kept byte moves. A shared
+        // one is copied, and only the kept bytes are.
+        Value::bytes(subject.keep(range, None))
     }
 }
 
