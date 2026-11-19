@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`bun nv suite --case <file>` also reruns every case that is still red, and its line names only
+  three.** A check over three new cases reported 21 red, none of them the three. Run the named
+  files with `target/debug/nvs.exe test <files>` to read their own verdict and diff. See
+  `tools/nv/cmd/suite.ts`.
 - **A database error's `to_string()` never contains the server's own sentence.** `ServerError`'s
   `Display` prints only the backend, severity and kind, so a check for "no such table" in it is
   always false. A probe in the session store's open failed every fresh SQLite file that way. Read
