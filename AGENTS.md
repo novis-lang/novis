@@ -104,6 +104,9 @@ Each is here because not knowing it exists is the entire cost. The file named af
   `.agent-tmp/hangs/`. Read the report, run the hung unit alone, and fix the cause before the slice
   goes on. A longer bound is a fix only for a program that waits on purpose
   ([commands.md](docs/agent/commands.md) § *A hang stops the slice*).
+- **A changelog summary follows [changelog-summary.md](docs/agent/changelog-summary.md).** The person
+  may ask for a summary of the raw changes. That file says which commits count and how each item is
+  verified. It also gives the section order and the example every API change gets.
 - **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
   configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
   all of it is theirs. The test, the rule, the example, the comment and the commit message that come out
