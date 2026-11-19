@@ -601,3 +601,7 @@ Sessions used per stage: none yet. Nothing is built.
 Stage 1 from its first item. Stages 6, 7, 8 and 10 can start as side goals at any time.
 
 ### Backlog
+
+- From `strings-in-place`, which took it from `arrays-in-place`: `Core\Arr::overlayDeep` on a sole
+  subject still copies each nested map it merges into. A nested map that is itself sole could be
+  changed in place. No ladder shows it yet.

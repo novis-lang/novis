@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/bytes.rs, crates/nvs-stdlib/tests/in_place.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: positions
@@ -239,9 +239,9 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
@@ -251,44 +251,30 @@ The goal came from a conversation with the person, who asked for the same depth 
 that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stages 1 to 4 are done. Stage 4: the cutting members (`3543cf1dea`), the extending members
-(`bc6704ff15`) and the rewriting members (this session) are done. The `ladders` check is green: all
-nine ladders are linear. `cargo test --test in_place -- every_string_member` ran once and passes.
+Every stage is done. Stage 5's gate is green: `looper verify` ran 23 of 23 steps green, after one
+fix pass (`0e634e80c2`):
 
-- **Rewriting** (this session): `str.rs` has `Rewritten` (`:4319`), `sole` (`:4359`) and
-  `rewritten` (`:4369`), the shared `apply` of all 11 members. `map_first` (`:4827`) and
-  `case_mapped` (`:4863`) return a plan. See § *Standing decisions*. The module docs of `str.rs` and
-  `bytes.rs` now say which members own their subject.
+- `crates/nvs-stdlib/src/uri.rs` `OverMemory::fault`: the `FATAL` past the memory ceiling is joined
+  at its exact length. `format!` reserved about twice its text, and the start word moved the
+  balance at the refusal close enough to the limit to show it.
+- `crates/nvs-stdlib/src/str.rs` `nvs_core_str_replace_range`: the replacement's `share` is an
+  `expect`, because `text` read it as a string above. The conformance coverage gate had named the
+  old `Fault` as an error path no case reaches.
+- The join snapshot lost the `release` of a leading string piece, and the testing chapter's bench
+  counts in `docs/examples/lang/testing/bench-and-nvs-test-bench/*.out` show the start word.
 
-- **Extending** (`bc6704ff15`): `crates/nvs-runtime/src/string.rs` has `Room` (`:687`), `room_for`,
-  `Run` (`:732`), `NvsStr::prepend_run` (`:1454`), `extend` (`:1531`) and `repeated` (`:1608`), and
-  `value.rs` has `Value::room_behind`/`room_in_front`. In `str.rs`, `padStart`/`padEnd` plan with
-  `padded` (`:4098`), `repeat` and `Core\Bytes::repeat` with `repeat_plan` (`:4231`), and `extended`
-  (`:4066`) is the `apply`. See § *Standing decisions*.
-- **Interpolation** (`668d5f1c4e`): the two interpolation ladders grew, because a join with a number
-  hole consumed nothing. A join led by a string now appends onto it (§ *Standing decisions*).
-The sweep's `env-secret-proofs` red is stale: it has no log, and `git log -S` finds only goal and
-handoff commits.
+`bun nv verify --doc` is green, `bun nv owners --closes strings-in-place` finds no gap, and `bun nv
+ci --check` is green. The 86 stale perf records (`Core\Str`, `Core\Bytes`, `Core\Uri` and the
+testing chapter) were recorded on the release binary. `lang:testing/assertions` was recorded with
+`--no-callgrind` as `growth: unclear`, as both its earlier records were. Callgrind's startup noise
+(one run of 301.7M instructions was 325.9M) is larger than the whole loop, and one run's noise fit
+read as slope 2.01. The backlog's `overlayDeep` item moved to `cheaper-forms`' backlog. The
+sweep's `env-secret-proofs` red is stale: it has no log, and no goal defines it.
 
 ### Next
 
-Stage 5, the gate. Start `looper verify` with `run_in_background`, end the turn, and fix every
-failure it names in one pass. Then the goal-end gates of AGENTS.md § *In the loop*: `bun nv verify
---doc`, `bun nv owners --closes strings-in-place`, `bun nv ci --check`. Every `Core\Str` member's perf
-record is stale, because `str.rs` changed: record them as the playbook's *perf: stale* bullet says,
-after every doc edit in `str.rs`.
-
-Possibly red at the gate:
-
-- `crates/nvs-stdlib/tests/allocation_policy.rs`: pad and repeat on a sole subject now allocate an
-  append's doubling or nothing, and the rewriting members on a sole subject allocate nothing or keep
-  the subject's allocation.
-- IR or codegen tests that print a `concat` led by a string with a number piece, which now has no
-  `release` of its leading piece after it.
-- A test that expects `normalize` of ASCII, or `replace` with an empty search, to return a new
-  string. They now return the subject itself.
+Nothing in this goal. The driver runs the acceptance checks and retires it.
 
 ### Backlog
 
-- From `arrays-in-place`: `Core\Arr::overlayDeep` on a sole subject still copies each nested map it
-  merges into. A nested map that is itself sole could be changed in place. No ladder shows it yet.
+Empty.
