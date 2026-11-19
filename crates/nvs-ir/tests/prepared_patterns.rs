@@ -157,7 +157,7 @@ fn a_cldr_pattern_reaches_both_of_the_members_that_read_one() {
         "<?nvs
 var $written = 'yyyy-MM-dd';
 var $zone = Core\\Time\\Zone::of('UTC');
-var $read = Core\\Time::parse('2026-09-17 00:00:00', 'yyyy-MM-dd HH:mm:ss', $zone);
+var $read = Core\\Time\\DateTime::parse('2026-09-17 00:00:00', 'yyyy-MM-dd HH:mm:ss', $zone);
 var $shown = $read->format('yyyy-MM-dd');
 var $loose = $read->format($written);
 ",

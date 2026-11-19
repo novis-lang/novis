@@ -1,0 +1,87 @@
+--TEST--
+every `fromIso` reads its class's one ISO 8601 extended form: a date alone is the first instant of that day, an offset at `DateTime::fromIso` is a `ParseError`, and a text that arrives at run time throws the error a literal does not compile with (`rule:core-classes/a-time-class-builds-its-own-values`)
+--FILE--
+<?nvs
+// covers: Core\Time\Instant::fromIso
+// covers: Core\Time\Date::fromIso
+// covers: Core\Time\TimeOfDay::fromIso
+// covers: Core\Time\DateTime::fromIso
+var $utc = Core\Time\Zone::UTC;
+var $saoPaulo = Core\Time\Zone::of("America/Sao_Paulo");
+var $full = "yyyy-MM-dd HH:mm:ss.SSS XXX";
+
+// Each accepted form, once per class.
+echo Core\Time\Date::fromIso("2024-02-29")->format("yyyy-MM-dd"), "|\n";
+echo Core\Time\Date::fromIso("-0044-03-15")->format("uuuu-MM-dd"), "|\n";
+echo Core\Time\TimeOfDay::fromIso("09:30")->format("HH:mm:ss.SSS"), "|\n";
+echo Core\Time\TimeOfDay::fromIso("09:30:15")->format("HH:mm:ss.SSS"), "|\n";
+echo Core\Time\TimeOfDay::fromIso("09:30:15.5")->format("HH:mm:ss.SSS"), "|\n";
+echo Core\Time\TimeOfDay::fromIso("23:59:59.999999999")->nanos() as string, "|\n";
+echo Core\Time\DateTime::fromIso("2024-03-01", $utc)->format($full), "|\n";
+echo Core\Time\DateTime::fromIso("2024-03-01T09:30", $utc)->format($full), "|\n";
+echo Core\Time\DateTime::fromIso("2024-03-01 09:30:15.25", $utc)->format($full), "|\n";
+echo Core\Time\Instant::fromIso("2024-03-01 09:30:00+01:00")->toIso(), "|\n";
+
+// Sao Paulo moved its clocks from 00:00 to 01:00 on 2018-11-04, so that day
+// starts at 01:00.
+echo Core\Time\DateTime::fromIso("2018-11-04", $saoPaulo)->format($full), "|\n";
+echo Core\Time\DateTime::fromIso("2018-11-03", $saoPaulo)->format($full), "|\n";
+
+// Texts that arrive at run time. Each one throws a `ParseError`.
+array<string> $dates = ["2024-02-30", "2024-3-1", "20240301", "2024-13-01", "2024-03-01T00:00"];
+foreach ($dates as string $text) {
+    try {
+        Core\Time\Date::fromIso($text);
+        echo "accepted ", $text, "|\n";
+    } catch (ParseError $e) {
+        echo $e->message, "|\n";
+    }
+}
+array<string> $times = ["24:00", "23:59:60", "9:30", "09:30:00.", "09:30:00.1234567890"];
+foreach ($times as string $text) {
+    try {
+        Core\Time\TimeOfDay::fromIso($text);
+        echo "accepted ", $text, "|\n";
+    } catch (ParseError $e) {
+        echo $e->message, "|\n";
+    }
+}
+array<string> $dateTimes = ["2024-03-01T09:30Z", "2024-03-01T09:30+01:00", "2024-03-01t09:30", "2024-03-01T"];
+foreach ($dateTimes as string $text) {
+    try {
+        Core\Time\DateTime::fromIso($text, $utc);
+        echo "accepted ", $text, "|\n";
+    } catch (ParseError $e) {
+        echo $e->message, "|\n";
+    }
+}
+// A text with an offset is an `Instant`, read in the zone afterwards.
+echo Core\Time\Instant::fromIso("2024-03-01T09:30:00+01:00")->in($utc)->format($full), "|\n";
+--EXPECT--
+2024-02-29|
+-0044-03-15|
+09:30:00.000|
+09:30:15.000|
+09:30:15.500|
+999999999|
+2024-03-01 00:00:00.000 Z|
+2024-03-01 09:30:00.000 Z|
+2024-03-01 09:30:15.250 Z|
+2024-03-01T08:30:00Z|
+2018-11-04 01:00:00.000 -02:00|
+2018-11-03 00:00:00.000 -03:00|
+Core\Time\Date::fromIso(): 2024-02 has no day 30|
+Core\Time\Date::fromIso(): the month is 2 digits, in the form `YYYY-MM-DD`|
+Core\Time\Date::fromIso(): expected `-` at byte 4, in the form `YYYY-MM-DD`|
+Core\Time\Date::fromIso(): the month is `13`, and a month is `01` to `12`|
+Core\Time\Date::fromIso(): unexpected text at byte 10, after the `YYYY-MM-DD` value|
+Core\Time\TimeOfDay::fromIso(): the hour is `24`, and an hour is `00` to `23`|
+Core\Time\TimeOfDay::fromIso(): the second is `60`, and a second is `00` to `59`|
+Core\Time\TimeOfDay::fromIso(): the hour is 2 digits, in the form `HH:MM:SS`|
+Core\Time\TimeOfDay::fromIso(): the fraction of a second is one to nine digits|
+Core\Time\TimeOfDay::fromIso(): the fraction of a second is one to nine digits|
+Core\Time\DateTime::fromIso(): the text has an offset, and the zone is the second argument. Read a text with an offset with `Core\Time\Instant::fromIso`, then call `->in($zone)`|
+Core\Time\DateTime::fromIso(): the text has an offset, and the zone is the second argument. Read a text with an offset with `Core\Time\Instant::fromIso`, then call `->in($zone)`|
+Core\Time\DateTime::fromIso(): expected `T` or a space at byte 10, between the date and the time|
+Core\Time\DateTime::fromIso(): the hour is 2 digits, in the form `HH:MM:SS`|
+2024-03-01 08:30:00.000 Z|

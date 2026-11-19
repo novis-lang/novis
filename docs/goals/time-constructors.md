@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/core-api/one-paradigm-per-operation.md, docs/rules/core-api/verb-lexicon.md, docs/rules/core-api/no-mode-strings.md]
   - id: 2
     title: each class builds itself, and a fromIso literal is checked while compiling
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/cldr.rs, crates/nvs-stdlib/src/lib.rs]
   - id: 3
     title: a zone written as text is one shared value built while compiling, and the editor completes every zone name
@@ -226,31 +226,31 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** the keystone. The registry moves the constructors, adds the three `fromIso` members, changes
 `DateTime::at`, and removes `atStartOfDay`. Every card here is end-user text (`docs/agent/prose.md`).
 
-- [ ] `crates/nvs-stdlib/src/time.rs:2307` `TIME`: keeps `now`, `monotonic` and `sleep`. `fromEpoch`
+- [x] `crates/nvs-stdlib/src/time.rs:2307` `TIME`: keeps `now`, `monotonic` and `sleep`. `fromEpoch`
   and `fromIso` move to `INSTANT`'s `methods` (`:1202`), and `parse` to `DATETIME`'s (`:1659`), with
   their symbols and cards. `TIME_CARD` (`:2418`) says `Core\Time` reads the clock and waits.
-- [ ] `DATETIME`'s `at` takes `Date`, `TimeOfDay` and `Zone`. `nvs_core_time_at` (`:2409`, `:2616`) reads
+- [x] `DATETIME`'s `at` takes `Date`, `TimeOfDay` and `Zone`. `nvs_core_time_at` (`:2409`, `:2616`) reads
   the three instances' slots and keeps its gap and range handling. Its card states what it spends.
-- [ ] `Date::fromIso`, `TimeOfDay::fromIso` and `DateTime::fromIso` with their symbols and cards. One
+- [x] `Date::fromIso`, `TimeOfDay::fromIso` and `DateTime::fromIso` with their symbols and cards. One
   parser per class serves the run-time call and the intrinsic. `Instant::fromIso` accepts the space
   separator too.
-- [ ] `atStartOfDay` (`:2786`) and its card (`:3004`) are deleted.
-- [ ] `crates/nvs-types/src/intrinsics.rs:354`: the `parse` row's owner is `Core\Time\DateTime`, and one
+- [x] `atStartOfDay` (`:2786`) and its card (`:3004`) are deleted.
+- [x] `crates/nvs-types/src/intrinsics.rs:354`: the `parse` row's owner is `Core\Time\DateTime`, and one
   `Grammar::Iso` row per `fromIso` checks a literal with the same parser. `crates/nvs-stdlib/src/registry.rs:3985`
   `PREPARED_MEMBERS` names `DATETIME_NAME`'s `parse`. The messages at `crates/nvs-stdlib/src/lib.rs:948`
   and `crates/nvs-stdlib/src/cldr.rs:953`, `:1249` name `Core\Time\DateTime::parse`.
-- [ ] The Rust tests that write the old names are updated: the unit tests in `time.rs`,
+- [x] The Rust tests that write the old names are updated: the unit tests in `time.rs`,
   `crates/nvs-stdlib/src/{uri,test,json,format,lib}.rs`, `crates/nvs-stdlib/tests/corpus/mod.rs`,
   `crates/nvs-types/tests/intrinsics.rs`, `crates/nvs-ir/tests/prepared_patterns.rs` and
   `crates/nvs-cli/tests/spreadsheet_reader.rs`.
-- [ ] `tests/conformance/core/time-each-class-builds-its-own-values.nvst:1`: every constructor in the
+- [x] `tests/conformance/core/time-each-class-builds-its-own-values.nvst:1`: every constructor in the
   table, each printed, and `DateTime::at` agreeing with `date()`, `timeOfDay()` and `zone()`.
-- [ ] `tests/conformance/core/time-from-iso-reads-one-format-on-every-class.nvst:1`: each accepted form,
+- [x] `tests/conformance/core/time-from-iso-reads-one-format-on-every-class.nvst:1`: each accepted form,
   a date alone as the start of a day with a skipped midnight, a text with an offset at
   `DateTime::fromIso` throwing `ParseError`, and run-time texts that throw.
-- [ ] `tests/conformance/reject/a-malformed-iso-literal-is-a-compile-error.nvst:1`: `'2024-02-30'`,
+- [x] `tests/conformance/reject/a-malformed-iso-literal-is-a-compile-error.nvst:1`: `'2024-02-30'`,
   `'24:00'`, `'2024-3-1'`, `'20240301'` and an offset at `DateTime::fromIso`, each one diagnostic.
-- [ ] The `constructors` check runs once.
+- [x] The `constructors` check runs once.
 
 ### 3. a zone written as text is one shared value built while compiling, and the editor completes every zone name
 
@@ -387,26 +387,33 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Stage 1 is done. `rule:core-classes/a-time-class-builds-its-own-values` is written, `designed`, owned by
-this goal, and guarded by `crates/nvs-stdlib/src/time.rs` alone until stage 2 writes its cases; add
-them to its `guardedBy` then. `one-paradigm-per-operation` and `no-mode-strings` cite it, and
-`bun nv rules --check` is green. The `time.rs` module doc has a section *Each class builds its own
-values* naming each constructor's home, says the old members still register under `Core\Time` until
-this goal moves them, and no longer carries the *atStartOfDay* decision. Stage 2 rewrites that last
-sentence once the members move.
+Stages 1 and 2 are done. The registry has the table: `Core\Time` registers `now`, `monotonic` and
+`sleep` alone (`crates/nvs-stdlib/src/time.rs:2541`). `Instant` has `fromEpoch` and `fromIso`, `Date`
+and `TimeOfDay` each have `fromIso`, and `DateTime` has `at(Date, TimeOfDay, Zone)`, `fromIso(text,
+Zone)` and `parse`. `Date::atStartOfDay` is gone. The symbols are renamed after their class:
+`nvs_core_time_instant_from_epoch`, `_instant_from_iso`, `_datetime_at`, `_datetime_from_iso`,
+`_datetime_parse`, `_date_from_iso` and `_of_day_from_iso`. Each has its address row.
 
-The acceptance sweep's nightly failures (run 44510687786, on `adc7487`) were all fixed on disk before
-this session: supply chain by `eb5c02e983` (wasmtime 50.0.2), every Miri shard by `4c82a2409a` (all
-UB at `string.rs:1817`, the immortal string handle), `proofs / linux-x86_64` by `656f5b2f2d` (the
-debug viewer's shots), and `browser` by `1c75c4ef0e` (a page waits for its body text).
+One reader per class serves both the member and the checker: `validate_iso` (`time.rs:3704`) over
+`iso_date`, `iso_time`, `iso_datetime` and `iso_instant`. `nvs_types::intrinsics` has one
+`Grammar::Iso(IsoForm)` row per `fromIso`, and `parse`'s row and `PREPARED_MEMBERS` name
+`Core\Time\DateTime`. jiff already reads a space between an `Instant`'s date and time, so
+`Instant::fromIso` needed no change for it. The three stage-2 cases pass alone (`nvs test <file>`, on
+the debug and the covws binary), and the rule's `guardedBy` names them.
+
+**Red until stage 5, as expected:** the `constructors` check exits 1, because `bun nv suite --case`
+reruns every red case, and over a hundred conformance cases still write `Core\Time::at`, `fromEpoch`, `fromIso`,
+`parse` or `atStartOfDay`. So do `crates/nvs-cli/tests/spreadsheet_reader.rs`, all 8 tests, through
+the Spreadsheet package's `Reader.nvs:178` and `:646` (`Core\Time::parse`), every example, attack
+and bench under `Core/Time`, and the website snippets. The perf records of the moved members are stale.
 
 ### Next
 
-Stage 2 from its first item: `crates/nvs-stdlib/src/time.rs:2307` `TIME` keeps `now`, `monotonic`
-and `sleep`; `fromEpoch` and `fromIso` move to `INSTANT`, `parse` and `at` to `DATETIME`
-(`nvs_core_time_at` is at `:5076`, its registration at `:2409`, its address row at `:2616`), and
-`atStartOfDay` (`:2786`, card `:3004`, body `:5412`) goes. A new member needs its address row in the
-module's `match`, or every program panics at startup. The `constructors`, `zones`,
-`zone-completion` and `moved` checks are expected red until stages 2 to 4 write their cases.
+Stages 3 and 4 may run side by side (disjoint files). Stage 4 lands first if one session takes both,
+because stage 5 runs `nvs check --fix` with its rows. Stage 4: member rows in
+`crates/nvs-stdlib/src/moved.rs` `MOVES`, read by `crates/nvs-types/src/moved.rs` `note_moves` for an
+`E0405` (``Core\Time` has no member named `parse``, the code the old calls now get). Stage 3: the
+written zone, from `InstKind::ConstDuration` (`crates/nvs-ir/src/ir.rs:1094`). The `zones`,
+`zone-completion` and `moved` checks stay red until their stages write their cases.
 
 ### Backlog

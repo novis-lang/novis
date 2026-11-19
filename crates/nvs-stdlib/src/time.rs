@@ -11,10 +11,10 @@
 //! the outside world. `Instant` builds with `fromEpoch` and `fromIso`, `Date` with `at` and
 //! `fromIso`, `TimeOfDay` with `at` and `fromIso`, and `DateTime` with
 //! `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)` and `parse(text, pattern, Zone)`. Each
-//! `fromIso` reads the one ISO 8601 extended form of its class, and a literal text is checked
-//! while compiling. A zone fixed in the source is written as text at a `Zone` parameter and
-//! built once. That rule is designed: `Core\Time::at`, `fromEpoch`, `fromIso` and `parse` and
-//! `Date::atStartOfDay` still register here until the `time-constructors` goal moves them.
+//! `fromIso` reads the one ISO 8601 extended form of its class through [`validate_iso`]'s
+//! readers, and `nvs_types::intrinsics` checks a literal text with the same function while
+//! compiling. A zone fixed in the source is written as text at a `Zone` parameter and built
+//! once; until the `time-constructors` goal lands that half, a zone is `Zone::of`'s.
 //!
 //! # Two arithmetics, and the type says which one
 //!
@@ -83,7 +83,7 @@
 //! `int`, every other field `uint` — so `$d->with({ month: $d->month() + 1 })` is one
 //! vocabulary. A reader allocates nothing. The way from the parts to a `DateTime` is
 //! `DateTime::at($date, $time, $zone)`, which resolves a skipped local time forward as
-//! [`nvs_core_time_at`] resolves a gap, and [`nvs_core_time_datetime_with_time`] puts a
+//! [`nvs_core_time_datetime_at`] resolves a gap, and [`nvs_core_time_datetime_with_time`] puts a
 //! `TimeOfDay` onto an existing `DateTime`.
 //!
 //! **Decision: the weekday enum is `Core\Time\Weekday`.** `Date` and
@@ -134,7 +134,7 @@
 //!
 //! # A written pattern is prepared, an assembled one is not
 //!
-//! `$d->format` and `Core\Time::parse` are `rule:expressions/intrinsic-constant-arguments`'s
+//! `$d->format` and `Core\Time\DateTime::parse` are `rule:expressions/intrinsic-constant-arguments`'s
 //! intrinsics: a pattern written as a literal is compiled while checking, so a
 //! malformed one is a diagnostic rather than a throw, and the call carries
 //! [`crate::cldr::PREPARED_PATTERN`] as
@@ -154,10 +154,10 @@
 //! * **Every pattern is a [`Qual::Sink`].** `rule:core-api/shape-rules` R11's third grammar is
 //!   the CLDR date pattern, and `rule:security/sink-predicate`'s corollary makes a grammar a
 //!   sink wherever it is declared: the three `format` members' one parameter,
-//!   and `Core\Time::parse`'s *second*. A pattern is an instruction to
+//!   and `Core\Time\DateTime::parse`'s *second*. A pattern is an instruction to
 //!   [`crate::cldr`], so a `tainted` one is refused rather than compiled.
-//! * **Every parsed text is [`Qual::Neutral`]** — `Core\Time::fromIso`,
-//!   `Core\Time::parse`'s first argument, `Duration::parse` and `Zone::of`.
+//! * **Every parsed text is [`Qual::Neutral`]** — `Core\Time\Instant::fromIso`,
+//!   `Core\Time\DateTime::parse`'s first argument, `Duration::parse` and `Zone::of`.
 //!   Each answers a value from a **closed space**: an instant, a civil
 //!   date-time, a magnitude of nanoseconds, an entry of the IANA roster. No
 //!   byte of the argument survives into any of them, and rendering one back
@@ -1209,7 +1209,33 @@ pub const INSTANT_NAME: &str = r"Core\Time\Instant";
 pub const INSTANT: CoreClass = CoreClass {
     name: INSTANT_NAME,
     doc: Some(&INSTANT_CARD),
-    methods: &[],
+    methods: &[
+        CoreMethod {
+            name: "fromEpoch",
+            names: &["seconds"],
+            params: &[
+                CoreTy::Int,
+                CoreTy::Options(&[CoreOption {
+                    name: "nanos",
+                    ty: CoreTy::Uint,
+                    default: Const::Uint(0),
+                }]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(INSTANT_NAME),
+            symbol: "nvs_core_time_instant_from_epoch",
+            doc: Some(&INSTANT_FROM_EPOCH_DOC),
+        },
+        CoreMethod {
+            name: "fromIso",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(INSTANT_NAME),
+            symbol: "nvs_core_time_instant_from_iso",
+            doc: Some(&INSTANT_FROM_ISO_DOC),
+        },
+    ],
     instance: &[
         CoreMethod {
             name: "in",
@@ -1391,8 +1417,8 @@ const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Instant`'s class card — `rule:core-api/reference-card`.
 const INSTANT_CARD: ClassDoc = ClassDoc {
     short: "One exact point in time, the same everywhere in the world. It has no time zone \
-            and no calendar. `Core\\Time::now`, `Core\\Time::fromEpoch` and \
-            `Core\\Time::fromIso` return one. `plus`, `minus` and `since` do exact arithmetic \
+            and no calendar. `Core\\Time::now`, `Core\\Time\\Instant::fromEpoch` and \
+            `Core\\Time\\Instant::fromIso` return one. `plus`, `minus` and `since` do exact arithmetic \
             with a `Duration`, and `in` shows the instant on a zone's calendar.",
 };
 
@@ -1427,9 +1453,60 @@ pub(crate) const INSTANT_SECONDS_SLOT: usize = 0;
 /// See [`INSTANT_SECONDS_SLOT`].
 pub(crate) const INSTANT_NANOS_SLOT: usize = 1;
 
+/// `Core\Time\Instant::fromEpoch`'s reference card — `rule:core-api/reference-card`.
+const INSTANT_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
+    short: "Builds the instant at a Unix timestamp. The `nanos` option is added after the second, \
+            so `-1` with `{ nanos: 1 }` is one nanosecond after `-1`.",
+    params: &[
+        ParamDoc {
+            name: "seconds",
+            desc: "Whole seconds since `1970-01-01T00:00:00Z`; negative before it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nanos",
+            desc: "Nanoseconds to add on top of the second, below `1000000000`; the default is \
+                   `0`.",
+            shape: &[],
+        },
+    ],
+    ret: "The `Instant`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`nanos` is not below `1000000000`, or `$seconds` is outside \
+               `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to \
+               `9999-12-30T22:00:00Z`.",
+    }],
+};
+
+/// `Core\Time\Instant::fromIso`'s reference card — `rule:core-api/reference-card`.
+const INSTANT_FROM_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as \
+            `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no \
+            offset, use `DateTime::fromIso` with a zone. A `$text` written directly in the \
+            code is checked when the program compiles.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The timestamp text, with a date, `T` or one space, a time and a `Z` or \
+               `±HH:MM` offset.",
+        shape: &[],
+    }],
+    ret: "The `Instant` the text names.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not such a timestamp. The error names the part of the text where \
+               reading stopped. It is also thrown for a time outside \
+               `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
+    }],
+};
+
 /// [`INSTANT`]'s symbols.
 fn instant_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_time_instant_from_epoch" => {
+            (nvs_core_time_instant_from_epoch as *const ()).cast()
+        }
+        "nvs_core_time_instant_from_iso" => (nvs_core_time_instant_from_iso as *const ()).cast(),
         "nvs_core_time_instant_in" => (nvs_core_time_instant_in as *const ()).cast(),
         "nvs_core_time_instant_to_epoch_seconds" => {
             (nvs_core_time_instant_to_epoch_seconds as *const ()).cast()
@@ -1666,7 +1743,43 @@ const WITH_OPTIONS: &[CoreOption] = &[
 pub const DATETIME: CoreClass = CoreClass {
     name: DATETIME_NAME,
     doc: Some(&DATETIME_CARD),
-    methods: &[],
+    methods: &[
+        CoreMethod {
+            name: "at",
+            names: &["date", "time", "zone"],
+            params: &[
+                CoreTy::Instance(DATE_NAME),
+                CoreTy::Instance(TIME_OF_DAY_NAME),
+                CoreTy::Instance(ZONE_NAME),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATETIME_NAME),
+            symbol: "nvs_core_time_datetime_at",
+            doc: Some(&DATETIME_AT_DOC),
+        },
+        CoreMethod {
+            name: "fromIso",
+            names: &["text", "zone"],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Instance(ZONE_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATETIME_NAME),
+            symbol: "nvs_core_time_datetime_from_iso",
+            doc: Some(&DATETIME_FROM_ISO_DOC),
+        },
+        CoreMethod {
+            name: "parse",
+            names: &["text", "format", "zone"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Instance(ZONE_NAME),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATETIME_NAME),
+            symbol: "nvs_core_time_datetime_parse",
+            doc: Some(&DATETIME_PARSE_DOC),
+        },
+    ],
     instance: &[
         CoreMethod {
             name: "format",
@@ -1892,7 +2005,7 @@ pub const DATETIME: CoreClass = CoreClass {
 /// `Core\Time\DateTime`'s class card — `rule:core-api/reference-card`.
 const DATETIME_CARD: ClassDoc = ClassDoc {
     short: "A date and a time of day in one time zone, such as the start of a meeting in \
-            Berlin. `Core\\Time::at` builds one from its parts, and `in` on an `Instant` gives \
+            Berlin. `Core\\Time\\DateTime::at` builds one from its parts, and `in` on an `Instant` gives \
             one for a moment. `date` and `timeOfDay` return its two halves, and `format` turns \
             it into text.",
 };
@@ -2260,9 +2373,120 @@ const DATETIME_NANOS_SLOT: usize = 1;
 /// See [`DATETIME_SECONDS_SLOT`].
 const DATETIME_ZONE_SLOT: usize = 2;
 
+/// `Core\Time\DateTime::parse`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Reads a date and time with a CLDR pattern and places it in `$zone`. A `$format` \
+            written directly in the code is checked when the program compiles. A malformed one is \
+            error `E0769`. A field the pattern does not contain is set to the start of its range.",
+    params: &[
+        ParamDoc {
+            name: "text",
+            desc: "The text to read. The result does not keep a qualifier of the text, such \
+                   as `tainted`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "format",
+            desc: "A CLDR pattern with date and time letters only, such as `yyyy-MM-dd HH:mm`. \
+                   `$zone` gives the zone. A pattern is a small language, so a `tainted` \
+                   pattern is not allowed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "zone",
+            desc: "The zone the date and time are read in. If the zone skips the time, the \
+                   result moves forward past the gap.",
+            shape: &[],
+        },
+    ],
+    ret: "The `DateTime` in `$zone`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$format` is not valid. It has a pattern letter that is not supported or a \
+                   quote that is not closed. It is also thrown when `$format` has a zone or \
+                   offset letter, because `$zone` already gives the zone. For a `$format` \
+                   written directly in the code, only an invalid pattern is error `E0769`. A \
+                   zone or offset letter is a valid pattern that only this method does not \
+                   allow. So it throws this error however `$format` was written.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$text` does not match `$format`. Fixed text differs, a number has no digits, \
+                   there is extra text at the end, or the parts together are not a real date \
+                   and time. It is also thrown for a time outside \
+                   `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
+        },
+    ],
+};
+
+/// `Core\Time\DateTime::at`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_AT_DOC: MethodDoc = MethodDoc {
+    short: "Builds a date and time in `$zone` from a `Date` and a `TimeOfDay`. It is the \
+            reverse of `date()`, `timeOfDay()` and `zone()`. If the zone skips the time, such \
+            as 02:30 on the morning the clocks go forward, the result moves forward past the \
+            gap. Each call builds one `DateTime`. Building the `Date` and the `TimeOfDay` first \
+            adds two small objects.",
+    params: &[
+        ParamDoc {
+            name: "date",
+            desc: "The date, such as `Date::at(2024, 3, 1)`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "time",
+            desc: "The time of day, such as `TimeOfDay::at(9, 30)`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "zone",
+            desc: "The zone the date and the time are read in.",
+            shape: &[],
+        },
+    ],
+    ret: "The `DateTime` in `$zone`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The time is outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`. This can \
+               only happen on the first or the last day of the range.",
+    }],
+};
+
+/// `Core\Time\DateTime::fromIso`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Reads a date and time in the ISO 8601 form, such as `2024-03-01T09:30`, and places \
+            it in `$zone`. A date alone, such as `2024-03-01`, is the first moment of that day. \
+            If the zone skips the time, the result moves forward past the gap. A `$text` \
+            written directly in the code is checked when the program compiles.",
+    params: &[
+        ParamDoc {
+            name: "text",
+            desc: "`YYYY-MM-DD`, or a date, `T` or one space, and a time. The time is `HH:MM`, \
+                   `HH:MM:SS` or `HH:MM:SS` with one to nine digits after a `.`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "zone",
+            desc: "The zone the date and the time are read in.",
+            shape: &[],
+        },
+    ],
+    ret: "The `DateTime` in `$zone`.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not in this form, or it is not a real date or time, such as \
+               `2024-02-30`. A text with an offset or a `Z` also throws this error. Read such a \
+               text with `Instant::fromIso`, then call `->in($zone)`. It is also thrown for a \
+               time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
+    }],
+};
+
 /// [`DATETIME`]'s symbols.
 fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
+        "nvs_core_time_datetime_at" => (nvs_core_time_datetime_at as *const ()).cast(),
+        "nvs_core_time_datetime_from_iso" => (nvs_core_time_datetime_from_iso as *const ()).cast(),
+        "nvs_core_time_datetime_parse" => (nvs_core_time_datetime_parse as *const ()).cast(),
         "nvs_core_time_datetime_format" => return Some(nvs_core_time_datetime_format::entry()),
         "nvs_core_time_datetime_plus" => (nvs_core_time_datetime_plus as *const ()).cast(),
         "nvs_core_time_datetime_minus" => (nvs_core_time_datetime_minus as *const ()).cast(),
@@ -2345,80 +2569,6 @@ pub const TIME: CoreClass = CoreClass {
             symbol: "nvs_core_time_sleep",
             doc: Some(&TIME_SLEEP_DOC),
         },
-        CoreMethod {
-            name: "fromEpoch",
-            names: &["seconds"],
-            params: &[
-                CoreTy::Int,
-                CoreTy::Options(&[CoreOption {
-                    name: "nanos",
-                    ty: CoreTy::Uint,
-                    default: Const::Uint(0),
-                }]),
-            ],
-            defaults: &[],
-            return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "nvs_core_time_from_epoch",
-            doc: Some(&TIME_FROM_EPOCH_DOC),
-        },
-        CoreMethod {
-            name: "fromIso",
-            names: &["text"],
-            params: &[CoreTy::Text(Qual::Neutral)],
-            defaults: &[],
-            return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "nvs_core_time_from_iso",
-            doc: Some(&TIME_FROM_ISO_DOC),
-        },
-        CoreMethod {
-            name: "parse",
-            names: &["text", "format", "zone"],
-            params: &[
-                CoreTy::Text(Qual::Neutral),
-                CoreTy::Text(Qual::Sink),
-                CoreTy::Instance(ZONE_NAME),
-            ],
-            defaults: &[],
-            return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "nvs_core_time_parse",
-            doc: Some(&TIME_PARSE_DOC),
-        },
-        CoreMethod {
-            name: "at",
-            names: &["year", "month", "day", "zone"],
-            params: &[
-                CoreTy::Int,
-                CoreTy::Uint,
-                CoreTy::Uint,
-                CoreTy::Instance(ZONE_NAME),
-                CoreTy::Options(&[
-                    CoreOption {
-                        name: "hour",
-                        ty: CoreTy::Uint,
-                        default: Const::Uint(0),
-                    },
-                    CoreOption {
-                        name: "minute",
-                        ty: CoreTy::Uint,
-                        default: Const::Uint(0),
-                    },
-                    CoreOption {
-                        name: "second",
-                        ty: CoreTy::Uint,
-                        default: Const::Uint(0),
-                    },
-                    CoreOption {
-                        name: "nanos",
-                        ty: CoreTy::Uint,
-                        default: Const::Uint(0),
-                    },
-                ]),
-            ],
-            defaults: &[],
-            return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "nvs_core_time_at",
-            doc: Some(&TIME_AT_DOC),
-        },
     ],
     instance: &[],
     slots: &[],
@@ -2427,9 +2577,9 @@ pub const TIME: CoreClass = CoreClass {
 
 /// `Core\Time`'s class card — `rule:core-api/reference-card`.
 const TIME_CARD: ClassDoc = ClassDoc {
-    short: "Reads the clock and builds dates and times. `now` returns the current `Instant`. \
-            `at` builds a `DateTime` from a year, a month, a day and a zone, and `fromIso` reads \
-            a timestamp such as `2024-03-01T12:00:00Z`. `sleep` waits for a `Duration`.",
+    short: "Reads the clock and waits. `now` returns the current `Instant`, `monotonic` \
+            measures how long something takes, and `sleep` waits for a `Duration`. Each value \
+            class builds its own values, such as `Date::fromIso('2024-03-01')`.",
 };
 
 /// `Core\Time::now`'s reference card — `rule:core-api/reference-card`.
@@ -2464,166 +2614,12 @@ const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time::fromEpoch`'s reference card — `rule:core-api/reference-card`.
-const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
-    short: "Builds the instant at a Unix timestamp. The `nanos` option is added after the second, \
-            so `-1` with `{ nanos: 1 }` is one nanosecond after `-1`.",
-    params: &[
-        ParamDoc {
-            name: "seconds",
-            desc: "Whole seconds since `1970-01-01T00:00:00Z`; negative before it.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "nanos",
-            desc: "Nanoseconds to add on top of the second, below `1000000000`; the default is \
-                   `0`.",
-            shape: &[],
-        },
-    ],
-    ret: "The `Instant`.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "`nanos` is not below `1000000000`, or `$seconds` is outside \
-               `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to \
-               `9999-12-30T22:00:00Z`.",
-    }],
-};
-
-/// `Core\Time::fromIso`'s reference card — `rule:core-api/reference-card`.
-const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
-    short: "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as \
-            `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no \
-            offset, use `Time::parse` with a zone. For a relative time, use a method such as \
-            `plus` or `next`.",
-    params: &[ParamDoc {
-        name: "text",
-        desc: "The timestamp text, with a date, a time and a `Z` or `±HH:MM` offset.",
-        shape: &[],
-    }],
-    ret: "The `Instant` the text names.",
-    errors: &[ErrorDoc {
-        error: "ParseError",
-        desc: "`$text` is not such a timestamp. The error names the part of the text where \
-               reading stopped. It is also thrown for a time outside \
-               `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
-    }],
-};
-
-/// `Core\Time::parse`'s reference card — `rule:core-api/reference-card`.
-const TIME_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads a date and time with a CLDR pattern and places it in `$zone`. A `$format` \
-            written directly in the code is checked when the program compiles. A malformed one is \
-            error `E0769`. A field the pattern does not contain is set to the start of its range.",
-    params: &[
-        ParamDoc {
-            name: "text",
-            desc: "The text to read. The result does not keep a qualifier of the text, such \
-                   as `tainted`.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "format",
-            desc: "A CLDR pattern with date and time letters only, such as `yyyy-MM-dd HH:mm`. \
-                   `$zone` gives the zone. A pattern is a small language, so a `tainted` \
-                   pattern is not allowed.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "zone",
-            desc: "The zone the date and time are read in. If the zone skips the time, the \
-                   result moves forward past the gap.",
-            shape: &[],
-        },
-    ],
-    ret: "The `DateTime` in `$zone`.",
-    errors: &[
-        ErrorDoc {
-            error: "LogicError",
-            desc: "`$format` is not valid. It has a pattern letter that is not supported or a \
-                   quote that is not closed. It is also thrown when `$format` has a zone or \
-                   offset letter, because `$zone` already gives the zone. For a `$format` \
-                   written directly in the code, only an invalid pattern is error `E0769`. A \
-                   zone or offset letter is a valid pattern that only this method does not \
-                   allow. So it throws this error however `$format` was written.",
-        },
-        ErrorDoc {
-            error: "ParseError",
-            desc: "`$text` does not match `$format`. Fixed text differs, a number has no digits, \
-                   there is extra text at the end, or the parts together are not a real date \
-                   and time. It is also thrown for a time outside \
-                   `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
-        },
-    ],
-};
-
-/// `Core\Time::at`'s reference card — `rule:core-api/reference-card`.
-const TIME_AT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a date and time in `$zone` from its fields. The clock fields default to \
-            midnight. If the zone skips the time, such as 02:30 on the morning the clocks go \
-            forward, the result moves forward past the gap.",
-    params: &[
-        ParamDoc {
-            name: "year",
-            desc: "The year, within `-9999..=9999`. The time as a whole must also lie between \
-                   `-9999-01-02T01:59:59Z` and `9999-12-30T22:00:00Z`.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "month",
-            desc: "The month, `1` to `12`.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "day",
-            desc: "The day of the month, which must exist in that month.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "zone",
-            desc: "The zone the fields are read in.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "hour",
-            desc: "The hour, `0` to `23`; the default is `0`.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "minute",
-            desc: "The minute, `0` to `59`; the default is `0`.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "second",
-            desc: "The second, `0` to `59`; the default is `0`.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "nanos",
-            desc: "The subsecond nanoseconds, below `1000000000`; the default is `0`.",
-            shape: &[],
-        },
-    ],
-    ret: "The `DateTime` in `$zone`.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "A field is outside its range, or the fields together are not a date that exists, \
-               such as `30` February. Or the time is past either end of the range `$year` \
-               allows.",
-    }],
-};
-
 /// [`TIME`]'s symbols.
 fn time_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_time_now" => (nvs_core_time_now as *const ()).cast(),
         "nvs_core_time_monotonic" => (nvs_core_time_monotonic as *const ()).cast(),
         "nvs_core_time_sleep" => (nvs_core_time_sleep as *const ()).cast(),
-        "nvs_core_time_from_epoch" => (nvs_core_time_from_epoch as *const ()).cast(),
-        "nvs_core_time_from_iso" => (nvs_core_time_from_iso as *const ()).cast(),
-        "nvs_core_time_parse" => (nvs_core_time_parse as *const ()).cast(),
-        "nvs_core_time_at" => (nvs_core_time_at as *const ()).cast(),
         _ => return None,
     })
 }
@@ -2683,15 +2679,26 @@ const DATE_WITH_OPTIONS: &[CoreOption] = &[
 pub const DATE: CoreClass = CoreClass {
     name: DATE_NAME,
     doc: Some(&DATE_CARD),
-    methods: &[CoreMethod {
-        name: "at",
-        names: &["y", "m", "d"],
-        params: &[CoreTy::Int, CoreTy::Uint, CoreTy::Uint],
-        defaults: &[],
-        return_ty: CoreTy::Instance(DATE_NAME),
-        symbol: "nvs_core_time_date_at",
-        doc: Some(&DATE_AT_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "at",
+            names: &["y", "m", "d"],
+            params: &[CoreTy::Int, CoreTy::Uint, CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            symbol: "nvs_core_time_date_at",
+            doc: Some(&DATE_AT_DOC),
+        },
+        CoreMethod {
+            name: "fromIso",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            symbol: "nvs_core_time_date_from_iso",
+            doc: Some(&DATE_FROM_ISO_DOC),
+        },
+    ],
     instance: &[
         CoreMethod {
             name: "format",
@@ -2792,15 +2799,6 @@ pub const DATE: CoreClass = CoreClass {
             symbol: "nvs_core_time_date_day",
             doc: Some(&DATE_DAY_DOC),
         },
-        CoreMethod {
-            name: "atStartOfDay",
-            names: &["zone"],
-            params: &[CoreTy::Instance(ZONE_NAME)],
-            defaults: &[],
-            return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "nvs_core_time_date_at_start_of_day",
-            doc: Some(&DATE_AT_START_OF_DAY_DOC),
-        },
     ],
     slots: &["year", "month", "day"],
     constants: &[],
@@ -2838,6 +2836,23 @@ const DATE_AT_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "A field is outside its range, or the three together are not a date that exists.",
+    }],
+};
+
+/// `Core\Time\Date::fromIso`'s reference card — `rule:core-api/reference-card`.
+const DATE_FROM_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` \
+            written directly in the code is checked when the program compiles.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The date as `YYYY-MM-DD`. A year before year 1 starts with `-`.",
+        shape: &[],
+    }],
+    ret: "The `Date`.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not in this form, such as `2024-3-1`, or it is not a real date, such \
+               as `2024-02-30`. The error says which part is wrong.",
     }],
 };
 
@@ -3011,24 +3026,6 @@ const DATE_DAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Date::atStartOfDay`'s reference card — `rule:core-api/reference-card`.
-const DATE_AT_START_OF_DAY_DOC: MethodDoc = MethodDoc {
-    short: "Returns the first moment of this date in a time zone, as a `DateTime`. This is \
-            usually midnight. In some zones the clocks skip midnight on one day of the year. \
-            On that day, the result is the first time that exists, such as `01:00`.",
-    params: &[ParamDoc {
-        name: "zone",
-        desc: "The time zone the day starts in.",
-        shape: &[],
-    }],
-    ret: "A new `DateTime` on this date in `$zone`. Use `withTime` on it to set another time.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The first or the last day of the range, in a zone whose start of that day is \
-               outside the range of times Novis supports.",
-    }],
-};
-
 /// [`DATE`]'s slots, by index.
 const DATE_YEAR_SLOT: usize = 0;
 /// See [`DATE_YEAR_SLOT`].
@@ -3040,6 +3037,7 @@ const DATE_DAY_SLOT: usize = 2;
 fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_time_date_at" => (nvs_core_time_date_at as *const ()).cast(),
+        "nvs_core_time_date_from_iso" => (nvs_core_time_date_from_iso as *const ()).cast(),
         "nvs_core_time_date_format" => return Some(nvs_core_time_date_format::entry()),
         "nvs_core_time_date_plus" => (nvs_core_time_date_plus as *const ()).cast(),
         "nvs_core_time_date_minus" => (nvs_core_time_date_minus as *const ()).cast(),
@@ -3051,9 +3049,6 @@ fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_date_year" => (nvs_core_time_date_year as *const ()).cast(),
         "nvs_core_time_date_month" => (nvs_core_time_date_month as *const ()).cast(),
         "nvs_core_time_date_day" => (nvs_core_time_date_day as *const ()).cast(),
-        "nvs_core_time_date_at_start_of_day" => {
-            (nvs_core_time_date_at_start_of_day as *const ()).cast()
-        }
         _ => return None,
     }))
 }
@@ -3125,15 +3120,26 @@ const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
 pub const TIME_OF_DAY: CoreClass = CoreClass {
     name: TIME_OF_DAY_NAME,
     doc: Some(&TIME_OF_DAY_CARD),
-    methods: &[CoreMethod {
-        name: "at",
-        names: &["hour", "minute"],
-        params: &[CoreTy::Uint, CoreTy::Uint, CoreTy::Options(AT_OPTIONS)],
-        defaults: &[],
-        return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
-        symbol: "nvs_core_time_of_day_at",
-        doc: Some(&TIME_OF_DAY_AT_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "at",
+            names: &["hour", "minute"],
+            params: &[CoreTy::Uint, CoreTy::Uint, CoreTy::Options(AT_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+            symbol: "nvs_core_time_of_day_at",
+            doc: Some(&TIME_OF_DAY_AT_DOC),
+        },
+        CoreMethod {
+            name: "fromIso",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+            symbol: "nvs_core_time_of_day_from_iso",
+            doc: Some(&TIME_OF_DAY_FROM_ISO_DOC),
+        },
+    ],
     instance: &[
         CoreMethod {
             name: "format",
@@ -3259,6 +3265,23 @@ const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "A field is outside its range, for example an hour of `24`.",
+    }],
+};
+
+/// `Core\Time\TimeOfDay::fromIso`'s reference card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_FROM_ISO_DOC: MethodDoc = MethodDoc {
+    short: "Reads a time of day in the ISO 8601 form, such as `09:30` or `09:30:15.5`. A \
+            `$text` written directly in the code is checked when the program compiles.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "`HH:MM`, `HH:MM:SS`, or `HH:MM:SS` with one to nine digits after a `.`.",
+        shape: &[],
+    }],
+    ret: "The `TimeOfDay`.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "`$text` is not in this form, or a field is outside its range, such as `24:00`. \
+               The error says which part is wrong.",
     }],
 };
 
@@ -3438,6 +3461,7 @@ const CLOCK_NANOS_SLOT: usize = 3;
 fn time_of_day_address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_time_of_day_at" => (nvs_core_time_of_day_at as *const ()).cast(),
+        "nvs_core_time_of_day_from_iso" => (nvs_core_time_of_day_from_iso as *const ()).cast(),
         "nvs_core_time_of_day_format" => return Some(nvs_core_time_of_day_format::entry()),
         "nvs_core_time_of_day_plus" => (nvs_core_time_of_day_plus as *const ()).cast(),
         "nvs_core_time_of_day_minus" => (nvs_core_time_of_day_minus as *const ()).cast(),
@@ -3638,7 +3662,7 @@ fn instant_built(at: Timestamp) -> Value {
 }
 
 /// The `Instant` `text` names, read as the RFC 3339 timestamp
-/// [`nvs_core_time_from_iso`] reads — `None` where it is not one.
+/// [`nvs_core_time_instant_from_iso`] reads — `None` where it is not one.
 ///
 /// The parse without the throw, because [`crate::json`]'s wire form of this
 /// type is this spelling and a document carrying anything else is a bad
@@ -3646,6 +3670,224 @@ fn instant_built(at: Timestamp) -> Value {
 /// fit, rather than ending the decode where it was met.
 pub(crate) fn instant_from_iso(text: &str) -> Option<Value> {
     text.parse::<Timestamp>().ok().map(instant_built)
+}
+
+// ============================================================================
+// The `fromIso` grammar — one reader per class, shared with the checker
+// ============================================================================
+
+/// Which class's ISO 8601 form a text is read as — the argument
+/// `nvs_types::intrinsics` passes to [`validate_iso`] for a written literal.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum IsoForm {
+    /// `Instant::fromIso`: a date, a time and an offset or `Z`.
+    Instant,
+    /// `Date::fromIso`: `YYYY-MM-DD`.
+    Date,
+    /// `TimeOfDay::fromIso`: `HH:MM`, `HH:MM:SS` or `HH:MM:SS.f`.
+    TimeOfDay,
+    /// `DateTime::fromIso`: a date, or a date, `T` or one space, and a time.
+    DateTime,
+}
+
+/// `Ok` where `text` is a value of `form`'s class, and the sentence the member
+/// would throw with where it is not.
+///
+/// The member reads the text with the same function, so a literal the checker
+/// accepts is one the call reads (`rule:expressions/preparation-preserves-behaviour`).
+/// A `DateTime` text is read without its zone: a time the zone would put past
+/// either end of the range is a run-time refusal alone.
+///
+/// # Errors
+///
+/// The reason `text` is not a value of that class.
+pub fn validate_iso(form: IsoForm, text: &str) -> Result<(), String> {
+    match form {
+        IsoForm::Instant => iso_instant(text).map(drop),
+        IsoForm::Date => iso_date(text).map(drop),
+        IsoForm::TimeOfDay => iso_time(text).map(drop),
+        IsoForm::DateTime => iso_datetime(text).map(drop),
+    }
+}
+
+/// The instant `text` names, read with `jiff`'s RFC 3339 reader, which takes
+/// `T` or a space between the date and the time.
+///
+/// For a text that is not written as a timestamp, the sentence is `jiff`'s,
+/// since it says which part it stopped at. A text written as one that still
+/// fails names a time past either end of the range.
+fn iso_instant(text: &str) -> Result<Timestamp, String> {
+    text.parse::<Timestamp>().map_err(|err| {
+        let written_as_one = Pieces::parse(text.as_bytes())
+            .is_ok_and(|read| read.time().is_some() && read.offset().is_some());
+        if written_as_one {
+            PAST_THE_RANGE.to_owned()
+        } else {
+            err.to_string()
+        }
+    })
+}
+
+/// A run of exactly `width` ASCII digits at `at`, as a number, or the sentence
+/// naming `what` and the form it is written in.
+fn iso_digits(
+    bytes: &[u8],
+    at: usize,
+    width: usize,
+    what: &str,
+    form: &str,
+) -> Result<i64, String> {
+    let digits = bytes
+        .get(at..at + width)
+        .filter(|run| run.iter().all(u8::is_ascii_digit));
+    let Some(digits) = digits else {
+        return Err(format!(
+            "the {what} is {width} digits, in the form `{form}`"
+        ));
+    };
+    Ok(digits
+        .iter()
+        .fold(0, |sum, digit| sum * 10 + i64::from(digit - b'0')))
+}
+
+/// `byte` at `at`, or the sentence naming what was expected there.
+fn iso_expect(bytes: &[u8], at: usize, byte: u8, form: &str) -> Result<(), String> {
+    if bytes.get(at) == Some(&byte) {
+        Ok(())
+    } else {
+        Err(format!(
+            "expected `{}` at byte {at}, in the form `{form}`",
+            char::from(byte)
+        ))
+    }
+}
+
+/// The date at the start of `bytes` and where it ends: `YYYY-MM-DD`, with a
+/// `-` before the year for a year before year 1.
+fn iso_date_prefix(bytes: &[u8]) -> Result<(civil::Date, usize), String> {
+    const FORM: &str = "YYYY-MM-DD";
+    let signed = bytes.first() == Some(&b'-');
+    let start = usize::from(signed);
+    let year = iso_digits(bytes, start, 4, "year", FORM)?;
+    iso_expect(bytes, start + 4, b'-', FORM)?;
+    let month = iso_digits(bytes, start + 5, 2, "month", FORM)?;
+    iso_expect(bytes, start + 7, b'-', FORM)?;
+    let day = iso_digits(bytes, start + 8, 2, "day", FORM)?;
+    let year = if signed { -year } else { year };
+    if !(1..=12).contains(&month) {
+        return Err(format!(
+            "the month is `{month:02}`, and a month is `01` to `12`"
+        ));
+    }
+    let date = parts(year, month, day)
+        .and_then(|(year, month, day)| civil::Date::new(year, month, day).ok())
+        .ok_or_else(|| format!("{year:04}-{month:02} has no day {day:02}"))?;
+    Ok((date, start + 10))
+}
+
+/// The time of day at the start of `bytes` and where it ends: `HH:MM`,
+/// `HH:MM:SS` or `HH:MM:SS.f` with one to nine fraction digits.
+fn iso_time_prefix(bytes: &[u8]) -> Result<(civil::Time, usize), String> {
+    const FORM: &str = "HH:MM:SS";
+    let hour = iso_digits(bytes, 0, 2, "hour", FORM)?;
+    iso_expect(bytes, 2, b':', FORM)?;
+    let minute = iso_digits(bytes, 3, 2, "minute", FORM)?;
+    let mut end = 5;
+    let mut second = 0;
+    let mut nanos = 0;
+    if bytes.get(end) == Some(&b':') {
+        second = iso_digits(bytes, end + 1, 2, "second", FORM)?;
+        end += 3;
+        if bytes.get(end) == Some(&b'.') {
+            let digits = bytes[end + 1..]
+                .iter()
+                .take_while(|byte| byte.is_ascii_digit())
+                .count();
+            if !(1..=9).contains(&digits) {
+                return Err("the fraction of a second is one to nine digits".to_owned());
+            }
+            let fraction = iso_digits(bytes, end + 1, digits, "fraction", FORM)?;
+            let scale = 10_i64.pow(u32::try_from(9 - digits).unwrap_or(0));
+            nanos = fraction * scale;
+            end += 1 + digits;
+        }
+    }
+    if hour > 23 {
+        return Err(format!(
+            "the hour is `{hour:02}`, and an hour is `00` to `23`"
+        ));
+    }
+    if minute > 59 {
+        return Err(format!(
+            "the minute is `{minute:02}`, and a minute is `00` to `59`"
+        ));
+    }
+    if second > 59 {
+        return Err(format!(
+            "the second is `{second:02}`, and a second is `00` to `59`"
+        ));
+    }
+    let time = clock_from_parts(hour, minute, second, nanos)
+        .ok_or_else(|| format!("`{hour:02}:{minute:02}:{second:02}` is not a time of day"))?;
+    Ok((time, end))
+}
+
+/// The sentence for text left after a whole value was read.
+fn iso_rest(bytes: &[u8], at: usize, form: &str) -> Result<(), String> {
+    if at == bytes.len() {
+        Ok(())
+    } else {
+        Err(format!(
+            "unexpected text at byte {at}, after the `{form}` value"
+        ))
+    }
+}
+
+/// The date `text` names: `Date::fromIso`'s grammar.
+fn iso_date(text: &str) -> Result<civil::Date, String> {
+    let bytes = text.as_bytes();
+    let (date, end) = iso_date_prefix(bytes)?;
+    iso_rest(bytes, end, "YYYY-MM-DD")?;
+    Ok(date)
+}
+
+/// The time of day `text` names: `TimeOfDay::fromIso`'s grammar.
+fn iso_time(text: &str) -> Result<civil::Time, String> {
+    let bytes = text.as_bytes();
+    let (time, end) = iso_time_prefix(bytes)?;
+    iso_rest(bytes, end, "HH:MM:SS")?;
+    Ok(time)
+}
+
+/// The civil date and time `text` names: `DateTime::fromIso`'s grammar. A date
+/// alone is midnight on it, and the caller resolves midnight in a zone.
+///
+/// An offset or a `Z` after the time is refused with a sentence that names the
+/// member that reads one, because the zone is `DateTime::fromIso`'s second
+/// argument.
+fn iso_datetime(text: &str) -> Result<civil::DateTime, String> {
+    let bytes = text.as_bytes();
+    let (date, end) = iso_date_prefix(bytes)?;
+    if end == bytes.len() {
+        return Ok(date.to_datetime(civil::Time::midnight()));
+    }
+    if !matches!(bytes[end], b'T' | b' ') {
+        return Err(format!(
+            "expected `T` or a space at byte {end}, between the date and the time"
+        ));
+    }
+    let start = end + 1;
+    let (time, end) = iso_time_prefix(&bytes[start..])?;
+    let end = start + end;
+    if matches!(bytes.get(end), Some(b'Z' | b'z' | b'+' | b'-')) {
+        return Err(
+            "the text has an offset, and the zone is the second argument. Read a text with an \
+             offset with `Core\\Time\\Instant::fromIso`, then call `->in($zone)`"
+                .to_owned(),
+        );
+    }
+    iso_rest(bytes, end, "YYYY-MM-DDTHH:MM:SS")?;
+    Ok(date.to_datetime(time))
 }
 
 /// `value`'s RFC 3339 rendering, where it is an `Instant` — `$i->toIso()`'s
@@ -4129,13 +4371,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time::fromEpoch(int $seconds, { nanos?: uint }): Instant`.
+    /// `Core\Time\Instant::fromEpoch(int $seconds, { nanos?: uint }): Instant`.
     ///
     /// The `nanos` option is added *after* the second, rather than written
     /// into the slot beside it, so that a negative second and a positive
     /// `nanos` mean what a reader expects — one nanosecond after
     /// `-1`, not one before it.
-    fn nvs_core_time_from_epoch(_ctx, args: [2]) {
+    fn nvs_core_time_instant_from_epoch(_ctx, args: [2]) {
         let seconds = count(args, 0, "fromEpoch")?;
         // Unreachable from source: `nanos` is a `CoreTy::Uint` option in
         // `CLASS` above, so anything else is `E0401: expected uint, found
@@ -4143,13 +4385,13 @@ nvs_runtime::nvs_helper! {
         // which is where an option is written and where it was probed.
         let nanos = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Time::fromEpoch expected a `uint` for `nanos`, got tag {}",
+                "Core\\Time\\Instant::fromEpoch expected a `uint` for `nanos`, got tag {}",
                 args[1].tag_byte()
             ))
         })?;
         if nanos >= 1_000_000_000 {
             return Err(out_of_range(
-                r"Core\Time::fromEpoch",
+                r"Core\Time\Instant::fromEpoch",
                 "`nanos` is a subsecond count, so it is below 1000000000",
             ));
         }
@@ -4159,7 +4401,7 @@ nvs_runtime::nvs_helper! {
         // 999999999 nanoseconds, so the second failure is unreachable too.
         let outside = || {
             out_of_range(
-                r"Core\Time::fromEpoch",
+                r"Core\Time\Instant::fromEpoch",
                 "`seconds` is outside -377705023201..=253402207200",
             )
         };
@@ -4176,37 +4418,71 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The `ParseError` a `fromIso` member throws for `why`.
+fn iso_refused(member: &str, why: &str) -> Fault {
+    Fault::thrown_as(ThrownClass::Parse, format!("{member}(): {why}"))
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Time::fromIso(string $text): Instant` — an ISO-8601 timestamp
+    /// `Instant::fromIso(string $text): Instant` — an ISO-8601 timestamp
     /// that carries its own offset, which is the whole of what `strtotime`
     /// replaces here. A relative expression is not accepted in either half,
-    /// and a *civil* time with no offset is `Time::parse`, which needs
+    /// and a *civil* time with no offset is `DateTime::fromIso`, which needs
     /// a zone.
     ///
     /// The refusal is a `ParseError` on the same rule
-    /// [`nvs_core_time_parse`] splits its two classes by: this member's one
+    /// [`nvs_core_time_datetime_parse`] splits its two classes by: this member's one
     /// argument is text, which arrives from somewhere else, so a text that
     /// does not spell a timestamp is the input's failure and not the call
-    /// site's. For a text that is not written as a timestamp, the sentence
-    /// past the member's own name is `jiff`'s, since it says which component
-    /// it stopped at and nothing here could say it better. A text that is
-    /// written as one — a date, a time and an offset all read — and still
-    /// fails names a time past either end of the timestamp range, and throws
-    /// the range in the sentence [`nvs_core_time_at`] uses for the same bound.
-    fn nvs_core_time_from_iso(_ctx, args: [1]) {
-        let text = text_of(args, 0, "Core\\Time::fromIso")?;
-        text.parse::<Timestamp>()
+    /// site's. [`iso_instant`] owns the sentence.
+    fn nvs_core_time_instant_from_iso(_ctx, args: [1]) {
+        let label = r"Core\Time\Instant::fromIso";
+        let text = text_of(args, 0, label)?;
+        iso_instant(text)
             .map(instant_built)
-            .map_err(|err| {
-                let written_as_one = Pieces::parse(text.as_bytes())
-                    .is_ok_and(|read| read.time().is_some() && read.offset().is_some());
-                let why = if written_as_one {
-                    PAST_THE_RANGE.to_owned()
-                } else {
-                    err.to_string()
-                };
-                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time::fromIso(): {why}"))
-            })
+            .map_err(|why| iso_refused(label, &why))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Date::fromIso(string $text): Date` — [`iso_date`]'s `YYYY-MM-DD`.
+    fn nvs_core_time_date_from_iso(_ctx, args: [1]) {
+        let label = r"Core\Time\Date::fromIso";
+        let text = text_of(args, 0, label)?;
+        iso_date(text)
+            .map(date_built)
+            .map_err(|why| iso_refused(label, &why))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `TimeOfDay::fromIso(string $text): TimeOfDay` — [`iso_time`]'s
+    /// `HH:MM[:SS[.f]]`.
+    fn nvs_core_time_of_day_from_iso(_ctx, args: [1]) {
+        let label = r"Core\Time\TimeOfDay::fromIso";
+        let text = text_of(args, 0, label)?;
+        iso_time(text)
+            .map(clock_built)
+            .map_err(|why| iso_refused(label, &why))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `DateTime::fromIso(string $text, Zone $zone): DateTime` —
+    /// [`iso_datetime`]'s civil time, placed in `$zone` as
+    /// [`nvs_core_time_datetime_at`] places one: a skipped local time moves
+    /// forward past the gap, and a date alone is the first instant of that day.
+    ///
+    /// **What it spends:** one `DateTime`, and nothing for the text, which is
+    /// read in place.
+    fn nvs_core_time_datetime_from_iso(_ctx, args: [2]) {
+        let label = r"Core\Time\DateTime::fromIso";
+        let text = text_of(args, 0, label)?;
+        let zone = zone_of(args, 1, "fromIso")?;
+        let civil = iso_datetime(text).map_err(|why| iso_refused(label, &why))?;
+        zone.to_zoned(civil)
+            .map(|at| datetime_built(&at))
+            .map_err(|_| iso_refused(label, PAST_THE_RANGE))
     }
 }
 
@@ -4764,7 +5040,7 @@ nvs_runtime::nvs_helper! {
     /// that cannot be partial: a `TimeOfDay` carries all four clock fields, so
     /// `nanos` is replaced as surely as `hour` is and there is no
     /// omitted-option case to leave alone. The date and the zone are what stay,
-    /// which is why this is not `Core\Time::at` with three fields copied over.
+    /// which is why this is not `Core\Time\DateTime::at` with three fields copied over.
     ///
     /// Landing in a DST gap resolves the way every other `DateTime` build
     /// does — `jiff`'s compatible disambiguation, shifting forward by the gap
@@ -5039,7 +5315,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time::parse(string $text, string $format, Zone $zone): DateTime`
+    /// `Core\Time\DateTime::parse(string $text, string $format, Zone $zone): DateTime`
     /// — `DateTime::createFromFormat` and `strptime`, over [`crate::cldr`]'s
     /// patterns rather than PHP's letters.
     ///
@@ -5056,10 +5332,10 @@ nvs_runtime::nvs_helper! {
     /// the `LogicError` side of the split below rather than on the
     /// `ParseError` one — a well-formed offset in the text is not the input
     /// failing to match.
-    fn nvs_core_time_parse(_ctx, args: [4]) {
+    fn nvs_core_time_datetime_parse(_ctx, args: [4]) {
         let ready = crate::cldr::prepared_arg(&args[0]);
-        let text = text_of(args, 1, "Core\\Time::parse")?;
-        let pattern = text_of(args, 2, "Core\\Time::parse")?;
+        let text = text_of(args, 1, "Core\\Time\\DateTime::parse")?;
+        let pattern = text_of(args, 2, "Core\\Time\\DateTime::parse")?;
         let zone = zone_of(args, 3, "parse")?;
         // The two failures are different `Core\Error` classes on purpose: a
         // pattern this call site wrote wrongly is a bug in the program, while
@@ -5072,65 +5348,39 @@ nvs_runtime::nvs_helper! {
         let pieces = crate::cldr::compiled(pattern, ready)
             .and_then(|pieces| crate::cldr::civil_fields_only(&pieces).map(|()| pieces))
             .map_err(|why| {
-                Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time::parse(): {why}"))
+                Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time\\DateTime::parse(): {why}"))
             })?;
         crate::cldr::read(&pieces, text, &zone)
             .map(|at| datetime_built(&at))
             .map_err(|why| {
-                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time::parse(): {why}"))
+                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time\\DateTime::parse(): {why}"))
             })
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time::at(int $year, uint $month, uint $day, Zone $zone,
-    /// {hour?, minute?, second?, nanos?}): DateTime` — replaces `mktime`,
-    /// `gmmktime` and `DateTime::setDate`.
+    /// `DateTime::at(Date $date, TimeOfDay $time, Zone $zone): DateTime` — the
+    /// reverse of the readers `date()`, `timeOfDay()` and `zone()`, and what
+    /// replaces `mktime`, `gmmktime` and `DateTime::setDate`.
     ///
     /// A civil time the zone skips over — 02:30 on a spring-forward morning —
     /// resolves forward rather than throwing, which is [`jiff`]'s
     /// *compatible* disambiguation and the rule every other language's
-    /// calendar library settled on. There is no `checkdate`: a date that does
-    /// not exist at all throws here.
-    fn nvs_core_time_at(_ctx, args: [8]) {
-        let year = i16::try_from(count(args, 0, "at")?).map_err(|_| {
-            out_of_range(r"Core\Time::at", "a year is within -9999..=9999")
-        })?;
-        let mut fields = [0_i8; 5];
-        for (slot, (index, name)) in fields.iter_mut().zip([
-            (1, "month"),
-            (2, "day"),
-            (4, "hour"),
-            (5, "minute"),
-            (6, "second"),
-        ]) {
-            // Unreachable from source: every slot this loop reads is a
-            // `CoreTy::Uint` parameter or option in `CLASS` above, so anything
-            // else is `E0401: expected uint, found mixed` at the checker.
-            let held = args[index].as_uint().ok_or_else(|| {
-                Fault::fatal(format!(
-                    "Core\\Time::at expected a `uint` for `{name}`, got tag {}",
-                    args[index].tag_byte()
-                ))
-            })?;
-            *slot = i8::try_from(held).map_err(|_| {
-                out_of_range(r"Core\Time::at", &format!("`{name}` is out of range"))
-            })?;
-        }
-        let nanos = args[7]
-            .as_uint()
-            .and_then(|held| i32::try_from(held).ok())
-            .ok_or_else(|| out_of_range(r"Core\Time::at", "`nanos` is a subsecond count"))?;
-        let zone = zone_of(args, 3, "at")?;
-        let civil = civil::DateTime::new(
-            year, fields[0], fields[1], fields[2], fields[3], fields[4], nanos,
-        )
-        .map_err(|err| out_of_range(r"Core\Time::at", &err.to_string()))?;
+    /// calendar library settled on. A date that does not exist cannot reach
+    /// here: `Date::at` already threw for it.
+    ///
+    /// **What it spends:** one `DateTime`. Built from parts, the call also
+    /// builds the `Date` and the `TimeOfDay` it reads, two small objects more
+    /// than a seven-field constructor would.
+    fn nvs_core_time_datetime_at(_ctx, args: [3]) {
+        let date = date_of(args, 0, "at")?;
+        let time = clock_of(args, 1, "at")?;
+        let zone = zone_of(args, 2, "at")?;
         // Compatible disambiguation resolves every gap and fold, so the one
         // failure left is an instant past either end of the timestamp range.
-        zone.to_zoned(civil)
+        zone.to_zoned(date.to_datetime(time))
             .map(|at| datetime_built(&at))
-            .map_err(|_| out_of_range(r"Core\Time::at", PAST_THE_RANGE))
+            .map_err(|_| out_of_range(r"Core\Time\DateTime::at", PAST_THE_RANGE))
     }
 }
 
@@ -5415,22 +5665,6 @@ nvs_runtime::nvs_helper! {
     /// `$d->day(): uint` — the day of the month, `with`'s `day` type.
     fn nvs_core_time_date_day(_ctx, args: [1]) {
         Ok(Value::uint(date_of(args, 0, "day")?.day().unsigned_abs().into()))
-    }
-}
-
-nvs_runtime::nvs_helper! {
-    /// `$d->atStartOfDay(Zone $zone): DateTime` — midnight on the date, made
-    /// zoned the way [`nvs_core_time_at`] does it: a zone that skips midnight
-    /// resolves forward to the first civil time that exists that day, which
-    /// is [`jiff`]'s *compatible* disambiguation.
-    ///
-    /// **What it spends:** one `DateTime`, as `Core\Time::at` does.
-    fn nvs_core_time_date_at_start_of_day(_ctx, args: [2]) {
-        let at = date_of(args, 0, "atStartOfDay")?;
-        let zone = zone_of(args, 1, "atStartOfDay")?;
-        zone.to_zoned(at.to_datetime(civil::Time::midnight()))
-            .map(|start| datetime_built(&start))
-            .map_err(|_| out_of_range(r"Core\Time\Date::atStartOfDay", PAST_THE_RANGE))
     }
 }
 
@@ -5833,25 +6067,22 @@ mod tests {
         assert!(resolve_zone("Nowhere/Nothing").is_none());
     }
 
-    /// `Core\Time::at` called the way a compiled call site calls it, with the
-    /// fields in `month, day, hour, minute, second, nanos` order. It answers
-    /// the built `DateTime`'s seconds, nanoseconds and zone id, or the sentence
-    /// it threw.
-    fn built_at(year: i64, fields: [u64; 6], zone: &str) -> Result<(i64, i64, String), String> {
-        let [month, day, hour, minute, second, nanos] = fields;
+    /// `Core\Time\DateTime::at` called the way a compiled call site calls it,
+    /// with a `Date`, a `TimeOfDay` and a `Zone` built from `date`, `time` and
+    /// `zone`. It answers the built `DateTime`'s seconds, nanoseconds and zone
+    /// id, or the sentence it threw.
+    fn built_at(
+        date: (i16, i8, i8),
+        time: (i8, i8, i8, i32),
+        zone: &str,
+    ) -> Result<(i64, i64, String), String> {
         let mut ctx = Ctx::buffered();
-        let zone = zone_built(zone);
         let args = [
-            Value::int(year),
-            Value::uint(month),
-            Value::uint(day),
-            zone,
-            Value::uint(hour),
-            Value::uint(minute),
-            Value::uint(second),
-            Value::uint(nanos),
+            date_built(civil::date(date.0, date.1, date.2)),
+            clock_built(civil::time(time.0, time.1, time.2, time.3)),
+            zone_built(zone),
         ];
-        let answer = match nvs_runtime::call(nvs_core_time_at, &mut ctx, &args) {
+        let answer = match nvs_runtime::call(nvs_core_time_datetime_at, &mut ctx, &args) {
             Ok(built) => {
                 let held = crate::instance::receiver(built, &DATETIME, "test")
                     .expect("`at` answers a `DateTime`");
@@ -5881,12 +6112,14 @@ mod tests {
                 .expect("a refused call leaves its sentence pending")
                 .into_owned()),
         };
-        #[expect(
-            unsafe_code,
-            reason = "this frame built the `Zone`, and the member borrowed its arguments"
-        )]
-        unsafe {
-            zone.release();
+        for arg in args {
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the three parts, and the member borrowed them"
+            )]
+            unsafe {
+                arg.release();
+            }
         }
         answer
     }
@@ -5898,16 +6131,16 @@ mod tests {
             .as_second()
     }
 
-    /// `at` reads its fields in the zone it is given. A clock time the zone
-    /// skips moves forward past the gap, and a clock time the zone repeats
-    /// takes the earlier of the two. Every field's last accepted value and
-    /// first refused one are asserted together.
-    // covers: Core\Time::at
+    /// `at` reads its date and time in the zone it is given. A clock time the
+    /// zone skips moves forward past the gap, and a clock time the zone repeats
+    /// takes the earlier of the two. The last instant at each end of the range
+    /// is asserted beside the first one past it.
+    // covers: Core\Time\DateTime::at
     #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
-    fn at_reads_fields_in_its_zone_and_refuses_a_field_past_its_range() {
+    fn at_reads_its_parts_in_its_zone_and_refuses_a_time_past_the_range() {
         assert_eq!(
-            built_at(2024, [3, 5, 12, 30, 15, 500_000_000], "UTC"),
+            built_at((2024, 3, 5), (12, 30, 15, 500_000_000), "UTC"),
             Ok((
                 second_of("2024-03-05T12:30:15Z"),
                 500_000_000,
@@ -5917,41 +6150,26 @@ mod tests {
         // 02:30 does not exist in Berlin on 2024-03-31, so the result is 03:30
         // summer time, which is 01:30 UTC.
         let skipped =
-            built_at(2024, [3, 31, 2, 30, 0, 0], "Europe/Berlin").expect("a gap resolves");
+            built_at((2024, 3, 31), (2, 30, 0, 0), "Europe/Berlin").expect("a gap resolves");
         assert_eq!(skipped.0, second_of("2024-03-31T01:30:00Z"));
         assert_eq!(skipped.2, "Europe/Berlin");
         // 02:30 happens twice in Berlin on 2024-10-27; the first is 00:30 UTC.
         let repeated =
-            built_at(2024, [10, 27, 2, 30, 0, 0], "Europe/Berlin").expect("a fold resolves");
+            built_at((2024, 10, 27), (2, 30, 0, 0), "Europe/Berlin").expect("a fold resolves");
         assert_eq!(repeated.0, second_of("2024-10-27T00:30:00Z"));
 
-        for (year, fields, accepted) in [
-            (2024, [2, 29, 0, 0, 0, 0], true),
-            (2023, [2, 29, 0, 0, 0, 0], false),
-            (2024, [12, 31, 0, 0, 0, 0], true),
-            (2024, [13, 1, 0, 0, 0, 0], false),
-            (2024, [1, 1, 23, 59, 59, 999_999_999], true),
-            (2024, [1, 1, 24, 0, 0, 0], false),
-            (2024, [1, 1, 0, 60, 0, 0], false),
-            (2024, [1, 1, 0, 0, 60, 0], false),
-            (2024, [1, 1, 0, 0, 0, 1_000_000_000], false),
-            (2024, [1, 1, 0, 0, 0, u64::MAX], false),
-            (2024, [u64::MAX, 1, 0, 0, 0, 0], false),
-            // The last and first instants a timestamp holds, one second apart
-            // from the first refused ones.
-            (9999, [12, 30, 22, 0, 0, 0], true),
-            (9999, [12, 30, 22, 0, 1, 0], false),
-            (-9999, [1, 2, 1, 59, 59, 0], true),
-            (-9999, [1, 2, 1, 59, 58, 0], false),
-            (10_000, [1, 1, 0, 0, 0, 0], false),
-            (-10_000, [1, 1, 0, 0, 0, 0], false),
+        for (date, time, accepted) in [
+            ((9999, 12, 30), (22, 0, 0, 0), true),
+            ((9999, 12, 30), (22, 0, 1, 0), false),
+            ((-9999, 1, 2), (1, 59, 59, 0), true),
+            ((-9999, 1, 2), (1, 59, 58, 0), false),
         ] {
-            match built_at(year, fields, "UTC") {
-                Ok(_) => assert!(accepted, "{year} {fields:?} was accepted"),
+            match built_at(date, time, "UTC") {
+                Ok(_) => assert!(accepted, "{date:?} {time:?} was accepted"),
                 Err(sentence) => {
-                    assert!(!accepted, "{year} {fields:?} was refused: {sentence}");
+                    assert!(!accepted, "{date:?} {time:?} was refused: {sentence}");
                     assert!(
-                        sentence.starts_with(r"Core\Time::at(): "),
+                        sentence.starts_with(r"Core\Time\DateTime::at(): "),
                         "the refusal names the member: {sentence}"
                     );
                 }
@@ -5959,13 +6177,13 @@ mod tests {
         }
     }
 
-    /// `Core\Time::fromEpoch` called the way a compiled call site calls it. It
+    /// `Core\Time\Instant::fromEpoch` called the way a compiled call site calls it. It
     /// answers the built `Instant`'s seconds and nanoseconds, or the sentence it
     /// threw.
     fn built_from_epoch(seconds: i64, nanos: u64) -> Result<(i64, i64), String> {
         let mut ctx = Ctx::buffered();
         let args = [Value::int(seconds), Value::uint(nanos)];
-        match nvs_runtime::call(nvs_core_time_from_epoch, &mut ctx, &args) {
+        match nvs_runtime::call(nvs_core_time_instant_from_epoch, &mut ctx, &args) {
             Ok(built) => {
                 let held = crate::instance::receiver(built, &INSTANT, "test")
                     .expect("`fromEpoch` answers an `Instant`");
@@ -5995,7 +6213,7 @@ mod tests {
 
     /// `fromEpoch` adds `nanos` after the second, accepts exactly the
     /// timestamp range at both ends, and refuses past it in its own sentence.
-    // covers: Core\Time::fromEpoch
+    // covers: Core\Time\Instant::fromEpoch
     #[test]
     fn from_epoch_adds_nanos_after_the_second_and_refuses_past_the_range_plainly() {
         assert_eq!(
@@ -6014,25 +6232,26 @@ mod tests {
             Ok((-377_705_023_201, 0))
         );
 
-        let past = r"Core\Time::fromEpoch(): `seconds` is outside -377705023201..=253402207200";
+        let past =
+            r"Core\Time\Instant::fromEpoch(): `seconds` is outside -377705023201..=253402207200";
         for seconds in [253_402_207_201, -377_705_023_202, i64::MAX, i64::MIN] {
             assert_eq!(built_from_epoch(seconds, 0), Err(past.to_owned()));
         }
         for nanos in [1_000_000_000, u64::MAX] {
             assert_eq!(
                 built_from_epoch(0, nanos),
-                Err(r"Core\Time::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000".to_owned())
+                Err(r"Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000".to_owned())
             );
         }
     }
 
-    /// `Core\Time::fromIso` called the way a compiled call site calls it. It
+    /// `Core\Time\Instant::fromIso` called the way a compiled call site calls it. It
     /// answers the built `Instant`'s seconds and nanoseconds, or the sentence it
     /// threw.
     fn built_from_iso(text: &str) -> Result<(i64, i64), String> {
         let mut ctx = Ctx::buffered();
         let args = [Value::text(text)];
-        let answer = match nvs_runtime::call(nvs_core_time_from_iso, &mut ctx, &args) {
+        let answer = match nvs_runtime::call(nvs_core_time_instant_from_iso, &mut ctx, &args) {
             Ok(built) => {
                 let held = crate::instance::receiver(built, &INSTANT, "test")
                     .expect("`fromIso` answers an `Instant`");
@@ -6070,7 +6289,7 @@ mod tests {
     /// `fromIso` applies the offset, keeps the fraction, accepts the last
     /// instant of the range, and throws a time past either end in its own
     /// sentence while a text that is not a timestamp keeps `jiff`'s.
-    // covers: Core\Time::fromIso
+    // covers: Core\Time\Instant::fromIso
     #[test]
     fn from_iso_applies_the_offset_and_refuses_past_the_range_plainly() {
         assert_eq!(
@@ -6086,7 +6305,7 @@ mod tests {
             Ok((253_402_207_200, 0))
         );
 
-        let past = r"Core\Time::fromIso(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
+        let past = r"Core\Time\Instant::fromIso(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
         for text in ["9999-12-31T23:59:59Z", "-009999-01-01T00:00:00Z"] {
             assert_eq!(built_from_iso(text), Err(past.to_owned()));
         }
@@ -6097,12 +6316,15 @@ mod tests {
             "",
         ] {
             let said = built_from_iso(text).expect_err("not a timestamp");
-            assert!(said.starts_with(r"Core\Time::fromIso(): "), "{said}");
+            assert!(
+                said.starts_with(r"Core\Time\Instant::fromIso(): "),
+                "{said}"
+            );
             assert_ne!(said, past, "{text:?} is not a range failure");
         }
     }
 
-    /// `Core\Time::parse` called the way a compiled call site calls it with a
+    /// `Core\Time\DateTime::parse` called the way a compiled call site calls it with a
     /// computed pattern. It answers the built `DateTime`'s seconds and zone id,
     /// or the sentence it threw.
     fn built_parse(text: &str, format: &str, zone: &str) -> Result<(i64, String), String> {
@@ -6113,7 +6335,7 @@ mod tests {
             Value::text(format),
             zone_built(zone),
         ];
-        let answer = match nvs_runtime::call(nvs_core_time_parse, &mut ctx, &args) {
+        let answer = match nvs_runtime::call(nvs_core_time_datetime_parse, &mut ctx, &args) {
             Ok(built) => {
                 let held = crate::instance::receiver(built, &DATETIME, "test")
                     .expect("`parse` answers a `DateTime`");
@@ -6153,7 +6375,7 @@ mod tests {
     /// bottom of its range. A time past either end of the timestamp range
     /// throws the sentence `at` uses, and a field wider than an `i64` is out
     /// of range rather than an overflow.
-    // covers: Core\Time::parse
+    // covers: Core\Time\DateTime::parse
     #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn parse_reads_in_its_zone_and_refuses_past_the_range_plainly() {
@@ -6179,8 +6401,7 @@ mod tests {
             Ok(253_402_207_200)
         );
 
-        let past =
-            r"Core\Time::parse(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
+        let past = r"Core\Time\DateTime::parse(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
         for (text, zone) in [
             ("9999-12-30 22:01", "UTC"),
             ("9999-12-30 23:30", "Europe/Berlin"),
@@ -6193,14 +6414,14 @@ mod tests {
         }
         assert_eq!(
             built_parse(&"9".repeat(40), &"y".repeat(40), "UTC"),
-            Err(r"Core\Time::parse(): year out of range".to_owned())
+            Err(r"Core\Time\DateTime::parse(): year out of range".to_owned())
         );
         for (text, format) in [
             ("2024-06-05T14:30", "yyyy-MM-dd HH:mm"),
             ("2024", "yyyy 'x"),
         ] {
             let said = built_parse(text, format, "UTC").expect_err("does not match");
-            assert!(said.starts_with(r"Core\Time::parse(): "), "{said}");
+            assert!(said.starts_with(r"Core\Time\DateTime::parse(): "), "{said}");
             assert_ne!(said, past, "{text:?} is not a range failure");
         }
     }
@@ -6636,16 +6857,16 @@ mod tests {
         }
     }
 
-    /// `atStartOfDay` on `at` in the zone named `zone`, read back as the
-    /// [`Zoned`] it built, or the thrown message.
-    fn date_start_of_day(at: civil::Date, zone: &str) -> Result<Zoned, String> {
+    /// `DateTime::fromIso` on `text` in the zone named `zone`, read back as
+    /// the [`Zoned`] it built, or the thrown message.
+    fn datetime_from_iso(text: &str, zone: &str) -> Result<Zoned, String> {
         let mut ctx = Ctx::buffered();
-        let args = [date_built(at), zone_built(zone)];
-        let answer = nvs_runtime::call(nvs_core_time_date_at_start_of_day, &mut ctx, &args);
+        let args = [Value::text(text), zone_built(zone)];
+        let answer = nvs_runtime::call(nvs_core_time_datetime_from_iso, &mut ctx, &args);
         let read = match answer {
             Ok(held) => {
-                let zoned = zoned_of(&[held], 0, "atStartOfDay")
-                    .map_err(|_| "`atStartOfDay` answers a `DateTime`".to_owned());
+                let zoned = zoned_of(&[held], 0, "fromIso")
+                    .map_err(|_| "`fromIso` answers a `DateTime`".to_owned());
                 #[expect(unsafe_code, reason = "this frame owns the answer")]
                 unsafe {
                     held.release();
@@ -6663,49 +6884,114 @@ mod tests {
         read
     }
 
-    /// `atStartOfDay` is midnight on the date in the zone, a zone whose
-    /// clocks skip midnight gives the first time that exists that day, and
-    /// the result's date is the date again in every zone.
-    // covers: Core\Time\Date::atStartOfDay
+    /// A date alone is the first instant of that day in the zone. A zone whose
+    /// clocks skip midnight gives the first time that exists that day, and the
+    /// result's date is the date again in every zone.
+    // covers: Core\Time\DateTime::fromIso
     #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
-    fn date_parts_at_start_of_day_is_the_first_instant_of_that_day_in_the_zone() {
-        for (day, zone, instant) in [
-            ((2024, 2, 29), "UTC", "2024-02-29T00:00:00Z"),
-            ((2024, 3, 31), "Europe/Berlin", "2024-03-30T23:00:00Z"),
-            ((2024, 7, 1), "Asia/Kolkata", "2024-06-30T18:30:00Z"),
-            ((2024, 1, 1), "Pacific/Honolulu", "2024-01-01T10:00:00Z"),
+    fn datetime_from_iso_reads_a_date_alone_as_the_first_instant_of_that_day() {
+        for (text, zone, instant) in [
+            ("2024-02-29", "UTC", "2024-02-29T00:00:00Z"),
+            ("2024-03-31", "Europe/Berlin", "2024-03-30T23:00:00Z"),
+            ("2024-07-01", "Asia/Kolkata", "2024-06-30T18:30:00Z"),
+            ("2024-01-01", "Pacific/Honolulu", "2024-01-01T10:00:00Z"),
             // Brazil moved its clocks from 00:00 to 01:00 on this day, so the
             // day starts at 01:00, offset -02:00.
-            ((2018, 11, 4), "America/Sao_Paulo", "2018-11-04T03:00:00Z"),
-            ((2018, 11, 3), "America/Sao_Paulo", "2018-11-03T03:00:00Z"),
+            ("2018-11-04", "America/Sao_Paulo", "2018-11-04T03:00:00Z"),
+            ("2018-11-03", "America/Sao_Paulo", "2018-11-03T03:00:00Z"),
+            ("2024-03-31T02:30", "Europe/Berlin", "2024-03-31T01:30:00Z"),
+            ("2024-03-31 12:00:00.5", "UTC", "2024-03-31T12:00:00.5Z"),
         ] {
-            let at = civil::date(day.0, day.1, day.2);
-            let start = date_start_of_day(at, zone).expect("a day inside the range starts");
+            let start = datetime_from_iso(text, zone).expect("a day inside the range starts");
             assert_eq!(
                 start.timestamp(),
                 instant.parse::<Timestamp>().expect("a valid instant"),
-                "{at} in {zone}"
+                "{text} in {zone}"
             );
-            assert_eq!(start.date(), at, "{at} in {zone}");
-            assert_eq!(start.time_zone().iana_name(), Some(zone), "{at} in {zone}");
+            assert_eq!(
+                start.time_zone().iana_name(),
+                Some(zone),
+                "{text} in {zone}"
+            );
         }
-        let skipped = date_start_of_day(civil::date(2018, 11, 4), "America/Sao_Paulo")
-            .expect("the day exists");
+        let skipped = datetime_from_iso("2018-11-04", "America/Sao_Paulo").expect("the day exists");
+        assert_eq!(skipped.date(), civil::date(2018, 11, 4));
         assert_eq!(skipped.time(), civil::time(1, 0, 0, 0));
         // The first and the last day start inside the range only at the
         // widest offsets, and in UTC their midnight is past it.
-        let first = date_start_of_day(civil::date(-9999, 1, 1), "-25:59:59");
+        let first = datetime_from_iso("-9999-01-01", "-25:59:59");
         assert_eq!(
             first.map(|z| (z.date(), z.timestamp())),
             Ok((civil::date(-9999, 1, 1), Timestamp::MIN))
         );
-        let last = date_start_of_day(civil::date(9999, 12, 31), "+25:59:59");
+        let last = datetime_from_iso("9999-12-31", "+25:59:59");
         assert_eq!(last.map(|z| z.date()), Ok(civil::date(9999, 12, 31)));
-        for end in [civil::date(-9999, 1, 1), civil::date(9999, 12, 31)] {
-            let why = date_start_of_day(end, "UTC").expect_err("midnight in UTC is past the range");
-            assert!(why.contains(r"Core\Time\Date::atStartOfDay"), "{why}");
+        for end in ["-9999-01-01", "9999-12-31"] {
+            let why = datetime_from_iso(end, "UTC").expect_err("midnight in UTC is past the range");
+            assert!(why.starts_with(r"Core\Time\DateTime::fromIso(): "), "{why}");
             assert!(why.contains(PAST_THE_RANGE), "{why}");
+        }
+        let why = datetime_from_iso("2024-03-01T09:30Z", "UTC").expect_err("an offset");
+        assert!(why.contains(r"Core\Time\Instant::fromIso"), "{why}");
+    }
+
+    /// Each class reads its one form and nothing else, and every refusal says
+    /// which part is wrong. The checker reads a literal with the same function.
+    #[test]
+    fn validate_iso_reads_one_extended_form_per_class() {
+        for (form, text) in [
+            (IsoForm::Date, "2024-03-01"),
+            (IsoForm::Date, "-0044-03-15"),
+            (IsoForm::Date, "2024-02-29"),
+            (IsoForm::TimeOfDay, "09:30"),
+            (IsoForm::TimeOfDay, "23:59:59"),
+            (IsoForm::TimeOfDay, "00:00:00.5"),
+            (IsoForm::TimeOfDay, "00:00:00.123456789"),
+            (IsoForm::DateTime, "2024-03-01"),
+            (IsoForm::DateTime, "2024-03-01T09:30"),
+            (IsoForm::DateTime, "2024-03-01 09:30:15.25"),
+            (IsoForm::Instant, "2024-03-01T09:30:00Z"),
+            (IsoForm::Instant, "2024-03-01 09:30:00+01:00"),
+        ] {
+            assert_eq!(validate_iso(form, text), Ok(()), "{form:?} {text}");
+        }
+        for (form, text, said) in [
+            (IsoForm::Date, "2024-02-30", "2024-02 has no day 30"),
+            (IsoForm::Date, "2023-02-29", "2023-02 has no day 29"),
+            (IsoForm::Date, "2024-13-01", "the month is `13`"),
+            (IsoForm::Date, "2024-3-1", "the month is 2 digits"),
+            (IsoForm::Date, "20240301", "expected `-` at byte 4"),
+            (
+                IsoForm::Date,
+                "2024-03-01T00:00",
+                "unexpected text at byte 10",
+            ),
+            (IsoForm::Date, "", "the year is 4 digits"),
+            (IsoForm::TimeOfDay, "24:00", "the hour is `24`"),
+            (IsoForm::TimeOfDay, "23:59:60", "the second is `60`"),
+            (IsoForm::TimeOfDay, "9:30", "the hour is 2 digits"),
+            (IsoForm::TimeOfDay, "09:30:00.", "one to nine digits"),
+            (
+                IsoForm::TimeOfDay,
+                "09:30:00.1234567890",
+                "one to nine digits",
+            ),
+            (IsoForm::DateTime, "2024-03-01t09:30", "`T` or a space"),
+            (
+                IsoForm::DateTime,
+                "2024-03-01T09:30Z",
+                "the text has an offset",
+            ),
+            (
+                IsoForm::DateTime,
+                "2024-03-01T09:30+01:00",
+                "the text has an offset",
+            ),
+            (IsoForm::DateTime, "2024-03-01T", "the hour is 2 digits"),
+        ] {
+            let why = validate_iso(form, text).expect_err(text);
+            assert!(why.contains(said), "{form:?} {text}: {why}");
         }
     }
 

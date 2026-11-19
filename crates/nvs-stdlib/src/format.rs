@@ -77,7 +77,7 @@ use crate::granularity::DEFAULT;
 /// placeholders, or a value with no reading for the conversion it reached.
 /// Every one is a bug in the program — the template is the
 /// program's own grammar and the arguments its own call, never input — which
-/// is the side `Core\Time::parse` puts a bad *pattern* on, as against the
+/// is the side `Core\Time\DateTime::parse` puts a bad *pattern* on, as against the
 /// `ParseError` it keeps for text.
 ///
 /// # Allocation

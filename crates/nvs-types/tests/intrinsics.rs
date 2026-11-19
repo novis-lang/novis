@@ -194,7 +194,7 @@ fn a_named_argument_is_read_at_the_parameter_it_fills() {
         "a `template:` template was not read: {named:?}"
     );
     let parsed = check_call(
-        "    Core\\Time\\DateTime $d = Core\\Time::parse(text: \"2026-08-29\", \
+        "    Core\\Time\\DateTime $d = Core\\Time\\DateTime::parse(text: \"2026-08-29\", \
          format: \"yyyy-MM-dd'\", zone: Core\\Time\\Zone::UTC);\n    \
          echo $d->format(\"yyyy\");\n",
     );
@@ -242,7 +242,7 @@ fn a_literal_date_format_is_validated_while_checking() {
     // The closed list's two date-pattern rows — the two members reading
     // `nvs_stdlib::cldr`'s letters, and the only two rows whose written
     // argument positions differ: `$d->format(…)`'s pattern is written argument
-    // 0, while `Core\Time::parse` puts the text being parsed first
+    // 0, while `Core\Time\DateTime::parse` puts the text being parsed first
     // (`rule:core-api/shape-rules` R1) and its pattern second.
     // `j` — which CLDR reserves for a skeleton's preference between `h` and
     // `H` rather than giving it a field — is a real letter this closed subset
@@ -260,7 +260,7 @@ fn a_literal_date_format_is_validated_while_checking() {
     // opens a literal run and never closes it.
     let parsed = check_call(
         "    Core\\Time\\DateTime $d = \
-         Core\\Time::parse(\"2026-08-29\", \"yyyy-MM-dd'\", Core\\Time\\Zone::UTC);\n    \
+         Core\\Time\\DateTime::parse(\"2026-08-29\", \"yyyy-MM-dd'\", Core\\Time\\Zone::UTC);\n    \
          echo $d->format(\"yyyy\");\n",
     );
     assert!(
@@ -275,7 +275,7 @@ fn a_literal_date_format_is_validated_while_checking() {
     // refused at `parse` and silent at `format`.
     let zonal = check_call(
         "    Core\\Time\\DateTime $z = \
-         Core\\Time::parse(\"2026-08-29 UTC\", \"yyyy-MM-dd VV\", Core\\Time\\Zone::UTC);\n    \
+         Core\\Time\\DateTime::parse(\"2026-08-29 UTC\", \"yyyy-MM-dd VV\", Core\\Time\\Zone::UTC);\n    \
          echo $z->format(\"yyyy-MM-dd\");\n",
     );
     assert!(
@@ -293,7 +293,7 @@ fn a_literal_date_format_is_validated_while_checking() {
          echo $d->format(\"yyyy-MM-dd VV\");\n    \
          echo $d->format($p);\n    \
          Core\\Time\\DateTime $z = \
-         Core\\Time::parse(\"2026-08-29 UTC\", $p, Core\\Time\\Zone::UTC);\n    \
+         Core\\Time\\DateTime::parse(\"2026-08-29 UTC\", $p, Core\\Time\\Zone::UTC);\n    \
          echo $z->format(\"yyyy-MM-dd\");\n",
     );
     assert!(

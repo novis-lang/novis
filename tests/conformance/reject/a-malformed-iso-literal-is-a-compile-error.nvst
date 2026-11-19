@@ -1,0 +1,36 @@
+--TEST--
+a `fromIso` text written as a literal is read while compiling, and a text that is malformed or names no real date or time is one diagnostic at the literal (`rule:core-classes/a-time-class-builds-its-own-values` and `rule:expressions/intrinsic-constant-arguments`)
+--FILE--
+<?nvs
+var $utc = Core\Time\Zone::UTC;
+
+// A day February 2024 does not have.
+var $noSuchDay = Core\Time\Date::fromIso('2024-02-30');
+// An hour past the last one.
+var $pastMidnight = Core\Time\TimeOfDay::fromIso('24:00');
+// A month and a day without their leading zero.
+var $short = Core\Time\Date::fromIso('2024-3-1');
+// The ISO 8601 basic form, with no `-`.
+var $basic = Core\Time\Date::fromIso('20240301');
+// An offset, where the zone is the second argument.
+var $offset = Core\Time\DateTime::fromIso('2024-03-01T09:30+01:00', $utc);
+// The same text behind a variable is read at run time, and is not reported.
+var $text = '2024-02-30';
+var $later = Core\Time\Date::fromIso($text);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0769]: this text is not valid for this function: 2024-02 has no day 30
+%A
+error[E0769]: this text is not valid for this function: the hour is `24`, and an hour is `00` to `23`
+%A
+error[E0769]: this text is not valid for this function: the month is 2 digits, in the form `YYYY-MM-DD`
+%A
+error[E0769]: this text is not valid for this function: expected `-` at byte 4, in the form `YYYY-MM-DD`
+%A
+error[E0769]: this text is not valid for this function: the text has an offset, and the zone is the second argument. Read a text with an offset with `Core\Time\Instant::fromIso`, then call `->in($zone)`
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

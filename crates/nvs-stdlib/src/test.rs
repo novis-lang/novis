@@ -2178,7 +2178,7 @@ nvs_runtime::nvs_helper! {
     /// `rule:testing/isolate-per-test` gives each one its own context, and this writes only to that.
     ///
     /// **Both refusals open on the same prefix**, which is the shape
-    /// `Core\Time::parse` already uses and which matters twice here. A reader
+    /// `Core\Time\DateTime::parse` already uses and which matters twice here. A reader
     /// catching either is catching "the clock did not move", one member having
     /// one thing it can be asked to do and two ways of being unable to; and the
     /// coverage gate in `crates/nvs-stdlib/tests/conformance_coverage.rs` keys

@@ -347,7 +347,7 @@
 //!
 //! `rule:security/unclassified-parameter-refuses-tainted`'s classification, and the judgement that separates this class
 //! from [`crate::time`]'s: **a parse here is [`Qual::Contagious`], not
-//! [`Qual::Neutral`].** `Core\Time::parse` answers an instant, and an instant
+//! [`Qual::Neutral`].** `Core\Time\DateTime::parse` answers an instant, and an instant
 //! is a closed space no byte of the argument survives into. A `Uri` is the
 //! opposite shape: `host()`, `path()` and `query()` hand the caller's own text
 //! straight back, component for component, which is exactly what *Comparison

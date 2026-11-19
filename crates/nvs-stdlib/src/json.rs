@@ -162,7 +162,7 @@
 //! the whole of what `rule:types/decimal` makes the type for.
 //!
 //! An `Instant` is RFC 3339: `"2024-03-01T12:00:00Z"`, the spelling
-//! `$i->toIso()` renders and `Core\Time::fromIso` reads, so the wire carries
+//! `$i->toIso()` renders and `Core\Time\Instant::fromIso` reads, so the wire carries
 //! what a reader of the document already agrees a timestamp looks like. It is
 //! **not** the two-slot object its storage is — an epoch second and a subsecond
 //! nanosecond are this runtime's representation of the type and no part of what

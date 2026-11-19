@@ -350,7 +350,7 @@ pub enum ThrownClass {
     /// `IOError` — a file, socket or process failed.
     Io,
     /// `ParseError` — input did not match a format this code declared, which
-    /// is what `Core\Json::decode` and `Core\Time::parse` answer with.
+    /// is what `Core\Json::decode` and `Core\Time\DateTime::parse` answer with.
     Parse,
     /// `TimeoutError` — a deadline passed.
     Timeout,

@@ -3982,7 +3982,7 @@ pub fn takes_call_site(class: &str, method: &str) -> bool {
 pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     (crate::regex::NAME, "compile"),
     (crate::time::DATETIME_NAME, "format"),
-    (crate::time::TIME_NAME, "parse"),
+    (crate::time::DATETIME_NAME, "parse"),
     (crate::config::NAME, "get"),
     (crate::config::NAME, "set"),
     (crate::config::NAME, "restore"),

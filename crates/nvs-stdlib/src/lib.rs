@@ -741,7 +741,7 @@ mod tests {
 
     /// `held` as a `string` [`nvs_runtime::Value`] — every argument the members
     /// below take except `Core\Regex::compile`'s four option slots and
-    /// `Core\Time::parse`'s zone.
+    /// `Core\Time\DateTime::parse`'s zone.
     fn text(held: &str) -> nvs_runtime::Value {
         nvs_runtime::Value::text(held)
     }
@@ -809,7 +809,7 @@ mod tests {
     /// *verdict* is compared and its wording is not: the flags reach the engine
     /// as a balanced `(?ims:…)` wrapper, which moves no pattern across the
     /// accept boundary but does move what the second engine's own error quotes.
-    /// And `Core\Time::parse` refuses a zonal field a well-formed pattern may
+    /// And `Core\Time\DateTime::parse` refuses a zonal field a well-formed pattern may
     /// carry, which is a rule about that member rather than about the grammar,
     /// so civil patterns are what the
     /// accepted half offers it.
@@ -934,7 +934,7 @@ mod tests {
             let checked = cldr::validate(pattern).expect_err("a refusal");
             let thrown = ran(
                 &mut ctx,
-                time::nvs_core_time_parse,
+                time::nvs_core_time_datetime_parse,
                 // A pattern the fold refused prepared nothing, so the call site
                 // carries the zero word and the runtime makes the refusal
                 // itself — which is what these cases compare.
@@ -945,7 +945,7 @@ mod tests {
             .expect_err("a refusal");
             assert_eq!(
                 thrown,
-                format!("Core\\Time::parse(): {checked}"),
+                format!("Core\\Time\\DateTime::parse(): {checked}"),
                 "for `{pattern}`"
             );
         }
@@ -956,7 +956,7 @@ mod tests {
             cldr::validate(pattern).expect("a pattern");
             ran(
                 &mut ctx,
-                time::nvs_core_time_parse,
+                time::nvs_core_time_datetime_parse,
                 // Told what the fold settled, as the regex cases above are:
                 // the runtime half is asserted against the *prepared* call and
                 // not only against the untold one.

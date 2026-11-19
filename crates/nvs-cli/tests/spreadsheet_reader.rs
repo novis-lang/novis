@@ -57,7 +57,7 @@ fn run_beside(case: &str, toml: Option<&str>, files: &[(&str, &[u8])], body: &st
 /// sheet `Totals`, as `$file`.
 const BOOK: &str = r#"
 bytes $png = Core\Encoding::fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
-var $book = Workbook::createInMemory({properties: {title: "Prices", author: "Shop", created: Core\Time::fromEpoch(1704067200)}});
+var $book = Workbook::createInMemory({properties: {title: "Prices", author: "Shop", created: Core\Time\Instant::fromEpoch(1704067200)}});
 var $sheet = $book->sheet("Shop");
 $sheet->table("A1:C3", {name: "Prices"});
 $sheet->addAll([["Item", "Price", "Qty"], ["Widget", 2.5, 3], ["Gadget", 4.0, 1]]);

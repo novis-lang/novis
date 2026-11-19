@@ -44,7 +44,7 @@
 //!   be a request lost to a spelling, so the grammar is enforced where it is
 //!   free and a name a request computed is accumulated as written.
 //! * **A member's own restriction on a well-formed pattern is a column on the
-//!   row.** `Core\Time::parse` refuses a *zonal* field in a pattern the
+//!   row.** `Core\Time\DateTime::parse` refuses a *zonal* field in a pattern the
 //!   grammar reads perfectly well, because its zone is argument 3 rather than
 //!   something the pattern names — a rule about the member and not about the
 //!   pattern language, so it rides beside the [`Grammar`] rather than
@@ -134,6 +134,11 @@ enum Grammar {
     DateFormat,
     /// `rule:types/duration`'s `30s`/`1h30m` grammar.
     Duration,
+    /// `rule:core-classes/a-time-class-builds-its-own-values`'s ISO 8601
+    /// extended form of one time class, read by `nvs_stdlib::time::validate_iso`
+    /// alone. A text names a date that exists or it is refused, so
+    /// `'2024-02-30'` is a refusal here and a `ParseError` at run time.
+    Iso(nvs_stdlib::time::IsoForm),
     /// `Core\Str::format`'s `printf` template, which is the one grammar that
     /// is also checked *against the call's other arguments*.
     Template,
@@ -189,7 +194,7 @@ struct Intrinsic {
     owner: &'static str,
     member: &'static str,
     /// The **parameter** the pattern fills — 0 for a subject that is itself
-    /// the pattern, 1 for `Core\Time::parse`, whose subject is the text being
+    /// the pattern, 1 for `Core\Time\DateTime::parse`, whose subject is the text being
     /// parsed (`rule:core-api/shape-rules` R1). A receiver is not a parameter,
     /// so an instance row counts from the first written argument.
     ///
@@ -228,11 +233,11 @@ struct Intrinsic {
 /// A member's own rule about a well-formed pattern — [`Intrinsic::restriction`].
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Restriction {
-    /// `Core\Time::parse` names no zone: its zone is argument 3, so a pattern
+    /// `Core\Time\DateTime::parse` names no zone: its zone is argument 3, so a pattern
     /// naming one too would be two answers with no rule to pick between them
     /// (`rule:core-api/shape-rules` R20). Narrows [`Grammar::DateFormat`], and
     /// the refusal is `nvs_stdlib::cldr::validate_civil`'s — the same walk
-    /// `Core\Time::parse` itself makes before it reads a byte of text, so this
+    /// `Core\Time\DateTime::parse` itself makes before it reads a byte of text, so this
     /// stays a refusal the runtime also makes.
     CivilFields,
 }
@@ -350,12 +355,46 @@ const INTRINSICS: &[Intrinsic] = &[
         grammar: Grammar::DateFormat,
     },
     Intrinsic {
-        owner: r"Core\Time",
+        owner: r"Core\Time\DateTime",
         member: "parse",
         at: 1,
         field: None,
         restriction: Some(Restriction::CivilFields),
         grammar: Grammar::DateFormat,
+    },
+    // One row per `fromIso`, each reading its class's one form with the parser
+    // the member itself reads it with, `nvs_stdlib::time::validate_iso`.
+    Intrinsic {
+        owner: r"Core\Time\Instant",
+        member: "fromIso",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Iso(nvs_stdlib::time::IsoForm::Instant),
+    },
+    Intrinsic {
+        owner: r"Core\Time\Date",
+        member: "fromIso",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Iso(nvs_stdlib::time::IsoForm::Date),
+    },
+    Intrinsic {
+        owner: r"Core\Time\TimeOfDay",
+        member: "fromIso",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Iso(nvs_stdlib::time::IsoForm::TimeOfDay),
+    },
+    Intrinsic {
+        owner: r"Core\Time\DateTime",
+        member: "fromIso",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Iso(nvs_stdlib::time::IsoForm::DateTime),
     },
     Intrinsic {
         owner: r"Core\Time\Duration",
@@ -688,6 +727,14 @@ pub(crate) fn check_call(
         Grammar::Duration => {
             if let Err(err) = nvs_syntax::duration::parse(&text) {
                 report_malformed(span, &err.message(), env);
+            }
+        }
+        // The member reads the text with the same function, so a literal this
+        // accepts is one the call reads, and a refusal is the `ParseError` the
+        // call would have thrown.
+        Grammar::Iso(form) => {
+            if let Err(message) = nvs_stdlib::time::validate_iso(form, &text) {
+                report_malformed(span, &message, env);
             }
         }
         // Both halves have to be facts here, and `grants` being `None` is the

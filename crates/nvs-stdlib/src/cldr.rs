@@ -1,7 +1,7 @@
 //! The two pieces of CLDR Novis carries, which are one module because they
 //! are one body of data:
 //! `Core\Time`'s date pattern grammar — the one `Core\Time\DateTime::format` emits
-//! from and `Core\Time::parse` reads with, in **CLDR** letters
+//! from and `Core\Time\DateTime::parse` reads with, in **CLDR** letters
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
 //! ones — and `rule:programs/framework-core-half`'s `Core\Cldr::pluralCategory`, the cardinal plural rules a message
 //! catalog selects a form with, and `Core\Cldr::ordinalCategory` beside it for
@@ -210,7 +210,7 @@
 //! # A written pattern is compiled once per core, an assembled one per call
 //!
 //! `rule:expressions/intrinsic-constant-arguments` makes `Core\Time\DateTime::format` and
-//! `Core\Time::parse` intrinsics: a pattern written as a literal is compiled by
+//! `Core\Time\DateTime::parse` intrinsics: a pattern written as a literal is compiled by
 //! [`validate`] *while checking*, so a malformed one is a diagnostic pointing
 //! at the letter rather than the throw [`compile`] answers an assembled one
 //! with, and the call site carries [`PREPARED_PATTERN`] as
@@ -237,7 +237,7 @@
 //!
 //! The pattern letters are CLDR's, rather than `strftime`'s or PHP's `date`
 //! letters, because the intl extension needs CLDR anyway: one grammar serves
-//! both, and `Core\Time::parse` and every `format` read the same patterns.
+//! both, and `Core\Time\DateTime::parse` and every `format` read the same patterns.
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -428,7 +428,7 @@ impl Field {
 
     /// Whether this field says something about the **zone** rather than about
     /// a civil field — which is what makes it legal in a `format` pattern and
-    /// refused in a `parse` one, since `Core\Time::parse` takes the zone as
+    /// refused in a `parse` one, since `Core\Time\DateTime::parse` takes the zone as
     /// its own third argument.
     fn is_zonal(self) -> bool {
         matches!(
@@ -824,13 +824,13 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 ///
 /// The *member* restrictions are not applied here: they are a rule about the
 /// member rather than about the grammar, so a caller that owes one asks for it
-/// by name — [`validate_civil`] is `Core\Time::parse`'s. That keeps this
+/// by name — [`validate_civil`] is `Core\Time\DateTime::parse`'s. That keeps this
 /// answer sound for everyone else: everything it refuses, every caller refuses.
 pub fn validate(pattern: &str) -> Result<(), String> {
     compile(pattern).map(|_| ())
 }
 
-/// [`validate`] plus `Core\Time::parse`'s own restriction: a pattern the
+/// [`validate`] plus `Core\Time\DateTime::parse`'s own restriction: a pattern the
 /// grammar reads, naming no zone.
 ///
 /// The member half of `rule:expressions/intrinsic-list-is-closed`'s roster,
@@ -927,7 +927,7 @@ pub(crate) fn time_fields_only(pieces: &[Piece]) -> Result<(), String> {
 /// Refuses a pattern that names a **zone**, which is the half of the same
 /// split [`read`] makes rather than [`render`].
 ///
-/// `Core\Time::parse` is the one caller, and the refusal is about the
+/// `Core\Time\DateTime::parse` is the one caller, and the refusal is about the
 /// *pattern* rather than about the text: that member takes a `Zone` as its own
 /// third argument, so a pattern naming one too would give two answers with no
 /// rule to pick between them. Making it here rather than inside [`read`] is
@@ -950,7 +950,7 @@ pub(crate) fn civil_fields_only(pieces: &[Piece]) -> Result<(), String> {
         };
         if field.is_zonal() {
             return Err(
-                "a pattern that parses names no zone — `Core\\Time::parse` takes one as its third \
+                "a pattern that parses names no zone — `Core\\Time\\DateTime::parse` takes one as its third \
                  argument"
                     .to_owned(),
             );
@@ -1218,7 +1218,7 @@ fn pad(out: &mut String, value: u64, width: usize) {
 /// Reads `text` through `pieces` into a civil datetime placed in `zone`.
 ///
 /// The zone comes from the caller rather than from the text, which is what
-/// makes a zonal field a refusal here: `Core\Time::parse` takes a `Zone` as
+/// makes a zonal field a refusal here: `Core\Time\DateTime::parse` takes a `Zone` as
 /// its own third argument, so a pattern that also named one would have two
 /// answers and no rule to pick between them.
 ///
@@ -1246,7 +1246,7 @@ pub(crate) fn read(pieces: &[Piece], text: &str, zone: &TimeZone) -> Result<Zone
                     // caller of [`read`] that skipped that guard. It is worded
                     // as that guard words it, because the two are one rule.
                     return Err(
-                        "a pattern that parses names no zone — `Core\\Time::parse` takes one as \
+                        "a pattern that parses names no zone — `Core\\Time\\DateTime::parse` takes one as \
                          its third argument"
                             .to_owned(),
                     );
@@ -1300,7 +1300,7 @@ impl Fields {
         .map_err(|err| err.to_string())?;
         // Compatible disambiguation resolves every gap and fold, so the one
         // failure left is an instant past either end of the timestamp range,
-        // worded as `Core\Time::at` and `Core\Time::fromIso` word that bound.
+        // worded as `Core\Time\DateTime::at` and `Core\Time\Instant::fromIso` word that bound.
         zone.to_zoned(at).map_err(|_| {
             "the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z".to_owned()
         })
@@ -2988,7 +2988,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The count is parameter 1 because it is what the member classifies and
     /// the locale is the rule it is classified under — the same order
-    /// `Core\Time::parse(string $text, string $pattern)` writes, where the
+    /// `Core\Time\DateTime::parse(string $text, string $pattern)` writes, where the
     /// text is what is read and the pattern says how (`rule:core-api/shape-rules` R1).
     ///
     /// The locale is `Qual::Neutral` rather than a sink: it is a lookup key,

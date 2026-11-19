@@ -10,7 +10,10 @@
     "core-api/a-moved-name-says-where-it-went"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/src/time.rs"
+    "crates/nvs-stdlib/src/time.rs",
+    "tests/conformance/core/time-each-class-builds-its-own-values.nvst",
+    "tests/conformance/core/time-from-iso-reads-one-format-on-every-class.nvst",
+    "tests/conformance/reject/a-malformed-iso-literal-is-a-compile-error.nvst"
   ],
   "goal": "time-constructors"
 }

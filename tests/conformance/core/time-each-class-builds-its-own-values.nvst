@@ -1,0 +1,53 @@
+--TEST--
+each time class builds its own values: `Instant`, `Date`, `TimeOfDay` and `DateTime` each have their constructors, and `DateTime::at` is the reverse of `date()`, `timeOfDay()` and `zone()` (`rule:core-classes/a-time-class-builds-its-own-values`)
+--FILE--
+<?nvs
+// covers: Core\Time\Instant::fromEpoch
+// covers: Core\Time\Instant::fromIso
+// covers: Core\Time\Date::at
+// covers: Core\Time\Date::fromIso
+// covers: Core\Time\TimeOfDay::at
+// covers: Core\Time\TimeOfDay::fromIso
+// covers: Core\Time\DateTime::at
+// covers: Core\Time\DateTime::fromIso
+// covers: Core\Time\DateTime::parse
+// Every constructor in the table is called, and each result is printed.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $full = "yyyy-MM-dd HH:mm:ss XXX VV";
+
+echo Core\Time\Instant::fromEpoch(1709281815)->toIso(), "|\n";
+echo Core\Time\Instant::fromEpoch(-1, {nanos: 1})->toIso(), "|\n";
+echo Core\Time\Instant::fromIso("2024-03-01T09:30:15+01:00")->toIso(), "|\n";
+echo Core\Time\Instant::fromIso("2024-03-01 08:30:15Z")->toIso(), "|\n";
+
+var $date = Core\Time\Date::at(2024, 3, 1);
+echo $date->format("yyyy-MM-dd"), " ", Core\Time\Date::fromIso("2024-03-01")->format("yyyy-MM-dd"), "|\n";
+echo $date->compareTo(Core\Time\Date::fromIso("2024-03-01")) as string, "|\n";
+
+var $time = Core\Time\TimeOfDay::at(9, 30, {second: 15});
+echo $time->format("HH:mm:ss"), " ", Core\Time\TimeOfDay::fromIso("09:30:15")->format("HH:mm:ss"), "|\n";
+echo $time->compareTo(Core\Time\TimeOfDay::fromIso("09:30:15")) as string, "|\n";
+
+var $at = Core\Time\DateTime::at($date, $time, $berlin);
+echo $at->format($full), "|\n";
+echo Core\Time\DateTime::fromIso("2024-03-01T09:30:15", $berlin)->format($full), "|\n";
+echo Core\Time\DateTime::parse("01.03.2024 09:30:15", "dd.MM.yyyy HH:mm:ss", $berlin)->format($full), "|\n";
+
+// `DateTime::at` builds the same value back from the three readers.
+var $again = Core\Time\DateTime::at($at->date(), $at->timeOfDay(), $at->zone());
+echo $again->toInstant()->compareTo($at->toInstant()) as string, " ", $again->format("VV"), "|\n";
+echo $again->toInstant()->toIso(), "|\n";
+--EXPECT--
+2024-03-01T08:30:15Z|
+1969-12-31T23:59:59.000000001Z|
+2024-03-01T08:30:15Z|
+2024-03-01T08:30:15Z|
+2024-03-01 2024-03-01|
+0|
+09:30:15 09:30:15|
+0|
+2024-03-01 09:30:15 +01:00 Europe/Berlin|
+2024-03-01 09:30:15 +01:00 Europe/Berlin|
+2024-03-01 09:30:15 +01:00 Europe/Berlin|
+0 Europe/Berlin|
+2024-03-01T08:30:15Z|

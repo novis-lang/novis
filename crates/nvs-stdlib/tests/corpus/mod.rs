@@ -139,7 +139,7 @@ impl Attribution {
     /// A case names a class outright, or it holds one because something it
     /// called answers an instance of it — and then an instance call on *that*
     /// answers a third, to a fixed point. Half the registry is reached that
-    /// way: `var $d = Core\Time::fromIso($text)->in($zone);` exercises three
+    /// way: `var $d = Core\Time\Instant::fromIso($text)->in($zone);` exercises three
     /// classes and spells one.
     pub(crate) fn holders(&self, text: &str) -> BTreeSet<&'static str> {
         let mut held: BTreeSet<&'static str> = registry::CLASSES
