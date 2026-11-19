@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/main.rs, tools/nv/cmd/suite.ts, benches/scaling/README.md, benches/scaling/arrays/sort.nvs]
   - id: 2
     title: a call form that needs no proof compiles as its fast form
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/exception.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 3
     title: a loop, a literal and a static call take the direct path
@@ -398,6 +398,19 @@ because `Core\Arr::contains` is no counted call, so its red needs callgrind in W
   stage's open items move to `### Backlog` as declined, with what was found.
 - No row is added to the table during the run, and no target figure holds the goal open.
 
+**Stage 2 matches the narrower form of each row (my call).** Anything wider stays as written.
+
+- The caught conversion takes only a variable operand, a target atom of `int`, `uint`, `float` or
+  `decimal`, and an operand that reads as `string` or a tagged value, so `as ?T` has a helper. The
+  arm's class must resolve to `RuntimeError` or `Throwable`. Under the debug switch a `try` stays as
+  written, so each statement keeps its probe.
+- The `match` null test takes exactly two positional arguments.
+- The `filter` row needs the callback's parameter to have a written type, read with
+  `ExprTypeTable::declared_ty`: an arrow body records no locals. The type is a scalar, a string,
+  bytes, an enum case, `null` or a union of those (`compared_by_value` in `expr.rs`). An object stays
+  as written, because `value_hash` hashes an object by its address and no proof covers a class with
+  its own equality. `b` is a variable other than the parameter, `$this` and the callback's own name.
+
 **Lanes.** Stages 1, 2 and 3 need nothing from another goal. Stage 6 touches
 `crates/nvs-runtime/src/callable.rs`, `dispatch.rs` and the callback argument's lowering, and can run as
 a side goal at any time. Stage 7 touches the debug index and `crates/nvs-lsp/src/recorded.rs`, and stage
@@ -445,21 +458,24 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
   - [x] `Lowering::lower_core_call` takes a `forms::CoreForm`.
   - [x] `count` or `first` of `keys` or `values`, at the call.
   - [x] the null test of `match`, at `lower_null_identity` and `lower_type_test`.
-- [ ] The `filter` and `contains` row. The callback is matched as a tree: one `return` of
+- [x] The `filter` and `contains` row. The callback is matched as a tree: one `return` of
   `Core\Arr::contains(<captured b>, <its parameter>)`, negated or not. The element-type condition is
   read from the static types. A differential test in `crates/nvs-stdlib/src/arr.rs` runs `filter` with
   `contains` and `diff` over the same pairs of `int`, `uint`, `float`, `string`, `bool` and object
   lists, with a `float` equal to an `int` among them, and both give the same entries.
+  - [x] `filter_with_contains_keeps_what_diff_and_intersect_keep` agrees, `NaN` and `-0.0` included.
+  - [x] `forms::filter_contains` matches the call.
+  - [x] `Lowering::lower_set_form` emits `diff` or `intersect` with the options at their defaults.
 - [x] `crates/nvs-ir/src/lower/exception.rs:382` `lower_try`: the two caught-conversion rows, under the
   conditions in § *Standing decisions*. The conversion's miss arm is the one `as ?T` already takes.
   - [x] `forms::caught_null` matches the `try`.
   - [x] `Lowering::lower_caught_null` lowers `as ?T` or `tryParse` and stores it.
-- [ ] The four tests the `call-forms` check names, each asserting the instruction emitted with the
+- [x] The four tests the `call-forms` check names, each asserting the instruction emitted with the
   table on and with it off. Run once.
   - [x] `a_null_test_of_a_match_compiles_as_matches`
   - [x] `a_count_or_first_of_keys_or_values_reads_the_array_itself`
   - [x] `a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion`
-  - [ ] `a_difference_written_as_filter_and_contains_compiles_as_diff`, with the `filter` row
+  - [x] `a_difference_written_as_filter_and_contains_compiles_as_diff`, with the `filter` row
 
 ### 3. a loop, a literal and a static call take the direct path
 
@@ -600,43 +616,32 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stage 1 is done. Stage 2 has three of its four items: only the `filter` and `contains` row and its
-test are open. `crates/nvs-ir/src/forms.rs` now holds, below `ROWS`, the matchers each site asks:
-`over_keys_or_values`, `null_tested_match` and `caught_null`, which give a `CoreForm` (the fast
-member's name on the same class, the written arguments it takes, an `arity` cut and a result type)
-or a `CaughtNull`. The `Core` call's emission is `Lowering::lower_core_call` in
+Stages 1 and 2 are done, and the `call-forms` check passes. `crates/nvs-ir/src/forms.rs` holds,
+below `ROWS`, the matchers each site asks: `over_keys_or_values`, `null_tested_match`, `caught_null`
+and `filter_contains` (`forms.rs:507`), which give a `CoreForm` (the fast member's name on the same
+class, the written arguments it takes, an `arity` cut and a result type), a `CaughtNull` or a
+`SetForm`. The `Core` call's emission is `Lowering::lower_core_call` in
 `crates/nvs-ir/src/lower/expr.rs`, which takes `Option<CoreForm>` and reads the rosters for the fast
-member. `Lowering::lower_null_tested_match` runs from `lower_null_identity` (`operator.rs`) and
-`lower_type_test`. `Lowering::lower_caught_null` (`exception.rs`) runs first in `lower_try`.
-
-Choices made while building, each the narrower form of the standing decision:
-
-- The caught conversion takes only a variable operand, a target atom of `int`, `uint`, `float` or
-  `decimal`, and an operand that reads as `string` or a tagged value. Each of those conversions can
-  fail, so `as ?T` is a conversion the lowering has a helper for. A literal or a property operand
-  stays as written.
-- The arm's class must resolve to `RuntimeError` or `Throwable`.
-- Under the debug switch a `try` stays as written, so each statement keeps its probe.
-- The `match` null test takes exactly two positional arguments.
-
-The `call-forms` tests that exist pass, run once by name. Each row's conformance cases passed with
+member. `Lowering::lower_set_form` (`expr.rs:5511`) builds `diff`'s two-argument `ArgSig` by hand from
+`filter`'s array parameter, lowers `a` and a clone of `b`, and emits each option's registry default
+through `nvs_types::core_const_arg`, which is `core_lib::lower_const` made public.
+`Lowering::lower_null_tested_match` runs from `lower_null_identity` (`operator.rs`) and
+`lower_type_test`. `Lowering::lower_caught_null` (`exception.rs`) runs first in `lower_try`. Each
+narrower match is under § *Standing decisions*. Each row's conformance cases passed with
 `bun nv suite tests/conformance/ --no-cheaper-forms-too --case …`.
-Sessions used: stage 1, one; stage 2, one. The sweep's `env-secret-proofs` red is stale: its log
+Sessions used: stage 1, one; stage 2, two. The sweep's `env-secret-proofs` red is stale: its log
 does not exist, and `git log -S` names the `strings-in-place` retire.
 
 ### Next
 
-Stage 2's `filter` and `contains` item: a matcher in `forms.rs` beside `over_keys_or_values`, applied
-at the `lower_core_call` site in `lower_static_call` (`expr.rs`, where `over_keys_or_values` is
-asked). The callback is an `ExprKind::Fn` with one parameter whose body is one `return`, or an arrow
-body, of `Core\Arr::contains(<captured b>, <the parameter>)`, negated or not. The fast form is
-`diff(a, b)` or `intersect(a, b)`: a `CoreForm` cannot express it, because its arguments are not the
-written list. Lower `a` and `b` as expressions and emit the `CoreCall` with `diff`'s or
-`intersect`'s symbol, or give `lower_core_call` a form whose arguments are a list of expressions.
-First check that `filter` and `diff` keep the same keys and use the same equality as `contains`; the
-differential test in `crates/nvs-stdlib/src/arr.rs` checks it. Then write
-`a_difference_written_as_filter_and_contains_compiles_as_diff` in `crates/nvs-ir/src/lower/tests.rs`
-with `core_calls_both_ways`, run it once, tick stage 2, and set its status to done. Stage 3 follows.
+Stage 3, from its first item: `crates/nvs-ir/src/lower/control.rs:880` `lower_foreach` asks a new
+`forms.rs` matcher whether the subject is a direct `Core\Arr::keys` or `values` call (reuse
+`core_call` and `positional`), and loops over the argument. Then the `range` item
+(`crates/nvs-stdlib/src/arr.rs:4192` for the checks `range` makes), the unread key at `control.rs:1080`,
+the constant-key literal at `expr.rs:6884`, and `static::` against `mark_overridden_methods`
+(`crates/nvs-types/src/signatures.rs:1134`). Each row's cases are under
+`tests/conformance/forms/loops/`, and the five `direct-paths` tests go in
+`crates/nvs-ir/src/lower/tests.rs` beside the `call-forms` ones, which use `core_calls_both_ways`.
 Stages 6, 7, 8 and 10 can start as side goals at any time.
 
 Tests expected red: none. The three ladders under `benches/scaling/arrays/forms-` stay red until

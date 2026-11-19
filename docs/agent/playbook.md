@@ -480,6 +480,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   test's database, handed back by the per-core connection pool. Run the failures alone with
   `--rerun-failed` first; a pass there means two tests meet in a pool, a file or a shared table.
   See `crates/nvs-stdlib/src/db/pool.rs`. `until: gone crates/nvs-stdlib/src/db/pool.rs:is_private`
+- **`ExprTypeTable::local_ty` finds no parameter of an arrow function.** Only a block body records
+  its locals, so a lookup by the parameter's name falls back to the enclosing body and returns
+  `None`. A lowering match that worked on `=> { return …; }` missed `=> expr`. Read a parameter's
+  written type with `declared_ty(param.ty.span)`. See `crates/nvs-types/src/expr/calls.rs`
+  `record_locals`.
 
 ## Splitting a file
 
