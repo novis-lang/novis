@@ -1923,8 +1923,8 @@
     },
     {
       "area": "types",
-      "slug": "time-datetime-weekday",
-      "url": "/reference/types/time-datetime-weekday/",
+      "slug": "time-weekday",
+      "url": "/reference/types/time-weekday/",
       "title": "Core\\Time\\Weekday",
       "group": "Enums",
       "intro": {

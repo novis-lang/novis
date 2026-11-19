@@ -49769,17 +49769,7 @@
       "id": "Time.DateTime",
       "name": "Core\\Time\\DateTime",
       "summary": "A date and a time of day in one time zone, such as the start of a meeting in Berlin. `Core\\Time::at` builds one from its parts, and `in` on an `Instant` gives one for a moment. `date` and `timeOfDay` return its two halves, and `format` turns it into text.",
-      "enums": [
-        {
-          "name": "Weekday",
-          "cases": [],
-          "raw": "Weekday",
-          "doc": {
-            "shortHtml": "A day of the week, in ISO 8601 order with Monday first. <code>$d-&gt;weekday()</code> returns one, and <code>next</code> and <code>previous</code> take one. The cases are numbered from zero: <code>Monday as int</code> is <code>0</code> and <code>Sunday</code> is <code>6</code>.",
-            "cases": []
-          }
-        }
-      ],
+      "enums": [],
       "types": [],
       "constants": [],
       "properties": [],

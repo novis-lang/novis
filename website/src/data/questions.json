@@ -15359,7 +15359,7 @@
   },
   "/reference/core/time-date/weekday/": {
     "feature": "Core\\Time\\Date::weekday",
-    "hash": "8ca2f16db64ab000",
+    "hash": "57a60f36ae45be6b",
     "questions": [
       "Which day of the week is a date?",
       "Check whether a date is a working day",
@@ -15508,7 +15508,7 @@
   },
   "/reference/core/time-datetime/month/": {
     "feature": "Core\\Time\\DateTime::month",
-    "hash": "60af75846011bc49",
+    "hash": "5a6c4a4758055454",
     "questions": [
       "How do I get the month from a date and time?",
       "Read the month number of a timestamp in a time zone",
@@ -15528,7 +15528,7 @@
   },
   "/reference/core/time-datetime/next/": {
     "feature": "Core\\Time\\DateTime::next",
-    "hash": "f1c0528e4f292e20",
+    "hash": "5f1bccc600cf5686",
     "questions": [
       "How do I find the next Monday?",
       "Get the date of the coming Friday",
@@ -15550,7 +15550,7 @@
   },
   "/reference/core/time-datetime/previous/": {
     "feature": "Core\\Time\\DateTime::previous",
-    "hash": "85005704b772a27e",
+    "hash": "b20330ea27223742",
     "questions": [
       "How do I find last Friday?",
       "Get the most recent Monday before a date",
@@ -15604,7 +15604,7 @@
   },
   "/reference/core/time-datetime/weekday/": {
     "feature": "Core\\Time\\DateTime::weekday",
-    "hash": "29d3e913bdb14c98",
+    "hash": "796d83b860caef59",
     "questions": [
       "How do I get the day of the week?",
       "Check whether a date falls on a weekend",
@@ -18057,9 +18057,9 @@
       "In which order should catch blocks be written?"
     ]
   },
-  "/reference/types/time-datetime-weekday/": {
+  "/reference/types/time-weekday/": {
     "feature": "Core\\Time\\Weekday",
-    "hash": "ea2ef67ad574418d",
+    "hash": "bd97360eee4b9038",
     "questions": [
       "How do I get the day of the week for a date?",
       "Find the next Friday after a date",
@@ -18760,7 +18760,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "141062ad5d3e5cd6",
+    "hash": "cc5b44cf497b9c24",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",

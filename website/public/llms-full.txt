@@ -58341,7 +58341,7 @@ The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `st
 | `Core\Unit::Quarter` | Three calendar months, so `plus(1, Unit::Quarter)` is `plus(3, Unit::Month)` and `startOf` returns the start of January, April, July or October. |
 | `Core\Unit::Year` | One calendar year, with 29 February clamped to the 28th where the target has none. |
 
-<a id="enum-core-time-datetime-weekday"></a>
+<a id="enum-core-time-weekday"></a>
 #### `Core\Time\Weekday`
 
 A day of the week, in ISO 8601 order with Monday first. `$d->weekday()` returns one, and `next` and `previous` take one. The cases are numbered from zero: `Monday as int` is `0` and `Sunday` is `6`.
