@@ -733,19 +733,15 @@ fn bytes_at<'a>(args: &'a [Value], slot: usize, who: &str, param: &str) -> Resul
     })
 }
 
-/// The throw for a member called before `Core\Session::start`.
-///
-/// # Errors
-///
-/// A thrown `RuntimeError` while this request has started no session.
-fn started(ctx: &Ctx, member: &str) -> Result<(), Fault> {
-    if ctx.session().is_some() {
-        return Ok(());
+/// The member's whole name, as `Core\Session`'s first-use open names its caller.
+fn whole(member: &str) -> &'static str {
+    match member {
+        "registerOptions" => r"Core\Passkey::registerOptions",
+        "verifyRegistration" => r"Core\Passkey::verifyRegistration",
+        "signInOptions" => r"Core\Passkey::signInOptions",
+        "verifySignIn" => r"Core\Passkey::verifySignIn",
+        _ => NAME,
     }
-    Err(Fault::thrown(format!(
-        "{NAME}::{member}(): this request has not started a session. Call \
-         `Core\\Session::start()` first, because the challenge is saved in the session."
-    )))
 }
 
 /// The wall clock's second.
@@ -769,9 +765,8 @@ fn now(ctx: &Ctx, member: &str) -> Result<i64, Fault> {
 ///
 /// # Errors
 ///
-/// [`started`]'s and [`now`]'s, and [`crate::session::put_bytes`]'s.
+/// [`now`]'s, and [`crate::session::put_bytes`]'s, which opens the session on its first use.
 fn issue_challenge(ctx: &mut Ctx, key: &str, member: &str) -> Result<[u8; CHALLENGE_LEN], Fault> {
-    started(ctx, member)?;
     let issued = now(ctx, member)?;
     let mut challenge = [0_u8; CHALLENGE_LEN];
     crate::random::draw(ctx, |rng| rng.fill_bytes(&mut challenge));
@@ -779,7 +774,7 @@ fn issue_challenge(ctx: &mut Ctx, key: &str, member: &str) -> Result<[u8; CHALLE
     let mut saved = Vec::with_capacity(SAVED_LEN);
     saved.extend_from_slice(&issued.to_be_bytes());
     saved.extend_from_slice(&challenge);
-    crate::session::put_bytes(ctx, key, &saved)?;
+    crate::session::put_bytes(ctx, whole(member), key, &saved)?;
     Ok(challenge)
 }
 
@@ -788,11 +783,12 @@ fn issue_challenge(ctx: &mut Ctx, key: &str, member: &str) -> Result<[u8; CHALLE
 ///
 /// # Errors
 ///
-/// [`started`]'s, a thrown `RuntimeError` for a session with no challenge waiting or one older
-/// than [`TIMEOUT_SECONDS`], and [`crate::session::take_bytes`]'s.
+/// A thrown `RuntimeError` for a session with no challenge waiting or one older than
+/// [`TIMEOUT_SECONDS`], and [`crate::session::take_bytes`]'s, which opens the session on its first
+/// use.
 fn take_challenge(ctx: &mut Ctx, key: &str, member: &str) -> Result<Vec<u8>, Fault> {
-    started(ctx, member)?;
-    let saved = crate::session::take_bytes(ctx, key)?.filter(|saved| saved.len() == SAVED_LEN);
+    let saved = crate::session::take_bytes(ctx, whole(member), key)?
+        .filter(|saved| saved.len() == SAVED_LEN);
     let Some(saved) = saved else {
         return Err(Fault::thrown(format!(
             "{NAME}::{member}(): no challenge is waiting in this session. Each challenge can be \

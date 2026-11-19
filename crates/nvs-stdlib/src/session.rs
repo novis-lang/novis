@@ -138,7 +138,7 @@ use nvs_syntax::duration;
 use crate::cache::redis::{Connection, Renamed, Replay};
 use crate::cache::{application, bound, configured, on_shared, open_configured, sealed_key};
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 mod sqlite;
@@ -148,53 +148,60 @@ pub(crate) const NAME: &str = r"Core\Session";
 
 /// `Core\Session`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "Keeps values for one visitor from one request to the next. Call `start()` first, then \
-            use `get()` and `set()`. By default, the values are saved in a SQLite file in the data \
+    short: "Keeps values for one visitor from one request to the next. A short-lived value is kept \
+            until the browser closes or the visitor is inactive for `[session] short_lived`. A \
+            long-lived value is kept for `[session] long_lived`. The first call of any method \
+            opens the session. By default, the values are saved in a SQLite file in the data \
             folder. `[session] backend = \"shared\"` saves them in the shared cache instead.",
 };
 
-/// `rule:core-api/session-roster`'s roster, of which `start` is the member that talks to the store.
+/// The text type of a key, and of an identifier read from the request.
+///
+/// `Qual::Neutral`, which is `Core\Cache\Store::get`'s judgement over the same boundary: a record
+/// key derived from the request is data rather than an instruction
+/// (`rule:security/unclassified-parameter-refuses-tainted`).
+const KEY: CoreTy = CoreTy::Text(Qual::Neutral);
+
+/// `rule:core-api/session-roster`'s roster, in its order.
 ///
 /// One class and no instance side: a session is the request's, not an object a program holds, so
 /// there is nothing for a handle to be and nothing to hand back. Every member is static for that
-/// reason, and this is that rule's list in its order, with the sealed pair
-/// `rule:http-server/a-session-holds-a-secret-only-sealed` adds standing after it.
-///
-/// The third half of one request: what arrived, what goes back, and
-/// what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
-/// `start` is the member that talks to the store — [`crate::session`]'s own
-/// module doc owns which of
-/// `rule:http-server/a-session-store-answers-five-operations`'s five operations are on disk, why the local
-/// tier is unreachable from there rather than merely unselected, and why a
-/// presented identifier this store cannot have issued is *absent* rather
-/// than a second question about validity.
+/// reason. [`crate::session`]'s own module doc owns which of
+/// `rule:http-server/a-session-store-answers-five-operations`'s five operations are on disk, why
+/// the local tier is unreachable from there rather than merely unselected, and why a presented
+/// identifier this store cannot have issued is *absent* rather than a second question about
+/// validity.
 // rank: 780
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
     methods: &[
         CoreMethod {
-            name: "start",
-            names: &["presented"],
-            // `?tainted string` as this registry spells it: `Nullable` for the `?`, and
-            // `Text(Qual::Neutral)` for the rest — `CoreTy::TaintedStr` is return position only,
-            // and a `Qual` is what says a `tainted` argument is admitted here (`rule:security/unclassified-parameter-refuses-tainted`). It
-            // is admitted because the strict-id rule
-            // (`rule:http-server/a-session-store-answers-five-operations`) makes the value a lookup key and never an
-            // instruction: what the store did not issue is absent, whatever it was.
-            params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
-            defaults: &[Const::Null],
+            name: "setShortLived",
+            names: &["key", "value"],
+            // The value is unclassified — `CoreTy::Mixed` — so a `tainted` one is refused, again
+            // as `Core\Cache\Store::put` refuses it and for that member's reason: a qualifier is a
+            // compile-time fact and the record is bytes, so `get` has nowhere to carry it back out
+            // and admitting one here would launder it.
+            params: &[KEY, CoreTy::Mixed],
+            defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "nvs_core_session_start",
-            doc: Some(&START_DOC),
+            symbol: "nvs_core_session_set_short_lived",
+            doc: Some(&SET_SHORT_LIVED_DOC),
+        },
+        CoreMethod {
+            name: "setLongLived",
+            names: &["key", "value"],
+            params: &[KEY, CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_set_long_lived",
+            doc: Some(&SET_LONG_LIVED_DOC),
         },
         CoreMethod {
             name: "get",
             names: &["key"],
-            // `Qual::Neutral` on the key, which is `Core\Cache\Store::get`'s judgement over the
-            // same boundary: not a byte of it reaches the answer, and a record key derived from
-            // the request is data rather than an instruction (`rule:security/unclassified-parameter-refuses-tainted`).
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[KEY],
             defaults: &[],
             // `mixed` rather than `rule:core-api/shape-rules` R7's `?T`: what went in is any value the byte carrier
             // admits, so there is no `T` to make nullable, and `mixed` already spells absent.
@@ -203,35 +210,40 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&GET_DOC),
         },
         CoreMethod {
-            name: "set",
-            names: &["key", "value"],
-            // The value is unclassified — `CoreTy::Mixed` — so a `tainted` one is refused, again
-            // as `Core\Cache\Store::put` refuses it and for that member's reason: a qualifier is a
-            // compile-time fact and the record is bytes, so `get` has nowhere to carry it back out
-            // and admitting one here would launder it.
-            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Mixed],
-            defaults: &[],
-            return_ty: CoreTy::Void,
-            symbol: "nvs_core_session_set",
-            doc: Some(&SET_DOC),
-        },
-        CoreMethod {
             name: "remove",
             names: &["key"],
-            params: &[CoreTy::Text(Qual::Neutral)],
+            params: &[KEY],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_session_remove",
             doc: Some(&REMOVE_DOC),
         },
         CoreMethod {
-            name: "clear",
+            name: "clearShortLived",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "nvs_core_session_clear",
-            doc: Some(&CLEAR_DOC),
+            symbol: "nvs_core_session_clear_short_lived",
+            doc: Some(&CLEAR_SHORT_LIVED_DOC),
+        },
+        CoreMethod {
+            name: "clearLongLived",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_clear_long_lived",
+            doc: Some(&CLEAR_LONG_LIVED_DOC),
+        },
+        CoreMethod {
+            name: "clearAll",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_clear_all",
+            doc: Some(&CLEAR_ALL_DOC),
         },
         CoreMethod {
             name: "regenerate",
@@ -246,51 +258,65 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&REGENERATE_DOC),
         },
         CoreMethod {
-            name: "destroy",
-            names: &[],
-            params: &[],
-            defaults: &[],
-            return_ty: CoreTy::Void,
-            symbol: "nvs_core_session_destroy",
-            doc: Some(&DESTROY_DOC),
-        },
-        CoreMethod {
-            name: "setSecret",
+            name: "setShortLivedSecret",
             names: &["key", "value", "keys"],
             // The value is a demand and not an admission, as `Core\Cache\Store::putSecret`'s is:
             // the qualifier widens on and narrows through nothing, so a plain `string` reaches
             // this parameter and a `secret` one does too, with nothing laundered either way. What
-            // the row says is that this member is written for a confidential value — `set`'s
-            // `mixed` refuses one, and this is where it goes instead.
+            // the row says is that this member is written for a confidential value — the plain
+            // setters' `mixed` refuses one, and this is where it goes instead.
             //
-            // No `ttl` where the cache's door has one: a session value lives as long as its
-            // session (`rule:http-server/session-expiry-belongs-to-the-store`).
+            // No `ttl` where the cache's door has one: a session value lives for its lifetime
+            // (`rule:http-server/session-expiry-belongs-to-the-store`).
             params: &[
-                CoreTy::Text(Qual::Neutral),
+                KEY,
                 CoreTy::SecretText(Qual::Neutral),
                 CoreTy::Array(&crate::keyring::KEY),
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "nvs_core_session_set_secret",
-            doc: Some(&SET_SECRET_DOC),
+            symbol: "nvs_core_session_set_short_lived_secret",
+            doc: Some(&SET_SHORT_LIVED_SECRET_DOC),
+        },
+        CoreMethod {
+            name: "setLongLivedSecret",
+            names: &["key", "value", "keys"],
+            params: &[
+                KEY,
+                CoreTy::SecretText(Qual::Neutral),
+                CoreTy::Array(&crate::keyring::KEY),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_set_long_lived_secret",
+            doc: Some(&SET_LONG_LIVED_SECRET_DOC),
         },
         CoreMethod {
             name: "getSecret",
             names: &["key", "keys"],
-            params: &[
-                CoreTy::Text(Qual::Neutral),
-                CoreTy::Array(&crate::keyring::KEY),
-            ],
+            params: &[KEY, CoreTy::Array(&crate::keyring::KEY)],
             defaults: &[],
             // `rule:core-api/shape-rules` R7's `?T` where `get` had no `T` to make nullable: a
-            // sealed value is the one type `setSecret` admitted. The `secret` is a promise rather
-            // than a conditional — what comes back out is confidential whatever the `string` that
-            // went in was typed as — which is why this spells `CoreTy::SecretStr` and not the
-            // parameter form beside it.
+            // sealed value is the one type the sealed setters admitted. The `secret` is a promise
+            // rather than a conditional — what comes back out is confidential whatever the
+            // `string` that went in was typed as — which is why this spells `CoreTy::SecretStr`
+            // and not the parameter form beside it.
             return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
             symbol: "nvs_core_session_get_secret",
             doc: Some(&GET_SECRET_DOC),
+        },
+        CoreMethod {
+            name: "openWithIdentifier",
+            names: &["id"],
+            // `tainted` is admitted, because the strict-id rule
+            // (`rule:http-server/a-session-store-answers-five-operations`) makes the value a
+            // lookup key and never an instruction: what the store did not issue is absent,
+            // whatever it was.
+            params: &[KEY],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_open_with_identifier",
+            doc: Some(&OPEN_WITH_IDENTIFIER_DOC),
         },
     ],
     instance: &[],
@@ -298,59 +324,53 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Session::start`'s reference card — `rule:core-api/reference-card`.
-const START_DOC: MethodDoc = MethodDoc {
-    short: "Opens the session of this request. Call it once, before any other method of this \
-            class. The session identifier is read from the session cookie.",
-    params: &[ParamDoc {
-        name: "presented",
-        desc: "The identifier to open. Leave it out to read it from the cookie named by \
-               `[session] cookie`, which is `nvsid` by default. If the store has no session \
-               under the identifier, a new, empty session is opened. This happens when the \
-               identifier expired, and when somebody made it up.",
-        shape: &[],
-    }],
-    ret: "Nothing. After it, the other methods of this class can read and change the session. \
-          A new session is not saved, and no cookie is sent, until the program saves a value in \
-          it. Then the response sends its identifier in the session cookie.",
-    errors: &[
-        ErrorDoc {
-            error: "LogicError",
-            desc: "The program is not handling a request. A command-line program, a job and a \
-                   test have no session.",
-        },
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request already called `start()`. It is also thrown when the server has \
-                   no data folder for the default store. With `[session] backend = \"shared\"`, \
-                   it is thrown when `[cache.shared] url` is not set, or the program does not have \
-                   the `cache.shared` capability.",
-        },
-        ErrorDoc {
-            error: "IOError",
-            desc: "The store cannot be reached. The user may still have a session there, so do \
-                   not treat them as signed out.",
-        },
-    ],
+/// The error every method of the class lists for a program that is not answering a request.
+const NO_REQUEST: ErrorDoc = ErrorDoc {
+    error: "LogicError",
+    desc: "The program is not handling a request. A command-line program, a job and a test have \
+           no session.",
+};
+
+/// The error every method lists for a store it cannot open or reach at the first call.
+const NO_STORE: ErrorDoc = ErrorDoc {
+    error: "RuntimeError",
+    desc: "This is the first call in the request, and the store cannot be opened. The server has \
+           no data folder for the default store. With `[session] backend = \"shared\"`, \
+           `[cache.shared] url` is not set, or the program does not have the `cache.shared` \
+           capability.",
+};
+
+/// The error every method lists for a store that does not answer.
+const STORE_DOWN: ErrorDoc = ErrorDoc {
+    error: "IOError",
+    desc: "The store cannot be reached. The user may still have a session there, so do not treat \
+           them as signed out.",
+};
+
+/// The error every method that changes the session lists for a call where headers are sent.
+const HEAD_CLOSED: ErrorDoc = ErrorDoc {
+    error: "LogicError",
+    desc: "The call is inside `Core\\Html::later` or `Core\\Task::afterResponse`. The response \
+           headers are already sent there, so the session cannot change. Most of these calls do \
+           not compile.",
 };
 
 /// `Core\Session::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Returns the value saved under one key in the session of this request.",
+    short: "Returns the value saved under one key in the session of this request. The value can \
+            be short-lived or long-lived.",
     params: &[ParamDoc {
         name: "key",
         desc: "The key to read. If the session has no value under it, the result is `null`. A key \
                that was set to `null` gives the same result.",
         shape: &[],
     }],
-    ret: "The value saved under `$key`, or `null`. Reading does not change the session, so a \
-          request that only reads its session does not write it back to the store.",
+    ret: "The value saved under `$key`, or `null`. A short-lived value is `null` after the \
+          browser was closed, or after the visitor was inactive for `[session] short_lived`.",
     errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-                   session to read.",
-        },
+        NO_REQUEST,
+        NO_STORE,
+        STORE_DOWN,
         ErrorDoc {
             error: "ParseError",
             desc: "The value under `$key` contains an object of a class this program does not \
@@ -359,115 +379,131 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::set`'s reference card — `rule:core-api/reference-card`.
-const SET_DOC: MethodDoc = MethodDoc {
-    short: "Saves a value under one key in the session of this request. If the key already has a \
-            value, it is replaced.",
-    params: &[
-        ParamDoc {
-            name: "key",
-            desc: "The key to save the value under.",
-            shape: &[],
-        },
-        ParamDoc {
-            name: "value",
-            desc: "The value to save: a string, a number, a bool, `null`, an array or an object. \
-                   A `tainted` value (text that came from the request) is not allowed here, so \
-                   the call does not compile.",
-            shape: &[],
-        },
-    ],
+/// The `$key` parameter of the two plain setters.
+const SET_KEY: ParamDoc = ParamDoc {
+    name: "key",
+    desc: "The key to save the value under. If the key already has a value of either lifetime, \
+           it is replaced, and the key gets the lifetime of this call.",
+    shape: &[],
+};
+
+/// The `$value` parameter of the two plain setters.
+const SET_VALUE: ParamDoc = ParamDoc {
+    name: "value",
+    desc: "The value to save: a string, a number, a bool, `null`, an array or an object. A \
+           `tainted` value (text that came from the request) is not allowed here, so the call \
+           does not compile.",
+    shape: &[],
+};
+
+/// The errors of the two plain setters.
+const SET_ERRORS: &[ErrorDoc] = &[
+    NO_REQUEST,
+    HEAD_CLOSED,
+    NO_STORE,
+    STORE_DOWN,
+    ErrorDoc {
+        error: "LogicError",
+        desc: "`$value` cannot be saved: it is a callable or a resource, or it contains one.",
+    },
+    ErrorDoc {
+        error: "RuntimeError",
+        desc: "`[session] cookie` is not a valid cookie name. It is thrown when the call must \
+               send the cookie.",
+    },
+];
+
+/// `Core\Session::setShortLived`'s reference card — `rule:core-api/reference-card`.
+const SET_SHORT_LIVED_DOC: MethodDoc = MethodDoc {
+    short: "Saves a short-lived value under one key in the session of this request. Use it for \
+            a login. The value is deleted when the browser closes, or when the visitor is \
+            inactive for `[session] short_lived`, which is 2 hours by default.",
+    params: &[SET_KEY, SET_VALUE],
     ret: "Nothing. When the request ends, the keys it changed are saved to the store. The first \
-          value saved in a new session also sends the session cookie. Two requests that change \
-          different keys at the same time keep both changes. If they change the same key, the \
-          request that ends last wins.",
-    errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-                   session to save into. It is also thrown on the first save in a new session \
-                   when `[session] cookie` is not a valid cookie name.",
-        },
-        ErrorDoc {
-            error: "LogicError",
-            desc: "`$value` cannot be saved: it is a callable or a resource, or it contains one. \
-                   It is also thrown on the first save in a new session after the response was \
-                   sent, because the cookie cannot be sent then.",
-        },
-    ],
+          short-lived value in a session also sends a second cookie. Its name is `[session] \
+          cookie` with `-short` added. Two requests that change different keys at the same time \
+          keep both changes. If they change the same key, the request that ends last wins.",
+    errors: SET_ERRORS,
+};
+
+/// `Core\Session::setLongLived`'s reference card — `rule:core-api/reference-card`.
+const SET_LONG_LIVED_DOC: MethodDoc = MethodDoc {
+    short: "Saves a long-lived value under one key in the session of this request. Use it for a \
+            choice the visitor made, such as their language or their cookie consent. The value \
+            is kept for `[session] long_lived`, which is 180 days by default. It is kept after \
+            the browser closes.",
+    params: &[SET_KEY, SET_VALUE],
+    ret: "Nothing. When the request ends, the keys it changed are saved to the store. While the \
+          session has a long-lived value, the session cookie has a `Max-Age`, so the browser \
+          keeps it after it closes. Do not save a login here: it would stay signed in after the \
+          browser closes.",
+    errors: SET_ERRORS,
 };
 
 /// `Core\Session::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
-    short: "Deletes one key and its value from the session of this request.",
+    short: "Deletes one key and its value from the session of this request. The value can be \
+            short-lived or long-lived.",
     params: &[ParamDoc {
         name: "key",
         desc: "The key to delete. If the session has no value under it, `remove()` does not throw \
                an error and the session does not change.",
         shape: &[],
     }],
-    ret: "Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values. \
-          To delete every key, use `clear()`.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-               session to change.",
-    }],
+    ret: "Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values.",
+    errors: &[NO_REQUEST, HEAD_CLOSED, NO_STORE, STORE_DOWN],
 };
 
-/// `Core\Session::clear`'s reference card — `rule:core-api/reference-card`.
-const CLEAR_DOC: MethodDoc = MethodDoc {
-    short: "Removes every value from the session of this request. The session stays open and \
-            keeps its identifier.",
-    params: &[],
-    ret: "Nothing. The client keeps the same session cookie, and `set()` works again at once. When \
-          the request ends, every key in the store is deleted. This also deletes keys that \
-          another request saved in the meantime. Keys you set after `clear()` are saved. To end \
-          the session completely, for example when a user signs out, use `destroy()`.",
-    errors: &[ErrorDoc {
+/// The errors of the two clears and `regenerate`.
+const MOVE_ERRORS: &[ErrorDoc] = &[
+    NO_REQUEST,
+    HEAD_CLOSED,
+    ErrorDoc {
         error: "RuntimeError",
-        desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-               session to empty.",
-    }],
+        desc: "The store cannot be opened, or `[session] cookie` is not a valid cookie name.",
+    },
+    ErrorDoc {
+        error: "IOError",
+        desc: "The store cannot be reached. The old identifier may still work, so do not treat \
+               the user as signed out.",
+    },
+];
+
+/// `Core\Session::clearShortLived`'s reference card — `rule:core-api/reference-card`.
+const CLEAR_SHORT_LIVED_DOC: MethodDoc = MethodDoc {
+    short: "Deletes every short-lived value from the session of this request. Call it when a \
+            user signs out. The long-lived values are kept.",
+    params: &[],
+    ret: "Nothing. The session gets a new identifier, and the response sends it in the session \
+          cookie. The old identifier no longer finds the session. Short-lived values that another \
+          request saved in the meantime are deleted too.",
+    errors: MOVE_ERRORS,
 };
 
-/// `Core\Session::regenerate`'s reference card — `rule:core-api/reference-card`.
-const REGENERATE_DOC: MethodDoc = MethodDoc {
-    short: "Gives the session a new identifier and deletes the old one from the store. Call it \
-            when a user signs in, so an identifier that somebody else knew stops working.",
+/// `Core\Session::clearLongLived`'s reference card — `rule:core-api/reference-card`.
+const CLEAR_LONG_LIVED_DOC: MethodDoc = MethodDoc {
+    short: "Deletes every long-lived value from the session of this request. The short-lived \
+            values are kept.",
     params: &[],
-    ret: "Nothing. Every key in the session is kept, also a key that another request saved in \
-          the meantime. The response sends the new identifier in the session cookie. The old \
-          identifier no longer finds the session.",
+    ret: "Nothing. The session gets a new identifier, and the response sends it in the session \
+          cookie. The cookie has no `Max-Age` any more, so the browser deletes it when it closes. \
+          Long-lived values that another request saved in the meantime are deleted too.",
+    errors: MOVE_ERRORS,
+};
+
+/// `Core\Session::clearAll`'s reference card — `rule:core-api/reference-card`.
+const CLEAR_ALL_DOC: MethodDoc = MethodDoc {
+    short: "Deletes the whole session of this request from the store, and tells the browser to \
+            delete both session cookies.",
+    params: &[],
+    ret: "Nothing. After it, the request has an empty session with no identifier. If the \
+          request saves a value after `clearAll()`, a new session starts with a new identifier.",
     errors: &[
+        NO_REQUEST,
+        HEAD_CLOSED,
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. With \
-                   `[session] backend = \"shared\"`, it is also thrown when `[cache.shared] url` \
-                   is not set or the program does not have the `cache.shared` capability. It is \
-                   also thrown when `[session] cookie` is not a valid cookie name.",
-        },
-        ErrorDoc {
-            error: "IOError",
-            desc: "The store cannot be reached. The old identifier may still work, so do not \
-                   treat the user as signed in.",
-        },
-    ],
-};
-
-/// `Core\Session::destroy`'s reference card — `rule:core-api/reference-card`.
-const DESTROY_DOC: MethodDoc = MethodDoc {
-    short: "Ends the session of this request and deletes its data from the store. Call it when a \
-            user signs out.",
-    params: &[],
-    ret: "Nothing. After it, this request has no session. The other methods of this class throw \
-          a `RuntimeError` until you call `start()` again, and that call opens a new, empty session.",
-    errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request has not called `start()`, or it already called `destroy()`. With \
-                   `[session] backend = \"shared\"`, it is also thrown when `[cache.shared] url` \
-                   is not set or the program does not have the `cache.shared` capability.",
+            desc: "The store cannot be opened, or `[session] cookie` is not a valid cookie name.",
         },
         ErrorDoc {
             error: "IOError",
@@ -477,48 +513,89 @@ const DESTROY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::setSecret`'s reference card — `rule:core-api/reference-card`.
-const SET_SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Saves a secret, such as an access token, in the session of this request. The secret \
-            is encrypted with a key from `$keys`, so the store only sees encrypted bytes.",
+/// `Core\Session::regenerate`'s reference card — `rule:core-api/reference-card`.
+const REGENERATE_DOC: MethodDoc = MethodDoc {
+    short: "Gives the session a new identifier and deletes the old one from the store. Call it \
+            when a user signs in, so an identifier that somebody else knew stops working.",
+    params: &[],
+    ret: "Nothing. Every value in the session is kept, also a value that another request saved \
+          in the meantime. The response sends the new identifier in the session cookie. The old \
+          identifier no longer finds the session.",
+    errors: MOVE_ERRORS,
+};
+
+/// The `$keys` parameter of the two sealed setters.
+const SECRET_KEYS: ParamDoc = ParamDoc {
+    name: "keys",
+    desc: "A list of encryption keys, newest first. `Core\\Crypto::generateKey()` creates one. \
+           The first key encrypts the secret.",
+    shape: &[],
+};
+
+/// The `$key` parameter of the two sealed setters.
+const SECRET_KEY: ParamDoc = ParamDoc {
+    name: "key",
+    desc: "The key to save the secret under. `get()` returns `null` for this key. Only \
+           `getSecret()` with the same `$keys` can read the secret.",
+    shape: &[],
+};
+
+/// The errors of the two sealed setters.
+const SECRET_ERRORS: &[ErrorDoc] = &[
+    NO_REQUEST,
+    HEAD_CLOSED,
+    NO_STORE,
+    STORE_DOWN,
+    ErrorDoc {
+        error: "LogicError",
+        desc: "`$keys` is empty, or its first key is not 32 bytes long.",
+    },
+];
+
+/// `Core\Session::setShortLivedSecret`'s reference card — `rule:core-api/reference-card`.
+const SET_SHORT_LIVED_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Saves a short-lived secret, such as an access token, in the session of this request. \
+            The secret is encrypted with a key from `$keys`, so the store only sees encrypted \
+            bytes. Use it for a secret that belongs to a login.",
     params: &[
-        ParamDoc {
-            name: "key",
-            desc: "The key to save the secret under. `get()` returns `null` for this key. Only \
-                   `getSecret()` with the same `$keys` can read the secret.",
-            shape: &[],
-        },
+        SECRET_KEY,
         ParamDoc {
             name: "value",
-            desc: "The secret to save, for example an access token or a refresh token of the user.",
+            desc: "The secret to save, for example an access token or a refresh token of the \
+                   user.",
             shape: &[],
         },
+        SECRET_KEYS,
+    ],
+    ret: "Nothing. The secret is saved to the store when the request ends. It is deleted with \
+          the other short-lived values.",
+    errors: SECRET_ERRORS,
+};
+
+/// `Core\Session::setLongLivedSecret`'s reference card — `rule:core-api/reference-card`.
+const SET_LONG_LIVED_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Saves a long-lived secret in the session of this request. The secret is encrypted \
+            with a key from `$keys`, so the store only sees encrypted bytes.",
+    params: &[
+        SECRET_KEY,
         ParamDoc {
-            name: "keys",
-            desc: "A list of encryption keys, newest first. `Core\\Crypto::generateKey()` creates \
-                   one. The first key encrypts the secret.",
+            name: "value",
+            desc: "The secret to save.",
             shape: &[],
         },
+        SECRET_KEYS,
     ],
-    ret: "Nothing. The secret is saved to the store when the request ends, as `set()` saves a \
-          value.",
-    errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-                   session to save into.",
-        },
-        ErrorDoc {
-            error: "LogicError",
-            desc: "`$keys` is empty, or its first key is not 32 bytes long.",
-        },
-    ],
+    ret: "Nothing. The secret is saved to the store when the request ends, and it is kept for \
+          `[session] long_lived`. Anybody with the session cookie can use it, also after the \
+          browser closes. Save a secret that belongs to a login with `setShortLivedSecret()`.",
+    errors: SECRET_ERRORS,
 };
 
 /// `Core\Session::getSecret`'s reference card — `rule:core-api/reference-card`.
 const GET_SECRET_DOC: MethodDoc = MethodDoc {
-    short: "Reads a secret that `setSecret()` saved in the session of this request. If the \
-            secret cannot be decrypted with `$keys`, the result is `null`.",
+    short: "Reads a secret that `setShortLivedSecret()` or `setLongLivedSecret()` saved in the \
+            session of this request. If the secret cannot be decrypted with `$keys`, the result \
+            is `null`.",
     params: &[
         ParamDoc {
             name: "key",
@@ -536,13 +613,11 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The secret saved under `$key`, or `null`. The result is `null` when nothing is saved \
           under `$key`, when no key in `$keys` decrypts it, and when the saved bytes were \
-          changed. Reading does not change the session.",
+          changed.",
     errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This request has not called `start()`, or it called `destroy()`. There is no \
-                   session to read.",
-        },
+        NO_REQUEST,
+        NO_STORE,
+        STORE_DOWN,
         ErrorDoc {
             error: "LogicError",
             desc: "`$keys` is empty, or a key in it is not 32 bytes long.",
@@ -550,9 +625,34 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "ParseError",
             desc: "The value under the secret's key contains an object of a class this program \
-                   does not declare. This happens only when a program used `set()` to save a \
-                   value there.",
+                   does not declare. This happens only when a program saved a plain value there.",
         },
+    ],
+};
+
+/// `Core\Session::openWithIdentifier`'s reference card — `rule:core-api/reference-card`.
+const OPEN_WITH_IDENTIFIER_DOC: MethodDoc = MethodDoc {
+    short: "Opens the session of this request under an identifier that your program read, for \
+            example from a header. Most programs do not need it: the first call of any other \
+            method opens the session from the session cookie.",
+    params: &[ParamDoc {
+        name: "id",
+        desc: "The session identifier. If the store has no session under it, a new, empty \
+               session is opened. This happens when the identifier expired, and when somebody \
+               made it up.",
+        shape: &[],
+    }],
+    ret: "Nothing. No cookie is read for this session. Short-lived values need only the \
+          identifier, because there is no browser that could close.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "Another method of this class was already called in this request, so the \
+                   session is already open. The message names that method. It is also thrown \
+                   when the program is not handling a request.",
+        },
+        NO_STORE,
+        STORE_DOWN,
     ],
 };
 
@@ -637,16 +737,18 @@ return {1}";
 /// the session lives.
 ///
 /// `KEYS[1]` is the session's hash. `ARGV[1]` to `ARGV[3]` are now and the two clocks, as
-/// [`ISSUE`] takes them, and `ARGV[4]` the short token or empty. `ARGV[5]` is `1` when the request
-/// called `clear`, `ARGV[6]` the size ceiling, `ARGV[7]` the key ceiling, and `ARGV[8]` how many
+/// [`ISSUE`] takes them, and `ARGV[4]` the short token or empty. `ARGV[5]` names the lifetimes the
+/// request cleared: `s`, `l`, both or neither. `ARGV[6]` is the size ceiling, `ARGV[7]` the key
+/// ceiling, and `ARGV[8]` how many
 /// removed keys follow, each bare. Every pair after those is a changed field, with its lifetime's
 /// prefix, and its value.
 ///
 /// It answers `{0}` for a session that is gone and writes nothing. Then it counts the new size: `m`,
 /// less each old field it replaces or removes under either prefix, plus each new one, each field as
-/// its name, its value and [`FRAMING`]. A size or a key count past its ceiling answers `{-1, size}`
-/// and writes nothing. Otherwise it deletes every key on `clear`, deletes both fields of each
-/// removed or changed key, sets the changed ones and `m`, and answers `{1, size}`.
+/// its name, its value and [`FRAMING`]. A cleared lifetime's fields count as removed. A size or a
+/// key count past its ceiling answers `{-1, size}` and writes nothing. Otherwise it deletes every
+/// field of a cleared lifetime, deletes both fields of each removed or changed key, sets the
+/// changed ones and `m`, and answers `{1, size}`.
 ///
 /// Each clock moves forward only, so a request that loaded an older record never shortens one
 /// another request refreshed. The token is written when one is given. The expiry is the long
@@ -656,16 +758,26 @@ const SAVE: &str = "\
 local key = KEYS[1]
 if redis.call('EXISTS', key) == 0 then return {0} end
 local now, x, y = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
-local cleared = ARGV[5] == '1'
+local clear = ARGV[5]
 local first = 9 + tonumber(ARGV[8])
-local size, count = 0, 0
-if not cleared then
-  size = tonumber(redis.call('HGET', key, 'm')) or 0
-  count = redis.call('HLEN', key)
-  for _, own in ipairs({'m', 'x', 'y', 't'}) do count = count - redis.call('HEXISTS', key, own) end
+local size = tonumber(redis.call('HGET', key, 'm')) or 0
+local count = redis.call('HLEN', key)
+for _, own in ipairs({'m', 'x', 'y', 't'}) do count = count - redis.call('HEXISTS', key, own) end
+local gone, dropped = {}, {}
+if clear ~= '' then
+  for _, field in ipairs(redis.call('HKEYS', key)) do
+    local prefix = string.sub(field, 1, 2)
+    if (prefix == 's:' and string.find(clear, 's', 1, true))
+      or (prefix == 'l:' and string.find(clear, 'l', 1, true)) then
+      size = size - #field - redis.call('HSTRLEN', key, field) - 32
+      count = count - 1
+      gone[#gone + 1] = field
+      dropped[field] = true
+    end
+  end
 end
 local function replaced(field)
-  if not cleared and redis.call('HEXISTS', key, field) == 1 then
+  if not dropped[field] and redis.call('HEXISTS', key, field) == 1 then
     size = size - #field - redis.call('HSTRLEN', key, field) - 32
     count = count - 1
   end
@@ -678,12 +790,7 @@ for i = first, #ARGV, 2 do
   count = count + 1
 end
 if size > tonumber(ARGV[6]) or count > tonumber(ARGV[7]) then return {-1, size} end
-if cleared then
-  for _, field in ipairs(redis.call('HKEYS', key)) do
-    local prefix = string.sub(field, 1, 2)
-    if prefix == 's:' or prefix == 'l:' then redis.call('HDEL', key, field) end
-  end
-end
+for _, field in ipairs(gone) do redis.call('HDEL', key, field) end
 for i = 9, first - 1 do redis.call('HDEL', key, 's:' .. ARGV[i], 'l:' .. ARGV[i]) end
 for i = first, #ARGV, 2 do
   local bare = string.sub(ARGV[i], 3)
@@ -767,8 +874,11 @@ pub(crate) struct Record {
 /// One request's changes to its session, as the write-back sends them to `save`.
 #[derive(Debug, Default)]
 pub(crate) struct Changes<'a> {
-    /// Whether the request called `clear`, so every key the store holds is deleted first.
-    pub(crate) cleared: bool,
+    /// Whether the request called `clearShortLived`, so every short-lived key the store holds is
+    /// deleted first.
+    pub(crate) cleared_short: bool,
+    /// The same for `clearLongLived` and the long-lived keys.
+    pub(crate) cleared_long: bool,
     /// The keys the request removed.
     pub(crate) removed: Vec<&'a [u8]>,
     /// The keys the request set, each with its encoded value and whether it is long-lived.
@@ -784,7 +894,8 @@ impl<'a> Changes<'a> {
     /// without is a removal.
     fn of(open: &'a nvs_runtime::Session, clocks: Clocks) -> Self {
         let mut changes = Self {
-            cleared: open.cleared,
+            cleared_short: open.cleared_short,
+            cleared_long: open.cleared_long,
             token: open.short_token.as_deref().filter(|_| !open.by_hand),
             clocks,
             ..Self::default()
@@ -1250,7 +1361,12 @@ pub(crate) fn save(
     argv.push(&short);
     argv.push(&long);
     argv.push(changes.token.unwrap_or_default().as_bytes());
-    argv.push(if changes.cleared { b"1" } else { b"0" });
+    argv.push(match (changes.cleared_short, changes.cleared_long) {
+        (true, true) => b"sl".as_slice(),
+        (true, false) => b"s",
+        (false, true) => b"l",
+        (false, false) => b"",
+    });
     argv.push(&ceiling);
     argv.push(&keys);
     argv.push(&count);
@@ -1303,122 +1419,152 @@ pub(crate) fn issuable(presented: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
+/// `rule:core-classes/a-session-opens-on-its-first-use`: the session of this request, opened by
+/// the first call of any `Core\Session` member, and by `Core\Csrf::token` and `Core\Passkey`,
+/// which keep their state in it. `who` is the caller's whole name (`Core\Session::get`), which a
+/// refusal names and `openWithIdentifier` names later. A session that is already open is used as
+/// it is, so every call after the first costs one branch.
+///
+/// # Errors
+///
+/// As [`opened_under`].
+pub(crate) fn first_use(ctx: &mut Ctx, who: &'static str) -> Result<(), Fault> {
+    if ctx.session().is_some() {
+        return Ok(());
+    }
+    opened_under(ctx, who, None)
+}
+
+/// The open itself: the session under `given`, an identifier the program read itself, or under the
+/// identifier the `[session] cookie` presented where `given` is `None`.
+///
+/// **Absent is one answer with one response.**
+/// `rule:http-server/a-session-store-answers-five-operations` gives `load` three ways to answer
+/// absent — an identifier the store never issued, one it issued and has since expired, and one an
+/// attacker minted — and the open does not distinguish them: each discards the presented
+/// identifier and opens a fresh, empty session. The pre-store shape check ([`issuable`]) is not a
+/// second validity question, for the reason the module doc gives.
+///
+/// **A store that cannot be reached throws.** [`on_shared`] classifies it as an `IOError` rather
+/// than answering as though the record were absent, because absence means *issue a new session* —
+/// so a store that is down would silently sign every user out and look like a forged identifier
+/// while doing it.
+///
+/// **A fresh session has no identifier until something is kept in it.** The open writes no row
+/// and sends no cookie for one; [`write`] draws the identifier and sends the cookie on the first
+/// write that leaves the record non-empty, and the end-of-request write-back creates the row. So
+/// the store holds sessions somebody wrote, and a flood of cookieless requests that only read
+/// leaves nothing behind. `regenerate` on such a session does nothing, and `clearAll` reaches no
+/// store.
+///
+/// **A program answering no request has no session to open**, and is told that before it is told
+/// anything about the store. `rule:security/request-state-throws-in-an-isolate`: a session belongs
+/// to the client a request arrived from, so a CLI program, a job worker, a test and a spawned
+/// isolate inside a request have nothing to open and nothing to issue a cookie on. A deployment
+/// that *has* a store would otherwise mint a record and a cookie for a caller that can never
+/// present either, which is the ambient authority `rule:security/isolate-shares-nothing` keeps out
+/// of a child. The refusal is [`crate::request::served`]'s, so the class and the sentence have one
+/// home.
+///
+/// # Errors
+///
+/// A thrown `LogicError` where no request arrived; a thrown `RuntimeError` for the `db` store in a
+/// process with no usable data folder, and for a shared store that is unconfigured or refused by
+/// capability; a thrown `IOError` for a store that cannot be reached.
+fn opened_under(ctx: &mut Ctx, who: &'static str, given: Option<String>) -> Result<(), Fault> {
+    crate::request::served(ctx, who)?;
+    let member = format!("{who}()");
+    let store = opened(
+        ctx,
+        &member,
+        ". A session has to be in a store that every server process can read",
+    )?;
+
+    // A presented identifier this store cannot have issued is absent, and is absent here rather
+    // than one round trip later.
+    let named = cookie(ctx);
+    let by_hand = given.is_some();
+    // The short cookie is read only where the identifier rode in a cookie: a session opened
+    // under an identifier the program read itself binds its short-lived values to that alone.
+    let short = if by_hand {
+        None
+    } else {
+        let short_name = format!("{named}{SHORT_COOKIE_SUFFIX}");
+        ctx.inbound().and_then(|inbound| {
+            crate::request::cookie_of(inbound, short_name.as_bytes())
+                .and_then(|value| std::str::from_utf8(value).ok())
+                .map(str::to_owned)
+        })
+    };
+    let presented = match given {
+        Some(given) => Some(given),
+        // The ordinary case: the identifier rides in the `[session] cookie` field, read
+        // through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with —
+        // one reading, so a `__Host-` name that arrived twice is invisible to both rather
+        // than to one of them.
+        None => ctx.inbound().and_then(|inbound| {
+            crate::request::cookie_of(inbound, named.as_bytes())
+                .and_then(|value| std::str::from_utf8(value).ok())
+                .map(str::to_owned)
+        }),
+    }
+    .filter(|id| issuable(id));
+    let short_name = who.rsplit_once("::").map_or(who, |(_, member)| member);
+    let opened = match presented {
+        Some(id) => fetched(&store, crate::cache::application(ctx), short_name, &id)?
+            .map(|record| opened_record(ctx, id, record, short.as_deref(), by_hand)),
+        None => None,
+    };
+
+    // A visitor with no record gets an empty session with no identifier yet. Nothing reaches
+    // the store and no cookie is sent until [`write`] keeps something in it, so a request that
+    // only reads costs the store nothing.
+    let mut session = opened.unwrap_or_else(|| nvs_runtime::Session {
+        by_hand,
+        ..fresh_session()
+    });
+    session.opened_by = who;
+    ctx.open_session(session);
+    refreshed_long_clock(ctx, who)
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::start(?tainted string $presented = null): void` — `rule:core-api/session-roster`'s member that
-    /// talks to the store, replacing `session_start`.
+    /// `Core\Session::openWithIdentifier(tainted string $id): void` — the one explicit open
+    /// (`rule:core-classes/a-session-opens-on-its-first-use`): the session under an identifier the
+    /// program read itself, such as a header. No cookie is read for it, and none is sent while it
+    /// changes, because no browser is involved; its short-lived values are bound to the identifier
+    /// alone.
     ///
-    /// **Absent is one answer with one response.**
-    /// `rule:http-server/a-session-store-answers-five-operations` gives `load` three ways to answer absent —
-    /// an identifier the store never issued, one it issued and has since expired, and one an
-    /// attacker minted — and this member does not distinguish them: each discards the presented
-    /// identifier and opens a fresh, empty session. There is no `validateId` for the two to disagree about,
-    /// and the pre-store shape check ([`issuable`]) is not one, for the reason the module doc
-    /// gives.
-    ///
-    /// **A store that cannot be reached throws.** [`on_shared`] classifies it as an `IOError`
-    /// rather than answering as though the record were absent, because absence means *issue a new
-    /// session* — so a store that is down would silently sign every user out and look like a
-    /// forged identifier while doing it.
-    ///
-    /// **A fresh session has no identifier until something is kept in it.** `start` writes no
-    /// row and sends no cookie for one; [`write_back`] draws the identifier and sends the cookie
-    /// on the first write that leaves the record non-empty, and the end-of-request write-back
-    /// creates the row. So the store holds sessions somebody wrote, and a flood of cookieless
-    /// requests that only read leaves nothing behind (`rule:core-classes/a-session-opens-on-its-first-use`).
-    /// `regenerate` on such a session does nothing, and `destroy` reaches no store.
-    ///
-    /// **The cookie is written only for an identifier this request issued.** A request that
-    /// presented one the store knew already has it, and a session cookie carries no `Max-Age` to
-    /// refresh — the record's lifetime is `[session] short_lived`, on the store, which is the only side
-    /// that can expire it. Every other attribute is `[http.cookies]`'s, through the same
-    /// [`crate::response::Cookie`] `Core\Response::addCookie` renders, so the policy has one home
-    /// and the line has one spelling.
-    ///
-    /// **A program answering no request has no session to open**, and is told that before it is
-    /// told anything about the store. `rule:security/request-state-throws-in-an-isolate`: a
-    /// session belongs to the client a request arrived from, so a CLI program, a job worker, a
-    /// test and a spawned isolate inside a request have nothing to open and nothing to issue a
-    /// cookie on. The situation is asked about before the configuration because the answer does
-    /// not depend on it: a deployment that *has* a store would otherwise mint a record and a
-    /// cookie for a caller that can never present either, which is the ambient authority
-    /// `rule:security/isolate-shares-nothing` keeps out of a child. The refusal is
-    /// [`crate::request::served`]'s, so the class and the sentence have one home.
+    /// The parameter admits `tainted` text, because the strict-id rule
+    /// (`rule:http-server/a-session-store-answers-five-operations`) makes it a lookup key and
+    /// never an instruction: what the store did not issue is absent, whatever it was.
     ///
     /// # Errors
     ///
-    /// As [`START_DOC`] lists them: a thrown `LogicError` where no request arrived; a thrown
-    /// `RuntimeError` for a second `start` on one request, for the `db` store in a process with
-    /// no usable data folder, and for a shared store that is unconfigured or refused by capability;
-    /// a thrown `IOError` for a store that cannot be reached.
-    fn nvs_core_session_start(ctx, args: [1]) {
-        crate::request::served(ctx, &format!("{NAME}::start"))?;
-
-        if ctx.session().is_some() {
-            return Err(Fault::thrown(format!(
-                "{NAME}::start(): this request has already started a session — a second `start()` \
-                 would discard whatever the first one's record has collected since, so the member \
-                 that deliberately replaces a session is `regenerate()`"
-            )));
+    /// A thrown `LogicError` once the session of this request is open, naming the member whose
+    /// call opened it, because the program would otherwise read two sessions in one request. And
+    /// [`opened_under`]'s.
+    fn nvs_core_session_open_with_identifier(ctx, args: [1]) {
+        const WHO: &str = r"Core\Session::openWithIdentifier";
+        if let Some(open) = ctx.session() {
+            let by = if open.opened_by.is_empty() { "the server" } else { open.opened_by };
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{WHO}(): the session of this request is already open. `{by}()` opened \
+                     it. Call `openWithIdentifier()` before any other `{NAME}` method."
+                ),
+            ));
         }
-
-        let member = format!("{NAME}::start()");
-        let store = opened(
-            ctx,
-            &member,
-            ". A session has to be in a store that every server process can read",
-        )?;
-
-        // A presented identifier this store cannot have issued is absent, and is absent here
-        // rather than one round trip later.
-        let named = cookie(ctx);
-        let given = args[0].as_text().map(str::to_owned);
-        let by_hand = given.is_some();
-        // The short cookie is read only where the identifier rode in a cookie: a session opened
-        // under an identifier the program read itself binds its short-lived values to that alone.
-        let short = if by_hand {
-            None
-        } else {
-            let short_name = format!("{named}{SHORT_COOKIE_SUFFIX}");
-            ctx.inbound().and_then(|inbound| {
-                crate::request::cookie_of(inbound, short_name.as_bytes())
-                    .and_then(|value| std::str::from_utf8(value).ok())
-                    .map(str::to_owned)
-            })
-        };
-        let presented = match given {
-            Some(given) => Some(given),
-            // The ordinary case: the identifier rides in the `[session] cookie` field, read
-            // through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with —
-            // one reading, so a `__Host-` name that arrived twice is invisible to both rather
-            // than to one of them.
-            None => ctx.inbound().and_then(|inbound| {
-                crate::request::cookie_of(inbound, named.as_bytes())
-                    .and_then(|value| std::str::from_utf8(value).ok())
-                    .map(str::to_owned)
-            }),
-        }
-        .filter(|id| issuable(id));
-        let opened = match presented {
-            Some(id) => fetched(&store, crate::cache::application(ctx), "start", &id)?
-                .map(|record| opened_record(ctx, id, record, short.as_deref(), by_hand)),
-            None => None,
-        };
-
-        // A visitor with no record gets an empty session with no identifier yet. Nothing reaches
-        // the store and no cookie is sent until [`write_back`] keeps something in it, so a
-        // request that only reads costs the store nothing.
-        let session = opened.unwrap_or_else(|| nvs_runtime::Session {
-            by_hand,
-            ..fresh_session()
-        });
-        ctx.open_session(session);
-        refreshed_long_clock(ctx)?;
+        let id = crate::string_arg(&args[0], format_args!("{WHO}'s $id"))?.to_owned();
+        opened_under(ctx, WHO, Some(id))?;
         Ok(Value::null())
     }
 }
 
-/// An empty session with no identifier and no row in the store: what `start` opens for a visitor
-/// with no record, and what `regenerate` leaves when another request destroyed the session first.
+/// An empty session with no identifier and no row in the store: what the first use opens for a
+/// visitor with no record, and what `regenerate` leaves when another request destroyed the session
+/// first.
 fn fresh_session() -> nvs_runtime::Session {
     nvs_runtime::Session::empty(send_at_end)
 }
@@ -1497,7 +1643,7 @@ fn opened_record(
 /// # Errors
 ///
 /// [`issue_cookie`]'s.
-fn refreshed_long_clock(ctx: &mut Ctx) -> Result<(), Fault> {
+fn refreshed_long_clock(ctx: &mut Ctx, who: &str) -> Result<(), Fault> {
     let now = crate::queue::now_millis();
     let lifetime = long_lived(ctx);
     let Some(open) = ctx.session() else {
@@ -1512,7 +1658,7 @@ fn refreshed_long_clock(ctx: &mut Ctx) -> Result<(), Fault> {
         return Ok(());
     }
     let id = open.id.clone();
-    issue_cookie(ctx, &format!("{NAME}::start"), &id, Some(lifetime))?;
+    issue_cookie(ctx, who, &id, Some(lifetime))?;
     if let Some(open) = ctx.session_mut() {
         open.long_until = now.saturating_add(lifetime);
         open.dirty = true;
@@ -1603,22 +1749,18 @@ fn set_cookie(
     Ok(())
 }
 
-/// The throw every member but `start` makes while this request has started no session.
+/// The failure of a helper that finds no open session after [`first_use`] has run.
 ///
-/// **One spelling for all of them**, because `rule:core-api/session-roster`'s rule is one rule: a member called
-/// before `start` throws naming it, and a program that meets it from `get` should read the same
-/// sentence it would have read from `remove`.
-/// `tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst` asserts that
-/// agreement by counting the distinct answers rather than by reading any one of them.
+/// No program reaches it: every member opens the session first, and only `clearAll` replaces it,
+/// with a fresh one. It is a fatal fault rather than a throw for that reason, as a broken invariant
+/// of this module, and it names the member so the report points at the helper that broke it.
 fn unstarted(member: &str) -> Fault {
-    Fault::thrown(format!(
-        "{NAME}::{member}(): this request has not started a session. Call `{NAME}::start()` \
-         first."
+    Fault::fatal(format!(
+        "{NAME}::{member}(): no session is open after the first use opened it"
     ))
 }
 
-/// The `$value` argument of [`nvs_core_session_set_secret`], as the checker has already
-/// guaranteed it.
+/// The `$value` argument of the sealed members, as the checker has already guaranteed it.
 ///
 /// A `secret string` is a `string` by the time anything runs: the qualifier is checked once and
 /// erased before codegen, so what arrives here is text or compiled code's bug — which is
@@ -1646,9 +1788,9 @@ const SEAL_DOMAIN: u8 = 2;
 /// **The additional data is the domain octet, the application and the key, and never the session
 /// identifier** — `rule:http-server/a-session-holds-a-secret-only-sealed`: `regenerate` issues a
 /// new id over the same record, and a value bound to the old one would stop opening at exactly the
-/// moment a login hardens. The plaintext is the secret and nothing else, because a session value
-/// has no lifetime of its own to seal in beside it: it lives as long as its session, which is the
-/// store's to expire (`rule:http-server/session-expiry-belongs-to-the-store`).
+/// moment a login hardens. The plaintext is the secret and nothing else: its lifetime is the
+/// session entry's, `lifetime`, which the store keeps beside it and expires
+/// (`rule:http-server/session-expiry-belongs-to-the-store`).
 ///
 /// # Errors
 ///
@@ -1660,18 +1802,20 @@ fn sealed_into(
     value: &[u8],
     ring: &NvsArray,
     who: &str,
+    lifetime: Lifetime,
 ) -> Result<(), Fault> {
+    let member = who.rsplit_once("::").map_or(who, |(_, member)| member);
     let (slot, newest) = crate::keyring::newest(ring);
     let cipher = crate::keyring::cipher_at(&newest, slot, who)?;
     let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
     let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, value, who)?;
-    let encoded = encoded(Value::bytes(NvsStr::new(&sealed)), "setSecret")?;
+    let encoded = encoded(Value::bytes(NvsStr::new(&sealed)), member)?;
     write(
         ctx,
-        "setSecret",
+        member,
         &sealed_key(key.as_bytes()),
         Some(encoded),
-        Lifetime::Short,
+        lifetime,
     )
 }
 
@@ -1683,7 +1827,8 @@ fn sealed_into(
 /// is tried rather than the newest alone, so a value sealed before a rotation stays readable.
 ///
 /// A session value in the sealed space that is not bytes is that same miss. A program can reach the
-/// space — a session key is arbitrary text, and `set` will write whatever it is handed under one —
+/// space — a session key is arbitrary text, and `setShortLived` will write whatever it is handed
+/// under one —
 /// and what it finds there is a value no ring opens. A plaintext that opens but is not UTF-8 is the
 /// same miss too, because a `string` must be UTF-8.
 ///
@@ -1880,58 +2025,60 @@ fn write(
 /// The identifier the response sends for this request's session. `Core\Csrf::token` binds its
 /// token to it.
 ///
-/// **A session `start` opened with no identifier draws one here**, and sends its cookie, as its
-/// first [`write_back`] would. So the token and the cookie name the same session, and the door
-/// accepts the token on the next request (`rule:security/csrf-is-on-by-default`).
+/// **The session opens here on its first use, and a session with no identifier draws one**, and
+/// sends its cookie, as its first [`write`] would. So the token and the cookie name the same
+/// session, and the door accepts the token on the next request
+/// (`rule:security/csrf-is-on-by-default`).
 ///
 /// **Only a drawn identifier marks the record changed**, even while it is empty, so the write-back
-/// creates a row under it and the next request's `start` finds it. What it spends is one row per
-/// new visitor who is shown a token, which `[session] short_lived` expires. A session that already has an
-/// identifier is left as it was: the token is sealed over the id on each call and never stored, so
-/// a page that renders a token for a loaded session sends no store write.
+/// creates a row under it and the next request's first use finds it. What it spends is one row per
+/// new visitor who is shown a token, which `[session] short_lived` expires. A session that already
+/// has an identifier is left as it was: the token is sealed over the id on each call and never
+/// stored, so a page that renders a token for a loaded session sends no store write.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` naming `Core\Session::start` while this request has started no session,
-/// and, for a session with no identifier yet, [`crate::response::head_open`]'s and
-/// [`issue_cookie`]'s.
-pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
-    let unstarted = || {
-        Fault::thrown(format!(
-            "{who}(): this request has not started a session. Call `{NAME}::start()` first, \
-             because a token is bound to the session."
-        ))
-    };
-    let fresh = ctx.session().ok_or_else(unstarted)?.id.is_empty();
+/// [`first_use`]'s, and, for a session with no identifier yet, [`crate::response::head_open`]'s
+/// and [`issue_cookie`]'s.
+pub(crate) fn sent_id(ctx: &mut Ctx, who: &'static str) -> Result<String, Fault> {
+    first_use(ctx, who)?;
+    let fresh = ctx.session().ok_or_else(|| unstarted(who))?.id.is_empty();
     if fresh {
         // Drawn and sent before the session changes, so a cookie that cannot be sent leaves the
         // session as it was.
         crate::response::head_open(ctx, who)?;
         let id = mint(ctx);
         issue_cookie(ctx, who, &id, None)?;
-        let session = ctx.session_mut().ok_or_else(unstarted)?;
+        let session = ctx.session_mut().ok_or_else(|| unstarted(who))?;
         session.id = id;
         session.dirty = true;
     }
-    Ok(ctx.session().ok_or_else(unstarted)?.id.clone())
+    Ok(ctx.session().ok_or_else(|| unstarted(who))?.id.clone())
 }
 
-/// Saves `value` under `key` in the started session's record, for a `Core` class that keeps one
-/// visitor's state between two of their requests: `Core\Passkey`'s challenge.
+/// Saves `value` under `key` as a short-lived value of this request's session, for a `Core` class
+/// that keeps one visitor's state between two of their requests: `Core\Passkey`'s challenge. `who`
+/// is the caller's whole name, as [`first_use`] takes it.
 ///
-/// The caller checks that a session is started first and throws its own sentence, so this never
-/// meets [`unstarted`] from a program. Only `key` is written back, as [`nvs_core_session_set`]
-/// writes it.
+/// Only `key` is written back, as [`nvs_core_session_set_short_lived`] writes it.
 ///
 /// # Errors
 ///
-/// As [`nvs_core_session_set`]: [`encoded`]'s and [`write`]'s.
-pub(crate) fn put_bytes(ctx: &mut Ctx, key: &str, value: &[u8]) -> Result<(), Fault> {
-    let value = encoded(Value::bytes(NvsStr::new(value)), "set")?;
-    write(ctx, "set", key.as_bytes(), Some(value), Lifetime::Short)
+/// As [`nvs_core_session_set_short_lived`]: [`crate::response::head_open`]'s, [`first_use`]'s,
+/// [`encoded`]'s and [`write`]'s.
+pub(crate) fn put_bytes(
+    ctx: &mut Ctx,
+    who: &'static str,
+    key: &str,
+    value: &[u8],
+) -> Result<(), Fault> {
+    crate::response::head_open(ctx, who)?;
+    first_use(ctx, who)?;
+    let value = encoded(Value::bytes(NvsStr::new(value)), "setShortLived")?;
+    write(ctx, "setShortLived", key.as_bytes(), Some(value), Lifetime::Short)
 }
 
-/// The `bytes` saved under `key` in the started session, taken out of it: [`put_bytes`]'s other
+/// The `bytes` saved under `key` in this request's session, taken out of it: [`put_bytes`]'s other
 /// half, and what makes `Core\Passkey`'s challenge single-use.
 ///
 /// The key is removed whatever it held, so a value that is not `bytes` is `None` and is gone
@@ -1940,8 +2087,13 @@ pub(crate) fn put_bytes(ctx: &mut Ctx, key: &str, value: &[u8]) -> Result<(), Fa
 ///
 /// # Errors
 ///
-/// As [`nvs_core_session_remove`], and [`read`]'s.
-pub(crate) fn take_bytes(ctx: &mut Ctx, key: &str) -> Result<Option<Vec<u8>>, Fault> {
+/// [`first_use`]'s, [`read`]'s and [`write`]'s.
+pub(crate) fn take_bytes(
+    ctx: &mut Ctx,
+    who: &'static str,
+    key: &str,
+) -> Result<Option<Vec<u8>>, Fault> {
+    first_use(ctx, who)?;
     let held = ctx
         .session()
         .ok_or_else(|| unstarted("remove"))?
@@ -1956,8 +2108,8 @@ pub(crate) fn take_bytes(ctx: &mut Ctx, key: &str) -> Result<Option<Vec<u8>>, Fa
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::get(string $key): mixed` — `rule:core-api/session-roster`'s read of the record `start` loaded,
-    /// replacing `$_SESSION[$key]`.
+    /// `Core\Session::get(string $key): mixed` — `rule:core-api/session-roster`'s read of a value
+    /// of either lifetime, replacing `$_SESSION[$key]`.
     ///
     /// **A key the record does not hold is `null`**, exactly as `Core\Cache\Store::get` answers a
     /// miss: `mixed` already spells absent, so there is no second member to ask whether a key is
@@ -1966,72 +2118,108 @@ nvs_runtime::nvs_helper! {
     ///
     /// **This member does not mark the record changed**, which is
     /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "writing only when the
-    /// record changed" written as the thing it buys: a request that starts a session and only
-    /// reads it makes one round trip and not two.
+    /// record changed" written as the thing it buys: a request that only reads its session makes
+    /// one round trip and not two. Only the half rule of
+    /// `rule:http-server/session-expiry-belongs-to-the-store` makes a read write, at the open.
     ///
     /// # Errors
     ///
-    /// As [`read`]: [`unstarted`] before `start`, and a thrown `ParseError` for a value naming a
-    /// class this program cannot resolve. Only `$key`'s value is decoded.
+    /// [`first_use`]'s, and as [`read`]: a thrown `ParseError` for a value naming a class this
+    /// program cannot resolve. Only `$key`'s value is decoded.
     ///
     /// The last slot is the call site's id, which [`crate::registry::RECORDED_SITE_MEMBERS`] puts
     /// last, and [`crate::site::watched`] files the call's `session` event under it.
     fn nvs_core_session_get(ctx, args: [2]) {
+        const WHO: &str = r"Core\Session::get";
         let site = args[1];
         let target = args[0].as_text();
-        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::get", target, |ctx| {
-            let key = crate::string_arg(&args[0], format_args!("{NAME}::get's $key"))?;
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, target, |ctx| {
+            first_use(ctx, WHO)?;
+            let key = crate::string_arg(&args[0], format_args!("{WHO}'s $key"))?;
             // The decoded value's one reference is the answer's.
             Ok(read(ctx, "get", key.as_bytes())?.unwrap_or_else(Value::null))
         })
     }
 }
 
+/// `setShortLived` and `setLongLived`: `value` encoded onto the request's own copy of the session
+/// under `key`, with `lifetime`. **Consumes nothing**: the argument slot keeps its reference, and
+/// the encode takes one of its own.
+///
+/// **Nothing reaches the store here.** `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`
+/// loads the session once and writes back the keys a request changed when it ends, so this encodes
+/// the value alone and marks the key touched. Two requests that change different keys keep both;
+/// two that change one key keep the last write, which that rule states rather than repairs.
+///
+/// **It throws where the head is closed, for every visitor**
+/// (`rule:concurrency/deferred-work-cannot-write-the-response`), so a call inside
+/// `Core\Html::later` fails in development the same way it fails in production.
+///
+/// # Errors
+///
+/// [`crate::response::head_open`]'s, [`first_use`]'s, [`encoded`]'s and [`write`]'s.
+fn set_lived(
+    ctx: &mut Ctx,
+    who: &'static str,
+    member: &str,
+    key: &Value,
+    value: Value,
+    lifetime: Lifetime,
+) -> Result<Value, Fault> {
+    crate::response::head_open(ctx, who)?;
+    first_use(ctx, who)?;
+    let key = crate::string_arg(key, format_args!("{who}'s $key"))?;
+    // The encode takes over one reference and the argument slot keeps its own, which is the same
+    // split `Core\Cache\Store::put` makes before handing a value to the carrier.
+    #[expect(
+        unsafe_code,
+        reason = "the argument slot holds a live reference for the length of the call, which is \
+                  `Value::retain`'s whole obligation"
+    )]
+    unsafe {
+        value.retain();
+    }
+    let value = encoded(value, member)?;
+    write(ctx, member, key.as_bytes(), Some(value), lifetime).map(|()| Value::null())
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::set(string $key, mixed $value): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write into the
-    /// request's own copy of the session, replacing `$_SESSION[$key] = …`.
-    ///
-    /// **Nothing reaches the store here.** `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`
-    /// loads the session once and writes back the keys a request changed when it ends, so this
-    /// member encodes `$value` alone onto the request and marks `$key` touched. Two requests that
-    /// change different keys keep both; two that change this key keep the last write, which that
-    /// rule states rather than repairs.
-    ///
-    /// # Errors
-    ///
-    /// As [`encoded`] and [`write`]: [`unstarted`] before `start`, and a thrown `LogicError` for a
-    /// `$value` the cross-boundary copy refuses. Nothing is decoded, so there is no `ParseError`.
+    /// `Core\Session::setShortLived(string $key, mixed $value): void` — a value with the short
+    /// lifetime (`rule:http-server/a-session-value-is-short-lived-or-long-lived`), visible while the
+    /// browser keeps its short cookie and the short clock runs. As [`set_lived`].
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is.
-    fn nvs_core_session_set(ctx, args: [3]) {
+    fn nvs_core_session_set_short_lived(ctx, args: [3]) {
+        const WHO: &str = r"Core\Session::setShortLived";
         let site = args[2];
         let target = args[0].as_text();
-        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::set", target, |ctx| {
-            let key = crate::string_arg(&args[0], format_args!("{NAME}::set's $key"))?;
-            if ctx.session().is_none() {
-                return Err(unstarted("set"));
-            }
-            // The encode takes over one reference and the argument slot keeps its own, which is the
-            // same split `Core\Cache\Store::put` makes before handing a value to the carrier.
-            #[expect(
-                unsafe_code,
-                reason = "the argument slot holds a live reference for the length of \
-                          the call, which is `Value::retain`'s whole obligation"
-            )]
-            unsafe {
-                args[1].retain();
-            }
-            let value = encoded(args[1], "set")?;
-            write(ctx, "set", key.as_bytes(), Some(value), Lifetime::Short)
-                .map(|()| Value::null())
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, target, |ctx| {
+            set_lived(ctx, WHO, "setShortLived", &args[0], args[1], Lifetime::Short)
         })
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys):
-    /// void` — `rule:http-server/a-session-holds-a-secret-only-sealed`'s door for a user's own
-    /// secret: the access or refresh token a web application holds on their behalf.
+    /// `Core\Session::setLongLived(string $key, mixed $value): void` — a value with the long
+    /// lifetime, kept for `[session] long_lived` and visible with the identifier cookie alone. As
+    /// [`set_lived`].
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is.
+    fn nvs_core_session_set_long_lived(ctx, args: [3]) {
+        const WHO: &str = r"Core\Session::setLongLived";
+        let site = args[2];
+        let target = args[0].as_text();
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, target, |ctx| {
+            set_lived(ctx, WHO, "setLongLived", &args[0], args[1], Lifetime::Long)
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::setShortLivedSecret(string $key, secret string $value, array<secret bytes>
+    /// $keys): void` — `rule:http-server/a-session-holds-a-secret-only-sealed`'s door for a user's
+    /// own secret, with the short lifetime: the access or refresh token a web application holds on
+    /// their behalf while they are signed in.
     ///
     /// **It is the session and not a cache tier** because a cache may evict at any time, and a
     /// user logged out by a footprint decision is what storing one there buys. It is sealed
@@ -2044,67 +2232,89 @@ nvs_runtime::nvs_helper! {
     /// opens under none of it. It does not protect a secret from a compromised process: the ring
     /// is in the same memory as the plaintext.
     ///
-    /// The refusal before `start` comes first, so this member answers the same way its siblings do
-    /// for a request that opened no session rather than reporting the ring it never got to use.
-    ///
     /// # Errors
     ///
-    /// [`unstarted`] before `start`, [`sealed_into`]'s, and [`crate::keyring`]'s `LogicError` for a
-    /// ring that is empty or holds something that is not a key.
+    /// [`crate::response::head_open`]'s, [`first_use`]'s, [`sealed_into`]'s, and
+    /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds something that is not a
+    /// key.
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is. Its event names no
     /// target, because the key is a secret's.
-    fn nvs_core_session_set_secret(ctx, args: [4]) {
+    fn nvs_core_session_set_short_lived_secret(ctx, args: [4]) {
+        const WHO: &str = r"Core\Session::setShortLivedSecret";
         let site = args[3];
-        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::setSecret", None, |ctx| {
-            if ctx.session().is_none() {
-                return Err(unstarted("setSecret"));
-            }
-            let key = crate::string_arg(&args[0], format_args!("{NAME}::setSecret's $key"))?;
-            let value = secret_at(&args[1], "setSecret")?;
-
-            let who = format!("{NAME}::setSecret");
-            let ring = crate::keyring::borrow(args, 2, &who)?;
-            sealed_into(ctx, key, value.as_bytes(), &ring, &who)?;
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, None, |ctx| {
+            crate::response::head_open(ctx, WHO)?;
+            first_use(ctx, WHO)?;
+            let key = crate::string_arg(&args[0], format_args!("{WHO}'s $key"))?;
+            let value = secret_at(&args[1], "setShortLivedSecret")?;
+            let ring = crate::keyring::borrow(args, 2, WHO)?;
+            sealed_into(ctx, key, value.as_bytes(), &ring, WHO, Lifetime::Short)?;
             Ok(Value::null())
         })
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::getSecret(string $key, array<secret bytes> $keys): ?secret string` —
-    /// [`nvs_core_session_set_secret`]'s door in the other direction.
+    /// `Core\Session::setLongLivedSecret(string $key, secret string $value, array<secret bytes>
+    /// $keys): void` — [`nvs_core_session_set_short_lived_secret`] with the long lifetime.
+    ///
+    /// **A long-lived secret opens with the identifier cookie alone**, after the browser closed,
+    /// for as long as `[session] long_lived` runs. So a secret tied to a login belongs in the short
+    /// lifetime, and the card says so.
+    ///
+    /// # Errors
+    ///
+    /// As [`nvs_core_session_set_short_lived_secret`].
+    ///
+    /// The last slot is the call site's id. Its event names no target.
+    fn nvs_core_session_set_long_lived_secret(ctx, args: [4]) {
+        const WHO: &str = r"Core\Session::setLongLivedSecret";
+        let site = args[3];
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, None, |ctx| {
+            crate::response::head_open(ctx, WHO)?;
+            first_use(ctx, WHO)?;
+            let key = crate::string_arg(&args[0], format_args!("{WHO}'s $key"))?;
+            let value = secret_at(&args[1], "setLongLivedSecret")?;
+            let ring = crate::keyring::borrow(args, 2, WHO)?;
+            sealed_into(ctx, key, value.as_bytes(), &ring, WHO, Lifetime::Long)?;
+            Ok(Value::null())
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::getSecret(string $key, array<secret bytes> $keys): ?secret string` — the
+    /// sealed members' door in the other direction, for a secret of either lifetime.
     ///
     /// **A value that does not open is absent rather than an error**, and that is the whole of
     /// what a program sees of a rotated ring, a tampered record or a name nothing sealed under.
     /// The one thing that is not a miss is a ring that cannot key anything, which is the program's
     /// own bug and throws.
     ///
-    /// **A secret survives `regenerate`**, because what the value is bound to is the application
-    /// and the key rather than the identifier — the rule's own paragraph on why, and the reason a
-    /// login that hardens its session does not log the user out of the token it just stored.
+    /// **A secret survives `regenerate` and the clear of the other lifetime**, because what the
+    /// value is bound to is the application and the key rather than the identifier — the rule's
+    /// own paragraph on why, and the reason a login that hardens its session does not log the user
+    /// out of the token it just stored.
     ///
     /// Reading marks nothing changed, as [`nvs_core_session_get`] does not, so a request that only
     /// reads its secrets still makes one round trip.
     ///
     /// # Errors
     ///
-    /// As [`read`], for the sealed value alone, plus [`crate::keyring`]'s `LogicError` for a ring
-    /// that is empty or holds something that is not a key.
+    /// [`first_use`]'s, as [`read`] for the sealed value alone, and [`crate::keyring`]'s
+    /// `LogicError` for a ring that is empty or holds something that is not a key.
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is. Its event names no
     /// target.
     fn nvs_core_session_get_secret(ctx, args: [3]) -> Value, owns NvsStr {
+        const WHO: &str = r"Core\Session::getSecret";
         let site = args[2];
-        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::getSecret", None, |ctx| {
-            if ctx.session().is_none() {
-                return Err(unstarted("getSecret"));
-            }
-            let key = crate::string_arg(&args[0], format_args!("{NAME}::getSecret's $key"))?;
-
-            let who = format!("{NAME}::getSecret");
-            let ring = crate::keyring::borrow(args, 1, &who)?;
-            let answer = opened_from(ctx, key, &ring, &who)?;
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, None, |ctx| {
+            first_use(ctx, WHO)?;
+            let key = crate::string_arg(&args[0], format_args!("{WHO}'s $key"))?;
+            let ring = crate::keyring::borrow(args, 1, WHO)?;
+            let answer = opened_from(ctx, key, &ring, WHO)?;
             Ok(answer.unwrap_or_else(Value::null))
         })
     } apply(result, _subject) {
@@ -2113,24 +2323,29 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::remove(string $key): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `unset($_SESSION
-    /// [$key])`.
+    /// `Core\Session::remove(string $key): void` — `rule:core-api/session-roster` and
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing
+    /// `unset($_SESSION[$key])`, for a value of either lifetime.
     ///
     /// **A key the record does not hold is not a refusal, and does not mark it changed either.**
     /// Nothing was written, so there is nothing for the write-back to send, and a `remove` that
     /// dirtied the record regardless would put a request that changed nothing back on the write
     /// path — which is the one thing "writing only when the record changed" is there to prevent.
+    /// It is a write member all the same, so it throws where the head is closed.
     ///
     /// # Errors
     ///
-    /// As [`nvs_core_session_set`].
+    /// [`crate::response::head_open`]'s, [`first_use`]'s and [`write`]'s.
     ///
     /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is.
     fn nvs_core_session_remove(ctx, args: [2]) {
+        const WHO: &str = r"Core\Session::remove";
         let site = args[1];
         let target = args[0].as_text();
-        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::remove", target, |ctx| {
-            let key = crate::string_arg(&args[0], format_args!("{NAME}::remove's $key"))?;
+        crate::site::watched(ctx, site, TraceKind::Session, WHO, target, |ctx| {
+            crate::response::head_open(ctx, WHO)?;
+            first_use(ctx, WHO)?;
+            let key = crate::string_arg(&args[0], format_args!("{WHO}'s $key"))?;
             let session = ctx.session().ok_or_else(|| unstarted("remove"))?;
             if !session.entries.contains_key(key.as_bytes()) {
                 return Ok(Value::null());
@@ -2140,103 +2355,148 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// `clearShortLived` and `clearLongLived`: every value of `lifetime` deleted, and the session moved
+/// to a new identifier (`rule:http-server/a-session-value-is-short-lived-or-long-lived`).
+///
+/// **The store deletes every value of that lifetime, also one this request did not see**: the
+/// session's clear flag for that lifetime makes the write-back delete them all before it sends the
+/// keys this request set afterwards. A value another request saved between this request's load and
+/// the move would otherwise move with the session, and a logout would keep it. The values of the
+/// other lifetime stay, under the new identifier.
+///
+/// **Then [`moved_to_fresh`]**, so an identifier somebody copied before the clear stops working.
+/// A session nobody has written has no row and no values, and nothing happens.
+///
+/// # Errors
+///
+/// [`crate::response::head_open`]'s, [`first_use`]'s and [`moved_to_fresh`]'s.
+fn cleared(
+    ctx: &mut Ctx,
+    who: &'static str,
+    member: &str,
+    lifetime: Lifetime,
+) -> Result<Value, Fault> {
+    crate::response::head_open(ctx, who)?;
+    first_use(ctx, who)?;
+    let open = ctx.session_mut().ok_or_else(|| unstarted(member))?;
+    if open.id.is_empty() {
+        return Ok(Value::null());
+    }
+    let long = lifetime == Lifetime::Long;
+    let gone: Vec<Vec<u8>> = open
+        .entries
+        .keys()
+        .filter(|key| open.long.contains(*key) == long)
+        .cloned()
+        .collect();
+    // A touched key stays touched with no value, so the write-back removes it under both
+    // lifetimes, as it would any key this request removed.
+    for key in gone {
+        open.entries.remove(&key);
+    }
+    if long {
+        open.long.clear();
+        open.cleared_long = true;
+    } else {
+        open.cleared_short = true;
+    }
+    open.dirty = true;
+    moved_to_fresh(ctx, who, member)?;
+    Ok(Value::null())
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::clear(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `$_SESSION = []`.
-    ///
-    /// **The session survives; only its keys go.** The identifier stays live in the store and
-    /// in the client's cookie, which is what separates this from `destroy()`: a program clearing a
-    /// basket is not signing anybody out, and one signing a user out must not leave the identifier
-    /// that request arrived with usable.
-    ///
-    /// **A whole-session act, as `destroy` is.** The write-back deletes every key the store holds,
-    /// also one another request saved after this one loaded, and then sends the keys this request
-    /// set after the `clear`. So a session with an identifier is always written back after a
-    /// `clear`, even one this request saw empty, because the store may hold keys it did not see.
-    ///
-    /// **It decodes nothing**, because it reads nothing: a value naming a class this unit can no
-    /// longer resolve is still clearable, which is the answer a program recovering from exactly
-    /// that needs.
-    ///
-    /// # Errors
-    ///
-    /// [`unstarted`] before `start`, and nothing else — there is no encode to refuse.
-    fn nvs_core_session_clear(ctx, _args: [0]) {
-        let session = ctx.session_mut().ok_or_else(|| unstarted("clear"))?;
-        // A session nobody has written has no row and no keys, so there is nothing to clear.
-        if session.id.is_empty() {
-            return Ok(Value::null());
-        }
-        session.entries.clear();
-        session.long.clear();
-        session.touched.clear();
-        session.cleared = true;
-        session.dirty = true;
-        Ok(Value::null())
+    /// `Core\Session::clearShortLived(): void` — every short-lived value deleted, the session moved
+    /// to a new identifier and a new short token drawn: the logout. As [`cleared`].
+    fn nvs_core_session_clear_short_lived(ctx, _args: [0]) {
+        cleared(ctx, r"Core\Session::clearShortLived", "clearShortLived", Lifetime::Short)
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::regenerate(): void` — `rule:core-api/session-roster`'s move to a new identifier, replacing
-    /// `session_regenerate_id`.
-    ///
-    /// **One step: the store's `move`.** [`regenerated`] renames the stored session to a fresh
-    /// identifier, so every key the store holds is kept, also one another request saved after this
-    /// one loaded. It moves only a session that still exists. The changes this request has not sent
-    /// yet stay on the request, and the write-back sends them to the fresh identifier.
-    ///
-    /// **A session this request drew and has not stored yet makes no store call.** A new
-    /// identifier is drawn and sent, and the write-back creates the row under it.
+    /// `Core\Session::clearLongLived(): void` — every long-lived value deleted and the session
+    /// moved to a new identifier. The identifier cookie loses its `Max-Age`, so the browser keeps
+    /// it only until it closes. As [`cleared`].
+    fn nvs_core_session_clear_long_lived(ctx, _args: [0]) {
+        cleared(ctx, r"Core\Session::clearLongLived", "clearLongLived", Lifetime::Long)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::regenerate(): void` — `rule:core-api/session-roster`'s move to a new
+    /// identifier, replacing `session_regenerate_id`. Every value is kept, and a new short token is
+    /// drawn. As [`moved_to_fresh`].
     ///
     /// **Immediately rather than at the end of the request** —
-    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` names this member and `destroy`
-    /// as the two exceptions to its own write-back, because both of them are about an identifier
-    /// rather than about a record, and an identifier that is only retired when the request ends is
-    /// live for the length of the response.
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` names the move and the
+    /// delete as the two exceptions to its own write-back, because both of them are about an
+    /// identifier rather than about a record, and an identifier that is only retired when the
+    /// request ends is live for the length of the response.
     ///
     /// # Errors
     ///
-    /// [`unstarted`] before `start`; a thrown `RuntimeError` for a shared store that is
-    /// unconfigured or refused by capability, and for a `[session] cookie` that is not a cookie
-    /// name; a thrown `IOError` for a store that cannot be reached.
+    /// [`crate::response::head_open`]'s, [`first_use`]'s and [`moved_to_fresh`]'s.
     fn nvs_core_session_regenerate(ctx, _args: [0]) {
-        crate::response::head_open(ctx, "Core\\Session::regenerate")?;
-        let Some(open) = ctx.session() else {
-            return Err(unstarted("regenerate"));
-        };
-        if open.id.is_empty() {
-            // Nobody has written this session, so no client holds an identifier for it. The
-            // first write draws a fresh one.
-            return Ok(Value::null());
-        }
-        if !open.stored {
-            // This request drew the identifier and the store has no row under it, so nothing
-            // moves. The new identifier replaces it, and the write-back creates the row.
-            let fresh = mint(ctx);
-            let age = identifier_age(ctx);
-            issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh, age)?;
-            if let Some(open) = ctx.session_mut() {
-                open.id = fresh;
-            }
-            return redrawn_short_token(ctx, "regenerate").map(|()| Value::null());
-        }
-
-        let member = format!("{NAME}::regenerate()");
-        let store = opened(ctx, &member, ", which is where this session's record already lives")?;
-        regenerated(ctx, &store)?;
-        redrawn_short_token(ctx, "regenerate")?;
+        const WHO: &str = r"Core\Session::regenerate";
+        crate::response::head_open(ctx, WHO)?;
+        first_use(ctx, WHO)?;
+        moved_to_fresh(ctx, WHO, "regenerate")?;
         Ok(Value::null())
     }
+}
+
+/// The session moved to a new identifier, and a new short token drawn where it has one: what
+/// `regenerate`, `clearShortLived` and `clearLongLived` share.
+///
+/// **One step: the store's `move`.** [`regenerated`] renames the stored session to a fresh
+/// identifier, so every key the store holds is kept, also one another request saved after this
+/// one loaded. It moves only a session that still exists. The changes this request has not sent
+/// yet stay on the request, and the write-back sends them to the fresh identifier.
+///
+/// **A session nobody has written has no identifier**, and nothing happens: no client holds one
+/// for it, and the first write draws a fresh one. **A session this request drew and has not
+/// stored yet makes no store call.** A new identifier is drawn and sent, and the write-back creates
+/// the row under it.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a shared store that is unconfigured or refused by capability, and
+/// for a `[session] cookie` that is not a cookie name; a thrown `IOError` for a store that cannot
+/// be reached; and [`regenerated`]'s.
+fn moved_to_fresh(ctx: &mut Ctx, who: &str, member: &str) -> Result<(), Fault> {
+    let open = ctx.session().ok_or_else(|| unstarted(member))?;
+    if open.id.is_empty() {
+        return Ok(());
+    }
+    if open.stored {
+        let store = opened(
+            ctx,
+            &format!("{who}()"),
+            ", which is where this session's record already lives",
+        )?;
+        regenerated(ctx, &store, who, member)?;
+    } else {
+        // This request drew the identifier and the store has no row under it, so nothing moves.
+        // The new identifier replaces it, and the write-back creates the row.
+        let fresh = mint(ctx);
+        let age = identifier_age(ctx);
+        issue_cookie(ctx, who, &fresh, age)?;
+        if let Some(open) = ctx.session_mut() {
+            open.id = fresh;
+        }
+    }
+    redrawn_short_token(ctx, who)
 }
 
 /// A new short token for a session that has one, sent in the short cookie, so a short token
-/// somebody copied before a `regenerate` stops working with it
+/// somebody copied before a move stops working with it
 /// (`rule:http-server/a-session-value-is-short-lived-or-long-lived`). The session counts as
 /// changed, so the write-back stores the token.
 ///
 /// # Errors
 ///
 /// [`issue_short_cookie`]'s.
-fn redrawn_short_token(ctx: &mut Ctx, member: &str) -> Result<(), Fault> {
+fn redrawn_short_token(ctx: &mut Ctx, who: &str) -> Result<(), Fault> {
     let Some(open) = ctx.session() else {
         return Ok(());
     };
@@ -2244,7 +2504,7 @@ fn redrawn_short_token(ctx: &mut Ctx, member: &str) -> Result<(), Fault> {
         return Ok(());
     }
     let token = mint(ctx);
-    issue_short_cookie(ctx, &format!("{NAME}::{member}"), &token)?;
+    issue_short_cookie(ctx, who, &token)?;
     if let Some(open) = ctx.session_mut() {
         open.short_token = Some(token);
         open.dirty = true;
@@ -2252,39 +2512,44 @@ fn redrawn_short_token(ctx: &mut Ctx, member: &str) -> Result<(), Fault> {
     Ok(())
 }
 
-/// `regenerate`'s move of a stored session on `store`: the store's `move` renames it to a fresh
-/// identifier in one step, and the cookie names the fresh one.
+/// The move of a stored session on `store`: the store's `move` renames it to a fresh identifier
+/// in one step, and the cookie names the fresh one.
 ///
-/// **The old one gone means another request destroyed the session first.** Nothing moves, no
-/// cookie is sent, and the request is left with a fresh, empty session with no identifier, as
-/// `start` opens for an absent one. So a session that was signed out elsewhere never moves to a
+/// **The old one gone means another request deleted the session first.** Nothing moves, no
+/// cookie is sent, and the request is left with a fresh, empty session with no identifier, as the
+/// first use opens for an absent one. So a session that was signed out elsewhere never moves to a
 /// new identifier.
 ///
 /// The request's own keys, and what it has not sent yet, stay as they are: the store holds the
 /// same session under the new identifier, and the write-back sends the rest there. What it spends:
-/// one round trip, where an issue and a destroy took two.
+/// one round trip, where an issue and a delete took two.
 ///
 /// # Errors
 ///
-/// [`unstarted`] before `start`; the store's failure, as [`fetched`]'s; a thrown `RuntimeError`
-/// where the store already has a session under the drawn identifier; and [`issue_cookie`]'s.
-fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
+/// The store's failure, as [`fetched`]'s; a thrown `RuntimeError` where the store already has a
+/// session under the drawn identifier; and [`issue_cookie`]'s.
+fn regenerated(ctx: &mut Ctx, store: &Store, who: &str, member: &str) -> Result<(), Fault> {
     let Some(open) = ctx.session() else {
-        return Err(unstarted("regenerate"));
+        return Err(unstarted(member));
     };
     let retired = open.id.clone();
+    let (by_hand, opened_by) = (open.by_hand, open.opened_by);
     let fresh = mint(ctx);
     let app = crate::cache::application(ctx);
-    match moved(store, app, "regenerate", &retired, &fresh)? {
+    match moved(store, app, member, &retired, &fresh)? {
         Renamed::Done => {}
         Renamed::Taken => {
             return Err(Fault::thrown(format!(
-                "{NAME}::regenerate(): the store already has a session under the new \
-                 identifier. Call `regenerate()` again to draw another one."
+                "{who}(): the store already has a session under the new identifier. Call \
+                 `{member}()` again to draw another one."
             )));
         }
         Renamed::Gone => {
-            ctx.open_session(fresh_session());
+            ctx.open_session(nvs_runtime::Session {
+                by_hand,
+                opened_by,
+                ..fresh_session()
+            });
             return Ok(());
         }
     }
@@ -2294,39 +2559,51 @@ fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
         open.id.clone_from(&fresh);
     }
     let age = identifier_age(ctx);
-    issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh, age)
+    issue_cookie(ctx, who, &fresh, age)
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::destroy(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `session_destroy`.
+    /// `Core\Session::clearAll(): void` — `rule:core-api/session-roster`'s delete, replacing
+    /// `session_destroy`: the row deleted, both cookies sent with `Max-Age=0`, and the request
+    /// left a fresh, empty session with no identifier.
     ///
-    /// **The request is left with no session**, so every member of this class throws again
-    /// afterwards — the same answer as before the first `start()`, because it is the same state.
-    /// PHP leaves `$_SESSION` populated after `session_destroy()` and that is the divergence: a
-    /// record that outlives the entry it came from is a copy of something that no longer exists,
-    /// and the end-of-request write-back would put it straight back.
+    /// **The request goes on with an empty session**, so a later write in the same request draws a
+    /// new identifier, as a first visit does. The values the request had are gone with the row,
+    /// because the end-of-request write-back would otherwise put them straight back.
     ///
-    /// **The store is told before the request forgets**, so a store that cannot be reached throws
-    /// with the session still open rather than reporting a sign-out that did not happen.
+    /// **The store is told first**, so a store that cannot be reached throws with the session
+    /// still open rather than reporting a sign-out that did not happen. Then both cookies expire,
+    /// so the browser forgets an identifier that now names nothing. A session opened by
+    /// `openWithIdentifier` has no cookie, and none is sent for it.
     ///
     /// # Errors
     ///
-    /// As [`nvs_core_session_regenerate`], less the cookie: no `Set-Cookie` is written, because the
-    /// identifier the client holds now names nothing and a store that answers absent is already the
-    /// whole of `rule:http-server/a-session-store-answers-five-operations`'s strict-id rule.
-    fn nvs_core_session_destroy(ctx, _args: [0]) {
-        let Some(open) = ctx.session() else {
-            return Err(unstarted("destroy"));
-        };
-        let held = open.id.clone();
+    /// [`crate::response::head_open`]'s and [`first_use`]'s; a thrown `RuntimeError` for a shared
+    /// store that is unconfigured or refused by capability, and for a `[session] cookie` that is
+    /// not a cookie name; a thrown `IOError` for a store that cannot be reached.
+    fn nvs_core_session_clear_all(ctx, _args: [0]) {
+        const WHO: &str = r"Core\Session::clearAll";
+        crate::response::head_open(ctx, WHO)?;
+        first_use(ctx, WHO)?;
+        let open = ctx.session().ok_or_else(|| unstarted("clearAll"))?;
+        let (held, stored, by_hand, opened_by) =
+            (open.id.clone(), open.stored, open.by_hand, open.opened_by);
 
-        // A session nobody wrote has no row to delete.
-        if !held.is_empty() {
-            let member = format!("{NAME}::destroy()");
-            let store = opened(ctx, &member, ", which is where this session's record lives")?;
-            forgot(&store, crate::cache::application(ctx), "destroy", &held)?;
+        // A session nobody stored has no row to delete.
+        if !held.is_empty() && stored {
+            let store = opened(ctx, &format!("{WHO}()"), ", which is where this session's record lives")?;
+            forgot(&store, crate::cache::application(ctx), "clearAll", &held)?;
         }
-        ctx.close_session();
+        if !by_hand {
+            let name = cookie(ctx);
+            set_cookie(ctx, WHO, &name, "", Some(0))?;
+            set_cookie(ctx, WHO, &format!("{name}{SHORT_COOKIE_SUFFIX}"), "", Some(0))?;
+        }
+        ctx.open_session(nvs_runtime::Session {
+            by_hand,
+            opened_by,
+            ..fresh_session()
+        });
         Ok(Value::null())
     }
 }
@@ -2443,7 +2720,8 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     if let Some(open) = ctx.session_mut() {
         open.stored = true;
         open.touched.clear();
-        open.cleared = false;
+        open.cleared_short = false;
+        open.cleared_long = false;
     }
     Ok(())
 }
@@ -2468,14 +2746,27 @@ fn reason(fault: &Fault) -> &str {
 /// domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_session_start" => (nvs_core_session_start as *const ()).cast(),
+        "nvs_core_session_open_with_identifier" => {
+            (nvs_core_session_open_with_identifier as *const ()).cast()
+        }
         "nvs_core_session_get" => (nvs_core_session_get as *const ()).cast(),
-        "nvs_core_session_set" => (nvs_core_session_set as *const ()).cast(),
+        "nvs_core_session_set_short_lived" => (nvs_core_session_set_short_lived as *const ()).cast(),
+        "nvs_core_session_set_long_lived" => (nvs_core_session_set_long_lived as *const ()).cast(),
         "nvs_core_session_remove" => (nvs_core_session_remove as *const ()).cast(),
-        "nvs_core_session_clear" => (nvs_core_session_clear as *const ()).cast(),
+        "nvs_core_session_clear_short_lived" => {
+            (nvs_core_session_clear_short_lived as *const ()).cast()
+        }
+        "nvs_core_session_clear_long_lived" => {
+            (nvs_core_session_clear_long_lived as *const ()).cast()
+        }
+        "nvs_core_session_clear_all" => (nvs_core_session_clear_all as *const ()).cast(),
         "nvs_core_session_regenerate" => (nvs_core_session_regenerate as *const ()).cast(),
-        "nvs_core_session_destroy" => (nvs_core_session_destroy as *const ()).cast(),
-        "nvs_core_session_set_secret" => (nvs_core_session_set_secret as *const ()).cast(),
+        "nvs_core_session_set_short_lived_secret" => {
+            (nvs_core_session_set_short_lived_secret as *const ()).cast()
+        }
+        "nvs_core_session_set_long_lived_secret" => {
+            (nvs_core_session_set_long_lived_secret as *const ()).cast()
+        }
         "nvs_core_session_get_secret" => return Some(nvs_core_session_get_secret::entry()),
         _ => return None,
     }))
@@ -2857,30 +3148,34 @@ mod tests {
         let Some(hash) = store.get_mut(key) else {
             return vec![0];
         };
-        let cleared = argv[4] == b"1";
+        let clear = argv[4].clone();
+        let dropped = |field: &[u8]| {
+            (field.starts_with(b"s:") && clear.contains(&b's'))
+                || (field.starts_with(b"l:") && clear.contains(&b'l'))
+        };
         let first = 8 + usize::try_from(number(&argv[7])).expect("a count");
         let (removed, changed) = (&argv[8..first], &argv[first..]);
         assert!(
             changed.len().is_multiple_of(2),
             "each changed field has a value"
         );
-        let (mut size, mut count) = if cleared {
-            (0, 0)
-        } else {
-            let size = hash
-                .get(b"m".as_slice())
-                .and_then(|held| std::str::from_utf8(held).ok()?.parse::<i64>().ok())
-                .unwrap_or(0);
-            let keys = hash.keys().filter(|field| is_key_field(field)).count();
-            (size, i64::try_from(keys).expect("a count"))
-        };
+        let mut size = hash
+            .get(b"m".as_slice())
+            .and_then(|held| std::str::from_utf8(held).ok()?.parse::<i64>().ok())
+            .unwrap_or(0);
+        let mut count = i64::try_from(hash.keys().filter(|field| is_key_field(field)).count())
+            .expect("a count");
+        for (field, value) in hash.iter().filter(|(field, _)| dropped(field)) {
+            size -= cost(field, value);
+            count -= 1;
+        }
         let bare = removed
             .iter()
             .map(Vec::as_slice)
             .chain(changed.iter().step_by(2).map(|field| &field[2..]));
         for bare in bare {
             for field in both_fields(bare) {
-                if let Some(old) = hash.get(&field).filter(|_| !cleared) {
+                if let Some(old) = hash.get(&field).filter(|_| !dropped(&field)) {
                     size -= cost(&field, old);
                     count -= 1;
                 }
@@ -2893,9 +3188,7 @@ mod tests {
         if size > number(&argv[5]) || count > number(&argv[6]) {
             return vec![-1, size];
         }
-        if cleared {
-            hash.retain(|field, _| !is_key_field(field));
-        }
+        hash.retain(|field, _| !dropped(field));
         for bare in removed {
             for field in both_fields(bare) {
                 hash.remove(&field);
@@ -3057,77 +3350,75 @@ mod tests {
         );
     }
 
-    /// `clear` empties the session and keeps it: the identifier is the one the request had, no
-    /// key is left, and the session is marked changed and cleared. A second `clear` of the now
-    /// empty session earns a write too, because the store may hold keys this request did not see.
-    /// A session with no identifier has no row, so clearing it changes nothing.
+    /// `clearShortLived` deletes the short-lived keys and keeps the long-lived ones, marks the
+    /// session cleared so the write-back deletes every short-lived key the store holds, and moves
+    /// it to a new identifier. The session here was drawn by this request, so the move needs no
+    /// store. A session with no identifier has no row, so clearing it changes nothing.
     ///
-    /// A value starts as bytes no decode accepts, because `clear` is the one member that does not
-    /// read the session, and a value this unit cannot decode is exactly what it recovers from.
-    /// Before a session is open, and after it, the member throws.
-    // covers: Core\Session::clear
+    /// A value starts as bytes no decode accepts, because a clear does not read the session, and a
+    /// value this unit cannot decode is exactly what it recovers from. A program answering no
+    /// request throws.
+    // covers: Core\Session::clearShortLived
     #[test]
-    fn clear_empties_the_session_keeps_it_open_and_always_earns_a_write() {
+    fn clear_short_lived_keeps_long_lived_keys_and_moves_the_session() {
         let mut ctx = Ctx::buffered();
         assert!(
-            nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[]).is_err(),
-            "a request that never started a session has no record to empty"
+            nvs_runtime::call(super::nvs_core_session_clear_short_lived, &mut ctx, &[]).is_err(),
+            "a program answering no request has no session to clear"
         );
         drop(ctx.take_pending());
 
-        ctx.open_session(loaded(Entries::from([(
-            b"cart".to_vec(),
-            b"no decode accepts this".to_vec(),
-        )])));
+        ctx.open_session(nvs_runtime::Session {
+            stored: false,
+            long: [b"consent".to_vec()].into(),
+            ..loaded(Entries::from([
+                (b"cart".to_vec(), b"no decode accepts this".to_vec()),
+                (b"consent".to_vec(), int_bytes(1)),
+            ]))
+        });
         ctx.session_mut()
             .expect("the session is open")
             .touched
             .insert(b"cart".to_vec());
-        nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
+        nvs_runtime::call(super::nvs_core_session_clear_short_lived, &mut ctx, &[])
             .expect("a value this unit cannot decode is still clearable");
 
         let cleared = ctx.session().expect("the session is still open");
+        assert_ne!(cleared.id, ID, "clearing moves the session to a new identifier");
         assert_eq!(
-            cleared.id, ID,
-            "clearing keeps the identifier the client holds"
-        );
-        assert!(cleared.entries.is_empty(), "no key is left");
-        assert!(
-            cleared.touched.is_empty(),
-            "and no key is owed, because the clear deletes them all"
+            cleared.entries,
+            Entries::from([(b"consent".to_vec(), int_bytes(1))]),
+            "only the long-lived key is left"
         );
         assert!(
-            cleared.cleared,
-            "the write-back deletes every key in the store"
+            cleared.touched.contains(b"cart".as_slice()),
+            "a key the request set is owed as a removal"
         );
         assert!(
-            cleared.dirty,
-            "an emptied session is a change the store must hear about"
+            cleared.cleared_short && !cleared.cleared_long,
+            "the write-back deletes every short-lived key in the store, and no long-lived one"
         );
-
-        ctx.session_mut().expect("the session is still open").dirty = false;
-        nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
-            .expect("an empty session is clearable too");
+        assert!(cleared.dirty, "a cleared session is a change the store must hear about");
         assert!(
-            ctx.session().expect("the session is still open").dirty,
-            "the store may hold keys this request did not see, so clearing an empty session \
-             still earns a write"
+            ctx.take_headers()
+                .iter()
+                .any(|header| header.value.starts_with(&format!("nvsid={};", cleared_id(&ctx)))),
+            "the response sends the new identifier"
         );
 
         ctx.open_session(super::fresh_session());
-        nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[])
+        nvs_runtime::call(super::nvs_core_session_clear_short_lived, &mut ctx, &[])
             .expect("a session nobody wrote is clearable");
         let fresh = ctx.session().expect("the session is still open");
         assert!(
-            !fresh.dirty && !fresh.cleared,
+            !fresh.dirty && !fresh.cleared_short,
             "a session with no identifier has no row to clear, so it earns no write"
         );
+    }
 
-        ctx.close_session();
-        assert!(
-            nvs_runtime::call(super::nvs_core_session_clear, &mut ctx, &[]).is_err(),
-            "a closed session throws again, as before `start`"
-        );
+    /// The identifier of the session `ctx` has open.
+    fn cleared_id(ctx: &Ctx) -> String {
+        ctx.session().expect("the session is open").id.clone()
     }
 
     /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write-back, asserted **both
@@ -3374,7 +3665,7 @@ mod tests {
                 "{word}: the row was there to destroy"
             );
 
-            regenerated(&mut ctx, &store).unwrap_or_else(|why| {
+            regenerated(&mut ctx, &store, r"Core\Session::regenerate", "regenerate").unwrap_or_else(|why| {
                 panic!("{word}: a session that is gone does not throw: {why:?}")
             });
             assert_eq!(kept.rows(), 0, "{word}: no row moved to a new identifier");
@@ -3529,28 +3820,37 @@ mod tests {
     }
 
     /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: `clear` is a
-    /// whole-session act. A request clears its session, and its end deletes every key the store
-    /// holds, also `late`, which another request saved after this one loaded. The key it sets after
-    /// `clear` is kept.
+    /// act on one lifetime. A request clears its short-lived values, and its end deletes every
+    /// short-lived key the store holds, also `late`, which another request saved after this one
+    /// loaded. The long-lived `consent` another request saved stays, and so does the key the
+    /// request sets after the clear.
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
-    fn clear_deletes_every_key_the_store_holds_when_the_request_ends() {
+    fn a_short_clear_deletes_every_short_key_the_store_holds_when_the_request_ends() {
         for (word, backend) in BACKENDS {
             let (store, _kept) = a_store_with_record("session-clear", *backend);
             let mut clearing = a_request(&store);
             let mut other = a_request(&store);
             put(&mut other, b"late", Value::int(9));
+            let consent = int_bytes(2);
+            write(&mut other, "setLongLived", b"consent", Some(consent.clone()), Lifetime::Long)
+                .expect("a long-lived value is written");
             ended(other, &store);
 
-            nvs_runtime::call(super::nvs_core_session_clear, &mut clearing, &[])
-                .expect("a started session clears");
+            let open = clearing.session_mut().expect("the session is open");
+            open.entries.clear();
+            open.cleared_short = true;
+            open.dirty = true;
             put(&mut clearing, b"after", Value::int(1));
             ended(clearing, &store);
 
             assert_eq!(
                 stored_under(&store, ID),
-                Some(Entries::from([(b"after".to_vec(), int_bytes(1))])),
-                "{word}: only the key set after `clear` is left"
+                Some(Entries::from([
+                    (b"after".to_vec(), int_bytes(1)),
+                    (b"consent".to_vec(), consent),
+                ])),
+                "{word}: the long-lived key and the key set after the clear are left"
             );
         }
     }
@@ -3590,7 +3890,7 @@ mod tests {
             put(&mut other, b"role", Value::int(7));
             ended(other, &store);
 
-            regenerated(&mut regenerating, &store)
+            regenerated(&mut regenerating, &store, r"Core\Session::regenerate", "regenerate")
                 .unwrap_or_else(|why| panic!("{word}: the session moves: {why:?}"));
             put(&mut regenerating, b"cart", Value::int(3));
             let fresh = regenerating.session().expect("a session").id.clone();
@@ -3831,7 +4131,8 @@ mod tests {
 
             let value = int_bytes(3);
             let changes = Changes {
-                cleared,
+                cleared_short: cleared,
+                cleared_long: cleared,
                 removed: vec![b"user".as_slice()],
                 changed: vec![(b"cart".as_slice(), value.as_slice(), false)],
                 token: None,
@@ -3905,7 +4206,7 @@ mod tests {
                 let key = Value::text("cart");
                 let value = Value::text("17");
                 let site = Value::int(0);
-                nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &[key, value, site])
+                nvs_runtime::call(super::nvs_core_session_set_short_lived, &mut ctx, &[key, value, site])
                     .expect("the value is saved");
                 dropped(key);
                 dropped(value);
@@ -4086,34 +4387,34 @@ mod tests {
         }
     }
 
-    /// `Core\Session::destroy` as a program reaches it: the store is told first, and only then
+    /// `Core\Session::clearAll` as a program reaches it: the store is told first, and only then
     /// does the request forget.
     ///
     /// Both orders are asserted. With no store configured the member throws and the session is
     /// still open, holding the id and the record it had, so a sign-out that did not happen is
     /// never reported as one. With the store configured, over [`serving`], the entry is gone from
-    /// the map both cores share, the request has no session, and a second `destroy` throws as one
-    /// before `start` does.
-    // covers: Core\Session::destroy
+    /// the map both cores share, both cookies expire, and the request goes on with a fresh, empty
+    /// session with no identifier.
+    // covers: Core\Session::clearAll
     #[test]
-    fn destroy_forgets_the_record_before_it_closes_the_session() {
+    fn clear_all_forgets_the_record_before_it_empties_the_session() {
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
-            nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
-            "a request that never started a session has nothing to destroy"
+            nvs_runtime::call(super::nvs_core_session_clear_all, &mut ctx, &[]).is_err(),
+            "a program answering no request has no session to delete"
         );
         drop(ctx.take_pending());
 
         ctx.open_session(loaded(record()));
         assert!(
-            nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
+            nvs_runtime::call(super::nvs_core_session_clear_all, &mut ctx, &[]).is_err(),
             "no `[cache.shared] url`, so no store heard the sign-out"
         );
         drop(ctx.take_pending());
         let kept = ctx
             .session()
-            .expect("a refused destroy leaves the session open");
+            .expect("a refused clear leaves the session open");
         assert_eq!(kept.id, ID);
         assert_eq!(kept.entries, record());
 
@@ -4129,7 +4430,7 @@ mod tests {
              [cache.shared]\nurl = \"redis://{address}\"\n"
         )));
 
-        nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[])
+        nvs_runtime::call(super::nvs_core_session_clear_all, &mut ctx, &[])
             .expect("a configured store forgets the record");
         assert!(
             !held
@@ -4138,13 +4439,20 @@ mod tests {
                 .contains_key(&key_of(NO_APP, ID)),
             "the entry is gone from the store"
         );
-        assert!(ctx.session().is_none(), "and the request has no session");
-
+        let left = ctx.session().expect("the request keeps a fresh session");
         assert!(
-            nvs_runtime::call(super::nvs_core_session_destroy, &mut ctx, &[]).is_err(),
-            "a destroyed session throws again, as before `start`"
+            left.id.is_empty() && left.entries.is_empty() && !left.stored,
+            "the session has no identifier, no keys and no row"
         );
-        drop(ctx.take_pending());
+        let headers = ctx.take_headers();
+        for name in ["nvsid=", "nvsid-short="] {
+            assert!(
+                headers
+                    .iter()
+                    .any(|header| header.value.starts_with(name) && header.value.contains("Max-Age=0")),
+                "{headers:?} expires {name}"
+            );
+        }
     }
 
     /// `Core\Session::regenerate` as a program reaches it: the session moves to a new identifier
@@ -4161,7 +4469,7 @@ mod tests {
         ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
             nvs_runtime::call(super::nvs_core_session_regenerate, &mut ctx, &[]).is_err(),
-            "a request that never started a session has nothing to move"
+            "a program answering no request has no session to move"
         );
         drop(ctx.take_pending());
 
@@ -4211,30 +4519,28 @@ mod tests {
         );
     }
 
-    /// `Core\Session::start` as a program reaches it: an identifier the store holds opens that
-    /// record and writes no cookie, and one it does not hold opens a fresh, empty record with no
-    /// identifier yet: nothing is written to the store and no `Set-Cookie` is sent.
+    /// The first use as a program reaches it: an identifier the store holds opens that record and
+    /// writes no cookie, and one it does not hold opens a fresh, empty record with no identifier
+    /// yet: nothing is written to the store and no `Set-Cookie` is sent.
     ///
     /// Both refusals come first, and neither leaves a session open: a context answering no
-    /// request, and a request whose tree chose the shared tier and gave it no address. A second
-    /// `start` on one request
-    /// throws and keeps the record the first one opened. The held identifier arrives in the
-    /// `nvsid` cookie and the forged one as the `$presented` argument, so both readings are
-    /// driven.
-    // covers: Core\Session::start
+    /// request, and a request whose tree chose the shared tier and gave it no address.
+    /// `openWithIdentifier` after the first use throws naming the member that opened the session,
+    /// and keeps that session. The held identifier arrives in the `nvsid` cookie and the forged one
+    /// through `openWithIdentifier`, so both readings are driven.
+    // covers: Core\Session::openWithIdentifier
     #[test]
-    fn start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold() {
+    fn the_first_use_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold() {
         const HELD: &str = "PmA5tKz1QvR3sYbNcW8xLq";
         const FORGED: &str = "AAAAAAAAAAAAAAAAAAAAAA";
         const TOKEN: &str = "Tk4w9QbL2sYcXr7uVn1pMa";
-        let nothing = [Value::null()];
+        const WHO: &str = r"Core\Session::get";
 
         let mut ctx = Ctx::buffered();
         assert!(
-            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
+            super::first_use(&mut ctx, WHO).is_err(),
             "a program answering no request has no session to open"
         );
-        drop(ctx.take_pending());
         assert!(ctx.session().is_none());
 
         let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
@@ -4245,10 +4551,9 @@ mod tests {
         ctx.set_inbound(inbound);
         ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
-            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
+            super::first_use(&mut ctx, WHO).is_err(),
             "the shared tier with no `[cache.shared] url`, so there is no store to open a record in"
         );
-        drop(ctx.take_pending());
         assert!(ctx.session().is_none());
 
         let (listener, address) = listening();
@@ -4270,8 +4575,7 @@ mod tests {
         ));
         ctx.set_config(Arc::clone(&config));
 
-        nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing)
-            .expect("the cookie names a record the store holds");
+        super::first_use(&mut ctx, WHO).expect("the cookie names a record the store holds");
         let opened = ctx.session().expect("the request has a session");
         assert_eq!(opened.id, HELD, "the presented identifier is kept");
         assert_eq!(opened.entries, record(), "and its keys are the stored ones");
@@ -4282,11 +4586,13 @@ mod tests {
             "the client already has this identifier, so no cookie is sent"
         );
 
-        assert!(
-            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing).is_err(),
-            "a second `start` on one request throws"
-        );
-        drop(ctx.take_pending());
+        let late = [Value::text(FORGED)];
+        let answer =
+            nvs_runtime::call(super::nvs_core_session_open_with_identifier, &mut ctx, &late);
+        late.into_iter().for_each(dropped);
+        assert!(answer.is_err(), "`openWithIdentifier` after the first use throws");
+        let thrown = format!("{:?}", ctx.take_pending());
+        assert!(thrown.contains(WHO), "{thrown} names the member that opened the session");
         assert_eq!(
             ctx.session().expect("and the first session stays open").id,
             HELD
@@ -4296,7 +4602,8 @@ mod tests {
         fresh.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
         fresh.set_config(config);
         let forged = [Value::text(FORGED)];
-        let answer = nvs_runtime::call(super::nvs_core_session_start, &mut fresh, &forged);
+        let answer =
+            nvs_runtime::call(super::nvs_core_session_open_with_identifier, &mut fresh, &forged);
         forged.into_iter().for_each(dropped);
         answer.expect("an identifier the store does not hold opens a fresh session");
         let issued = fresh.session().expect("the request has a session");
@@ -4318,7 +4625,7 @@ mod tests {
         );
     }
 
-    /// Attack: 20,000 requests with no cookie each call `Core\Session::start` and only read.
+    /// Attack: 20,000 requests with no cookie each call `Core\Session::get` and only read.
     /// None of them writes a row or sends a cookie, so the store grows with sessions somebody
     /// wrote, never with requests served. The first write then sends one cookie, and the
     /// write-back stores the record under the identifier that cookie carries. Under Miri there
@@ -4333,13 +4640,10 @@ mod tests {
             "[capabilities.cache]\nshared = true\n[session]\nbackend = \"shared\"\n\
              [cache.shared]\nurl = \"redis://{address}\"\n"
         ));
-        let nothing = [Value::null()];
         let request = || {
             let mut ctx = Ctx::buffered();
             ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
             ctx.set_config(Arc::clone(&config));
-            nvs_runtime::call(super::nvs_core_session_start, &mut ctx, &nothing)
-                .expect("a request with no cookie opens a session");
             ctx
         };
 
@@ -4363,7 +4667,7 @@ mod tests {
 
         let mut ctx = request();
         let write = [Value::text("user"), Value::text("ada"), Value::int(0)];
-        let answer = nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &write);
+        let answer = nvs_runtime::call(super::nvs_core_session_set_short_lived, &mut ctx, &write);
         write.into_iter().for_each(dropped);
         dropped(answer.expect("the first write is kept"));
         let headers = ctx.take_headers();
@@ -4503,19 +4807,19 @@ mod tests {
         assert_eq!(int_at(&ctx, b"user"), Some(4), "and the other key stays");
     }
 
-    /// `Core\Session::set` through the member: the value is saved and earns a write, a second
-    /// `set` replaces it, and the caller's own reference to a heap value survives the call.
+    /// `Core\Session::setShortLived` through the member: the value is saved and earns a write, a
+    /// second call replaces it, and the caller's own reference to a heap value survives the call.
     ///
     /// The string is released by this test after each call, so a member that took the argument's
     /// reference instead of retaining its own would free it twice here and panic.
-    // covers: Core\Session::set
+    // covers: Core\Session::setShortLived
     #[test]
-    fn set_saves_a_value_replaces_it_and_earns_a_write() {
+    fn set_short_lived_saves_a_value_replaces_it_and_earns_a_write() {
         fn set(ctx: &mut Ctx, key: &[u8], value: &[u8]) -> Result<Value, i32> {
             let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
             let value = Value::text(std::str::from_utf8(value).expect("the test writes UTF-8"));
             let args = [key, value, Value::int(0)];
-            let answer = nvs_runtime::call(super::nvs_core_session_set, ctx, &args);
+            let answer = nvs_runtime::call(super::nvs_core_session_set_short_lived, ctx, &args);
             dropped(key);
             dropped(value);
             answer
@@ -4530,7 +4834,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         assert!(
             set(&mut ctx, b"language", b"en").is_err(),
-            "a request that never started a session has no record to write"
+            "a program answering no request has no session to write"
         );
         drop(ctx.take_pending());
 
@@ -4569,7 +4873,7 @@ mod tests {
         );
     }
 
-    /// A context with a session open over an empty record, as `start` leaves one.
+    /// A context with a session open over an empty record, as the first use leaves one.
     fn started() -> Ctx {
         let mut ctx = Ctx::buffered();
         ctx.set_random_state(11);
@@ -4577,7 +4881,8 @@ mod tests {
         ctx
     }
 
-    /// Calls `setSecret(key, value, ring)` the way a program does, releasing what it built.
+    /// Calls `setShortLivedSecret(key, value, ring)` the way a program does, releasing what it
+    /// built.
     fn secret_set(ctx: &mut Ctx, key: &[u8], value: &[u8], ring: &[&[u8]]) -> Result<Value, i32> {
         let args = [
             Value::text(std::str::from_utf8(key).expect("the test writes UTF-8")),
@@ -4585,7 +4890,7 @@ mod tests {
             crate::keyring::tests::ring_of(ring),
             Value::int(0),
         ];
-        let answer = nvs_runtime::call(super::nvs_core_session_set_secret, ctx, &args);
+        let answer = nvs_runtime::call(super::nvs_core_session_set_short_lived_secret, ctx, &args);
         args.into_iter().for_each(dropped);
         answer
     }
@@ -4609,18 +4914,19 @@ mod tests {
     const OLD: &[u8] = &[7; crate::crypto::KEY_LEN];
     const NEW: &[u8] = &[9; crate::crypto::KEY_LEN];
 
-    /// `Core\Session::setSecret` through the member: the value lands sealed and earns a write, the
+    /// `Core\Session::setShortLivedSecret` through the member: the value lands sealed and earns a
+    /// write, the
     /// plain key stays empty so `get` cannot read it, and the stored bytes are not the plaintext.
     ///
     /// Both refusals are asserted before the write, because a member that checked the ring after
     /// sealing would leave a half-written record behind a `LogicError`.
-    // covers: Core\Session::setSecret
+    // covers: Core\Session::setShortLivedSecret
     #[test]
-    fn set_secret_seals_the_value_out_of_gets_reach_and_earns_a_write() {
+    fn set_short_lived_secret_seals_the_value_out_of_gets_reach_and_earns_a_write() {
         let mut unstarted = Ctx::buffered();
         assert!(
             secret_set(&mut unstarted, b"refresh", b"sk-live-7", &[NEW]).is_err(),
-            "a request that never started a session has no record to write"
+            "a program answering no request has no session to write"
         );
         drop(unstarted.take_pending());
 
@@ -4842,7 +5148,7 @@ mod tests {
         let ring = crate::keyring::tests::ring_of(&[&[7_u8; 32]]);
         let keys = crate::keyring::tests::borrowed(&ring);
 
-        sealed_into(&mut ctx, "token", TOKEN, &keys, "test")
+        sealed_into(&mut ctx, "token", TOKEN, &keys, "test", Lifetime::Short)
             .expect("a ring of one key seals a short value");
 
         let session = ctx.session().expect("the session is still open");
@@ -4916,7 +5222,7 @@ mod tests {
             "a ciphertext an operator moved out of a cache and into a record is a miss"
         );
 
-        sealed_into(&mut ctx, "token", TOKEN, &keys, "test")
+        sealed_into(&mut ctx, "token", TOKEN, &keys, "test", Lifetime::Short)
             .expect("a ring of one key seals a short value");
         let sealed = read_bytes(&ctx, "getSecret", &sealed_key(KEY))
             .expect("the sealed entry decodes")

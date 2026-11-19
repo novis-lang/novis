@@ -272,6 +272,15 @@ converted). Each clock in a save moves forward only (`max`), so a request that l
 never shortens one another request refreshed. `http-server/session-expiry-belongs-to-the-store.md`
 still says "a write-back refreshes both clocks"; stage 3 corrects it to this.
 
+**Stage 3's clears (my call, built).** A clear of one lifetime is a flag the write-back carries
+(`nvs_runtime::Session::cleared_short` / `cleared_long`, `Changes` the same), and the store deletes
+every field of that lifetime in the save: `SAVE`'s `ARGV[5]` is `s`, `l`, `sl` or empty, and the
+SQLite save runs `DELETE … AND long = ?`. Deleting only the keys the request saw would let a value
+another request saved before the move survive a logout. `opened_by: &'static str` on the session
+names the member `openWithIdentifier`'s error reports. `clearAll` keeps `by_hand` on the fresh
+session, and sends no cookie for a session opened by hand. A failure to find an open session after
+`first_use` is a fatal fault (`unstarted`), because no program can reach it.
+
 **Lanes.** Stages 1 to 5 run in order: each one changes `session.rs` or the rules it cites. Stages 6,
 7 and 8 touch disjoint files and may run side by side once stage 3 is done.
 
@@ -325,21 +334,25 @@ short-lived values, so the tree keeps building.
 **Does:** the registry rows, the first-use open, `openWithIdentifier`, and the cards. Every card is
 end-user prose (`AGENTS.md` § *Text an end user reads*).
 
-- [ ] `crates/nvs-stdlib/src/session.rs:939` `nvs_core_session_start` becomes the private first-use
+- [x] `crates/nvs-stdlib/src/session.rs:939` `nvs_core_session_start` becomes the private first-use
   open, reached by every member, and `openWithIdentifier` takes its argument path.
-- [ ] `:1396` `set`, `:1437` `setSecret`, `:1522` `clear` and `:1655` `destroy` become
+- [x] `:1396` `set`, `:1437` `setSecret`, `:1522` `clear` and `:1655` `destroy` become
   `setShortLived` and `setLongLived`, `setShortLivedSecret` and `setLongLivedSecret`,
   `clearShortLived` and `clearLongLived`,
   and `clearAll`. `:1562` `regenerate` draws a new short token.
-- [ ] Every write member calls `crate::response::head_open` first.
-- [ ] The cards: `START_DOC` (`:301`) becomes `OPEN_WITH_IDENTIFIER_DOC`, and `SET_DOC` (`:362`),
+- [x] Every write member calls `crate::response::head_open` first.
+- [x] The cards: `START_DOC` (`:301`) becomes `OPEN_WITH_IDENTIFIER_DOC`, and `SET_DOC` (`:362`),
   `CLEAR_DOC` (`:431`), `DESTROY_DOC` (`:468`) and `SET_SECRET_DOC` (`:490`) become the new members'
   cards. No card names `start()` again.
 - [ ] `crates/nvs-stdlib/src/csrf.rs:203` and `:386-392` open the session on first use, and the
   "has not called `start`" text goes. `crates/nvs-stdlib/src/passkey.rs:353`, `:438`, `:747` and the
   test at `:2168` follow. `put_bytes` (`session.rs:1308`) writes a short-lived value.
-- [ ] `crates/nvs-syntax/src/parser/mod.rs:1050` names a member that exists.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+  - [x] `token`, `put_bytes`, `take_bytes` and passkey's challenge open on first use
+  - [ ] the card text (`csrf.rs` `TOKEN_DOC` ~`:195`/`:203`, `passkey.rs` ~`:353`/`:438`), the
+    module docs (`csrf.rs:47`, `passkey.rs:26`) and the tests (`csrf.rs` ~`:555-581`,
+    `passkey.rs` `the_members_throw_before_a_session_is_started` ~`:2162`) still name `start()`
+- [x] `crates/nvs-syntax/src/parser/mod.rs:1050` names a member that exists.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
 ### 4. the checker refuses every session write inside Html::later and Task::afterResponse
 
@@ -444,35 +457,42 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 and 2 are done. `cargo test --lib -- session::` is green, 41 cases. The real-Redis cases
-(`real_store`) return early on a machine with no store, so `SAVE`'s new argv is checked there only
-by the fake (`issued_in`/`saved_in`, rewritten to the `s:`/`l:`, `x`/`y`/`t` layout) until CI runs
-them. The run found a real bug: `sqlite.rs` `opened` read the probe's "no such" through `Display`,
-which leaves out SQLite's sentence, so a fresh `session.sqlite` failed every open. It now reads
-`ServerError::of(..).message`. The expiry rule now says what moves each clock.
-`nvs_runtime::Session` (`crates/nvs-runtime/src/ctx/wiring.rs`) has `long`, `short_token`,
-`long_until`, `by_hand` and a `Session::empty(write_back)` constructor. `session.rs` has `Lifetime`,
-`Clocks`, `Whole`, `Record`, `short_lived`/`long_lived`, `past_half`, `opened_record` (token check in
-constant time, short visibility, short half rule), `refreshed_long_clock` (long half rule at the
-first use), `issue_cookie(.., max_age)`, `issue_short_cookie`, `redrawn_short_token` (regenerate),
-and `write(.., lifetime)`. The old members all write `Lifetime::Short`; `start($id)` sets `by_hand`.
-Both stores keep lifetimes, the token and both clocks (see Standing decisions, *Stage 2's store
-details*). `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+Stages 1 and 2 are done; stage 3 is built except one item. `cargo build` and `cargo clippy
+--all-targets -- -D warnings` are green. No test was run this session.
 
-The sweep's nightly reds are on `adc7487822`, before the unpushed commits, and were answered last
-session (supply chain `eb5c02e983`, Miri `4c82a2409a`, browser wait in `registry-browser.test.ts`).
-`env-secret-proofs` is a retired goal's check, and is stale.
+`Core\Session` now has the twelve members of the roster (`crates/nvs-stdlib/src/session.rs` `CLASS`
+and `address`). `start`, `set`, `clear`, `destroy` and `setSecret` are gone. `first_use(ctx, who)`
+opens the session on any member's first call, through `opened_under(ctx, who, given)`, and
+`nvs_core_session_open_with_identifier` throws `LogicError` naming `opened_by` once open. Every
+write member calls `head_open` first, then `first_use`. `cleared(..)` is both clears; `moved_to_fresh`
+is shared with `regenerate` and redraws the short token; `regenerated(ctx, store, who, member)`.
+`clearAll` deletes the row, expires both cookies with `Max-Age=0`, and opens a fresh session. The
+store's clear is per lifetime (Standing decisions, *Stage 3's clears*): `SAVE`'s Lua, the fake
+`saved_in` and the SQLite save all changed. The cards are rewritten as end-user prose, with shared
+`NO_REQUEST`, `NO_STORE`, `STORE_DOWN`, `HEAD_CLOSED` error docs. `RECORDED_SITE_MEMBERS`
+(`registry.rs`) and the parser hint follow. `csrf.rs` `token` and `passkey.rs` (`whole(member)`)
+open on first use through `sent_id`, `put_bytes(ctx, who, ..)` and `take_bytes(ctx, who, ..)`.
+
+The session tests compile; the clear, clearAll, first-use and setter tests were rewritten, not run.
+The sweep's nightly reds predate the unpushed commits and were answered; `env-secret-proofs` is stale.
 
 ### Next
 
-Stage 3, in one session: it removes `start`, so the tree builds only once every caller follows.
-Start at `nvs_core_session_start` (`bun nv peek --locate nvs_core_session_start`): make it the
-private first-use open every member calls, then rename the members and their registry rows
-(`crates/nvs-stdlib/src/lib.rs` `entry_of` needs a row per new symbol, see the playbook trap), the
-cards, and `csrf.rs` and `passkey.rs`. A test that opens a stored session and reads a short-lived
-value must give the record a token (`t` / `short_token`) and present `nvsid-short`, as
-`start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold` now does. The
-`checker` case and the `lifetimes` tests do not exist yet and stay red until stages 4 and 5.
+Finish stage 3's last item, then run the session tests once, by name, since stage 3 rewrote them:
+`cargo test --lib -- session:: csrf:: passkey::`. Expect red until fixed: `csrf.rs` tests at
+~`:555-581` (assert the message names `Core\Session::start()`; with first use, a context with no
+inbound now throws the no-request `LogicError`, and a key check comes before the session),
+`passkey.rs` `the_members_throw_before_a_session_is_started` (~`:2162`), and any session test that
+expected a throw before `start` on a context with an inbound. Also rewrite the `start()` text in the
+cards and module docs listed under the stage 3 item. Then stage 4 (`HEAD_MEMBERS`,
+`crates/nvs-types/src/response.rs:197`). Expect red in the conformance suite and in
+`crates/nvs-cli/tests/live_config.rs:1336` and `per_mount_config.rs:485` until stage 6, because
+programs still call `Core\Session::start` and `set`; the conformance case
+`tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst` describes removed
+behaviour and goes in stage 6. Doc comments outside `session.rs` that still name
+`Core\Session::start` (`nvs-config` `directive.rs:301`, `session.rs:191`, `tree.rs:1545`;
+`nvs-runtime` `inbound.rs:943`; `nvs-server` `route.rs:47,246,339,878`; `nvs-stdlib` `request.rs:2285`,
+`response.rs:1622`) and the module doc at the top of `session.rs` go in stage 6.
 
 ### Backlog
 

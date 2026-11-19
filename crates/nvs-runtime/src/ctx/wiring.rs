@@ -27,8 +27,8 @@
 
 use super::*;
 
-/// The session one request has open — what a request holds between
-/// `Core\Session::start` and the write-back at its end, kept per key as
+/// The session one request has open — what a request holds between its first
+/// `Core\Session` call and the write-back at its end, kept per key as
 /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` says.
 ///
 /// **Deliberately not a [`Value`].** Each value crosses the store boundary as
@@ -91,9 +91,16 @@ pub struct Session {
     /// itself. Its short-lived values are bound to the identifier alone, so
     /// no short token is checked, drawn or sent for it.
     pub by_hand: bool,
-    /// Whether the request called `clear` since the load, so the write-back
-    /// deletes every key the store holds before it sends [`Self::touched`].
-    pub cleared: bool,
+    /// Whether the request called `clearShortLived` since the load, so the
+    /// write-back deletes every short-lived key the store holds before it sends
+    /// [`Self::touched`], also one another request wrote.
+    pub cleared_short: bool,
+    /// The same for `clearLongLived` and the long-lived keys.
+    pub cleared_long: bool,
+    /// The `Core\Session` member whose call opened the session, as its message
+    /// names it: `openWithIdentifier` throws naming it once the session is
+    /// open. Empty for a session a host or a test opened.
+    pub opened_by: &'static str,
     /// Whether the write-back owes the store a write.
     ///
     /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s
@@ -128,8 +135,8 @@ pub struct Session {
     /// and `nvs-stdlib` may not depend on either. This crate is the one all of
     /// them already rest on, so the seam is inverted through it exactly as
     /// [`crate::host`]'s module doc inverts the scheduler's, and the pointer is
-    /// filled in by `Core\Session::start`, the only member that opens a record
-    /// at all.
+    /// filled in by `Core\Session`'s first-use open, the one place that opens a
+    /// record at all.
     ///
     /// A bare `fn` rather than a boxed Rust closure: there is one implementation
     /// and it captures nothing — everything it needs is on the [`Ctx`] it is
@@ -152,7 +159,9 @@ impl Session {
             short_token: None,
             long_until: 0,
             by_hand: false,
-            cleared: false,
+            cleared_short: false,
+            cleared_long: false,
+            opened_by: "",
             dirty: false,
             stored: false,
             write_back,
@@ -393,36 +402,33 @@ impl Ctx {
 
     /// Open `session` on this request, replacing whatever it had open.
     ///
-    /// Replacing rather than refusing, because `rule:core-api/session-roster`'s `regenerate` is
-    /// exactly this call under a new identifier. The refusal of a *second*
-    /// `start` belongs to that member, which is the only one that can tell an
-    /// accidental re-open from a deliberate one.
+    /// Open `session` on this request, replacing whatever it had open.
+    ///
+    /// Replacing rather than refusing, because `rule:core-api/session-roster`'s
+    /// `clearAll` and a `regenerate` that finds its session gone both leave the
+    /// request a fresh session this way. The refusal of a second open belongs
+    /// to `openWithIdentifier`, the one member that opens explicitly.
     pub fn open_session(&mut self, session: Session) {
         self.session = Some(session);
     }
 
-    /// The session this request started, or `None` before `Core\Session::start`
-    /// — which is what every other member of that class throws on.
+    /// The session this request opened, or `None` before the first
+    /// `Core\Session` call, which opens it
+    /// (`rule:core-classes/a-session-opens-on-its-first-use`).
     #[must_use]
     pub fn session(&self) -> Option<&Session> {
         self.session.as_ref()
     }
 
-    /// The same, to write: `set`, `remove` and `clear` reach the record and its
-    /// dirty flag through this, and nothing else may.
+    /// The same, to write: the members that change a value reach the record
+    /// and its dirty flag through this, and nothing else may.
     pub fn session_mut(&mut self) -> Option<&mut Session> {
         self.session.as_mut()
     }
 
-    /// Close the session this request had open, leaving it with none.
-    ///
-    /// `rule:core-api/session-roster`'s `destroy` is the only caller, and closing rather than
-    /// emptying is the honest answer: the record is gone from the store, so a
-    /// record left on the request would be a copy of something that no longer
-    /// exists — and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s
-    /// write-back would put it straight back. What a member
-    /// sees afterwards is exactly what it sees before `start`, which is the
-    /// throw that names it.
+    /// Close the session this request had open, leaving it with none, so the
+    /// next `Core\Session` call opens it again. No member calls it: a test
+    /// uses it to return a request to the state before its first use.
     pub fn close_session(&mut self) {
         self.session = None;
     }

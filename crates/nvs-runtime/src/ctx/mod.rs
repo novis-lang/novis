@@ -1654,14 +1654,12 @@ pub struct Ctx {
     /// rather than a slot to empty. So an entry is never taken back out
     /// individually and the sweep drains the whole list once.
     temporary_dirs: Vec<std::path::PathBuf>,
-    /// The session `Core\Session::start` opened, or `None` for a request that
-    /// started none — see [`Session`].
+    /// The session this request opened, or `None` for a request that has made
+    /// no `Core\Session` call — see [`Session`].
     ///
-    /// `rule:core-api/session-roster` makes every other member of that class throw while this is `None`,
-    /// which is the whole of what
-    /// `rule:core-classes/a-session-opens-on-its-first-use` buys:
-    /// "this request uses sessions" is a line in the source, and it is worth
-    /// nothing if the first `get` can silently start one.
+    /// The first call of any member fills it
+    /// (`rule:core-classes/a-session-opens-on-its-first-use`), so a request that
+    /// calls none reaches no store.
     session: Option<Session>,
     /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// socket, on the connection isolate the upgrade opened and on nothing else

@@ -426,8 +426,8 @@ pub(crate) fn issue(path: &Path, app: &[u8], id: &str, whole: &Whole<'_>) -> io:
 /// and a head that is gone or expired changes no row: the transaction rolls back and answers
 /// `false`, so the session stays absent — another request destroyed it, or it expired
 /// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). Then, in order: every
-/// entry deleted on `clear`, the removed keys deleted, the changed keys upserted, and the expiry
-/// set from the clocks. A due [`sweep`] runs after it.
+/// entry of a cleared lifetime deleted, the removed keys deleted, the changed keys upserted, and
+/// the expiry set from the clocks. A due [`sweep`] runs after it.
 ///
 /// # Errors
 ///
@@ -455,8 +455,15 @@ pub(crate) fn save(path: &Path, app: &[u8], id: &str, changes: &Changes<'_>) -> 
             if !live {
                 return Ok((false, false));
             }
-            if changes.cleared {
+            if changes.cleared_short && changes.cleared_long {
                 drop(conn.query(DROP_ENTRIES, named(app, id))?);
+            } else if changes.cleared_short || changes.cleared_long {
+                let mut lifetime = named(app, id);
+                lifetime.push(SqliteValue::Int(i64::from(changes.cleared_long)));
+                drop(conn.query(
+                    "DELETE FROM nvs_session_entries WHERE app = ?1 AND id = ?2 AND long = ?3",
+                    lifetime,
+                )?);
             }
             if !changes.removed.is_empty() {
                 let rows = changes

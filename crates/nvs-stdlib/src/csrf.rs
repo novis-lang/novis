@@ -377,17 +377,12 @@ nvs_runtime::nvs_helper! {
     /// sends, under the key the door checks with. The module doc's *which
     /// session a token is bound to* section is the home of why it reads both.
     ///
-    /// Nothing changes until both checks pass: a request with no session and a
-    /// tree with no key each throw with no identifier drawn and no cookie sent.
+    /// The session opens here on its first use. A tree with no key throws
+    /// before anything changes: no identifier is drawn and no cookie is sent.
     /// Only then does [`crate::session::sent_id`] draw an identifier, for a
     /// session that has none.
     fn nvs_core_csrf_token(ctx, _args: [0]) {
         const MEMBER: &str = "Core\\Csrf::token";
-        if ctx.session().is_none() {
-            // `sent_id`'s own refusal, asked before the key, because a program
-            // that called neither fixes the missing `start` first.
-            crate::session::sent_id(ctx, MEMBER)?;
-        }
         let key = configured_key(ctx, MEMBER)?;
         let session = crate::session::sent_id(ctx, MEMBER)?;
         let nonce = drawn_nonce(ctx);

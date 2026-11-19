@@ -1047,8 +1047,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                  server"
             }
             "$_SESSION" => {
-                "call `Core\\Session::start`, then use `Core\\Session::get` and \
-                 `Core\\Session::set`"
+                "use `Core\\Session::get` to read a value, and `Core\\Session::setShortLived` \
+                 or `Core\\Session::setLongLived` to save one"
             }
             "$_ENV" => "use `Core\\Env::get` — it returns one environment variable",
             "$argv" | "$argc" => {
