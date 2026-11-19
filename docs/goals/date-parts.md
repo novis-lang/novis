@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-stdlib/src/cldr.rs]
   - id: 2
     title: "a DateTime and a TimeOfDay return each field as a number, and the intl extension reads them"
-    status: open
+    status: done
     context: [extensions/intl/nvs/DateFormat.nvs, tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst]
   - id: 3
     title: "the seven Date members have their feature proofs"
@@ -181,25 +181,25 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** the eleven readers, and the one Novis file that parses `format` for a number.
 
-- [ ] `crates/nvs-stdlib/src/time.rs:1779`: after `isLeapYear` in `DATETIME`'s `instance` list, `year`,
+- [x] `crates/nvs-stdlib/src/time.rs:1779`: after `isLeapYear` in `DATETIME`'s `instance` list, `year`,
   `month`, `day`, `hour`, `minute`, `second` and `nanos`, each with its card. The bodies sit beside
   `nvs_core_time_datetime_day_of_year` (`:4556`) and read `zoned_of(...)` (`:4063`). Each symbol joins
   `DATETIME`'s address function.
-- [ ] `crates/nvs-stdlib/src/time.rs:2874`: after `compareTo` in `TIME_OF_DAY`'s `instance` list, `hour`,
+- [x] `crates/nvs-stdlib/src/time.rs:2874`: after `compareTo` in `TIME_OF_DAY`'s `instance` list, `hour`,
   `minute`, `second` and `nanos`, each with its card, reading `clock_of` (`:4972`). Each symbol joins
   `time_of_day_address` (`:3064`).
-- [ ] The Rust tests `datetime_fields_are_read_in_the_values_own_zone` and
+- [x] The Rust tests `datetime_fields_are_read_in_the_values_own_zone` and
   `time_of_day_fields_are_its_four_slots`, each with its `// covers:` line. The first reads one instant
   in two zones on either side of the date line. The `rust-fields` check runs once.
-- [ ] `tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst:5`: the
+- [x] `tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst:5`: the
   `// covers:` line gains the seven readers, and the table checks each against `format`. The
   `case-datetime` check runs once.
-- [ ] `tests/conformance/core/time-of-day-parts-agree-with-the-reading-they-came-from.nvst:1`: each of
+- [x] `tests/conformance/core/time-of-day-parts-agree-with-the-reading-they-came-from.nvst:1`: each of
   the four readers agrees with `format` and with the `DateTime` the reading came from, at `00:00`,
   `23:59:59.999999999` and a reading with nanoseconds. The `case-time-of-day` check runs once.
-- [ ] `extensions/intl/nvs/DateFormat.nvs:16`: the record is built from the readers, not from `format`.
+- [x] `extensions/intl/nvs/DateFormat.nvs:16`: the record is built from the readers, not from `format`.
   `cargo test --test intl` runs once.
-- [ ] `docs/reference/core/Time-DateTime.md` and `Time-TimeOfDay.md` name the readers in their intro.
+- [x] `docs/reference/core/Time-DateTime.md` and `Time-TimeOfDay.md` name the readers in their intro.
 
 ### 3. the seven Date members have their feature proofs
 
@@ -247,11 +247,18 @@ kind as its model.
 
 ### State
 
-Stage 1 is done, in two commits. The seven `Date` members, their cards and bodies sit after
-`compareTo` in `DATE` (`crates/nvs-stdlib/src/time.rs`, `nvs_core_time_date_weekday` and its
-neighbours after `nvs_core_time_date_compare_to`), each in `date_address`. `rust-date`, `table` and
-`case-date` each ran once, green. The module doc's `# Each class answers its own fields` section
-names `Date`'s readers only, so stage 2 adds `DateTime`'s and `TimeOfDay`'s there.
+Stages 1 and 2 are done. Stage 2 landed in three commits:
+
+- The seven `DateTime` readers sit after `isLeapYear` in `DATETIME`, their cards after
+  `DATETIME_IS_LEAP_YEAR_DOC`, and their bodies after `nvs_core_time_datetime_is_leap_year`. The four
+  `TimeOfDay` readers sit after `compareTo` in `TIME_OF_DAY`, their bodies after
+  `nvs_core_time_of_day_compare_to`. All eleven are in their address functions. The module doc's
+  `# Each class answers its own fields` names all three classes' readers.
+- The Rust tests `datetime_fields_are_read_in_the_values_own_zone` (Kiritimati and Pago Pago, plus
+  both ends of the range) and `time_of_day_fields_are_its_four_slots`. `rust-fields`,
+  `case-datetime` and `case-time-of-day` each ran once, green.
+- `DateFormat.nvs` reads the seven numbers from the readers. Its `zone` field keeps `format('VV')`,
+  since that is the zone id as text and not a parsed number. `cargo test --test intl` is green.
 
 - `Time-DateTime.md`'s table lists all 37 letters `Field::of` accepts, and its refused sentence starts
   `These letters do not compile:`, the marker `the_reference_table_lists_every_letter_the_compiler_accepts`
@@ -265,11 +272,10 @@ names `Date`'s readers only, so stage 2 adds `DateTime`'s and `TimeOfDay`'s ther
 
 ### Next
 
-Stage 2 from its first item. `tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst`
-already exists and covers the older views, so its item extends that file: the `// covers:` line and
-the table gain the seven readers. Use `time-date-parts-agree-with-the-date-they-came-from.nvst` as the
-model for the new `TimeOfDay` case. Expected red until the next full gate: the perf records of every
-`Core\Time` member go stale from the `time.rs` edits, and `website/public/llms-full.txt` may need
-`bun nv render --website` for the new cards.
+Stages 3 and 4, which have disjoint files and may run side by side, each split into three writing
+subagents per its `**Split:**` line. Run `bun nv proofs --only` with the stage's ids first. Expected
+red until the next full gate: `bun nv proofs --gate` for the eighteen new members, which have no
+proofs yet; the perf records of every `Core\Time` member, stale from the `time.rs` edits; and
+`website/public/llms-full.txt`, which may need `bun nv render --website` for the new cards.
 
 ### Backlog
