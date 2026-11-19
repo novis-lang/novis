@@ -559,7 +559,7 @@ fn remember_count(header: &StrHeader, count: usize) {
     unsafe_code,
     reason = "the pointee's liveness is the caller's obligation to state"
 )]
-unsafe fn cached_count(ptr: *const StrHeader) -> Option<usize> {
+pub(crate) unsafe fn cached_count(ptr: *const StrHeader) -> Option<usize> {
     #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
     let count = unsafe { &*ptr }.graphemes.get();
     (count != COUNT_UNKNOWN).then_some(count)

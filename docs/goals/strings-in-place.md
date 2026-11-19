@@ -10,7 +10,7 @@ stages:
     context: [benches/scaling/README.md, benches/scaling/strings/build.nvs]
   - id: 2
     title: a forward position reads only the characters before it, and a backward one only the characters after it
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/granularity.rs, crates/nvs-stdlib/src/str.rs]
   - id: 3
     title: a string can drop its front without moving the rest
@@ -119,6 +119,13 @@ total. A negative one walks backward from the end (`grapheme_indices(true).rev()
 backward for code points) and reads only the units it passes. `length_of` is read only where a result
 needs the total. This is a plain bug fix, and it also speeds up every shared `slice` call.
 
+**A long one-byte walk fills the count (my call, stage 2).** Without a cached count, a loop over
+every position of an ASCII string would scan each prefix and be quadratic, which `at.nvs` and
+`find-next.nvs` measure. So a walk whose one-byte part reaches `COUNT_PAST` (4096 bytes,
+`granularity.rs`) also fills the cached count once. A position nearer either end reads only up to
+it. A walk over wider units never counts, because a count cannot shorten it. `Value::known_grapheme_count`
+reads the count without filling it. **What it spends:** no memory.
+
 **What each member does with a sole subject (my call).** Every owning member, all 24:
 
 - **Cuts in place** (moves `start` or shortens `len`): `Core\Str::slice`, `at`, `before`, `after`,
@@ -158,14 +165,14 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 
 ### 2. a forward position reads only the characters before it, and a backward one only the characters after it
 
-- [ ] `crates/nvs-stdlib/src/granularity.rs:317` `byte_of_signed_index_of`: a non-negative index goes
+- [x] `crates/nvs-stdlib/src/granularity.rs:317` `byte_of_signed_index_of`: a non-negative index goes
   straight to `byte_of_index` (`:344`) with no `length_of`. A negative index walks backward from the end.
   The clamp at the start stays.
-- [ ] `crates/nvs-stdlib/src/str.rs:3233` `window`: a negative length walks backward from the end too,
+- [x] `crates/nvs-stdlib/src/str.rs:3233` `window`: a negative length walks backward from the end too,
   and never reads the total.
-- [ ] Every other caller of `byte_of_signed_index_of` and `length_of` in `crates/nvs-stdlib/src/` reads
+- [x] Every other caller of `byte_of_signed_index_of` and `length_of` in `crates/nvs-stdlib/src/` reads
   the total only where its result needs it. An `Explore` subagent lists the callers first.
-- [ ] The three tests the `positions` check names, in `granularity.rs`'s test module.
+- [x] The three tests the `positions` check names, in `granularity.rs`'s test module.
   `both_walks_agree_on_every_window` compares the new walk with the old one over every offset and
   length from -12 to 12 on texts with combining marks and emoji. Run once by name.
 
@@ -213,24 +220,28 @@ The goal came from a conversation with the person, who asked for the same depth 
 that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stage 1 is done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, and each runs at
-its start size with the release binary and prints the value its loop counts. Their comments pass
-`bun nv proofs --comments`. No ladder has been ramped yet, so which are red today is unmeasured. The
-three concatenation ladders (interpolation in a local, in a property, and the static property's
-`=` and `.`) may already be linear under `in-place-everywhere`'s concatenation. The cut, pad and
-line-reader ladders are expected red until stages 3 and 4. The line reader and the back cut use
-`Grüße 👋🏽` and `é👋🏽`, so the grapheme path is measured.
+Stages 1 and 2 are done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, none
+ramped yet. The cut, pad and line-reader ladders are expected red until stages 3 and 4.
 
-The sweep's `env-secret-proofs` red is stale: it has no log, and the newest commit naming it is
-`arrays-in-place`'s retire commit.
+Stage 2: `Unit::byte_of_signed_index_of`, `at`, `at_of` and `index_of_byte_of` in
+`crates/nvs-stdlib/src/granularity.rs` walk forward to a non-negative position (`walk_forward`) and
+backward from the end for a negative one (`walk_backward`), and never read the total. `window` in
+`str.rs` hands a negative length to the backward walk. `one_byte_over` is the one-byte shortcut, and
+it fills the cached count once a one-byte walk passes `COUNT_PAST` (standing decision). The runtime
+gained `Value::known_grapheme_count` (`value.rs`), and `string.rs`'s `cached_count` is `pub(crate)`.
+The `positions` check's three tests pass, with `the_cached_count_shortcut_answers_what_the_walk_answers`.
+`length_of` stays only where a result needs the total: `Core\Str::length`, `at`'s error message,
+`pieces_of` and `cursor_of`.
+
+The sweep's `env-secret-proofs` red is stale: it has no log, and `git log -S` finds it only in this
+goal's stage 1 handoff commit and `arrays-in-place`'s retire commit.
 
 ### Next
 
-Stage 2: `crates/nvs-stdlib/src/granularity.rs` and `window` in `crates/nvs-stdlib/src/str.rs`
-(`slice` calls it at `str.rs:3291`). Stage 3 (`crates/nvs-runtime/src/string.rs` alone) is a
-separate lane and can run beside it. `in-place-everywhere` is reached, so stage 4 waits only on
-stages 2 and 3. Expect `positions`, `front-room`, `every-member` and `ladders` red until their
-stages land.
+Stage 3: `crates/nvs-runtime/src/string.rs` alone. `StrHeader` (`:189`) gains `start`, every
+payload read adds it, and `nvs_str_append` reclaims the dropped front. Then stage 4 in
+`crates/nvs-stdlib/src/str.rs` and `bytes.rs`. Expect `front-room`, `every-member` and `ladders` red
+until their stages land. No existing test is expected red from stage 2.
 
 ### Backlog
 

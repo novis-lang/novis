@@ -563,6 +563,26 @@ impl Value {
         Some(unsafe { NvsStr::grapheme_count_of(ptr) })
     }
 
+    /// The grapheme count this string's header already has, or `None` when
+    /// nothing has counted it yet or the value is not a string.
+    ///
+    /// [`Self::grapheme_count`] without the scan. A member that walks only to
+    /// a position reads this, so it uses a count that is there and never pays
+    /// for one that is not.
+    #[must_use]
+    pub fn known_grapheme_count(&self) -> Option<usize> {
+        let ptr = self.str_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str value owns a reference to a live allocation \
+                      (see this type's Ownership section), so it is live for \
+                      at least this call"
+        )]
+        unsafe {
+            crate::string::cached_count(ptr)
+        }
+    }
+
     /// The `bytes` payload's octets, if this value is a `bytes`.
     ///
     /// Deliberately **not** the same reader as [`Self::as_str_bytes`], even

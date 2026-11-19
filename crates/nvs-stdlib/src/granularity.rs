@@ -48,6 +48,12 @@
 //! position *is* a byte offset and the call is O(1) once the count is cached.
 //! A program indexing every character of an ASCII string is therefore linear.
 //!
+//! **Without a cached count, a position never asks for the total.** A
+//! non-negative one walks forward to its unit and a negative one walks backward
+//! from the end, so `Core\Str::slice($s, 0, 10)` and `slice($s, 0, -1)` on a
+//! long text read only what they cut at. A one-byte walk past `COUNT_PAST`
+//! bytes fills the count, so a loop over every position stays linear.
+//!
 //! **A subject with wider units walks to the position on every call**, and
 //! that is a stated bound rather than a gap: the byte offset of the `i`-th
 //! cluster is stored nowhere, and storing it would be an index of one word per
@@ -193,36 +199,149 @@ impl Unit {
     /// for every range in `Core`; `at` is a range of one.
     #[must_use]
     pub fn at(self, subject: &str, index: i64) -> Option<&str> {
-        let from_start = if index < 0 {
-            let total = i64::try_from(self.length(subject)).ok()?;
-            total.checked_add(index)?
-        } else {
-            index
-        };
-        usize::try_from(from_start)
-            .ok()
-            .and_then(|offset| self.pieces(subject).nth(offset))
+        self.at_in(None, subject, index)
     }
 
-    /// [`Unit::at`] for `value`, whose payload is `subject`: the length a
-    /// negative index needs and the one-byte check both come from the cached
-    /// count ([`Unit::pieces_of`]), so on a subject of one-byte units every
-    /// call after the first is O(1).
+    /// [`Unit::at`] for `value`, whose payload is `subject`. A cached count
+    /// equal to the byte length makes every call O(1), and
+    /// [`Unit::one_byte_over`] says when the walk fills that count.
     ///
-    /// A subject with a wider unit still walks to `index`, because the byte
-    /// offset of the `index`-th cluster is not stored anywhere. That is the
-    /// module docs' *What an index costs*.
+    /// A non-negative index walks forward to its unit and a negative one walks
+    /// backward from the end, so neither reads the units on its far side. A
+    /// subject with a wider unit walks on every call, because the byte offset
+    /// of the `index`-th cluster is not stored anywhere. That is the module
+    /// docs' *What an index costs*.
     #[must_use]
     pub fn at_of<'a>(self, value: &Value, subject: &'a str, index: i64) -> Option<&'a str> {
-        let from_start = if index < 0 {
-            let total = i64::try_from(self.length_of(value, subject)).ok()?;
-            total.checked_add(index)?
-        } else {
-            index
+        self.at_in(Some(value), subject, index)
+    }
+
+    /// [`Unit::at`] and [`Unit::at_of`], with the value when there is one.
+    fn at_in<'a>(self, value: Option<&Value>, subject: &'a str, index: i64) -> Option<&'a str> {
+        if index < 0 {
+            let back = usize::try_from(index.unsigned_abs()).ok()?;
+            return self
+                .walk_backward(value, subject, back)
+                .map(|(_, piece)| piece);
+        }
+        let at = self.walk_forward(value, subject, usize::try_from(index).ok()?);
+        if at == subject.len() {
+            return None;
+        }
+        self.first_piece(&subject[at..])
+    }
+
+    /// The first unit of `rest`, which starts at a unit boundary, read without
+    /// segmenting more than the unit and the character after it.
+    fn first_piece(self, rest: &str) -> Option<&str> {
+        match self {
+            Self::CodePoint => rest.chars().next().map(|first| &rest[..first.len_utf8()]),
+            Self::Grapheme => {
+                // Two one-byte clusters side by side have a boundary between
+                // them, so the first byte is a unit of its own.
+                let head = rest.get(..rest.len().min(2));
+                if head.is_some_and(|head| !head.is_empty() && one_byte_per_cluster(head)) {
+                    return Some(&rest[..1]);
+                }
+                rest.graphemes(true).next()
+            }
+        }
+    }
+
+    /// Whether every unit of `part`, a slice of `subject`, is one byte, so a
+    /// position inside `part` is its byte offset.
+    ///
+    /// A cached count equal to `subject`'s byte length says yes in O(1).
+    /// Otherwise `part` is scanned, and nothing outside it. A one-byte part of
+    /// [`COUNT_PAST`] bytes or more also fills `value`'s cached count. So a
+    /// loop that reads every position of a long one-byte subject scans the
+    /// subject once in total, and a position near either end reads only the
+    /// bytes up to it. Filling the count is one scan of the subject, once.
+    fn one_byte_over(self, value: Option<&Value>, subject: &str, part: &str) -> bool {
+        if self == Self::Grapheme
+            && value.and_then(Value::known_grapheme_count) == Some(subject.len())
+        {
+            return true;
+        }
+        let one_byte = match self {
+            Self::CodePoint => part.is_ascii(),
+            Self::Grapheme => one_byte_per_cluster(part),
         };
-        usize::try_from(from_start)
-            .ok()
-            .and_then(|offset| self.pieces_of(value, subject).nth(offset))
+        if one_byte
+            && self == Self::Grapheme
+            && part.len() >= COUNT_PAST
+            && let Some(value) = value
+        {
+            // Filled for the next call. This call already has its answer.
+            let _ = value.grapheme_count();
+        }
+        one_byte
+    }
+
+    /// The byte offset unit `index` starts at, walking forward from the start,
+    /// or `subject`'s length for an index at or past its end.
+    fn walk_forward(self, value: Option<&Value>, subject: &str, index: usize) -> usize {
+        // Every unit is at least one byte, so an index at or past the byte
+        // length is past the end, and a default of "no bound" walks nothing.
+        if index >= subject.len() {
+            return subject.len();
+        }
+        // Unit `index` starts at byte `index` when every byte up to and
+        // including it is a unit of its own. Only that prefix is read, and the
+        // walks below are lazy, so the cost follows the index and never the
+        // subject's length.
+        if subject
+            .get(..=index)
+            .is_some_and(|part| self.one_byte_over(value, subject, part))
+        {
+            return index;
+        }
+        match self {
+            Self::CodePoint => subject
+                .char_indices()
+                .nth(index)
+                .map_or(subject.len(), |(at, _)| at),
+            Self::Grapheme => subject
+                .grapheme_indices(true)
+                .nth(index)
+                .map_or(subject.len(), |(at, _)| at),
+        }
+    }
+
+    /// The unit `back` units before the end of `subject` (`back` 1 is the
+    /// last), as its byte offset and its text, or `None` when `subject` has
+    /// fewer than `back` units.
+    ///
+    /// The walk goes backward from the end and reads only the units it
+    /// passes, so a position near the end never reads the start.
+    fn walk_backward<'a>(
+        self,
+        value: Option<&Value>,
+        subject: &'a str,
+        back: usize,
+    ) -> Option<(usize, &'a str)> {
+        // Every unit is at least one byte, so `back` units need `back` bytes.
+        let cut = subject.len().checked_sub(back)?;
+        if back == 0 {
+            return None;
+        }
+        // The last `back` bytes are `back` units when they and the byte before
+        // them are one-byte units: two such bytes always have a boundary
+        // between them.
+        if subject
+            .get(cut.saturating_sub(1)..)
+            .is_some_and(|part| self.one_byte_over(value, subject, part))
+        {
+            return Some((cut, &subject[cut..=cut]));
+        }
+        match self {
+            Self::CodePoint => subject
+                .char_indices()
+                .rev()
+                .nth(back - 1)
+                .map(|(at, found)| (at, &subject[at..at + found.len_utf8()])),
+            Self::Grapheme => subject.grapheme_indices(true).rev().nth(back - 1),
+        }
     }
 
     /// How many units of `subject` end at or before byte offset `byte` — the
@@ -250,15 +369,15 @@ impl Unit {
     }
 
     /// [`Unit::index_of_byte`] for `value`, whose payload is `subject`: on a
-    /// subject of one-byte units the index is the byte offset, which the cached
-    /// count says without walking the prefix.
+    /// prefix of one-byte units the index is the byte offset. A cached count
+    /// says that without reading the prefix, and nothing after `byte` is read.
     ///
     /// # Panics
     ///
     /// As [`Unit::index_of_byte`] does.
     #[must_use]
     pub fn index_of_byte_of(self, value: &Value, subject: &str, byte: usize) -> usize {
-        if self.length_of(value, subject) == subject.len() {
+        if self.one_byte_over(Some(value), subject, &subject[..byte]) {
             return byte;
         }
         self.index_of_byte(subject, byte)
@@ -310,25 +429,21 @@ impl Unit {
     /// [`Self::byte_of_index`] does: a search starting past the end finds
     /// nothing, which composes with a loop where a throw would not.
     ///
-    /// The total comes from the cached count ([`Unit::length_of`]), and a total
-    /// equal to the byte length makes the index the byte offset, so a find-next
-    /// loop over a subject of one-byte units pays no walk per call.
+    /// A non-negative index walks forward from the start and a negative one
+    /// walks backward from the end, so neither needs the total. A cached count
+    /// equal to the byte length makes the index the byte offset, and
+    /// [`Unit::one_byte_over`] fills that count once a walk is long, so a
+    /// find-next loop over a subject of one-byte units pays no walk per call.
     #[must_use]
     pub fn byte_of_signed_index_of(self, value: &Value, subject: &str, index: i64) -> usize {
-        let total = self.length_of(value, subject);
-        let from_start = if index < 0 {
-            i64::try_from(total)
-                .unwrap_or(i64::MAX)
-                .saturating_add(index)
-                .max(0)
-        } else {
-            index
-        };
-        let from_start = usize::try_from(from_start).unwrap_or(usize::MAX);
-        if total == subject.len() {
-            return from_start.min(subject.len());
+        if index < 0 {
+            let back = usize::try_from(index.unsigned_abs()).unwrap_or(usize::MAX);
+            return self
+                .walk_backward(Some(value), subject, back)
+                .map_or(0, |(at, _)| at);
         }
-        self.byte_of_index(subject, from_start)
+        let index = usize::try_from(index).unwrap_or(usize::MAX);
+        self.walk_forward(Some(value), subject, index)
     }
 
     /// The byte offset unit `index` of `subject` starts at, or the subject's
@@ -342,34 +457,19 @@ impl Unit {
     /// composes with a loop.
     #[must_use]
     pub fn byte_of_index(self, subject: &str, index: usize) -> usize {
-        // Every unit is at least one byte, so an index at or past the byte
-        // length is past the end, and a default of "no bound" walks nothing.
-        if index >= subject.len() {
-            return subject.len();
-        }
-        match self {
-            Self::CodePoint => subject
-                .char_indices()
-                .nth(index)
-                .map_or(subject.len(), |(at, _)| at),
-            Self::Grapheme => {
-                // Unit `index` starts at byte `index` when every byte up to and
-                // including it is a cluster of its own. Only that prefix is
-                // read, and the walk below is lazy, so the cost follows the
-                // index and never the subject's length: a short window at the
-                // start of a long text reads only its start. [`Self::pieces`]
-                // would scan the whole subject first.
-                if subject.get(..=index).is_some_and(one_byte_per_cluster) {
-                    return index;
-                }
-                subject
-                    .grapheme_indices(true)
-                    .nth(index)
-                    .map_or(subject.len(), |(at, _)| at)
-            }
-        }
+        self.walk_forward(None, subject, index)
     }
 }
+
+/// How many bytes a one-byte walk reads before it also fills the subject's
+/// cached count: [`Unit::one_byte_over`]'s bound.
+///
+/// A walk shorter than this reads only up to its position. A loop over every
+/// position of a long subject reads at most this many bytes per call before
+/// the count is filled, and nothing after. **What it spends:** no memory. A
+/// position past this bound on a long one-byte subject counts the whole
+/// subject once, and that count is the one `Core\Str::length` keeps.
+const COUNT_PAST: usize = 4096;
 
 /// [`Unit::pieces`]'s iterator — one `&str` per unit of the subject.
 #[derive(Clone, Debug)]
@@ -800,6 +900,156 @@ mod tests {
             )]
             unsafe {
                 value.release();
+            }
+        }
+    }
+
+    /// Releases the one reference a test built with [`Value::text`].
+    fn release(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "each test owns the one reference it built for its \
+                      subject, and every method it called borrowed it"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A long text with wide units everywhere, and one that is all one-byte.
+    fn long_texts() -> [String; 2] {
+        ["e\u{301}\u{1f44b}\u{1f3fd}".repeat(5_000), "ab".repeat(50_000)]
+    }
+
+    /// A position from the start, on a text nothing has counted, walks to the
+    /// position and leaves the cached count empty. A count would have read
+    /// the whole text.
+    #[test]
+    fn a_forward_position_never_counts_the_whole_string() {
+        for subject in long_texts() {
+            let value = Value::text(&subject);
+            assert_eq!(value.known_grapheme_count(), None);
+            let unit = DEFAULT;
+            let third = unit.byte_of_index(&subject, 3);
+            assert_eq!(unit.byte_of_signed_index_of(&value, &subject, 3), third);
+            assert_eq!(unit.at_of(&value, &subject, 3), unit.at(&subject, 3));
+            assert_eq!(unit.index_of_byte_of(&value, &subject, third), 3);
+            let (start, end) = crate::str::window(
+                &value,
+                &subject,
+                &Value::int(2),
+                &Value::int(4),
+                "slice",
+            )
+            .expect("an int offset and length");
+            assert_eq!(start, unit.byte_of_index(&subject, 2));
+            assert_eq!(end, unit.byte_of_index(&subject, 6));
+            assert_eq!(
+                value.known_grapheme_count(),
+                None,
+                "a position near the start counted the whole text"
+            );
+            release(value);
+        }
+    }
+
+    /// A negative position walks back from the end, on a text nothing has
+    /// counted, and leaves the cached count empty.
+    #[test]
+    fn a_backward_position_walks_from_the_end() {
+        for subject in long_texts() {
+            let value = Value::text(&subject);
+            let unit = DEFAULT;
+            let total = unit.length(&subject);
+            let last = unit.byte_of_index(&subject, total - 1);
+            assert_eq!(unit.byte_of_signed_index_of(&value, &subject, -1), last);
+            assert_eq!(
+                unit.byte_of_signed_index_of(&value, &subject, -3),
+                unit.byte_of_index(&subject, total - 3)
+            );
+            assert_eq!(unit.at_of(&value, &subject, -1), Some(&subject[last..]));
+            let (start, end) = crate::str::window(
+                &value,
+                &subject,
+                &Value::int(-4),
+                &Value::int(-1),
+                "slice",
+            )
+            .expect("an int offset and length");
+            assert_eq!(start, unit.byte_of_index(&subject, total - 4));
+            assert_eq!(end, last);
+            assert_eq!(
+                value.known_grapheme_count(),
+                None,
+                "a position near the end counted the whole text"
+            );
+            release(value);
+        }
+    }
+
+    /// The window `slice` reads, against the walk that counted the whole
+    /// subject first, for every offset and length from -12 to 12 on texts
+    /// with combining marks, emoji, flags and a CRLF.
+    #[test]
+    fn both_walks_agree_on_every_window() {
+        fn counted(unit: Unit, subject: &str, offset: i64, length: Option<i64>) -> (usize, usize) {
+            let total = i64::try_from(unit.length(subject)).unwrap_or(i64::MAX);
+            let at = |index: i64| {
+                let index = if index < 0 { (total + index).max(0) } else { index };
+                unit.byte_of_index(subject, usize::try_from(index).unwrap_or(usize::MAX))
+            };
+            let start = at(offset);
+            let end = match length {
+                None => subject.len(),
+                Some(length) if length < 0 => at((total + length).max(0)),
+                Some(length) => {
+                    let first = unit.index_of_byte(subject, start);
+                    at(i64::try_from(first).unwrap_or(i64::MAX) + length)
+                }
+            };
+            (start, end.max(start))
+        }
+        let texts = [
+            "",
+            "a",
+            "ascii text",
+            "x\r\ny\r\n",
+            "cafe\u{301} cre\u{300}me",
+            "\u{1f44b}\u{1f3fd}\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}ab",
+            "\u{1f1e9}\u{1f1ea}\u{1f1eb}\u{1f1f7}\u{1f1ee}",
+            "Gru\u{308}\u{df}e \u{1f44b}\u{1f3fd}\n",
+        ];
+        for subject in texts {
+            for offset in -12..=12 {
+                for length in (-12..=12).map(Some).chain([None]) {
+                    let value = Value::text(subject);
+                    let length_value = length.map_or_else(Value::null, Value::int);
+                    let walked = crate::str::window(
+                        &value,
+                        subject,
+                        &Value::int(offset),
+                        &length_value,
+                        "slice",
+                    )
+                    .expect("an int offset and length");
+                    assert_eq!(
+                        walked,
+                        counted(DEFAULT, subject, offset, length),
+                        "{subject:?} at {offset} for {length:?}"
+                    );
+                    for index in [offset, length.unwrap_or(0)] {
+                        assert_eq!(
+                            DEFAULT.at_of(&value, subject, index),
+                            DEFAULT.pieces(subject).nth({
+                                let total = i64::try_from(DEFAULT.length(subject)).unwrap_or(0);
+                                let from_start = if index < 0 { total + index } else { index };
+                                usize::try_from(from_start).unwrap_or(usize::MAX)
+                            }),
+                            "{subject:?} at {index}"
+                        );
+                    }
+                    release(value);
+                }
             }
         }
     }

@@ -3242,7 +3242,7 @@ nvs_runtime::nvs_helper! {
 /// than each stating it, because `substr` and `substr_replace` disagreeing
 /// about a negative length is exactly the PHP surprise this shared reading
 /// removes.
-fn window(
+pub(crate) fn window(
     value: &Value,
     subject: &str,
     offset: &Value,
@@ -3260,10 +3260,9 @@ fn window(
             if length < 0 {
                 // Counted from the *end*, not from the start: this is the one
                 // place R8's sign rule means "stop short of" rather than
-                // "begin at".
-                let total = i64::try_from(unit.length_of(value, subject)).unwrap_or(i64::MAX);
-                let from_end = total.saturating_add(length);
-                unit.byte_of_signed_index_of(value, subject, from_end.max(0))
+                // "begin at". The walk goes backward from the end and never
+                // reads the total.
+                unit.byte_of_signed_index_of(value, subject, length)
             } else {
                 // Walked from the start rather than from the subject's first
                 // byte, so the walk reads only the characters inside the
