@@ -195,7 +195,7 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 
 **Gate:** `in-place-everywhere` is reached, and stages 2 and 3 are done.
 
-- [ ] The cutting members: `slice` (`str.rs:3277`), `at`, `before` (`:3775`), `after` (`:3794`), `trim`
+- [x] The cutting members: `slice` (`str.rs:3277`), `at`, `before` (`:3775`), `after` (`:3794`), `trim`
   (`:2596`), `trimStart` (`:2622`), `trimEnd` (`:2632`), `Core\Bytes::slice` (`bytes.rs:938`).
 - [ ] The extending members: `padEnd` (`:3970`), `padStart`, `repeat`, `Core\Bytes::repeat`.
 - [ ] The rewriting members: `replaceRange` (`:3306`), `replace`, `replaceAll`, `lower` (`:4084`),
@@ -204,6 +204,10 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 - [ ] `crates/nvs-stdlib/tests/in_place.rs`: `every_string_member_has_a_row_here` reads every owning
   `Core\Str` and `Core\Bytes` row and fails naming one with no row in the test's table.
   `every_string_member_keeps_what_it_does_not_change` checks each row on a sole subject. Run once.
+  - [x] `TEXT_ROWS` names all 24 owning members, and `every_string_member_has_a_row_here` passes.
+  - [x] The cutting rows pass `every_string_member_keeps_what_it_does_not_change`.
+  - [ ] The extending rows pass it.
+  - [ ] The rewriting rows pass it.
 - [ ] `bun nv scaling --check strings/in-place-` once. Every ladder grows linearly.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -221,33 +225,51 @@ that arrays got, for nothing a developer has to remember, and for every replacem
 other choice in § *Standing decisions* is the authoring session's call.
 
 Stages 1, 2 and 3 are done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, none
-ramped yet. The cut, pad and line-reader ladders are expected red until stage 4.
+ramped yet. The pad ladder is expected red until the extending members land.
 
-Stage 3: `StrHeader` (`crates/nvs-runtime/src/string.rs:189`) has a sixth word, `start`, at
-`START_OFFSET` (`pub(crate)`). `live_payload` (`:606`) is the one place a payload's position is
-computed. `room_in_place` (`:653`) is the half-of-`cap` reclaim, and `concat_onto`, `append_onto` and
-`nvs_str_append_parts` call it before they grow. `StrWriter` gained a `base` field for writing past a
-dropped front. The in-place operations on `NvsStr`, each a no-copy change on a sole string and a copy
-of only what it keeps on a shared one: `is_sole` (`:1188`), `keep(range, removed)` (`:1218`),
-`drop_front` and `drop_back`, `append_counted(bytes, added)` (`:1275`), `prepend(bytes, added)`
-(`:1304`), `rewrite(&mut self, |live| kept) -> bool` (`:1381`) and `replace_with(bytes)` (`:1414`).
-`removed` and `added` are grapheme counts the member already has, or `None`. The `front-room` check's
-four tests pass. The module doc's § *The dropped front*, `rule:types/string-is-utf8` and
-`rule:types/bytes` state the word and what it spends. `cargo fmt` also formatted `granularity.rs`,
-which stage 2 left unformatted.
+Stage 4, the cutting members (commit `3543cf1dea`): `slice`, `at`, `before`, `after`, `trim`,
+`trimStart`, `trimEnd` return a `Cut` from `check` (`str.rs`, beside `nvs_core_str_trim`: a byte range
+and an optional `removed` count, built by `Cut::to(subject, part)` or `Cut::window(subject, start,
+end)`), and `apply` calls `kept(cut, subject)`, which is `NvsStr::keep`. `at` passes the known count
+less one. `before`/`after` plan an `Option<Cut>`, `None` being `null`. `Core\Bytes::slice` plans a
+`Range<usize>` and calls `keep(range, None)`. `tests/in_place.rs` has `TEXT_ROWS` (all 24 members,
+each with a subject, spare `room`, args and expected result) and the two stage tests. Run once:
+`every_string_member_has_a_row_here` passes, and `every_string_member_keeps_what_it_does_not_change`
+fails naming the 15 extending and rewriting members alone, each "built a new string". Every row's
+expected result already matches what the member returns, `normalize`'s form `0` included.
 
-The sweep's `env-secret-proofs` red is stale: it has no log, and `git log -S` finds it only in this
-goal's stage 1 handoff commit and `arrays-in-place`'s retire commit.
+The in-place operations on `NvsStr` (`crates/nvs-runtime/src/string.rs`): `keep(range, removed)`
+(`:1218`), `append_counted` (`:1275`), `prepend` (`:1304`), `rewrite` (`:1381`), `replace_with`
+(`:1414`); `room_in_place` (`:653`) is the reclaim an append makes. The sweep's `env-secret-proofs`
+red is stale (no log; `git log -S` finds only retire and handoff commits).
 
 ### Next
 
-Stage 4 in `crates/nvs-stdlib/src/str.rs` and `bytes.rs`: each owning member takes its subject as an
-owned `NvsStr` (how the `in-place-everywhere` protocol hands it over is in
-`rule:types/a-replaced-value-is-changed-in-place` and the `Core\Arr` members' code) and calls the
-`string.rs` operations above. Cutting members call `keep` with the clusters they removed when the
-count is known. Then `crates/nvs-stdlib/tests/in_place.rs` and the ladders. Expect `every-member` and
-`ladders` red until stage 4 lands. No existing test is expected red from stage 3; the layout test
-`the_layout_constants_describe_the_real_header` now wants `PAYLOAD_OFFSET` at six words.
+The extending members, then the rewriting ones, in `str.rs` and `bytes.rs`. Each is an
+`nvs_helper!` owning form (`crates/nvs-runtime/src/abi.rs:1147`) whose `apply` ignores its subject
+today. `check` must return a plan instead of a built `Value`, and `apply` changes the owned subject.
+The borrowed entry shares the subject before `check`, so it is never sole there.
+
+- **`padEnd`/`padStart`** (`nvs_core_str_pad_end`, `padding_run`, `write_run`): `padding_run` reads
+  `unit.length(subject)`, which counts the whole subject on every call. Read
+  `crate::granularity::DEFAULT.length_of(&args[0], subject)` instead, so the cached count serves the
+  pad ladder, and keep the count with `added = Some(run)`. `NvsStr` has no op that appends a run it
+  writes itself: add one to `string.rs` (an `extend(self, extra, added, write: FnOnce(&mut
+  StrWriter))` that grows through `room_in_place` as `append_onto` does), or append a small scratch
+  run with `append_counted`. `padStart` uses `prepend`.
+- **`repeat`, `Core\Bytes::repeat`**: the same `extend`, copying the subject's own bytes `times - 1`
+  times behind it. `Core\Bytes::repeat` today builds a `Vec` and copies it again.
+- **Rewriting**: `rewrite` where the result never outgrows its input up to each point (ASCII
+  `lower`/`upper`/`fold`, `reverse` with a swap, `replace` with a replacement no longer than the
+  search); otherwise build into a scratch and `replace_with`. The test's subjects have `room: 0`, so
+  `replaceRange` shrinking `"abcdef"` to `"aXdef"` and `wrap` (same length) must stay in place.
+- Then run `cargo test --test in_place -- every_string_member` once, and `bun nv scaling --check
+  strings/in-place-` once.
+- `str.rs`'s module doc still says every member borrows its subject, and § *A result is written once*
+  names `produced` as the copying path. Rewrite both once the members are done.
+
+Expect `every-member` red until the rewriting members land, and `ladders` red until the pad ladder's
+member does. No existing test is expected red: every cut gives the same text it gave.
 
 ### Backlog
 
