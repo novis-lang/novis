@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time\Instant`'s three epoch readings are one number at three resolutions, each truncated toward zero rather than floored — so below the epoch the coarser reading is the later one, and the seconds scale covers a two-second interval around zero — and `Core\Time::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
+`Core\Time\Instant`'s three epoch readings are one number at three resolutions, each truncated toward zero rather than floored — so below the epoch the coarser reading is the later one, and the seconds scale covers a two-second interval around zero — and `Core\Time\Instant::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros
@@ -42,7 +42,7 @@ int $microsAgree = 0;
 int $wholeAgree = 0;
 for (; $row < 10; $row = $row + 1) {
     string $index = $row as string;
-    var $instant = Core\Time::fromEpoch($secondsIn[$index], {nanos: $nanosIn[$index] as uint});
+    var $instant = Core\Time\Instant::fromEpoch($secondsIn[$index], {nanos: $nanosIn[$index] as uint});
     int $seconds = $instant->toEpochSeconds();
     int $millis = $instant->toEpochMillis();
     int $micros = $instant->toEpochMicros();
@@ -73,7 +73,7 @@ string $reading = "";
 int $zeros = 0;
 for (; $step < 7; $step = $step + 1) {
     string $slot = $step as string;
-    var $point = Core\Time::fromEpoch($walkSeconds[$slot], {nanos: $walkNanos[$slot] as uint});
+    var $point = Core\Time\Instant::fromEpoch($walkSeconds[$slot], {nanos: $walkNanos[$slot] as uint});
     int $whole = $point->toEpochSeconds();
     string $label = $whole as string;
     $reading = $reading . $label . " ";
@@ -84,15 +84,15 @@ for (; $step < 7; $step = $step + 1) {
 echo "walk=", $reading, "|\n";
 echo "zeros=", $zeros as string, "|\n";
 // And the ISO rendering, which does not truncate, tells the two apart.
-echo "iso=", Core\Time::fromEpoch(-1, {nanos: 500000000})->toIso(),
-    " ", Core\Time::fromEpoch(0, {nanos: 500000000})->toIso(), "|\n";
+echo "iso=", Core\Time\Instant::fromEpoch(-1, {nanos: 500000000})->toIso(),
+    " ", Core\Time\Instant::fromEpoch(0, {nanos: 500000000})->toIso(), "|\n";
 
 // Both bounds, on both sides. `nanos` is a subsecond count, so the last value
 // it takes is one below a second; a negative one never reaches the member at
 // all, because the option is `uint` and that is `E0401` in the checker.
-echo "nanos-last=", Core\Time::fromEpoch(0, {nanos: 999999999})->toIso(), "|\n";
+echo "nanos-last=", Core\Time\Instant::fromEpoch(0, {nanos: 999999999})->toIso(), "|\n";
 try {
-    Core\Time::fromEpoch(0, {nanos: 1000000000});
+    Core\Time\Instant::fromEpoch(0, {nanos: 1000000000});
     echo "nanos-past-accepted|\n";
 } catch (RuntimeError $refused) {
     echo "nanos-past=", $refused->message, "|\n";
@@ -100,20 +100,20 @@ try {
 // The seconds bound is the representable range itself, and it is not symmetric
 // about the epoch: it is the calendar's own ends, less the widest zone offset
 // each way, which is why the top is not a round number of days.
-echo "seconds-top=", Core\Time::fromEpoch(253402207200)->toIso(),
-    " seconds-bottom=", Core\Time::fromEpoch(-377705023201)->toIso(), "|\n";
+echo "seconds-top=", Core\Time\Instant::fromEpoch(253402207200)->toIso(),
+    " seconds-bottom=", Core\Time\Instant::fromEpoch(-377705023201)->toIso(), "|\n";
 int $refusals = 0;
 try {
-    Core\Time::fromEpoch(253402207201);
+    Core\Time\Instant::fromEpoch(253402207201);
 } catch (RuntimeError $refused) {
-    if (Core\Str::contains($refused->message, "Core\\Time::fromEpoch()")) {
+    if (Core\Str::contains($refused->message, "Core\\Time\\Instant::fromEpoch()")) {
         $refusals = $refusals + 1;
     }
 }
 try {
-    Core\Time::fromEpoch(-377705023202);
+    Core\Time\Instant::fromEpoch(-377705023202);
 } catch (RuntimeError $refused) {
-    if (Core\Str::contains($refused->message, "Core\\Time::fromEpoch()")) {
+    if (Core\Str::contains($refused->message, "Core\\Time\\Instant::fromEpoch()")) {
         $refusals = $refusals + 1;
     }
 }
@@ -124,6 +124,6 @@ walk=-2 -1 -1 0 0 0 1 |
 zeros=3|
 iso=1969-12-31T23:59:59.5Z 1970-01-01T00:00:00.5Z|
 nanos-last=1970-01-01T00:00:00.999999999Z|
-nanos-past=Core\Time::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
+nanos-past=Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
 seconds-top=9999-12-30T22:00:00Z seconds-bottom=-009999-01-02T01:59:59Z|
 seconds-past=2|

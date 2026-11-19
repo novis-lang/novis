@@ -58,7 +58,7 @@ int $checks = 0;
 int $held = 0;
 foreach ($rows as string $rowText) {
     foreach ($zones as string $zoneId) {
-        var $d = Core\Time::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
+        var $d = Core\Time\Instant::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
         string $before = Builder::text($d);
         // Eight builders, three questions each.
         $checks = $checks + 24;
@@ -82,14 +82,14 @@ var $berlin = Core\Time\Zone::of("Europe/Berlin");
 
 // `dayOfYear` is one-based and counts the calendar year the value is in, so
 // its last value is the one the year's own length decides.
-echo Core\Time::at(2024, 1, 1, $utc)->dayOfYear() as string, "|",
-     Core\Time::at(2024, 12, 31, $utc)->dayOfYear() as string, "|",
-     Core\Time::at(2023, 12, 31, $utc)->dayOfYear() as string, "|\n";
+echo Core\Time\DateTime::fromIso("2024-01-01", $utc)->dayOfYear() as string, "|",
+     Core\Time\DateTime::fromIso("2024-12-31", $utc)->dayOfYear() as string, "|",
+     Core\Time\DateTime::fromIso("2023-12-31", $utc)->dayOfYear() as string, "|\n";
 
 // `date` is the civil date this value reads as **where it is**, which is why
 // one instant is three different days: the same half hour after midnight UTC
 // is already the new year in Auckland and still the old one in New York.
-var $newYear = Core\Time::fromIso("2024-01-01T00:30:00Z");
+var $newYear = Core\Time\Instant::fromIso("2024-01-01T00:30:00Z");
 echo $newYear->in($utc)->date()->format("yyyy-MM-dd"), "|",
      $newYear->in(Core\Time\Zone::of("Pacific/Auckland"))->date()->format("yyyy-MM-dd"), "|",
      $newYear->in(Core\Time\Zone::of("America/New_York"))->date()->format("yyyy-MM-dd"), "|\n";
@@ -98,7 +98,7 @@ echo $newYear->in($utc)->dayOfYear() as string, "|",
 
 // `difference` counts **whole** units, so the last value that answers none
 // and the first that answers one are a nanosecond apart.
-var $a = Core\Time::at(2024, 5, 1, $utc, {hour: 12});
+var $a = Core\Time\DateTime::fromIso("2024-05-01 12:00", $utc);
 var $whole = $a->plus(1, Core\Unit::Day);
 echo $a->difference($whole, Core\Unit::Day) as string, "|",
      $a->difference($whole->minus(1, Core\Unit::Nanosecond), Core\Unit::Day) as string, "|",
@@ -109,7 +109,7 @@ echo $a->difference($whole, Core\Unit::Hour) as string, "|",
 // The same pair counted across a spring forward, which is where the calendar
 // and the timeline part company: Berlin's 31st of March is 23 hours long, so
 // one calendar day away is 23 hours away.
-var $eve = Core\Time::at(2024, 3, 30, $berlin, {hour: 12});
+var $eve = Core\Time\DateTime::fromIso("2024-03-30 12:00", $berlin);
 var $morrow = $eve->plus(1, Core\Unit::Day);
 echo $eve->difference($morrow, Core\Unit::Day) as string, "|",
      $eve->difference($morrow, Core\Unit::Hour) as string, "|",
@@ -119,7 +119,7 @@ echo $eve->difference($morrow, Core\Unit::Day) as string, "|",
 // it, yet every unit but the week still ends inside the range: the second, the
 // day and the year all end at its last nanosecond. That week ends in year
 // 10000, so it throws.
-var $last = Core\Time::fromIso("9999-12-30T22:00:00Z")->in(Core\Time\Zone::fixed(25h59m59s));
+var $last = Core\Time\Instant::fromIso("9999-12-30T22:00:00Z")->in(Core\Time\Zone::fixed(25h59m59s));
 echo $last->endOf(Core\Unit::Second)->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|",
      $last->endOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|",
      $last->endOf(Core\Unit::Year)->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|";

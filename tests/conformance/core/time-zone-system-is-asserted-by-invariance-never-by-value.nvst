@@ -27,13 +27,13 @@ final class Reads {
 // instant*: a region zone answers differently in January and July, and the
 // epoch and a far-future date are where a zone database's own bounds sit.
 array<Core\Time\Instant> $sweep = [
-    Core\Time::fromIso("1970-01-01T00:00:00Z"),
-    Core\Time::fromIso("2024-01-15T12:00:00Z"),
-    Core\Time::fromIso("2024-07-15T12:00:00Z"),
-    Core\Time::fromIso("2099-12-31T23:59:59Z"),
+    Core\Time\Instant::fromIso("1970-01-01T00:00:00Z"),
+    Core\Time\Instant::fromIso("2024-01-15T12:00:00Z"),
+    Core\Time\Instant::fromIso("2024-07-15T12:00:00Z"),
+    Core\Time\Instant::fromIso("2099-12-31T23:59:59Z"),
 ];
 var $sys = Core\Time\Zone::system();
-var $probe = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $probe = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
 string $id = $probe->in($sys)->format("VV");
 
 // 1. Invariance, with repetition as the sweep. `system()` is a reading, so the

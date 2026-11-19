@@ -38,11 +38,11 @@ int $clockHeld = 0;
 for (; $row < 8; $row = $row + 1) {
     string $index = $row as string;
     var $zone = Moment::zone($zones[$index]);
-    var $moment = Core\Time::at(2024, $months[$index] as uint, $days[$index] as uint, $zone, {
-        hour: $hours[$index] as uint,
-        minute: $minutes[$index] as uint,
-        second: $seconds[$index] as uint,
-    });
+    var $moment = Core\Time\DateTime::at(
+        Core\Time\Date::at(2024, $months[$index] as uint, $days[$index] as uint),
+        Core\Time\TimeOfDay::at($hours[$index] as uint, $minutes[$index] as uint, {second: $seconds[$index] as uint}),
+        $zone,
+    );
     string $calendar = $moment->date()->format("yyyy-MM-dd");
     string $clock = $moment->timeOfDay()->format("HH:mm:ss");
 
@@ -55,7 +55,7 @@ for (; $row < 8; $row = $row + 1) {
     // Reassembly, first spelling: through text, which is the only route that
     // uses nothing but what the two halves printed. The zone has to be handed
     // back separately, because that is precisely what neither half carries.
-    var $reread = Core\Time::parse($calendar . " " . $clock, "yyyy-MM-dd HH:mm:ss", $zone);
+    var $reread = Core\Time\DateTime::parse($calendar . " " . $clock, "yyyy-MM-dd HH:mm:ss", $zone);
     if ($reread->format("yyyy-MM-dd HH:mm:ss VV") == $moment->format("yyyy-MM-dd HH:mm:ss VV")) {
         $throughText = $throughText + 1;
     }
@@ -91,7 +91,7 @@ echo "calendar-held=", $calendarHeld as string, " clock-held=", $clockHeld as st
 // and the instant behind them does not.
 var $utc = Core\Time\Zone::UTC;
 var $tokyo = Core\Time\Zone::of("Asia/Tokyo");
-var $evening = Core\Time::at(2024, 12, 31, $utc, {hour: 23, minute: 30});
+var $evening = Core\Time\DateTime::fromIso("2024-12-31 23:30", $utc);
 var $elsewhere = $evening->toInstant()->in($tokyo);
 echo "utc=", $evening->date()->format("yyyy-MM-dd"), " ", $evening->timeOfDay()->format("HH:mm"), "|\n";
 echo "tokyo=", $elsewhere->date()->format("yyyy-MM-dd"), " ", $elsewhere->timeOfDay()->format("HH:mm"), "|\n";

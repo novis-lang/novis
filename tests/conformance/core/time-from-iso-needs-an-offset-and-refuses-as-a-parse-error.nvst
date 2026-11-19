@@ -1,10 +1,10 @@
 --TEST--
-Core\Time::fromIso accepts only a text that carries its own offset and refuses the rest as a ParseError under its own name
+Core\Time\Instant::fromIso accepts only a text that carries its own offset and refuses the rest as a ParseError under its own name
 --FILE--
 <?nvs
 // `fromIso` is the half of `strtotime` that reads an ISO-8601
 // timestamp, so what it needs is an *absolute* point and the text has to
-// carry its own offset. A civil time with none is `Core\Time::parse`'s
+// carry its own offset. A civil time with none is `Core\Time\DateTime::parse`'s
 // question, which takes a zone as a third argument in order to answer it,
 // and a relative expression is not accepted in either half.
 //
@@ -12,7 +12,7 @@ Core\Time::fromIso accepts only a text that carries its own offset and refuses t
 // exactly the five spelling one absolute point are accepted — and they spell
 // the *same* point, so the epoch second they answer is one value rather than
 // five separately plausible ones.
-var $reference = Core\Time::fromIso("2024-03-01T12:00:00Z")->toEpochSeconds();
+var $reference = Core\Time\Instant::fromIso("2024-03-01T12:00:00Z")->toEpochSeconds();
 array<string> $texts = [
     // Accepted: the offset written as `Z`, as either sign, with a subsecond,
     // and with a space where the `T` goes — five spellings, one point.
@@ -41,7 +41,7 @@ int $refused = 0;
 int $named = 0;
 foreach ($texts as string $text) {
     try {
-        var $at = Core\Time::fromIso($text);
+        var $at = Core\Time\Instant::fromIso($text);
         $accepted = $accepted + 1;
         if ($at->toEpochSeconds() == $reference) {
             $sameSecond = $sameSecond + 1;
@@ -49,10 +49,10 @@ foreach ($texts as string $text) {
     } catch (ParseError $bad) {
         // The class is `ParseError` and not a bare `RuntimeError`:
         // this member's one argument is text that arrived from elsewhere,
-        // which is the same rule `Core\Time::parse` splits its two classes
+        // which is the same rule `Core\Time\DateTime::parse` splits its two classes
         // by. A wrong class would not be caught here and would end the case.
         $refused = $refused + 1;
-        if (Core\Str::startsWith($bad->message, 'Core\Time::fromIso(): ')) {
+        if (Core\Str::startsWith($bad->message, 'Core\Time\Instant::fromIso(): ')) {
             $named = $named + 1;
         }
     }
@@ -65,17 +65,20 @@ echo $refused, " refused, ", $named, " under the member's own name\n";
 // its class and by the name in front of it rather than frozen.
 
 // The bound, named on both sides, and it is one character wide: the same
-// civil time is refused without an offset and accepted with one.
+// civil time is refused without an offset and accepted with one. The text
+// without one is in a variable: a text written in quotes at `fromIso` is
+// checked while compiling, and this line is about the throw.
+string $civilText = "2024-03-01T12:00:00";
 try {
-    echo Core\Time::fromIso("2024-03-01T12:00:00")->toIso(), "\n";
+    echo Core\Time\Instant::fromIso($civilText)->toIso(), "\n";
 } catch (ParseError $civil) {
     echo "no offset: refused\n";
 }
-echo "with one: ", Core\Time::fromIso("2024-03-01T12:00:00Z")->toIso(), "\n";
+echo "with one: ", Core\Time\Instant::fromIso("2024-03-01T12:00:00Z")->toIso(), "\n";
 
 // The five accepted texts share a second, not a point: a subsecond is read
 // and kept, and `toEpochSeconds` is what truncates it.
-echo "subsecond: ", Core\Time::fromIso("2024-03-01T12:00:00.500Z")->toIso(), "\n";
+echo "subsecond: ", Core\Time\Instant::fromIso("2024-03-01T12:00:00.500Z")->toIso(), "\n";
 --EXPECT--
 5 accepted, 5 of them at one second
 9 refused, 9 under the member's own name

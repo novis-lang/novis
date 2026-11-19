@@ -14,7 +14,7 @@ class Ask {
 
     public static function stamp(uint $month): string {
         try {
-            return Core\Time::at(2024, 2, 29, Core\Time\Zone::UTC)->with({month: $month})->format("yyyy-MM-dd");
+            return Core\Time\DateTime::fromIso("2024-02-29", 'UTC')->with({month: $month})->format("yyyy-MM-dd");
         } catch (RuntimeError $refused) {
             return $refused->message;
         }

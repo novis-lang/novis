@@ -14,7 +14,7 @@
 // two clauses reusing one name is `E0406` even at file scope once a loop below
 // has declared it.
 var $utc = Core\Time\Zone::UTC;
-var $dt = Core\Time::at(2024, 3, 1, $utc, {hour: 14, minute: 5, second: 9});
+var $dt = Core\Time\DateTime::fromIso("2024-03-01 14:05:09", $utc);
 var $date = Core\Time\Date::at(2024, 3, 1);
 var $clock = Core\Time\TimeOfDay::at(14, 5, {second: 9});
 

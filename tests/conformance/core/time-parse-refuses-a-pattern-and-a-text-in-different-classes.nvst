@@ -1,8 +1,8 @@
 --TEST--
-`Core\Time::parse` refuses in two different error classes, and which one is decided by which of its arguments was wrong — `rule:core-api/shape-rules` R20
+`Core\Time\DateTime::parse` refuses in two different error classes, and which one is decided by which of its arguments was wrong — `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
-// `Core\Time::parse` is `DateTime::createFromFormat` and `strptime` over
+// `Core\Time\DateTime::parse` is `DateTime::createFromFormat` and `strptime` over
 // `crates/nvs-stdlib/src/cldr.rs`'s patterns, and it is the one `Core\Time` member that
 // throws two *different* error classes. The split is deliberate and it is about
 // which argument is at fault: a pattern is written by the call site, so a bad
@@ -21,29 +21,29 @@
 // argument, and read a 12-hour clock with its marker. A two-digit year lands in
 // the 1969–2068 window, which is POSIX's rule and the one PHP's `y` uses.
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-echo Core\Time::parse("2024-03-31 12:00", "yyyy-MM-dd HH:mm", $berlin)->format("yyyy-MM-dd HH:mm XXX VV"), "|\n";
-echo Core\Time::parse("31/12/2024 11:45:30 PM", "dd/MM/yyyy hh:mm:ss a", $berlin)->format("yyyy-MM-dd HH:mm:ss"), "|\n";
-echo Core\Time::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|\n";
+echo Core\Time\DateTime::parse("2024-03-31 12:00", "yyyy-MM-dd HH:mm", $berlin)->format("yyyy-MM-dd HH:mm XXX VV"), "|\n";
+echo Core\Time\DateTime::parse("31/12/2024 11:45:30 PM", "dd/MM/yyyy hh:mm:ss a", $berlin)->format("yyyy-MM-dd HH:mm:ss"), "|\n";
+echo Core\Time\DateTime::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|\n";
 
 // The pattern's three refusals, in full and under `parse`'s own name. The
 // compile step runs before any text is looked at, so a call with *both*
 // arguments wrong reports the pattern — which is what makes this the class a
 // caller sees first.
 //
-// Each pattern is read out of a variable: `Core\Time::parse` is on `rule:expressions/intrinsic-list-is-closed`
+// Each pattern is read out of a variable: `Core\Time\DateTime::parse` is on `rule:expressions/intrinsic-list-is-closed`
 // 's list, so its *literal* form is refused while compiling instead, and
 // that division leaves the computed spelling as the one whose class a `catch`
 // can still name.
 string $reservedLetter = "yyyy-MM-dd j";
 string $unterminated = "yyyy 'unterminated";
 string $shortZone = "V";
-try { Core\Time::parse("2024-03-31", $reservedLetter, $berlin); }
+try { Core\Time\DateTime::parse("2024-03-31", $reservedLetter, $berlin); }
 catch (LogicError $unknownLetter) { echo $unknownLetter->message, "\n"; }
-try { Core\Time::parse("2024-03-31", $unterminated, $berlin); }
+try { Core\Time\DateTime::parse("2024-03-31", $unterminated, $berlin); }
 catch (LogicError $unclosed) { echo $unclosed->message, "\n"; }
-try { Core\Time::parse("2024-03-31", $shortZone, $berlin); }
+try { Core\Time\DateTime::parse("2024-03-31", $shortZone, $berlin); }
 catch (LogicError $zoneCount) { echo $zoneCount->message, "\n"; }
-try { Core\Time::parse("nothing like a date", $reservedLetter, $berlin); }
+try { Core\Time\DateTime::parse("nothing like a date", $reservedLetter, $berlin); }
 catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
 
 // A further refusal is about this *member* rather than about the pattern
@@ -59,7 +59,7 @@ catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
 // restriction beside the grammar, so the literal spelling is refused while
 // compiling.
 string $zonalPattern = "yyyy-MM-dd VV";
-try { Core\Time::parse("2024-03-31 Europe/Berlin", $zonalPattern, $berlin); }
+try { Core\Time\DateTime::parse("2024-03-31 Europe/Berlin", $zonalPattern, $berlin); }
 catch (LogicError $zonal) { echo $zonal->message, "\n"; }
 
 // The text's refusals say where they stopped, because a caller holding a
@@ -69,13 +69,13 @@ catch (LogicError $zonal) { echo $zonal->message, "\n"; }
 // and text left over after the pattern is spent is counted rather than ignored,
 // since silently taking a prefix is how a mistyped format reads plausibly
 // forever.
-try { Core\Time::parse("2024-03-31T12:00", "yyyy-MM-dd HH:mm", $berlin); }
+try { Core\Time\DateTime::parse("2024-03-31T12:00", "yyyy-MM-dd HH:mm", $berlin); }
 catch (ParseError $literal) { echo $literal->message, "\n"; }
-try { Core\Time::parse("2024-3-31 12:00", "yyyy-MM-dd HH:mm", $berlin); }
+try { Core\Time\DateTime::parse("2024-3-31 12:00", "yyyy-MM-dd HH:mm", $berlin); }
 catch (ParseError $digits) { echo $digits->message, "\n"; }
-try { Core\Time::parse("2024-Xyz-01", "yyyy-MMM-dd", $berlin); }
+try { Core\Time\DateTime::parse("2024-Xyz-01", "yyyy-MMM-dd", $berlin); }
 catch (ParseError $monthName) { echo $monthName->message, "\n"; }
-try { Core\Time::parse("2024-03-31 12:00 and more", "yyyy-MM-dd HH:mm", $berlin); }
+try { Core\Time\DateTime::parse("2024-03-31 12:00 and more", "yyyy-MM-dd HH:mm", $berlin); }
 catch (ParseError $trailing) { echo $trailing->message, "\n"; }
 
 // Counted, and the point of counting is that these two tables are a partition
@@ -91,11 +91,11 @@ int $patternParse = 0;
 int $patternNamed = 0;
 foreach ($patterns as string $p) {
     try {
-        Core\Time::parse("2024-03-31", $p, $berlin);
+        Core\Time\DateTime::parse("2024-03-31", $p, $berlin);
         $tookPattern = $tookPattern + 1;
     } catch (LogicError $sweptPattern) {
         $patternLogic = $patternLogic + 1;
-        if (Core\Str::startsWith($sweptPattern->message, "Core\\Time::parse(): ")) {
+        if (Core\Str::startsWith($sweptPattern->message, "Core\\Time\\DateTime::parse(): ")) {
             $patternNamed = $patternNamed + 1;
         }
     } catch (ParseError $sweptPatternText) {
@@ -116,13 +116,13 @@ int $textParse = 0;
 int $textNamed = 0;
 foreach ($texts as string $t) {
     try {
-        Core\Time::parse($t, "yyyy-MM-dd HH:mm", $berlin);
+        Core\Time\DateTime::parse($t, "yyyy-MM-dd HH:mm", $berlin);
         $tookText = $tookText + 1;
     } catch (LogicError $sweptTextPattern) {
         $textLogic = $textLogic + 1;
     } catch (ParseError $sweptText) {
         $textParse = $textParse + 1;
-        if (Core\Str::startsWith($sweptText->message, "Core\\Time::parse(): ")) {
+        if (Core\Str::startsWith($sweptText->message, "Core\\Time\\DateTime::parse(): ")) {
             $textNamed = $textNamed + 1;
         }
     }
@@ -136,7 +136,7 @@ int $caught = 0;
 array<string> $either = ["j", "yyyy-MM-dd HH:mm"];
 foreach ($either as string $mixed) {
     try {
-        Core\Time::parse("nothing like a date", $mixed, $berlin);
+        Core\Time\DateTime::parse("nothing like a date", $mixed, $berlin);
     } catch (Throwable $eitherWay) {
         $caught = $caught + 1;
     }
@@ -146,15 +146,15 @@ echo $caught, " caught either way\n";
 2024-03-31 12:00 +02:00 Europe/Berlin|
 2024-12-31 23:45:30|
 2024-06-01|
-Core\Time::parse(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
-Core\Time::parse(): a `'` opens a literal that nothing closes
-Core\Time::parse(): `V` names a zone only as `VV`, the IANA identifier
-Core\Time::parse(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
-Core\Time::parse(): a pattern that parses names no zone — `Core\Time::parse` takes one as its third argument
-Core\Time::parse(): expected ` ` at offset 10
-Core\Time::parse(): expected 2 or more digits of month at offset 6
-Core\Time::parse(): expected a month name at offset 5
-Core\Time::parse(): 9 characters of trailing text
+Core\Time\DateTime::parse(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\DateTime::parse(): a `'` opens a literal that nothing closes
+Core\Time\DateTime::parse(): `V` names a zone only as `VV`, the IANA identifier
+Core\Time\DateTime::parse(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\DateTime::parse(): a pattern that parses names no zone — `Core\Time\DateTime::parse` takes one as its third argument
+Core\Time\DateTime::parse(): expected ` ` at offset 10
+Core\Time\DateTime::parse(): expected 2 or more digits of month at offset 6
+Core\Time\DateTime::parse(): expected a month name at offset 5
+Core\Time\DateTime::parse(): 9 characters of trailing text
 0 taken, 9 logic, 0 parse, 9 named
 1 taken, 0 logic, 6 parse, 6 named
 2 caught either way

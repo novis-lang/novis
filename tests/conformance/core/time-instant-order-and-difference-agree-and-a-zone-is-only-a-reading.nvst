@@ -54,8 +54,8 @@ int $rebuiltByMinus = 0;
 int $rebuiltByPlus = 0;
 foreach ($rows as string $leftText) {
     foreach ($rows as string $rightText) {
-        var $left = Core\Time::fromIso($leftText);
-        var $right = Core\Time::fromIso($rightText);
+        var $left = Core\Time\Instant::fromIso($leftText);
+        var $right = Core\Time\Instant::fromIso($rightText);
         var $apart = $left->since($right);
         $pairs = $pairs + 1;
         if (Sign::of($left->compareTo($right)) == Sign::of($apart->toNanoseconds())) {
@@ -76,7 +76,7 @@ echo $pairs as string, "|", $ordered as string, "|", $antisymmetric as string, "
 
 // The two spellings of one instant are a pair that is equal without being the
 // same row, so `compareTo`'s zero above is not just the diagonal.
-echo Core\Time::fromIso("2024-01-15T13:00:00+01:00")->compareTo(Core\Time::fromIso("2024-01-15T12:00:00Z")) as string, "|\n";
+echo Core\Time\Instant::fromIso("2024-01-15T13:00:00+01:00")->compareTo(Core\Time\Instant::fromIso("2024-01-15T12:00:00Z")) as string, "|\n";
 
 // `in` is the only member of `Instant` that takes a `Zone`, and what it
 // answers is a `DateTime` — a *reading* of the same point. Going back through
@@ -89,7 +89,7 @@ int $sameInstant = 0;
 int $sameIso = 0;
 foreach ($rows as string $rowText) {
     foreach ($zones as string $zoneId) {
-        var $point = Core\Time::fromIso($rowText);
+        var $point = Core\Time\Instant::fromIso($rowText);
         var $read = $point->in(Core\Time\Zone::of($zoneId));
         $readings = $readings + 1;
         if ($read->toInstant()->compareTo($point) == 0) {
@@ -112,8 +112,8 @@ int $orderKept = 0;
 int $differenceKept = 0;
 foreach ($rows as string $eastText) {
     foreach ($rows as string $westText) {
-        var $east = Core\Time::fromIso($eastText);
-        var $west = Core\Time::fromIso($westText);
+        var $east = Core\Time\Instant::fromIso($eastText);
+        var $west = Core\Time\Instant::fromIso($westText);
         var $eastRead = $east->in($tokyo)->toInstant();
         var $westRead = $west->in($newYork)->toInstant();
         $crossed = $crossed + 1;
@@ -132,7 +132,7 @@ echo $crossed as string, "|", $orderKept as string, "|", $differenceKept as stri
 // how many of the five read as the UTC one does — exactly one, itself — so
 // the sweep asserts that a zone is not decorative as well as that it is not
 // part of the ordering.
-var $noon = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $noon = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
 var $utcReading = $noon->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm XXX");
 int $sameAsUtc = 0;
 foreach ($zones as string $renderId) {
@@ -148,7 +148,7 @@ echo $sameAsUtc as string, "|\n";
 // different offsets across the year, and the ordering of the two instants is
 // still decided without asking any zone at all.
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $summer = Core\Time::fromIso("2024-07-15T12:00:00Z");
+var $summer = Core\Time\Instant::fromIso("2024-07-15T12:00:00Z");
 echo $noon->in($berlin)->format("HH:mm XXX"), "|", $summer->in($berlin)->format("HH:mm XXX"), "|\n";
 echo $noon->compareTo($summer) as string, "|", $noon->in($berlin)->toInstant()->compareTo($summer->in($berlin)->toInstant()) as string, "|\n";
 echo $summer->since($noon)->toSeconds() as string, "|", $summer->in($berlin)->toInstant()->since($noon->in($berlin)->toInstant())->toSeconds() as string, "|\n";

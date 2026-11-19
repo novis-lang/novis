@@ -18,7 +18,7 @@ array<string> $texts = [
 
 var $instants = new Core\Heap<Core\Time\Instant>();
 foreach ($texts as string $text) {
-    var $point = Core\Time::fromIso($text);
+    var $point = Core\Time\Instant::fromIso($text);
     $instants->push($point);
 }
 // Smallest first, which is what `peek` means and what an `Instant`'s own
@@ -35,7 +35,7 @@ var $latest = new Core\Heap<Core\Time\Instant>(
     fn(Core\Time\Instant $a, Core\Time\Instant $b): int => $b->compareTo($a)
 );
 foreach ($texts as string $text) {
-    var $reading = Core\Time::fromIso($text);
+    var $reading = Core\Time\Instant::fromIso($text);
     $latest->push($reading);
 }
 while (!$latest->isEmpty()) {

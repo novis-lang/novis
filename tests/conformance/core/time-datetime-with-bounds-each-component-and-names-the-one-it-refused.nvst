@@ -7,7 +7,7 @@
 // one are named together here, since a member that stops one entry early
 // prints plausibly against either half alone.
 var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2023, 3, 15, $utc, {hour: 10, minute: 20, second: 30, nanos: 123456789});
+var $d = Core\Time\DateTime::fromIso("2023-03-15 10:20:30.123456789", $utc);
 
 // `month` is 1..=12 — one-based at both ends, so `0` is as refused as `13`.
 echo $d->with({month: 1})->format("yyyy-MM-dd"), "|\n";
@@ -73,7 +73,7 @@ catch (Throwable $atNanos) { echo $atNanos->message, "\n"; }
 // spellings land in Berlin's spring-forward gap and both shift forward by it,
 // which is the agreement `nvs_core_time_datetime_with_time`'s doc states.
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $gap = Core\Time::at(2024, 3, 31, $berlin, {hour: 12});
+var $gap = Core\Time\DateTime::fromIso("2024-03-31 12:00", $berlin);
 echo $gap->withTime(Core\Time\TimeOfDay::at(2, 30))->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 echo $gap->with({hour: 2, minute: 30})->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 --EXPECT--

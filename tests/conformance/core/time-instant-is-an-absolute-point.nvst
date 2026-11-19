@@ -6,7 +6,7 @@
 // An ISO-8601 timestamp carries its own offset, which is the whole of what
 // `strtotime` replaces here — a relative expression is accepted in neither
 // half of `Core\Time`.
-var $at = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $at = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
 echo $at->toIso(), "|\n";
 echo $at->toEpochSeconds() as string, "|\n";
 echo $at->toEpochMillis() as string, "|\n";
@@ -14,13 +14,13 @@ echo $at->toEpochMicros() as string, "|\n";
 
 // The same instant written against another offset is the same instant: an
 // `Instant` has no zone of its own for the two to disagree about.
-echo Core\Time::fromIso("2024-01-15T13:00:00+01:00")->compareTo($at) as string, "|\n";
+echo Core\Time\Instant::fromIso("2024-01-15T13:00:00+01:00")->compareTo($at) as string, "|\n";
 
 // `fromEpoch`'s `nanos` option is added after the second, so it reads the way
 // it is written on both sides of the epoch.
-echo Core\Time::fromEpoch(1705320000, {nanos: 250000000})->toIso(), "|\n";
-echo Core\Time::fromEpoch(0 - 1)->toIso(), "|\n";
-echo Core\Time::fromEpoch(0, {nanos: 250000000})->toEpochMillis() as string, "|\n";
+echo Core\Time\Instant::fromEpoch(1705320000, {nanos: 250000000})->toIso(), "|\n";
+echo Core\Time\Instant::fromEpoch(0 - 1)->toIso(), "|\n";
+echo Core\Time\Instant::fromEpoch(0, {nanos: 250000000})->toEpochMillis() as string, "|\n";
 
 // Exact arithmetic: an `Instant` moves by a `Duration`, never by a calendar
 // step. `rule:core-api/shape-rules` R3: nothing mutates, so `plus` leaves its receiver alone.
@@ -33,14 +33,16 @@ echo $at->compareTo($later) as string, "|", $later->compareTo($at) as string, "|
 
 // `rule:core-api/shape-rules` R4: failure throws rather than answering a wrong value. Which
 // texts `fromIso` accepts, and in what class it refuses the rest, is
-// time-from-iso-needs-an-offset-and-refuses-as-a-parse-error.nvst.
+// time-from-iso-needs-an-offset-and-refuses-as-a-parse-error.nvst. The text is
+// in a variable because a text written in quotes is checked while compiling.
+string $relative = "yesterday";
 try {
-    echo Core\Time::fromIso("yesterday")->toIso(), "|\n";
+    echo Core\Time\Instant::fromIso($relative)->toIso(), "|\n";
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "fromIso") as string, "|\n";
 }
 try {
-    echo Core\Time::fromEpoch(0, {nanos: 1000000000})->toIso(), "|\n";
+    echo Core\Time\Instant::fromEpoch(0, {nanos: 1000000000})->toIso(), "|\n";
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "subsecond") as string, "|\n";
 }

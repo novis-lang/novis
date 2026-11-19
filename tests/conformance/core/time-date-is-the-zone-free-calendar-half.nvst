@@ -56,7 +56,7 @@ try {
 // **where it is**, so the same instant in another zone can be another day.
 var $utc = Core\Time\Zone::UTC;
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $late = Core\Time::at(2024, 12, 31, $utc, {hour: 23, minute: 30});
+var $late = Core\Time\DateTime::fromIso("2024-12-31 23:30", $utc);
 echo $late->date()->format("yyyy-MM-dd"), "|\n";
 echo $late->toInstant()->in($berlin)->date()->format("yyyy-MM-dd"), "|\n";
 echo $late->date()->compareTo($late->toInstant()->in($berlin)->date()) as string, "|\n";

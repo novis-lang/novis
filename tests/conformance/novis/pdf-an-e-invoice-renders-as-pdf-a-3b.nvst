@@ -22,7 +22,7 @@ string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
 var $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice Shop-1</title></head>"
     . "<body><h1>Invoice Shop-1</h1><p>Tea: 1.50</p></body></html>")
     ->standard(Document::Standard::PdfA3b)
-    ->created(Core\Time::fromIso("2026-01-01T00:00:00Z"))
+    ->created(Core\Time\Instant::fromIso("2026-01-01T00:00:00Z"))
     ->invoiceXml($xml);
 var $rendered = $invoice->render();
 echo Core\Bytes::startsWith($rendered->bytes, "%PDF-" as bytes) ? "a PDF file" : "not a PDF file", "\n";

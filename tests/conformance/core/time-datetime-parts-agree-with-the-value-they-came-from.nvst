@@ -41,7 +41,7 @@ int $dayOfYearAgrees = 0;
 int $leapAgrees = 0;
 foreach ($rows as string $rowText) {
     foreach ($zones as string $zoneId) {
-        var $d = Core\Time::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
+        var $d = Core\Time\Instant::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
         $values = $values + 1;
         string $fields = ($d->year() as string) . " " . ($d->month() as string) . " "
             . ($d->day() as string) . " " . ($d->hour() as string) . " "
@@ -81,8 +81,8 @@ int $matchesSince = 0;
 int $antisymmetric = 0;
 foreach ($rows as string $fromText) {
     foreach ($rows as string $toText) {
-        var $from = Core\Time::fromIso($fromText)->in(Core\Time\Zone::of("Europe/Berlin"));
-        var $to = Core\Time::fromIso($toText)->in(Core\Time\Zone::of("Pacific/Auckland"));
+        var $from = Core\Time\Instant::fromIso($fromText)->in(Core\Time\Zone::of("Europe/Berlin"));
+        var $to = Core\Time\Instant::fromIso($toText)->in(Core\Time\Zone::of("Pacific/Auckland"));
         $pairs = $pairs + 1;
         if ($from->difference($to, Core\Unit::Nanosecond) == $to->toInstant()->since($from->toInstant())->toNanoseconds()) {
             $matchesSince = $matchesSince + 1;
@@ -100,8 +100,8 @@ echo $pairs as string, "|", $matchesSince as string, "|", $antisymmetric as stri
 // starts between them is 23 hours long. `difference` counts in the
 // **receiver's** zone and moves its argument there first, which is what makes
 // that one answer rather than two.
-var $beforeClocksGoForward = Core\Time::fromIso("2024-03-30T23:30:00Z");
-var $afterClocksGoForward = Core\Time::fromIso("2024-03-31T22:30:00Z");
+var $beforeClocksGoForward = Core\Time\Instant::fromIso("2024-03-30T23:30:00Z");
+var $afterClocksGoForward = Core\Time\Instant::fromIso("2024-03-31T22:30:00Z");
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
 echo $beforeClocksGoForward->in(Core\Time\Zone::UTC)->difference($afterClocksGoForward->in(Core\Time\Zone::UTC), Core\Unit::Day) as string, "|\n";
 echo $beforeClocksGoForward->in($berlin)->difference($afterClocksGoForward->in($berlin), Core\Unit::Day) as string, "|\n";
@@ -111,8 +111,8 @@ echo $afterClocksGoForward->since($beforeClocksGoForward)->toSeconds() as string
 // A month count reaches across the whole calendar, first day to last in the
 // two farthest zones, and a quarter is three of those months. Only a count
 // past `int` throws, and that takes nanoseconds.
-var $firstDay = Core\Time::fromIso("-009999-01-02T01:59:59Z")->in(Core\Time\Zone::fixed(25h59m59s->negated()));
-var $lastDay = Core\Time::fromIso("9999-12-30T22:00:00Z")->in(Core\Time\Zone::fixed(25h59m59s));
+var $firstDay = Core\Time\Instant::fromIso("-009999-01-02T01:59:59Z")->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $lastDay = Core\Time\Instant::fromIso("9999-12-30T22:00:00Z")->in(Core\Time\Zone::fixed(25h59m59s));
 echo $firstDay->difference($lastDay, Core\Unit::Year) as string, "|", $firstDay->difference($lastDay, Core\Unit::Month) as string, "|", $lastDay->difference($firstDay, Core\Unit::Quarter) as string, "|\n";
 try {
     echo $firstDay->difference($lastDay, Core\Unit::Nanosecond) as string, "|\n";
@@ -123,14 +123,14 @@ try {
 // The views themselves, read off one value, so the counts above are anchored
 // to output a reader can check: the leap day read in a zone half an hour off
 // the hour, where it is still the 29th, and `dayOfYear` counting it.
-var $leapDay = Core\Time::fromIso("2024-02-29T12:00:00Z")->in(Core\Time\Zone::of("Asia/Kolkata"));
+var $leapDay = Core\Time\Instant::fromIso("2024-02-29T12:00:00Z")->in(Core\Time\Zone::of("Asia/Kolkata"));
 echo $leapDay->date()->format("yyyy-MM-dd"), "|", $leapDay->timeOfDay()->format("HH:mm:ss"), "|\n";
 echo $leapDay->dayOfYear() as string, "|", $leapDay->isLeapYear() as string, "|\n";
 echo $leapDay->zone()->offsetAt($leapDay->toInstant())->toSeconds() as string, "|\n";
 echo $leapDay->year() as string, "|", $leapDay->month() as string, "|", $leapDay->day() as string, "|", $leapDay->hour() as string, "|", $leapDay->minute() as string, "|", $leapDay->second() as string, "|", $leapDay->nanos() as string, "|\n";
 // The same instant is already 1 March in Auckland, and half a second shows
 // as 500000000 nanoseconds.
-var $auckland = Core\Time::fromIso("2024-02-29T12:00:00.5Z")->in(Core\Time\Zone::of("Pacific/Auckland"));
+var $auckland = Core\Time\Instant::fromIso("2024-02-29T12:00:00.5Z")->in(Core\Time\Zone::of("Pacific/Auckland"));
 echo $auckland->year() as string, "|", $auckland->month() as string, "|", $auckland->day() as string, "|", $auckland->hour() as string, "|", $auckland->nanos() as string, "|\n";
 echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|", $leapDay->with({year: 2023, month: 2, day: 28})->isLeapYear() as string, "|\n";
 
@@ -138,7 +138,7 @@ echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|"
 // renders the id `zone` answers, and a second value read in that zone is at
 // the same offset.
 var $fixed = $leapDay->toInstant()->in(Core\Time\Zone::fixed(5h45m));
-var $again = Core\Time::fromIso("2024-07-01T00:00:00Z")->in($fixed->zone());
+var $again = Core\Time\Instant::fromIso("2024-07-01T00:00:00Z")->in($fixed->zone());
 echo $fixed->format("VV"), "|", $again->format("HH:mm VV"), "|", $leapDay->format("VV"), "|\n";
 --EXPECT--
 24|24|24|24|24|24|24|

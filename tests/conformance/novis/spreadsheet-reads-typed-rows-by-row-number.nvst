@@ -58,7 +58,7 @@ public static function row(Row $row): void
 var $book = Workbook::createInMemory();
 var $sheet = $book->sheet("Orders", {header: true});
 $sheet->add(["Item", "Price", "Count", "Paid", "Ordered"]);
-$sheet->add(["Widget", 2.5, 3, true, Core\Time::at(2024, 1, 15, Core\Time\Zone::UTC, {hour: 9, minute: 30})]);
+$sheet->add(["Widget", 2.5, 3, true, Core\Time\DateTime::fromIso("2024-01-15 09:30", "UTC")]);
 $sheet->add([null]);
 $sheet->add(["Gadget", null, 4]);
 $sheet->add(["Gizmo", 1.25, 7, false]);

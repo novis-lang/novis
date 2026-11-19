@@ -13,7 +13,7 @@ var $utc = Core\Time\Zone::UTC;
 var $fmt = "EEE yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
 var $clock = "HH:mm:ss.SSSSSSSSS";
 // 2024-05-15 is a Wednesday, and the nanosecond is there to be preserved.
-var $d = Core\Time::at(2024, 5, 15, $utc, {hour: 13, minute: 45, second: 30, nanos: 7});
+var $d = Core\Time\DateTime::fromIso("2024-05-15 13:45:30.000000007", $utc);
 echo $d->format($fmt), "|\n";
 
 // The two edges, written out: the receiver's own weekday goes a whole week in
@@ -57,7 +57,7 @@ echo "back=", $back as string, "|\n";
 // keeps the wall time and changes the offset — which is what makes this a
 // calendar step and not `Instant::plus`.
 var $ny = Core\Time\Zone::of("America/New_York");
-var $s = Core\Time::at(2024, 3, 8, $ny, {hour: 15, minute: 30});
+var $s = Core\Time\DateTime::fromIso("2024-03-08 15:30", $ny);
 echo $s->next(Core\Time\Weekday::Monday)->format("EEE yyyy-MM-dd HH:mm XXX"), "|\n";
 echo $s->previous(Core\Time\Weekday::Friday)->format("EEE yyyy-MM-dd HH:mm XXX"), "|\n";
 --EXPECT--

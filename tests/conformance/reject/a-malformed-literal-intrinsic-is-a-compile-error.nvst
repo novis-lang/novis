@@ -15,7 +15,7 @@ a malformed literal argument to an intrinsic is refused while checking, and the 
 // the variable-borne twins add no diagnostic and are left to run time.
 
 var $utc = Core\Time\Zone::UTC;
-var $when = Core\Time::at(2026, 8, 28, $utc);
+var $when = Core\Time\DateTime::fromIso("2026-08-28", $utc);
 
 // `Core\Time\DateTime::format`, argument 0 — a CLDR pattern letter no library
 // carries.
@@ -23,11 +23,11 @@ var $badDate = "yyyy-jjjjjj";
 var $foldedDate = $when->format("yyyy-jjjjjj");
 var $runtimeDate = $when->format($badDate);
 
-// `Core\Time::parse`, argument *1* — the subject is the text being read, so the
+// `Core\Time\DateTime::parse`, argument *1* — the subject is the text being read, so the
 // pattern is not at position 0 (`rule:core-api/shape-rules` R1).
 var $badParse = "yyyy-jjjjjj";
-var $foldedParsed = Core\Time::parse("2026-08-28", "yyyy-jjjjjj", $utc);
-var $runtimeParsed = Core\Time::parse("2026-08-28", $badParse, $utc);
+var $foldedParsed = Core\Time\DateTime::parse("2026-08-28", "yyyy-jjjjjj", $utc);
+var $runtimeParsed = Core\Time\DateTime::parse("2026-08-28", $badParse, $utc);
 
 // `Core\Regex::compile`, argument 0 — a group neither engine can close.
 var $badPattern = "^order-(\\d+$";

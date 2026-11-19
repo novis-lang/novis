@@ -38,7 +38,7 @@ foreach ($lists as array<Core\Cldr::PluralCategory> $categories) {
 }
 
 // A date and time crosses as local fields, an offset and a zone id.
-var $evening = Core\Time::at(2026, 3, 1, Core\Time\Zone::of("Europe/Vienna"), {hour: 21, minute: 30});
+var $evening = Core\Time\DateTime::fromIso("2026-03-01 21:30", "Europe/Vienna");
 echo Core\Str::join(DateFormat::dateTimes([$evening], "de"), " | "), "\n";
 echo Core\Str::join(DateFormat::dates([Core\Time\Date::at(2026, 3, 1)], "en-US", {length: DateFormat::Length::Long}), " | "), "\n";
 echo Core\Str::join(DateFormat::times([Core\Time\TimeOfDay::at(21, 30)], "de"), " | "), "\n";

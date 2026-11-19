@@ -37,7 +37,7 @@ echo Json::encode(Ledger::echoArea({radius: 1.5})), "\n";
 echo Json::encode(Ledger::echoArea({width: 2.0, height: 3.0})), "\n";
 
 // A `Core` value, such as an `Instant` or a `Uri`, comes back equal to the one passed in.
-echo Ledger::echoInstant(Core\Time::fromIso("2024-01-02T03:04:05.5Z"))->toIso(), "\n";
+echo Ledger::echoInstant(Core\Time\Instant::fromIso("2024-01-02T03:04:05.5Z"))->toIso(), "\n";
 var $address = Ledger::echoUri(Core\Uri::parse("https://example.com/shop?page=2"));
 echo $address->host(), " ", $address->toString(), "\n";
 

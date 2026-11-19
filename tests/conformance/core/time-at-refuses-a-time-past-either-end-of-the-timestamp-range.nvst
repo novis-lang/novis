@@ -1,28 +1,28 @@
 --TEST--
-`Core\Time::at` accepts the first and last instant a `DateTime` holds and refuses the second past each, in one plain sentence
+`Core\Time\DateTime::at` accepts the first and last instant a `DateTime` holds and refuses the second past each, in one plain sentence
 --FILE--
 <?nvs
-// covers: Core\Time::at
+// covers: Core\Time\DateTime::at
 // The year is checked against -9999..=9999 first, but the instant the fields
 // name has a narrower range: the last is 9999-12-30T22:00:00Z and the first is
 // -9999-01-02T01:59:59Z. Both ends are asserted on both sides, one second apart.
 var $utc = Core\Time\Zone::UTC;
-echo Core\Time::at(9999, 12, 30, $utc, {hour: 22})->format("yyyy-MM-dd HH:mm:ss"), "\n";
-try { Core\Time::at(9999, 12, 30, $utc, {hour: 22, second: 1}); }
+echo Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 30), Core\Time\TimeOfDay::at(22, 0), $utc)->format("yyyy-MM-dd HH:mm:ss"), "\n";
+try { Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 30), Core\Time\TimeOfDay::at(22, 0, {second: 1}), $utc); }
 catch (RuntimeError $late) { echo $late->message, "\n"; }
-echo Core\Time::at(-9999, 1, 2, $utc, {hour: 1, minute: 59, second: 59})->toInstant()->toIso(), "\n";
-try { Core\Time::at(-9999, 1, 2, $utc, {hour: 1, minute: 59, second: 58}); }
+echo Core\Time\DateTime::at(Core\Time\Date::at(-9999, 1, 2), Core\Time\TimeOfDay::at(1, 59, {second: 59}), $utc)->toInstant()->toIso(), "\n";
+try { Core\Time\DateTime::at(Core\Time\Date::at(-9999, 1, 2), Core\Time\TimeOfDay::at(1, 59, {second: 58}), $utc); }
 catch (RuntimeError $early) { echo $early->message, "\n"; }
 
 // A zone east of UTC moves the civil bound, not the instant one: 23:59 on
 // 9999-12-30 in Berlin is 22:59 UTC, which is past the end.
-try { Core\Time::at(9999, 12, 30, Core\Time\Zone::of("Europe/Berlin"), {hour: 23, minute: 59}); }
+try { Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 30), Core\Time\TimeOfDay::at(23, 59), "Europe/Berlin"); }
 catch (RuntimeError $east) { echo $east->message, "\n"; }
-echo Core\Time::at(9999, 12, 30, Core\Time\Zone::of("Europe/Berlin"), {hour: 23})->toInstant()->toIso(), "\n";
+echo Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 30), Core\Time\TimeOfDay::at(23, 0), "Europe/Berlin")->toInstant()->toIso(), "\n";
 --EXPECT--
 9999-12-30 22:00:00
-Core\Time::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 -009999-01-02T01:59:59Z
-Core\Time::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
-Core\Time::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 9999-12-30T22:00:00Z

@@ -1,12 +1,12 @@
 --TEST--
-Core\Time::fromIso throws a `ParseError` on a text with no offset, a relative expression, a text that is not a date and a day that does not exist
+Core\Time\Instant::fromIso throws a `ParseError` on a text with no offset, a relative expression, a text that is not a date and a day that does not exist
 --FILE--
 <?nvs
 final class Iso {
     // Returns the seconds since the epoch, or the class of the error thrown.
     public static function of(string $text): string {
         try {
-            return Core\Time::fromIso($text)->toEpochSeconds() as string;
+            return Core\Time\Instant::fromIso($text)->toEpochSeconds() as string;
         } catch (ParseError $e) {
             return "ParseError";
         } catch (Throwable $other) {
@@ -19,18 +19,18 @@ var $utc = Core\Time\Zone::UTC;
 uint $refused = 0;
 
 // A date or a time with no offset throws an error.
-// To read a time in a known zone, use `Core\Time::parse` with that zone.
+// To read a time in a known zone, use `Core\Time\DateTime::parse` with that zone.
 echo "date-only|", Iso::of("2024-02-29"), "\n";
 echo "no-offset|", Iso::of("2024-02-29T13:45:07"), "\n";
-echo Core\Time::parse("2024-02-29 13:45:07", "yyyy-MM-dd HH:mm:ss", $utc)->toInstant()->toEpochSeconds(), "\n";
+echo Core\Time\DateTime::parse("2024-02-29 13:45:07", "yyyy-MM-dd HH:mm:ss", $utc)->toInstant()->toEpochSeconds(), "\n";
 
 // A relative expression throws an error.
 // To move a time, use `plus` or `next` on a time you already have.
 echo "relative-day|", Iso::of("+1 day"), "\n";
 echo "now|", Iso::of("now"), "\n";
 echo "weekday|", Iso::of("next Thursday"), "\n";
-echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->plus(1, Core\Unit::Day)->toInstant()->toEpochSeconds(), "\n";
-echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->next(Core\Time\Weekday::Thursday)->format("yyyy-MM-dd"), "\n";
+echo Core\Time\Instant::fromIso("2024-02-29T13:45:07Z")->in($utc)->plus(1, Core\Unit::Day)->toInstant()->toEpochSeconds(), "\n";
+echo Core\Time\Instant::fromIso("2024-02-29T13:45:07Z")->in($utc)->next(Core\Time\Weekday::Thursday)->format("yyyy-MM-dd"), "\n";
 
 // A text that is not a date throws an error. So does the empty string.
 echo "garbage|", Iso::of("not a date"), "\n";

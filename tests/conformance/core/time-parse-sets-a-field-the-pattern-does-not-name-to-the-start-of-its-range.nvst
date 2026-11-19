@@ -1,12 +1,12 @@
 --TEST--
-Core\Time::parse sets a field the pattern does not name to the start of its range, throws a `ParseError` on a text that does not match and a `LogicError` on a pattern it does not support
+Core\Time\DateTime::parse sets a field the pattern does not name to the start of its range, throws a `ParseError` on a text that does not match and a `LogicError` on a pattern it does not support
 --FILE--
 <?nvs
 final class Read {
     // Returns the seconds since the epoch, or the class of the error thrown.
     public static function of(string $text, string $pattern): string {
         try {
-            return Core\Time::parse($text, $pattern, Core\Time\Zone::UTC)->toInstant()->toEpochSeconds() as string;
+            return Core\Time\DateTime::parse($text, $pattern, 'UTC')->toInstant()->toEpochSeconds() as string;
         } catch (ParseError $bad) {
             return "ParseError";
         } catch (LogicError $mine) {
@@ -39,8 +39,8 @@ echo "zone-id|", Read::of("2024-02-29 13:45:07 Europe/Berlin", "yyyy-MM-dd HH:mm
 
 // The zone is the third argument of `parse`. A time read in a zone and the
 // same time written with its offset give the same instant.
-echo Core\Time::parse("2024-02-29 13:45:07", "yyyy-MM-dd HH:mm:ss", Core\Time\Zone::of("Europe/Berlin"))->toInstant()->toEpochSeconds(), "\n";
-echo Core\Time::fromIso("2024-02-29T13:45:07+01:00")->toEpochSeconds(), "\n";
+echo Core\Time\DateTime::parse("2024-02-29 13:45:07", "yyyy-MM-dd HH:mm:ss", "Europe/Berlin")->toInstant()->toEpochSeconds(), "\n";
+echo Core\Time\Instant::fromIso("2024-02-29T13:45:07+01:00")->toEpochSeconds(), "\n";
 --EXPECT--
 1709164800
 1709164800

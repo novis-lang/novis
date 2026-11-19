@@ -37,43 +37,43 @@ final class Step {
 //    directions. A nanosecond is the whole width of the change: the last
 //    instant of one offset and the first instant of the next are adjacent, so
 //    there is no instant in between with a third answer.
-echo Step::across($berlin, Core\Time::fromIso("2024-03-31T01:00:00Z")), "|\n";
-echo Step::across($berlin, Core\Time::fromIso("2024-10-27T01:00:00Z")), "|\n";
+echo Step::across($berlin, Core\Time\Instant::fromIso("2024-03-31T01:00:00Z")), "|\n";
+echo Step::across($berlin, Core\Time\Instant::fromIso("2024-10-27T01:00:00Z")), "|\n";
 
 // A step is not an hour. Lord Howe Island moves by **half** an hour, so a
 // member that stored a whole-hour shift, or that rounded a transition to one,
 // answers plausibly for Berlin and fails here.
-echo Step::across($lordHowe, Core\Time::fromIso("2024-04-06T15:00:00Z")), "|\n";
+echo Step::across($lordHowe, Core\Time\Instant::fromIso("2024-04-06T15:00:00Z")), "|\n";
 
 // Nor is an offset itself a whole number of minutes, before the zones were
 // standardised: Berlin ran on its own local mean time, 53 minutes and 28
 // seconds ahead of Greenwich, until 1893. An `offsetAt` that consulted only
 // the modern rule and not the zone's history answers `3600` here.
-echo $berlin->offsetAt(Core\Time::fromIso("1890-01-01T00:00:00Z"))->toSeconds() as string, "|\n";
+echo $berlin->offsetAt(Core\Time\Instant::fromIso("1890-01-01T00:00:00Z"))->toSeconds() as string, "|\n";
 
 // 2. Constant between the steps, counted rather than sampled. Eight instants
 //    spread across the summer window all answer `+02:00` and none of the eight
 //    winter ones does, which is what makes this an assertion about the whole
 //    window rather than about the two rows printed above.
 array<Core\Time\Instant> $summer = [
-    Core\Time::fromIso("2024-03-31T01:00:00Z"),
-    Core\Time::fromIso("2024-03-31T01:00:01Z"),
-    Core\Time::fromIso("2024-04-01T00:00:00Z"),
-    Core\Time::fromIso("2024-06-21T12:00:00Z"),
-    Core\Time::fromIso("2024-08-15T23:30:00Z"),
-    Core\Time::fromIso("2024-10-26T12:00:00Z"),
-    Core\Time::fromIso("2024-10-27T00:59:59Z"),
-    Core\Time::fromIso("2024-10-27T00:59:59.999999999Z"),
+    Core\Time\Instant::fromIso("2024-03-31T01:00:00Z"),
+    Core\Time\Instant::fromIso("2024-03-31T01:00:01Z"),
+    Core\Time\Instant::fromIso("2024-04-01T00:00:00Z"),
+    Core\Time\Instant::fromIso("2024-06-21T12:00:00Z"),
+    Core\Time\Instant::fromIso("2024-08-15T23:30:00Z"),
+    Core\Time\Instant::fromIso("2024-10-26T12:00:00Z"),
+    Core\Time\Instant::fromIso("2024-10-27T00:59:59Z"),
+    Core\Time\Instant::fromIso("2024-10-27T00:59:59.999999999Z"),
 ];
 array<Core\Time\Instant> $winter = [
-    Core\Time::fromIso("2024-01-01T00:00:00Z"),
-    Core\Time::fromIso("2024-02-29T12:00:00Z"),
-    Core\Time::fromIso("2024-03-31T00:59:59.999999999Z"),
-    Core\Time::fromIso("2024-10-27T01:00:00Z"),
-    Core\Time::fromIso("2024-11-15T06:00:00Z"),
-    Core\Time::fromIso("2024-12-31T23:59:59Z"),
-    Core\Time::fromIso("2025-01-15T12:00:00Z"),
-    Core\Time::fromIso("2025-03-30T00:59:59Z"),
+    Core\Time\Instant::fromIso("2024-01-01T00:00:00Z"),
+    Core\Time\Instant::fromIso("2024-02-29T12:00:00Z"),
+    Core\Time\Instant::fromIso("2024-03-31T00:59:59.999999999Z"),
+    Core\Time\Instant::fromIso("2024-10-27T01:00:00Z"),
+    Core\Time\Instant::fromIso("2024-11-15T06:00:00Z"),
+    Core\Time\Instant::fromIso("2024-12-31T23:59:59Z"),
+    Core\Time\Instant::fromIso("2025-01-15T12:00:00Z"),
+    Core\Time\Instant::fromIso("2025-03-30T00:59:59Z"),
 ];
 echo Step::constantAt($berlin, $summer, 7200), " of 8 summer, ", Step::constantAt($berlin, $winter, 3600), " of 8 winter|\n";
 

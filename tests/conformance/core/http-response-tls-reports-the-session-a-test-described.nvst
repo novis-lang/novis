@@ -16,7 +16,7 @@ A reply a test's answer table served with a `Core\Test::tlsSession` reports that
 var $described = Core\Test::tlsSession({
     subject: "CN=api.example.com, O=Shop",
     issuer: "CN=Example Test CA",
-    expiry: Core\Time::fromIso("2031-06-01T12:00:00.750Z"),
+    expiry: Core\Time\Instant::fromIso("2031-06-01T12:00:00.750Z"),
 });
 Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok", tls: $described});
 

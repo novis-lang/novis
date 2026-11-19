@@ -13,7 +13,7 @@ class Year {
     // cannot be reading the day it was asked on.
     public static function flag(int $year): bool {
         var $utc = Core\Time\Zone::UTC;
-        return Core\Time::at($year, 6, 1, $utc)->isLeapYear();
+        return Core\Time\DateTime::at(Core\Time\Date::at($year, 6, 1), Core\Time\TimeOfDay::at(0, 0), $utc)->isLeapYear();
     }
 
     // Way 2: whether February has a twenty-ninth at all. This is the
@@ -34,7 +34,7 @@ class Year {
     // end of the range has no December — see the interval block below.
     public static function marchShifts(int $year): bool {
         var $utc = Core\Time\Zone::UTC;
-        uint $march = Core\Time::at($year, 3, 1, $utc)->dayOfYear();
+        uint $march = Core\Time\DateTime::at(Core\Time\Date::at($year, 3, 1), Core\Time\TimeOfDay::at(0, 0), $utc)->dayOfYear();
         uint $shifted = 61;
         return $march == $shifted;
     }
@@ -43,7 +43,7 @@ class Year {
     // `date("L")` was ever consulted for.
     public static function reaches366(int $year): bool {
         var $utc = Core\Time\Zone::UTC;
-        uint $last = Core\Time::at($year, 12, 31, $utc)->dayOfYear();
+        uint $last = Core\Time\DateTime::at(Core\Time\Date::at($year, 12, 31), Core\Time\TimeOfDay::at(0, 0), $utc)->dayOfYear();
         uint $long = 366;
         return $last == $long;
     }
@@ -51,7 +51,7 @@ class Year {
     public static function endReadable(int $year): bool {
         var $utc = Core\Time\Zone::UTC;
         try {
-            Core\Time::at($year, 12, 31, $utc);
+            Core\Time\DateTime::at(Core\Time\Date::at($year, 12, 31), Core\Time\TimeOfDay::at(0, 0), $utc);
             return true;
         } catch (RuntimeError $refused) {
             return false;
@@ -104,26 +104,26 @@ echo "end-asked=", $endAsked as string, " end-agrees=", $endAgrees as string, "|
 // -9999-01-01..9999-12-31, while a `DateTime` must be convertible to the
 // instant its zone puts it at — and that conversion runs out of range inside
 // the calendar's last day and inside its first two. So the interval is wider
-// at both ends, one refusal names `Core\Time::at` and says the time is outside
+// at both ends, one refusal names `Core\Time\DateTime::at` and says the time is outside
 // the range, and one step inside each end is answered.
 var $utc = Core\Time\Zone::UTC;
 echo "date-top=", Core\Time\Date::at(9999, 12, 31)->format("yyyy-MM-dd"), "|\n";
 try {
-    Core\Time::at(9999, 12, 31, $utc);
+    Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 31), Core\Time\TimeOfDay::at(0, 0), $utc);
     echo "top-accepted|\n";
 } catch (RuntimeError $refused) {
-    echo "top-refused=", Core\Str::contains($refused->message, "Core\\Time::at()") as string,
+    echo "top-refused=", Core\Str::contains($refused->message, "Core\\Time\\DateTime::at()") as string,
         Core\Str::contains($refused->message, "the time is outside") as string, "|\n";
 }
-echo "dt-top=", Core\Time::at(9999, 12, 30, $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo "dt-top=", Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 30), Core\Time\TimeOfDay::at(0, 0), $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
 echo "date-bottom=", Core\Time\Date::at(-9999, 1, 1)->format("yyyy-MM-dd"), "|\n";
 try {
-    Core\Time::at(-9999, 1, 2, $utc);
+    Core\Time\DateTime::at(Core\Time\Date::at(-9999, 1, 2), Core\Time\TimeOfDay::at(0, 0), $utc);
     echo "bottom-accepted|\n";
 } catch (RuntimeError $refused) {
     echo "bottom-refused|\n";
 }
-echo "dt-bottom=", Core\Time::at(-9999, 1, 3, $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo "dt-bottom=", Core\Time\DateTime::at(Core\Time\Date::at(-9999, 1, 3), Core\Time\TimeOfDay::at(0, 0), $utc)->format("yyyy-MM-dd HH:mm"), "|\n";
 
 // And the flag is a fact about the year rather than about the day it is read
 // on: four days spread across each of one leap year and one common one, each
@@ -134,8 +134,8 @@ int $probe = 0;
 int $reads = 0;
 for (; $probe < 4; $probe = $probe + 1) {
     int $day = $days[$probe as string];
-    var $leapRead = Core\Time::at(2024, 1, 1, $utc)->plus($day - 1, Core\Unit::Day);
-    var $commonRead = Core\Time::at(2023, 1, 1, $utc)->plus($day - 1, Core\Unit::Day);
+    var $leapRead = Core\Time\DateTime::fromIso("2024-01-01", $utc)->plus($day - 1, Core\Unit::Day);
+    var $commonRead = Core\Time\DateTime::fromIso("2023-01-01", $utc)->plus($day - 1, Core\Unit::Day);
     if ($leapRead->isLeapYear()) {
         $reads = $reads + 1;
     }

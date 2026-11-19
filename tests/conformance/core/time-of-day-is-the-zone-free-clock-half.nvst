@@ -49,7 +49,7 @@ try {
 // the same one at different instants — and the same instant reads two.
 var $utc = Core\Time\Zone::UTC;
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $late = Core\Time::at(2024, 12, 31, $utc, {hour: 23, minute: 30});
+var $late = Core\Time\DateTime::fromIso("2024-12-31 23:30", $utc);
 echo $late->timeOfDay()->format("HH:mm"), "|\n";
 echo $late->toInstant()->in($berlin)->timeOfDay()->format("HH:mm"), "|\n";
 echo $late->date()->format("yyyy-MM-dd"), "|", $late->timeOfDay()->format("HH:mm:ss"), "|\n";

@@ -7,16 +7,16 @@
 // so `0` is reachable off the diagonal; rows 1 and 6 are the two ends of the
 // range; rows 4 and 5 are one nanosecond either side of the epoch.
 array<Core\Time\Instant> $table = [
-    Core\Time::fromIso("2024-03-01T12:00:00Z"),
-    Core\Time::fromEpoch(-377705023201),
-    Core\Time::fromIso("2024-03-01T13:00:00+01:00"),
-    Core\Time::fromEpoch(0),
-    Core\Time::fromEpoch(0, {nanos: 1}),
-    Core\Time::fromEpoch(-1, {nanos: 999999999}),
-    Core\Time::fromEpoch(253402207200, {nanos: 999999999}),
-    Core\Time::fromEpoch(1709294400),
-    Core\Time::fromIso("1969-12-31T23:59:59Z"),
-    Core\Time::fromEpoch(1709294400, {nanos: 1}),
+    Core\Time\Instant::fromIso("2024-03-01T12:00:00Z"),
+    Core\Time\Instant::fromEpoch(-377705023201),
+    Core\Time\Instant::fromIso("2024-03-01T13:00:00+01:00"),
+    Core\Time\Instant::fromEpoch(0),
+    Core\Time\Instant::fromEpoch(0, {nanos: 1}),
+    Core\Time\Instant::fromEpoch(-1, {nanos: 999999999}),
+    Core\Time\Instant::fromEpoch(253402207200, {nanos: 999999999}),
+    Core\Time\Instant::fromEpoch(1709294400),
+    Core\Time\Instant::fromIso("1969-12-31T23:59:59Z"),
+    Core\Time\Instant::fromEpoch(1709294400, {nanos: 1}),
 ];
 
 // Every ordered pair. `operator` counts where `<` agrees with the sign, and

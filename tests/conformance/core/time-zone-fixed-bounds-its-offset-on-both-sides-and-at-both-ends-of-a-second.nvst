@@ -9,8 +9,8 @@
 // ±25:59:00 — prints plausibly against either half alone, so each is asked for
 // its last accepted value and its first refused one together.
 
-var $at = Core\Time::fromIso("2024-01-15T12:00:00Z");
-var $later = Core\Time::fromIso("2099-12-31T23:59:59Z");
+var $at = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
+var $later = Core\Time\Instant::fromIso("2099-12-31T23:59:59Z");
 
 final class Fixed {
     // The offset a zone built from `$s` seconds is worth, or the half of the

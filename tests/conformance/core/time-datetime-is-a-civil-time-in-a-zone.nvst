@@ -6,7 +6,7 @@
 // `Zone::UTC` is the one zone that is ever a default, and only where it is
 // written — an `rule:classes/no-free-functions-or-constants` class constant, inlined at the use site.
 var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 2, 29, $utc, {hour: 13, minute: 45});
+var $d = Core\Time\DateTime::fromIso("2024-02-29 13:45", $utc);
 echo $d->format("yyyy-MM-dd HH:mm:ss"), "|\n";
 
 // The component views: a weekday is the enum case, not `date("N")`'s number,
@@ -40,7 +40,7 @@ echo $d->with({year: 2000, hour: 1, nanos: 5})->format("yyyy-MM-dd HH:mm:ss.SSSS
 
 // `difference` counts whole units from the receiver **to** its argument, so a
 // later argument is positive and an earlier one negative.
-var $later = Core\Time::at(2026, 8, 24, $utc);
+var $later = Core\Time\DateTime::fromIso("2026-08-24", $utc);
 echo $d->difference($later, Core\Unit::Year) as string, "|\n";
 echo $d->difference($later, Core\Unit::Month) as string, "|\n";
 echo $later->difference($d, Core\Unit::Day) as string, "|\n";
@@ -58,7 +58,7 @@ echo $d->difference($d->toInstant()->in($berlin), Core\Unit::Day) as string, "|\
 // Crossing a DST boundary is what makes the two arithmetics differ: 24 hours
 // of exact `Duration` is not the same civil time on the day Berlin springs
 // forward, while one calendar day is.
-var $before = Core\Time::at(2024, 3, 30, $berlin, {hour: 12});
+var $before = Core\Time\DateTime::fromIso("2024-03-30 12:00", $berlin);
 echo $before->plus(1, Core\Unit::Day)->format("yyyy-MM-dd HH:mm"), "|\n";
 echo $before->toInstant()->plus(24h)->in($berlin)->format("yyyy-MM-dd HH:mm"), "|\n";
 
@@ -70,15 +70,15 @@ echo $d->with({nanos: 5})->withTime($before->timeOfDay())->format("yyyy-MM-dd HH
 
 // A wall clock reading the zone skips resolves forward by the gap, the same
 // way every other `DateTime` build does: Berlin has no 02:30 that morning.
-var $springs = Core\Time::at(2024, 3, 31, $berlin, {hour: 12});
+var $springs = Core\Time\DateTime::fromIso("2024-03-31 12:00", $berlin);
 echo $springs->withTime(Core\Time\TimeOfDay::at(2, 30))->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 
 // A date that does not exist throws where it is built, which is why there is
 // no `checkdate`.
 try {
-    Core\Time::at(2023, 2, 29, $utc);
+    Core\Time\DateTime::at(Core\Time\Date::at(2023, 2, 29), Core\Time\TimeOfDay::at(0, 0), $utc);
 } catch (Throwable $e) {
-    echo Core\Str::contains($e->message, "Core\\Time::at") as string, "|\n";
+    echo Core\Str::contains($e->message, "Core\\Time\\Date::at") as string, "|\n";
 }
 --EXPECT--
 2024-02-29 13:45:00|

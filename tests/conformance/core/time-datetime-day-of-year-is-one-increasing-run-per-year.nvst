@@ -14,7 +14,7 @@ class Run {
     // over the whole year, so a member that is wrong on one day of 366 fails.
     public static function walk(int $year): string {
         var $utc = Core\Time\Zone::UTC;
-        var $first = Core\Time::at($year, 1, 1, $utc);
+        var $first = Core\Time\DateTime::at(Core\Time\Date::at($year, 1, 1), Core\Time\TimeOfDay::at(0, 0), $utc);
         int $length = 365;
         if ($first->isLeapYear()) {
             $length = 366;
@@ -71,7 +71,7 @@ echo "1900 ", Run::walk(1900), "|\n";
 // The ordinal is a fact about the day and not about the time carried, so both
 // ends of a day answer the same, and the two ends of a year are the run's own.
 var $utc = Core\Time\Zone::UTC;
-var $noon = Core\Time::at(2024, 7, 4, $utc, {hour: 12, minute: 30, second: 45});
+var $noon = Core\Time\DateTime::fromIso("2024-07-04 12:30:45", $utc);
 echo "day-ends=", ($noon->startOf(Core\Unit::Day)->dayOfYear() == $noon->dayOfYear()) as string,
     ($noon->endOf(Core\Unit::Day)->dayOfYear() == $noon->dayOfYear()) as string, "|\n";
 echo "year-ends=", $noon->startOf(Core\Unit::Year)->dayOfYear() as string,
@@ -89,8 +89,8 @@ int $shifted = 0;
 string $firsts = "";
 for (; $month < 12; $month = $month + 1) {
     int $number = $months[$month as string];
-    int $leap = Core\Time::at(2024, $number as uint, 1, $utc)->dayOfYear() as int;
-    int $common = Core\Time::at(2023, $number as uint, 1, $utc)->dayOfYear() as int;
+    int $leap = Core\Time\DateTime::at(Core\Time\Date::at(2024, $number as uint, 1), Core\Time\TimeOfDay::at(0, 0), $utc)->dayOfYear() as int;
+    int $common = Core\Time\DateTime::at(Core\Time\Date::at(2023, $number as uint, 1), Core\Time\TimeOfDay::at(0, 0), $utc)->dayOfYear() as int;
     if ($leap == $common) {
         $same = $same + 1;
     }

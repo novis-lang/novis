@@ -1,12 +1,12 @@
 --TEST--
-`Core\Time\Date`'s readers `year`, `month`, `day`, `weekday`, `dayOfYear` and `isLeapYear` agree with `format` and with the same reader on `atStartOfDay($zone)`, and `atStartOfDay($zone)->date()` is the date again, over a table that reaches both ends of the range and 29 February
+`Core\Time\Date`'s readers `year`, `month`, `day`, `weekday`, `dayOfYear` and `isLeapYear` agree with `format` and with the same reader on the `DateTime` at its midnight in `$zone`, and that `DateTime`'s `date()` is the date again, over a table that reaches both ends of the range and 29 February
 --FILE--
 <?nvs
-// covers: Core\Time\Date::year, Core\Time\Date::month, Core\Time\Date::day, Core\Time\Date::weekday, Core\Time\Date::dayOfYear, Core\Time\Date::isLeapYear, Core\Time\Date::atStartOfDay
+// covers: Core\Time\Date::year, Core\Time\Date::month, Core\Time\Date::day, Core\Time\Date::weekday, Core\Time\Date::dayOfYear, Core\Time\Date::isLeapYear, Core\Time\DateTime::at
 // Each reader can be answered on its own, which is how two of them come to
 // disagree. So every row asks each field three ways: the reader, `format`
 // (the independent oracle), and the same reader on the `DateTime` that
-// `atStartOfDay` builds. The first and the last day start inside the
+// `DateTime::at` builds at the date's midnight. The first and the last day start inside the
 // timestamp range only at the widest offsets, so those two rows use them.
 array<int> $years = [-9999, -1, 0, 1900, 2000, 2023, 2024, 2024, 2024, 9999];
 array<int> $months = [1, 12, 2, 3, 12, 12, 2, 3, 10, 12];
@@ -30,7 +30,7 @@ for (; $row < 10; $row = $row + 1) {
     } else {
         $zone = Core\Time\Zone::of($zoneId);
     }
-    var $start = $d->atStartOfDay($zone);
+    var $start = Core\Time\DateTime::at($d, Core\Time\TimeOfDay::at(0, 0), $zone);
     $rows = $rows + 1;
 
     // `u` is the signed year and `e` the weekday number, Monday `1`.
@@ -59,12 +59,12 @@ echo $read;
 // A zone whose clocks skipped midnight: Sao Paulo moved from 00:00 to 01:00
 // on 4 November 2018, so that day starts at 01:00, and the day before at 00:00.
 var $saoPaulo = Core\Time\Zone::of("America/Sao_Paulo");
-echo Core\Time\Date::at(2018, 11, 4)->atStartOfDay($saoPaulo)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
-echo Core\Time\Date::at(2018, 11, 3)->atStartOfDay($saoPaulo)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo Core\Time\DateTime::at(Core\Time\Date::at(2018, 11, 4), Core\Time\TimeOfDay::at(0, 0), $saoPaulo)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo Core\Time\DateTime::at(Core\Time\Date::at(2018, 11, 3), Core\Time\TimeOfDay::at(0, 0), $saoPaulo)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 
 // In UTC, midnight on the last day is past the end of the timestamp range.
 try {
-    echo Core\Time\Date::at(9999, 12, 31)->atStartOfDay(Core\Time\Zone::UTC)->format("yyyy-MM-dd"), "|\n";
+    echo Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 31), Core\Time\TimeOfDay::at(0, 0), "UTC")->format("yyyy-MM-dd"), "|\n";
 } catch (RuntimeError $e) {
     echo $e->message, "|\n";
 }
@@ -82,4 +82,4 @@ try {
 9999 12 31 365 5
 2018-11-04 01:00 -02:00|
 2018-11-03 00:00 -03:00|
-Core\Time\Date::atStartOfDay(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z|
+Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z|

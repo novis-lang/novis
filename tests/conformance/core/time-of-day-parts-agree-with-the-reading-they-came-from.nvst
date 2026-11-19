@@ -24,7 +24,7 @@ int $dateTimeAgrees = 0;
 string $read = "";
 int $row = 0;
 for (; $row < 6; $row = $row + 1) {
-    var $d = Core\Time::fromIso($instants[$row as string])->in(Core\Time\Zone::of($zoneIds[$row as string]));
+    var $d = Core\Time\Instant::fromIso($instants[$row as string])->in(Core\Time\Zone::of($zoneIds[$row as string]));
     var $t = $d->timeOfDay();
     $rows = $rows + 1;
 

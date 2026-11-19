@@ -6,8 +6,8 @@
 // a property of a zone **at an instant** rather than of the zone alone.
 var $utc = Core\Time\Zone::of("UTC");
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
-var $summer = Core\Time::fromIso("2024-07-15T12:00:00Z");
+var $winter = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
+var $summer = Core\Time\Instant::fromIso("2024-07-15T12:00:00Z");
 echo $utc->offsetAt($winter)->toSeconds() as string, "|\n";
 echo $berlin->offsetAt($winter)->toSeconds() as string, "|\n";
 echo $berlin->offsetAt($summer)->toSeconds() as string, "|\n";
@@ -20,8 +20,12 @@ echo Core\Time\Zone::fixed((0s)->minus(5h)->minus(30m))->offsetAt($winter)->toSe
 
 // `Zone::of` throws on an unknown identifier rather than falling back to UTC,
 // which is PHP's behaviour and why a mistyped zone there is silently wrong.
+// Each bad name is read out of a variable: a quoted zone name is checked while
+// compiling, so only a computed one reaches the run-time error.
+string $mistyped = "Europe/Berln";
+string $offsetText = "+02:00";
 try {
-    echo Core\Time\Zone::of("Europe/Berln")->offsetAt($winter)->toSeconds() as string, "|\n";
+    echo Core\Time\Zone::of($mistyped)->offsetAt($winter)->toSeconds() as string, "|\n";
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "unknown time zone") as string, "|\n";
 }
@@ -29,7 +33,7 @@ try {
 // An offset spelling is `fixed`'s, never `of`'s — `rule:core-api/shape-rules` R20 leaves one way
 // to build one value.
 try {
-    echo Core\Time\Zone::of("+02:00")->offsetAt($winter)->toSeconds() as string, "|\n";
+    echo Core\Time\Zone::of($offsetText)->offsetAt($winter)->toSeconds() as string, "|\n";
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "unknown time zone") as string, "|\n";
 }

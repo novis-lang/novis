@@ -10,7 +10,7 @@
 // own first instant reads plausibly on its own line and fails the count.
 var $fmt = "yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
 var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 5, 15, $utc, {hour: 13, minute: 45, second: 30, nanos: 123456789});
+var $d = Core\Time\DateTime::fromIso("2024-05-15 13:45:30.123456789", $utc);
 
 // Every one of `Core\Unit`'s eleven cases, smallest first. `Nanosecond` is the
 // unit the clock's own resolution is, so both ends are the reading itself.
@@ -55,7 +55,7 @@ echo $same($d->endOf(Core\Unit::Month)->endOf(Core\Unit::Month)->format($fmt), $
 // hours long, so its two ends carry two different offsets and neither is
 // midnight-plus-24-hours.
 var $ny = Core\Time\Zone::of("America/New_York");
-var $s = Core\Time::at(2024, 3, 10, $ny, {hour: 15});
+var $s = Core\Time\DateTime::fromIso("2024-03-10 15:00", $ny);
 echo $s->startOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 echo $s->endOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm:ss.SSS XXX"), "|\n";
 --EXPECT--

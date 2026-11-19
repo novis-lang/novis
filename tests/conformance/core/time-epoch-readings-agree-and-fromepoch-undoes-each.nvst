@@ -1,5 +1,5 @@
 --TEST--
-`Instant`'s three epoch readings agree about one instant, and `Core\Time::fromEpoch` rebuilds it from each of them
+`Instant`'s three epoch readings agree about one instant, and `Core\Time\Instant::fromEpoch` rebuilds it from each of them
 --FILE--
 <?nvs
 // The three readers are three resolutions of one number, and `fromEpoch` is
@@ -19,7 +19,7 @@ class Epoch {
             $q = $q - 1;
             $r = $r + $perSecond;
         }
-        return Core\Time::fromEpoch($q, {nanos: ($r * Core\Math::intDiv(1000000000, $perSecond)) as uint});
+        return Core\Time\Instant::fromEpoch($q, {nanos: ($r * Core\Math::intDiv(1000000000, $perSecond)) as uint});
     }
 }
 
@@ -35,7 +35,7 @@ int $back = 0;    // `fromEpoch` undoes all three
 int $toZero = 0;  // the second a reading truncates towards is zero, not minus infinity
 foreach ($seconds as int $s) {
     foreach ($nanos as int $n) {
-        var $at = Core\Time::fromEpoch($s, {nanos: $n as uint});
+        var $at = Core\Time\Instant::fromEpoch($s, {nanos: $n as uint});
         int $sec = $at->toEpochSeconds();
         int $mil = $at->toEpochMillis();
         int $mic = $at->toEpochMicros();
@@ -51,7 +51,7 @@ foreach ($seconds as int $s) {
         // is the round trip the other two cannot make on their own.
         if (Epoch::rebuild($mic, 1000000)->toEpochMicros() == $mic
             && Epoch::rebuild($mil, 1000)->toEpochMillis() == $mil
-            && Core\Time::fromEpoch($sec)->toEpochSeconds() == $sec
+            && Core\Time\Instant::fromEpoch($sec)->toEpochSeconds() == $sec
             && Epoch::rebuild($mic, 1000000)->compareTo($at) == 0) {
             $back = $back + 1;
         }
@@ -68,7 +68,7 @@ echo $rows as string, "|", $agree as string, "|", $placed as string, "|", $back 
 // The row the sign story hinges on, written out once: a quarter second after
 // `-1` is three quarters of a second *before* the epoch, and each reader says
 // so at its own resolution.
-var $before = Core\Time::fromEpoch(0 - 1, {nanos: 250000000});
+var $before = Core\Time\Instant::fromEpoch(0 - 1, {nanos: 250000000});
 echo $before->toEpochSeconds() as string, "|", $before->toEpochMillis() as string, "|", $before->toEpochMicros() as string, "|\n";
 echo $before->toIso(), "|\n";
 --EXPECT--

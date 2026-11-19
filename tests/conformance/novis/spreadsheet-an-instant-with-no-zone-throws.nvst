@@ -5,7 +5,7 @@ An `Instant` written to a workbook with no `zone` throws a `LogicError` naming i
 // covers: Novis\Spreadsheet\Sheet::add
 use Novis\Spreadsheet\Workbook;
 
-var $noon = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $noon = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
 
 // The workbook has no `zone`, so the `Instant` in column `C` has no clock time.
 try {
@@ -25,7 +25,7 @@ echo Core\Str::contains($xml, "<v>45306.541666666664</v>") ? "13:00 in Berlin" :
 
 // A `DateTime` already has a clock time, so it needs no `zone`.
 var $local = Workbook::createInMemory();
-$local->sheet("Orders")->add([Core\Time::at(2024, 1, 15, Core\Time\Zone::of("Asia/Tokyo"), {hour: 18})]);
+$local->sheet("Orders")->add([Core\Time\DateTime::fromIso("2024-01-15 18:00", "Asia/Tokyo")]);
 bytes $second = $local->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $sheet = Core\Zip::read($second, "xl/worksheets/sheet1.xml") as string;
 echo Core\Str::contains($sheet, "<v>45306.75</v>") ? "18:00 as written" : "another time", "\n";

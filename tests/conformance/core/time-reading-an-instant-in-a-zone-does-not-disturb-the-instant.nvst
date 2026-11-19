@@ -15,7 +15,7 @@
 // like this one rather than in a value one. The suite's other two cases about
 // it own the reader and the round trip.
 
-var $i = Core\Time::fromEpoch(1700000000, {nanos: 123456789});
+var $i = Core\Time\Instant::fromEpoch(1700000000, {nanos: 123456789});
 int $seconds = $i->toEpochSeconds();
 int $millis = $i->toEpochMillis();
 int $micros = $i->toEpochMicros();
@@ -45,7 +45,7 @@ echo "scaled=", $fromMicros as string, "/2\n";
 // floor would give. That is what keeps `scaled` above true on this side too —
 // the coarse reading stays the fine one divided, at the cost of the second
 // reading not being the second the instant falls inside.
-var $before = Core\Time::fromEpoch(-2, {nanos: 500000000});
+var $before = Core\Time\Instant::fromEpoch(-2, {nanos: 500000000});
 echo $before->toEpochSeconds() as string, " ",
      $before->toEpochMillis() as string, " ",
      $before->toEpochMicros() as string, "\n";

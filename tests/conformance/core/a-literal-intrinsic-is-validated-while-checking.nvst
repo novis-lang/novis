@@ -21,7 +21,7 @@ A folded intrinsic and its runtime twin answer the same value, for each of `rule
 // `Core\Time\DateTime::format` — the CLDR pattern is validated and the format
 // plan parsed at compile time.
 var $utc = Core\Time\Zone::UTC;
-var $when = Core\Time::at(2026, 8, 28, $utc);
+var $when = Core\Time\DateTime::fromIso("2026-08-28", $utc);
 var $datePattern = "yyyy-MM-dd";
 var $foldedDate = $when->format("yyyy-MM-dd");
 var $runtimeDate = $when->format($datePattern);

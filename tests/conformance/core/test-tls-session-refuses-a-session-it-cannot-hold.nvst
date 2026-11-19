@@ -18,7 +18,7 @@ $refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({version: "TLSv1.1"})
 $refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({version: "TLSv1.2", cipher: "TLS_AES_128_GCM_SHA256"}));
 $refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({subject: "CN=api.example.com, CN=www.example.com"}));
 $refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({issuer: "Q=Example"}));
-$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({expiry: Core\Time::fromIso("1949-12-31T23:59:59Z")}));
+$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({expiry: Core\Time\Instant::fromIso("1949-12-31T23:59:59Z")}));
 
 // A suite this build supports for TLS 1.2 is accepted under the same name
 // `cipher()` returns, and the six keys are all accepted in the order written.

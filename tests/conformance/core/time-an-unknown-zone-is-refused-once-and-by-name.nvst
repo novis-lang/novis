@@ -18,7 +18,7 @@
 
 // The accepted side. `Zone::UTC` is `Zone::of("UTC")` inlined (`rule:classes/no-free-functions-or-constants`), and
 // an IANA identifier is the only spelling `of` takes at all.
-var $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $winter = Core\Time\Instant::fromIso("2024-01-15T12:00:00Z");
 var $utc = Core\Time\Zone::UTC;
 echo $utc->offsetAt($winter)->toSeconds() as string, "|", Core\Time\Zone::of("Europe/Berlin")->offsetAt($winter)->toSeconds() as string, "|\n";
 
@@ -27,10 +27,14 @@ echo $utc->offsetAt($winter)->toSeconds() as string, "|", Core\Time\Zone::of("Eu
 // handed, because a caller reading this has a typo to find and nothing else to
 // find it with. The empty id is the sharpest of the two: there is no argument
 // to look at, so a member that quoted nothing back would still read as a
-// sentence.
-try { echo Core\Time\Zone::of("Europe/Berln")->offsetAt($winter)->toSeconds() as string, "\n"; }
+// sentence. Each id below is held in a variable: an id written in quotes at
+// `Zone::of` is checked while compiling, and these cases are about the throw.
+string $misspeltId = "Europe/Berln";
+string $emptyId = "";
+string $signedId = "+05:30";
+try { echo Core\Time\Zone::of($misspeltId)->offsetAt($winter)->toSeconds() as string, "\n"; }
 catch (Throwable $misspelt) { echo $misspelt->message, "\n"; }
-try { echo Core\Time\Zone::of("")->offsetAt($winter)->toSeconds() as string, "\n"; }
+try { echo Core\Time\Zone::of($emptyId)->offsetAt($winter)->toSeconds() as string, "\n"; }
 catch (Throwable $empty) { echo $empty->message, "\n"; }
 
 // The bound is the id's *first byte*, and it is stated on both sides here. A
@@ -38,10 +42,10 @@ catch (Throwable $empty) { echo $empty->message, "\n"; }
 // build one value) even though the resolver behind both reads it happily — the
 // id refused on this line is exactly the id that same zone stores and renders
 // on the next one.
-try { echo Core\Time\Zone::of("+05:30")->offsetAt($winter)->toSeconds() as string, "\n"; }
+try { echo Core\Time\Zone::of($signedId)->offsetAt($winter)->toSeconds() as string, "\n"; }
 catch (Throwable $signed) { echo $signed->message, "\n"; }
 var $fixed = Core\Time\Zone::fixed((5h)->plus(30m));
-echo Core\Time::at(2024, 1, 15, $fixed, {hour: 12})->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo Core\Time\DateTime::fromIso("2024-01-15 12:00", $fixed)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
 
 // A sign anywhere else is an ordinary IANA name — and there it means the
 // opposite of what it means in an offset: `Etc/GMT+5` is five hours *behind*
@@ -53,7 +57,7 @@ echo Core\Time\Zone::of("Etc/GMT+5")->offsetAt($winter)->toSeconds() as string, 
 // case-insensitive and the name is canonicalized on the way in. That is what
 // makes the round trip below a claim about the *stored* spelling rather than
 // about the argument, and it is the one observable difference between the two.
-echo Core\Time::at(2024, 3, 31, Core\Time\Zone::of("europe/berlin"), {hour: 12})->format("VV XXX"), "|\n";
+echo Core\Time\DateTime::fromIso("2024-03-31 12:00", "europe/berlin")->format("VV XXX"), "|\n";
 
 // Counted, on the argument: over fourteen ids, the six accepted are exactly the
 // region names — a sign at position 0 refused whichever way it leans, a
@@ -92,7 +96,7 @@ array<string> $zones = ["UTC", "Europe/Berlin", "America/New_York", "Asia/Kolkat
 int $answered = 0;
 int $stopped = 0;
 foreach ($zones as string $name) {
-    var $moment = Core\Time::at(2024, 3, 31, Core\Time\Zone::of($name), {hour: 12});
+    var $moment = Core\Time\DateTime::fromIso("2024-03-31 12:00", Core\Time\Zone::of($name));
     try {
         $moment->format("yyyy");
         $answered = $answered + 1;
@@ -145,7 +149,7 @@ echo $answered, " answered, ", $stopped, " stopped\n";
 array<int> $offsets = [0, 3600, -18000, 19800, 45900, 37800, -34200];
 int $round = 0;
 foreach ($offsets as int $secs) {
-    var $built = Core\Time::at(2024, 3, 31, Core\Time\Zone::fixed(Core\Time\Duration::seconds($secs)), {hour: 12});
+    var $built = Core\Time\DateTime::fromIso("2024-03-31 12:00", Core\Time\Zone::fixed(Core\Time\Duration::seconds($secs)));
     if ($built->zone()->offsetAt($built->toInstant())->toSeconds() == $secs) {
         $round = $round + 1;
     }

@@ -14,8 +14,8 @@
 // an extent computed on a civil field rather than taken from the zone agrees
 // on the first receiver and not on the second.
 var $berlin = Core\Time\Zone::of("Europe/Berlin");
-var $d = Core\Time::at(2024, 5, 15, $berlin, {hour: 13, minute: 45, second: 30, nanos: 123456789});
-var $dst = Core\Time::at(2024, 3, 31, $berlin, {hour: 13, minute: 45, second: 30, nanos: 123456789});
+var $d = Core\Time\DateTime::fromIso("2024-05-15 13:45:30.123456789", $berlin);
+var $dst = Core\Time\DateTime::fromIso("2024-03-31 13:45:30.123456789", $berlin);
 int $agree = 0;
 int $brackets = 0;
 int $strict = 0;

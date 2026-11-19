@@ -6,7 +6,7 @@ A `Core\Time\DateTime` formats as its own zone's clock shows it, in the locale's
 use Novis\Intl\DateFormat;
 
 // One instant, placed in two zones. Each value shows its own zone's clock.
-var $vienna = Core\Time::at(2026, 7, 14, Core\Time\Zone::of("Europe/Vienna"), {hour: 15, minute: 5, second: 9});
+var $vienna = Core\Time\DateTime::fromIso("2026-07-14 15:05:09", "Europe/Vienna");
 var $newYork = $vienna->toInstant()->in(Core\Time\Zone::of("America/New_York"));
 var $both = [$vienna, $newYork];
 
