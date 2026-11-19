@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/core-classes/a-session-opens-on-its-first-use.md, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md, docs/rules/http-server/a-session-holds-a-secret-only-sealed.md, docs/rules/core-classes/html-later.md, docs/rules/concurrency/deferred-work-cannot-write-the-response.md, crates/nvs-config/src/tree.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/default.toml]
   - id: 2
     title: both stores keep each value with its lifetime, and the two clocks and the short cookie work
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-stdlib/src/cache/redis.rs]
   - id: 3
     title: the new members replace the old ones, and the session opens on its first use
@@ -318,7 +318,7 @@ short-lived values, so the tree keeps building.
 - [x] `crates/nvs-stdlib/src/session.rs:1017` `issue_cookie` sends the identifier cookie with or
   without `Max-Age`, and a new `issue_short_cookie` sends the token. The load at `:973` checks the
   token and applies the half rule.
-- [ ] `cargo test --lib -- session::` runs once, and every test it breaks is updated to the new shape.
+- [x] `cargo test --lib -- session::` runs once, and every test it breaks is updated to the new shape.
 
 ### 3. the new members replace the old ones, and the session opens on its first use
 
@@ -444,7 +444,12 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 and 2's code are done; stage 2's last item (the `session::` test run) has not run yet.
+Stages 1 and 2 are done. `cargo test --lib -- session::` is green, 41 cases. The real-Redis cases
+(`real_store`) return early on a machine with no store, so `SAVE`'s new argv is checked there only
+by the fake (`issued_in`/`saved_in`, rewritten to the `s:`/`l:`, `x`/`y`/`t` layout) until CI runs
+them. The run found a real bug: `sqlite.rs` `opened` read the probe's "no such" through `Display`,
+which leaves out SQLite's sentence, so a fresh `session.sqlite` failed every open. It now reads
+`ServerError::of(..).message`. The expiry rule now says what moves each clock.
 `nvs_runtime::Session` (`crates/nvs-runtime/src/ctx/wiring.rs`) has `long`, `short_token`,
 `long_until`, `by_hand` and a `Session::empty(write_back)` constructor. `session.rs` has `Lifetime`,
 `Clocks`, `Whole`, `Record`, `short_lived`/`long_lived`, `past_half`, `opened_record` (token check in
@@ -460,17 +465,14 @@ session (supply chain `eb5c02e983`, Miri `4c82a2409a`, browser wait in `registry
 
 ### Next
 
-Stage 2's last item: `cargo test --lib -- session::` once, and update each test it breaks. Expect
-red: tests that open a stored session through `nvs_core_session_start` and read short-lived values,
-because the fake store's records carry no short token and the request presents no `nvsid-short`
-cookie, so `opened_record` hides them. Fix by giving those records a token (the `t` field, or the
-`short_token` column) and presenting the cookie, or by writing them long-lived. Also expect the fake
-store's `issued_in`/`saved_in` in `session.rs`'s tests (`bun nv peek --locate saved_in`) to need the
-new argv (now, x, y, token first; removed keys bare; `HDEL` of both prefixes): they were not
-rewritten yet, and every shared-store case runs through them. `a_record_is_keyed_under_its_own_prefix`
-may pin the old `nvs:session-keys:` prefix. Then stage 3 from `nvs_core_session_start`, and fix the
-"write-back refreshes both clocks" sentence in `session-expiry-belongs-to-the-store.md`. The `checker`
-case and the `lifetimes` tests do not exist yet and stay red until stages 4 and 5.
+Stage 3, in one session: it removes `start`, so the tree builds only once every caller follows.
+Start at `nvs_core_session_start` (`bun nv peek --locate nvs_core_session_start`): make it the
+private first-use open every member calls, then rename the members and their registry rows
+(`crates/nvs-stdlib/src/lib.rs` `entry_of` needs a row per new symbol, see the playbook trap), the
+cards, and `csrf.rs` and `passkey.rs`. A test that opens a stored session and reads a short-lived
+value must give the record a token (`t` / `short_token`) and present `nvsid-short`, as
+`start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold` now does. The
+`checker` case and the `lifetimes` tests do not exist yet and stay red until stages 4 and 5.
 
 ### Backlog
 

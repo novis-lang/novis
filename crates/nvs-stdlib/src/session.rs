@@ -2819,18 +2819,36 @@ mod tests {
     }
 
     /// [`super::ISSUE`]'s steps over `store`: `{0}` for a key that exists, and otherwise the hash
-    /// written with `m` and every pair, and `{1}`.
+    /// written with `m`, the short clock `x`, the long clock `y` where it is set, the token `t`
+    /// where there is one, and every pair, and `{1}`. The expiry is `lapsed`'s to model.
     fn issued_in(store: &mut HashMap<Vec<u8>, Hash>, key: &[u8], argv: &[Vec<u8>]) -> Vec<i64> {
         if store.contains_key(key) {
             return vec![0];
         }
         let mut hash = Hash::new();
-        hash.insert(b"m".to_vec(), argv[1].clone());
-        for pair in argv[2..].chunks(2) {
+        hash.insert(b"m".to_vec(), argv[3].clone());
+        hash.insert(b"x".to_vec(), argv[1].clone());
+        if number(&argv[2]) > 0 {
+            hash.insert(b"y".to_vec(), argv[2].clone());
+        }
+        if !argv[4].is_empty() {
+            hash.insert(b"t".to_vec(), argv[4].clone());
+        }
+        for pair in argv[5..].chunks(2) {
             hash.insert(pair[0].clone(), pair[1].clone());
         }
         store.insert(key.to_vec(), hash);
         vec![1]
+    }
+
+    /// Whether `field` is a session key's, under either lifetime's prefix, and not the store's own.
+    fn is_key_field(field: &[u8]) -> bool {
+        field.starts_with(b"s:") || field.starts_with(b"l:")
+    }
+
+    /// `bare` under both lifetimes' prefixes.
+    fn both_fields(bare: &[u8]) -> [Vec<u8>; 2] {
+        [field_of(bare, false), field_of(bare, true)]
     }
 
     /// [`super::SAVE`]'s steps over `store`: `{0}` for a gone key, `{-1, size}` past a ceiling, and
@@ -2839,9 +2857,9 @@ mod tests {
         let Some(hash) = store.get_mut(key) else {
             return vec![0];
         };
-        let cleared = argv[1] == b"1";
-        let first = 5 + usize::try_from(number(&argv[4])).expect("a count");
-        let (removed, changed) = (&argv[5..first], &argv[first..]);
+        let cleared = argv[4] == b"1";
+        let first = 8 + usize::try_from(number(&argv[7])).expect("a count");
+        let (removed, changed) = (&argv[8..first], &argv[first..]);
         assert!(
             changed.len().is_multiple_of(2),
             "each changed field has a value"
@@ -2853,32 +2871,52 @@ mod tests {
                 .get(b"m".as_slice())
                 .and_then(|held| std::str::from_utf8(held).ok()?.parse::<i64>().ok())
                 .unwrap_or(0);
-            (size, i64::try_from(hash.len()).expect("a count") - 1)
+            let keys = hash.keys().filter(|field| is_key_field(field)).count();
+            (size, i64::try_from(keys).expect("a count"))
         };
-        let replaced = removed.iter().chain(changed.iter().step_by(2));
-        for field in replaced {
-            if let Some(old) = hash.get(field).filter(|_| !cleared) {
-                size -= cost(field, old);
-                count -= 1;
+        let bare = removed
+            .iter()
+            .map(Vec::as_slice)
+            .chain(changed.iter().step_by(2).map(|field| &field[2..]));
+        for bare in bare {
+            for field in both_fields(bare) {
+                if let Some(old) = hash.get(&field).filter(|_| !cleared) {
+                    size -= cost(&field, old);
+                    count -= 1;
+                }
             }
         }
         for pair in changed.chunks(2) {
             size += cost(&pair[0], &pair[1]);
             count += 1;
         }
-        if size > number(&argv[2]) || count > number(&argv[3]) {
+        if size > number(&argv[5]) || count > number(&argv[6]) {
             return vec![-1, size];
         }
         if cleared {
-            hash.retain(|field, _| field == b"m");
+            hash.retain(|field, _| !is_key_field(field));
         }
-        for field in removed {
-            hash.remove(field);
+        for bare in removed {
+            for field in both_fields(bare) {
+                hash.remove(&field);
+            }
         }
         for pair in changed.chunks(2) {
+            for field in both_fields(&pair[0][2..]) {
+                hash.remove(&field);
+            }
             hash.insert(pair[0].clone(), pair[1].clone());
         }
         hash.insert(b"m".to_vec(), size.to_string().into_bytes());
+        for (field, clock) in [(b"x", &argv[1]), (b"y", &argv[2])] {
+            let held = hash.get(field.as_slice()).map_or(0, |held| number(held));
+            if number(clock) > held {
+                hash.insert(field.to_vec(), clock.clone());
+            }
+        }
+        if !argv[3].is_empty() {
+            hash.insert(b"t".to_vec(), argv[3].clone());
+        }
         vec![1, size]
     }
 
@@ -3698,10 +3736,15 @@ mod tests {
             super::save(&mut open, &app, ID, &changes).expect("the store answers"),
             Saved::Done
         );
+        let hash = real_hash(&mut open, &app).expect("the hash is kept");
         assert_eq!(
-            real_hash(&mut open, &app),
-            Some(Hash::from([(b"m".to_vec(), b"0".to_vec())])),
-            "the hash keeps `m` alone, at size 0"
+            hash.get(b"m".as_slice()).map(Vec::as_slice),
+            Some(b"0".as_slice()),
+            "the hash keeps `m`, at size 0"
+        );
+        assert!(
+            !hash.keys().any(|field| is_key_field(field)),
+            "and no key's field: {hash:?}"
         );
         assert_eq!(
             keys_of(load(&mut open, &app, ID).expect("the store answers")),
@@ -3725,8 +3768,21 @@ mod tests {
         let before = real_hash(&mut open, &app);
 
         let field = field_of(b"cart", false);
+        let now = crate::queue::now_millis();
+        let (now_text, short_text) = (super::decimal(now), super::decimal(now + 60_000));
         let saved_with = |open: &mut Connection, value: &[u8]| {
-            let argv: [&[u8]; 7] = [b"60000", b"0", b"200", b"100", b"0", &field, value];
+            let argv: [&[u8]; 10] = [
+                &now_text,
+                &short_text,
+                b"0",
+                b"",
+                b"0",
+                b"200",
+                b"100",
+                b"0",
+                &field,
+                value,
+            ];
             open.eval(
                 super::SAVE,
                 &key_of(&app, ID),
@@ -4170,6 +4226,7 @@ mod tests {
     fn start_opens_a_held_record_and_a_fresh_one_for_an_id_the_store_does_not_hold() {
         const HELD: &str = "PmA5tKz1QvR3sYbNcW8xLq";
         const FORGED: &str = "AAAAAAAAAAAAAAAAAAAAAA";
+        const TOKEN: &str = "Tk4w9QbL2sYcXr7uVn1pMa";
         let nothing = [Value::null()];
 
         let mut ctx = Ctx::buffered();
@@ -4181,7 +4238,10 @@ mod tests {
         assert!(ctx.session().is_none());
 
         let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
-        inbound.push_header("cookie", format!("nvsid={HELD}").as_bytes());
+        inbound.push_header(
+            "cookie",
+            format!("nvsid={HELD}; nvsid-short={TOKEN}").as_bytes(),
+        );
         ctx.set_inbound(inbound);
         ctx.set_config(crate::tests::granting(SHARED_BLOCK));
         assert!(
@@ -4193,9 +4253,15 @@ mod tests {
 
         let (listener, address) = listening();
         let held: Rows = Arc::new(Mutex::new(HashMap::new()));
+        // The record's short-lived keys are visible only to the browser that holds its token,
+        // while the short clock runs. Two hours left is the whole default clock, so no refresh.
+        let mut hash = hash_of(&record());
+        hash.insert(b"t".to_vec(), TOKEN.as_bytes().to_vec());
+        let short_until = crate::queue::now_millis() + 7_200_000;
+        hash.insert(b"x".to_vec(), short_until.to_string().into_bytes());
         held.lock()
             .expect("the store")
-            .insert(key_of(NO_APP, HELD), hash_of(&record()));
+            .insert(key_of(NO_APP, HELD), hash);
         let store = Arc::clone(&held);
         let _serving = Serving::start(listener, store);
         let config = crate::tests::granting(&format!(
@@ -4301,12 +4367,23 @@ mod tests {
         write.into_iter().for_each(dropped);
         dropped(answer.expect("the first write is kept"));
         let headers = ctx.take_headers();
-        assert_eq!(headers.len(), 1, "the first write sends one cookie");
+        assert_eq!(
+            headers.len(),
+            2,
+            "the first short-lived write sends the identifier and the short token"
+        );
         let id = ctx.session().expect("the session stays open").id.clone();
         assert!(
-            headers[0].value.starts_with(&format!("nvsid={id};")),
-            "{:?} carries the identifier",
-            headers[0].value
+            headers
+                .iter()
+                .any(|header| header.value.starts_with(&format!("nvsid={id};"))),
+            "{headers:?} carries the identifier"
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|header| header.value.starts_with("nvsid-short=")),
+            "{headers:?} carries the short token"
         );
         ctx.end_session();
         let entries = held.lock().expect("the store");
@@ -4639,17 +4716,20 @@ mod tests {
 
     /// The key is prefixed and carries the id, so one store holding a cache, a limiter and a
     /// session store keeps the three apart — and an application-named limiter key cannot be
-    /// spelled to read a session record. The prefix names the one-hash-per-session layout, so a
-    /// key an earlier build wrote as one string under `nvs:session:` is never read as a hash.
+    /// spelled to read a session record. The prefix names the layout with two lifetimes, so a key
+    /// an earlier build wrote, as one string under `nvs:session:` or as a hash under
+    /// `nvs:session-keys:`, is never read.
     #[test]
     fn a_record_is_keyed_under_its_own_prefix() {
         let key = key_of(b"/srv/blog", ID);
-        assert_eq!(PREFIX, "nvs:session-keys:");
+        assert_eq!(PREFIX, "nvs:session-lives:");
         assert!(key.starts_with(PREFIX.as_bytes()));
-        assert!(
-            !key.starts_with(b"nvs:session:"),
-            "a key of the one-string layout is never read as a hash"
-        );
+        for earlier in [b"nvs:session:".as_slice(), b"nvs:session-keys:"] {
+            assert!(
+                !key.starts_with(earlier),
+                "a key of an earlier layout is never read"
+            );
+        }
         assert_eq!(
             &key[PREFIX.len()..],
             b"/srv/blog\0PmA5tKz1QvR3sYbN".as_slice()

@@ -26,6 +26,11 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A database error's `to_string()` never contains the server's own sentence.** `ServerError`'s
+  `Display` prints only the backend, severity and kind, so a check for "no such table" in it is
+  always false. A probe in the session store's open failed every fresh SQLite file that way. Read
+  `nvs_db::conn::ServerError::of(&err)` and its `message`. See `crates/nvs-stdlib/src/session/sqlite.rs`
+  `opened`.
 - **A new `Core` member's symbol needs a row in its module's address `match`, or every program
   panics at startup.** The build, clippy and the member's Rust test are green without it, and
   `bun nv suite` then reports thousands of red cases. The panic reads `registers ... with no

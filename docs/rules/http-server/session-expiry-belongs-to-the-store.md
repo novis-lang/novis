@@ -12,7 +12,11 @@ the first use opens a fresh session (`rule:http-server/a-session-store-answers-f
 the SQLite file `load` reads only a row whose `expires_at` is still ahead, so correctness never waits
 for a sweep.
 
-**A write-back refreshes both clocks.** **A read refreshes a clock when less than half of its time is
+**A write-back always moves the short clock.** The long clock moves only where the identifier
+cookie is sent with it, so the store and the browser forget the record together: at the first
+long-lived write, at a long-lived write past half of its time, and by the half rule below. Each
+clock only moves forward, so a request that loaded an older record never shortens one another
+request refreshed. **A read refreshes a clock when less than half of its time is
 left**, and then the session counts as changed, so the end of the request writes it back. A signed-in
 user who only reads stays signed in while they keep reading. The half rule costs at most one write per
 clock per half-lifetime of an active session, and a request that reads a fresh session still makes one

@@ -166,7 +166,10 @@ fn opened(path: &Path) -> io::Result<Held> {
     // same way, and dropping it does nothing. Any other failure is the open's.
     for probe in PROBES {
         if let Err(why) = conn.query(probe, Vec::new()) {
-            if !why.to_string().contains("no such") {
+            // The error's `Display` leaves out SQLite's own sentence, so it is read off the error.
+            let missing = nvs_db::conn::ServerError::of(&why)
+                .is_some_and(|refused| refused.message.starts_with("no such"));
+            if !missing {
                 return Err(why);
             }
             drop(conn.query("DROP TABLE IF EXISTS nvs_session_heads", Vec::new())?);
