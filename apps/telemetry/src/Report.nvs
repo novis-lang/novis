@@ -5,10 +5,11 @@ use Core\Arr;
 use Core\Bytes;
 use Core\Json;
 use Core\Str;
-use Core\Time;
+use Core\Time\Date;
+use Core\Time\DateTime;
 use Core\Time\Duration;
 use Core\Time\Instant;
-use Core\Time\Zone;
+use Core\Time\TimeOfDay;
 use Core\Unit;
 use ParseError;
 
@@ -144,7 +145,7 @@ final class Report
             throw Report::wrong('week');
         }
         // 4 January is always in week 1, so the week starts on the Monday before it.
-        var $monday = Time::at($year, 1, 4, Zone::of('UTC'))->startOf(Unit::Week)->plus($number - 1, Unit::Week);
+        var $monday = DateTime::at(Date::at($year, 1, 4), TimeOfDay::at(0, 0), 'UTC')->startOf(Unit::Week)->plus($number - 1, Unit::Week);
         string $week = $monday->format("YYYY-'W'ww");
         // A year with 52 weeks has no week 53. That week number gives week 1 of the next year here.
         // A week number with one digit, such as `2026-W5`, is also not the same text.
@@ -155,7 +156,7 @@ final class Report
         if ($start->plus(Duration::days(7))->compareTo($now->plus(Duration::days(1))) > 0) {
             throw new Rejected('The week of the report has not ended yet.', 400);
         }
-        Instant $current = $now->in(Zone::of('UTC'))->startOf(Unit::Week)->toInstant();
+        Instant $current = $now->in('UTC')->startOf(Unit::Week)->toInstant();
         if ($current->since($start)->compareTo(Duration::weeks(Report::MAX_AGE_WEEKS)) > 0) {
             throw new Rejected('The week of the report is more than four weeks old.', 400);
         }

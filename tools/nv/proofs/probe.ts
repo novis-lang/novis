@@ -109,9 +109,9 @@ export const PROBE_SKIPS: ReadonlyArray<readonly [string, string]> = [
 export const PROBE_FACTORIES: ReadonlyArray<readonly [string, string]> = [
   ["Core\\BigInt", "Core\\BigInt::of(1)"],
   ["Core\\Regex\\Match", "Core\\Regex::match('a', 'a') ?? throw new LogicError('no match')"],
-  ["Core\\Time\\Instant", "Core\\Time::fromEpoch(0)"],
+  ["Core\\Time\\Instant", "Core\\Time\\Instant::fromEpoch(0)"],
   ["Core\\Time\\Zone", "Core\\Time\\Zone::of('UTC')"],
-  ["Core\\Time\\DateTime", "Core\\Time::at(2000, 1, 1, Core\\Time\\Zone::of('UTC'))"],
+  ["Core\\Time\\DateTime", "Core\\Time\\DateTime::fromIso('2000-01-01', 'UTC')"],
   ["Core\\Time\\Date", "Core\\Time\\Date::at(2000, 1, 1)"],
   ["Core\\Time\\TimeOfDay", "Core\\Time\\TimeOfDay::at(0, 0)"],
   ["Core\\Time\\Duration", "Core\\Time\\Duration::nanoseconds(1)"],

@@ -912,7 +912,7 @@ final class App
             bool $sent = App::flush($db);
             string $text = $from == $now
                 ? 'Version ' . $version . ' is retracted.'
-                : 'Version ' . $version . ' is retracted from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can retract it now or cancel it with a passkey on the website.';
+                : 'Version ' . $version . ' is retracted from ' . Core\Time\Instant::fromEpoch($from)->toIso() . '. An owner can retract it now or cancel it with a passkey on the website.';
             Response::json({ message: $text, sent: $sent });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a version, a reason and fixedIn.');
@@ -968,7 +968,7 @@ final class App
             bool $sent = App::flush($db);
             string $text = $from == $now
                 ? 'The advisory ' . $id . ' is in the feed.'
-                : 'The advisory ' . $id . ' is in the feed from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can send it again now or cancel it with a passkey on the website.';
+                : 'The advisory ' . $id . ' is in the feed from ' . Core\Time\Instant::fromEpoch($from)->toIso() . '. An owner can send it again now or cancel it with a passkey on the website.';
             Response::json({ id: $id, message: $text, sent: $sent });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with versions and a summary.');

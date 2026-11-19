@@ -6,7 +6,7 @@
 
 // `Core\Time\DateTime::format` checks a literal date pattern while the program compiles.
 var $utc = Core\Time\Zone::UTC;
-var $when = Core\Time::at(2026, 8, 28, $utc);
+var $when = Core\Time\DateTime::fromIso('2026-08-28', $utc);
 var $datePattern = 'yyyy-MM-dd';
 var $foldedDate = $when->format('yyyy-MM-dd');
 var $runtimeDate = $when->format($datePattern);

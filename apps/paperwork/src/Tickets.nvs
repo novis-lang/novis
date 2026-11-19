@@ -136,7 +136,7 @@ final class Tickets
     // The time of the order is the creation time of each file, so the same order always gives the same files.
     private static function created(): Core\Time\Instant
     {
-        return Core\Time::fromIso(Sample::order()->placed->format('yyyy-MM-dd') . 'T10:30:00Z');
+        return Core\Time\Instant::fromIso(Sample::order()->placed->format('yyyy-MM-dd') . 'T10:30:00Z');
     }
 
     private static function css(): Markup

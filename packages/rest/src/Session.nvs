@@ -46,7 +46,7 @@ final class Session
         return new Token(
             $accessToken,
             Core\Taint::assertTrusted($type, 'the type is `Bearer` or `DPoP`'),
-            Core\Time::fromEpoch($expires),
+            Core\Time\Instant::fromEpoch($expires),
             $refreshToken,
             Core\Taint::assertTrusted($scope, 'the scope has only the characters of RFC 6749'),
         );

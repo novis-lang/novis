@@ -26,7 +26,7 @@ final class Invoice
             // PDF/A-3b is the standard for archived files that may contain an XML file.
             ->standard(Document::Standard::PdfA3b)
             // The date of the invoice is the creation time, so the same invoice always gives the same file.
-            ->created(Core\Time::fromIso("{$invoice->issued->format('yyyy-MM-dd')}T09:00:00Z"))
+            ->created(Core\Time\Instant::fromIso("{$invoice->issued->format('yyyy-MM-dd')}T09:00:00Z"))
             ->invoiceXml(FacturX::xml($invoice, $totals))
             ->render();
     }

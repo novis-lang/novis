@@ -151,7 +151,7 @@ final class Feeds
                 $pending[] = {
                     package: $candidate['name'],
                     version: $candidate['version'],
-                    until: $at == null ? null : Time::fromEpoch($at)->toIso(),
+                    until: $at == null ? null : Core\Time\Instant::fromEpoch($at)->toIso(),
                 };
             }
         }
@@ -181,7 +181,7 @@ final class Feeds
     {
         return {
             id: $row->int('id') ?? 0,
-            at: Time::fromEpoch($row->int('at') ?? 0)->toIso(),
+            at: Core\Time\Instant::fromEpoch($row->int('at') ?? 0)->toIso(),
             kind: Feeds::trusted($row->string('kind')),
             package: $row->string('package') == null ? null : Feeds::trusted($row->string('package')),
             version: $row->string('version') == null ? null : Feeds::trusted($row->string('version')),

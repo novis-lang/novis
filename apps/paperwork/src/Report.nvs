@@ -1,9 +1,7 @@
 <?nvs
 namespace Paperwork;
 
-use Core\Decimal;
 use Core\Html\Markup;
-use Core\RoundMode;
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 use Novis\Pdf\Rendered;
@@ -28,7 +26,7 @@ final class Report
             ->footer(fn(Page $page): Markup => Report::footer($page), { height: '20mm' })
             // PDF/UA is the standard for accessible files. A screen reader can read this report aloud.
             ->standard(Document::Standard::PdfUa1)
-            ->created(Core\Time::fromIso(Sample::reportDate()->format('yyyy-MM-dd') . 'T16:00:00Z'));
+            ->created(Core\Time\Instant::fromIso(Sample::reportDate()->format('yyyy-MM-dd') . 'T16:00:00Z'));
         if ($password != null) {
             $document = $document->password($password);
         }

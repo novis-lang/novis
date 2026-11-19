@@ -64,7 +64,7 @@ final class Downloads
     // Returns the folder of the month of the day `$day` in Bunny's Permanent Log Storage, such as `2026/03/`.
     public static function folderOf(int $day): string
     {
-        string $iso = Time::fromEpoch($day * Downloads::DAY)->toIso();
+        string $iso = Core\Time\Instant::fromEpoch($day * Downloads::DAY)->toIso();
         return Str::slice($iso, 0, 4) . '/' . Str::slice($iso, 5, 2) . '/';
     }
 
@@ -73,7 +73,7 @@ final class Downloads
     // the log server, the number of the part and a random text.
     public static function partsOf(array<tainted string> $names, int $day): array<string>
     {
-        string $prefix = Str::slice(Time::fromEpoch($day * Downloads::DAY)->toIso(), 8, 2) . '_';
+        string $prefix = Str::slice(Core\Time\Instant::fromEpoch($day * Downloads::DAY)->toIso(), 8, 2) . '_';
         array<string> $parts = [];
         foreach ($names as tainted string $name) {
             if (Str::startsWith($name, $prefix) && Str::endsWith($name, '.gzip') && Str::trim($name, { characters: Downloads::NAME }) == '') {

@@ -131,7 +131,7 @@ final class DownloadsTest
     // One of Bunny's access lines, with its line break.
     private static function line(string $status, string $at, string $address, string $url, string $agent): bytes
     {
-        int $milliseconds = Time::fromIso($at)->toEpochSeconds() * 1000;
+        int $milliseconds = Core\Time\Instant::fromIso($at)->toEpochSeconds() * 1000;
         return ('MISS|' . $status . '|' . $milliseconds . '|1092|12345|' . $address . '|-|' . $url . '|DE|' . $agent . '|ed0ea5b2a4b1b0b3|DE' . "\n") as bytes;
     }
 

@@ -175,7 +175,7 @@ final class Reader
         ?Core\Time\Instant $created = null;
         var $at = $found->created;
         if ($at != null) {
-            $created = Core\Time::parse($at->day->format('yyyy-MM-dd'), 'yyyy-MM-dd', Core\Time\Zone::of('UTC'))->withTime($at->clock)->toInstant();
+            $created = Core\Time\DateTime::at($at->day, $at->clock, 'UTC')->toInstant();
         }
         return {
             title: $found->title,
@@ -643,7 +643,7 @@ final class Reader
             return $value->boolean;
         }
         if ($value is { day: Core\Time\Date, clock: Core\Time\TimeOfDay }) {
-            return Core\Time::parse($value->day->format('yyyy-MM-dd'), 'yyyy-MM-dd', $zone)->withTime($value->clock);
+            return Core\Time\DateTime::at($value->day, $value->clock, $zone);
         }
         if ($value is { date: Core\Time\Date }) {
             return $value->date;

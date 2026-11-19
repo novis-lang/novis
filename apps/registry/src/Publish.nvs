@@ -262,7 +262,7 @@ final class Publish
             ?int $until = $row->int('pending_until');
             string $text = '`' . $name . '` ' . $version . ' is published.';
             if ($until != null && $until > Time::now()->toEpochSeconds()) {
-                $text .= ' It is pending until ' . Time::fromEpoch($until)->toIso() . '. An owner can release it now with a passkey on the website.';
+                $text .= ' It is pending until ' . Core\Time\Instant::fromEpoch($until)->toIso() . '. An owner can release it now with a passkey on the website.';
             }
             return new Published(200, $text, Publish::trusted($row->string('digest')), $key);
         }

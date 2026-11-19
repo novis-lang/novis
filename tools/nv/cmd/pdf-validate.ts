@@ -51,7 +51,7 @@ export interface Fixture {
   source: string;
 }
 
-const CREATED = "->created(Core\\Time::fromIso('2026-03-01T09:00:00Z'))";
+const CREATED = "->created(Core\\Time\\Instant::fromIso('2026-03-01T09:00:00Z'))";
 
 /** A program that renders `html` under `standard`, with `calls` after `standard(...)`, and writes `<name>.pdf`. */
 function program(name: string, standard: string, html: string, calls: string[], before: string[] = []): string {
