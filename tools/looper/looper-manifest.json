@@ -31,7 +31,7 @@
     "tools/looper/src/gates/commit-msg.ts": "8382d31002596b618351335e74c7d3f30170f8bdb034979fd1c4838108cd255c",
     "tools/looper/src/gates/gates.ts": "252425d2cb0486310c012c557a91f4c6c7b5f4bae30d9379092e5594c8ec7b46",
     "tools/looper/src/goal/config.ts": "b4ad85e28cce0b4efc5920e2804cbd23c66460a23d56e3cbafb51ffa5c8786dd",
-    "tools/looper/src/goal/edit.ts": "422f832c41056350e45bab83422493a213061ef56d1b91e9024df067b8cd2ecf",
+    "tools/looper/src/goal/edit.ts": "5fb862c7759df4d239e76dedca4ea4bd366fee9f8758eb20bb2ef008eac8b0d8",
     "tools/looper/src/goal/glob.ts": "d0e3c0e1400f23dd9bc60eb19fff2aa3fcb2f10c89642f4c243ca187a69816ed",
     "tools/looper/src/goal/lint.ts": "26d3aa02dbebe8054484f08788fbdee24484c3c84bc4c5f671a7639c29337b96",
     "tools/looper/src/goal/model.ts": "f2f4d63cae24197e26de3bb0032126bfa91a67c7dcde67934a27aee46fe6b7d8",

@@ -234,11 +234,15 @@ export function saveGoal(goalsDir: string, slug: string, version: string, change
 /** The title of the gate stage `newGoal` writes as a goal's last stage. */
 export const GATE_TITLE = "the goal is verified once, and every failure is fixed";
 
-/** The items of the gate stage `newGoal` writes, as the lines under its heading. */
+/**
+ * The items of the gate stage `newGoal` writes, as the lines under its heading. They name no command,
+ * because the pack says which check the stage runs: `looper verify` at a full gate, or a build and the
+ * goal's own tests at a close (`[loop] gate`).
+ */
 export const GATE_ITEMS = [
-  "- [ ] Run `looper verify` over the whole goal.",
+  "- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.",
   "- [ ] Fix every failure it names in one pass, never deleting or loosening a test.",
-  "- [ ] Run `looper verify` once more, and it is green.",
+  "- [ ] Run that check once more, and it is green.",
 ].join("\n");
 
 /**
