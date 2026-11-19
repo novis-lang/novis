@@ -222,6 +222,15 @@ fn check_arg_list(
             note_write(&arg.value, scope, env);
             check_inout_arg(arg, actual, expected, env);
         }
+        // A Novis method's parameter declared bare `callable` or `mixed`: the
+        // editor offers the type every caller passes there.
+        if let (ArgSlot::Param(index), Some(want)) = (slot, expected)
+            && sig.param_quals.is_empty()
+            && matches!(env.interner.get(want), Ty::Callable | Ty::Mixed)
+        {
+            let passed = env.interner.single_value_base(actual);
+            env.exprs.record_bare_argument(call_span, index, passed);
+        }
         arg_types.push(actual);
     }
     if env.diags.len() == reported {

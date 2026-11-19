@@ -78,6 +78,7 @@ fn offered(analysed: &Analysed, start: usize, end: usize, kind: actions::Kind) -
     Response::CodeAction(actions::at(
         analysed,
         &Documents::new(),
+        None,
         &CompletionFiles::default(),
         at(start),
         at(end),

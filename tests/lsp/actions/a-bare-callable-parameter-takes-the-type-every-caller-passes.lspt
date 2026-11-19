@@ -1,0 +1,18 @@
+--TEST--
+a cursor on a method parameter declared bare `callable` whose every call passes an `fn(int): string` is offered Write the type every caller passes, which replaces the bare type with `callable(int): string` alone, `rule:ide/a-code-action-writes-only-what-is-already-determined`
+--FILE--
+<?nvs
+final class Report {
+    public function render(call<|>able $format, int $n): mixed {
+        return $format($n);
+    }
+}
+
+Report $report = new Report();
+echo $report->render(fn(int $n): string => "Total: {$n}", 3);
+echo $report->render(fn(int $n): string => "Count: {$n}", 7);
+--REQUEST--
+codeAction
+--EXPECT--
+3:27-3:53 refactor.rewrite Put on separate lines -> "(\n        callable $format,\n        int $n,\n    )"
+3:28-3:36 refactor.rewrite Write the type every caller passes: `callable(int): string` -> "callable(int): string"

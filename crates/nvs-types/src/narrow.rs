@@ -142,6 +142,79 @@ pub fn written(interner: &TypeInterner, id: TypeId) -> String {
     }
 }
 
+/// `id`, the type a caller passes to a parameter declared bare `callable` or
+/// `mixed`, as that parameter's annotation would write it, or `None` where it
+/// is no narrower or not writable
+/// (`rule:ide/a-code-action-writes-only-what-is-already-determined`).
+///
+/// A single-value type is written as its base and an enum case as its enum,
+/// at every depth. A callable with a known signature is written with its
+/// parameter and result types. `None` where `mixed`, bare `callable`, or a
+/// type no annotation states is anywhere in it. The editor compares the text
+/// across callers, because each caller's file has an interner of its own.
+#[must_use]
+pub fn parameter(interner: &TypeInterner, id: TypeId) -> Option<String> {
+    base_written(interner, id, 0, false)
+}
+
+/// [`parameter`]'s walk. `depth` counts the arrays around `id`, and
+/// `result` is whether `id` is a callable's result, where `void` is written.
+fn base_written(interner: &TypeInterner, id: TypeId, depth: u32, result: bool) -> Option<String> {
+    Some(match interner.get(id) {
+        Ty::Array(elem) => {
+            if depth >= MAX_ARRAY_DEPTH {
+                return None;
+            }
+            format!("array<{}>", base_written(interner, *elem, depth + 1, false)?)
+        }
+        Ty::Union(members) => {
+            let mut written: Vec<String> = members
+                .iter()
+                .map(|member| base_written(interner, *member, depth, false))
+                .collect::<Option<_>>()?;
+            written.sort();
+            written.dedup();
+            match written.as_slice() {
+                [one] => one.clone(),
+                [a, b] if a == "null" && !b.contains('|') => format!("?{b}"),
+                [a, b] if b == "null" && !a.contains('|') => format!("?{a}"),
+                _ => written.join("|"),
+            }
+        }
+        Ty::CallableSig { params, ret } => {
+            let params: Vec<String> = params
+                .iter()
+                .map(|param| base_written(interner, *param, 0, false))
+                .collect::<Option<_>>()?;
+            let ret = base_written(interner, *ret, 0, true)?;
+            format!("callable({}): {ret}", params.join(", "))
+        }
+        Ty::SingleValueString(_) => "string".to_owned(),
+        Ty::SingleValueInt(_) => "int".to_owned(),
+        Ty::True | Ty::False => "bool".to_owned(),
+        Ty::EnumCase(q, ..) | Ty::Enum(q, _) => q.to_string(),
+        Ty::Void if result => "void".to_owned(),
+        Ty::Class(..)
+        | Ty::Null
+        | Ty::Bool
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::Bytes
+        | Ty::TaintedString
+        | Ty::TaintedBytes
+        | Ty::SecretString
+        | Ty::SecretBytes
+        | Ty::SecretTaintedString
+        | Ty::SecretTaintedBytes
+        | Ty::Object
+        | Ty::Iterable => interner.describe(id),
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_hir::QName;

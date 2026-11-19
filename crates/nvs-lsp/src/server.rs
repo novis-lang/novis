@@ -1125,7 +1125,7 @@ fn answer(
         CodeActionRequest::METHOD => match serde_json::from_value::<CodeActionParams>(params) {
             Ok(params) => Response::new_ok(
                 id,
-                code_actions(documents, completion_files, encoding, &params),
+                code_actions(documents, index, completion_files, encoding, &params),
             ),
             Err(error) => unreadable(id, &method, &error),
         },
@@ -2554,6 +2554,13 @@ pub fn workspace(root: &Path) -> Workspace {
 /// The client runs [`Client::SHOW_LOCATIONS`], as the VS Code client does, so
 /// a lens case freezes the places a click lists. No other client field is set:
 /// a completion case freezes the plain text a client that named nothing gets.
+/// The reference index of one `.lspt` case, built the way
+/// [`references_of_case`] builds its own.
+pub(crate) fn index_of_case(documents: &Documents, root: &Path) -> SymbolIndex {
+    let settings = case_settings(root);
+    SymbolIndex::build(documents, settings.scope, settings.root.as_deref())
+}
+
 fn case_settings(root: &Path) -> Settings {
     Settings {
         scope: CheckScope::Workspace,
@@ -3064,6 +3071,7 @@ fn document_link(
 /// [`document_symbol`]'s terms.
 fn code_actions(
     documents: &Documents,
+    index: &SymbolIndex,
     completion_files: &CompletionFiles,
     encoding: PositionEncoding,
     params: &CodeActionParams,
@@ -3078,6 +3086,7 @@ fn code_actions(
     actions::at(
         &analysed,
         documents,
+        Some(index),
         completion_files,
         start,
         end,

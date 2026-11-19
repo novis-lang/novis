@@ -1,9 +1,9 @@
-Four code actions **write** rather than fix, and one bound governs all of them: an action may write only
+Five code actions **write** rather than fix, and one bound governs all of them: an action may write only
 text the type system has already fully determined. It never invents a body, never names a parameter from a
 heuristic, and never picks between two possible signatures. Anything needing a choice is a refactoring
 the user drives, not an action a light bulb offers.
 
-The four: **implement missing members** — on a class that does not satisfy an interface or abstract
+The five: **implement missing members** — on a class that does not satisfy an interface or abstract
 base, insert every missing method with the signature copied from the declaration,
 `rule:statements/inout-is-the-by-reference-spelling` markers and qualifiers intact, and a body that
 throws; **override a method** — one action per overridable member of the hierarchy, inserting that
@@ -11,9 +11,10 @@ signature with a call to the base; **declare the method you just called** — on
 unresolved-call diagnostic, insert a method on the receiver's class, since Novis has no free function
 (`E0215`, `E0320`), whose parameter types are the argument types at the call and whose return type is the
 one the context requires, both already computed to produce the diagnostic;
-and **narrow an `array<mixed>` to its literal's type**
+**narrow an `array<mixed>` to its literal's type**
 (`rule:ide/narrow-an-annotation-to-its-literal`), which writes an annotation rather than a declaration
-under the same bound.
+under the same bound; and **write the type every caller passes** into a parameter declared bare
+`callable` or `mixed`, where every call of the method passes one static type.
 
 Applying a generator produces text that compiles, and applying it twice is a no-op. Implementing
 missing members is the most-used action of its kind in PHP editors, and Novis's explicit types make
@@ -51,3 +52,18 @@ Narrow an `array<mixed>` is a `refactor.rewrite` at the annotation (`crates/nvs-
 type it writes is the one the checker recorded for the literal, and the document with the edit applied
 must report the diagnostics it reported before. Applied once, the annotation is no longer
 `array<mixed>`, so a second application finds nothing to offer.
+
+Write the type every caller passes is a `refactor.rewrite` at the parameter's type
+(`crates/nvs-lsp/src/typed_parameter.rs`), never a `quickfix` or under `source.fixAll.nvs`, and no
+diagnostic is behind it: a deliberate `mixed` is not wrong. The calls are the reference index's
+occurrences of the method, and the type of each argument is the one the checker recorded at a bare
+`callable` or `mixed` parameter of a Novis method
+(`nvs_types::expr_table::ExprTypeTable::bare_argument`), widened to its base. A callable with a known
+signature is written with its parameter and result types, as `callable(int): string`. Nothing is
+offered while an index entry waits, when the method is taken as a callable value anywhere, overrides a
+method or is overridden, has no call, or has a call that records no type for the parameter, such as one
+that leaves it to its default; nor for a variadic or `inout` parameter, or when two calls differ or one
+passes `mixed`. The document with the edit applied must report the diagnostics it reported before.
+Applied once, the parameter is no longer bare, so a second application finds nothing to offer. **What
+it spends:** while compiling, one type for each argument at such a parameter; per request with the
+cursor on such a type, one analysis of each calling file and one of the edited document.

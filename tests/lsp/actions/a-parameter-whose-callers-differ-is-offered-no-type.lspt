@@ -1,0 +1,17 @@
+--TEST--
+a cursor on a method parameter declared `mixed` whose calls pass an `int` and a `string` is offered no type to write, only the split of its list, because no one type is already determined, `rule:ide/a-code-action-writes-only-what-is-already-determined`
+--FILE--
+<?nvs
+final class Shop {
+    public function log(mi<|>xed $value): void {
+        echo $value;
+    }
+}
+
+Shop $shop = new Shop();
+$shop->log(3);
+$shop->log('three');
+--REQUEST--
+codeAction
+--EXPECT--
+3:24-3:38 refactor.rewrite Put on separate lines -> "(\n        mixed $value,\n    )"

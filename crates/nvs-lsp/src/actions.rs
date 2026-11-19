@@ -37,6 +37,10 @@
 //! literal's type, under the same rule. It is appended the same way and never
 //! to a fix-all, since a narrower type can refuse a write on another line
 //! (`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`).
+//! [`crate::typed_parameter`]'s action writes the type every caller passes
+//! into a bare `callable` or `mixed` parameter, from the reference index, and
+//! is appended the same way, never to a fix-all. Without an index it is not
+//! offered.
 //!
 //! # Decision: the gate an editor sees is the gate an action is offered behind
 //!
@@ -191,9 +195,14 @@ impl Kind {
 /// carries no suggestion. The two are the same offer, which is the point of the
 /// boundary this module draws.
 #[must_use]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is one input of the answer, and a struct would be built at both callers only to be taken apart here"
+)]
 pub fn at(
     analysed: &Analysed,
     documents: &Documents,
+    index: Option<&crate::index::SymbolIndex>,
     files: &CompletionFiles,
     start: BytePos,
     end: BytePos,
@@ -253,6 +262,11 @@ pub fn at(
             analysed, documents, start, end, encoding,
         ));
         offered.extend(crate::narrow::at(analysed, documents, start, encoding));
+        if let Some(index) = index {
+            offered.extend(crate::typed_parameter::at(
+                analysed, documents, index, start, encoding,
+            ));
+        }
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     if kind == Kind::FixAll {

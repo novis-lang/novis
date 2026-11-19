@@ -1695,6 +1695,7 @@ pub struct ExprTypeTable {
     capability_guards: FxHashMap<Span, CapabilityGuard>,
     promoted_pipelines: FxHashMap<Span, PromotedPipeline>,
     literal_types: FxHashMap<Span, TypeId>,
+    bare_arguments: FxHashMap<(Span, usize), TypeId>,
     /// Set only by [`Self::record_provenance`], which `nvs-lsp` alone calls
     /// (`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`).
     /// `None` for every compile that runs or checks a program.
@@ -1884,6 +1885,7 @@ impl ExprTypeTable {
             capability_guards,
             promoted_pipelines,
             literal_types,
+            bare_arguments,
             provenance,
         } = part;
         let offset = u32::try_from(self.entries.len())
@@ -1946,6 +1948,7 @@ impl ExprTypeTable {
         self.capability_guards.extend(capability_guards);
         self.promoted_pipelines.extend(promoted_pipelines);
         self.literal_types.extend(literal_types);
+        self.bare_arguments.extend(bare_arguments);
         if let (Some(own), Some(part)) = (self.provenance.as_mut(), provenance) {
             own.absorb(*part);
         }
@@ -2035,6 +2038,7 @@ impl ExprTypeTable {
         section("capability_guards", sorted(&self.capability_guards));
         section("promoted_pipelines", sorted(&self.promoted_pipelines));
         section("literal_types", sorted(&self.literal_types));
+        section("bare_arguments", sorted(&self.bare_arguments));
         section(
             "provenance",
             vec![format!("{:?}", self.provenance.is_some())],
@@ -3446,6 +3450,26 @@ impl ExprTypeTable {
     #[must_use]
     pub fn literal_type(&self, span: Span) -> Option<TypeId> {
         self.literal_types.get(&span).copied()
+    }
+
+    /// Records the type of the argument the call at `call` passes to its
+    /// parameter `param`, a parameter of a Novis method declared bare
+    /// `callable` or `mixed`. See [`Self::bare_argument`].
+    pub(crate) fn record_bare_argument(&mut self, call: Span, param: usize, ty: TypeId) {
+        self.bare_arguments.insert((call, param), ty);
+    }
+
+    /// The type the call at `call` passes to parameter `param` of the Novis
+    /// method it resolved to, where that parameter is declared bare
+    /// `callable` or `mixed`. A single-value type is widened to its base.
+    ///
+    /// The editor reads it to write the type every caller passes
+    /// (`rule:ide/a-code-action-writes-only-what-is-already-determined`), and
+    /// no compile path does. One entry per argument at such a parameter, held
+    /// for the compile.
+    #[must_use]
+    pub fn bare_argument(&self, call: Span, param: usize) -> Option<TypeId> {
+        self.bare_arguments.get(&(call, param)).copied()
     }
 }
 

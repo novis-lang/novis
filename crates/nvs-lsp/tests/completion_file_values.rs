@@ -647,6 +647,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
         let offered: Vec<(String, String, Range)> = actions::at(
             &analysis,
             &Documents::new(),
+            None,
             &files,
             at,
             at,
@@ -671,6 +672,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
     let offered: Vec<_> = actions::at(
         &analysis,
         &Documents::new(),
+        None,
         &CompletionFiles::default(),
         at,
         at,

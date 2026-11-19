@@ -427,6 +427,7 @@ class Shop
         actions::at(
             &analysed,
             &Documents::new(),
+            None,
             &CompletionFiles::default(),
             0,
             0,
