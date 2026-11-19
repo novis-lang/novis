@@ -574,6 +574,14 @@ pub struct Class {
     ///
     /// **Cost:** one `bool` per class per compiled unit.
     pub no_instances: bool,
+    /// The class this one extends — a straight copy of
+    /// `nvs_types::layout::ClassLayout::parent`, which owns why an interface
+    /// has none. `None` for every class the compiler makes. `nvs-codegen` hands
+    /// it to `nvs_runtime::ClassTable::set_parent`.
+    ///
+    /// **Cost:** one `String` per class that extends one, once per compiled
+    /// unit, not per request.
+    pub parent: Option<String>,
 }
 
 /// A field slot's declared type in the terms a run-time check needs —

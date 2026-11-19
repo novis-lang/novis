@@ -1,0 +1,58 @@
+--TEST--
+`ClassInfo::parent` names the class each level extends and is null at the root and on an interface, and a loop up the chain reads each level's own attributes — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// covers: Core\Reflect\ClassInfo::parent
+// `attributes` is own-only, so a program that wants the ancestors' attributes
+// walks the chain itself. This case is that walk: `parent` from the leaf names
+// each level, `forClass` describes it, and each level prints only what its own
+// declaration wrote. The root is abstract, so the walk reaches a class that has
+// no instances, and an interface that extends another still has no parent.
+namespace App;
+
+abstract class Model {
+    #[{column: "id"}]
+    public int $id = 0;
+}
+
+class Post extends Model {
+    #[{column: "title"}]
+    public string $title = "";
+}
+
+class FeaturedPost extends Post {
+    #[{column: "rank"}]
+    public int $rank = 0;
+}
+
+class Loose {}
+
+interface Named {}
+
+interface Titled extends Named {}
+
+?Core\Reflect\ClassInfo $level = Core\Reflect::forObject(new FeaturedPost());
+while ($level != null) {
+    ?string $parent = $level->parent();
+    echo $level->name(), " extends ", $parent ?? "<null>", "\n";
+    foreach ($level->attributes() as Core\Reflect\AttributeInfo $one) {
+        echo "  ", $one->target(), ": ", Core\Json::encode($one->field("column")), "\n";
+    }
+    $level = $parent == null ? null : Core\Reflect::forClass($parent);
+}
+
+array<string> $names = ["App\\Loose", "App\\Named", "App\\Titled"];
+foreach ($names as string $name) {
+    ?Core\Reflect\ClassInfo $info = Core\Reflect::forClass($name);
+    echo $name, ": ", $info?->parent() ?? "<null>", "\n";
+}
+--EXPECT--
+App\FeaturedPost extends App\Post
+  rank: "rank"
+App\Post extends App\Model
+  title: "title"
+App\Model extends <null>
+  id: "id"
+App\Loose: <null>
+App\Named: <null>
+App\Titled: <null>

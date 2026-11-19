@@ -2216,6 +2216,10 @@ impl Classes {
             self.table
                 .set_class_attributes(id, class.attributes.iter().map(attribute_desc).collect());
         }
+        // The class this one extends, for `Core\Reflect\ClassInfo::parent`.
+        if let Some(parent) = &class.parent {
+            self.table.set_parent(id, parent.clone());
+        }
         let slots = class
             .fields
             .iter()

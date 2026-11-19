@@ -168,6 +168,12 @@
 //! of `rule:attributes/structural-retrieval`'s target spellings into one
 //! invented one.
 //!
+//! A program that wants the ancestors' attributes too walks the chain itself:
+//! [`nvs_core_reflect_class_info_parent`] names the class a class extends, read
+//! off [`nvs_runtime::ClassDesc::parent`], and `forClass` describes it. The
+//! program writes the loop, so it decides the order of an attribute written at
+//! two levels, and the runtime never invents one (`rule:core-classes/reflect`).
+//!
 //! **This is not `Core\Attributes`, and the two never meet.** That retrieval is
 //! *structural*: it matches an attached payload object against a shape type and is
 //! replaced by its answer at compile time, so a running program holds no table
@@ -643,6 +649,15 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Instance(ATTRIBUTE_INFO_NAME)),
             symbol: "nvs_core_reflect_class_info_attributes",
             doc: Some(&ATTRIBUTES_DOC),
+        },
+        CoreMethod {
+            name: "parent",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_reflect_class_info_parent",
+            doc: Some(&PARENT_DOC),
         },
         CoreMethod {
             name: "get",
@@ -1729,7 +1744,19 @@ const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
           belongs to the declaration it is written on, so a parent class's attributes are not \
           listed. `Core\\Attributes::get` reads an attribute by the *shape* of its payload. It \
           is checked at compile time and costs nothing at run time. Use `attributes` for a \
-          class whose name is not in your source code.",
+          class whose name is not in your source code. To read the parent classes' attributes \
+          too, call `parent` and describe each parent class with `Core\\Reflect::forClass`.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::parent`'s reference card — `rule:core-api/reference-card`.
+const PARENT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the name of the class that the described class extends.",
+    params: &[],
+    ret: "The parent class's name, with its namespace, written as `name` writes a name. It is \
+          `null` for a class that extends no class. It is also `null` for an interface. To walk \
+          up to the top class, pass the name to `Core\\Reflect::forClass` and call `parent` \
+          again. `forClass` returns `null` for a `Core` class, so the walk stops there too.",
     errors: &[],
 };
 
@@ -2082,6 +2109,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         }
         "nvs_core_reflect_class_info_attributes" => {
             (nvs_core_reflect_class_info_attributes as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_parent" => {
+            (nvs_core_reflect_class_info_parent as *const ()).cast()
         }
         "nvs_core_reflect_attribute_info_name" => {
             (nvs_core_reflect_attribute_info_name as *const ()).cast()
@@ -2640,6 +2670,40 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_reflect_attribute_info_field`]'s.
     fn nvs_core_reflect_class_info_attributes(_ctx, args: [1]) {
         slot_of(args, &CLASS_INFO, ATTRIBUTES_SLOT, "attributes")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::parent(): ?string` — the full name of the class
+    /// the described class extends, or `null` for a class that extends none,
+    /// for an interface and for a class the descriptor table does not name.
+    ///
+    /// Read off the descriptor at call time, as `construct` finds it, rather
+    /// than off a slot [`describe`] fills: a description that never asks pays
+    /// nothing. **What it spends:** one string per call, charged to the request
+    /// that asked.
+    fn nvs_core_reflect_class_info_parent(ctx, args: [1]) {
+        let member = "parent";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let held = crate::instance::slot(receiver, NAME_SLOT);
+        let Some(described) = held.as_text() else {
+            return Err(Fault::fatal(format!(
+                "{CLASS_INFO_NAME}::{member} expected {:?} in its name slot, got tag {}",
+                Tag::Str,
+                held.tag_byte()
+            )));
+        };
+        let Some(desc) = ctx.class_desc(described) else {
+            return Ok(Value::null());
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
+                      which outlives this context and is never rewritten while a member of it is \
+                      running"
+        )]
+        let parent = unsafe { &*desc }.parent();
+        Ok(parent.map_or_else(Value::null, Value::text))
     }
 }
 
@@ -4292,6 +4356,51 @@ mod tests {
         let absent = call(super::nvs_core_reflect_for_class, &mut ctx, &[unknown])
             .expect("a name no class has is an absence, not a failure");
         assert_eq!(absent.tag(), Some(Tag::Null));
+    }
+
+    /// `parent` returns the name a descriptor carries, level by level, and
+    /// `null` at a root class, at an interface and on a descriptor that never
+    /// had one set. Which name a declaration carries is `nvs_types::layout`'s,
+    /// and the `.nvst` case that walks a chain pins it end to end.
+    // covers: Core\Reflect\ClassInfo::parent
+    #[test]
+    fn class_info_parent_is_the_extended_class_and_null_at_a_root() {
+        let mut table = ClassTable::new();
+        let plain = table.define("Base", &[] as &[&str], &[]);
+        let middle = table.define(r"App\Middle", &[] as &[&str], &[]);
+        table.set_parent(middle, "Base".to_owned());
+        let leaf = table.define(r"App\Leaf", &[] as &[&str], &[]);
+        table.set_parent(leaf, r"App\Middle".to_owned());
+        let iface = table.define("Named", &[] as &[&str], &[]);
+        table.set_no_instances(iface);
+        table.define("Unset", &[] as &[&str], &[]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), plain));
+
+        for (name, expected) in [
+            (r"App\Leaf", Some(r"App\Middle")),
+            (r"App\Middle", Some("Base")),
+            ("Base", None),
+            ("Named", None),
+            ("Unset", None),
+        ] {
+            let asked = Value::text(name);
+            let info = call(super::nvs_core_reflect_for_class, &mut ctx, &[asked])
+                .expect("asking for a class by name never throws");
+            assert_eq!(info.tag(), Some(Tag::Object), "{name} is not described");
+            let parent = call(super::nvs_core_reflect_class_info_parent, &mut ctx, &[info])
+                .expect("`parent` always answers");
+            assert_eq!(parent.as_text(), expected, "{name}'s parent");
+            if expected.is_none() {
+                assert_eq!(parent.tag(), Some(Tag::Null), "{name}'s parent is not null");
+            }
+            #[expect(unsafe_code, reason = "this frame owns one reference to each")]
+            unsafe {
+                parent.release();
+                info.release();
+                asked.release();
+            }
+        }
     }
 
     /// A context whose program table holds a class of every row

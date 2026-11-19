@@ -398,6 +398,7 @@ pub(crate) fn lower_anon_fn(
             // declare, so neither reader may look for it.
             is_callable: true,
             no_instances: false,
+            parent: None,
         })
         .chain(shapes)
         .collect(),
@@ -1270,6 +1271,7 @@ fn thunk_class(
         // carries the bit an anonymous function's class carries.
         is_callable: true,
         no_instances: false,
+        parent: None,
     }
 }
 

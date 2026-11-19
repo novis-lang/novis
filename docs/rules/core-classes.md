@@ -1791,6 +1791,25 @@ advisory.
 declared property, method and constant, charged to the request that asked and freed with the
 description. A program that describes the same class in a loop pays on every call.
 
+`ClassInfo::attributes()` lists only the attributes written on the described class's own
+declaration and members. `ClassInfo::parent(): ?string` returns the full name of the class the
+described class extends, written as `name()` writes a name, and `null` for a class that extends none
+and for an interface: an interface's `extends` list names interfaces, and none of them is a parent
+class. A class that extends a `Core` class gets that name, because it is true, and `forClass`
+returns `null` for it, so a walk stops there with no special case. A program that wants the
+ancestors' attributes walks the chain with `forClass($info->parent())` and reads each level's own
+`attributes()`, in the order it chooses. The name is read off the class's descriptor when `parent()`
+is called: one string per call, charged to the request that asked, and one string per class that
+extends one, held once per process.
+
+**Declined:**
+- **An `attributes()` that includes the parents' attributes.** It reverses the own-only reading, an
+  existing caller would get more rows than before, and the runtime would have to invent an order for
+  an attribute written at two levels. The loop over `parent()` lets the program choose that order.
+- **A `parent()` that returns a `ClassInfo`.** A description builds one row object per property,
+  method and constant, which a caller that only wants the name pays for nothing. A name matches
+  `name()`, and `forClass` turns it into a description when the caller wants one.
+
 <sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="core-classes-str-parts-and-reflect-steps"></a>

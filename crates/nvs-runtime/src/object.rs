@@ -759,6 +759,13 @@ pub struct ClassDesc {
     /// test defines by hand has instances. **Cost:** one `bool` per class,
     /// once per compiled unit, not per instance.
     no_instances: bool,
+    /// The full name of the class this one extends, or `None` for a class
+    /// that extends none, for an interface and for every class the compiler
+    /// or a native test makes. `nvs_ir::ir::Class::parent` carries it down,
+    /// [`ClassTable::set_parent`] writes it, and `Core\Reflect\ClassInfo::parent`
+    /// is the reader. **Cost:** one `String` per class that extends one, once
+    /// per compiled unit, not per instance.
+    parent: Option<String>,
     /// Whether a `Core` class stated the type of each of its slots, in the
     /// three tables [`Self::check_slot`] reads. [`ClassTable::set_slot_types`]
     /// writes it, and a class a program declares has its tables from the
@@ -1727,6 +1734,12 @@ impl ClassDesc {
         self.no_instances
     }
 
+    /// The full name of the class this one extends — see the field.
+    #[must_use]
+    pub fn parent(&self) -> Option<&str> {
+        self.parent.as_deref()
+    }
+
     /// Whether a `Core` class stated the type of each slot — see the field.
     #[must_use]
     pub fn states_slot_types(&self) -> bool {
@@ -2638,6 +2651,7 @@ impl ClassTable {
             compiler_made,
             is_core: false,
             no_instances: false,
+            parent: None,
             states_slot_types: false,
             bytes_refusal: None,
             free: None,
@@ -2986,6 +3000,21 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.attributes = attributes;
+    }
+
+    /// Fills in the class `id` extends — see [`ClassDesc::parent()`]. A setter
+    /// on [`ClassTable::set_class_attributes`]' terms, called by `nvs-codegen`
+    /// for a class whose declaration names one.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_parent(&mut self, id: ClassId, parent: String) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.parent = Some(parent);
     }
 
     /// Fills in `id`'s per-slot declared type names — see

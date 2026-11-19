@@ -244,6 +244,19 @@ pub struct ClassLayout {
     ///
     /// **Cost:** one `bool` per class, once per compiled unit.
     pub no_instances: bool,
+    /// The class this one extends, rendered as [`Self::conforms`] renders its
+    /// names, or `None` for a class that extends none and for an interface.
+    ///
+    /// An interface's `extends` list names interfaces, possibly several, and
+    /// none of them is a parent class, so an interface carries none. A class
+    /// extending a `Core` class carries that name, because it is true.
+    /// `Core\Reflect\ClassInfo::parent` reads it through
+    /// `nvs_ir::ir::Class::parent` and `nvs_runtime::ClassDesc::parent`, since a
+    /// class named only at run time has no class graph to ask.
+    ///
+    /// **Cost:** one `String` per class that extends one, once per compiled
+    /// unit, never per request.
+    pub parent: Option<String>,
 }
 
 /// One attached attribute, as much of it as a reflective description reads
@@ -445,6 +458,7 @@ pub fn build_class_layouts(
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     let mut own_constants: FxHashMap<QName, Vec<ClassConstant>> = FxHashMap::default();
     let mut own_attributes: FxHashMap<QName, Vec<ClassAttribute>> = FxHashMap::default();
+    let mut interfaces: FxHashSet<QName> = FxHashSet::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -514,6 +528,7 @@ pub fn build_class_layouts(
                 hooks: &mut own_hooks,
                 constants: &mut own_constants,
                 attributes: &mut own_attributes,
+                interfaces: &mut interfaces,
             },
         );
     }
@@ -583,6 +598,16 @@ pub fn build_class_layouts(
                 // so, and every other class has the one `new` reads.
                 no_instances: reserved.contains(qname)
                     || graph.get(qname).is_some_and(|links| !links.concrete),
+                // A class has at most one `extends` entry, and an interface's
+                // entries are interfaces, so only a class's first one is a parent.
+                parent: if reserved.contains(qname) || interfaces.contains(qname) {
+                    None
+                } else {
+                    graph
+                        .get(qname)
+                        .and_then(|links| links.extends.first())
+                        .map(QName::to_string)
+                },
             },
         );
     }
@@ -599,6 +624,9 @@ struct Own<'r> {
     hooks: &'r mut FxHashMap<QName, Vec<(String, String, bool)>>,
     constants: &'r mut FxHashMap<QName, Vec<ClassConstant>>,
     attributes: &'r mut FxHashMap<QName, Vec<ClassAttribute>>,
+    /// Every declared interface, which [`ClassLayout::parent`] reads: the
+    /// class graph's links do not say which kind a declaration is.
+    interfaces: &'r mut FxHashSet<QName>,
 }
 
 /// Records each declared class's/interface's *own* instance properties, in
@@ -663,6 +691,7 @@ fn collect_own(stmts: &[Stmt], src: &SourceFile, namespace: &[String], out: &mut
                     qname.clone(),
                     own_attributes(&decl.attributes, &decl.members, src),
                 );
+                out.interfaces.insert(qname);
             }
             _ => {}
         }

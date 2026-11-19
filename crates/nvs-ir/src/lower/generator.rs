@@ -612,6 +612,7 @@ pub(crate) fn lower_generator(
         // never called as a `callable`.
         is_callable: false,
         no_instances: false,
+        parent: None,
     });
     (functions, classes)
 }
