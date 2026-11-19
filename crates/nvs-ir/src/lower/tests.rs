@@ -6861,3 +6861,40 @@ fn a_count_or_first_of_keys_or_values_reads_the_array_itself() {
     assert_eq!(values, 2, "{off:?}");
     assert_eq!(count_of(&off, "nvs_core_arr_first_key"), 0, "{off:?}");
 }
+
+/// Rows `caught-conversion` and `caught-parse`: a `try` that converts a
+/// variable and assigns `null` in its one `catch` arm takes no thrown value at
+/// all. `as int` is the conversion that returns `null`, and `Core\Uuid::parse`
+/// is `tryParse`. A `try` with a `finally` keeps its region.
+#[test]
+fn a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion() {
+    fn taken(program: &crate::ir::Program) -> usize {
+        program
+            .functions
+            .iter()
+            .flat_map(|f| f.blocks.iter())
+            .flat_map(|block| block.insts.iter())
+            .filter(|inst| matches!(inst.kind, InstKind::TakeThrown))
+            .count()
+    }
+    let src = "<?nvs\nfinal class T {\n  public static function m(mixed $x, string $s): void {\n    \
+               ?int $v = 0;\n    \
+               try {\n      $v = $x as int;\n    } catch (RuntimeError) {\n      $v = null;\n    }\n    \
+               ?Core\\Uuid $u = null;\n    \
+               try {\n      $u = Core\\Uuid::parse($s);\n    } catch (Throwable) {\n      $u = null;\n    }\n    \
+               echo $v ?? 0, $u?->toString() ?? \"\";\n  }\n}\n";
+    let (on, map, file) = lower_whole_file_with_src(src);
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(taken(&on), 0, "{}", print_program(&on, map.file(file)));
+    assert_eq!(taken(&off), 2);
+    let (on_calls, off_calls) = core_calls_both_ways(src);
+    assert_eq!(count_of(&on_calls, "nvs_core_uuid_try_parse"), 1, "{on_calls:?}");
+    assert_eq!(count_of(&on_calls, "nvs_core_uuid_parse"), 0, "{on_calls:?}");
+    assert_eq!(count_of(&off_calls, "nvs_core_uuid_parse"), 1, "{off_calls:?}");
+
+    let finally = "<?nvs\nfinal class T {\n  public static function m(mixed $x): void {\n    \
+                   ?int $v = 0;\n    \
+                   try {\n      $v = $x as int;\n    } catch (RuntimeError) {\n      $v = null;\n    \
+                   } finally {\n      echo 1;\n    }\n    echo $v ?? 0;\n  }\n}\n";
+    assert!(taken(&lower_whole_file_with_src(finally).0) > 0);
+}

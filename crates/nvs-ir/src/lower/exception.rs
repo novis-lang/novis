@@ -387,6 +387,9 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
+        if self.lower_caught_null(body, catches, finally, env, cur) {
+            return;
+        }
         let handler_block = self.new_block();
         let after_block = self.new_block();
 
@@ -432,6 +435,91 @@ impl<'a> Lowering<'a> {
         *env = self.merge_envs(after_block, &after_incoming, env);
         *cur = after_block;
     }
+    /// Rows `caught-conversion` and `caught-parse` of `crate::forms`: a `try`
+    /// that converts a variable and assigns `null` where the conversion fails
+    /// is the conversion that returns `null`, with no protected region. It
+    /// gives `false` where the row does not hold, the table is off or the debug
+    /// switch is on (each statement keeps its probe), and the `try` is lowered
+    /// as written.
+    ///
+    /// The arm's class must be `RuntimeError` or `Throwable`, which is or
+    /// contains what a failed conversion and a failed `parse` throw. An
+    /// `as T` must be able to fail: its operand reads as a `string` or a tagged
+    /// value, and `T` is `int`, `uint`, `float` or `decimal`.
+    fn lower_caught_null(
+        &mut self,
+        body: &'a Block,
+        catches: &'a [CatchClause],
+        finally: Option<&'a Block>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> bool {
+        if !cheaper_forms_on() || self.debug.is_some() {
+            return false;
+        }
+        let Some(caught) =
+            crate::forms::caught_null(body, catches, finally, self.exprs, self.src)
+        else {
+            return false;
+        };
+        if !matches!(
+            self.caught_class_label(caught.caught).as_str(),
+            "RuntimeError" | "Throwable"
+        ) {
+            return false;
+        }
+        let (v, ty) = match caught.fast {
+            crate::forms::CaughtFast::Conversion { operand, ty } => {
+                let to = lower_decl_type(ty, self.exprs, self.checked_types);
+                let Some(from) = self.variable_read_ty(operand, env) else {
+                    return false;
+                };
+                if !matches!(ty.kind, TypeKind::Atom(_))
+                    || !matches!(to, Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal)
+                    || !matches!(from, Ty::Tagged | Ty::Str)
+                {
+                    return false;
+                }
+                let nullable = Type {
+                    kind: TypeKind::Nullable(Box::new(ty.clone())),
+                    span: ty.span,
+                };
+                self.lower_conversion(operand, &nullable, caught.value.span, env, cur)
+            }
+            crate::forms::CaughtFast::Parse { call, form } => {
+                let Some(ExprInfo::Call(resolved)) = self.exprs.lookup(call.span) else {
+                    return false;
+                };
+                let Some(symbol) = nvs_types::core_symbol_of(&resolved.class, &resolved.method)
+                else {
+                    return false;
+                };
+                self.lower_core_call(resolved, symbol, form.args, Some(form), call.span, env, cur)
+            }
+        };
+        self.lower_store(caught.target, &Stored::Value(v, ty), false, env, cur);
+        true
+    }
+
+    /// The representation a read of the variable `expr` gives, without
+    /// lowering it: its binding's, or what the checker narrowed it to. `None`
+    /// for an `inout` parameter.
+    fn variable_read_ty(&self, expr: &Expr, env: &Env) -> Option<Ty> {
+        let ExprKind::Variable(span) = expr.kind else {
+            return None;
+        };
+        let &(_, ty) = env.get(strip_sigil(span_text(self.src, span)))?;
+        if ty == Ty::Ref {
+            return None;
+        }
+        if ty == Ty::Tagged
+            && let Some(ExprInfo::NarrowedRead { to }) = self.exprs.lookup(expr.span)
+        {
+            return Some(erase_checked_ty(*to, self.checked_types));
+        }
+        Some(ty)
+    }
+
     /// The class-test chain a `try`'s clauses lower to, plus the
     /// re-raise that ends it — see [`Self::lower_try`] for the shape and why
     /// it needs no mechanism of its own.

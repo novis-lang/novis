@@ -31,12 +31,16 @@
 //! written tree and the checker's resolved calls, and gives the fast form or
 //! `None`. The site applies one only while `crate::lower::cheaper_forms_on` holds.
 //!
-//! **What it spends:** while compiling, one match of each `Core` call and null
-//! test lowered against the rows whose stage applies it. At run time, nothing.
+//! **What it spends:** while compiling, one match of each `Core` call, null
+//! test and `try` lowered against the rows whose stage applies it. At run time, nothing.
 
-use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
+use nvs_diagnostics::SourceFile;
+use nvs_syntax::ast::{
+    Arg, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, Stmt, StmtKind, Type,
+};
 use nvs_types::expr_table::{ExprInfo, ExprTypeTable};
 
+use crate::{span_text, strip_sigil};
 use crate::ty::Ty;
 
 /// Where a row's conformance cases live, under the repository root.
@@ -471,6 +475,115 @@ pub(crate) fn over_keys_or_values<'a>(
         args: inner_args,
         arity: None,
         returns: None,
+    })
+}
+
+/// Rows `caught-conversion` and `caught-parse`, matched on the written `try`:
+/// its body is one `$v = …;`, it has one `catch` arm whose body is
+/// `$v = null;` and which does not bind `$v`, and it has no `finally`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CaughtNull<'a> {
+    /// The variable both arms assign.
+    pub target: &'a Expr,
+    /// The value the body assigns, as written.
+    pub value: &'a Expr,
+    /// The one arm's class. The site checks that it is or contains the class
+    /// a failed conversion throws.
+    pub caught: &'a Type,
+    /// What the body converts, and its fast form.
+    pub fast: CaughtFast<'a>,
+}
+
+/// The conversion a [`CaughtNull`] body runs. Its operand is a variable, so
+/// the conversion is the body's only failure.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CaughtFast<'a> {
+    /// `X as T`, whose fast form is `X as ?T`. The site checks that the
+    /// conversion can fail, so that `as ?T` is a conversion at all.
+    Conversion { operand: &'a Expr, ty: &'a Type },
+    /// `K::parse(X)` where `K` declares `tryParse`, whose fast form is
+    /// `K::tryParse(X)`.
+    Parse { call: &'a Expr, form: CoreForm<'a> },
+}
+
+/// The `$v` a statement `$v = value;` assigns, and the value.
+fn assigned(stmt: &Stmt) -> Option<(&Expr, &Expr)> {
+    let StmtKind::Expr(expr) = &stmt.kind else {
+        return None;
+    };
+    let ExprKind::Assign {
+        op: AssignOp::Assign,
+        target,
+        value,
+        by_ref: false,
+    } = &expr.kind
+    else {
+        return None;
+    };
+    matches!(target.kind, ExprKind::Variable(_)).then_some((&**target, &**value))
+}
+
+/// See [`CaughtNull`]. `src` is the file the spans index.
+pub(crate) fn caught_null<'a>(
+    body: &'a Block,
+    catches: &'a [CatchClause],
+    finally: Option<&Block>,
+    exprs: &ExprTypeTable,
+    src: &SourceFile,
+) -> Option<CaughtNull<'a>> {
+    let text = |expr: &Expr| strip_sigil(span_text(src, expr.span));
+    let ([stmt], [arm], None) = (body.stmts.as_slice(), catches, finally) else {
+        return None;
+    };
+    let (target, value) = assigned(stmt)?;
+    let [reset] = arm.body.stmts.as_slice() else {
+        return None;
+    };
+    let (reset_target, null) = assigned(reset)?;
+    let name = text(target);
+    if !matches!(null.kind, ExprKind::Null) || text(reset_target) != name {
+        return None;
+    }
+    if arm.var.is_some_and(|var| strip_sigil(span_text(src, var)) == name) {
+        return None;
+    }
+    let fast = match &value.kind {
+        ExprKind::Conversion { expr: operand, ty, .. }
+            if matches!(operand.kind, ExprKind::Variable(_)) =>
+        {
+            CaughtFast::Conversion { operand, ty }
+        }
+        ExprKind::StaticCall { args, .. } => {
+            let Some(ExprInfo::Call(call)) = exprs.lookup(value.span) else {
+                return None;
+            };
+            let [operand] = positional(args, 1)? else {
+                return None;
+            };
+            if call.method != "parse"
+                || !matches!(operand.value.kind, ExprKind::Variable(_))
+                || nvs_types::core_symbol_of(&call.class, "parse").is_none()
+                || nvs_types::core_symbol_of(&call.class, "tryParse").is_none()
+            {
+                return None;
+            }
+            CaughtFast::Parse {
+                call: value,
+                form: CoreForm {
+                    method: "tryParse",
+                    args,
+                    arity: None,
+                    returns: Some(Ty::Tagged),
+                },
+            }
+        }
+        _ => return None,
+    };
+    Some(CaughtNull {
+        target,
+        value,
+        caught: &arm.ty,
+        fast,
     })
 }
 
