@@ -42,6 +42,10 @@ pub struct Program {
     /// Every copy the ownership pass keeps, in the order it found them
     /// ([`crate::copies`]). Empty when the pass did not run.
     pub copies: Vec<crate::copies::KeptCopy>,
+    /// Every callback form compiled as written because its callback can fail,
+    /// in the order the pass found them ([`crate::forms::run`]). Empty when
+    /// the cheaper forms are switched off.
+    pub forms: Vec<crate::forms::Recorded>,
 }
 
 impl Program {
@@ -656,6 +660,28 @@ pub struct Function {
     /// with no reference of its own (`crate::ownership`). The lowering
     /// records the loop and decides nothing.
     pub own_entry_loops: Vec<OwnEntryLoop>,
+    /// Each callback form the lowering emitted as written, which
+    /// `crate::forms::run` decides and then empties. The lowering records the
+    /// form and decides nothing.
+    pub form_candidates: Vec<FormCandidate>,
+}
+
+/// One callback form of `crate::forms` the lowering recorded: `first`,
+/// `firstKey` or `isEmpty` of a `Core\Arr::filter` call.
+#[derive(Clone, Debug)]
+pub struct FormCandidate {
+    /// The written form's span.
+    pub span: Span,
+    /// The row's id in `crate::forms::ROWS`.
+    pub row: &'static str,
+    /// The outer member's result, whose instruction reads the filter's.
+    pub result: ValueId,
+    /// The fast member's symbol.
+    pub fast: &'static str,
+    /// Whether the outer result is the fast member's result negated.
+    pub negated: bool,
+    /// The fast form as the program would write it.
+    pub text: String,
 }
 
 /// One by-value array `foreach` the lowering recorded for the ownership pass.

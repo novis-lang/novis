@@ -35,12 +35,17 @@
 //! test and `try` lowered against the rows whose stage applies it. At run time, nothing.
 
 use nvs_diagnostics::{SourceFile, Span};
+use nvs_syntax::ast::BinaryOp;
 use nvs_syntax::ast::{
-    Arg, ArrayItem, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, Stmt, StmtKind, Type,
-    UnaryOp,
+    Arg, ArrayItem, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, Stmt, StmtKind,
+    Type, UnaryOp,
 };
 use nvs_types::expr_table::{ExprInfo, ExprTypeTable};
+use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::effects::{Summaries, Touches};
+use crate::ids::ValueId;
+use crate::ir::{FormCandidate, Function, Helper, InstKind, Terminator, Touch, UserCode};
 use crate::ty::Ty;
 use crate::{span_text, strip_sigil};
 
@@ -841,4 +846,423 @@ pub(crate) fn text_names_variable(text: &str, name: &str) -> bool {
         }
     }
     false
+}
+
+/// Rows `first-of-filter`, `first-key-of-filter` and `any-of-filter`, matched
+/// on the written tree: `first`, `firstKey` or `isEmpty` of
+/// `Core\Arr::filter(a, p)`. The lowering emits the form as written and records
+/// a [`FormCandidate`], and [`run`] decides from the callback.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FilterForm<'a> {
+    /// The row's id in [`ROWS`].
+    pub row: &'static str,
+    /// The fast member's name on `Core\Arr`.
+    pub fast: &'static str,
+    /// Whether the fast form is the fast member negated: `isEmpty` of a
+    /// filter is `!any`.
+    pub negated: bool,
+    /// The filter's written subject.
+    pub a: &'a Arg,
+    /// The filter's written callback.
+    pub predicate: &'a Arg,
+}
+
+impl FilterForm<'_> {
+    /// The fast form as the program would write it, negated where `negated`.
+    pub(crate) fn text(&self, src: &SourceFile, negated: bool) -> String {
+        format!(
+            r"{}Core\Arr::{}({}, {})",
+            if negated { "!" } else { "" },
+            self.fast,
+            span_text(src, self.a.span),
+            span_text(src, self.predicate.span)
+        )
+    }
+}
+
+/// See [`FilterForm`]: `expr` is `first`, `firstKey` or `isEmpty` of a direct
+/// `Core\Arr::filter` call with two positional arguments.
+pub(crate) fn of_filter<'a>(expr: &'a Expr, exprs: &ExprTypeTable) -> Option<FilterForm<'a>> {
+    const ARR: &str = r"Core\Arr";
+    let (outer, args) = ["first", "firstKey", "isEmpty"]
+        .into_iter()
+        .find_map(|method| core_call(expr, exprs, ARR, method).map(|args| (method, args)))?;
+    let [inner] = positional(args, 1)? else {
+        return None;
+    };
+    let [a, predicate] = positional(core_call(&inner.value, exprs, ARR, "filter")?, 2)? else {
+        return None;
+    };
+    let (row, fast, negated) = match outer {
+        "first" => ("first-of-filter", "find", false),
+        "firstKey" => ("first-key-of-filter", "findKey", false),
+        _ => ("any-of-filter", "any", true),
+    };
+    Some(FilterForm {
+        row,
+        fast,
+        negated,
+        a,
+        predicate,
+    })
+}
+
+/// Row `any-of-filter` for a count: `lhs op rhs` is
+/// `Core\Arr::count(Core\Arr::filter(a, p))` compared with the literal `0` by
+/// `==`, `!=` or `>`. Gives the count call, whether the test is for none, and
+/// the row's form.
+///
+/// A count is a `uint`, so `> 0` and `!= 0` test that the filter kept an
+/// entry, and `== 0` that it kept none: `isEmpty` of the same filter.
+pub(crate) fn count_of_filter_compared<'a>(
+    op: BinaryOp,
+    lhs: &'a Expr,
+    rhs: &Expr,
+    exprs: &ExprTypeTable,
+    src: &SourceFile,
+) -> Option<(&'a Expr, bool, FilterForm<'a>)> {
+    let none = match op {
+        BinaryOp::Eq => true,
+        BinaryOp::NotEq | BinaryOp::Gt => false,
+        _ => return None,
+    };
+    let ExprKind::Int(digits) = rhs.kind else {
+        return None;
+    };
+    if span_text(src, digits) != "0" {
+        return None;
+    }
+    let [inner] = positional(core_call(lhs, exprs, r"Core\Arr", "count")?, 1)? else {
+        return None;
+    };
+    let [a, predicate] = positional(core_call(&inner.value, exprs, r"Core\Arr", "filter")?, 2)?
+    else {
+        return None;
+    };
+    let form = FilterForm {
+        row: "any-of-filter",
+        fast: "any",
+        negated: true,
+        a,
+        predicate,
+    };
+    Some((lhs, none, form))
+}
+
+/// A callback form whose callback writes nothing but can fail. It is compiled
+/// as written, and is kept so `nvs check` can name its fast form.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Recorded {
+    /// The written form's span.
+    pub span: Span,
+    /// The row's id in [`ROWS`].
+    pub row: &'static str,
+    /// The fast form as the program would write it.
+    pub fast: String,
+}
+
+/// The pass that decides every recorded callback form. It runs after the
+/// lowering and before `crate::ownership`, and each [`FormCandidate`] takes
+/// one of the three outcomes from its callback ([`judge`]):
+///
+/// - [`Outcome::Fast`]: the filter's instruction becomes the fast member over
+///   the filter's own operands, at the filter's place, where the callback is
+///   still alive. The outer member's instruction becomes a relabelling of that
+///   result (`find`, `findKey`) or its negation (`!any`), and the filter's
+///   releases are removed.
+/// - [`Outcome::Warning`]: the form stays, and its row is returned.
+/// - [`Outcome::AsWritten`]: the form stays, and nothing is returned.
+///
+/// **What it spends:** while compiling, one effect summary for each function
+/// when some function recorded a candidate, and nothing otherwise.
+pub(crate) fn run(functions: &mut [Function]) -> Vec<Recorded> {
+    if functions.iter().all(|f| f.form_candidates.is_empty()) {
+        return Vec::new();
+    }
+    let summaries = Summaries::of(functions);
+    let by_name: FxHashMap<&str, &Function> =
+        functions.iter().map(|f| (f.name.as_str(), f)).collect();
+    let mut recorded = Vec::new();
+    let mut fast: Vec<(usize, Rewrite)> = Vec::new();
+    for (at, f) in functions.iter().enumerate() {
+        for candidate in &f.form_candidates {
+            let Some(rewrite) = Rewrite::of(f, candidate) else {
+                continue;
+            };
+            match judge(&rewrite.callback, &by_name, &summaries) {
+                Outcome::Fast => fast.push((at, rewrite)),
+                Outcome::Warning => recorded.push(Recorded {
+                    span: candidate.span,
+                    row: candidate.row,
+                    fast: candidate.text.clone(),
+                }),
+                Outcome::AsWritten => {}
+            }
+        }
+    }
+    for (at, rewrite) in fast {
+        rewrite.apply(&mut functions[at]);
+    }
+    for f in functions.iter_mut() {
+        f.form_candidates.clear();
+    }
+    recorded
+}
+
+/// Where one instruction is: its block's index and its own.
+type At = (usize, usize);
+
+/// One candidate's instructions, found in its function: what [`run`] rewrites
+/// where the callback is proven.
+struct Rewrite {
+    /// The filter call's place.
+    filter: At,
+    /// The outer member's place.
+    outer: At,
+    /// The filter's result, which the fast member's result takes over.
+    filtered: ValueId,
+    /// The filter's subject and callback.
+    operands: Vec<ValueId>,
+    /// The fast member's symbol and its result type.
+    fast: (&'static str, Ty),
+    /// Whether the outer result is the fast result negated.
+    negated: bool,
+    /// The callback's body: `Class::invoke`.
+    callback: String,
+}
+
+impl Rewrite {
+    /// The candidate's instructions, or `None` where the IR is not the shape
+    /// the lowering records: the outer member over a filter call whose result
+    /// nothing else reads, with a callback made in this function.
+    fn of(f: &Function, candidate: &FormCandidate) -> Option<Self> {
+        let mut defs: FxHashMap<ValueId, At> = FxHashMap::default();
+        for (b, block) in f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if let Some(v) = inst.result {
+                    defs.insert(v, (b, i));
+                }
+            }
+        }
+        let inst = |at: At| &f.blocks[at.0].insts[at.1];
+        let outer = *defs.get(&candidate.result)?;
+        let InstKind::CoreCall {
+            args,
+            subject: Some(subject),
+            ..
+        } = &inst(outer).kind
+        else {
+            return None;
+        };
+        let filtered = *args.get(*subject as usize)?;
+        let filter = *defs.get(&filtered)?;
+        let InstKind::CoreCall { symbol, args, .. } = &inst(filter).kind else {
+            return None;
+        };
+        if *symbol != "nvs_core_arr_filter" || args.len() != 2 {
+            return None;
+        }
+        let operands = args.clone();
+        let callback = crate::effects::callback(&inst(*defs.get(&operands[1])?).kind)?;
+        // Nothing but the outer member and the filter's releases reads it.
+        let mut others = 0usize;
+        for (b, block) in f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                let released =
+                    matches!(inst.kind, InstKind::Release { operand } if operand == filtered);
+                if (b, i) != outer && !released {
+                    inst.kind
+                        .for_each_operand(|v| others += usize::from(v == filtered));
+                }
+            }
+            block
+                .term
+                .for_each_operand(|v| others += usize::from(v == filtered));
+        }
+        if others != 0 {
+            return None;
+        }
+        let ty = if candidate.negated {
+            Ty::Bool
+        } else {
+            inst(outer).ty?
+        };
+        Some(Self {
+            filter,
+            outer,
+            filtered,
+            operands,
+            fast: (candidate.fast, ty),
+            negated: candidate.negated,
+            callback,
+        })
+    }
+
+    /// Compiles the fast form in place of the written one.
+    fn apply(self, f: &mut Function) {
+        let filter = &mut f.blocks[self.filter.0].insts[self.filter.1];
+        filter.kind = InstKind::CoreCall {
+            symbol: self.fast.0,
+            args: self.operands,
+            subject: Some(0),
+        };
+        filter.ty = Some(self.fast.1);
+        let outer = &mut f.blocks[self.outer.0].insts[self.outer.1];
+        outer.kind = if self.negated {
+            InstKind::UnOp {
+                op: crate::ir::UnOp::Not,
+                operand: self.filtered,
+            }
+        } else {
+            InstKind::Reinterpret {
+                operand: self.filtered,
+            }
+        };
+        outer.on_error = None;
+        let filtered = self.filtered;
+        for block in &mut f.blocks {
+            block.insts.retain(
+                |inst| !matches!(inst.kind, InstKind::Release { operand } if operand == filtered),
+            );
+        }
+    }
+}
+
+/// The outcome a callback gives its form. [`Outcome::Fast`] where its body,
+/// and every body it calls, writes nothing, prints nothing and cannot fail.
+/// [`Outcome::Warning`] where only a possible failure stands in the way.
+/// [`Outcome::AsWritten`] where it has an effect or reaches code the compiler
+/// cannot name. A `FATAL` is not a failure: no code observes it.
+///
+/// A safepoint's error edge is not a failure either. The entry poll's stack
+/// check throws on the first call or on none, because the member calls the
+/// callback at one depth for every entry, and the fast member makes that first
+/// call too. A poll that ends a request at its time limit ends it sooner or
+/// not at all in the fast form, as the memory ceiling does.
+fn judge(callback: &str, bodies: &FxHashMap<&str, &Function>, summaries: &Summaries) -> Outcome {
+    let Some(summary) = summaries.get(callback) else {
+        return Outcome::AsWritten;
+    };
+    if summary.reads == Touches::Anything || summary.writes != Touches::default() {
+        return Outcome::AsWritten;
+    }
+    let mut can_fail = false;
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    let mut stack = vec![callback.to_owned()];
+    while let Some(name) = stack.pop() {
+        let Some(body) = bodies.get(name.as_str()) else {
+            return Outcome::AsWritten;
+        };
+        if !seen.insert(name) {
+            continue;
+        }
+        let tys = crate::effects::types(body);
+        for block in &body.blocks {
+            can_fail |= matches!(block.term, Terminator::Throw { .. });
+            for inst in &block.insts {
+                can_fail |= inst.on_error.is_some() && !matches!(inst.kind, InstKind::Safepoint);
+                match quiet(&inst.kind, &tys) {
+                    Quiet::Yes => {}
+                    Quiet::Calls(callee) => stack.push(callee.to_owned()),
+                    Quiet::No => return Outcome::AsWritten,
+                }
+            }
+        }
+    }
+    if can_fail {
+        Outcome::Warning
+    } else {
+        Outcome::Fast
+    }
+}
+
+/// Whether one instruction of a callback has an effect a program can observe.
+enum Quiet<'a> {
+    /// It has none.
+    Yes,
+    /// It has none of its own, and runs this body.
+    Calls(&'a str),
+    /// It may have one: it prints, changes something outside the call, or
+    /// runs code the compiler cannot name.
+    No,
+}
+
+/// The `Core` classes whose members change nothing and read no state, so a
+/// call that passes them no callable is quiet. A member that draws a random
+/// value is not: calling it fewer times changes what later draws give.
+const QUIET_CORE: &[&str] = &[
+    "nvs_core_str_",
+    "nvs_core_math_",
+    "nvs_core_arr_",
+    "nvs_core_regex_",
+];
+
+/// See [`Quiet`]. A slot an instruction writes is in the summary [`judge`]
+/// reads first. This answers for what a summary does not say: printing, the
+/// world outside the program, and a call it cannot follow.
+fn quiet<'a>(kind: &'a InstKind, tys: &FxHashMap<ValueId, Ty>) -> Quiet<'a> {
+    match kind {
+        InstKind::Call { target, .. } => Quiet::Calls(target),
+        InstKind::New {
+            ctor: Some(ctor), ..
+        } => Quiet::Calls(ctor),
+        InstKind::CoreCall { symbol, .. } => {
+            let quiet_class = QUIET_CORE.iter().any(|prefix| symbol.starts_with(prefix));
+            let draws = symbol.contains("random") || symbol.contains("shuffle");
+            if quiet_class && !draws && !crate::effects::takes_an_object(kind, tys) {
+                Quiet::Yes
+            } else {
+                Quiet::No
+            }
+        }
+        InstKind::HelperCall { helper, .. } => match helper {
+            Helper::IntToString
+            | Helper::UintToString
+            | Helper::FloatToString
+            | Helper::BoolToString
+            | Helper::DecimalToString
+            | Helper::BytesToString
+            | Helper::IntTruthy
+            | Helper::UintTruthy
+            | Helper::FloatTruthy
+            | Helper::StrTruthy
+            | Helper::BytesTruthy
+            | Helper::ArrayTruthy
+            | Helper::DecimalTruthy
+            | Helper::IntToUint
+            | Helper::UintToInt
+            | Helper::IntToFloat
+            | Helper::UintToFloat
+            | Helper::FloatToInt
+            | Helper::FloatToUint
+            | Helper::StrToInt
+            | Helper::StrToUint
+            | Helper::StrToFloat
+            | Helper::DecimalAdd
+            | Helper::DecimalSub
+            | Helper::DecimalMul
+            | Helper::DecimalDiv
+            | Helper::DecimalMod
+            | Helper::DecimalNeg
+            | Helper::DecimalEq
+            | Helper::DecimalLt
+            | Helper::DecimalLtEq
+            | Helper::DecimalCmp
+            | Helper::Identical
+            | Helper::NumericEq
+            | Helper::NumericLt
+            | Helper::NumericLtEq
+            | Helper::NumericCmp => Quiet::Yes,
+            _ => Quiet::No,
+        },
+        _ => {
+            let effects = kind.effects();
+            if matches!(effects.user_code, UserCode::No) && matches!(effects.writes, Touch::Nothing)
+            {
+                Quiet::Yes
+            } else {
+                Quiet::No
+            }
+        }
+    }
 }

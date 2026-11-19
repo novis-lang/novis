@@ -6947,6 +6947,79 @@ fn a_difference_written_as_filter_and_contains_compiles_as_diff() {
     assert_eq!(count_of(&off, "nvs_core_arr_intersect"), 0, "{off:?}");
 }
 
+/// Rows `first-of-filter`, `first-key-of-filter` and `any-of-filter`: a
+/// callback that writes nothing and cannot fail makes `first`, `firstKey`,
+/// `isEmpty` and a count compared with `0` of a filter the fast member, and no
+/// filter is left. With the table off, all four are filters.
+#[test]
+fn a_proven_callback_form_compiles_as_its_fast_member() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $a): void {\n    \
+               echo Core\\Arr::first(Core\\Arr::filter($a, fn(int $x): bool => $x > 2)) ?? 0;\n    \
+               echo Core\\Arr::firstKey(Core\\Arr::filter($a, fn(int $x): bool => $x > 2)) ?? \"\";\n    \
+               echo Core\\Arr::isEmpty(Core\\Arr::filter($a, fn(int $x): bool => $x > 2)) ? 1 : 0;\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int $x): bool => $x > 2)) > 0 ? 1 : 0;\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int $x): bool => $x > 2)) == 0 ? 1 : 0;\n  }\n}\n";
+    let (on, off) = core_calls_both_ways(src);
+    assert_eq!(filters_in(&on), 0, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_find"), 1, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_find_key"), 1, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_any"), 3, "{on:?}");
+    assert_eq!(filters_in(&off), 5, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_any"), 0, "{off:?}");
+    assert!(lower_whole_file_with_src(src).0.forms.is_empty());
+}
+
+/// A callback that writes nothing but can fail keeps its form, because the
+/// fast member would call it for fewer entries. The form is recorded with its
+/// fast form as the program would write it.
+#[test]
+fn a_callback_that_can_fail_keeps_the_form_and_is_recorded() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $a): void {\n    \
+               echo Core\\Arr::first(Core\\Arr::filter($a, fn(int $x): bool => $x + 1 > 2)) ?? 0;\n    \
+               echo Core\\Arr::isEmpty(Core\\Arr::filter($a, fn(int $x): bool => $x + 1 > 2)) ? 1 : 0;\n  }\n}\n";
+    let (on, _) = core_calls_both_ways(src);
+    assert_eq!(filters_in(&on), 2, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_find"), 0, "{on:?}");
+    let forms = lower_whole_file_with_src(src).0.forms;
+    let rows: Vec<(&str, &str)> = forms.iter().map(|f| (f.row, f.fast.as_str())).collect();
+    assert_eq!(
+        rows,
+        [
+            (
+                "first-of-filter",
+                "Core\\Arr::find($a, fn(int $x): bool => $x + 1 > 2)"
+            ),
+            (
+                "any-of-filter",
+                "!Core\\Arr::any($a, fn(int $x): bool => $x + 1 > 2)"
+            ),
+        ]
+    );
+}
+
+/// A callback that prints or writes a property may be called for every entry
+/// on purpose: the form stays as written, and nothing is recorded.
+#[test]
+fn a_callback_with_an_effect_keeps_the_form_and_is_silent() {
+    let src = "<?nvs\nfinal class T {\n  public static int $n = 0;\n  \
+               public static function m(array<int> $a): void {\n    \
+               echo Core\\Arr::first(Core\\Arr::filter($a, fn(int $x): bool => { echo $x; return $x > 2; })) ?? 0;\n    \
+               echo Core\\Arr::firstKey(Core\\Arr::filter($a, fn(int $x): bool => { T::$n = $x; return $x > 2; })) ?? \"\";\n  }\n}\n";
+    let (on, _) = core_calls_both_ways(src);
+    assert_eq!(filters_in(&on), 2, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_find"), 0, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_find_key"), 0, "{on:?}");
+    assert!(lower_whole_file_with_src(src).0.forms.is_empty());
+}
+
+/// How many of `calls` are a `Core\Arr::filter`, its owning variant included.
+fn filters_in(calls: &[&str]) -> usize {
+    calls
+        .iter()
+        .filter(|call| call.starts_with("nvs_core_arr_filter"))
+        .count()
+}
+
 /// How many instructions of `program` `pick` accepts, across every function.
 fn insts_where(program: &crate::ir::Program, pick: impl Fn(&InstKind) -> bool) -> usize {
     program
@@ -6987,7 +7060,11 @@ fn a_loop_over_a_range_counts_without_an_array() {
                foreach (Core\\Arr::range($a, $b, options: {step: $s}) as int $i) { echo $i; }\n  }\n}\n";
     let (on_calls, off_calls) = core_calls_both_ways(src);
     assert!(on_calls.is_empty(), "{on_calls:?}");
-    assert_eq!(count_of(&off_calls, "nvs_core_arr_range"), 2, "{off_calls:?}");
+    assert_eq!(
+        count_of(&off_calls, "nvs_core_arr_range"),
+        2,
+        "{off_calls:?}"
+    );
     let last = |kind: &InstKind| {
         matches!(
             kind,
@@ -7057,11 +7134,18 @@ fn a_static_call_nothing_overrides_is_direct() {
                public static function names(): string { return static::KEPT . static::SWAPPED; }\n}\n\
                class Child extends Base {\n  public const string SWAPPED = \"c\";\n  \
                public static function swapped(): string { return \"c\"; }\n}\n";
-    let direct = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Base::kept");
+    let direct =
+        |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Base::kept");
     let late = |kind: &InstKind| matches!(kind, InstKind::CallVirtual { .. });
     let inlined = |kind: &InstKind| matches!(kind, InstKind::ConstStr(s) if s == "kept-value");
     let table_read = |kind: &InstKind| {
-        matches!(kind, InstKind::HelperCall { helper: Helper::ClassConstant, .. })
+        matches!(
+            kind,
+            InstKind::HelperCall {
+                helper: Helper::ClassConstant,
+                ..
+            }
+        )
     };
     let on = lower_whole_file_with_src(src).0;
     let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);

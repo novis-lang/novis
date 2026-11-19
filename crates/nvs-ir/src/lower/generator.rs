@@ -812,6 +812,7 @@ pub(crate) fn lower_generator_factory(
         debug_slots,
         debug_catches,
         own_entry_loops: Vec::new(),
+        form_candidates: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
         debug_returns_secret: true,
     }
@@ -952,6 +953,7 @@ pub(crate) fn lower_generator_advance(
     // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let own_entry_loops = std::mem::take(&mut low.own_entry_loops);
+    let form_candidates = std::mem::take(&mut low.form_candidates);
     let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
     let (anon_fns, mut classes) =
         drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -969,6 +971,7 @@ pub(crate) fn lower_generator_advance(
                 debug_slots,
                 debug_catches,
                 own_entry_loops,
+                form_candidates,
                 param_checks: crate::ir::ParamChecks::default(),
                 debug_returns_secret: true,
             },
@@ -1128,6 +1131,7 @@ pub(crate) fn lower_generator_current(
         debug_slots,
         debug_catches,
         own_entry_loops: Vec::new(),
+        form_candidates: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
         debug_returns_secret: true,
     }
@@ -1281,6 +1285,7 @@ pub(crate) fn lower_generator_unwind(
         debug_slots,
         debug_catches,
         own_entry_loops: Vec::new(),
+        form_candidates: Vec::new(),
         param_checks: crate::ir::ParamChecks::default(),
         debug_returns_secret: true,
     }

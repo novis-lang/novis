@@ -1523,6 +1523,14 @@ fn lower_program_as(
         functions.push(function);
     }
 
+    // The lowering records each callback form and decides none of them;
+    // `crate::forms::run` decides every one before the ownership pass sees
+    // the instructions.
+    let forms = if cheaper_forms_on() {
+        crate::forms::run(&mut functions)
+    } else {
+        Vec::new()
+    };
     // The lowering decides no move; the ownership pass decides every one, and
     // the off switch skips it whole.
     let copies = if in_place_on() {
@@ -1539,6 +1547,7 @@ fn lower_program_as(
         in_place: in_place_on(),
         cheaper_forms: cheaper_forms_on(),
         copies,
+        forms,
     }
 }
 
@@ -2463,6 +2472,8 @@ pub(crate) struct Lowering<'a> {
     foreach_seq: u32,
     /// The table [`crate::ir::Function::own_entry_loops`] receives.
     pub(crate) own_entry_loops: Vec<crate::ir::OwnEntryLoop>,
+    /// The table [`crate::ir::Function::form_candidates`] receives.
+    pub(crate) form_candidates: Vec<crate::ir::FormCandidate>,
     /// [`Self::foreach_seq`]'s counterpart for `switch`, which reserves one
     /// [`Env`] name of its own for the subject it compares against every case
     /// — see [`Self::lower_switch`].
@@ -2812,6 +2823,7 @@ impl<'a> Lowering<'a> {
             cur_stmt_span: Span::at(src.id(), 0),
             foreach_seq: 0,
             own_entry_loops: Vec::new(),
+            form_candidates: Vec::new(),
             switch_seq: 0,
             ref_locals: FxHashMap::default(),
             inout_elements: Vec::new(),
@@ -4552,6 +4564,7 @@ impl<'a> Lowering<'a> {
             (self.src, self.exprs, self.checked_types, self.enums);
         let ret = self.ret_ty;
         let own_entry_loops = std::mem::take(&mut self.own_entry_loops);
+        let form_candidates = std::mem::take(&mut self.form_candidates);
         let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = self.finish();
         let (anon_fns, mut classes) =
             drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
@@ -4569,6 +4582,7 @@ impl<'a> Lowering<'a> {
                 debug_returns_secret,
                 debug_catches,
                 own_entry_loops,
+                form_candidates,
                 param_checks: crate::ir::ParamChecks::default(),
             },
             anon_fns,

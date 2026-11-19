@@ -312,7 +312,12 @@ impl<'a> Lowering<'a> {
             } if matches!(lhs.kind, ExprKind::Null) != matches!(rhs.kind, ExprKind::Null) => {
                 self.lower_null_identity(*op, lhs, rhs, env, cur)
             }
-            ExprKind::Binary { .. } => self.lower_binary(expr, expected, env, cur),
+            ExprKind::Binary { op, lhs, rhs } => {
+                match self.lower_count_of_filter(*op, lhs, rhs, expr.span, env, cur) {
+                    Some(lowered) => lowered,
+                    None => self.lower_binary(expr, expected, env, cur),
+                }
+            }
             ExprKind::Fn(fn_expr) => self.lower_anon_fn_expr(fn_expr, expr, env, cur),
             ExprKind::New { target, args, .. } => self.lower_new(target, args, expr, env, cur),
             ExprKind::MethodCall {
@@ -5232,6 +5237,27 @@ impl<'a> Lowering<'a> {
             {
                 return lowered;
             }
+            // Rows `first-of-filter`, `first-key-of-filter` and
+            // `any-of-filter`: emitted as written and recorded, and
+            // `crate::forms::run` decides from the callback. Under the debug
+            // switch the callback runs for every entry, as written.
+            if cheaper_forms_on()
+                && self.debug.is_none()
+                && let Some(filter) = crate::forms::of_filter(expr, self.exprs)
+                && let Some(fast) = nvs_types::core_symbol_of(&call.class, filter.fast)
+            {
+                let text = filter.text(self.src, filter.negated);
+                let lowered = self.lower_core_call(call, symbol, args, None, expr.span, env, cur);
+                self.form_candidates.push(crate::ir::FormCandidate {
+                    span: expr.span,
+                    row: filter.row,
+                    result: lowered.0,
+                    fast,
+                    negated: filter.negated,
+                    text,
+                });
+                return lowered;
+            }
             let form = if cheaper_forms_on() {
                 crate::forms::over_keys_or_values(expr, self.exprs)
             } else {
@@ -5520,6 +5546,62 @@ impl<'a> Lowering<'a> {
         // no other owner and would leak without this.
         self.release_temporaries_since(mark, *cur);
         result
+    }
+
+    /// Row `any-of-filter` for a count of a filter compared with `0`
+    /// ([`crate::forms::count_of_filter_compared`]): the count is lowered as
+    /// `isEmpty` of the same filter, negated where the test is for some entry,
+    /// and recorded for `crate::forms::run`. `None` leaves the comparison as
+    /// written.
+    pub(crate) fn lower_count_of_filter(
+        &mut self,
+        op: BinaryOp,
+        lhs: &Expr,
+        rhs: &Expr,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> Option<(ValueId, Ty)> {
+        if !cheaper_forms_on() || self.debug.is_some() {
+            return None;
+        }
+        let (count, none, filter) =
+            crate::forms::count_of_filter_compared(op, lhs, rhs, self.exprs, self.src)?;
+        let Some(ExprInfo::Call(call)) = self.exprs.lookup(count.span) else {
+            return None;
+        };
+        let ExprKind::StaticCall { args, .. } = &count.kind else {
+            return None;
+        };
+        let symbol = nvs_types::core_symbol_of(&call.class, "count")?;
+        let fast = nvs_types::core_symbol_of(&call.class, filter.fast)?;
+        let form = crate::forms::CoreForm {
+            method: "isEmpty",
+            args,
+            arity: None,
+            returns: Some(Ty::Bool),
+        };
+        let (empty, _) = self.lower_core_call(call, symbol, args, Some(form), count.span, env, cur);
+        self.form_candidates.push(crate::ir::FormCandidate {
+            span,
+            row: filter.row,
+            result: empty,
+            fast,
+            negated: true,
+            text: filter.text(self.src, none),
+        });
+        if none {
+            return Some((empty, Ty::Bool));
+        }
+        let (some, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::UnOp {
+                op: crate::ir::UnOp::Not,
+                operand: empty,
+            },
+        );
+        Some((some, Ty::Bool))
     }
 
     /// Row `filter-contains` of `crate::forms`: the written `Core\Arr::filter`
@@ -7092,7 +7174,9 @@ impl<'a> Lowering<'a> {
                     }
                     self.own_transferred_temporary(v);
                 }
-                let key = keys.as_ref().map_or_else(|| i.to_string(), |keys| keys[i].clone());
+                let key = keys
+                    .as_ref()
+                    .map_or_else(|| i.to_string(), |keys| keys[i].clone());
                 entries.push((key, v));
             }
             self.forget_transferred_since(mark);

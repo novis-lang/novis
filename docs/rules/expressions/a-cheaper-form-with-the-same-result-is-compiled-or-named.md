@@ -65,6 +65,18 @@ callback's summary and takes one of the three outcomes:
 `FATAL` is not an error edge. For the comparator rows, `E` is the same expression over each parameter
 and reads no other parameter.
 
+The pass, `crates/nvs-ir/src/forms.rs` `run`, runs before `crates/nvs-ir/src/ownership.rs`. It
+follows every body the callback calls by name, and a body it cannot name is an effect. Printing, a
+`Core` member outside `Str`, `Math`, `Arr` and `Regex`, a member that draws a random value, and a
+helper call not on its quiet list are effects too, because a summary covers only properties. A
+safepoint's error edge is not one: the entry poll's stack check throws on the first call or on none,
+since the member calls the callback at one depth, and a time limit is not an outcome a program can
+count on. A `count` compared with `0` is lowered as `isEmpty` of the same filter, negated where it
+tests for some entry, so the three `any` shapes are one candidate. A proven candidate turns the
+filter's instruction into the fast member, where the callback is still alive, and the outer member's
+into a relabelling of it or its negation. A candidate that can fail is kept in `Program::forms`, with
+its fast form as the program would write it.
+
 **Two warnings, both raised by the compiler once.** A form the compiler could not choose is raised by
 the table's pass from its own decision, never from a second analysis, so the editor and `nvs check`
 cannot disagree. The same value read twice warns where two calls of one reading member in one
