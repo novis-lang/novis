@@ -986,7 +986,7 @@ fn wire_command(parts: &[&[u8]]) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::io::{Read, Write};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener};
     use std::time::Duration;
@@ -1556,10 +1556,10 @@ mod tests {
 
     /// The port `tests/db/compose.yaml` publishes its `redis` on — non-standard
     /// on purpose, so a developer's own store is never the one a case writes to.
-    const REDIS: u16 = 16379;
+    pub(crate) const REDIS: u16 = 16379;
 
-    /// How long a lease case waits for the real store to answer one command.
-    const STORE_WAIT: Duration = Duration::from_secs(30);
+    /// How long a case on the real store waits for it to answer one command.
+    pub(crate) const STORE_WAIT: Duration = Duration::from_secs(30);
 
     /// Two clients onto that store and a key no other run holds, or [`None`]
     /// when no store answers there.

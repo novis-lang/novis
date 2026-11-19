@@ -654,7 +654,10 @@ mod tests {
                 seen
             })
         };
-        assert_eq!(second.join().expect("the second request"), Some(start.clone()));
+        assert_eq!(
+            second.join().expect("the second request"),
+            Some(start.clone())
+        );
         assert_eq!(
             load(&path, APP, ID).expect("a read between the two"),
             Some(entries(&[(b"cart", b"empty"), (b"userId", b"17")]))
@@ -704,8 +707,14 @@ mod tests {
         let live = entries(&[(b"state", b"live")]);
         assert!(issue(&path, APP, LIVE, &live, Duration::from_secs(3600)).expect("a live session"));
         assert!(
-            issue(&path, APP, GONE, &entries(&[(b"state", b"gone")]), Duration::ZERO)
-                .expect("a session that expires at once")
+            issue(
+                &path,
+                APP,
+                GONE,
+                &entries(&[(b"state", b"gone")]),
+                Duration::ZERO
+            )
+            .expect("a session that expires at once")
         );
 
         assert_eq!(load(&path, APP, GONE).expect("the store answers"), None);

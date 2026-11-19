@@ -833,7 +833,9 @@ fn issued(
             if size > SIZE_CEILING || entries.len() > KEY_CEILING {
                 return Err(too_large(member, size));
             }
-            on_shared(NAME, member, |open| issue(open, app, id, entries, size, ttl))
+            on_shared(NAME, member, |open| {
+                issue(open, app, id, entries, size, ttl)
+            })
         }
         Store::File(path) => on_file(member, sqlite::issue(path, app, id, entries, ttl)),
     }
@@ -854,11 +856,10 @@ fn saved(
 ) -> Result<Saved, Fault> {
     match store {
         Store::Shared => on_shared(NAME, member, |open| save(open, app, id, changes, ttl)),
-        Store::File(path) => on_file(member, sqlite::save(path, app, id, changes, ttl)).map(
-            |done| {
-                if done { Saved::Done } else { Saved::Gone }
-            },
-        ),
+        Store::File(path) => {
+            on_file(member, sqlite::save(path, app, id, changes, ttl))
+                .map(|done| if done { Saved::Done } else { Saved::Gone })
+        }
     }
 }
 
@@ -1067,7 +1068,11 @@ pub(crate) fn save(
     ttl: Duration,
 ) -> Result<Saved, String> {
     let removed: Vec<Vec<u8>> = changes.removed.iter().map(|key| field_of(key)).collect();
-    let changed: Vec<Vec<u8>> = changes.changed.iter().map(|(key, _)| field_of(key)).collect();
+    let changed: Vec<Vec<u8>> = changes
+        .changed
+        .iter()
+        .map(|(key, _)| field_of(key))
+        .collect();
     let ttl = millis(ttl);
     let ceiling = SIZE_CEILING.to_string().into_bytes();
     let keys = KEY_CEILING.to_string().into_bytes();
@@ -2596,7 +2601,10 @@ mod tests {
             cleared.touched.is_empty(),
             "and no key is owed, because the clear deletes them all"
         );
-        assert!(cleared.cleared, "the write-back deletes every key in the store");
+        assert!(
+            cleared.cleared,
+            "the write-back deletes every key in the store"
+        );
         assert!(
             cleared.dirty,
             "an emptied session is a change the store must hear about"
@@ -2894,6 +2902,458 @@ mod tests {
         }
     }
 
+    /// A request that loaded the session under [`ID`] from `store`, and whose write-back sends there
+    /// once [`ended`] runs it.
+    fn a_request(store: &Store) -> Ctx {
+        let entries = fetched(store, NO_APP, "a case", ID)
+            .expect("the store answers")
+            .expect("the session the case issued");
+        let mut ctx = Ctx::buffered();
+        ctx.open_session(nvs_runtime::Session {
+            write_back: to_the_case_store,
+            ..loaded(entries)
+        });
+        ctx
+    }
+
+    /// `ctx`'s request ended, with its write-back sent to `store`.
+    fn ended(mut ctx: Ctx, store: &Store) {
+        CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
+        ctx.end_session();
+        CASE_STORE.with_borrow_mut(Option::take);
+    }
+
+    /// The keys `store` keeps under `id`, or `None` for a session that is gone.
+    fn stored_under(store: &Store, id: &str) -> Option<Entries> {
+        fetched(store, NO_APP, "a case", id).expect("the store answers")
+    }
+
+    /// `n` encoded as `Core\Session::set` encodes it, as the store keeps it.
+    fn int_bytes(n: i64) -> Vec<u8> {
+        encoded(Value::int(n), "set").expect("an integer encodes")
+    }
+
+    /// An empty store of the kind `backend` names, holding [`record`] under [`ID`].
+    fn a_store_with_record(case: &str, backend: Backend) -> (Store, Kept) {
+        let mut ctx = Ctx::buffered();
+        let (store, kept) = a_store(&mut ctx, case, backend);
+        assert!(
+            issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_TTL)
+                .expect("the row is issued")
+        );
+        (store, kept)
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: two requests load one
+    /// session, one sets `cart` and the other `role`, and both end. On every store the session
+    /// keeps both keys, and the keys neither request touched.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn two_requests_that_change_different_keys_keep_both_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let (store, _kept) = a_store_with_record("session-different-keys", *backend);
+            let mut first = a_request(&store);
+            let mut second = a_request(&store);
+            put(&mut first, b"cart", Value::int(3));
+            put(&mut second, b"role", Value::int(7));
+            ended(first, &store);
+            ended(second, &store);
+
+            let mut want = record();
+            want.insert(b"cart".to_vec(), int_bytes(3));
+            want.insert(b"role".to_vec(), int_bytes(7));
+            assert_eq!(
+                stored_under(&store, ID),
+                Some(want),
+                "{word}: the session keeps both requests' keys"
+            );
+        }
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: two requests set one
+    /// key, and the one whose write-back runs last is the value kept, in either order.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn two_requests_that_change_one_key_keep_the_last_on_any_store() {
+        for (word, backend) in BACKENDS {
+            for first_ends_first in [true, false] {
+                let (store, _kept) = a_store_with_record("session-one-key", *backend);
+                let mut first = a_request(&store);
+                let mut second = a_request(&store);
+                put(&mut first, b"cart", Value::int(1));
+                put(&mut second, b"cart", Value::int(2));
+                let last = if first_ends_first {
+                    ended(first, &store);
+                    ended(second, &store);
+                    2
+                } else {
+                    ended(second, &store);
+                    ended(first, &store);
+                    1
+                };
+                let kept = stored_under(&store, ID).expect("the session is kept");
+                assert_eq!(
+                    kept.get(b"cart".as_slice()),
+                    Some(&int_bytes(last)),
+                    "{word}: the last write-back's value is kept (first ends first: \
+                     {first_ends_first})"
+                );
+            }
+        }
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: a request reads `user`
+    /// and sets `cart`, and meanwhile another request sets `user`. The first request's end sends
+    /// `cart` alone, so the newer `user` stays.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_key_a_request_only_read_is_not_written_back_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let (store, _kept) = a_store_with_record("session-only-read", *backend);
+            let mut first = a_request(&store);
+            put(&mut first, b"user", Value::int(1));
+            ended(first, &store);
+
+            let mut reader = a_request(&store);
+            let mut writer = a_request(&store);
+            put(&mut writer, b"user", Value::int(42));
+            ended(writer, &store);
+
+            assert_eq!(
+                int_at(&reader, b"user"),
+                Some(1),
+                "{word}: the reader reads the value it loaded"
+            );
+            put(&mut reader, b"cart", Value::int(5));
+            assert_eq!(
+                reader.session().expect("a session").touched,
+                std::collections::BTreeSet::from([b"cart".to_vec()]),
+                "{word}: reading marks nothing"
+            );
+            ended(reader, &store);
+
+            let kept = stored_under(&store, ID).expect("the session is kept");
+            assert_eq!(
+                kept.get(b"user".as_slice()),
+                Some(&int_bytes(42)),
+                "{word}: the other request's newer `user` stays"
+            );
+            assert_eq!(kept.get(b"cart".as_slice()), Some(&int_bytes(5)), "{word}");
+        }
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: `clear` is a
+    /// whole-session act. A request clears its session, and its end deletes every key the store
+    /// holds, also `late`, which another request saved after this one loaded. The key it sets after
+    /// `clear` is kept.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn clear_deletes_every_key_the_store_holds_when_the_request_ends() {
+        for (word, backend) in BACKENDS {
+            let (store, _kept) = a_store_with_record("session-clear", *backend);
+            let mut clearing = a_request(&store);
+            let mut other = a_request(&store);
+            put(&mut other, b"late", Value::int(9));
+            ended(other, &store);
+
+            nvs_runtime::call(super::nvs_core_session_clear, &mut clearing, &[])
+                .expect("a started session clears");
+            put(&mut clearing, b"after", Value::int(1));
+            ended(clearing, &store);
+
+            assert_eq!(
+                stored_under(&store, ID),
+                Some(Entries::from([(b"after".to_vec(), int_bytes(1))])),
+                "{word}: only the key set after `clear` is left"
+            );
+        }
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: a session with no keys
+    /// still exists. A request removes both of its keys, and the store still has the session, so
+    /// nobody is signed out.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_session_whose_last_key_is_removed_still_exists_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let (store, kept) = a_store_with_record("session-last-key", *backend);
+            let mut ctx = a_request(&store);
+            write(&mut ctx, "remove", b"user", None).expect("the key is removed");
+            write(&mut ctx, "remove", b"csrf", None).expect("the key is removed");
+            ended(ctx, &store);
+
+            assert_eq!(
+                stored_under(&store, ID),
+                Some(Entries::new()),
+                "{word}: the session is still there, with no keys"
+            );
+            assert_eq!(kept.rows(), 1, "{word}: and the store holds its one row");
+        }
+    }
+
+    /// `rule:core-api/session-roster`'s `regenerate`: a request loads a session, another request
+    /// saves `role`, and then the first request regenerates and sets `cart`. On every store the new
+    /// identifier holds every key, also `role`, and the old one names nothing.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn regenerate_moves_a_key_another_request_wrote_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let (store, kept) = a_store_with_record("session-regenerate-moves", *backend);
+            let mut regenerating = a_request(&store);
+            let mut other = a_request(&store);
+            put(&mut other, b"role", Value::int(7));
+            ended(other, &store);
+
+            regenerated(&mut regenerating, &store)
+                .unwrap_or_else(|why| panic!("{word}: the session moves: {why:?}"));
+            put(&mut regenerating, b"cart", Value::int(3));
+            let fresh = regenerating.session().expect("a session").id.clone();
+            assert_ne!(fresh, ID, "{word}: the identifier is new");
+            ended(regenerating, &store);
+
+            let mut want = record();
+            want.insert(b"role".to_vec(), int_bytes(7));
+            want.insert(b"cart".to_vec(), int_bytes(3));
+            assert_eq!(
+                stored_under(&store, &fresh),
+                Some(want),
+                "{word}: the new identifier holds every key"
+            );
+            assert_eq!(
+                stored_under(&store, ID),
+                None,
+                "{word}: the old one names nothing"
+            );
+            assert_eq!(kept.rows(), 1, "{word}: and the store holds one row");
+        }
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: `get` decodes one key's
+    /// value and `set` encodes one. The session holds a large value under `big` whose bytes cannot
+    /// be decoded. `get` of `small` still reads, and `set` of `small` leaves `big`'s bytes as they
+    /// were and marks only `small`. A `get` that decoded the whole session would throw here.
+    #[test]
+    fn get_and_set_decode_and_encode_only_their_own_key() {
+        let mut big =
+            encoded(Value::text(&"x".repeat(64 * 1024)), "set").expect("a string encodes");
+        big.truncate(big.len() - 1);
+        let mut ctx = Ctx::buffered();
+        ctx.open_session(loaded(Entries::from([
+            (b"big".to_vec(), big.clone()),
+            (b"small".to_vec(), int_bytes(3)),
+        ])));
+
+        assert!(
+            read(&ctx, "get", b"big").is_err(),
+            "the cut value does not decode, so a read of it throws"
+        );
+        assert_eq!(
+            int_at(&ctx, b"small"),
+            Some(3),
+            "a read of another key decodes that key alone"
+        );
+
+        put(&mut ctx, b"small", Value::int(4));
+        let session = ctx.session().expect("a session");
+        assert_eq!(
+            session.entries.get(b"big".as_slice()),
+            Some(&big),
+            "a set leaves every other key's bytes as they were"
+        );
+        assert_eq!(
+            session.touched,
+            std::collections::BTreeSet::from([b"small".to_vec()]),
+            "and marks only its own key"
+        );
+        assert_eq!(int_at(&ctx, b"small"), Some(4));
+    }
+
+    /// A connection to the real store `tests/db/compose.yaml` starts, and an application name no
+    /// other run uses, with the session under [`ID`] deleted. [`None`] when no store answers, after
+    /// printing the command that starts one: the shape of `crate::cache::redis`'s `lease_case`.
+    // The one line a developer without the store reads, so a case that asserted nothing does not
+    // read like one that passed.
+    #[expect(
+        clippy::print_stderr,
+        reason = "the line names the command that starts the store"
+    )]
+    fn real_store(label: &str) -> Option<(Connection, Vec<u8>)> {
+        use crate::cache::redis::tests::{REDIS, STORE_WAIT};
+
+        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, REDIS));
+        let mut open = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            STORE_WAIT,
+        );
+        let app = format!("test-{}-{label}", std::process::id()).into_bytes();
+        if let Err(why) = open.ensure().and_then(|()| destroy(&mut open, &app, ID)) {
+            eprintln!(
+                "the {label} session case asserted nothing: no store at {address} ({why}). \
+                 `docker compose -f tests/db/compose.yaml up -d --wait redis` starts the one \
+                 these cases are written against."
+            );
+            return None;
+        }
+        Some((open, app))
+    }
+
+    /// Every field of the hash under `app`'s session [`ID`], in field order, or `None`.
+    fn real_hash(open: &mut Connection, app: &[u8]) -> Option<Hash> {
+        open.hash_all(&key_of(app, ID))
+            .expect("the store answers")
+            .map(|fields| fields.into_iter().collect())
+    }
+
+    /// `rule:http-server/a-session-store-answers-five-operations`'s `save` on a real store: once
+    /// another request destroyed the session, the write-back script answers gone and creates no
+    /// hash.
+    #[cfg_attr(miri, ignore = "a real store is a socket, which Miri cannot open")]
+    #[test]
+    fn the_write_back_script_writes_nothing_once_the_session_is_gone() {
+        let Some((mut open, app)) = real_store("save-gone") else {
+            return;
+        };
+        let size = super::counted(&record());
+        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+        assert!(destroy(&mut open, &app, ID).expect("destroyed"));
+
+        let value = int_bytes(3);
+        let changes = Changes {
+            changed: vec![(b"cart".as_slice(), value.as_slice())],
+            ..Changes::default()
+        };
+        assert_eq!(
+            super::save(&mut open, &app, ID, &changes, DEFAULT_TTL).expect("the store answers"),
+            Saved::Gone
+        );
+        assert_eq!(real_hash(&mut open, &app), None, "and nothing was written");
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s session with no keys,
+    /// on a real store: a write-back that removes the last key keeps the hash with its `m` field,
+    /// so `load` still finds the session.
+    #[cfg_attr(miri, ignore = "a real store is a socket, which Miri cannot open")]
+    #[test]
+    fn the_write_back_script_keeps_a_session_with_no_keys() {
+        let Some((mut open, app)) = real_store("save-empty") else {
+            return;
+        };
+        let size = super::counted(&record());
+        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+
+        let changes = Changes {
+            removed: vec![b"user".as_slice(), b"csrf".as_slice()],
+            ..Changes::default()
+        };
+        assert_eq!(
+            super::save(&mut open, &app, ID, &changes, DEFAULT_TTL).expect("the store answers"),
+            Saved::Done
+        );
+        assert_eq!(
+            real_hash(&mut open, &app),
+            Some(Hash::from([(b"m".to_vec(), b"0".to_vec())])),
+            "the hash keeps `m` alone, at size 0"
+        );
+        assert_eq!(
+            load(&mut open, &app, ID).expect("the store answers"),
+            Some(Entries::new()),
+            "and `load` finds a session with no keys"
+        );
+        destroy(&mut open, &app, ID).expect("the case cleans up");
+    }
+
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s reply ceiling, on a
+    /// real store: the write-back script is given a ceiling of 200 bytes, and a value that takes
+    /// the session past it answers `{-1, size}` and writes nothing. A value under it is written.
+    #[cfg_attr(miri, ignore = "a real store is a socket, which Miri cannot open")]
+    #[test]
+    fn the_write_back_script_refuses_a_session_past_the_reply_ceiling() {
+        let Some((mut open, app)) = real_store("save-ceiling") else {
+            return;
+        };
+        let size = super::counted(&record());
+        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+        let before = real_hash(&mut open, &app);
+
+        let field = field_of(b"cart");
+        let saved_with = |open: &mut Connection, value: &[u8]| {
+            let argv: [&[u8]; 7] = [b"60000", b"0", b"200", b"100", b"0", &field, value];
+            open.eval(
+                super::SAVE,
+                &key_of(&app, ID),
+                &argv,
+                crate::cache::redis::Replay::Idempotent,
+            )
+            .expect("the store answers")
+        };
+
+        let large = vec![b'x'; 200];
+        let past = i64::try_from(size + field.len() + large.len() + super::FRAMING).expect("small");
+        assert_eq!(
+            saved_with(&mut open, &large),
+            vec![-1, past],
+            "past the ceiling"
+        );
+        assert_eq!(
+            real_hash(&mut open, &app),
+            before,
+            "and nothing was written"
+        );
+
+        let small = b"ok".as_slice();
+        let within =
+            i64::try_from(size + field.len() + small.len() + super::FRAMING).expect("small");
+        assert_eq!(
+            saved_with(&mut open, small),
+            vec![1, within],
+            "under it, written"
+        );
+        destroy(&mut open, &app, ID).expect("the case cleans up");
+    }
+
+    /// `rule:http-server/a-session-store-answers-five-operations`'s replay of `save`, on a real
+    /// store: the write-back script run twice with the same changes leaves the same hash as once,
+    /// with and without `clear`.
+    #[cfg_attr(miri, ignore = "a real store is a socket, which Miri cannot open")]
+    #[test]
+    fn the_write_back_script_run_twice_leaves_the_same_hash() {
+        for cleared in [false, true] {
+            let Some((mut open, app)) = real_store("save-twice") else {
+                return;
+            };
+            let size = super::counted(&record());
+            assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+
+            let value = int_bytes(3);
+            let changes = Changes {
+                cleared,
+                removed: vec![b"user".as_slice()],
+                changed: vec![(b"cart".as_slice(), value.as_slice())],
+            };
+            let save = |open: &mut Connection| {
+                super::save(open, &app, ID, &changes, DEFAULT_TTL).expect("the store answers")
+            };
+            assert_eq!(save(&mut open), Saved::Done);
+            let once = real_hash(&mut open, &app);
+            assert_eq!(save(&mut open), Saved::Done);
+            assert_eq!(
+                real_hash(&mut open, &app),
+                once,
+                "a second run leaves the same hash (clear: {cleared})"
+            );
+
+            let mut want = if cleared { Entries::new() } else { record() };
+            want.remove(b"user".as_slice());
+            want.insert(b"cart".to_vec(), value.clone());
+            assert_eq!(
+                load(&mut open, &app, ID).expect("the store answers"),
+                Some(want),
+                "(clear: {cleared})"
+            );
+            destroy(&mut open, &app, ID).expect("the case cleans up");
+        }
+    }
+
     /// The map the fake shared store keeps: each session's hash, by key.
     type Rows = Arc<Mutex<HashMap<Vec<u8>, Hash>>>;
 
@@ -2974,7 +3434,11 @@ mod tests {
             "the cookie carries the drawn identifier: {headers:?}"
         );
         ctx.end_session();
-        assert_eq!(serving.writes.load(Ordering::SeqCst), 1, "one row is created");
+        assert_eq!(
+            serving.writes.load(Ordering::SeqCst),
+            1,
+            "one row is created"
+        );
         assert!(
             held.lock()
                 .expect("the store")

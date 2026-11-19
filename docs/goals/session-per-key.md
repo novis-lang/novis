@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-stdlib/src/cache/redis.rs]
   - id: 3
     title: tests prove that two requests keep both keys and that the script holds on a real store
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-stdlib/src/cache/redis.rs]
   - id: 4
     title: the pages say what two requests at once do, and the session benches are recorded again
@@ -292,16 +292,16 @@ contexts, each with its own `start`, whose write-backs run in the order the case
 of `:2409`. The session writes the four real-store cases. They share `session.rs`, so the subagent
 ends first.
 
-- [ ] `crates/nvs-stdlib/src/session.rs:2409`: the seven cases the `per-key` check names that do not
+- [x] `crates/nvs-stdlib/src/session.rs:2409`: the seven cases the `per-key` check names that do not
   exist yet. `get_and_set_decode_and_encode_only_their_own_key` puts a large value under one key and
   shows that `get` of another key does not decode it. Use a count or an allocation probe the crate
   already has. Do not time it.
-- [ ] `crates/nvs-stdlib/src/session.rs:1799`: a `real_store(label)` helper in the shape of
+- [x] `crates/nvs-stdlib/src/session.rs:1799`: a `real_store(label)` helper in the shape of
   `lease_case` (`crates/nvs-stdlib/src/cache/redis.rs:1386`). Where no store answers, it prints the
   compose command and returns `None`. CI starts Redis on every runner (`.github/workflows/ci.yml:258-273`).
   With it, the four cases the `script` check names. The ceiling case sets a small ceiling through
   the script's argument. It does not write 8 MiB.
-- [ ] Both checks run once.
+- [x] Both checks run once.
 
 ### 4. the pages say what two requests at once do, and the session benches are recorded again
 
@@ -337,20 +337,26 @@ and `cleared`), and both stores answer the five operations. On the shared store:
 and `setSecret` no longer throw `ParseError`, because they decode nothing. One standing decision is new:
 *`clear` always earns a write*.
 
-The subagent ported the test module. The fake store `serving` (`session.rs:2230`) answers `HGETALL`,
-`RENAMENX`, `DEL` and the two scripts by exact text (`issued_in` `:2347`, `saved_in` `:2362`). Build
-and `cargo clippy --all-targets -D warnings` are green. `cargo test --lib -- session::` passed 30 of 30
-in nvs-stdlib. The fixtures in `csrf.rs` and `passkey.rs` tests build the new `Session`.
+Stage 3 is done. The seven `per-key` cases sit after
+`a_regenerated_session_moves_only_a_row_that_still_exists`, on helpers `a_request`, `ended`,
+`stored_under`, `int_bytes` and `a_store_with_record` (`session.rs:2907`). Two requests are two
+`Ctx::buffered()` loaded from one store, each ended through `CASE_STORE`.
+`get_and_set_decode_and_encode_only_their_own_key` (`:3136`) uses a cut 64 KiB value that cannot
+decode, not a probe: `get` of the other key reads, and `set` leaves the cut bytes as they were.
+`real_store(label)` (`:3180`) reaches the compose Redis on 16379 through `redis.rs`'s test
+`REDIS` and `STORE_WAIT`, now `pub(crate)` in a `pub(crate) mod tests`. The four `script` cases
+follow it; the ceiling case passes `200` as `ARGV[3]` through `eval`. Both checks ran once: 13 of 13
+green, and the script cases reached the real store (no "asserted nothing" line). Clippy is green.
 
-The sweep's reds are stale, as the last handoff found: no push since nightly run 44510687786.
+The sweep's reds are stale: no push since nightly 44510687786; `env-secret-proofs` is retired.
 
 ### Next
 
-Stage 3 from its first item. The seven `per-key` cases go beside
-`a_destroyed_session_is_not_written_back_on_any_store` (`session.rs:2829`), through `a_store` (`:2799`).
-The four `script` cases need `real_store(label)` in the shape of `lease_case`
-(`crates/nvs-stdlib/src/cache/redis.rs`). The ceiling case passes a small ceiling as `SAVE`'s `ARGV[3]`
-through `eval` directly. No test is expected to go red. The rest of the tree has not run since this
-stage. Conformance cases about `Core\Session` throwing `ParseError` from `set` may go red at the gate.
+Stage 4 from its first item: `docs/examples/core/Session/set/about.md:13`, then `clear/about.md:1`
+and `regenerate/about.md:9`, held to `AGENTS.md` § *Text an end user reads*. Then record the
+`benches/members/core/Session/` members with `bun nv proofs --record-perf` on a release binary
+(`bun nv relink --build` first), and write `get.scale`'s growth into the handoff. No test is expected
+to go red. The rest of the tree has not run since stage 2. Conformance cases about `Core\Session`
+throwing `ParseError` from `set` may go red at the gate.
 
 ### Backlog
