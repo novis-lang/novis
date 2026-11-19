@@ -61,6 +61,7 @@ checks:
       - an entry naming a feature neither the roster nor the snapshot has is named
       - a highlight entry may name a feature whose hash did not move
       - the release notes start with each entry in its part, and the release empties the file
+      - a security entry is listed first, under Security fixes, and may name a feature whose hash did not move
       - the release adds each entry to the changelog of every feature it names
       - the release writes a new snapshot named after its version
   - id: changes-green
@@ -132,7 +133,8 @@ A test-only edit, such as a rename, also makes them stale, and there is no excep
 with no entry, and a release moves the entries into its release notes. The person's later call
 (2026-11-18) replaced the first destination, the website's What changed page: that page is now the
 Changelog, a list of links to each release's page on GitHub and nothing more, and no change is written
-onto it. Reviewed is a feature proof, a
+onto it. The person's call of 2026-11-19: a security fix is its own part of the release notes, listed
+first. Reviewed is a feature proof, a
 `reader` subagent does the review in each gate stage with the three questions below, and existing texts
 go on a baseline that never grows. Declined, each recorded in the new rule: a periodic review pass, a
 check of the wording by word lists, and a changelog generated from commit messages.
@@ -202,6 +204,10 @@ refuses to run when the lock holds any `about.md` or `help:` key, so it cannot q
 - `instead` is required on a `removed` entry and on one with `breaking: true`, and says what to write
   instead. `highlight: true` puts an entry under *Highlights* at release. A pure speed-up moves no
   hash and owes no entry, but may be added as a `changed` entry with `highlight: true`.
+- `security: true` puts an entry under *Security fixes* at release, and its `text` says what an
+  attacker could do before the fix. Like a highlight, it may name a feature whose hash did not move,
+  because a security fix does not always change a covering test. An entry with both flags is listed
+  under *Security fixes*.
 - `unseen` is my call, beyond what the person settled. It names a feature whose behaviour hash moved
   while nothing a user sees changed, such as a renamed test, with the hash it was written at and why.
   It clears the feature only while the hash is that one, and the release empties it. It is never used
@@ -223,12 +229,13 @@ the tag, checks out the current `tools/nv` into that worktree, and runs `bun nv 
 the download is refused, the snapshot is taken from the tree at the commit that lands stage 2, with
 that commit's hash as `since`. `CHANGELOG.md` then lists the commits in between, and the handoff says so.
 
-**The release notes (the person's call: the entries go to GitHub, not the website; the shape is
-mine).** `bun nv release --notes <version>` (`renderNotes`, `tools/nv/cmd/release.ts:439`) starts the
-section it renders with the entries of `changes.json`, in up to four parts in this order:
-`### Highlights`, `### New features`, `### Changes`, `### Changes that can break your code`. Each entry
-is one list item, its `text` and then its `instead`. A `removed` entry and a breaking one go in the
-last part. The commit-log sections follow under `### Details`. That section is both the GitHub release
+**The release notes (the person's calls: the entries go to GitHub, not the website, and security
+fixes come first; the rest of the shape is mine).** `bun nv release --notes <version>` (`renderNotes`,
+`tools/nv/cmd/release.ts:439`) starts the section it renders with the entries of `changes.json`, in up
+to five parts in this order: `### Security fixes`, `### Highlights`, `### New features`, `### Changes`,
+`### Changes that can break your code`. Each entry is one list item, its `text` and then its
+`instead`. A `security` entry goes in the first part, and a `removed` entry and a breaking one go in
+the last part. The commit-log sections follow under `### Details`. That section is both the GitHub release
 body and what `--apply --notes-file` prepends to `CHANGELOG.md`, so the release page and the file say
 the same. The website's Changelog page lists the releases from `CHANGELOG.md`'s headings
 (`website/src/data/release.ts`), so it needs no change.
