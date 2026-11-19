@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $rounds): int
     {
         array<string> $names = ['Europe/Berlin', 'America/New_York', 'Asia/Tokyo', 'UTC'];
-        Core\Time\Instant $at = Core\Time::fromEpoch(0);
+        Core\Time\Instant $at = Core\Time\Instant::fromEpoch(0);
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

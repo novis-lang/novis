@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        var $at = Core\Time::at(2024, 4, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 9, minute: 30 });
+        var $at = Core\Time\DateTime::fromIso('2024-04-05 09:30', 'Europe/Berlin');
         string $pattern = Core\Str::repeat('yyyy-MM-dd HH:mm ', $size);
         uint $total = 0;
         uint $i = 0;

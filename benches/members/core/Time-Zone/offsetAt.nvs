@@ -9,10 +9,10 @@ class Bench
     {
         Core\Time\Zone $berlin = Core\Time\Zone::of('Europe/Berlin');
         array<Core\Time\Instant> $days = [
-            Core\Time::fromEpoch(1705320000),
-            Core\Time::fromEpoch(1713182400),
-            Core\Time::fromEpoch(1721044800),
-            Core\Time::fromEpoch(1728993600),
+            Core\Time\Instant::fromEpoch(1705320000),
+            Core\Time\Instant::fromEpoch(1713182400),
+            Core\Time\Instant::fromEpoch(1721044800),
+            Core\Time\Instant::fromEpoch(1728993600),
         ];
         int $total = 0;
         uint $i = 0;

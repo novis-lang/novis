@@ -11,7 +11,7 @@ class Bench
         // A longer name in the certificate makes the certificate larger.
         Core\Http\TlsInfo $session = Core\Test::tlsSession({
             subject: 'CN=' . Core\Str::repeat('a', $size),
-            expiry: Core\Time::fromIso('2031-06-01T00:00:00Z'),
+            expiry: Core\Time\Instant::fromIso('2031-06-01T00:00:00Z'),
         });
         int $total = 0;
         uint $i = 0;

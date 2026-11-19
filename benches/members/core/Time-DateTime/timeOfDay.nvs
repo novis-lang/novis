@@ -11,9 +11,9 @@ class Bench
     {
         var $zone = Core\Time\Zone::of('Europe/Berlin');
         array<Core\Time\DateTime> $moments = [
-            Core\Time::at(2024, 3, 30, $zone, { hour: 8, minute: 15 }),
-            Core\Time::at(2024, 12, 31, $zone, { hour: 12 }),
-            Core\Time::at(2025, 1, 1, $zone, { hour: 18, minute: 45 }),
+            Core\Time\DateTime::fromIso('2024-03-30 08:15', $zone),
+            Core\Time\DateTime::fromIso('2024-12-31 12:00', $zone),
+            Core\Time\DateTime::fromIso('2025-01-01 18:45', $zone),
         ];
         var $noon = Core\Time\TimeOfDay::at(12, 0);
         int $total = 0;

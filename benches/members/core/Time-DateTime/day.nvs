@@ -11,9 +11,9 @@ class Bench
     {
         var $zone = Core\Time\Zone::UTC;
         array<Core\Time\DateTime> $times = [
-            Core\Time::at(2024, 1, 9, $zone, { hour: 8 }),
-            Core\Time::at(2024, 7, 18, $zone, { hour: 13, minute: 30 }),
-            Core\Time::at(2023, 12, 27, $zone, { hour: 23, minute: 59, second: 59 }),
+            Core\Time\DateTime::fromIso('2024-01-09 08:00', $zone),
+            Core\Time\DateTime::fromIso('2024-07-18 13:30', $zone),
+            Core\Time\DateTime::fromIso('2023-12-27 23:59:59', $zone),
         ];
         uint $total = 0;
         uint $i = 0;

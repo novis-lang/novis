@@ -11,7 +11,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             // chained: the timestamp comes from last round's total
-            $total = $total + 1 + Core\Time::fromEpoch(1715688000 + $total % 86400)->toEpochSeconds() % 1000;
+            $total = $total + 1 + Core\Time\Instant::fromEpoch(1715688000 + $total % 86400)->toEpochSeconds() % 1000;
             $i = $i + 1;
         }
         return $total;

@@ -12,7 +12,7 @@ class Bench
             Core\Time\TimeOfDay::at(12, 30),
             Core\Time\TimeOfDay::at(18, 45),
         ];
-        var $at = Core\Time::at(2024, 9, 20, Core\Time\Zone::of('Europe/London'), { hour: 23, minute: 30 });
+        var $at = Core\Time\DateTime::fromIso('2024-09-20 23:30', 'Europe/London');
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

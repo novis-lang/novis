@@ -11,9 +11,9 @@ class Bench
     {
         var $zone = Core\Time\Zone::of('Europe/Berlin');
         array<Core\Time\DateTime> $days = [
-            Core\Time::at(2024, 1, 3, $zone),
-            Core\Time::at(2025, 7, 16, $zone, { hour: 9 }),
-            Core\Time::at(2100, 12, 29, $zone, { hour: 23 }),
+            Core\Time\DateTime::fromIso('2024-01-03', $zone),
+            Core\Time\DateTime::fromIso('2025-07-16 09:00', $zone),
+            Core\Time\DateTime::fromIso('2100-12-29 23:00', $zone),
         ];
         uint $total = 0;
         uint $i = 0;

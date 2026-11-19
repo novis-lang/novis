@@ -16,7 +16,7 @@ class Bench
             Core\Time\Weekday::Saturday,
             Core\Time\Weekday::Sunday,
         ];
-        var $at = Core\Time::at(2024, 3, 27, Core\Time\Zone::of('Europe/Berlin'), { hour: 9, minute: 30 });
+        var $at = Core\Time\DateTime::fromIso('2024-03-27 09:30', 'Europe/Berlin');
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

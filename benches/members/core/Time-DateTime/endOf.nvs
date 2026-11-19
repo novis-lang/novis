@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $rounds): int
     {
         array<Core\Unit> $units = [Core\Unit::Day, Core\Unit::Week, Core\Unit::Month];
-        var $at = Core\Time::at(2024, 4, 28, Core\Time\Zone::of('America/Chicago'), { hour: 18, minute: 30 });
+        var $at = Core\Time\DateTime::fromIso('2024-04-28 18:30', 'America/Chicago');
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

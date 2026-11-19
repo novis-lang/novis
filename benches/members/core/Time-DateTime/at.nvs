@@ -1,5 +1,5 @@
 <?nvs
-// Builds a date and time from its parts in a zone, as a program does when it plans an appointment.
+// Builds a date and time from a date, a time of day and a zone, as a program does when it plans an appointment.
 // bench: iterations 256
 // bench: complexity constant
 
@@ -8,13 +8,22 @@ class Bench
     public static function run(uint $rounds): int
     {
         var $zone = Core\Time\Zone::of('Europe/Berlin');
+        array<Core\Time\Date> $dates = [
+            Core\Time\Date::at(2024, 3, 9),
+            Core\Time\Date::at(2024, 3, 31),
+            Core\Time\Date::at(2024, 10, 27),
+        ];
+        array<Core\Time\TimeOfDay> $times = [
+            Core\Time\TimeOfDay::at(2, 30),
+            Core\Time\TimeOfDay::at(9, 15),
+            Core\Time\TimeOfDay::at(23, 45),
+        ];
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // chained: the day and the hour come from last round's total
-            uint $day = ($total % 28) as uint + 1;
-            uint $hour = ($total % 24) as uint;
-            $total = $total + Core\Time::at(2024, 3, $day, $zone, { hour: $hour })->toInstant()->toEpochSeconds() % 1000;
+            // chained: the date and the time come from last round's total
+            var $at = Core\Time\DateTime::at($dates[$total % 3], $times[($total / 3) % 3], $zone);
+            $total = $total + 1 + $at->toInstant()->toEpochSeconds() % 1000;
             $i = $i + 1;
         }
         return $total;

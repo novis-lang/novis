@@ -14,7 +14,7 @@ class Bench
             . '</rsm:CrossIndustryInvoice>';
         bytes $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><p>Invoice</p></body></html>")
             ->standard(Document::Standard::PdfA3b)
-            ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+            ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
             ->invoiceXml($xml)
             ->render()
             ->bytes;

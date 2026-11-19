@@ -1,5 +1,5 @@
 <?nvs
-// Measures `Core\Time::parse` reading one date and time through a pattern, at growing lengths of the text and the pattern.
+// Measures `Core\Time\DateTime::parse` reading one date and time through a pattern, at growing lengths of the text and the pattern.
 // bench: start 256
 // bench: max 4096
 
@@ -14,7 +14,7 @@ class Bench
         int $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $total = $total + 1 + Core\Time::parse($text, $pattern, $berlin)->toInstant()->toEpochSeconds() % 1000;
+            $total = $total + 1 + Core\Time\DateTime::parse($text, $pattern, $berlin)->toInstant()->toEpochSeconds() % 1000;
             $i = $i + 1;
         }
         return $total;
