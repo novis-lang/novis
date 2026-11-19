@@ -6,7 +6,8 @@ example because they gave the user a link that contains it. After `regenerate()`
 identifier no longer finds the session, so it is useless to them.
 
 The data in the session does not change. Values saved with `Core\Session::set()` and secrets saved
-with `Core\Session::setSecret()` can still be read. The store is updated at once, not at the end of
+with `Core\Session::setSecret()` can still be read. A key that another request saved in the
+meantime is kept too. The store is updated at once, not at the end of
 the request, and the response sends the new identifier in the session cookie.
 
 Call `Core\Session::start()` first. Before it, `regenerate()` throws a `RuntimeError`. If the store

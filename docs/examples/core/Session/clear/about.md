@@ -3,7 +3,8 @@
 
 The session itself stays open. The client keeps the same session cookie, and you can call
 `Core\Session::set()` again at once, without a second `Core\Session::start()`. The empty session is
-saved to the store when the request ends.
+saved to the store when the request ends. Then every key in the store is deleted, also a key that
+another request saved in the meantime.
 
 Call `Core\Session::start()` first. Before it, `clear()` throws a `RuntimeError`. Clearing a session
 that is already empty is allowed and changes nothing.

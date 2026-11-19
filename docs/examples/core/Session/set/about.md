@@ -10,5 +10,9 @@ Call `Core\Session::start()` first. Before it, and after `Core\Session::destroy(
 The session is saved to the store once, when the request ends. Many calls to `set()` in one request
 still write to the store only one time.
 
+**Good to know:** only the keys that this request changed are saved. Two requests that change
+different keys at the same time keep both changes. If they change the same key, the value of the
+request that ends last is kept.
+
 **The examples below** show how to save a value, how a new value replaces the old one, and a
-shopping cart that is kept between pages.
+shopping cart kept between pages.
