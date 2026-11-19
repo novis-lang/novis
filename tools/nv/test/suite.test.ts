@@ -64,17 +64,22 @@ describe("bun nv suite", () => {
   });
 
   test("nv suite --no-in-place-too asks the judge for the second run, and only under nvs test", async () => {
-    let asked = false;
+    let asked: string[] = [];
     const code = await suite([TREE, "--no-in-place-too"], {
-      judge: async (_c, _full, offToo) => {
-        asked = offToo;
-        return { fail: offToo ? "suite: with in-place changes off: tests/demo/one.nvst failed" : "", short: "" };
+      judge: async (_c, _full, offFlags) => {
+        asked = offFlags;
+        return { fail: offFlags.length > 0 ? "suite: with in-place changes off: tests/demo/one.nvst failed" : "", short: "" };
       },
       say: () => {},
     });
-    expect(asked).toBe(true);
+    expect(asked).toEqual(["--no-in-place"]);
     expect(code).toBe(1);
     expect(suiteCheck(["lsp-test", TREE, "--no-in-place-too"])).toEqual({ error: "--no-in-place-too runs only under nvs test" });
+  });
+
+  test("nv suite --no-cheaper-forms-too asks for a second run of its own beside --no-in-place-too", () => {
+    expect(suiteCheck([TREE, "--no-cheaper-forms-too", "--no-in-place-too"])).toMatchObject({ offFlags: ["--no-cheaper-forms", "--no-in-place"] });
+    expect(suiteCheck(["lsp-test", TREE, "--no-cheaper-forms-too"])).toEqual({ error: "--no-cheaper-forms-too runs only under nvs test" });
   });
 
   test("nv suite takes only trees directly under tests/ and whole numbers", () => {

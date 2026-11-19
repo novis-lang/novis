@@ -769,8 +769,8 @@ fn run_hosted(argv: &[String]) -> ExitCode {
     }
 }
 
-/// The hidden `--no-in-place` of the command, which only `run`, `test` and
-/// `serve` take; every other command lowers with in-place changes on.
+/// The hidden `--no-in-place` and `--no-cheaper-forms` of the command, which
+/// only `run`, `test` and `serve` take; every other command lowers with both on.
 fn in_place_switch(command: Option<&Command>) -> in_place::Switch {
     match command {
         Some(Command::Run(args)) => args.in_place,
@@ -3186,6 +3186,12 @@ fn run_test(
         options
             .nvs_env
             .push((in_place::VARIABLE.to_owned(), "1".to_owned()));
+    }
+    // And compiles every form as written when `--no-cheaper-forms` switched the table off here.
+    if in_place::forms_off() {
+        options
+            .nvs_env
+            .push((in_place::FORMS_VARIABLE.to_owned(), "1".to_owned()));
     }
     if let Some(jobs) = jobs {
         options.jobs = jobs.get();

@@ -936,6 +936,41 @@ fn in_place_on() -> bool {
 }
 
 thread_local! {
+    /// Whether this thread is lowering with the cheaper forms switched off.
+    /// Set only inside [`without_cheaper_forms`].
+    static CHEAPER_FORMS_OFF: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `lower` with the table of cheaper forms switched off: every form is
+/// compiled as written, and no row of [`crate::forms::ROWS`] is applied
+/// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+/// It exists for the differential checks alone, which run every case both
+/// ways and compare the output; `nvs run`, `nvs test` and `nvs serve` reach it
+/// through their hidden `--no-cheaper-forms`.
+///
+/// Scoped to this thread and to the call, as [`without_in_place`] is. The
+/// program it returns says so ([`crate::ir::Program::cheaper_forms`]), so the
+/// artifact cache neither writes nor reads it.
+pub fn without_cheaper_forms<R>(lower: impl FnOnce() -> R) -> R {
+    /// Puts the switch back as it was, on a return and on a panic.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            CHEAPER_FORMS_OFF.with(|off| off.set(self.0));
+        }
+    }
+    let _restore = Restore(CHEAPER_FORMS_OFF.with(|off| off.replace(true)));
+    lower()
+}
+
+/// Whether this thread lowers with the cheaper forms on: false only inside
+/// [`without_cheaper_forms`]. No row reads it yet; each stage that applies a
+/// row asks it at the row's site.
+pub(crate) fn cheaper_forms_on() -> bool {
+    !CHEAPER_FORMS_OFF.with(std::cell::Cell::get)
+}
+
+thread_local! {
     /// Whether this thread is lowering under the debug switch. Set only
     /// inside [`with_debug_slots`].
     static DEBUG_SLOTS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -1501,6 +1536,7 @@ fn lower_program_as(
         shape_codecs,
         enums: enum_shapes(enums),
         in_place: in_place_on(),
+        cheaper_forms: cheaper_forms_on(),
         copies,
     }
 }

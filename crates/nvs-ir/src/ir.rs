@@ -35,6 +35,10 @@ pub struct Program {
     /// ([`crate::lower::without_in_place`]). The artifact cache neither writes
     /// nor reads such a program, because its key does not cover the switch.
     pub in_place: bool,
+    /// False when the program was lowered with the cheaper forms switched off
+    /// ([`crate::lower::without_cheaper_forms`]). The artifact cache neither
+    /// writes nor reads such a program, for the same reason as [`Self::in_place`].
+    pub cheaper_forms: bool,
     /// Every copy the ownership pass keeps, in the order it found them
     /// ([`crate::copies`]). Empty when the pass did not run.
     pub copies: Vec<crate::copies::KeptCopy>,
