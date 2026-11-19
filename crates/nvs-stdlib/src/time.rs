@@ -54,12 +54,21 @@
 //!
 //! # There is no `Core\Month`, and there is not going to be one
 //!
-//! No `Core\Time` member takes or answers with one, `Core\Time\DateTime::Weekday` existing
-//! only because `$d->weekday()` does, and an enum nothing names is surface no member
-//! needs. This is written down because it is the question that keeps being re-asked,
-//! not because anything is missing. **`Core\Time` is whole**: `withTime`, the only member
-//! that *takes* a component view rather than answering with one, is
-//! [`nvs_core_time_datetime_with_time`].
+//! No `Core\Time` member takes or answers with one: a month is the `uint` `month()`
+//! answers and `with({ month: … })` takes. `Core\Time\DateTime::Weekday` exists only
+//! because `weekday()` answers one, on a `DateTime` and on a `Date`, and an enum
+//! nothing names is surface no member needs.
+//!
+//! # Each class answers its own fields
+//!
+//! A `Date` answers `year`, `month`, `day`, `weekday`, `dayOfYear` and `isLeapYear`
+//! from its three slots, so no caller reads a field by parsing `format`'s output. Each
+//! reader has the name and type of the `with` option for the same field — `year` is
+//! `int`, every other field `uint` — so `$d->with({ month: $d->month() + 1 })` is one
+//! vocabulary. A reader allocates nothing. The way between the classes is a member
+//! each: `Date::atStartOfDay($zone)` is the first instant of the day in a zone,
+//! resolved forward where the zone skips midnight as [`nvs_core_time_at`] resolves
+//! a gap, and [`nvs_core_time_datetime_with_time`] puts a `TimeOfDay` onto it.
 //!
 //! # `sleep` parks the task, and a wait off a core still blocks its thread
 //!
@@ -137,8 +146,9 @@
 //!
 //! There are no calendar-system converters and no holiday dates: they have no
 //! place in a Tier 0 library (`rule:core-api/tier-placement`). The number of
-//! days in a month has no member either: it is `$d->startOf(Unit::Month)` and
-//! one month's arithmetic from there.
+//! days in a month has no member either: it is the `day()` of the last day,
+//! `$d->endOf(Unit::Month)->date()->day()` on a `DateTime`, or `$d->with({ day: 1 })
+//! ->plus(1, Unit::Month)->minus(1, Unit::Day)->day()` on a `Date`.
 
 use std::sync::OnceLock;
 use std::time::SystemTime;
@@ -2570,6 +2580,69 @@ pub const DATE: CoreClass = CoreClass {
             symbol: "nvs_core_time_date_compare_to",
             doc: Some(&DATE_COMPARE_TO_DOC),
         },
+        CoreMethod {
+            name: "weekday",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(WEEKDAY.name),
+            symbol: "nvs_core_time_date_weekday",
+            doc: Some(&DATE_WEEKDAY_DOC),
+        },
+        CoreMethod {
+            name: "dayOfYear",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_date_day_of_year",
+            doc: Some(&DATE_DAY_OF_YEAR_DOC),
+        },
+        CoreMethod {
+            name: "isLeapYear",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_time_date_is_leap_year",
+            doc: Some(&DATE_IS_LEAP_YEAR_DOC),
+        },
+        CoreMethod {
+            name: "year",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_time_date_year",
+            doc: Some(&DATE_YEAR_DOC),
+        },
+        CoreMethod {
+            name: "month",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_date_month",
+            doc: Some(&DATE_MONTH_DOC),
+        },
+        CoreMethod {
+            name: "day",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_date_day",
+            doc: Some(&DATE_DAY_DOC),
+        },
+        CoreMethod {
+            name: "atStartOfDay",
+            names: &["zone"],
+            params: &[CoreTy::Instance(ZONE_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATETIME_NAME),
+            symbol: "nvs_core_time_date_at_start_of_day",
+            doc: Some(&DATE_AT_START_OF_DAY_DOC),
+        },
     ],
     slots: &["year", "month", "day"],
     constants: &[],
@@ -2732,6 +2805,72 @@ const DATE_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Time\Date::weekday`'s reference card — `rule:core-api/reference-card`.
+const DATE_WEEKDAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns the day of the week of this date, as a `Weekday` enum case.",
+    params: &[],
+    ret: "The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::dayOfYear`'s reference card — `rule:core-api/reference-card`.
+const DATE_DAY_OF_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the day of the year, counted from `1`.",
+    params: &[],
+    ret: "`1` for 1 January, up to `365`, or `366` in a leap year.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::isLeapYear`'s reference card — `rule:core-api/reference-card`.
+const DATE_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the year of this date has a 29 February.",
+    params: &[],
+    ret: "`true` in a leap year of the Gregorian calendar, otherwise `false`.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::year`'s reference card — `rule:core-api/reference-card`.
+const DATE_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the year of this date.",
+    params: &[],
+    ret: "The year, from `-9999` to `9999`. The year before `1` is `0`.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::month`'s reference card — `rule:core-api/reference-card`.
+const DATE_MONTH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the month of this date as a number.",
+    params: &[],
+    ret: "The month, from `1` for January to `12` for December.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::day`'s reference card — `rule:core-api/reference-card`.
+const DATE_DAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns the day of the month of this date.",
+    params: &[],
+    ret: "The day, from `1` to the last day of the month.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::atStartOfDay`'s reference card — `rule:core-api/reference-card`.
+const DATE_AT_START_OF_DAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns the first moment of this date in a time zone, as a `DateTime`. This is \
+            usually midnight. In some zones the clocks skip midnight on one day of the year. \
+            On that day, the result is the first time that exists, such as `01:00`.",
+    params: &[ParamDoc {
+        name: "zone",
+        desc: "The time zone the day starts in.",
+        shape: &[],
+    }],
+    ret: "A new `DateTime` on this date in `$zone`. Use `withTime` on it to set another time.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The first or the last day of the range, in a zone whose start of that day is \
+               outside the range of times Novis supports.",
+    }],
+};
+
 /// [`DATE`]'s slots, by index.
 const DATE_YEAR_SLOT: usize = 0;
 /// See [`DATE_YEAR_SLOT`].
@@ -2748,6 +2887,15 @@ fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_date_minus" => (nvs_core_time_date_minus as *const ()).cast(),
         "nvs_core_time_date_with" => (nvs_core_time_date_with as *const ()).cast(),
         "nvs_core_time_date_compare_to" => (nvs_core_time_date_compare_to as *const ()).cast(),
+        "nvs_core_time_date_weekday" => (nvs_core_time_date_weekday as *const ()).cast(),
+        "nvs_core_time_date_day_of_year" => (nvs_core_time_date_day_of_year as *const ()).cast(),
+        "nvs_core_time_date_is_leap_year" => (nvs_core_time_date_is_leap_year as *const ()).cast(),
+        "nvs_core_time_date_year" => (nvs_core_time_date_year as *const ()).cast(),
+        "nvs_core_time_date_month" => (nvs_core_time_date_month as *const ()).cast(),
+        "nvs_core_time_date_day" => (nvs_core_time_date_day as *const ()).cast(),
+        "nvs_core_time_date_at_start_of_day" => {
+            (nvs_core_time_date_at_start_of_day as *const ()).cast()
+        }
         _ => return None,
     }))
 }
@@ -4947,6 +5095,67 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `$d->weekday(): Weekday` — the [`WEEKDAY`] index, Monday zero, as
+    /// [`nvs_core_time_datetime_weekday`] answers it.
+    fn nvs_core_time_date_weekday(_ctx, args: [1]) {
+        let at = date_of(args, 0, "weekday")?;
+        Ok(Value::int(i64::from(at.weekday().to_monday_zero_offset())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->dayOfYear(): uint` — one-based, as `DateTime::dayOfYear` is.
+    fn nvs_core_time_date_day_of_year(_ctx, args: [1]) {
+        let at = date_of(args, 0, "dayOfYear")?;
+        Ok(Value::uint(at.day_of_year().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->isLeapYear(): bool` — the proleptic Gregorian rule.
+    fn nvs_core_time_date_is_leap_year(_ctx, args: [1]) {
+        Ok(Value::bool(date_of(args, 0, "isLeapYear")?.in_leap_year()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->year(): int` — the signed proleptic year, `with`'s `year` type.
+    fn nvs_core_time_date_year(_ctx, args: [1]) {
+        Ok(Value::int(i64::from(date_of(args, 0, "year")?.year())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->month(): uint` — `1` to `12`, `with`'s `month` type.
+    fn nvs_core_time_date_month(_ctx, args: [1]) {
+        Ok(Value::uint(date_of(args, 0, "month")?.month().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->day(): uint` — the day of the month, `with`'s `day` type.
+    fn nvs_core_time_date_day(_ctx, args: [1]) {
+        Ok(Value::uint(date_of(args, 0, "day")?.day().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->atStartOfDay(Zone $zone): DateTime` — midnight on the date, made
+    /// zoned the way [`nvs_core_time_at`] does it: a zone that skips midnight
+    /// resolves forward to the first civil time that exists that day, which
+    /// is [`jiff`]'s *compatible* disambiguation.
+    ///
+    /// **What it spends:** one `DateTime`, as `Core\Time::at` does.
+    fn nvs_core_time_date_at_start_of_day(_ctx, args: [2]) {
+        let at = date_of(args, 0, "atStartOfDay")?;
+        let zone = zone_of(args, 1, "atStartOfDay")?;
+        zone.to_zoned(at.to_datetime(civil::Time::midnight()))
+            .map(|start| datetime_built(&start))
+            .map_err(|_| out_of_range(r"Core\Time\Date::atStartOfDay", PAST_THE_RANGE))
+    }
+}
+
 // ============================================================================
 // `Core\Time\TimeOfDay` — reading, building and the clock step
 // ============================================================================
@@ -6034,6 +6243,161 @@ mod tests {
                 with(leap, None, Some(month), None),
                 Err(r"Core\Time\Date::with(): `month` is outside what that field can hold".into())
             );
+        }
+    }
+
+    /// `member` called on a `Date` built at `at`, the way a compiled call site
+    /// calls it, with the answer handed to `read` before it is released.
+    fn date_view<T>(
+        member: nvs_runtime::NvsFn,
+        at: civil::Date,
+        read: impl FnOnce(Value) -> T,
+    ) -> T {
+        let mut ctx = Ctx::buffered();
+        let receiver = date_built(at);
+        let answer =
+            nvs_runtime::call(member, &mut ctx, &[receiver]).expect("a reader refuses no `Date`");
+        let read = read(answer);
+        #[expect(unsafe_code, reason = "this frame owns the receiver and the answer")]
+        unsafe {
+            receiver.release();
+            answer.release();
+        }
+        read
+    }
+
+    /// `year`, `month` and `day` are the three fields the date was built
+    /// from, and `weekday`, `dayOfYear` and `isLeapYear` are the calendar of
+    /// that day, at both ends of the range, around year zero and on 29
+    /// February. Each is checked against [`jiff`]'s own reading.
+    // covers: Core\Time\Date::year, Core\Time\Date::month, Core\Time\Date::day, Core\Time\Date::weekday, Core\Time\Date::dayOfYear, Core\Time\Date::isLeapYear
+    #[test]
+    fn date_parts_are_the_three_fields_and_the_calendar_of_that_day() {
+        /// A date, its weekday Monday zero, its day of the year, and whether
+        /// its year is a leap year.
+        type Row = ((i16, i8, i8), i64, u64, bool);
+        let table: [Row; 9] = [
+            ((-9999, 1, 1), 0, 1, false),
+            ((-1, 12, 31), 4, 365, false),
+            ((0, 2, 29), 1, 60, true),
+            ((1900, 3, 1), 3, 60, false),
+            ((2000, 12, 31), 6, 366, true),
+            ((2024, 1, 31), 2, 31, true),
+            ((2024, 2, 29), 3, 60, true),
+            ((2023, 12, 31), 6, 365, false),
+            ((9999, 12, 31), 4, 365, false),
+        ];
+        for ((year, month, day), weekday, ordinal, leap) in table {
+            let at = civil::date(year, month, day);
+            assert_eq!(
+                i64::from(at.weekday().to_monday_zero_offset()),
+                weekday,
+                "the table's weekday for {at}"
+            );
+            let label = format!("{at}");
+            assert_eq!(
+                date_view(nvs_core_time_date_year, at, |v| v.as_int()),
+                Some(i64::from(year)),
+                "{label}"
+            );
+            assert_eq!(
+                date_view(nvs_core_time_date_month, at, |v| v.as_uint()),
+                Some(u64::from(month.unsigned_abs())),
+                "{label}"
+            );
+            assert_eq!(
+                date_view(nvs_core_time_date_day, at, |v| v.as_uint()),
+                Some(u64::from(day.unsigned_abs())),
+                "{label}"
+            );
+            assert_eq!(
+                date_view(nvs_core_time_date_weekday, at, |v| v.as_int()),
+                Some(weekday),
+                "{label}"
+            );
+            assert_eq!(
+                date_view(nvs_core_time_date_day_of_year, at, |v| v.as_uint()),
+                Some(ordinal),
+                "{label}"
+            );
+            assert_eq!(
+                date_view(nvs_core_time_date_is_leap_year, at, |v| v.as_bool()),
+                Some(leap),
+                "{label}"
+            );
+        }
+    }
+
+    /// `atStartOfDay` on `at` in the zone named `zone`, read back as the
+    /// [`Zoned`] it built, or the thrown message.
+    fn date_start_of_day(at: civil::Date, zone: &str) -> Result<Zoned, String> {
+        let mut ctx = Ctx::buffered();
+        let args = [date_built(at), zone_built(zone)];
+        let answer = nvs_runtime::call(nvs_core_time_date_at_start_of_day, &mut ctx, &args);
+        let read = match answer {
+            Ok(held) => {
+                let zoned = zoned_of(&[held], 0, "atStartOfDay")
+                    .map_err(|_| "`atStartOfDay` answers a `DateTime`".to_owned());
+                #[expect(unsafe_code, reason = "this frame owns the answer")]
+                unsafe {
+                    held.release();
+                }
+                zoned
+            }
+            Err(_) => Err(ctx.take_pending().unwrap_or_default().into_owned()),
+        };
+        for held in args {
+            #[expect(unsafe_code, reason = "this frame built both arguments")]
+            unsafe {
+                held.release();
+            }
+        }
+        read
+    }
+
+    /// `atStartOfDay` is midnight on the date in the zone, a zone whose
+    /// clocks skip midnight gives the first time that exists that day, and
+    /// the result's date is the date again in every zone.
+    // covers: Core\Time\Date::atStartOfDay
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
+    #[test]
+    fn date_parts_at_start_of_day_is_the_first_instant_of_that_day_in_the_zone() {
+        for (day, zone, instant) in [
+            ((2024, 2, 29), "UTC", "2024-02-29T00:00:00Z"),
+            ((2024, 3, 31), "Europe/Berlin", "2024-03-30T23:00:00Z"),
+            ((2024, 7, 1), "Asia/Kolkata", "2024-06-30T18:30:00Z"),
+            ((2024, 1, 1), "Pacific/Honolulu", "2024-01-01T10:00:00Z"),
+            // Brazil moved its clocks from 00:00 to 01:00 on this day, so the
+            // day starts at 01:00, offset -02:00.
+            ((2018, 11, 4), "America/Sao_Paulo", "2018-11-04T03:00:00Z"),
+            ((2018, 11, 3), "America/Sao_Paulo", "2018-11-03T03:00:00Z"),
+        ] {
+            let at = civil::date(day.0, day.1, day.2);
+            let start = date_start_of_day(at, zone).expect("a day inside the range starts");
+            assert_eq!(
+                start.timestamp(),
+                instant.parse::<Timestamp>().expect("a valid instant"),
+                "{at} in {zone}"
+            );
+            assert_eq!(start.date(), at, "{at} in {zone}");
+            assert_eq!(start.time_zone().iana_name(), Some(zone), "{at} in {zone}");
+        }
+        let skipped = date_start_of_day(civil::date(2018, 11, 4), "America/Sao_Paulo")
+            .expect("the day exists");
+        assert_eq!(skipped.time(), civil::time(1, 0, 0, 0));
+        // The first and the last day start inside the range only at the
+        // widest offsets, and in UTC their midnight is past it.
+        let first = date_start_of_day(civil::date(-9999, 1, 1), "-25:59:59");
+        assert_eq!(
+            first.map(|z| (z.date(), z.timestamp())),
+            Ok((civil::date(-9999, 1, 1), Timestamp::MIN))
+        );
+        let last = date_start_of_day(civil::date(9999, 12, 31), "+25:59:59");
+        assert_eq!(last.map(|z| z.date()), Ok(civil::date(9999, 12, 31)));
+        for end in [civil::date(-9999, 1, 1), civil::date(9999, 12, 31)] {
+            let why = date_start_of_day(end, "UTC").expect_err("midnight in UTC is past the range");
+            assert!(why.contains(r"Core\Time\Date::atStartOfDay"), "{why}");
+            assert!(why.contains(PAST_THE_RANGE), "{why}");
         }
     }
 
