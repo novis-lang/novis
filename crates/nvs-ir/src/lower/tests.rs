@@ -6997,6 +6997,47 @@ fn a_callback_that_can_fail_keeps_the_form_and_is_recorded() {
     );
 }
 
+/// A recorded form is a `W1034` over the written form. Its message names the
+/// member to use, and its one fix is the fast form's text, marked an
+/// alternative so no batch applies it.
+#[test]
+fn a_form_warning_carries_its_fast_form_as_an_alternative() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $a): void {\n    \
+               echo Core\\Arr::first(Core\\Arr::filter($a, fn(int $x): bool => $x + 1 > 2)) ?? 0;\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int $x): bool => $x + 1 > 2)) == 0 ? 1 : 0;\n  }\n}\n";
+    let program = lower_whole_file_with_src(src).0;
+    let warnings = crate::forms::warnings(&program.forms);
+    assert_eq!(warnings.len(), 2, "{warnings:#?}");
+    let first = &warnings[0];
+    assert_eq!(first.code, Some(nvs_diagnostics::code::W_CHEAPER_FORM));
+    assert!(first.message.contains("`Core\\Arr::find`"), "{first:#?}");
+    let span = first.primary_span().expect("a primary label");
+    assert_eq!(
+        &src[span.start as usize..span.end as usize],
+        "Core\\Arr::first(Core\\Arr::filter($a, fn(int $x): bool => $x + 1 > 2))"
+    );
+    let [fix] = first.suggestions.as_slice() else {
+        panic!("one fix: {first:#?}");
+    };
+    assert!(fix.alternative && !fix.safe, "{fix:#?}");
+    assert_eq!(fix.span, span);
+    assert_eq!(
+        fix.replacement,
+        "Core\\Arr::find($a, fn(int $x): bool => $x + 1 > 2)"
+    );
+    let none = &warnings[1];
+    assert!(none.message.contains("`Core\\Arr::any`"), "{none:#?}");
+    let span = none.primary_span().expect("a primary label");
+    assert_eq!(
+        &src[span.start as usize..span.end as usize],
+        "Core\\Arr::count(Core\\Arr::filter($a, fn(int $x): bool => $x + 1 > 2)) == 0"
+    );
+    assert_eq!(
+        none.suggestions[0].replacement,
+        "!Core\\Arr::any($a, fn(int $x): bool => $x + 1 > 2)"
+    );
+}
+
 /// A callback that prints or writes a property may be called for every entry
 /// on purpose: the form stays as written, and nothing is recorded.
 #[test]

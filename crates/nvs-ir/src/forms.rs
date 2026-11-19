@@ -34,7 +34,7 @@
 //! **What it spends:** while compiling, one match of each `Core` call, null
 //! test and `try` lowered against the rows whose stage applies it. At run time, nothing.
 
-use nvs_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_syntax::ast::BinaryOp;
 use nvs_syntax::ast::{
     Arg, ArrayItem, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, FnExpr, Stmt,
@@ -1243,6 +1243,56 @@ pub(crate) fn run(functions: &mut [Function]) -> Vec<Recorded> {
         f.form_candidates.clear();
     }
     recorded
+}
+
+/// The `W1034` warning of each recorded form: the written form is its span,
+/// its message names the member to use, and its one fix is the fast form's
+/// text, marked an alternative so no batch applies it
+/// (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`). It is raised
+/// from [`run`]'s own decision and from nothing else, so `nvs check` and the
+/// editor cannot disagree. A span recorded twice, as a body lowered twice
+/// records it, warns once.
+///
+/// **What it spends:** one diagnostic per recorded form, while checking.
+#[must_use]
+pub fn warnings(recorded: &[Recorded]) -> Vec<Diagnostic> {
+    let mut seen = FxHashSet::default();
+    recorded
+        .iter()
+        .filter(|form| seen.insert(form.span))
+        .map(|form| {
+            let (message, label, fix) = if form.row.starts_with("comparator-by") {
+                (
+                    "this comparator compares one value of each side, and `by` gives the same \
+                     order faster"
+                        .to_owned(),
+                    "`by` calls its function once for each entry",
+                    "pass the value as `by`",
+                )
+            } else {
+                let member = fast_member(&form.fast);
+                (
+                    format!("`{member}` gives the same result faster"),
+                    "this calls the function for every entry",
+                    "use the faster form",
+                )
+            };
+            Diagnostic::warning(code::W_CHEAPER_FORM, message)
+                .with_primary(form.span, label)
+                .with_help(
+                    "the function can throw an error, and the faster form calls it fewer times, \
+                     so the compiler keeps this form",
+                )
+                .with_alternative_fix(form.span, form.fast.clone(), fix)
+        })
+        .collect()
+}
+
+/// The member a fast form's text calls: `Core\Arr::any` of
+/// `!Core\Arr::any($a, $p)`.
+fn fast_member(fast: &str) -> &str {
+    let call = fast.trim_start_matches('!');
+    call.find('(').map_or(call, |open| &call[..open])
 }
 
 /// Where one instruction is: its block's index and its own.

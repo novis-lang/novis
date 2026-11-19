@@ -1480,9 +1480,11 @@ fn front_end_in(
         diags.extend(unused);
     }
     // `nvs check`'s too: the copies an easy edit removes
-    // (`rule:types/a-replaced-value-is-changed-in-place`). They come from the
-    // ownership pass's own table, so the program is lowered as `nvs run`
-    // lowers it. Before the secret literals are concealed, so a warning's
+    // (`rule:types/a-replaced-value-is-changed-in-place`), and the forms only
+    // an edit can make faster
+    // (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+    // They come from the ownership pass's and the forms pass's own tables, so
+    // the program is lowered as `nvs run` lowers it. Before the secret literals are concealed, so a warning's
     // snippet hides them too.
     if matches!(sink, Sink::Check { .. })
         && let Some(layouts) = &layouts
@@ -1502,7 +1504,8 @@ fn front_end_in(
             &enums,
             layouts,
         );
-        let copies = nvs_ir::copies::warnings(&program.copies, &map);
+        let mut copies = nvs_ir::copies::warnings(&program.copies, &map);
+        copies.extend(nvs_ir::forms::warnings(&program.forms));
         drop(files);
         diags.extend(copies.into_iter().filter(|warning| {
             warning

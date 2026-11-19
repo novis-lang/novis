@@ -351,4 +351,17 @@ codes! {
          the whole value. Move that statement above the change. Then the value is changed in \
          place, and nothing is copied.",
     );
+    /// A form the table of cheaper forms has a faster one for, where the
+    /// callback writes nothing but can throw an error
+    /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+    /// The faster form calls the callback for fewer entries, so the compiler
+    /// does not choose it. `nvs_ir::forms::warnings` raises it from the
+    /// recorded forms, for `nvs check` and for the editor, and the fix is an
+    /// alternative a person picks.
+    pub const W_CHEAPER_FORM: Code = Code::new("W1034").card(
+        "This code calls a function for the entries of an array. A faster form gives the same \
+         result and calls the function fewer times. The function can throw an error. So the \
+         faster form may not throw an error that this code throws. Use the faster form if that \
+         error does not matter for the calls it skips.",
+    );
 }
