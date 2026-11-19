@@ -502,7 +502,16 @@ rendered now (`89c0a5b32c`), and the next `looper verify` is **green**. `bun nv 
 twelve `Core\Session` perf records (`f30c0ebbfd`). `cargo build`,
 `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` are green.
 
-The sweep's reds are stale. `env-secret-proofs` is a retired goal's check. Nightly 44510687786 built
+The first `DONE` was refused on `floor-debt`: the hostile proof
+`tests/hostile/lang/iteration/the-two-interfaces/01-two-interfaces-turned-against-themselves.nvs`
+threw a recursion error at step 4. That was a miscompile from `070c451772`. With one program class
+implementing `Iterator<int>`, a call through `Iterator<int>` went directly to that class's `advance`,
+also for a generator. `5ad76267b5` gives a native class or interface no sole body
+(`is_native` in `crates/nvs-types/src/signatures.rs`), and the expressions rule says so.
+`tests/conformance/iter/a-generator-is-driven-through-iterator-beside-one-iterator-class.nvst`
+pins it: red before the fix, green after. `looper check --name floor-debt` is green.
+
+The sweep's other reds are stale. `env-secret-proofs` is a retired goal's check. Nightly 44510687786 built
 `adc7487822`, and every red job has a fix commit after it: `eb5c02e983` (wasmtime advisories),
 `4c82a2409a` (the Miri immortal-string retag, every Miri shard), `656f5b2f2d` (the debug viewer's
 shots), and `1c75c4ef0e` (the registry browser test).
