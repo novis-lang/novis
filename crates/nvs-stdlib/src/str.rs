@@ -91,7 +91,7 @@
 use std::cmp::Ordering;
 
 use nvs_runtime::holes::Piece;
-use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Room, Run, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::registry::{
@@ -4003,25 +4003,21 @@ nvs_runtime::nvs_helper! {
     ///
     /// A subject already at least `$length` long comes back unchanged, and a
     /// padding run that does not divide evenly is cut at **the run's own
-    /// end** — [`write_run`] writes whole copies of the padding and then a
-    /// prefix of one more, so the dropped piece is the one abutting the
-    /// subject here and the one ending the result in [`nvs_core_str_pad_end`].
-    /// Both are PHP's behaviour, verified against 8.5. This comment used to
-    /// say "the end nearest the subject" for the pair, which is true of only
-    /// one of them; `str-pad-members-place-one-run-they-both-agree-on.nvst`
-    /// asserts the run is a function of the shortfall alone and pins the two
-    /// sides against each other.
-    fn nvs_core_str_pad_start(_ctx, args: [3]) -> Value, owns NvsStr {
-        let subject = text(&args[0], "padStart", "the subject")?;
-        let length = count(&args[1], "padStart", "the target length")?;
-        let padding = text(&args[2], "padStart", "the padding")?;
-        let (run, fill) = padding_run(subject, length, padding, "Core\\Str::padStart")?;
-        built_fallibly(fill + subject.len(), "Core\\Str::padStart", |out| {
-            write_run(out, padding, run);
-            out.push_str(subject);
-        })
-    } apply(result, _subject) {
-        result
+    /// end** — the run is whole copies of the padding and then a prefix of
+    /// one more, so the dropped piece is the one abutting the subject here and
+    /// the one ending the result in [`nvs_core_str_pad_end`]. Both are PHP's
+    /// behaviour, verified against 8.5.
+    /// `str-pad-members-place-one-run-they-both-agree-on.nvst` asserts the run
+    /// is a function of the shortfall alone and pins the two sides against
+    /// each other.
+    ///
+    /// A sole subject with room in front of its bytes takes the run there
+    /// ([`NvsStr::prepend_run`]), and one with room in its allocation moves
+    /// its bytes once to make it. [`padded`] decides it.
+    fn nvs_core_str_pad_start(_ctx, args: [3]) -> Extended, owns NvsStr {
+        padded(args, true, "Core\\Str::padStart")
+    } apply(plan, subject) {
+        extended(plan, subject)
     }
 }
 
@@ -4029,39 +4025,156 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::padEnd(string $s, uint $length, string $padding = " "): string`
     /// — replacing PHP's `str_pad` with `STR_PAD_RIGHT`. See
     /// [`nvs_core_str_pad_start`] for the shared rules.
-    fn nvs_core_str_pad_end(_ctx, args: [3]) -> Value, owns NvsStr {
-        let subject = text(&args[0], "padEnd", "the subject")?;
-        let length = count(&args[1], "padEnd", "the target length")?;
-        let padding = text(&args[2], "padEnd", "the padding")?;
-        let (run, fill) = padding_run(subject, length, padding, "Core\\Str::padEnd")?;
-        built_fallibly(subject.len() + fill, "Core\\Str::padEnd", |out| {
-            out.push_str(subject);
-            write_run(out, padding, run);
-        })
-    } apply(result, _subject) {
-        result
+    ///
+    /// A sole subject with room behind its bytes takes the run there
+    /// ([`NvsStr::extend`]), so a text padded one character at a time grows
+    /// as an append does.
+    fn nvs_core_str_pad_end(_ctx, args: [3]) -> Extended, owns NvsStr {
+        padded(args, false, "Core\\Str::padEnd")
+    } apply(plan, subject) {
+        extended(plan, subject)
     }
 }
 
-/// The run of padding `padStart`/`padEnd` prepend or append — `padding`
+/// What a member that extends its subject writes, planned before anything
+/// changes, so every throw comes before the subject is touched.
+pub(crate) enum Extended {
+    /// The subject is the result as it is.
+    Unchanged,
+    /// The result, already built: the subject had no room for it, and a build
+    /// can still throw where the allocator refuses a count off the call site.
+    Built(Value),
+    /// A run of `padding` the subject takes in its own allocation, in front of
+    /// its bytes when `front` is set and behind them otherwise. `added` is how
+    /// many grapheme clusters the run is, where that is certain.
+    Pad {
+        padding: NvsStr,
+        copies: usize,
+        tail: usize,
+        added: Option<usize>,
+        front: bool,
+    },
+    /// The subject written this many times over in its own allocation.
+    Repeat(usize),
+}
+
+/// The result an [`Extended`] plan gives over the owned subject.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "copies of a `string` and whole and cut pieces of a `string` padding are UTF-8"
+)]
+fn extended(plan: Extended, subject: NvsStr) -> Value {
+    match plan {
+        Extended::Unchanged => Value::str(subject),
+        Extended::Built(result) => result,
+        Extended::Pad {
+            padding,
+            copies,
+            tail,
+            added,
+            front,
+        } => {
+            let run = Run::new(padding.as_bytes(), copies, tail);
+            Value::str(if front {
+                subject.prepend_run(run, added)
+            } else {
+                subject.extend(run, added)
+            })
+        }
+        Extended::Repeat(times) => Value::str(subject.repeated(times)),
+    }
+}
+
+/// The plan `padStart` (`front`) and `padEnd` make.
+///
+/// The padding is retained before the subject's room is read. So a padding
+/// that is the subject itself makes the subject shared, and the run is never
+/// written over the bytes it is copied from.
+///
+/// The run's grapheme count is certain for an ASCII padding with no `\r`,
+/// because only `\r\n` joins two ASCII characters into one cluster. The
+/// subject's count is then kept, which a text padded one step at a time
+/// needs to stay linear.
+fn padded(args: &[Value], front: bool, member: &str) -> Result<Extended, Fault> {
+    let name = member.trim_start_matches("Core\\Str::");
+    let subject = text(&args[0], name, "the subject")?;
+    let length = count(&args[1], name, "the target length")?;
+    let padding = text(&args[2], name, "the padding")?;
+    let pad = padding_run(&args[0], subject, length, padding, member)?;
+    if pad.fill == 0 {
+        return Ok(Extended::Unchanged);
+    }
+    let held = <NvsStr as nvs_runtime::OwnedSubject>::share(&args[2])
+        .ok_or_else(|| Fault::fatal(format!("{member}: the padding is not a string")))?;
+    let room = if front {
+        args[0].room_in_front(pad.fill)
+    } else {
+        args[0].room_behind(pad.fill)
+    };
+    let run = Run::new(padding.as_bytes(), pad.copies, pad.tail);
+    match room {
+        Some(Room::Fits) => Ok(Extended::Pad {
+            padding: held,
+            copies: pad.copies,
+            tail: pad.tail,
+            added: (padding.is_ascii() && !padding.contains('\r')).then_some(pad.run),
+            front,
+        }),
+        Some(Room::Fresh(cap)) => built_fallibly(cap, member, |out| {
+            if front {
+                run.push_onto(out);
+                out.push_str(subject);
+            } else {
+                out.push_str(subject);
+                run.push_onto(out);
+            }
+        })
+        .map(Extended::Built),
+        None => Err(Fault::fatal(format!(
+            "{member}: the subject is not a string"
+        ))),
+    }
+}
+
+/// The run of padding `padStart`/`padEnd` prepend or append: `padding`
 /// repeated and then cut to exactly the shortfall, counted in
-/// [`crate::granularity::DEFAULT`] — as **how many pieces it is, and how many
-/// bytes they occupy**, which is all [`write_run`] and the result's length
-/// between them need. Building the run as a `String` here is what the member
-/// then had to copy a second time.
+/// [`crate::granularity::DEFAULT`].
+struct PadRun {
+    /// How many pieces of the padding the run is.
+    run: usize,
+    /// How many whole copies of the padding it starts with.
+    copies: usize,
+    /// How many bytes of one more copy end it.
+    tail: usize,
+    /// How many bytes it is.
+    fill: usize,
+}
+
+/// Measures the [`PadRun`] that brings `subject` to `length`. All of it is
+/// arithmetic on the pieces of `padding`: walking `run` pieces of a cycle to
+/// measure what a second walk then writes was measured and is a loss.
+///
+/// The subject's length is read through `value`, so a count its header
+/// already has is used, and one counted here is kept there.
 ///
 /// Empty padding throws rather than looping: it can never close a shortfall,
 /// and PHP's own `str_pad` refuses it too.
 fn padding_run(
+    value: &Value,
     subject: &str,
     length: usize,
     padding: &str,
     member: &str,
-) -> Result<(usize, usize), Fault> {
+) -> Result<PadRun, Fault> {
     let unit = crate::granularity::DEFAULT;
-    let have = unit.length(subject);
+    let have = unit.length_of(value, subject);
     if have >= length {
-        return Ok((0, 0));
+        return Ok(PadRun {
+            run: 0,
+            copies: 0,
+            tail: 0,
+            fill: 0,
+        });
     }
     if padding.is_empty() {
         return Err(Fault::thrown(format!(
@@ -4069,72 +4182,97 @@ fn padding_run(
         )));
     }
     // The run is `length - have` pieces, each at most the whole padding, so
-    // that product is an upper bound on the bytes about to be collected. It
-    // had no check at all before: `$length` is a `uint` off the call site, so
-    // `padStart("x", n, "y")` would build an n-byte string with nothing
-    // between it and the allocator.
+    // that product is an upper bound on its bytes. `$length` is a `uint` off
+    // the call site, so this is what stands between `padStart("x", n, "y")`
+    // and an n-byte string.
     let run = length - have;
     // `member` arrives already qualified, so the path that succeeds formats
-    // nothing: a `format!` here was one allocation per pad.
+    // nothing.
     nvs_runtime::affordable(run.checked_mul(padding.len()), member)?;
-    // The run is whole copies of the padding and then a prefix of one more, so
-    // both its length and [`write_run`]'s writing are arithmetic on the pieces
-    // of `padding` alone — walking `run` pieces of a cycle to measure what a
-    // second walk then writes was measured and is a loss.
     let pieces = unit.length(padding);
     let tail: usize = unit.pieces(padding).take(run % pieces).map(str::len).sum();
+    let copies = run / pieces;
     // Cannot overflow: the check above bounds the whole run, and this is it.
-    Ok((run, (run / pieces) * padding.len() + tail))
-}
-
-/// Writes the run [`padding_run`] measured: `run` pieces of `padding`, which is
-/// `run / pieces` whole copies of it and then the first `run % pieces` of one
-/// more.
-fn write_run(out: &mut StrWriter<'_>, padding: &str, run: usize) {
-    if run == 0 {
-        // A subject already at or past the target length, where `padding_run`
-        // answers before it has refused an empty padding — so this is also
-        // what keeps the piece count below non-zero.
-        return;
-    }
-    let unit = crate::granularity::DEFAULT;
-    let pieces = unit.length(padding);
-    for _ in 0..run / pieces {
-        out.push_str(padding);
-    }
-    let tail: usize = unit.pieces(padding).take(run % pieces).map(str::len).sum();
-    out.push_str(&padding[..tail]);
+    Ok(PadRun {
+        run,
+        copies,
+        tail,
+        fill: copies * padding.len() + tail,
+    })
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::repeat(string $s, uint $times): string` — replacing PHP's
     /// `str_repeat`. Zero times is the empty string, as in PHP.
     ///
-    /// An empty subject short-circuits the loop rather than running it, for
-    /// the reason `Core\Bytes::repeat`'s own doc comment gives: the size check
-    /// below is about how large the result is, so an empty subject passes it
-    /// for every count there is, and the loop would then run a caller-supplied
-    /// `uint` of iterations appending nothing.
-    fn nvs_core_str_repeat(_ctx, args: [2]) -> Value, owns NvsStr {
+    /// An empty subject is the result as it is, for the reason
+    /// `Core\Bytes::repeat`'s own doc comment gives: the size check below is
+    /// about how large the result is, so an empty subject passes it for every
+    /// count there is, and a loop would then run a caller-supplied `uint` of
+    /// iterations appending nothing.
+    ///
+    /// A sole subject with room copies itself behind its own bytes
+    /// ([`NvsStr::repeated`]). [`repeat_plan`] decides it.
+    fn nvs_core_str_repeat(_ctx, args: [2]) -> Extended, owns NvsStr {
         let subject = text(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
-        // The size goes through the one shared check first, so a repeat too
-        // large to hold is an ordinary throw rather than the contained FATAL a
-        // panicking allocation would be — and then the allocation itself is
-        // asked, because that check answers a different question. See
-        // [`built_fallibly`].
-        let len = nvs_runtime::affordable(
-            subject.len().checked_mul(times),
-            "Core\\Str::repeat",
-        )?;
-        let runs = if subject.is_empty() { 0 } else { times };
-        built_fallibly(len, "Core\\Str::repeat", |out| {
-            for _ in 0..runs {
-                out.push_str(subject);
+        repeat_plan(&args[0], subject.as_bytes(), times, "Core\\Str::repeat")
+    } apply(plan, subject) {
+        extended(plan, subject)
+    }
+}
+
+/// The plan `Core\Str::repeat` and `Core\Bytes::repeat` make for `subject`,
+/// the bytes of `value`, written `times` times over.
+///
+/// The size goes through the one shared check first, so a repeat too large to
+/// hold is an ordinary throw. Where the subject has no room, the result is
+/// built here, where the allocator itself is asked too ([`built_fallibly`]).
+pub(crate) fn repeat_plan(
+    value: &Value,
+    subject: &[u8],
+    times: usize,
+    member: &str,
+) -> Result<Extended, Fault> {
+    let len = nvs_runtime::affordable(subject.len().checked_mul(times), member)?;
+    if subject.is_empty() || times == 1 {
+        return Ok(Extended::Unchanged);
+    }
+    match value.room_behind(len.saturating_sub(subject.len())) {
+        Some(Room::Fits) => Ok(Extended::Repeat(times)),
+        Some(Room::Fresh(cap)) => NvsStr::try_build(cap, |out| {
+            for _ in 0..times {
+                out.push(subject);
             }
         })
-    } apply(result, _subject) {
-        result
+        .map(|built| Extended::Built(same_kind(value, built)))
+        .ok_or_else(|| {
+            let noun = if value.as_bytes().is_some() {
+                "buffer"
+            } else {
+                "string"
+            };
+            Fault::thrown(format!(
+                "{member}: the result is larger than any {noun} this process could hold"
+            ))
+        }),
+        None => Err(Fault::fatal(format!(
+            "{member}: the subject is not a string"
+        ))),
+    }
+}
+
+/// `built` as a value of `value`'s kind: a `bytes` for a `bytes`, and a
+/// `string` otherwise.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "copies of a `string` are UTF-8, and a `bytes` keeps its own tag"
+)]
+fn same_kind(value: &Value, built: NvsStr) -> Value {
+    if value.as_bytes().is_some() {
+        Value::bytes(built)
+    } else {
+        Value::str(built)
     }
 }
 

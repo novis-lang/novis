@@ -361,7 +361,7 @@ pub use peer::{
 };
 pub use string::{
     CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,
-    NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, StrPart, StrWriter, immortal_header_bytes,
+    NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, Room, Run, StrHeader, StrPart, StrWriter, immortal_header_bytes,
     nvs_str_append, nvs_str_append_parts, nvs_str_concat, nvs_str_concat_n, nvs_str_concat_parts,
     nvs_str_eq, nvs_str_new, nvs_str_release, nvs_str_retain,
 };

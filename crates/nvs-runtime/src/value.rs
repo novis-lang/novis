@@ -33,7 +33,7 @@ use std::fmt;
 use crate::array::{ArrayHeader, NvsArray};
 use crate::decimal::Decimal;
 use crate::object::{ClassDesc, NvsObj, ObjHeader, ShapeCodec};
-use crate::string::{NvsStr, StrHeader};
+use crate::string::{NvsStr, Room, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
@@ -581,6 +581,33 @@ impl Value {
         unsafe {
             crate::string::cached_count(ptr)
         }
+    }
+
+    /// The [`Room`] this `string` or `bytes` has for `extra` more bytes behind
+    /// its live ones, or `None` for any other value. A member that extends
+    /// its subject asks it before it changes anything, and builds the result
+    /// where it may still throw when the answer is [`Room::Fresh`].
+    #[must_use]
+    pub fn room_behind(&self, extra: usize) -> Option<Room> {
+        let ptr = self.buffer_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str or Tag::Bytes value owns a reference to a live \
+                      allocation, so it is live for at least this call"
+        )]
+        Some(unsafe { crate::string::room_for(ptr, extra, false) })
+    }
+
+    /// [`Self::room_behind`], for bytes written in front of the live ones.
+    #[must_use]
+    pub fn room_in_front(&self, extra: usize) -> Option<Room> {
+        let ptr = self.buffer_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str or Tag::Bytes value owns a reference to a live \
+                      allocation, so it is live for at least this call"
+        )]
+        Some(unsafe { crate::string::room_for(ptr, extra, true) })
     }
 
     /// The `bytes` payload's octets, if this value is a `bytes`.

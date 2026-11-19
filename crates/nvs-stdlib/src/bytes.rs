@@ -153,6 +153,7 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
+use crate::str::{Extended, repeat_plan};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -1096,19 +1097,20 @@ nvs_runtime::nvs_helper! {
     /// caller-supplied `uint` of iterations appending nothing, which is an
     /// unbounded spin on the request path for an answer already known.
     /// `Core\Str::repeat` carries the same guard for the same reason.
-    fn nvs_core_bytes_repeat(_ctx, args: [2]) -> Value, owns NvsStr {
+    ///
+    /// A sole subject with room copies itself behind its own bytes, as
+    /// `Core\Str::repeat` does, and the plan is the same
+    /// ([`crate::str::repeat_plan`]).
+    fn nvs_core_bytes_repeat(_ctx, args: [2]) -> Extended, owns NvsStr {
         let subject = raw(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
-        let size = affordable(subject.len().checked_mul(times), "repeat")?;
-        let mut octets: Vec<u8> = Vec::new();
-        reserved(&mut octets, size, "repeat")?;
-        let runs = if subject.is_empty() { 0 } else { times };
-        for _ in 0..runs {
-            octets.extend_from_slice(subject);
+        repeat_plan(&args[0], subject, times, r"Core\Bytes::repeat")
+    } apply(plan, subject) {
+        match plan {
+            Extended::Built(result) => result,
+            Extended::Repeat(times) => Value::bytes(subject.repeated(times)),
+            Extended::Unchanged | Extended::Pad { .. } => Value::bytes(subject),
         }
-        produced_fallibly(&octets, "repeat")
-    } apply(result, _subject) {
-        result
     }
 }
 

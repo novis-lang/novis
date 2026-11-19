@@ -662,13 +662,156 @@ unsafe fn room_in_place(ptr: *mut StrHeader, needed: usize) -> bool {
         if needed <= header.cap.saturating_sub(start) {
             return true;
         }
-        if needed > header.cap || start.saturating_mul(2) < header.cap {
+        if !reclaims(header.cap, start, needed) {
             return false;
         }
         let first = ptr.cast::<u8>().add(PAYLOAD_OFFSET);
         std::ptr::copy(first.add(start), first, header.len.get());
         header.start.set(0);
         true
+    }
+}
+
+/// Whether moving the live bytes back to the first payload byte makes room for
+/// `needed` live bytes: they fit in `cap`, and the dropped front `start` is at
+/// least half of it. [`room_in_place`] moves them, and [`room_for`] answers
+/// without moving them.
+fn reclaims(cap: usize, start: usize, needed: usize) -> bool {
+    needed <= cap && start.saturating_mul(2) >= cap
+}
+
+/// Where a member can write more bytes into a string, which it asks before it
+/// changes anything. [`crate::Value::room_behind`] and
+/// [`crate::Value::room_in_front`] answer it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Room {
+    /// The string has one owner and room for the bytes in its own allocation,
+    /// so [`NvsStr::extend`], [`NvsStr::repeated`] or [`NvsStr::prepend_run`]
+    /// writes them there and allocates nothing.
+    Fits,
+    /// The result needs a fresh allocation of this capacity: the doubling an
+    /// append grows by for a string with one owner, and exactly the result's
+    /// length for a shared one.
+    Fresh(usize),
+}
+
+/// The [`Room`] `ptr` has for `extra` more bytes: behind its live bytes,
+/// counting a dropped front an append reclaims, or in front of them when
+/// `front` is set.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live Novis string allocation.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation to state"
+)]
+pub(crate) unsafe fn room_for(ptr: *const StrHeader, extra: usize, front: bool) -> Room {
+    #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
+    let header = unsafe { &*ptr };
+    let len = header.len.get();
+    let needed = len.saturating_add(extra);
+    let (cap, start) = (header.cap, header.start.get());
+    let sole = header.refcount.get() == 1;
+    let fits = if front {
+        needed <= cap
+    } else {
+        needed <= cap.saturating_sub(start) || reclaims(cap, start, needed)
+    };
+    match (sole, fits) {
+        (true, true) => Room::Fits,
+        (true, false) => Room::Fresh(grown_capacity(len, needed)),
+        (false, _) => Room::Fresh(needed),
+    }
+}
+
+/// A run of bytes a member writes into a string: `piece` written `copies`
+/// times, and then its first `tail` bytes. Its length is arithmetic, so a
+/// member that pads knows it before anything is written.
+#[derive(Debug, Clone, Copy)]
+pub struct Run<'a> {
+    piece: &'a [u8],
+    copies: usize,
+    tail: usize,
+}
+
+impl<'a> Run<'a> {
+    /// `piece` written `copies` times and then its first `tail` bytes.
+    ///
+    /// # Panics
+    ///
+    /// When `tail` is longer than `piece`, or the run's length overflows a
+    /// `usize`. A member checks the length with `crate::affordable` first.
+    #[must_use]
+    pub fn new(piece: &'a [u8], copies: usize, tail: usize) -> Self {
+        assert!(tail <= piece.len(), "a run's tail is a prefix of its piece");
+        let run = Self {
+            piece,
+            copies,
+            tail,
+        };
+        let _ = run.len();
+        run
+    }
+
+    /// `piece` written once.
+    #[must_use]
+    pub fn once(piece: &'a [u8]) -> Self {
+        Self::new(piece, 1, 0)
+    }
+
+    /// How many bytes the run is.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.piece
+            .len()
+            .checked_mul(self.copies)
+            .and_then(|whole| whole.checked_add(self.tail))
+            .expect("an Novis string's length cannot overflow a usize")
+    }
+
+    /// Whether the run is no bytes at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Writes the run through `out`.
+    pub fn push_onto(&self, out: &mut StrWriter<'_>) {
+        for _ in 0..self.copies {
+            out.push(self.piece);
+        }
+        out.push(self.piece.get(..self.tail).unwrap_or_default());
+    }
+
+    /// Writes the run's [`Run::len`] bytes from `dst` on.
+    ///
+    /// # Safety
+    ///
+    /// `dst` must be writable for [`Run::len`] bytes, none of which `piece`
+    /// lies in.
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the destination is writable and does \
+                  not overlap the piece"
+    )]
+    unsafe fn write_to(&self, dst: *mut u8) {
+        let step = self.piece.len();
+        #[expect(
+            unsafe_code,
+            reason = "each copy stays inside the `len()` bytes the caller \
+                      guaranteed, and the piece lies outside them"
+        )]
+        unsafe {
+            for copy in 0..self.copies {
+                std::ptr::copy_nonoverlapping(self.piece.as_ptr(), dst.add(copy * step), step);
+            }
+            std::ptr::copy_nonoverlapping(
+                self.piece.as_ptr(),
+                dst.add(self.copies * step),
+                self.tail,
+            );
+        }
     }
 }
 
@@ -1302,7 +1445,14 @@ impl NvsStr {
     /// What a grown allocation adds, as for an append.
     #[must_use]
     pub fn prepend(self, bytes: &[u8], added: Option<usize>) -> Self {
-        let n = bytes.len();
+        self.prepend_run(Run::once(bytes), added)
+    }
+
+    /// [`NvsStr::prepend`] of a [`Run`], which this writes itself, so a member
+    /// that pads builds no run first.
+    #[must_use]
+    pub fn prepend_run(self, run: Run<'_>, added: Option<usize>) -> Self {
+        let n = run.len();
         if n == 0 {
             return self;
         }
@@ -1323,7 +1473,7 @@ impl NvsStr {
                 reason = "this handle is the string's one owner, so nothing else \
                           reads the payload; both writes stay inside `cap`, \
                           which the branch above checked holds `n + len`, and \
-                          `bytes` cannot borrow from a string this call owns alone"
+                          the run cannot borrow from a string this call owns alone"
             )]
             unsafe {
                 let first = first.add(PAYLOAD_OFFSET);
@@ -1333,7 +1483,7 @@ impl NvsStr {
                     std::ptr::copy(first.add(start), first.add(n), len);
                     0
                 };
-                std::ptr::copy_nonoverlapping(bytes.as_ptr(), first.add(at), n);
+                run.write_to(first.add(at));
                 header.start.set(at);
             }
             header.len.set(needed);
@@ -1347,7 +1497,7 @@ impl NvsStr {
                 needed
             };
             Self::build(cap, |out| {
-                out.push(bytes);
+                run.push_onto(out);
                 out.push(self.as_bytes());
             })
         };
@@ -1362,6 +1512,148 @@ impl NvsStr {
             }
         }
         out
+    }
+
+    /// Writes `run` behind the payload, consuming this handle and giving the
+    /// result's — the in-place write every `Core` member that extends calls.
+    ///
+    /// A sole string with room behind its live bytes writes the run there, and
+    /// no live byte moves, except where an append would move them back to
+    /// reclaim a dropped front ([`room_in_place`]). Otherwise the result is a
+    /// fresh allocation of [`room_for`]'s capacity. `added` is how many
+    /// grapheme clusters the run holds, as in [`NvsStr::append_counted`]. The
+    /// digest is reset.
+    ///
+    /// # Memory
+    ///
+    /// What a grown allocation adds, as for an append.
+    #[must_use]
+    pub fn extend(self, run: Run<'_>, added: Option<usize>) -> Self {
+        let n = run.len();
+        if n == 0 {
+            return self;
+        }
+        let len = self.len();
+        let needed = len
+            .checked_add(n)
+            .expect("an Novis string's length cannot overflow a usize");
+        let sum = self
+            .known_count()
+            .zip(added)
+            .map(|(held, gained)| held.saturating_add(gained));
+        let target = self.ptr.as_ptr();
+        #[expect(
+            unsafe_code,
+            reason = "this handle is the string's one owner, so nothing else \
+                      reads the payload; `room_in_place` made room for `needed` \
+                      live bytes, so the run's write stays inside `cap`, and \
+                      the run cannot borrow from a string this call owns alone"
+        )]
+        let in_place = self.is_sole()
+            && unsafe {
+                room_in_place(target, needed) && {
+                    run.write_to(live_payload(target).add(len));
+                    true
+                }
+            };
+        let out = if in_place {
+            let header = self.header();
+            header.len.set(needed);
+            header.graphemes.set(COUNT_UNKNOWN);
+            header.digest.set(DIGEST_UNKNOWN);
+            self
+        } else {
+            #[expect(unsafe_code, reason = "this handle keeps `target` live")]
+            let cap = match unsafe { room_for(target, n, false) } {
+                Room::Fresh(cap) => cap,
+                Room::Fits => needed,
+            };
+            Self::build(cap, |out| {
+                out.push(self.as_bytes());
+                run.push_onto(out);
+            })
+        };
+        // A refused allocation gives the empty string, which has no seam.
+        if out.len() == needed {
+            #[expect(
+                unsafe_code,
+                reason = "`out` is live, and `sum` is known only for a `string`"
+            )]
+            unsafe {
+                remember_joined(out.ptr.as_ptr(), sum, len);
+            }
+        }
+        out
+    }
+
+    /// The payload written `times` times over, consuming this handle and
+    /// giving the result's — what `Core\Str::repeat` and `Core\Bytes::repeat`
+    /// call.
+    ///
+    /// A sole string with room for the result copies its own bytes behind
+    /// themselves, doubling what it copies each time, and no live byte moves
+    /// except to reclaim a dropped front, as for [`NvsStr::extend`]. Otherwise
+    /// the result is a fresh allocation of [`room_for`]'s capacity. The
+    /// grapheme count and the digest are reset.
+    ///
+    /// # Memory
+    ///
+    /// What a grown allocation adds, as for an append.
+    ///
+    /// # Panics
+    ///
+    /// When the result's length overflows a `usize`. A member checks it with
+    /// `crate::affordable` first.
+    #[must_use]
+    pub fn repeated(self, times: usize) -> Self {
+        let len = self.len();
+        if times == 1 || len == 0 {
+            return self;
+        }
+        if times == 0 {
+            return self.keep(0..0, None);
+        }
+        let needed = len
+            .checked_mul(times)
+            .expect("an Novis string's length cannot overflow a usize");
+        let target = self.ptr.as_ptr();
+        #[expect(
+            unsafe_code,
+            reason = "this handle is the string's one owner, so nothing else \
+                      reads the payload; `room_in_place` made room for `needed` \
+                      live bytes, and each copy reads bytes before `written` \
+                      and writes after it, inside `needed`"
+        )]
+        let in_place = self.is_sole()
+            && unsafe {
+                room_in_place(target, needed) && {
+                    let first = live_payload(target);
+                    let mut written = len;
+                    while written < needed {
+                        let step = written.min(needed - written);
+                        std::ptr::copy_nonoverlapping(first, first.add(written), step);
+                        written += step;
+                    }
+                    true
+                }
+            };
+        if in_place {
+            let header = self.header();
+            header.len.set(needed);
+            header.graphemes.set(COUNT_UNKNOWN);
+            header.digest.set(DIGEST_UNKNOWN);
+            return self;
+        }
+        #[expect(unsafe_code, reason = "this handle keeps `target` live")]
+        let cap = match unsafe { room_for(target, needed - len, false) } {
+            Room::Fresh(cap) => cap,
+            Room::Fits => needed,
+        };
+        Self::build(cap, |out| {
+            for _ in 0..times {
+                out.push(self.as_bytes());
+            }
+        })
     }
 
     /// Lets `write` change a sole string's live bytes where they are, and
