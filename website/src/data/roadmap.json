@@ -45,6 +45,13 @@
       "goals": [
         "attribute-property-names"
       ]
+    },
+    {
+      "title": "A part of the page filled later reads the request",
+      "text": "A function passed to `Core\\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.",
+      "goals": [
+        "later-reads-the-request"
+      ]
     }
   ]
 }
