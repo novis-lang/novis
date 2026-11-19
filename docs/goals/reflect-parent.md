@@ -14,7 +14,7 @@ stages:
     context: [docs/examples/core/Reflect-ClassInfo/attributes/about.md, docs/agent/prose.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: case
@@ -155,33 +155,42 @@ the examples. Their files are disjoint, and no one builds until both end.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 and 2 are done. `bun nv proofs --id 'Core\Reflect\ClassInfo::parent'` prints `complete.`,
-and `bun nv proofs --comments` passes on the five new files. The examples are under
-`docs/examples/core/Reflect-ClassInfo/parent/`, the attack is
-`tests/hostile/core/Reflect-ClassInfo/parent/01-a-walk-that-tries-to-reach-a-private-member-of-a-parent.nvs`
-(six steps, exit 0, no `// hostile:` line), and the bench
-`benches/members/core/Reflect-ClassInfo/parent.nvs` declares `calls 1` and `allocations 1`: one
-string per `parent()` call. All 40 `Core\Reflect` perf records were measured again on a release
-binary built after the last edit to `crates/nvs-stdlib/src/reflect.rs`, so do not edit that file
-again, doc comments included, or they go stale.
+All three stages are done, and the goal closes without the full gate. The build and
+`cargo clippy --all-targets -- -D warnings` are green, and so are the goal's checks: `case` (the
+`.nvst` passes), `rust` (`class_info_parent_is_the_extended_class_and_null_at_a_root` passes), and
+`proofs` (`complete.`). `bun nv owners --closes reflect-parent` names no gap.
 
-The sweep's `env-secret-proofs` red is stale: `git log -S` names cheaper-forms' retire as its last
-hit, and no check by that name exists in the tree.
+The sweep's nightly reds (run 44510687786, at `adc7487822`) are fixed, one commit each:
+
+- **Miri units, every shard:** `NvsStr::ascii_byte` and `empty_immortal` took their pointer from
+  `&shared.header`, which covers the header alone, and every payload read went past it.
+  `SharedString::header_ptr` (`crates/nvs-runtime/src/string.rs`) now takes it from the whole
+  string. `helpers::tests::` passes under Miri for `x86_64-unknown-linux-gnu` with
+  `--features nvs-runtime/sanitizer`, as CI runs it. The `nvs-stdlib` shards are not run here
+  (they need WSL), and their failures all went through the same `bytes_of` read.
+- **supply chain:** wasmtime is 50.0.2 and cranelift 0.137.2 in `Cargo.toml` and the lock, past
+  RUSTSEC-2026-0566 to -0573. `cargo deny check advisories` is ok.
+- **proofs / linux-x86_64:** the seven `website/snippets/tools/debug-viewer/*.shot` are taken
+  again. Only the assets hash changed in each.
+- **browser:** `registry-browser.test.ts` "an owner freezes the first stable API after reading
+  it" read an empty page once on CI, and it passes here. It is not changed. If it fails again,
+  the page text is read before the page renders, and the test waits on `shows(...)` instead.
+
+The sweep's `env-secret-proofs` red is stale: no check by that name exists in the tree.
 
 ### Next
 
-Stage 3 closes the goal with a build, clippy and this goal's own checks (`case`, `rust`, `proofs`),
-unless the pack names this goal as the full gate. 147 perf records outside `Core\Reflect`
-(`Core\Str`, `Core\Json`, `Core\IO` and more) are stale from earlier goals' edits, and the full
-gate's `bun nv ci --check` will name them. `website/public/llms-full.txt` lists the `ClassInfo`
-members and may go red until it is regenerated. `cargo fmt --check` names 18 places from earlier
-goals.
+The goal is reached. The next nightly should show the Miri, supply-chain and proofs jobs green.
+147 perf records outside `Core\Reflect` are stale from earlier goals' edits, and `string.rs`'s
+edit adds the `Core\Str` ones. The next full gate's `bun nv ci --check` names them.
+`website/public/llms-full.txt` may need regenerating for the `ClassInfo` members. `cargo fmt
+--check` names 18 places from earlier goals.
 
 ### Backlog
