@@ -6720,3 +6720,72 @@ fn every_replacement_form_has_a_case() {
             .join("\n  "),
     );
 }
+
+/// Every row of the table of cheaper forms has a conformance case for each
+/// outcome it can have, under `tests/conformance/forms/<folder>/`, named
+/// `<row id>-<outcome>.nvst`
+/// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+///
+/// [`crate::forms::Row::cases`] says what each row owes. Each case prints
+/// what the form returns, so the differential run of
+/// `bun nv suite tests/conformance/ --no-cheaper-forms-too` compares every row
+/// both ways. The test fails naming each missing case, and each case in a
+/// folder that starts with a row's id and names none of its outcomes.
+#[test]
+fn every_form_row_has_its_cases() {
+    let root = nvs_repo::path(crate::forms::CASES_DIR);
+    let mut missing = Vec::new();
+    let mut stray = Vec::new();
+    let mut owed_count = 0;
+    for folder in [
+        crate::forms::Folder::Calls,
+        crate::forms::Folder::Loops,
+        crate::forms::Folder::Callbacks,
+    ] {
+        let dir = root.join(folder.name());
+        let written: std::collections::BTreeSet<String> = std::fs::read_dir(&dir)
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .filter_map(|entry| entry.file_name().into_string().ok())
+                    .filter(|name| name.ends_with(".nvst"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let rows: Vec<&crate::forms::Row> = crate::forms::ROWS
+            .iter()
+            .filter(|row| row.folder == folder)
+            .collect();
+        let owed: std::collections::BTreeSet<String> = rows
+            .iter()
+            .flat_map(|row| row.cases())
+            .map(|case| case.file)
+            .collect();
+        owed_count += owed.len();
+        missing.extend(
+            owed.difference(&written)
+                .map(|file| format!("{}/{file}", folder.name())),
+        );
+        // A case no row owes is allowed only when it starts with no row's id.
+        stray.extend(
+            written
+                .difference(&owed)
+                .filter(|name| {
+                    crate::forms::ROWS
+                        .iter()
+                        .any(|row| name.starts_with(&format!("{}-", row.id)))
+                })
+                .map(|file| format!("{}/{file}", folder.name())),
+        );
+    }
+    assert!(
+        missing.is_empty() && stray.is_empty(),
+        "{} of {owed_count} cases the table of cheaper forms owes are not under {}, and {} case(s) \
+         name no outcome of their row.\nmissing:\n  {}\nnaming no outcome:\n  {}",
+        missing.len(),
+        root.display(),
+        stray.len(),
+        missing.join("\n  "),
+        stray.join("\n  "),
+    );
+}

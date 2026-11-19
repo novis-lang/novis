@@ -1,0 +1,16 @@
+{
+  "title": "The compiler runs the cheaper of two forms that give the same result, and warns with the fix where only an edit can change it",
+  "status": "designed",
+  "seeAlso": [
+    "types/a-replaced-value-is-changed-in-place",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "expressions/misread-grouping-warns",
+    "observability/a-query-span-names-its-call-site"
+  ],
+  "guardedBy": [
+    "crates/nvs-ir/src/forms.rs",
+    "crates/nvs-ir/src/lower/tests.rs",
+    "tests/conformance/forms"
+  ],
+  "goal": "cheaper-forms"
+}

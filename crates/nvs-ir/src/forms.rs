@@ -1,0 +1,390 @@
+//! The table of cheaper forms
+//! (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+//!
+//! Each [`Row`] is one shape a program may be written in, the form that gives
+//! the same result for less work, and what must be proven before the compiler
+//! may compile one as the other. The table is closed: a goal adds a row,
+//! together with its measurement, and nothing else decides a form. The
+//! lowering asks it at the four places a shape is still a tree — a call, a
+//! `foreach` subject, a `try` and an array literal — so there is one place to
+//! read, test and switch off ([`crate::lower::without_cheaper_forms`]).
+//!
+//! A row is one of two kinds, by its [`Proof`]:
+//!
+//! - **[`Proof::Static`]**: the lowering matches it on resolved calls with
+//!   static types and emits the fast form directly. Each [`Condition`] is one
+//!   clause of the row's "holds when" cell; where one fails, the form is
+//!   compiled as written.
+//! - **[`Proof::Callback`]**: the lowering emits the form as written and records
+//!   a candidate, and the pass that runs after `crate::effects` reads the
+//!   callback's summary. A callback that writes nothing and cannot fail gives
+//!   the fast form; one that writes nothing but can fail gives a warning that
+//!   carries the fast form; one with an effect, or one the compiler cannot
+//!   name, gives nothing.
+//!
+//! Every row owes conformance cases under [`CASES_DIR`], which
+//! `every_form_row_has_its_cases` counts ([`Row::cases`]). Each case prints what
+//! the form returns, so `bun nv suite tests/conformance/ --no-cheaper-forms-too`
+//! compares every row both ways.
+//!
+//! **What it spends:** nothing yet. No row is applied by this module's table
+//! alone; each stage that applies a row reads it at the row's site.
+
+/// Where a row's conformance cases live, under the repository root.
+pub const CASES_DIR: &str = "tests/conformance/forms";
+
+/// What the compiler does with one written form.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// The fast form is compiled, silently.
+    Fast,
+    /// The form stays as written and is a warning that carries the fast form
+    /// as an alternative a person picks.
+    Warning,
+    /// The form stays as written, with no warning.
+    AsWritten,
+}
+
+/// One clause of a [`Proof::Static`] row's "holds when" cell.
+#[derive(Clone, Copy, Debug)]
+pub struct Condition {
+    /// The case name's suffix for the program where this clause fails.
+    pub case: &'static str,
+    /// What the program does where this clause fails.
+    pub fails_when: &'static str,
+}
+
+/// What must be proven before a row's fast form replaces the written one.
+#[derive(Clone, Copy, Debug)]
+pub enum Proof {
+    /// Read from the resolved call and the static types while lowering: every
+    /// condition holds, or the form is compiled as written.
+    Static(&'static [Condition]),
+    /// The callback's effect summary and its error edges decide the outcome.
+    Callback,
+}
+
+/// The folder under [`CASES_DIR`] a row's cases live in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Folder {
+    /// A call form: `match`, `count`, `first`, `filter`, a caught conversion,
+    /// and a method call the compiler can name.
+    Calls,
+    /// A loop, a literal or a static call.
+    Loops,
+    /// A form with a callback.
+    Callbacks,
+}
+
+impl Folder {
+    /// The folder's name under [`CASES_DIR`].
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Calls => "calls",
+            Self::Loops => "loops",
+            Self::Callbacks => "callbacks",
+        }
+    }
+}
+
+/// One row of the table.
+#[derive(Clone, Copy, Debug)]
+pub struct Row {
+    /// The row's id, which starts the name of each of its cases.
+    pub id: &'static str,
+    /// The form as a program writes it.
+    pub written: &'static str,
+    /// The form the compiler runs where the row holds.
+    pub fast: &'static str,
+    /// What must be proven first.
+    pub proof: Proof,
+    /// Where its cases live.
+    pub folder: Folder,
+    /// The goal stage of `cheaper-forms` that applies the row.
+    pub stage: u8,
+}
+
+/// One case a row owes: its file name under the row's folder, and what the
+/// compiler does with the program in it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Case {
+    /// `<row id>-<outcome>.nvst`.
+    pub file: String,
+    /// What the compiler does with the case's form.
+    pub outcome: Outcome,
+}
+
+impl Row {
+    /// Every case the row owes. A [`Proof::Static`] row owes one where it holds
+    /// and one for each condition that fails; a [`Proof::Callback`] row owes
+    /// one where the callback is proven, one where it can fail and one where
+    /// it has an effect.
+    #[must_use]
+    pub fn cases(&self) -> Vec<Case> {
+        let case = |suffix: &str, outcome| Case {
+            file: format!("{}-{suffix}.nvst", self.id),
+            outcome,
+        };
+        match self.proof {
+            Proof::Static(conditions) => std::iter::once(case("holds", Outcome::Fast))
+                .chain(
+                    conditions
+                        .iter()
+                        .map(|condition| case(condition.case, Outcome::AsWritten)),
+                )
+                .collect(),
+            Proof::Callback => vec![
+                case("proven", Outcome::Fast),
+                case("can-fail", Outcome::Warning),
+                case("has-effect", Outcome::AsWritten),
+            ],
+        }
+    }
+}
+
+/// The clauses both caught-conversion rows share: the `try` is exactly one
+/// conversion assigned, caught by one arm that assigns `null`.
+const CAUGHT: &[Condition] = &[
+    Condition {
+        case: "wider-body",
+        fails_when: "the `try` body has more than the one assignment",
+    },
+    Condition {
+        case: "operand-can-fail",
+        fails_when: "the operand is a call or a property with a hook, so the conversion is not the body's only failure",
+    },
+    Condition {
+        case: "two-catch-arms",
+        fails_when: "there is more than one `catch` arm",
+    },
+    Condition {
+        case: "narrower-catch",
+        fails_when: "the `catch` class neither is nor contains the class the conversion throws",
+    },
+    Condition {
+        case: "catch-variable-read",
+        fails_when: "the `catch` arm reads its variable",
+    },
+    Condition {
+        case: "catch-body-not-null",
+        fails_when: "the `catch` body is anything but `$v = null;`",
+    },
+    Condition {
+        case: "has-finally",
+        fails_when: "the `try` has a `finally`",
+    },
+];
+
+/// The clauses of the caught `parse` row: [`CAUGHT`], and `K` declares
+/// `tryParse`.
+const CAUGHT_PARSE: &[Condition] = &[
+    CAUGHT[0],
+    CAUGHT[1],
+    CAUGHT[2],
+    CAUGHT[3],
+    CAUGHT[4],
+    CAUGHT[5],
+    CAUGHT[6],
+    Condition {
+        case: "no-try-parse",
+        fails_when: "the class declares no `tryParse`",
+    },
+];
+
+/// Every row, in the order the rule's two tables list them.
+pub const ROWS: &[Row] = &[
+    Row {
+        id: "match-null-test",
+        written: "`Core\\Regex::match(s, p)` used only in `== null`, `!= null` or `is null`",
+        fast: "`Core\\Regex::matches(s, p)`",
+        proof: Proof::Static(&[Condition {
+            case: "has-from",
+            fails_when: "the call has a `from` option",
+        }]),
+        folder: Folder::Calls,
+        stage: 2,
+    },
+    Row {
+        id: "count-of-keys-or-values",
+        written: "`Core\\Arr::count` of `keys(a)` or `values(a)`",
+        fast: "`Core\\Arr::count(a)`",
+        proof: Proof::Static(&[]),
+        folder: Folder::Calls,
+        stage: 2,
+    },
+    Row {
+        id: "first-of-keys-or-values",
+        written: "`Core\\Arr::first` of `keys(a)`, `first` of `values(a)`",
+        fast: "`firstKey(a)`, `first(a)`",
+        proof: Proof::Static(&[]),
+        folder: Folder::Calls,
+        stage: 2,
+    },
+    Row {
+        id: "filter-contains",
+        written: "`Core\\Arr::filter(a, fn(x) => !Core\\Arr::contains(b, x))`, and the same without `!`",
+        fast: "`diff(a, b)`, `intersect(a, b)`",
+        proof: Proof::Static(&[
+            Condition {
+                case: "b-assigned",
+                fails_when: "`b` is assigned in the function",
+            },
+            Condition {
+                case: "array-elements",
+                fails_when: "the element type is an array",
+            },
+        ]),
+        folder: Folder::Calls,
+        stage: 2,
+    },
+    Row {
+        id: "caught-conversion",
+        written: "`try { $v = X as T; } catch (C) { $v = null; }`",
+        fast: "`$v = X as ?T;`",
+        proof: Proof::Static(CAUGHT),
+        folder: Folder::Calls,
+        stage: 2,
+    },
+    Row {
+        id: "caught-parse",
+        written: "`try { $v = K::parse(X); } catch (C) { $v = null; }`",
+        fast: "`$v = K::tryParse(X);`",
+        proof: Proof::Static(CAUGHT_PARSE),
+        folder: Folder::Calls,
+        stage: 2,
+    },
+    Row {
+        id: "foreach-keys-or-values",
+        written: "`foreach (Core\\Arr::keys(m) as $k)`, `foreach (Core\\Arr::values(m) as $v)`",
+        fast: "the loop over `m` itself, binding the key or the value",
+        proof: Proof::Static(&[]),
+        folder: Folder::Loops,
+        stage: 3,
+    },
+    Row {
+        id: "foreach-range",
+        written: "`foreach (Core\\Arr::range(a, b, step) as $i)`",
+        fast: "a counted loop whose direction is decided once, before the first step",
+        proof: Proof::Static(&[Condition {
+            case: "bad-arguments",
+            fails_when: "`range` throws for its arguments, which happens before the first step",
+        }]),
+        folder: Folder::Loops,
+        stage: 3,
+    },
+    Row {
+        id: "unread-foreach-key",
+        written: "a `foreach` key binding the body never reads",
+        fast: "no key is made",
+        proof: Proof::Static(&[]),
+        folder: Folder::Loops,
+        stage: 3,
+    },
+    Row {
+        id: "constant-key-literal",
+        written: "an array literal whose keys are all constants, no two equal, with no spread",
+        fast: "one `ArrayNew` with its entries",
+        proof: Proof::Static(&[
+            Condition {
+                case: "computed-key",
+                fails_when: "a key is not a constant",
+            },
+            Condition {
+                case: "equal-keys",
+                fails_when: "two keys are equal",
+            },
+            Condition {
+                case: "has-spread",
+                fails_when: "the literal has a spread",
+            },
+        ]),
+        folder: Folder::Loops,
+        stage: 3,
+    },
+    Row {
+        id: "static-member",
+        written: "`static::m()` and `static::NAME`",
+        fast: "the direct call and the constant",
+        proof: Proof::Static(&[
+            Condition {
+                case: "method-overridden",
+                fails_when: "a class in the program overrides `m`",
+            },
+            Condition {
+                case: "constant-redeclared",
+                fails_when: "a class in the program declares `NAME` again",
+            },
+        ]),
+        folder: Folder::Loops,
+        stage: 3,
+    },
+    Row {
+        id: "named-method-call",
+        written: "`$x->m()` on a receiver of static class `C`",
+        fast: "the direct call",
+        proof: Proof::Static(&[Condition {
+            case: "overridden-below",
+            fails_when: "a class below `C` declares `m` again, so `m` has more than one body at or below `C`",
+        }]),
+        folder: Folder::Calls,
+        stage: 9,
+    },
+    Row {
+        id: "property-getter",
+        written: "`$x->m()` where the one body of `m` is `return $this->p;`",
+        fast: "the read of `p`",
+        proof: Proof::Static(&[
+            Condition {
+                case: "not-direct",
+                fails_when: "the call is not direct",
+            },
+            Condition {
+                case: "hooked-property",
+                fails_when: "`p` has a hook",
+            },
+        ]),
+        folder: Folder::Calls,
+        stage: 9,
+    },
+    Row {
+        id: "first-of-filter",
+        written: "`Core\\Arr::first(Core\\Arr::filter(a, p))`",
+        fast: "`Core\\Arr::find(a, p)`",
+        proof: Proof::Callback,
+        folder: Folder::Callbacks,
+        stage: 4,
+    },
+    Row {
+        id: "first-key-of-filter",
+        written: "`Core\\Arr::firstKey(Core\\Arr::filter(a, p))`",
+        fast: "`Core\\Arr::findKey(a, p)`",
+        proof: Proof::Callback,
+        folder: Folder::Callbacks,
+        stage: 4,
+    },
+    Row {
+        id: "any-of-filter",
+        written: "`Core\\Arr::count(Core\\Arr::filter(a, p))` compared with `0`, and `Core\\Arr::isEmpty` of it",
+        fast: "`Core\\Arr::any(a, p)`, negated where the test is for none",
+        proof: Proof::Callback,
+        folder: Folder::Callbacks,
+        stage: 4,
+    },
+    Row {
+        id: "comparator-by",
+        written: "`sort`, `diff` or `intersect` with `comparator: fn(x, y) => E(x) <=> E(y)`",
+        fast: "the same member with `by: fn(x) => E(x)`",
+        proof: Proof::Callback,
+        folder: Folder::Callbacks,
+        stage: 4,
+    },
+    Row {
+        id: "comparator-by-desc",
+        written: "`sort` with `comparator: fn(x, y) => E(y) <=> E(x)` and no `order` option",
+        fast: "`by: fn(x) => E(x)` with `order: Core\\Arr::Order::Desc`",
+        proof: Proof::Callback,
+        folder: Folder::Callbacks,
+        stage: 4,
+    },
+];

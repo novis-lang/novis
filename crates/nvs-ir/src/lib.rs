@@ -625,6 +625,7 @@
 
 pub mod copies;
 pub(crate) mod effects;
+pub mod forms;
 pub mod ids;
 pub mod ir;
 pub mod lower;
