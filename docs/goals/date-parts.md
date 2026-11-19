@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/time.rs, docs/reference/core/Time-Date.md, docs/
 stages:
   - id: 1
     title: "a Date returns its parts and becomes a DateTime, and the reference pages say what the compiler accepts"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cldr.rs]
   - id: 2
     title: "a DateTime and a TimeOfDay return each field as a number, and the intl extension reads them"
@@ -151,30 +151,30 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 **Does:** the seven `Date` members and the three reference pages.
 
-- [ ] `crates/nvs-stdlib/src/time.rs:2570`: after `compareTo` in `DATE`'s `instance` list, `weekday`,
+- [x] `crates/nvs-stdlib/src/time.rs:2570`: after `compareTo` in `DATE`'s `instance` list, `weekday`,
   `dayOfYear`, `isLeapYear`, `year`, `month`, `day` and `atStartOfDay`, each with its reference card held
   to `AGENTS.md` § *Text an end user reads*. The bodies sit beside `nvs_core_time_date_compare_to`
   (`:4939`) and read the date with `date_of` (`:4736`). `weekday` returns the `WEEKDAY` index as
   `nvs_core_time_datetime_weekday` does (`:4545`). Each symbol joins `date_address` (`:2743`).
-- [ ] `atStartOfDay` builds its value as `nvs_core_time_at` does (`:4669`): the date at midnight, then
+- [x] `atStartOfDay` builds its value as `nvs_core_time_at` does (`:4669`): the date at midnight, then
   `zone.to_zoned`, with the same `PAST_THE_RANGE` error. Its card says a zone that skips midnight gives
   the first time that exists that day.
-- [ ] The Rust tests `date_parts_are_the_three_fields_and_the_calendar_of_that_day` and
+- [x] The Rust tests `date_parts_are_the_three_fields_and_the_calendar_of_that_day` and
   `date_parts_at_start_of_day_is_the_first_instant_of_that_day_in_the_zone` in the tests module
   (`:5183`), each with its `// covers:` line. The second uses a zone whose clocks skip midnight on one
   day. The `rust-date` check runs once.
-- [ ] `tests/conformance/core/time-date-parts-agree-with-the-date-they-came-from.nvst:1`: over a table of
+- [x] `tests/conformance/core/time-date-parts-agree-with-the-date-they-came-from.nvst:1`: over a table of
   dates, including both ends of `-9999..=9999` and 29 February, each reader agrees with `format` and
   with the same reader on `atStartOfDay($zone)`, and `atStartOfDay($zone)->date()` is the date again.
   Its `// covers:` line names the seven members. The `case-date` check runs once.
-- [ ] `docs/reference/core/Time-DateTime.md:16`: the table lists every letter `Field::of` accepts, and
+- [x] `docs/reference/core/Time-DateTime.md:16`: the table lists every letter `Field::of` accepts, and
   the sentence at `:32` names only the letters it refuses. Then the Rust test
   `the_reference_table_lists_every_letter_the_compiler_accepts` in `crates/nvs-stdlib/src/cldr.rs:3108`.
   The `table` check runs once.
-- [ ] `docs/reference/core/Time-Date.md:6` names the new members and `atStartOfDay` as the way to a
+- [x] `docs/reference/core/Time-Date.md:6` names the new members and `atStartOfDay` as the way to a
   `DateTime`, and `:12` says `<` orders two dates. `docs/reference/core/Time-TimeOfDay.md:11` gets the
   same `<` fix, after a one-line case shows `<` compiles on two `TimeOfDay` values.
-- [ ] `crates/nvs-stdlib/src/time.rs:54` and `:140`: the module doc says what the three classes return
+- [x] `crates/nvs-stdlib/src/time.rs:54` and `:140`: the module doc says what the three classes return
   now, and drops "`Core\Time` is whole".
 
 ### 2. a DateTime and a TimeOfDay return each field as a number, and the intl extension reads them
@@ -247,16 +247,29 @@ kind as its model.
 
 ### State
 
-Written on 2026-11-19 from a user report. Nothing is built yet. The person agreed to the four parts: the
-`Date` members, the way from a `Date` to a `DateTime`, field readers on all three classes, and the
-reference pages fixed with a test that keeps the pattern table true. Every other choice in
-§ *Standing decisions* is the authoring session's call under the priority ordering, and stands until
-the person picks another. The goal sits behind `reflect-parent` on the chain.
+Stage 1 is done, in two commits. The seven `Date` members, their cards and bodies sit after
+`compareTo` in `DATE` (`crates/nvs-stdlib/src/time.rs`, `nvs_core_time_date_weekday` and its
+neighbours after `nvs_core_time_date_compare_to`), each in `date_address`. `rust-date`, `table` and
+`case-date` each ran once, green. The module doc's `# Each class answers its own fields` section
+names `Date`'s readers only, so stage 2 adds `DateTime`'s and `TimeOfDay`'s there.
+
+- `Time-DateTime.md`'s table lists all 37 letters `Field::of` accepts, and its refused sentence starts
+  `These letters do not compile:`, the marker `the_reference_table_lists_every_letter_the_compiler_accepts`
+  finds. `z` and `v` render the `GMT+1` form, since no zone names are carried.
+- `<` on `Date` and `TimeOfDay` was already shown by `the-time-types-are-comparable.nvst`, so no new
+  case was written for it.
+- `atStartOfDay` throws `PAST_THE_RANGE` for `-9999-01-01` and `9999-12-31` in UTC. Both days start
+  inside the range only at `Zone::fixed(25h59m59s)` and its negation, which the case uses.
+- The sweep's reds were stale: `env-secret-proofs` names no check, and nightly run 44510687786 is at
+  `adc7487822`, before the fix commits `4c82a2409a`, `eb5c02e983` and `656f5b2f2d`.
 
 ### Next
 
-Stage 1 from its first item: the seven `Date` members with their cards, the two Rust tests, the
-conformance case, then the reference pages and the table test, then the module doc. Every check names a
-test, a case or a member that does not exist yet, and fails until its stage writes it.
+Stage 2 from its first item. `tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst`
+already exists and covers the older views, so its item extends that file: the `// covers:` line and
+the table gain the seven readers. Use `time-date-parts-agree-with-the-date-they-came-from.nvst` as the
+model for the new `TimeOfDay` case. Expected red until the next full gate: the perf records of every
+`Core\Time` member go stale from the `time.rs` edits, and `website/public/llms-full.txt` may need
+`bun nv render --website` for the new cards.
 
 ### Backlog
