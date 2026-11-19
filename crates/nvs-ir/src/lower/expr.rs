@@ -13,6 +13,19 @@
 use super::convert::{SingleValueAtom, single_value_constant};
 use super::*;
 
+/// What [`Lowering::lower_class_property_read`] reads: the facts of an
+/// `ExprInfo::Property` or `ExprInfo::HookedProperty` record.
+struct ClassPropertyRead {
+    /// The class label the slot is read under, which is the record's class.
+    class: String,
+    name: String,
+    ty: nvs_types::TypeId,
+    /// A `get` hook's label, where the property has one.
+    get: Option<String>,
+    observer: Option<nvs_types::expr_table::ObserverCalls>,
+    narrowed: Option<nvs_types::TypeId>,
+}
+
 /// What `nvs_types::expr_table::ExprInfo::ShapeProperty` resolved for one
 /// `$shape->field` access, read or write, carried as one argument because its
 /// parts are only ever used together — see
@@ -4905,6 +4918,25 @@ impl<'a> Lowering<'a> {
                 expr.span
             );
         };
+        // Row `property-getter` of `crate::forms`: a direct call whose one
+        // body is `return $this->p;` is the read that body makes, observer and
+        // unset test included. Under the debug switch the call stays, so the
+        // body keeps its statement probe.
+        if cheaper_forms_on()
+            && self.debug.is_none()
+            && let Some(read) = &call.reads_property
+        {
+            let read = (**read).clone();
+            let facts = ClassPropertyRead {
+                class: read.class.to_string(),
+                name: read.name,
+                ty: read.ty,
+                get: None,
+                observer: read.observer,
+                narrowed: None,
+            };
+            return self.lower_class_property_read(object, nullsafe, facts, expr.span, env, cur);
+        }
         // A member of a `Core`-owned class is native Rust behind a
         // helper symbol, exactly as a static `Core` member is — the
         // same `InstKind::CoreCall`, the same borrowed arguments, with
@@ -5023,7 +5055,14 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return self.close_nullsafe(guard, v, ty, env, cur);
         }
-        let target_label = format!("{}::{}", call.class, call.method);
+        // Row `named-method-call` of `crate::forms`: one body at or below the
+        // receiver's static class is called by its own label.
+        let direct = call.direct.clone().filter(|_| cheaper_forms_on());
+        let target_label = format!(
+            "{}::{}",
+            direct.as_ref().unwrap_or(&call.class),
+            call.method
+        );
         let sig = ArgSig::of(call);
         let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
         let checked_types = self.checked_types;
@@ -5114,7 +5153,7 @@ impl<'a> Lowering<'a> {
         // an instance binds the same way, to the object's class
         // (`rule:statements/static-is-a-member-modifier`), and its slot 0
         // carries that class's descriptor rather than a receiver.
-        let late_bound = !call.has_body || call.overridden;
+        let late_bound = direct.is_none() && (!call.has_body || call.overridden);
         let kind = if late_bound {
             let lsb = if is_static {
                 receiver_v
@@ -6395,14 +6434,48 @@ impl<'a> Lowering<'a> {
                 expr.span
             ),
         };
+        let facts = ClassPropertyRead {
+            class: class.to_string(),
+            name: name.clone(),
+            ty,
+            get,
+            observer,
+            narrowed,
+        };
+        self.lower_class_property_read(object, nullsafe, facts, expr.span, env, cur)
+    }
+
+    /// The read of a class property through `object`, from the facts the
+    /// checker recorded for it: a `get` hook's call or the slot's read, then
+    /// the observer. A `PropertyAccess` reads through it, and so does a
+    /// direct call whose one body is `return $this->p;`
+    /// (`nvs_types::expr_table::ResolvedCall::reads_property`). `span` is the
+    /// expression's own, which the unset test reports and the silenced
+    /// observer set is keyed by.
+    fn lower_class_property_read(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        facts: ClassPropertyRead,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let ClassPropertyRead {
+            class: class_label,
+            name,
+            ty,
+            get,
+            observer,
+            narrowed,
+        } = facts;
         let field_ty = erase_checked_ty(ty, self.checked_types);
-        let class_label = class.to_string();
         let field_name = name.clone();
         let observed_name = name.clone();
         // `rule:classes/an-unwritten-property-read-throws`'s never-written state, asked of the *declaring* class,
         // which is what the table recorded. A `get` hook answers with its own
         // body rather than with the slot, so there is nothing to guard there.
-        let never_written = get.is_none() && self.exprs.read_may_find_unset(&class_label, name);
+        let never_written = get.is_none() && self.exprs.read_may_find_unset(&class_label, &name);
         // See the `MethodCall` arm above: `?->` guards the access on
         // the receiver not being `null`, `->` opens no guard.
         let mark = self.temporaries_mark();
@@ -6447,7 +6520,7 @@ impl<'a> Lowering<'a> {
                         &class_label,
                         &observed_name,
                         field_ty,
-                        expr.span,
+                        span,
                         env,
                         cur,
                     );
@@ -6467,7 +6540,7 @@ impl<'a> Lowering<'a> {
                         to,
                         &class_label,
                         &observed_name,
-                        expr.span,
+                        span,
                         env,
                         cur,
                     ),
@@ -6485,7 +6558,7 @@ impl<'a> Lowering<'a> {
         // element write reports nothing here: its write-back reports the
         // whole array instead (`Self::silenced_gets`).
         if let Some(calls) = observer
-            && !self.silenced_gets.contains(&expr.span)
+            && !self.silenced_gets.contains(&span)
         {
             self.emit_observer_call(
                 *cur,

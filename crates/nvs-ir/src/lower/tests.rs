@@ -7366,3 +7366,85 @@ fn a_static_call_nothing_overrides_is_direct() {
     assert_eq!(insts_where(&off, inlined), 0);
     assert_eq!(insts_where(&off, table_read), 2);
 }
+
+/// Rows `named-method-call` of `crate::forms`: an override in a sibling class
+/// leaves a call through `Quiet` direct, and an interface method with one
+/// body in the program calls that body by its label.
+#[test]
+fn a_method_nothing_below_the_receiver_overrides_is_direct() {
+    let src = "<?nvs\nclass Base {\n  public function speak(int $n): string { return \"b\" . $n; }\n}\n\
+               class Loud extends Base {\n  public function speak(int $n): string { return \"L\" . $n; }\n}\n\
+               class Quiet extends Base {}\n\
+               interface Named {\n  public function label(int $n): string;\n}\n\
+               class Only implements Named {\n  public function label(int $n): string { return \"o\" . $n; }\n}\n\
+               final class Run {\n  \
+               public static function quiet(Quiet $q): string { return $q->speak(1); }\n  \
+               public static function named(Named $n): string { return $n->label(2); }\n}\n";
+    let speak =
+        |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Base::speak");
+    let label =
+        |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Only::label");
+    let late = |kind: &InstKind| matches!(kind, InstKind::CallVirtual { .. });
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(insts_where(&on, speak), 1);
+    assert_eq!(insts_where(&on, label), 1);
+    assert_eq!(insts_where(&on, late), 0);
+    assert_eq!(insts_where(&off, speak), 0);
+    assert_eq!(insts_where(&off, label), 0);
+    assert_eq!(insts_where(&off, late), 2);
+}
+
+/// Row `named-method-call`'s failing condition: `Loud` declares `speak`
+/// again below `Base`, so a call through `Base` has two bodies to choose
+/// from, and an interface with two implementors has two as well.
+#[test]
+fn a_method_a_class_below_the_receiver_overrides_stays_virtual() {
+    let src = "<?nvs\nclass Base {\n  public function speak(int $n): string { return \"b\" . $n; }\n}\n\
+               class Loud extends Base {\n  public function speak(int $n): string { return \"L\" . $n; }\n}\n\
+               interface Named {\n  public function label(int $n): string;\n}\n\
+               class One implements Named {\n  public function label(int $n): string { return \"1\"; }\n}\n\
+               class Two implements Named {\n  public function label(int $n): string { return \"2\"; }\n}\n\
+               final class Run {\n  \
+               public static function base(Base $b): string { return $b->speak(1); }\n  \
+               public static function named(Named $n): string { return $n->label(2); }\n}\n";
+    let direct = |kind: &InstKind| {
+        matches!(kind, InstKind::Call { target, .. }
+            if target == "Base::speak" || target.ends_with("::label"))
+    };
+    let late = |kind: &InstKind| matches!(kind, InstKind::CallVirtual { .. });
+    let on = lower_whole_file_with_src(src).0;
+    assert_eq!(insts_where(&on, direct), 0);
+    assert_eq!(insts_where(&on, late), 2);
+}
+
+/// Row `property-getter` of `crate::forms`: a direct call of a method whose
+/// whole body is `return $this->name;` is the read of `name`, and a method
+/// whose property has a hook stays a call.
+#[test]
+fn a_method_that_returns_one_property_is_the_property_read() {
+    let src = "<?nvs\nfinal class User {\n  private string $name = \"a\";\n  \
+               public string $shown {\n    get { return \"[\" . $this->shown . \"]\"; }\n  }\n  \
+               public function constructor() { $this->shown = \"s\"; }\n  \
+               public function getName(): string { return $this->name; }\n  \
+               public function getShown(): string { return $this->shown; }\n}\n\
+               final class Run {\n  \
+               public static function name(User $u): string { return $u->getName(); }\n  \
+               public static function shown(User $u): string { return $u->getShown(); }\n}\n";
+    let getter_call =
+        |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "User::getName");
+    let hooked_call = |kind: &InstKind| {
+        matches!(kind, InstKind::Call { target, .. } if target == "User::getShown")
+    };
+    let name_read = |kind: &InstKind| {
+        matches!(kind, InstKind::FieldGet { class, field, .. } if class == "User" && field == "name")
+    };
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(insts_where(&on, getter_call), 0);
+    assert_eq!(insts_where(&on, hooked_call), 1);
+    // One read in `getName`'s own body and one at the call.
+    assert_eq!(insts_where(&on, name_read), 2);
+    assert_eq!(insts_where(&off, getter_call), 1);
+    assert_eq!(insts_where(&off, name_read), 1);
+}

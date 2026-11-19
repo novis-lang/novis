@@ -268,6 +268,18 @@ pub struct ResolvedCall {
     /// compiled label. `true` sends it through
     /// `nvs_ir::ir::InstKind::CallVirtual` with that label as the fallback.
     pub overridden: bool,
+    /// The one class whose body of [`Self::method`] every instantiable class
+    /// at or below the receiver's static class runs, where that is one body
+    /// whose signature is the resolved one
+    /// ([`crate::signatures::SignatureTable::sole_body`]). Set by the instance
+    /// call arm alone. `nvs-ir` calls that body's label directly, even where
+    /// [`Self::overridden`] or a missing body would otherwise dispatch.
+    pub direct: Option<QName>,
+    /// The property read a direct call is, where the one body is exactly
+    /// `return $this->p;` and `p` has no hook. It is the record the body's
+    /// own `$this->p` makes, so the read runs the same observer and the same
+    /// unset test. Set beside [`Self::direct`].
+    pub reads_property: Option<Box<PropertyRead>>,
     /// Which parameter each **written** argument fills, in the order the call
     /// site wrote them — one entry per [`nvs_syntax::ast::Arg`].
     ///
@@ -356,6 +368,21 @@ pub struct ObserverCalls {
     pub get: Option<String>,
     /// `onPropertySet`'s fallback label — the write half.
     pub set: Option<String>,
+}
+
+/// The read of one property that a direct call of a method whose whole body
+/// is `return $this->p;` is lowered as — [`ResolvedCall::reads_property`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PropertyRead {
+    /// The class whose body the call runs, and the class the body's `$this`
+    /// read names.
+    pub class: QName,
+    /// The property's own name, `$`-sigil not included.
+    pub name: String,
+    /// The property's declared type, which is the method's return type.
+    pub ty: TypeId,
+    /// The observer the body's own read runs, as in [`ExprInfo::Property`].
+    pub observer: Option<ObserverCalls>,
 }
 
 /// The two labels a `PropertyGuard` check dispatches through, recorded on a

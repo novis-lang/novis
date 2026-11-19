@@ -665,6 +665,22 @@ pub struct ClassSignature {
     /// Filled by [`mark_overridden_methods`] beside the method set, for the same
     /// reason: a class cannot know who extends it.
     pub redeclared_constants: FxHashSet<String>,
+    /// For each method name a receiver of this class can call, the one class
+    /// whose body every instantiable class at or below this one runs, or
+    /// `None` where two of them run different bodies or one runs none.
+    ///
+    /// Filled by [`mark_sole_bodies`] once the whole table is collected. A
+    /// name no instantiable class at or below this one answers is absent. A
+    /// call site asks it through [`SignatureTable::sole_body`] for the
+    /// receiver's static class, so an override in a sibling class leaves a
+    /// call through this class direct. **What it spends:** one map entry for
+    /// each class and each method name it can answer, while compiling only.
+    pub sole_bodies: FxHashMap<String, Option<QName>>,
+    /// This declaration's own instance methods whose whole body is
+    /// `return $this->p;`, each with the name of `p`. The instance call reads
+    /// it to record the property read a direct call of one is lowered as
+    /// (`crate::expr_table::ResolvedCall::reads_property`).
+    pub property_getters: FxHashMap<String, String>,
     /// This declaration's own class constants (`rule:classes/no-free-functions-or-constants`),
     /// by name — the type a *read* of one answers with, and the value that
     /// read is emitted as. Own declarations only, exactly like every other map
@@ -868,6 +884,25 @@ impl SignatureTable {
     pub fn is_overridden(&self, owner: &QName, method: &str) -> bool {
         self.get(owner)
             .is_some_and(|sig| sig.overridden_methods.contains(method))
+    }
+
+    /// The class whose body of `method` every instantiable class at or below
+    /// `receiver` runs, or `None` where that is not one body — see
+    /// [`ClassSignature::sole_bodies`].
+    #[must_use]
+    pub fn sole_body(&self, receiver: &QName, method: &str) -> Option<&QName> {
+        self.get(receiver)
+            .and_then(|sig| sig.sole_bodies.get(method))
+            .and_then(Option::as_ref)
+    }
+
+    /// The property `owner`'s own `method` returns as its whole body — see
+    /// [`ClassSignature::property_getters`].
+    #[must_use]
+    pub fn property_getter(&self, owner: &QName, method: &str) -> Option<&str> {
+        self.get(owner)
+            .and_then(|sig| sig.property_getters.get(method))
+            .map(String::as_str)
     }
 
     /// Whether some subtype of `owner` declares the constant `name` again, so
@@ -1124,7 +1159,86 @@ pub fn build_signatures(
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }
     mark_overridden_methods(&mut table, graph);
+    mark_sole_bodies(&mut table, graph);
     table
+}
+
+/// Fills every [`ClassSignature::sole_bodies`] map, once the whole table is
+/// collected.
+///
+/// Only an instantiable class ([`nvs_hir::ClassLinks::concrete`]) can be a
+/// receiver's run-time class, so each one resolves every method name its
+/// ancestors declare, through [`resolve_method_ref`], the walk the call site
+/// and the run-time dispatch both take. The answer is merged into the class
+/// and each of its ancestors: one body stays one body, and a second body or a
+/// declaration with none makes it `None`. An enum has no entry in the graph,
+/// and needs none: it extends nothing and implements nothing.
+fn mark_sole_bodies(table: &mut SignatureTable, graph: &ClassGraph) {
+    let mut found: Vec<(QName, String, Option<QName>)> = Vec::new();
+    for (qname, _) in table.iter() {
+        if !graph.get(qname).is_some_and(|links| links.concrete) {
+            continue;
+        }
+        let mut ancestors: Vec<&QName> = Vec::new();
+        nvs_hir::find_in_ancestors(qname, graph, |ancestor| {
+            ancestors.push(ancestor);
+            None::<()>
+        });
+        let mut names: FxHashSet<&String> = FxHashSet::default();
+        for ancestor in &ancestors {
+            if let Some(sig) = table.get(ancestor) {
+                names.extend(sig.methods.keys());
+            }
+        }
+        for name in names {
+            let body = resolve_method_ref(qname, name, table, graph)
+                .filter(|(_, sig)| sig.has_body)
+                .map(|(owner, _)| owner.clone());
+            for ancestor in &ancestors {
+                found.push(((*ancestor).clone(), name.clone(), body.clone()));
+            }
+        }
+    }
+    for (qname, name, body) in found {
+        let entry = table.entry(qname).sole_bodies.entry(name);
+        match entry {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(body);
+            }
+            std::collections::hash_map::Entry::Occupied(mut slot) => {
+                if slot.get().as_ref() != body.as_ref() {
+                    slot.insert(None);
+                }
+            }
+        }
+    }
+}
+
+/// The property a method's whole body returns, when that body is exactly
+/// `return $this->p;`, the method is an instance method, and it carries no
+/// attribute that could wrap the call.
+fn returned_property(m: &nvs_syntax::ast::MethodMember, src: &SourceFile) -> Option<String> {
+    if m.modifiers.contains(&Modifier::Static) || !m.attributes.is_empty() {
+        return None;
+    }
+    let [stmt] = &m.body.as_ref()?.stmts[..] else {
+        return None;
+    };
+    let StmtKind::Return(Some(value)) = &stmt.kind else {
+        return None;
+    };
+    let nvs_syntax::ast::ExprKind::PropertyAccess {
+        object,
+        nullsafe: false,
+        property: nvs_syntax::ast::MemberName::Ident(name),
+    } = &value.kind
+    else {
+        return None;
+    };
+    let nvs_syntax::ast::ExprKind::Variable(var) = &object.kind else {
+        return None;
+    };
+    (span_text(src, *var) == "$this").then(|| span_text(src, *name).to_owned())
 }
 
 /// Fills every [`ClassSignature::overridden_methods`] and
@@ -1446,6 +1560,13 @@ fn collect_members(
                 }
             }
             ClassMemberKind::Method(m) => {
+                if let Some(property) = returned_property(m, env.src) {
+                    let method = span_text(env.src, m.name).to_owned();
+                    table
+                        .entry(qname.clone())
+                        .property_getters
+                        .insert(method, property);
+                }
                 for p in &m.params {
                     if p.modifiers.contains(&Modifier::Lateinit) {
                         env.diags.report(

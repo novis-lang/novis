@@ -2532,7 +2532,7 @@ pub(crate) fn check_property_member(
 /// class and each arm of a read through a union of classes
 /// ([`check_union_property`]) both build theirs here, so an arm is exactly
 /// the access that class alone makes.
-fn property_record(
+pub(crate) fn property_record(
     qname: &QName,
     owner: &QName,
     name: &str,

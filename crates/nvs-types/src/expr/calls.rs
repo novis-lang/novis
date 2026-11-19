@@ -294,6 +294,10 @@ pub(crate) fn infer_method_call(
         let outside = converts_outside_text(qname, args, &slots, &arg_types, scope, env);
         crate::routes::note_call(qname, name, env);
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
+        if let (Some(receiver), Some((_, _, declared))) = (receiver_class.as_ref(), &resolved) {
+            (call.direct, call.reads_property) =
+                direct_body(receiver, qname, name, declared, &call, args, env);
+        }
         // `Core\Db\Queryable::queryAs<T>` is the *instance* half of
         // `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and it needs the class
         // its call site wrote for exactly the reason `Core\Json::decodeAs` does
@@ -1814,6 +1818,78 @@ fn check_new_type_args(
     env.interner.generic_class(qname.clone(), written)
 }
 
+/// The class whose body an instance call of `owner::name` through a receiver
+/// of static class `receiver` runs in every case, and the property read that
+/// call is when that body is exactly `return $this->p;`.
+///
+/// The body is direct when every instantiable class at or below `receiver`
+/// runs it ([`crate::signatures::SignatureTable::sole_body`]). Where it is
+/// another class's body than `owner`'s, as for an interface or `abstract`
+/// method, its parameters, its return type and its `inout` and variadic
+/// shape must be the declared ones, so the arguments lowered for `owner`'s
+/// signature fit it. A `Core` or extension owner is never direct here: those
+/// calls take their own instruction.
+///
+/// The property read needs no argument, an instance method, a property with
+/// no hook, and the property's type equal to both the declared and the call's
+/// return type. The record is [`super::members::property_record`]'s for the
+/// body's class, which is what the body's own `$this->p` records.
+fn direct_body(
+    receiver: &QName,
+    owner: &QName,
+    name: &str,
+    declared: &MethodSig,
+    call: &ResolvedCall,
+    args: &CallArgs,
+    env: &Env<'_>,
+) -> (Option<QName>, Option<Box<crate::expr_table::PropertyRead>>) {
+    if call.extension || crate::core_symbol_of(owner, name).is_some() {
+        return (None, None);
+    }
+    let Some(body) = env.signatures.sole_body(receiver, name) else {
+        return (None, None);
+    };
+    if body != owner {
+        let Some(found) = env.signatures.get(body).and_then(|sig| sig.methods.get(name)) else {
+            return (None, None);
+        };
+        let same = found.params == declared.params
+            && found.return_ty == declared.return_ty
+            && found.inout == declared.inout
+            && found.variadic == declared.variadic
+            && found.is_static == declared.is_static;
+        if !same {
+            return (None, None);
+        }
+    }
+    let read = (!call.is_static && matches!(args, CallArgs::List(list) if list.is_empty()))
+        .then(|| env.signatures.property_getter(body, name))
+        .flatten()
+        .and_then(|property| {
+            let (holder, ty) = crate::signatures::resolve_property_owned(
+                body,
+                property,
+                env.signatures,
+                env.graph,
+            )?;
+            if ty != call.return_ty || ty != declared.return_ty {
+                return None;
+            }
+            match super::members::property_record(body, &holder, property, ty, false, env) {
+                ExprInfo::Property { observer, .. } => {
+                    Some(Box::new(crate::expr_table::PropertyRead {
+                        class: body.clone(),
+                        name: property.to_owned(),
+                        ty,
+                        observer,
+                    }))
+                }
+                _ => None,
+            }
+        });
+    (Some(body.clone()), read)
+}
+
 /// Builds the [`ExprInfo::Call`] entry [`crate::expr_table::ExprTypeTable`]
 /// persists for a resolved method/static call — the one place `qname`/`name`/
 /// `sig` (already computed for this call's own type-checking) get bundled
@@ -1833,6 +1909,10 @@ pub(crate) fn resolved_call(
         class: qname,
         method: name,
         overridden,
+        // Set only by the instance call arm, which knows the receiver's
+        // static class — see [`direct_body`].
+        direct: None,
+        reads_property: None,
         arg_slots,
         param_text: sig.param_text.clone(),
         route_slots: sig.route_slots,
