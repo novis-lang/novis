@@ -917,10 +917,13 @@ mod tests {
     }
 
     /// A long text with wide units everywhere, and one that is all one-byte.
+    /// Under Miri each is a few hundred bytes: a count of the whole text still
+    /// shows in the cached count, and the full length took over 300 s there.
     fn long_texts() -> [String; 2] {
+        let repeats = if cfg!(miri) { 20 } else { 5_000 };
         [
-            "e\u{301}\u{1f44b}\u{1f3fd}".repeat(5_000),
-            "ab".repeat(50_000),
+            "e\u{301}\u{1f44b}\u{1f3fd}".repeat(repeats),
+            "ab".repeat(repeats * 10),
         ]
     }
 
@@ -981,7 +984,8 @@ mod tests {
     }
 
     /// The window `slice` reads, against the walk that counted the whole
-    /// subject first, for every offset and length from -12 to 12 on texts
+    /// subject first, for every offset and length from -12 to 12 (-4 to 4
+    /// under Miri) on texts
     /// with combining marks, emoji, flags and a CRLF.
     #[test]
     fn both_walks_agree_on_every_window() {
@@ -1016,9 +1020,12 @@ mod tests {
             "\u{1f1e9}\u{1f1ea}\u{1f1eb}\u{1f1f7}\u{1f1ee}",
             "Gru\u{308}\u{df}e \u{1f44b}\u{1f3fd}\n",
         ];
+        // Under Miri the reach is 4, still past both ends of the short texts:
+        // all 12 took over 300 s there.
+        let reach: i64 = if cfg!(miri) { 4 } else { 12 };
         for subject in texts {
-            for offset in -12..=12 {
-                for length in (-12..=12).map(Some).chain([None]) {
+            for offset in -reach..=reach {
+                for length in (-reach..=reach).map(Some).chain([None]) {
                     let value = Value::text(subject);
                     let length_value = length.map_or_else(Value::null, Value::int);
                     let walked = crate::str::window(
