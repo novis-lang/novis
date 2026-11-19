@@ -26,6 +26,11 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A new `Core` member's symbol needs a row in its module's address `match`, or every program
+  panics at startup.** The build, clippy and the member's Rust test are green without it, and
+  `bun nv suite` then reports thousands of red cases. The panic reads `registers ... with no
+  implementation address`. Add the `"nvs_core_..." => (fn as *const ()).cast()` row beside the
+  member's neighbour. See `crates/nvs-stdlib/src/lib.rs` `entry_of`.
 - **A bigger string header can push a hostile proof's early step past the memory ceiling, and only
   `floor-debt` runs every proof.** The start word made each one-letter string 49 bytes, and the
   `chunk` and `graphemes` attacks hit the FATAL at step 1, not their last step. The gate and `ci
