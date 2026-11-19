@@ -19,5 +19,5 @@ store, which already means owning every session in it.
 `get` answers `null` for a sealed value and `set` still refuses a `secret`, so the sealed pair is the only
 door here too; a sealed value that does not open under the ring is absent rather than an error. The record
 crosses the store as the byte carrier it already is
-(`rule:http-server/a-session-store-answers-four-operations`), so no `secret` reaches the store and
+(`rule:http-server/a-session-store-answers-five-operations`), so no `secret` reaches the store and
 `rule:security/secret-crosses-no-boundary` is unchanged.

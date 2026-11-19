@@ -1740,8 +1740,8 @@ is worth nothing if the first read can silently start one. One rule for all of t
 rather than each growing a refusal of its own — the sealed pair answers it before it looks at a key ring
 — and the throw is catchable at the root, so a program that cannot use sessions can say so.
 
-`regenerate` issues a new identifier, moves the record to it and destroys the old entry, in that order, and
-takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
+`regenerate` moves the stored session to a new identifier in one step, so the old identifier stops working
+at once and a key another request wrote survives the move. It takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
 and only one of those is correct.
 
 <sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>

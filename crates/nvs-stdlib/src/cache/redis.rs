@@ -337,7 +337,7 @@ impl Connection {
     /// `false` is a key that is absent or expired, and nothing is written.
     /// [`crate::session`]'s write-back is the caller: a session row another
     /// request destroyed stays destroyed, because this command cannot create it
-    /// again (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+    /// again (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
     /// The lifetime is not optional, for [`Connection::set_expiring`]'s reason.
     ///
     /// # Errors
@@ -367,7 +367,7 @@ impl Connection {
     /// forgotten. [`crate::session`]'s `regenerate` reads it, because a session
     /// row that is already gone was destroyed by another request, and the record
     /// must not move to a new identifier
-    /// (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+    /// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
     ///
     /// # Errors
     ///

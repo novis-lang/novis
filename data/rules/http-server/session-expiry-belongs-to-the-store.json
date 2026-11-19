@@ -2,7 +2,7 @@
   "title": "`[session] ttl` is written onto the record, an expired record is absent at once, and the SQLite store sweeps by time, never by chance",
   "status": "shipped",
   "seeAlso": [
-    "http-server/a-session-store-answers-four-operations",
+    "http-server/a-session-store-answers-five-operations",
     "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
     "http-server/no-session-block-means-the-data-folder-store"
   ],

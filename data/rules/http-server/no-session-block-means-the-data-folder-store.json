@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
-    "http-server/a-session-is-loaded-once-and-written-whole",
+    "http-server/a-session-is-loaded-once-and-written-back-per-key",
     "http-server/session-expiry-belongs-to-the-store",
     "core-classes/session-is-started-explicitly"
   ],

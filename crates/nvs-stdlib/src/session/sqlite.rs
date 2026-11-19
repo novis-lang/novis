@@ -1,14 +1,14 @@
 //! The `db` session store: one SQLite file in the data folder, in WAL mode
 //! (`rule:http-server/no-session-block-means-the-data-folder-store`).
 //!
-//! It answers `rule:http-server/a-session-store-answers-four-operations`'s operations over one
+//! It answers `rule:http-server/a-session-store-answers-five-operations`'s operations over one
 //! table, `nvs_sessions`, keyed by the application and the identifier, with the record as a blob
 //! and its expiry as milliseconds since the epoch. The application is the innermost `[[app]]`
 //! block's path, the one `crate::cache::application` reads, so an id one application issued is
 //! absent in every other one that shares the data folder. Each operation is one short statement in SQLite's own autocommit
 //! transaction, so nothing is held between `start` and the write-back at the end of the request:
 //! two requests of one session never wait on each other, and the last write wins
-//! (`rule:http-server/a-session-is-loaded-once-and-written-whole`). WAL mode lets every reader run
+//! (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). WAL mode lets every reader run
 //! beside the one writer, and `busy_timeout` covers the moment two writers meet.
 //!
 //! **An expired row is absent at once and deleted later.** [`load`] reads only a row whose expiry
@@ -237,7 +237,7 @@ pub(crate) fn create(
 ///
 /// An update of a row whose expiry is still ahead, and never an insert. `false` is an `id` with no
 /// live row, which stays absent: another request destroyed the session, or it expired
-/// (`rule:http-server/a-session-is-loaded-once-and-written-whole`). A due [`sweep`] runs after it.
+/// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). A due [`sweep`] runs after it.
 ///
 /// # Errors
 ///
@@ -385,7 +385,7 @@ mod tests {
         (dir, path)
     }
 
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`: two requests of one session
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: two requests of one session
     /// both load it, the second saves and finishes while the first is still running, and then the
     /// first saves. Neither waits for the other, and the record is the last write.
     ///

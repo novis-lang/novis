@@ -1010,20 +1010,43 @@ some other way changes nothing.
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written).</sub>
 
-<a id="http-server-a-session-store-answers-four-operations"></a>
+<a id="http-server-a-session-store-answers-five-operations"></a>
 
-## A session is a record its store issued: a backend answers `issue`, `load`, `save` and `destroy`, and `load` answering absent is the whole of the strict-id rule
+## A session is a set of keys its store issued: a backend answers `issue`, `load`, `save`, `move` and `destroy`, and `load` answering absent is the whole of the strict-id rule
 
-`rule:http-server/a-session-store-answers-four-operations`
+`rule:http-server/a-session-store-answers-five-operations`
 
-A session is one record in a store that can answer *did I issue this id*. A backend answers four
-operations and no more: `issue` writes the first record under an identifier drawn for it, and fails
-for an id that already has a live record; `load` answers the record under an id, or **absent**;
-`save` replaces the record under an id that **still has a live record**, refreshing its expiry, and
-writes nothing for one that does not; `destroy` forgets it and answers whether there was a record.
-`issue` is the only operation that inserts. On the shared store `issue` is `SET … NX PX` and `save`
-is `SET … XX PX`; on the `db` store they are an `INSERT` and an `UPDATE` of a row whose expiry is
-still ahead. Each is one command, so no store needs a read before a write.
+A session is a set of keys in a store that can answer *did I issue this id*. A backend answers five
+operations and no more:
+
+- `issue` creates a session under an identifier drawn for it, and fails for an id that is live.
+- `load` answers every key of the session under an id, or **absent**.
+- `save` applies one request's changes — the keys it set, the keys it removed, and whether it called
+  `clear` — to a session that is **still live**, refreshes its expiry, and writes nothing for one
+  that is gone.
+- `move` renames a live session to a new identifier, and answers *done*, *the new one is taken* or
+  *the old one is gone*.
+- `destroy` deletes the session and answers whether there was one.
+
+`issue` is the only operation that creates a session, so a destroyed session stays destroyed
+([`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key)). Each operation is one atomic
+step, and none needs a read before it, so no request holds anything between two of them.
+
+| Operation | Shared store: one Redis hash per session | `db` store: a head row and one row per key | Replay after a lost reply |
+|---|---|---|---|
+| `issue` | `EVAL` of the issue script: `0` if the key exists, else `HSET` and `PEXPIRE` | `INSERT` of the head, over an expired one | only if never sent |
+| `load` | `HGETALL` | one `SELECT`, a live head `LEFT JOIN` its entries | always |
+| `save` | `EVAL` of the write-back script | one transaction: `UPDATE` of a live head's expiry, then the deletes and upserts | always: a second run leaves the same session |
+| `move` | `RENAMENX`, which keeps the expiry | one transaction: insert the new head, re-point the entries, delete the old head | only if never sent |
+| `destroy` | `DEL` | delete the head and its entries | always |
+
+On the shared store the session's hash lives under `nvs:session-keys:`, so an entry an earlier build
+wrote as a string is never read as a hash. Each session key is the field `k:` followed by its bytes,
+and the one field `m` holds the total length of the `k:` fields: the write-back script checks the
+ceiling against it, and it keeps a session with no keys in the store, since Redis deletes a hash when
+its last field goes. A program cannot reach `m`, because every field a program writes is prefixed.
+The shared tier is one Redis server, so `RENAMENX` over two keys is allowed; cluster support would
+give the session key a hash tag.
 
 **`load` answering absent is the whole of the strict-id rule.** An id the store did not issue, one
 it issued and has since expired, and one an attacker minted are the same answer, and `start`
@@ -1115,7 +1138,7 @@ has run ([`core-classes/session-is-started-explicitly`](core-classes.md#core-cla
 The file is Novis's own: the operator chose the folder, the name is fixed, and no program-supplied
 path reaches it. So no capability is asked, as none is for the compiled-code cache beside it. Each
 operation is one short statement in its own transaction, so two requests of one session never wait
-for each other ([`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole)). `busy_timeout`
+for each other ([`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key)). `busy_timeout`
 covers the moment two writers meet, and that wait is one statement long.
 
 **A row belongs to one application.** The table is `nvs_sessions`, keyed by `(app, id)`, where
@@ -1146,66 +1169,90 @@ rows name no application, and no Novis release wrote them.
   to write it. The data folder's file needs neither, and a deployment with several machines has
   `shared`.
 - **A session lock, as PHP's file handler takes.** One slow request would hold every other request
-  of that session until it ends ([`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole)).
+  of that session until it ends ([`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key)).
 - **The app folder as the application's identity.** Two entry files in two folders of one site
   would stop sharing a session, and `[[app]]` already names an application.
 - **A `[session] scope` key.** It would be a second way to name what an `[[app]]` block names.
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/a-session-is-loaded-once-and-written-whole`](http-server.md#http-server-a-session-is-loaded-once-and-written-whole), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
 
-<a id="http-server-a-session-is-loaded-once-and-written-whole"></a>
+<a id="http-server-a-session-is-loaded-once-and-written-back-per-key"></a>
 
-## A session record is loaded once at `start`, written back whole only when it changed, and never locked
+## A session is loaded once at `start`, and only the keys a request changed are written back, in one step and never locked
 
-`rule:http-server/a-session-is-loaded-once-and-written-whole`
+`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`
 
-`start` reads the record once; `set`, `remove` and `clear` mutate the copy in the request's own
-heap; the record is written back when the program that opened it ends — after any exit hooks,
-since a hook is user code that may still write — and immediately for `regenerate` and `destroy`.
-**Writing only when the record changed** keeps a read-only request off the write path: a request
-that starts a session and reads it makes one round trip, not two. A request that renders a
-`Core\Csrf::token` for a loaded session is such a request too, because the token is never stored
-([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)).
+`start` reads the whole session once; `get` decodes one key's value, and `set`, `remove` and `clear`
+change the copy in the request's own heap. The session is written back when the program that opened
+it ends — after any exit hooks, since a hook is user code that may still write — and immediately for
+`regenerate` and `destroy`. **Writing only when the session changed** keeps a read-only request off
+the write path: a request that starts a session and reads it makes one round trip, not two. A request
+that renders a `Core\Csrf::token` for a loaded session is such a request too, because the token is
+never stored ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)).
 
-There is no lock. Two requests writing one session concurrently is last-write-wins over the
-**whole record**, and this is stated rather than repaired. On the `db` store each operation is one
-statement in its own transaction, so nothing is held between `start` and the write-back, and two
-requests of one session never wait for each other. A lock held for the length of a
-request is a cross-request channel ([`security/closed-doors`](security.md#security-closed-doors)), and a request that dies holding
-one wedges every later request for that session until it expires. The cost belongs to a narrow
-case — two concurrent requests that write *different keys* of one session lose one of the two
-writes — and an application for which that matters has state that is not session state; locks,
-counters and idempotency keys go to the shared tier or the database directly
+**A write-back sends only the keys its request set or removed.** The request keeps each key's value
+encoded alone, the set of keys it set or removed since the load, and whether it called `clear`. A
+touched key that still has a value is a change and one that has none is a removal; a key the request
+only read is never sent, so a stale value it read cannot overwrite a newer one. A key's value is
+written whole: an array under one key is one value, and two requests that change it keep the last
+write. Two requests that change *different* keys of one session keep both changes.
+
+**Each write-back is one atomic step:** one `EVAL` of the write-back script on the shared store, and
+one transaction on the `db` store ([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)). Two
+requests that both write `userId` and `role` leave all of one request's values, never half of each.
+
+There is no lock. Nothing is held between `start` and the write-back, and two requests of one session
+never wait for each other. A lock held for the length of a request is a cross-request channel
+([`security/closed-doors`](security.md#security-closed-doors)), and a request that dies holding one wedges every later request for
+that session until it expires. The race that remains is two requests that change one key, and the
+last write wins; an application for which that matters has state that is not session state, and
+locks, counters and idempotency keys go to the shared tier or the database directly
 ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
 
-**A destroyed session stays destroyed.** The request's session knows whether the store has a row
-under its id: `start` loaded one, or this request drew the id and has not written it yet. The
-write-back `save`s a loaded session and `issue`s a drawn one. A `save` changes only a row that
-still exists, so when another request ran `destroy` or `regenerate` on the session first, the
-write-back writes nothing and this request's changes are dropped without a report. That is the
-last-write-wins above, with the sign-out as the last write. `regenerate` checks the same thing: it
-issues the record under a new id, then destroys the old row, and when that row was already gone it
-destroys the new one too, sends no cookie and leaves the request a fresh, empty session with no id,
-as `start` opens for an absent one. A sign-in handler that regenerates a session ended elsewhere
-does not throw. What it spends: one `bool` per in-flight session, no extra round trip, and one more
-delete in the `regenerate` race alone.
+**`clear` is a whole-session act, as `destroy` is.** Its write-back deletes every key the store holds,
+also one another request wrote after this request loaded. A key set after `clear` in the same request
+is written back.
+
+**A session with no keys still exists.** It stays in the store until it expires or is destroyed, so
+removing its last key does not sign anybody out.
+
+**The store refuses a write-back that would take a session past the reply ceiling.** On the shared
+store `start` reads the whole session as one reply, and the client's reply ceiling bounds it; a
+session past that ceiling could never be loaded again until it expired. So the write-back script
+counts the session's total size and writes nothing when the new total is over the ceiling, and the
+end of the request reports that as a lost write naming the size. The `db` store has no read ceiling.
+
+**A destroyed session stays destroyed.** The request's session knows whether the store has the
+session under its id: `start` loaded it, or this request drew the id and has not written it yet. The
+write-back `save`s a loaded session and `issue`s a drawn one. A `save` changes only a session that
+still exists, so when another request ran `destroy` or `regenerate` on it first, the write-back writes
+nothing and this request's changes are dropped without a report. That is the last write winning, with
+the sign-out as the last write. `regenerate` `move`s the stored session to a new id in one step, so a
+key another request wrote survives it; the changes this request has not sent yet are sent to the new
+id by the write-back. When the old session was already gone, `regenerate` sends no cookie and leaves
+the request a fresh, empty session with no id, as `start` opens for an absent one, so a sign-in
+handler that regenerates a session ended elsewhere does not throw.
 
 A cancelled task is the one end that sends nothing, because the send parks.
 
-- **Memory:** one encoded record per request that started a session, released with the request
-  heap. Nothing accumulates per session served, so it is O(in-flight).
+- **Memory:** per request that started a session, one encoded value per key and the names of the
+  keys it touched, released with the request heap. Nothing accumulates per session served, so it is
+  O(in-flight). The shared store holds one small hash per session, and the `db` store one row per key.
+- **Latency:** one round trip at `start` and one at the write-back, and one for `regenerate`. Only
+  changed keys travel, and each `get` and `set` decodes or encodes one value.
 
 **Declined:**
-- **A generation counter on the row.** It would detect a write after a sign-out too, but every
+- **A generation counter on the session.** It would detect a write after a sign-out too, but every
   write would need a read first.
-- **A per-key write instead of a whole-record one.** It narrows the lost update to the key actually
-  contended, but one session becomes many entries, so `clear`, `regenerate` and `destroy` each become
-  a multi-key operation, and the shared tier has no multi-key atomic step
-  ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)).
 - **A request-long lock.** It closes the lost update exactly, but the failure it brings is a wedged
   session, on the request path of every application whether or not it has concurrent writers.
+- **A whole-session write-back.** A request undoes other requests' changes to keys it never touched,
+  and can write back a stale value it only read.
+- **One store key per session key, with a key listing the others.** `clear`, `move` and `destroy`
+  would each touch many keys, which the shared tier cannot do in one step. A hash is the same layout
+  as one key.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
+<sub>See also [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="http-server-session-expiry-belongs-to-the-store"></a>
 
@@ -1213,10 +1260,11 @@ A cancelled task is the one end that sends nothing, because the send parks.
 
 `rule:http-server/session-expiry-belongs-to-the-store`
 
-`[session] ttl` is written onto the entry: `SET … PX` on the shared tier, and an `expires_at`
-column in the `db` store's SQLite file. An expired record is absent at once, so `load` already
+`[session] ttl` is written onto the entry: `PEXPIRE` on the session's hash on the shared tier,
+which `RENAMENX` keeps, and an `expires_at` column on the session's head row in the `db` store's
+SQLite file. An expired session is absent at once, so `load` already
 answers it and `start` already issues a fresh id
-([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)). On the SQLite file `load` reads only
+([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)). On the SQLite file `load` reads only
 a row whose `expires_at` is still ahead, so correctness never waits for a sweep. `save` refreshes
 the expiry, so `ttl` bounds how long an *untouched* record survives.
 
@@ -1234,7 +1282,7 @@ statement on the blocking pool beside the write that ran it.
 - **Moving the SQLite store's reads and writes off the core thread.** Each is one indexed statement
   on a local file, and no measured program waits on it. It is reconsidered when one does.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
+<sub>See also [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
 
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 
@@ -1263,10 +1311,10 @@ store, which already means owning every session in it.
 `get` answers `null` for a sealed value and `set` still refuses a `secret`, so the sealed pair is the only
 door here too; a sealed value that does not open under the ring is absent rather than an error. The record
 crosses the store as the byte carrier it already is
-([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)), so no `secret` reaches the store and
+([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)), so no `secret` reaches the store and
 [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary) is unchanged.
 
-<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary).</sub>
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary).</sub>
 
 <a id="http-server-an-upload-is-received-only-through-files"></a>
 

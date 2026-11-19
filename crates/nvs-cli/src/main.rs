@@ -2660,7 +2660,7 @@ fn run_run(
                 // nothing about the status it is passing on.
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
             }
-            // `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, and the second of its two ends — the
+            // `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write-back, and the second of its two ends — the
             // other is `nvs-host`'s isolate teardown, which is where an HTTP
             // request ends. **After the hooks**, because an exit hook is user
             // code that may still write to the session, and here inside the

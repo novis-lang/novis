@@ -2,12 +2,12 @@
 looper: 1
 title: "a session is written back per key, so two requests that change different keys keep both"
 summary: "Reached when a session's write-back sends only the keys its request changed, on the shared and the db store, two requests that change different keys of one session keep both changes, a destroyed session stays destroyed, regenerate moves every key the store holds, and the rules and pages say so."
-context: [crates/nvs-stdlib/src/session.rs, docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md, docs/rules/http-server/a-session-store-answers-four-operations.md]
+context: [crates/nvs-stdlib/src/session.rs, docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md, docs/rules/http-server/a-session-store-answers-five-operations.md]
 stages:
   - id: 1
     title: the rules say a session is written back per key, and the shared tier's client reads a hash
     status: open
-    context: [crates/nvs-stdlib/src/cache/redis.rs, data/rules/http-server/a-session-is-loaded-once-and-written-whole.json, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md]
+    context: [crates/nvs-stdlib/src/cache/redis.rs, data/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.json, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md]
   - id: 2
     title: the session is kept and written back per key on both stores
     status: open
@@ -174,9 +174,9 @@ sends them to the new identifier. A session with no row yet draws its identifier
 move. *The old one is gone* and *the new one is taken* give what they give today
 (`session.rs:1601-1621`): a fresh empty session with no cookie, and the same throw.
 
-**The rules (my call).** `rule:http-server/a-session-is-loaded-once-and-written-whole` is renamed to
+**The rules (my call).** The rule `a-session-is-loaded-once-and-written-whole` is renamed to
 `docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md` and rewritten.
-`rule:http-server/a-session-store-answers-four-operations` is renamed to
+The rule `a-session-store-answers-four-operations` is renamed to
 `docs/rules/http-server/a-session-store-answers-five-operations.md` and rewritten. Every citation follows
 (`git grep` both ids; about forty lines, most in `session.rs`, `wiring.rs` and `sqlite.rs`). The first
 rule's Declined list keeps the generation counter and the request-long lock. It drops "A per-key write
@@ -207,16 +207,16 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** writes both rules as § *Standing decisions* says, and teaches the RESP client the commands
 and the reply shape stage 2 needs. Nothing a session does changes yet.
 
-- [ ] `docs/rules/http-server/a-session-is-loaded-once-and-written-whole.md:1`: renamed to
+- [x] `docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md:1`: renamed to
   `a-session-is-loaded-once-and-written-back-per-key.md` with its `data/rules/http-server/` JSON, and
   rewritten. It covers what a write-back sends, one atomic step per write-back, the last write winning
   for one key, `clear`, the ceiling, and that a destroyed session stays destroyed. Its Declined list is
   the one the standing decision gives. The new title is "A session is loaded once at `start`, and only
   the keys a request changed are written back, in one step and never locked".
-- [ ] `docs/rules/http-server/a-session-store-answers-four-operations.md:1`: renamed to
+- [x] `docs/rules/http-server/a-session-store-answers-five-operations.md:1`: renamed to
   `a-session-store-answers-five-operations.md` with its JSON, and rewritten with the five operations
   and their commands from the table. The strict-id half (`:10-14`) stays as it is.
-- [ ] Every citation of both old ids moves to the new ones (`git grep` lists them).
+- [x] Every citation of both old ids moves to the new ones (`git grep` lists them).
   `docs/rules/core-api/session-roster.md:12` says `regenerate` moves the session.
   `docs/ground-rules.md:980` and `:983` take the new titles. Then `bun nv rules --render`, and
   `bun nv rules --check` is green.

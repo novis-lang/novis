@@ -1425,7 +1425,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         };
         isolate_ctx.drain_exit_hooks(outcome, thrown.as_ref().or(marker.as_ref()));
     }
-    // `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, at the end of the program that opened the
+    // `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write-back, at the end of the program that opened the
     // record: an HTTP request is a root isolate, so this is the line where a
     // request ends, and `Ctx::end_session` is the no-op an isolate that started
     // no session — or only read one — returns from. It runs after the tier-3

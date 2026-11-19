@@ -14,7 +14,7 @@ has run (`rule:core-classes/session-is-started-explicitly`).
 The file is Novis's own: the operator chose the folder, the name is fixed, and no program-supplied
 path reaches it. So no capability is asked, as none is for the compiled-code cache beside it. Each
 operation is one short statement in its own transaction, so two requests of one session never wait
-for each other (`rule:http-server/a-session-is-loaded-once-and-written-whole`). `busy_timeout`
+for each other (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). `busy_timeout`
 covers the moment two writers meet, and that wait is one statement long.
 
 **A row belongs to one application.** The table is `nvs_sessions`, keyed by `(app, id)`, where
@@ -45,7 +45,7 @@ rows name no application, and no Novis release wrote them.
   to write it. The data folder's file needs neither, and a deployment with several machines has
   `shared`.
 - **A session lock, as PHP's file handler takes.** One slow request would hold every other request
-  of that session until it ends (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+  of that session until it ends (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
 - **The app folder as the application's identity.** Two entry files in two folders of one site
   would stop sharing a session, and `[[app]]` already names an application.
 - **A `[session] scope` key.** It would be a second way to name what an `[[app]]` block names.

@@ -17,7 +17,7 @@
 //! response**, so once that check's request has ended, a replayed response, a second check of one
 //! response and a check that fails all find no challenge. Two checks of one session that run at the
 //! same time both find it, because each takes it out of its own copy of the session
-//! (`rule:http-server/a-session-is-loaded-once-and-written-whole`). That is left as it is: a sender
+//! (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). That is left as it is: a sender
 //! of the second check already holds the session cookie and the signed response, which is the
 //! account. An atomic take would be a store round trip that buys nothing. A challenge older than
 //! [`TIMEOUT_SECONDS`] is refused; that is the `timeout` the options tell the browser, so a ceremony

@@ -27,13 +27,13 @@
 
 use super::*;
 
-/// The session one request has open — `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "loaded once and written
+/// The session one request has open — `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "loaded once and written
 /// whole", as what a request holds between `Core\Session::start` and the
 /// write-back at its end.
 ///
 /// **Deliberately not a [`Value`].** The record crosses the store boundary as
 /// `rule:classes/two-copy-depths`'s
-/// byte carrier in both directions — `rule:http-server/a-session-store-answers-four-operations` says so, for the same reason
+/// byte carrier in both directions — `rule:http-server/a-session-store-answers-five-operations` says so, for the same reason
 /// a `Core\Cache` entry does — so holding the bytes means the context has
 /// nothing to release at teardown and holds no object that could name a
 /// `ClassDesc` an `rule:config/an-edit-reaches-the-next-request-without-a-restart`
@@ -60,7 +60,7 @@ pub struct Session {
     pub record: Vec<u8>,
     /// Whether anything has changed [`Self::record`] since it was loaded.
     ///
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "writing only when the record changed" is what keeps a read-only
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "writing only when the record changed" is what keeps a read-only
     /// request off the write path: a request that starts a session and reads it
     /// makes one round trip, not two.
     pub dirty: bool,
@@ -72,7 +72,7 @@ pub struct Session {
     /// exists, and a session this request drew is *created*. So a session that
     /// another request destroyed while this one ran stays destroyed, and this
     /// request's changes to it are dropped
-    /// (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+    /// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
     /// What it spends: one `bool` per in-flight session, and no round trip.
     pub stored: bool,
     /// How [`Self::record`] is sent when the program that opened it ends —
@@ -81,7 +81,7 @@ pub struct Session {
     ///
     /// It has to travel, because none of the three crates involved can name
     /// the other two. The store is `nvs-stdlib`'s —
-    /// `rule:http-server/a-session-store-answers-four-operations`'s four operations are
+    /// `rule:http-server/a-session-store-answers-five-operations`'s four operations are
     /// over `Core\Cache`'s wire — while the two places a program *ends* are
     /// `nvs-host`'s isolate teardown, which an HTTP request is
     /// (`rule:security/isolate-shares-nothing`), and
@@ -358,7 +358,7 @@ impl Ctx {
     /// `rule:core-api/session-roster`'s `destroy` is the only caller, and closing rather than
     /// emptying is the honest answer: the record is gone from the store, so a
     /// record left on the request would be a copy of something that no longer
-    /// exists — and `rule:http-server/a-session-is-loaded-once-and-written-whole`'s
+    /// exists — and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s
     /// write-back would put it straight back. What a member
     /// sees afterwards is exactly what it sees before `start`, which is the
     /// throw that names it.
@@ -366,7 +366,7 @@ impl Ctx {
         self.session = None;
     }
 
-    /// Send this request's session record, if anything changed it — `rule:http-server/a-session-is-loaded-once-and-written-whole`
+    /// Send this request's session record, if anything changed it — `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`
     /// 's write-back, at the end of the program that opened it.
     ///
     /// Called by whoever ends a program, and called **unconditionally** by

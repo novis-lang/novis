@@ -1,5 +1,5 @@
 --TEST--
-`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-four-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`
+`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-five-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`
 --GET--
 under=a-request
 --FILE--

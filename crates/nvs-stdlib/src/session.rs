@@ -1,8 +1,8 @@
-//! `rule:http-server/a-session-store-answers-four-operations`'s session store:
+//! `rule:http-server/a-session-store-answers-five-operations`'s session store:
 //! the identifier a store issues, the record it keeps under it, and the two directives that decide
 //! where that store is and how long a record survives.
 //!
-//! **What is on disk is the store `rule:http-server/a-session-store-answers-four-operations` names
+//! **What is on disk is the store `rule:http-server/a-session-store-answers-five-operations` names
 //! and all seven members of `rule:core-api/session-roster`.** The four operations a backend
 //! answers are here — [`mint`], [`load`], [`create`], [`replace`], [`destroy`] and the key they
 //! share — over the shared tier's wire, and [`sqlite`]'s over the data folder's SQLite file.
@@ -16,7 +16,7 @@
 //! `rule:core-classes/session-is-started-explicitly` was buying, and worth nothing if
 //! the first `get` can silently start one.
 //!
-//! **The write-back of `rule:http-server/a-session-is-loaded-once-and-written-whole` is on disk
+//! **The write-back of `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` is on disk
 //! too.** [`write_back`] marks the record changed on the request,
 //! [`send_at_end`] sends it when the program that opened it ends, and
 //! [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`] reach the store as they land
@@ -29,7 +29,7 @@
 //!
 //! # Decision: a dirty record is sent by the *program's* end, and it travels there itself
 //!
-//! `rule:http-server/a-session-is-loaded-once-and-written-whole` writes the record back when the
+//! `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` writes the record back when the
 //! request ends and leaves open who does it. Three
 //! crates have a claim and none of them can hold it alone: this one owns the store and cannot see
 //! a request end; `nvs-host` ends every isolate and may not name `nvs-stdlib`; `nvs-server` ends
@@ -93,7 +93,7 @@
 //!
 //! # Decision: an identifier this store cannot have issued is *absent*, and costs no round trip
 //!
-//! `rule:http-server/a-session-store-answers-four-operations` refuses a separate `validateId`,
+//! `rule:http-server/a-session-store-answers-five-operations` refuses a separate `validateId`,
 //! because a second question is a second thing that can
 //! disagree with the first. [`issuable`] is not that second question. It answers **absent** — the
 //! same answer [`load`] gives for an expired identifier and for one an attacker minted, and
@@ -108,7 +108,7 @@
 //! # What this spends
 //!
 //! One round trip to the configured store per request that starts a session, and a second only for
-//! a request that changed the record (`rule:http-server/a-session-is-loaded-once-and-written-whole`).
+//! a request that changed the record (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
 //! A request that presents no identifier spends a draw
 //! and one write. Memory is one encoded record per in-flight request that started one, released
 //! with the request heap — O(in-flight), never O(sessions served).
@@ -163,7 +163,7 @@ const CARD: ClassDoc = ClassDoc {
 /// what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
 /// `start` is the member that talks to the store — [`crate::session`]'s own
 /// module doc owns which of
-/// `rule:http-server/a-session-store-answers-four-operations`'s four operations are on disk, why the local
+/// `rule:http-server/a-session-store-answers-five-operations`'s four operations are on disk, why the local
 /// tier is unreachable from there rather than merely unselected, and why a
 /// presented identifier this store cannot have issued is *absent* rather
 /// than a second question about validity.
@@ -179,7 +179,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `Text(Qual::Neutral)` for the rest — `CoreTy::TaintedStr` is return position only,
             // and a `Qual` is what says a `tainted` argument is admitted here (`rule:security/unclassified-parameter-refuses-tainted`). It
             // is admitted because the strict-id rule
-            // (`rule:http-server/a-session-store-answers-four-operations`) makes the value a lookup key and never an
+            // (`rule:http-server/a-session-store-answers-five-operations`) makes the value a lookup key and never an
             // instruction: what the store did not issue is absent, whatever it was.
             params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
             defaults: &[Const::Null],
@@ -792,7 +792,7 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
     URL_SAFE_NO_PAD.encode(drawn)
 }
 
-/// `rule:http-server/a-session-store-answers-four-operations`'s `load` — the record under `id`, or
+/// `rule:http-server/a-session-store-answers-five-operations`'s `load` — the record under `id`, or
 /// **absent**.
 ///
 /// Absent is the answer to all three of
@@ -810,7 +810,7 @@ pub(crate) fn load(open: &mut Connection, app: &[u8], id: &str) -> Result<Option
     open.get(&key_of(app, id))
 }
 
-/// `rule:http-server/a-session-store-answers-four-operations`'s `destroy` — the record under `id`,
+/// `rule:http-server/a-session-store-answers-five-operations`'s `destroy` — the record under `id`,
 /// forgotten, and whether there was one.
 ///
 /// One key, as [`create`] writes one: a session is one entry, so there is nothing here that a
@@ -824,12 +824,12 @@ pub(crate) fn destroy(open: &mut Connection, app: &[u8], id: &str) -> Result<boo
     open.del(&key_of(app, id))
 }
 
-/// `rule:http-server/a-session-store-answers-four-operations`'s `issue` — a new entry under `id`,
+/// `rule:http-server/a-session-store-answers-five-operations`'s `issue` — a new entry under `id`,
 /// and whether it was written. `SET … NX PX`: `false` is a key that already holds a record, which
 /// keeps it.
 ///
 /// The whole record and not one key of it, per
-/// `rule:http-server/a-session-is-loaded-once-and-written-whole`: one session is one entry, which
+/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: one session is one entry, which
 /// is what keeps `clear`, `regenerate` and `destroy` single-key operations over a store
 /// `rule:core-classes/ratelimit-two-members` gives no multi-key atomic step.
 ///
@@ -849,7 +849,7 @@ pub(crate) fn create(
     open.set_if_absent(&key_of(app, id), record, ttl)
 }
 
-/// `rule:http-server/a-session-store-answers-four-operations`'s `save` — the record under `id`
+/// `rule:http-server/a-session-store-answers-five-operations`'s `save` — the record under `id`
 /// replaced, with its expiry refreshed, **only while the entry still exists**, and whether it did.
 /// `SET … XX PX`: `false` is a key that is gone, and it stays gone.
 ///
@@ -894,7 +894,7 @@ nvs_runtime::nvs_helper! {
     /// talks to the store, replacing `session_start`.
     ///
     /// **Absent is one answer with one response.**
-    /// `rule:http-server/a-session-store-answers-four-operations` gives `load` three ways to answer absent —
+    /// `rule:http-server/a-session-store-answers-five-operations` gives `load` three ways to answer absent —
     /// an identifier the store never issued, one it issued and has since expired, and one an
     /// attacker minted — and this member does not distinguish them: each discards the presented
     /// identifier and opens a fresh, empty session. There is no `validateId` for the two to disagree about,
@@ -1207,7 +1207,7 @@ fn record(ctx: &Ctx, member: &str) -> Result<NvsArray, Fault> {
     }
 }
 
-/// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "mutate the copy in the request's
+/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "mutate the copy in the request's
 /// own heap": `record` encoded back onto the request, and
 /// marked as owing the store a write.
 ///
@@ -1346,7 +1346,7 @@ nvs_runtime::nvs_helper! {
     /// nothing are the same record, which is PHP's answer as well.
     ///
     /// **This member does not mark the record changed**, which is
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "writing only when the
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "writing only when the
     /// record changed" written as the thing it buys: a request that starts a session and only
     /// reads it makes one round trip and not two.
     ///
@@ -1386,10 +1386,10 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::set(string $key, mixed $value): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write into the
+    /// `Core\Session::set(string $key, mixed $value): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write into the
     /// request's own copy of the record, replacing `$_SESSION[$key] = …`.
     ///
-    /// **Nothing reaches the store here.** `rule:http-server/a-session-is-loaded-once-and-written-whole`
+    /// **Nothing reaches the store here.** `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`
     /// loads the record once and writes it whole when the
     /// request ends, so this member encodes the changed record onto the request and sets the flag
     /// that write-back reads. Two requests writing one session concurrently is last-write-wins over
@@ -1506,7 +1506,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::remove(string $key): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`, replacing `unset($_SESSION
+    /// `Core\Session::remove(string $key): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `unset($_SESSION
     /// [$key])`.
     ///
     /// **A key the record does not hold is not a refusal, and does not mark it changed either.**
@@ -1536,7 +1536,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::clear(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`, replacing `$_SESSION = []`.
+    /// `Core\Session::clear(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `$_SESSION = []`.
     ///
     /// **The session survives; only the record goes.** The identifier stays live in the store and
     /// in the client's cookie, which is what separates this from `destroy()`: a program clearing a
@@ -1580,7 +1580,7 @@ nvs_runtime::nvs_helper! {
     /// identifier is drawn and sent, and the write-back creates the row under it.
     ///
     /// **Immediately rather than at the end of the request** —
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole` names this member and `destroy`
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` names this member and `destroy`
     /// as the two exceptions to its own write-back, because both of them are about an identifier
     /// rather than about a record, and an identifier that is only retired when the request ends is
     /// live for the length of the response.
@@ -1667,7 +1667,7 @@ fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::destroy(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`, replacing `session_destroy`.
+    /// `Core\Session::destroy(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`, replacing `session_destroy`.
     ///
     /// **The request is left with no session**, so every member of this class throws again
     /// afterwards — the same answer as before the first `start()`, because it is the same state.
@@ -1682,7 +1682,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// As [`nvs_core_session_regenerate`], less the cookie: no `Set-Cookie` is written, because the
     /// identifier the client holds now names nothing and a store that answers absent is already the
-    /// whole of `rule:http-server/a-session-store-answers-four-operations`'s strict-id rule.
+    /// whole of `rule:http-server/a-session-store-answers-five-operations`'s strict-id rule.
     fn nvs_core_session_destroy(ctx, _args: [0]) {
         let Some(open) = ctx.session() else {
             return Err(unstarted("destroy"));
@@ -1707,12 +1707,12 @@ nvs_runtime::nvs_helper! {
 /// line of the program.
 const SENDER: &str = "Core\\Session's write-back at the end of the request";
 
-/// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, as the function every session this module opens carries.
+/// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write-back, as the function every session this module opens carries.
 ///
 /// Installed on [`nvs_runtime::Session::write_back`] by `start` and `regenerate`, and reached
 /// through [`Ctx::end_session`] at the end of the program that opened the record — the isolate an
 /// HTTP request is, or `nvs run`'s root task. Only a record something changed gets here: the flag
-/// is the whole of `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "writing only
+/// is the whole of `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "writing only
 /// when the record changed", and that context method is where it is
 /// read.
 ///
@@ -2126,7 +2126,7 @@ mod tests {
     }
 
     /// `rule:core-api/session-roster`'s read and write over one record, as
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole` keeps it: what `set` put there,
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` keeps it: what `set` put there,
     /// `get` reads back, and
     /// `remove` takes out again — with the record's own bytes asserted beside the answers.
     ///
@@ -2244,7 +2244,7 @@ mod tests {
         );
     }
 
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, asserted **both
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write-back, asserted **both
     /// ways**: the send a changed record earns, and the round
     /// trip a read-only request does not make.
     ///
@@ -2310,7 +2310,7 @@ mod tests {
         );
     }
 
-    /// The fourth operation of `rule:http-server/a-session-store-answers-four-operations`: after
+    /// The fourth operation of `rule:http-server/a-session-store-answers-five-operations`: after
     /// `destroy` the store answers absent, which is the same answer
     /// it gives an identifier it never issued.
     ///
@@ -2434,7 +2434,7 @@ mod tests {
         }
     }
 
-    /// `rule:http-server/a-session-is-loaded-once-and-written-whole`: a request loads a stored
+    /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`: a request loads a stored
     /// session and changes it, another request destroys the session, and then the first request
     /// ends. On every store the end writes nothing, so the session stays destroyed.
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
@@ -2685,7 +2685,7 @@ mod tests {
         }
     }
 
-    /// `rule:http-server/a-session-store-answers-four-operations`: on every store, `replace`
+    /// `rule:http-server/a-session-store-answers-five-operations`: on every store, `replace`
     /// writes nothing for an absent id or an expired row, and `create` on an id that has a row
     /// fails and keeps that row's record.
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]

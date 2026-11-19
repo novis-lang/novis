@@ -1,7 +1,8 @@
-`[session] ttl` is written onto the entry: `SET … PX` on the shared tier, and an `expires_at`
-column in the `db` store's SQLite file. An expired record is absent at once, so `load` already
+`[session] ttl` is written onto the entry: `PEXPIRE` on the session's hash on the shared tier,
+which `RENAMENX` keeps, and an `expires_at` column on the session's head row in the `db` store's
+SQLite file. An expired session is absent at once, so `load` already
 answers it and `start` already issues a fresh id
-(`rule:http-server/a-session-store-answers-four-operations`). On the SQLite file `load` reads only
+(`rule:http-server/a-session-store-answers-five-operations`). On the SQLite file `load` reads only
 a row whose `expires_at` is still ahead, so correctness never waits for a sweep. `save` refreshes
 the expiry, so `ttl` bounds how long an *untouched* record survives.
 
