@@ -42,17 +42,24 @@
 //! [`Connection::renew_if_holder`] is [`RENEW`], a second `EVAL` that pushes the
 //! expiry out only while the key still holds the token that took it.
 //! `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` is what needs
-//! both and `nvs serve` is their caller. [`crate::session`] also creates a
-//! row with `set_if_absent` and replaces one with
-//! [`Connection::set_if_present`], `SET … XX PX`. A compare-and-set a *program*
-//! could reach is new cross-request coordination
+//! both and `nvs serve` is their caller.
+//!
+//! The session store, [`crate::session`], keeps one hash per session
+//! (`rule:http-server/a-session-store-answers-five-operations`). Its commands
+//! here are [`Connection::hash_all`], `HGETALL`, which reads every key at
+//! `start`; [`Connection::rename_if_absent`], `RENAMENX`, which moves a session
+//! to a new identifier; [`Connection::del`], `DEL`; [`Connection::eval`], whose
+//! caller says whether its script may run twice; `set_if_absent`; and
+//! [`Connection::set_if_present`], `SET … XX PX`. A compare-and-set a
+//! *program* could reach is new cross-request coordination
 //! (`rule:concurrency/cross-request-state-is-explicit`), so the tier's own wire
-//! stays `put` and `get` and these two are internal to this crate.
+//! stays `put` and `get` and every other command is internal to this crate.
 //!
 //! Only the reply shapes those commands answer are read — a simple
-//! string, a bulk string, a null bulk, an error, an integer and an array of
-//! integers. An array of anything else arrives here as "a reply this client does
-//! not read" rather than as a variant nothing constructs.
+//! string, a bulk string, a null bulk, an error, an integer, an array of
+//! integers and an array of bulk strings. An array mixing the two, or holding
+//! any other shape, arrives here as "a reply this client does not read" rather
+//! than as a variant nothing constructs.
 //!
 //! # One connection per core, and one reconnection behind a command that can take one
 //!
@@ -111,6 +118,15 @@ const CHUNK: usize = 4096;
 /// process's footprint. The scripts this client sends answer three integers and
 /// one.
 const ELEMENT_CEILING: i64 = 64;
+
+/// The most elements one array of bulk strings will hold: `HGETALL`'s field
+/// and value for 32 768 session keys.
+///
+/// [`ELEMENT_CEILING`]'s reason, at the size a session's hash needs. The bytes
+/// under it are bounded by [`REPLY_CEILING`] already; this bounds the one
+/// buffer header each element costs, 24 bytes each and 1.5 MiB at most, per
+/// in-flight `HGETALL`.
+const STRING_ELEMENT_CEILING: i64 = 65_536;
 
 /// The fleet lease's renewal, run where the lease lives.
 ///
@@ -398,30 +414,97 @@ impl Connection {
         }
     }
 
-    /// `EVAL script 1 key argv…` — the one server-side step, and the integers it
+    /// `EVAL script 1 key argv…` — one server-side step, and the integers it
     /// answers with.
     ///
-    /// One key always, because the only script this client sends is
-    /// [`crate::ratelimit`]'s and it reads one: a script over several keys is a
-    /// multi-key atomic check, which `rule:core-classes/ratelimit-two-members` names as deliberately absent.
+    /// One key always, because every script this client sends reads one: a
+    /// script over several keys is a multi-key atomic check, which
+    /// `rule:core-classes/ratelimit-two-members` names as deliberately absent.
+    /// `replay` is the caller's, because only the script knows whether a second
+    /// run is a second effect: the limiter's is, and a session's write-back is
+    /// not.
     ///
     /// # Errors
     ///
     /// As [`Connection::set`], plus a reply that is not an array of integers —
     /// which means the store ran a script that is not the one this sent, and
-    /// reading it as a decision would be inventing one. Never replayed past a
-    /// request that reached the store, per the module doc's second section.
+    /// reading it as a decision would be inventing one. Under
+    /// [`Replay::OnlyIfUnsent`], never replayed past a request that reached the
+    /// store, per the module doc's second section.
     pub(crate) fn eval(
         &mut self,
         script: &str,
         key: &[u8],
         argv: &[&[u8]],
+        replay: Replay,
     ) -> Result<Vec<i64>, String> {
         let mut parts: Vec<&[u8]> = vec![b"EVAL", script.as_bytes(), b"1", key];
         parts.extend_from_slice(argv);
-        match self.command(&parts, Replay::OnlyIfUnsent)? {
+        match self.command(&parts, replay)? {
             Reply::Array(numbers) => Ok(numbers),
             other => Err(other.unexpected("EVAL")),
+        }
+    }
+
+    /// `HGETALL key` — every field of a hash with its value, in the order the
+    /// store sent them, or `None` for a key that is not there.
+    ///
+    /// Redis answers an absent key with an empty array, and deletes a hash
+    /// whose last field goes, so an empty answer is always an absent key.
+    /// [`crate::session`] keeps one field in every session's hash for that
+    /// reason (`rule:http-server/a-session-store-answers-five-operations`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set`], plus an array of an odd length, which is not a
+    /// hash. A key holding another type is the store's `WRONGTYPE` refusal.
+    /// Replayable: a read leaves nothing.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the session store's load reads a hash next")
+    )]
+    pub(crate) fn hash_all(&mut self, key: &[u8]) -> Result<Option<Vec<Field>>, String> {
+        match self.command(&[b"HGETALL", key], Replay::Idempotent)? {
+            Reply::Array(numbers) if numbers.is_empty() => Ok(None),
+            Reply::Strings(strings) if strings.len() % 2 == 0 => {
+                let mut pairs = Vec::with_capacity(strings.len() / 2);
+                let mut items = strings.into_iter();
+                while let (Some(field), Some(value)) = (items.next(), items.next()) {
+                    pairs.push((field, value));
+                }
+                Ok(Some(pairs))
+            }
+            Reply::Strings(strings) => Err(format!(
+                "`HGETALL` answered {} strings, which is not a field and a value each",
+                strings.len()
+            )),
+            other => Err(other.unexpected("HGETALL")),
+        }
+    }
+
+    /// `RENAMENX old new` — the entry under `old` moved to `new` with its
+    /// expiry, only while `new` is not taken.
+    ///
+    /// [`crate::session`]'s `move`: a regenerated session keeps every key the
+    /// store holds, also one another request wrote after this one loaded.
+    /// The store answers `0` for a taken `new`, and the error `ERR no such key`
+    /// for a gone `old`, which is an answer here and not a failure.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set`], and any other refusal. Not replayed once sent:
+    /// a replay after the first attempt landed would find `old` gone and
+    /// answer [`Renamed::Gone`] about the move it made itself.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the session store's move renames a hash next")
+    )]
+    pub(crate) fn rename_if_absent(&mut self, old: &[u8], new: &[u8]) -> Result<Renamed, String> {
+        match self.command(&[b"RENAMENX", old, new], Replay::OnlyIfUnsent)? {
+            Reply::Number(1) => Ok(Renamed::Done),
+            Reply::Number(0) => Ok(Renamed::Taken),
+            Reply::Error(why) if why.contains("no such key") => Ok(Renamed::Gone),
+            other => Err(other.unexpected("RENAMENX")),
         }
     }
 
@@ -444,7 +527,12 @@ impl Connection {
         ttl: Duration,
     ) -> Result<bool, String> {
         let millis = expiry(ttl);
-        let answered = self.eval(RENEW, key, &[token, millis.as_bytes()])?;
+        let answered = self.eval(
+            RENEW,
+            key,
+            &[token, millis.as_bytes()],
+            Replay::OnlyIfUnsent,
+        )?;
         match answered.as_slice() {
             [1] => Ok(true),
             [0] => Ok(false),
@@ -634,15 +722,35 @@ impl Write for Transport {
 /// How far one command may be taken again after a failure — the module doc's
 /// second section is the reasoning, and this is the whole of the mechanism.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Replay {
+pub(crate) enum Replay {
     /// Running it twice leaves what running it once leaves, so a failure at any
-    /// point may be retried on a fresh connection. `SET` and `GET`.
+    /// point may be retried on a fresh connection. `SET`, `GET`, `DEL`,
+    /// `HGETALL`, and an `EVAL` of a script whose second run leaves what its
+    /// first left.
     Idempotent,
     /// Running it twice is two effects, so only a request that provably never
-    /// left may be retried. `EVAL` of the limiter's script, and the lease's two
-    /// commands, whose reply *is* their effect: a replayed `SET … NX` answers
-    /// `false` about the key its own first attempt took.
+    /// left may be retried. `EVAL` of the limiter's script, the lease's two
+    /// commands and `RENAMENX`, whose reply *is* their effect: a replayed
+    /// `SET … NX` answers `false` about the key its own first attempt took.
     OnlyIfUnsent,
+}
+
+/// One field of a hash and its value, as [`Connection::hash_all`] reads them.
+pub(crate) type Field = (Vec<u8>, Vec<u8>);
+
+/// What [`Connection::rename_if_absent`] answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "the session store's move renames a hash next")
+)]
+pub(crate) enum Renamed {
+    /// The entry is under the new key now, with its expiry.
+    Done,
+    /// The new key is taken, and nothing moved.
+    Taken,
+    /// The old key is not there, and nothing moved.
+    Gone,
 }
 
 /// One failed exchange: what went wrong, and whether the request had already
@@ -655,7 +763,7 @@ struct Failure {
     why: String,
 }
 
-/// The six reply shapes [`Connection`]'s commands answer with.
+/// The seven reply shapes [`Connection`]'s commands answer with.
 enum Reply {
     /// `+OK`, and nothing else this client asks for.
     Simple(String),
@@ -668,10 +776,17 @@ enum Reply {
     /// `:<n>` — an integer, which is what a Lua script's numbers come back as.
     Number(i64),
     /// `*<n>` and `n` integers under it: the shape [`Connection::eval`]'s script
-    /// answers, and the only array this client frames. An element that is not an
-    /// integer is refused where it is read, because a script answering something
-    /// else is not the script that was sent.
+    /// answers. An empty array is this one, whichever command answered it.
     Array(Vec<i64>),
+    /// `*<n>` and `n` bulk strings under it: the shape `HGETALL` answers, a
+    /// field and its value in turn. An array mixing the two shapes, or holding
+    /// any other, is refused where it is read, because no command this client
+    /// sends answers one.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the session store's load reads a hash next")
+    )]
+    Strings(Vec<Vec<u8>>),
 }
 
 impl Reply {
@@ -685,7 +800,9 @@ impl Reply {
             Self::Bulk(_) => format!("`{command}` answered a value where it answers none"),
             Self::Nil => format!("`{command}` answered nothing where it answers a value"),
             Self::Number(n) => format!("`{command}` answered the number {n}, which it does not"),
-            Self::Array(_) => format!("`{command}` answered a list where it answers one value"),
+            Self::Array(_) | Self::Strings(_) => {
+                format!("`{command}` answered a list where it answers one value")
+            }
         }
     }
 }
@@ -742,20 +859,38 @@ impl Wire<'_> {
                 if count < 0 {
                     return Ok(Reply::Nil);
                 }
-                if count > ELEMENT_CEILING {
+                if count > STRING_ELEMENT_CEILING {
                     return Err(format!(
-                        "{} answered {count} elements, past this client's {ELEMENT_CEILING}",
+                        "{} answered {count} elements, past this client's \
+                         {STRING_ELEMENT_CEILING}",
                         self.target
                     ));
                 }
+                // The first element says which of the two arrays this is, and
+                // every later one must be the same shape.
                 let mut numbers = Vec::new();
+                let mut strings = Vec::new();
                 for _ in 0..count {
                     match self.one()? {
-                        Reply::Number(n) => numbers.push(n),
+                        Reply::Number(n) if strings.is_empty() => {
+                            if numbers.len() >= usize::try_from(ELEMENT_CEILING).unwrap_or(0) {
+                                return Err(format!(
+                                    "{} answered {count} integers, past this client's \
+                                     {ELEMENT_CEILING}",
+                                    self.target
+                                ));
+                            }
+                            numbers.push(n);
+                        }
+                        Reply::Bulk(bytes) if numbers.is_empty() => strings.push(bytes),
                         other => return Err(other.unexpected("an array element")),
                     }
                 }
-                Ok(Reply::Array(numbers))
+                if strings.is_empty() {
+                    Ok(Reply::Array(numbers))
+                } else {
+                    Ok(Reply::Strings(strings))
+                }
             }
             "$" => {
                 let len: i64 = rest.parse().map_err(|_| {
@@ -902,7 +1037,7 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr, TcpListener};
     use std::time::Duration;
 
-    use super::{Connection, Dial, Target};
+    use super::{Connection, Dial, Renamed, Target};
 
     /// A listener on loopback and the address it took — the shape
     /// `crate::http::transport`'s own cases use, and the reason this module
@@ -1019,6 +1154,128 @@ mod tests {
         assert_eq!(set, b"*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$2\r\nhi\r\n");
         assert_eq!(get, b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n");
         assert_eq!(got, Some(b"hi".to_vec()));
+    }
+
+    /// `rule:http-server/a-session-store-answers-five-operations`'s `load`:
+    /// `HGETALL` answers a hash as one array, a field and its value in turn,
+    /// and an absent key as the empty array. Binary bytes and an empty value
+    /// cross intact, and the order is the store's.
+    #[test]
+    fn a_hash_is_read_back_as_its_fields_and_values() {
+        const COMMAND: &[u8] = b"*2\r\n$7\r\nHGETALL\r\n$1\r\nh\r\n";
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let first = read_exactly(&mut stream, COMMAND.len());
+            stream
+                .write_all(b"*4\r\n$1\r\nm\r\n$1\r\n5\r\n$3\r\nk:a\r\n$5\r\n\x00\r\n\xff\x01\r\n")
+                .expect("the hash");
+            let second = read_exactly(&mut stream, COMMAND.len());
+            stream.write_all(b"*0\r\n").expect("the empty array");
+            let third = read_exactly(&mut stream, COMMAND.len());
+            stream
+                .write_all(b"*2\r\n$3\r\nk:e\r\n$0\r\n\r\n")
+                .expect("a field with an empty value");
+            let fourth = read_exactly(&mut stream, COMMAND.len());
+            stream
+                .write_all(b"*3\r\n$1\r\nm\r\n$1\r\n5\r\n$3\r\nk:a\r\n")
+                .expect("an odd array");
+            [first, second, third, fourth]
+        });
+
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
+        connection.ensure().expect("the fake store is listening");
+        let read = connection.hash_all(b"h").expect("a hash");
+        assert_eq!(
+            read,
+            Some(vec![
+                (b"m".to_vec(), b"5".to_vec()),
+                (b"k:a".to_vec(), b"\x00\r\n\xff\x01".to_vec()),
+            ]),
+            "each field with its value, in the store's order, and a value's bytes as sent"
+        );
+        assert_eq!(
+            connection.hash_all(b"h").expect("absence is an answer"),
+            None,
+            "an empty array is an absent key"
+        );
+        assert_eq!(
+            connection.hash_all(b"h").expect("a field with no bytes"),
+            Some(vec![(b"k:e".to_vec(), Vec::new())]),
+        );
+        let odd = connection
+            .hash_all(b"h")
+            .expect_err("three strings are not a field and a value each");
+        assert!(
+            odd.contains("HGETALL"),
+            "the failure names the command: {odd}"
+        );
+
+        let sent = server.join().expect("the fake store runs to completion");
+        for command in sent {
+            assert_eq!(command, COMMAND);
+        }
+    }
+
+    /// `rule:http-server/a-session-store-answers-five-operations`'s `move`:
+    /// `RENAMENX` answers `1` for a move, `0` for a taken new key, and the
+    /// error `ERR no such key` for a gone old one. The last is an answer and
+    /// not a failure, and any other error is still a failure.
+    #[test]
+    fn a_move_to_a_taken_identifier_answers_false_and_a_move_from_a_gone_one_answers_gone() {
+        const COMMAND: &[u8] = b"*3\r\n$8\r\nRENAMENX\r\n$1\r\na\r\n$1\r\nb\r\n";
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let mut sent = Vec::new();
+            for reply in [
+                &b":1\r\n"[..],
+                b":0\r\n",
+                b"-ERR no such key\r\n",
+                b"-WRONGTYPE Operation against a key holding the wrong kind of value\r\n",
+            ] {
+                sent.push(read_exactly(&mut stream, COMMAND.len()));
+                stream.write_all(reply).expect("the reply");
+            }
+            sent
+        });
+
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
+        connection.ensure().expect("the fake store is listening");
+        assert_eq!(
+            connection.rename_if_absent(b"a", b"b").expect("a move"),
+            Renamed::Done
+        );
+        assert_eq!(
+            connection
+                .rename_if_absent(b"a", b"b")
+                .expect("a taken key is an answer"),
+            Renamed::Taken
+        );
+        assert_eq!(
+            connection
+                .rename_if_absent(b"a", b"b")
+                .expect("a gone key is an answer"),
+            Renamed::Gone
+        );
+        let refused = connection
+            .rename_if_absent(b"a", b"b")
+            .expect_err("another refusal is a failure");
+        assert!(
+            refused.contains("WRONGTYPE"),
+            "the store's own text is what an operator acts on: {refused}"
+        );
+
+        let sent = server.join().expect("the fake store runs to completion");
+        for command in sent {
+            assert_eq!(command, COMMAND);
+        }
     }
 
     /// `rule:core-api/two-cache-tiers`: an entry that is not there is an answer and not a failure,
@@ -1485,7 +1742,12 @@ mod tests {
         let extended = Duration::from_secs(120);
         let left = |connection: &mut Connection| -> i64 {
             match connection
-                .eval("return {redis.call('PTTL', KEYS[1])}", &key, &[])
+                .eval(
+                    "return {redis.call('PTTL', KEYS[1])}",
+                    &key,
+                    &[],
+                    super::Replay::Idempotent,
+                )
                 .expect("the store runs `PTTL`")
                 .as_slice()
             {

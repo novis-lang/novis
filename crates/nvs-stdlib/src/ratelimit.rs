@@ -792,7 +792,12 @@ nvs_runtime::nvs_helper! {
         ];
         let reply = crate::cache::on_shared(NAME, "consume", |open| {
             let argv: Vec<&[u8]> = arguments.iter().map(|text| text.as_bytes()).collect();
-            open.eval(SCRIPT, namespaced.as_bytes(), &argv)
+            open.eval(
+                SCRIPT,
+                namespaced.as_bytes(),
+                &argv,
+                crate::cache::redis::Replay::OnlyIfUnsent,
+            )
         })?;
 
         decoded(&reply, limit).map_err(|why| {
@@ -1056,6 +1061,7 @@ mod tests {
                     derived.tau.to_string().as_bytes(),
                     b"1",
                 ],
+                crate::cache::redis::Replay::OnlyIfUnsent,
             )
             .expect("the fake store answers the three integers");
 
@@ -1498,7 +1504,12 @@ mod tests {
             Duration::from_secs(5),
         );
         connection.ensure().expect("the fake store is listening");
-        let failed = connection.eval(SCRIPT, b"k", &[b"1000", b"1000", b"1"]);
+        let failed = connection.eval(
+            SCRIPT,
+            b"k",
+            &[b"1000", b"1000", b"1"],
+            crate::cache::redis::Replay::OnlyIfUnsent,
+        );
         assert!(
             failed.is_err(),
             "a store that hangs up mid-command is a failure, not an absence"
