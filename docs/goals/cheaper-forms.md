@@ -46,7 +46,7 @@ stages:
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/json.rs]
   - id: 11
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: table
@@ -805,27 +805,35 @@ under `tests/lsp/actions/`.
 
 ### 11. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 10 are done. Stage 10 took one session. `Core\Str::split` stops counting at a positive
-limit and owns its subject (`split_pieces`, then `apply` appends the remainder through `kept`). A
-search that ignores case takes `ascii_find` or `ascii_rfind` for an ASCII needle of up to 64 bytes.
-`Core\Json::isValid` runs `json::validate` and builds nothing, at 2.3x. Build and clippy are green,
-the three `members` tests pass, and `bun nv scaling --check strings/forms-` is flat. The stage 8
-rule fragment had not been rendered into `docs/rules/ide.md`, and now is. The sweep's
-`env-secret-proofs` red is stale: no goal defines it.
+Every stage is done, and the goal is reached. Stage 11 took one session. Build and clippy are green,
+and all fourteen goal checks pass, each run by name. The first run found three causes, all fixed:
+
+- The getter row returned a borrowed read where its consumer expects an owned call result, so
+  `$r->take()` freed an array twice (`crates/nvs-ir/src/lower/expr.rs`, the `property-getter` row).
+- `Core\Test::double` and `partial` make a class at run time, so stage 9's direct call ran the one
+  declared body at a double. `ExprTypeTable::makes_classes_at_run_time` now keeps such a program's
+  instance calls virtual. The rule fragment records it.
+- `PlanSweep` did not empty the covws discard pool after its build, so a stale profile printed
+  `LLVM Profile Error` into every case's stderr under the suite's second run
+  (`tools/nv/accept/runner.ts`). The proven-callback test now catches its trap and asserts the
+  message, because looper's runner does not count a `should panic ... ok` line.
+
+The rule is `shipped`, and `bun nv owners --closes cheaper-forms` is clean. The backlog item moved to
+`object-collections-fast`'s Backlog. The sweep's `env-secret-proofs` red is stale: no goal defines
+it, and its log file does not exist.
 
 ### Next
 
-Stage 11 closes the goal: a build and this goal's own checks, or `looper verify` if the pack names
-it the full gate. `looper check --name <id>` runs one goal check.
+Nothing. The driver retires the goal and deletes this file.
 
-Tests expected red: any test that pins `Core\Str::split`'s entry as borrowed (it is now in the
+Tests expected red at the next full gate, if any pins them: any test that pins `Core\Str::split`'s entry as borrowed (it is now in the
 owning table, so `tests/allocation_policy.rs` or an IR snapshot may show `nvs_core_str_split_owned`),
 any perf record for `Core\Str::split`, `indexOf`, `lastIndexOf`, `contains` or `Core\Json::isValid`
 (each is stale after this stage), and any case that expects `isValid` to stop the request on a list
@@ -847,10 +855,10 @@ pins `nvs check`'s output for `docs/examples/core/Cache-Store/get/01-reading-a-v
 `ExprTypeTable::canonical_text`'s `proven_callbacks` section. A wrong proof from stage 6 shows as a
 debug-build panic that says "called as a proven callback". Also any test that seeds the debug
 index's `events` with a positional `INSERT` (it now has a `target` column), or pins `index.rs`'s
-`SCHEMA` as 8.
+`SCHEMA` as 8. Also any test that pins `ExprTypeTable::canonical_text` for a program that calls
+`Core\Test::double` or `partial`, which now has a `run_time_classes` section, and any snapshot of
+such a program that pins a direct call.
 
 ### Backlog
 
-- From `strings-in-place`, which took it from `arrays-in-place`: `Core\Arr::overlayDeep` on a sole
-  subject still copies each nested map it merges into. A nested map that is itself sole could be
-  changed in place. No ladder shows it yet.
+- None. `Core\Arr::overlayDeep`'s nested copy moved to `object-collections-fast`.

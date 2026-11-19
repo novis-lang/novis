@@ -465,3 +465,6 @@ to a writing subagent while the session confirms the facts.
   no run-time state, the `string` keying could take it too.
 - A `uint` key keeps the chain. The `int` keying could take one whose value fits an `i64`, if a
   program shows the need.
+- From `cheaper-forms`, which took it from `strings-in-place` and `arrays-in-place`:
+  `Core\Arr::overlayDeep` on a sole subject still copies each nested map it merges into. A nested
+  map that is itself sole could be changed in place. No ladder shows it yet.
