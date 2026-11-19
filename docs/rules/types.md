@@ -573,9 +573,21 @@ a byte offset; on any other string, `Core\Str::at` and the members that take a p
 clusters to it on every call. Normalization (NFC/NFD) is out of scope: grapheme awareness says
 nothing about whether two visually identical strings compare equal.
 
+**A string can drop its front without moving the rest.** The header carries a start word: how many
+bytes before the first live one a cut dropped. A string with one owner is cut by moving the start
+or shortening the length, so no byte it keeps moves, and a prepend writes into the dropped front
+when it fits. An append that does not fit behind the live bytes first moves them back to the start
+when the dropped front is at least half of the capacity, and otherwise grows as before. So a string
+used as a queue, appended at the back and cut at the front, holds at most twice its live bytes.
+Compiled code reads only a string's length, never its payload, so the start word costs one addition
+in the runtime's payload read and nothing in compiled code. `crates/nvs-runtime/src/string.rs`
+§ *The dropped front* is the code's home.
+
 - **Memory:** every string allocation carries one more word, 8 bytes, for its cached grapheme count,
   filled lazily the first time anything asks. No per-cluster offset table is kept, so indexing a
   string with wide clusters costs time rather than memory.
+- **Memory:** every string allocation carries one more word, 8 bytes, for its start. A string that
+  is only cut keeps the allocation it had and never holds more than that.
 
 **Declined:**
 - **Code points as the unmarked unit.** A code point count still disagrees with what a person sees:
@@ -617,6 +629,10 @@ throwing event rather than an unasserted assumption.
 
 There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
 `Core\Encoding::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
+
+`bytes` shares `string`'s allocation and header word for word, the start word included, so a `bytes`
+with one owner drops its front in place too ([`types/string-is-utf8`](types.md#types-string-is-utf8)). Only the tag tells the
+two apart, and a `bytes` never carries a grapheme count.
 
 **Declined:**
 - **A lossy `bytes as string`** that replaces, drops or transliterates an invalid sequence. That is

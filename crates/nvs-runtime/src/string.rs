@@ -1,4 +1,4 @@
-//! Novis's refcounted string: one heap allocation, a five-word header, and the
+//! Novis's refcounted string: one heap allocation, a six-word header, and the
 //! bytes inline behind it.
 //!
 //! This is the representation both `nvs_ir::ty::Ty::Str` and
@@ -12,19 +12,21 @@
 //! # Layout
 //!
 //! ```text
-//! offset 0                                                   offset size_of::<StrHeader>()
-//! +-------------+-----------+---------+-----------+--------+ +------------------------------+
-//! | refcount    | len       | cap     | graphemes | digest | | cap bytes, the first len live |
-//! +-------------+-----------+---------+-----------+--------+ +------------------------------+
+//! offset 0                                                           offset size_of::<StrHeader>()
+//! +----------+-----+-----+-----------+--------+-------+ +-----------------------------------------+
+//! | refcount | len | cap | graphemes | digest | start | | cap bytes, start..start + len live      |
+//! +----------+-----+-----+-----------+--------+-------+ +-----------------------------------------+
 //! ```
 //!
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
 //! simpler to write, but it costs a second allocation and a second cache miss
 //! on every string produced, which is a latency question rather than a
 //! footprint one ([AGENTS.md](/AGENTS.md)). Codegen emits a retain inline at
-//! [`REFCOUNT_OFFSET`] and reads a payload at [`LEN_OFFSET`] and
-//! [`PAYLOAD_OFFSET`]; those constants exist so the layout is queried, never
-//! restated.
+//! [`REFCOUNT_OFFSET`], reads a length at [`LEN_OFFSET`], and writes a
+//! literal's header with [`immortal_header_bytes`] and its bytes at
+//! [`PAYLOAD_OFFSET`]. Compiled code never reads a payload, so the dropped
+//! front below is the runtime's alone. Those constants exist so the layout is
+//! queried, never restated.
 //!
 //! # Capacity, and what it spends
 //!
@@ -44,6 +46,31 @@
 //! that is never appended to holds exactly its payload. That is memory
 //! footprint spent on latency, which is the direction [AGENTS.md](/AGENTS.md)
 //! asks for, and it is the whole of what this word spends.
+//!
+//! # The dropped front, and what it spends
+//!
+//! The sixth word, `start`, is how many payload bytes a cut dropped from the
+//! front: the live bytes are `start..start + len` of the `cap` behind the
+//! header, and [`live_payload`] is the one place that adds it. So a sole
+//! string drops its front by moving `start` and its back by shortening
+//! `len`, and no kept byte moves ([`NvsStr::keep`]). `cap` keeps counting
+//! from [`PAYLOAD_OFFSET`]. A fresh allocation and an immortal header have a
+//! `start` of 0, and only an in-place change to a string with one owner moves
+//! it.
+//!
+//! An append reclaims the dropped front before it grows ([`room_in_place`]).
+//! When the bytes do not fit behind the live ones and the dropped front is at
+//! least half of `cap`, the live bytes move back to the first payload byte.
+//! Otherwise the string grows as it always did, and the fresh allocation
+//! copies only the live bytes. So a string used as a queue, appended to at
+//! the back and cut at the front, holds at most twice its live bytes. A
+//! prepend writes into the dropped front when it fits ([`NvsStr::prepend`]).
+//!
+//! What it costs is **8 more bytes per string allocation**, and one addition
+//! on every payload read in the runtime. A string that is only cut never
+//! holds more than its allocation already held. What it buys is that a loop
+//! cutting one string a step at a time is linear, where a copy per cut made it
+//! quadratic: memory spent on latency.
 //!
 //! # The cached grapheme count, and what it spends
 //!
@@ -189,9 +216,10 @@ use std::ptr::NonNull;
 pub struct StrHeader {
     /// How many owners hold this allocation. Reaching `0` frees it.
     refcount: Cell<usize>,
-    /// Payload length in bytes. Written after construction only by
-    /// [`nvs_str_append`], [`concat_onto`] and [`NvsStr::build`], and only
-    /// while this allocation has exactly one owner.
+    /// Payload length in bytes. Written after construction only by the
+    /// appends, [`concat_onto`], [`NvsStr::build`] and the in-place changes
+    /// [`NvsStr::keep`] heads, and only while this allocation has exactly one
+    /// owner.
     len: Cell<usize>,
     /// How many payload bytes the allocation has room for — what the layout
     /// this header was allocated with, and will be freed with, is computed
@@ -209,6 +237,11 @@ pub struct StrHeader {
     /// [`KeyRef::digest`] on the first lookup, reset wherever `len` is, and
     /// never written for an immortal header.
     digest: Cell<u64>,
+    /// How many payload bytes before the first live one a cut dropped: the
+    /// live bytes are `start..start + len` of the `cap` behind the header.
+    /// Moved only by an in-place change to a string with one owner, and `0`
+    /// for every fresh allocation and every immortal header.
+    start: Cell<usize>,
 }
 
 /// Byte offset of the reference count within [`StrHeader`].
@@ -222,6 +255,9 @@ pub const CAP_OFFSET: usize = std::mem::offset_of!(StrHeader, cap);
 
 /// Byte offset of the cached grapheme count within [`StrHeader`].
 pub const GRAPHEMES_OFFSET: usize = std::mem::offset_of!(StrHeader, graphemes);
+
+/// Byte offset of the dropped-front count within [`StrHeader`].
+pub(crate) const START_OFFSET: usize = std::mem::offset_of!(StrHeader, start);
 
 /// Byte offset of the payload itself, relative to the [`StrHeader`] pointer.
 pub const PAYLOAD_OFFSET: usize = std::mem::size_of::<StrHeader>();
@@ -397,6 +433,7 @@ pub fn immortal_header_bytes(payload: &[u8]) -> [u8; PAYLOAD_OFFSET] {
         (LEN_OFFSET, len),
         (CAP_OFFSET, len),
         (GRAPHEMES_OFFSET, graphemes),
+        (START_OFFSET, 0),
     ] {
         header[offset..offset + std::mem::size_of::<usize>()].copy_from_slice(&word.to_ne_bytes());
     }
@@ -447,6 +484,7 @@ static EMPTY_IMMORTAL: SharedHeader = SharedHeader(StrHeader {
     // to it. An empty payload has no clusters, so there is nothing to scan.
     graphemes: Cell::new(0),
     digest: Cell::new(DIGEST_UNKNOWN),
+    start: Cell::new(0),
 });
 
 /// The allocation shape for a string with room for `cap` payload bytes.
@@ -541,6 +579,122 @@ fn grown_capacity(len: usize, needed: usize) -> usize {
 fn remember_count(header: &StrHeader, count: usize) {
     if header.refcount.get() != IMMORTAL_REFCOUNT {
         header.graphemes.set(count);
+    }
+}
+
+/// The first live payload byte of the string `ptr` refers to: past the header,
+/// and past the front a cut dropped.
+///
+/// The one place a payload's position is computed, so every read and write of
+/// one adds the dropped front exactly once.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live Novis string allocation.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation to state"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
+unsafe fn live_payload(ptr: *const StrHeader) -> *mut u8 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees a live allocation, whose `start` is at \
+                  most its `cap`, so the offset stays inside it"
+    )]
+    unsafe {
+        ptr.cast::<u8>()
+            .cast_mut()
+            .add(PAYLOAD_OFFSET)
+            .add((*ptr).start.get())
+    }
+}
+
+/// Makes room in a sole string's own allocation for `needed` live bytes in
+/// all, and answers whether they fit there.
+///
+/// They fit as they are when the dropped front and `needed` together fit in
+/// `cap`. When they do not, and the dropped front is at least half of `cap`,
+/// the live bytes move back to the first payload byte and `start` becomes 0.
+/// They then fit when `needed` is at most `cap`. Otherwise the caller grows
+/// into a fresh allocation, which copies only the live bytes. So a string used
+/// as a queue, appended to at the back and cut at the front, holds at most
+/// twice its live bytes, and each live byte moves back at most once per time
+/// the front passes half of `cap`.
+///
+/// Moving the bytes changes no byte of the payload, so the cached grapheme
+/// count and digest stay.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live Novis string allocation with exactly one owner,
+/// which is not immortal. A caller holding a pointer into the live bytes reads
+/// it again after this, since the bytes may have moved.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness and sole ownership are the caller's \
+              obligation to state"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
+unsafe fn room_in_place(ptr: *mut StrHeader, needed: usize) -> bool {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees a live allocation with one owner; the \
+                  move stays inside its `cap`, where `start + len` already is"
+    )]
+    unsafe {
+        let header = &*ptr;
+        let start = header.start.get();
+        if needed <= header.cap.saturating_sub(start) {
+            return true;
+        }
+        if needed > header.cap || start.saturating_mul(2) < header.cap {
+            return false;
+        }
+        let first = ptr.cast::<u8>().add(PAYLOAD_OFFSET);
+        std::ptr::copy(first.add(start), first, header.len.get());
+        header.start.set(0);
+        true
+    }
+}
+
+/// Fills `ptr`'s cached grapheme count from `sum`, the counts of the two
+/// pieces joined at byte `seam` of its payload, where `sum` is known.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live Novis string allocation, and its payload must
+/// be a `string`'s whenever `sum` is `Some`.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness and encoding are the caller's obligation"
+)]
+unsafe fn remember_joined(ptr: *const StrHeader, sum: Option<usize>, seam: usize) {
+    #[expect(
+        unsafe_code,
+        reason = "a known count belongs to a `string` only, so the payload is \
+                  text, which is `text_of`'s obligation"
+    )]
+    unsafe {
+        if let Some(sum) = sum
+            && let Some(joined) = joined_count(NvsStr::text_of(ptr), sum, std::iter::once(seam))
+        {
+            remember_count(&*ptr, joined);
+        }
     }
 }
 
@@ -736,6 +890,7 @@ impl NvsStr {
         let mut out = StrWriter {
             ptr,
             written: 0,
+            base: 0,
             capacity,
             owns: PhantomData,
         };
@@ -854,6 +1009,7 @@ impl NvsStr {
                 cap,
                 graphemes: Cell::new(COUNT_UNKNOWN),
                 digest: Cell::new(DIGEST_UNKNOWN),
+                start: Cell::new(0),
             });
         }
         Some(ptr)
@@ -1026,6 +1182,257 @@ impl NvsStr {
         }
     }
 
+    /// Whether this handle is the string's one owner, so a change to its bytes
+    /// is seen by nobody else. An immortal string is never sole.
+    #[must_use]
+    pub fn is_sole(&self) -> bool {
+        self.refcount() == 1
+    }
+
+    /// The cached grapheme count, or `None` while nobody has asked.
+    fn known_count(&self) -> Option<usize> {
+        #[expect(unsafe_code, reason = "the pointee is live for `&self`'s borrow")]
+        unsafe {
+            cached_count(self.ptr.as_ptr())
+        }
+    }
+
+    /// Keeps only the bytes in `range`, consuming this handle and giving the
+    /// result's — the in-place cut every `Core` member that cuts calls.
+    ///
+    /// A sole string keeps its allocation, and no live byte moves: the front
+    /// is dropped by moving `start`, and the back by shortening `len`. A shared
+    /// one is copied, and only `range` is. `removed` is how many grapheme
+    /// clusters the cut takes away, where the caller counted them. The result
+    /// keeps a known count less `removed`, and is uncounted otherwise. Its
+    /// digest is reset.
+    ///
+    /// # Memory
+    ///
+    /// None. A sole string cut short keeps the allocation it already held.
+    ///
+    /// # Panics
+    ///
+    /// When `range` is not inside the payload, which no member asks for.
+    #[must_use]
+    pub fn keep(self, range: std::ops::Range<usize>, removed: Option<usize>) -> Self {
+        let len = self.len();
+        assert!(
+            range.start <= range.end && range.end <= len,
+            "a cut stays inside the payload"
+        );
+        if range.start == 0 && range.end == len {
+            return self;
+        }
+        let count = self
+            .known_count()
+            .zip(removed)
+            .and_then(|(held, gone)| held.checked_sub(gone));
+        if !self.is_sole() {
+            let fresh = Self::new(&self.as_bytes()[range]);
+            if let Some(count) = count {
+                remember_count(fresh.header(), count);
+            }
+            return fresh;
+        }
+        let header = self.header();
+        header.start.set(header.start.get() + range.start);
+        header.len.set(range.end - range.start);
+        header.graphemes.set(count.unwrap_or(COUNT_UNKNOWN));
+        header.digest.set(DIGEST_UNKNOWN);
+        self
+    }
+
+    /// Drops the first `k` bytes: [`NvsStr::keep`] of the rest.
+    ///
+    /// # Panics
+    ///
+    /// When `k` is past the payload.
+    #[must_use]
+    pub fn drop_front(self, k: usize, removed: Option<usize>) -> Self {
+        let len = self.len();
+        self.keep(k..len, removed)
+    }
+
+    /// Drops the last `k` bytes: [`NvsStr::keep`] of the rest.
+    ///
+    /// # Panics
+    ///
+    /// When `k` is past the payload.
+    #[must_use]
+    pub fn drop_back(self, k: usize, removed: Option<usize>) -> Self {
+        let len = self.len();
+        let end = len.checked_sub(k).expect("a cut stays inside the payload");
+        self.keep(0..end, removed)
+    }
+
+    /// [`NvsStr::append`], keeping a known grapheme count: `added` is how many
+    /// clusters `bytes` holds, where the caller counted them.
+    ///
+    /// The result's count is this string's plus `added`, corrected at the seam,
+    /// when both are known. Pass `None` for a `bytes`, which has no count.
+    #[must_use]
+    pub fn append_counted(self, bytes: &[u8], added: Option<usize>) -> Self {
+        let counts = self.known_count().zip(added);
+        let target = self.into_raw();
+        #[expect(
+            unsafe_code,
+            reason = "as in `append`: `target`'s one reference goes to \
+                      `append_onto`, and `bytes` cannot borrow from a string \
+                      this call owns alone"
+        )]
+        unsafe {
+            Self::from_raw(append_onto(target, bytes.as_ptr(), bytes.len(), counts))
+        }
+    }
+
+    /// Puts `bytes` in front of the payload, consuming this handle and giving
+    /// the result's.
+    ///
+    /// A sole string with a dropped front at least as long as `bytes` writes
+    /// them there, and no live byte moves. A sole string with room in its
+    /// allocation moves its live bytes once, to just past `bytes`. Otherwise
+    /// the result is a fresh allocation: [`grown_capacity`]'s doubling for a
+    /// sole string, and exactly the result's length for a shared one. `added`
+    /// is how many grapheme clusters `bytes` holds, as in
+    /// [`NvsStr::append_counted`]. The digest is reset.
+    ///
+    /// # Memory
+    ///
+    /// What a grown allocation adds, as for an append.
+    #[must_use]
+    pub fn prepend(self, bytes: &[u8], added: Option<usize>) -> Self {
+        let n = bytes.len();
+        if n == 0 {
+            return self;
+        }
+        let len = self.len();
+        let needed = len
+            .checked_add(n)
+            .expect("an Novis string's length cannot overflow a usize");
+        let sum = self
+            .known_count()
+            .zip(added)
+            .map(|(held, gained)| held.saturating_add(gained));
+        let out = if self.is_sole() && n.saturating_add(len) <= self.capacity() {
+            let header = self.header();
+            let start = header.start.get();
+            let first = self.ptr.as_ptr().cast::<u8>();
+            #[expect(
+                unsafe_code,
+                reason = "this handle is the string's one owner, so nothing else \
+                          reads the payload; both writes stay inside `cap`, \
+                          which the branch above checked holds `n + len`, and \
+                          `bytes` cannot borrow from a string this call owns alone"
+            )]
+            unsafe {
+                let first = first.add(PAYLOAD_OFFSET);
+                let at = if let Some(at) = start.checked_sub(n) {
+                    at
+                } else {
+                    std::ptr::copy(first.add(start), first.add(n), len);
+                    0
+                };
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), first.add(at), n);
+                header.start.set(at);
+            }
+            header.len.set(needed);
+            header.graphemes.set(COUNT_UNKNOWN);
+            header.digest.set(DIGEST_UNKNOWN);
+            self
+        } else {
+            let cap = if self.is_sole() {
+                grown_capacity(len, needed)
+            } else {
+                needed
+            };
+            Self::build(cap, |out| {
+                out.push(bytes);
+                out.push(self.as_bytes());
+            })
+        };
+        // A refused allocation gives the empty string, which has no seam.
+        if out.len() == needed {
+            #[expect(
+                unsafe_code,
+                reason = "`out` is live, and `sum` is known only for a `string`"
+            )]
+            unsafe {
+                remember_joined(out.ptr.as_ptr(), sum, n);
+            }
+        }
+        out
+    }
+
+    /// Lets `write` change a sole string's live bytes where they are, and
+    /// answers whether it ran.
+    ///
+    /// `write` gets the live bytes and returns how many of them the result
+    /// keeps, from the front. A forward pass whose result is never longer than
+    /// its input up to each point writes over the bytes it has already read.
+    /// A shared or immortal string is not changed, `write` does not run, and
+    /// the answer is `false`: the caller then builds the result instead. The
+    /// grapheme count and the digest are reset. A `string`'s `write` leaves
+    /// well-formed UTF-8, which this module does not check.
+    ///
+    /// # Panics
+    ///
+    /// When `write` returns more than the length it was given.
+    pub fn rewrite(&mut self, write: impl FnOnce(&mut [u8]) -> usize) -> bool {
+        if !self.is_sole() {
+            return false;
+        }
+        let len = self.len();
+        #[expect(
+            unsafe_code,
+            reason = "this handle is the string's one owner and `&mut self` is \
+                      borrowed for the call, so no other reference to the live \
+                      bytes exists while `write` holds them"
+        )]
+        let live = unsafe { std::slice::from_raw_parts_mut(live_payload(self.ptr.as_ptr()), len) };
+        let kept = write(live);
+        assert!(
+            kept <= len,
+            "a rewrite keeps at most the bytes it was given"
+        );
+        let header = self.header();
+        header.len.set(kept);
+        header.graphemes.set(COUNT_UNKNOWN);
+        header.digest.set(DIGEST_UNKNOWN);
+        true
+    }
+
+    /// Replaces the payload with `bytes`, consuming this handle and giving the
+    /// result's — the swap a member makes after building a result that grew
+    /// into a scratch buffer.
+    ///
+    /// A sole string whose allocation fits `bytes` keeps it, and `bytes` is
+    /// written from its first payload byte. Otherwise the result is a fresh
+    /// allocation of exactly `bytes`. The grapheme count and the digest are
+    /// reset.
+    #[must_use]
+    pub fn replace_with(self, bytes: &[u8]) -> Self {
+        if !self.is_sole() || bytes.len() > self.capacity() {
+            return Self::new(bytes);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this handle is the string's one owner, `bytes` fits in \
+                      `cap`, and `bytes` cannot borrow from a string this call \
+                      owns alone"
+        )]
+        unsafe {
+            let first = self.ptr.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), first, bytes.len());
+        }
+        let header = self.header();
+        header.start.set(0);
+        header.len.set(bytes.len());
+        header.graphemes.set(COUNT_UNKNOWN);
+        header.digest.set(DIGEST_UNKNOWN);
+        self
+    }
+
     /// The payload of the string `ptr` refers to, borrowed without taking a
     /// reference of its own.
     ///
@@ -1046,12 +1453,11 @@ impl NvsStr {
         #[expect(
             unsafe_code,
             reason = "the caller guarantees the allocation is live for 'a; \
-                      `new` initialized `len` payload bytes at PAYLOAD_OFFSET \
-                      and nothing ever writes them again"
+                      every writer initialized the `len` bytes at the first live \
+                      one, and only a sole owner changes them"
         )]
         unsafe {
-            let len = (*ptr).len.get();
-            std::slice::from_raw_parts(ptr.cast::<u8>().add(PAYLOAD_OFFSET), len)
+            std::slice::from_raw_parts(live_payload(ptr), (*ptr).len.get())
         }
     }
 
@@ -1129,7 +1535,10 @@ pub struct StrWriter<'a> {
     /// `0` until [`NvsStr::build`] finishes, so a panic mid-write cannot leave
     /// uninitialized bytes readable.
     written: usize,
-    /// How many the allocation has room for.
+    /// How many payload bytes before the first one this writer writes: the
+    /// target's dropped front, and `0` for a fresh allocation.
+    base: usize,
+    /// How many bytes the allocation has room for past `base`.
     capacity: usize,
     /// The writer owns the allocation for the call's duration, and hands it to
     /// [`NvsStr::build`] at the end.
@@ -1160,7 +1569,11 @@ impl StrWriter<'_> {
                       fresh allocation"
         )]
         unsafe {
-            let at = self.ptr.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+            let at = self
+                .ptr
+                .as_ptr()
+                .cast::<u8>()
+                .add(PAYLOAD_OFFSET + self.base);
             std::ptr::copy_nonoverlapping(piece.as_ptr(), at.add(self.written), piece.len());
         }
         self.written = needed;
@@ -1188,8 +1601,9 @@ impl StrWriter<'_> {
     #[cold]
     fn grow(&mut self, needed: usize) -> bool {
         let capacity = grown_capacity(self.capacity, needed);
-        let bigger = str_layout(capacity);
-        if !crate::budget::affords(bigger.size() - str_layout(self.capacity).size()) {
+        let bigger = str_layout(self.base + capacity);
+        let smaller = str_layout(self.base + self.capacity);
+        if !crate::budget::affords(bigger.size() - smaller.size()) {
             return false;
         }
         // `realloc` and not an allocate-copy-free of our own, for the reason
@@ -1199,17 +1613,11 @@ impl StrWriter<'_> {
         // for, and then some.
         #[expect(
             unsafe_code,
-            reason = "`self.ptr` was allocated with `str_layout(self.capacity)` \
-                      and this writer is its only handle; `bigger.size()` is \
-                      larger, so `realloc`'s contract is met"
+            reason = "`self.ptr` was allocated with `smaller`, the layout of \
+                      `base + capacity`, and this writer is its only handle; \
+                      `bigger.size()` is larger, so `realloc`'s contract is met"
         )]
-        let raw = unsafe {
-            realloc(
-                self.ptr.as_ptr().cast::<u8>(),
-                str_layout(self.capacity),
-                bigger.size(),
-            )
-        };
+        let raw = unsafe { realloc(self.ptr.as_ptr().cast::<u8>(), smaller, bigger.size()) };
         let Some(ptr) = NonNull::new(raw.cast::<StrHeader>()) else {
             handle_alloc_error(bigger)
         };
@@ -1220,7 +1628,7 @@ impl StrWriter<'_> {
                       freed with has to be the one it now has"
         )]
         unsafe {
-            (&raw mut (*ptr.as_ptr()).cap).write(capacity);
+            (&raw mut (*ptr.as_ptr()).cap).write(self.base + capacity);
         }
         self.ptr = ptr;
         self.capacity = capacity;
@@ -1240,7 +1648,10 @@ impl Drop for StrWriter<'_> {
                       the layout is the one it was made with"
         )]
         unsafe {
-            dealloc(self.ptr.as_ptr().cast::<u8>(), str_layout(self.capacity));
+            dealloc(
+                self.ptr.as_ptr().cast::<u8>(),
+                str_layout(self.base + self.capacity),
+            );
         }
     }
 }
@@ -1471,7 +1882,10 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
             })
         });
         let solely_owned = header.refcount.get() == 1;
-        let reused = solely_owned && header.cap >= needed;
+        // A dropped front is reclaimed first, under `room_in_place`'s rule. A
+        // piece that is `lhs` reads its bytes through the header afterwards,
+        // so it finds them where they moved to.
+        let reused = solely_owned && room_in_place(lhs, needed);
         let out = if reused {
             lhs
         } else {
@@ -1484,14 +1898,10 @@ unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut St
                 nvs_str_release(lhs);
                 return NvsStr::empty_immortal().into_raw();
             };
-            std::ptr::copy_nonoverlapping(
-                lhs.cast::<u8>().add(PAYLOAD_OFFSET),
-                fresh.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET),
-                len,
-            );
+            std::ptr::copy_nonoverlapping(live_payload(lhs), live_payload(fresh.as_ptr()), len);
             fresh.as_ptr()
         };
-        let dst = out.cast::<u8>().add(PAYLOAD_OFFSET);
+        let dst = live_payload(out);
         let mut written = len;
         for piece in rest {
             // A piece that *is* the reused destination reads its own payload,
@@ -2008,7 +2418,7 @@ pub unsafe extern "C" fn nvs_str_append(
     )]
     unsafe {
         let added = (*suffix).len.get();
-        let src = suffix.cast::<u8>().add(PAYLOAD_OFFSET);
+        let src = live_payload(suffix);
         // Read before either payload moves, and used after: an append changes
         // the count of the string it answers, so a stale word would outlive
         // the bytes it counted. `None` on either side leaves the result
@@ -2097,8 +2507,10 @@ pub unsafe extern "C" fn nvs_str_append_parts(
         let Some(owned) = NonNull::new(target) else {
             return target;
         };
-        if header.refcount.get() == 1 && header.cap >= needed && !reads_target {
-            let (ptr, written) = write_parts(owned, len, header.cap, parts);
+        if header.refcount.get() == 1 && !reads_target && room_in_place(target, needed) {
+            let start = header.start.get();
+            let room = header.cap.saturating_sub(start);
+            let (ptr, written) = write_parts(owned, start, len, room, parts);
             let written_into = ptr.as_ref();
             written_into.len.set(written);
             written_into.graphemes.set(COUNT_UNKNOWN);
@@ -2109,9 +2521,8 @@ pub unsafe extern "C" fn nvs_str_append_parts(
         let Some(grown) = NvsStr::alloc_or_refusal(0, cap) else {
             return target;
         };
-        let dst = grown.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
-        std::ptr::copy_nonoverlapping(target.cast::<u8>().add(PAYLOAD_OFFSET), dst, len);
-        let (ptr, written) = write_parts(grown, len, cap, parts);
+        std::ptr::copy_nonoverlapping(live_payload(target), live_payload(grown.as_ptr()), len);
+        let (ptr, written) = write_parts(grown, 0, len, cap, parts);
         ptr.as_ref().len.set(written);
         // Last, so that a part that is the target is read before a release
         // of the target can free it.
@@ -2120,16 +2531,17 @@ pub unsafe extern "C" fn nvs_str_append_parts(
     }
 }
 
-/// Writes every part after the first `written` bytes of `ptr`'s payload, and
-/// answers the allocation and the length it now has.
+/// Writes every part after the first `written` live bytes of `ptr`'s payload,
+/// which begin `base` bytes past the first payload byte, and answers the
+/// allocation and the length it now has.
 ///
 /// The caller sets the header's `len` from the answer. A total the caller
 /// measured with [`Piece::len`] fits in `capacity`, so the writer never grows.
 ///
 /// # Safety
 ///
-/// `ptr` must be an allocation of `capacity` payload bytes that no other
-/// handle writes, with its first `written` bytes initialized. Every part's
+/// `ptr` must be an allocation of `base + capacity` payload bytes that no
+/// other handle writes, with the `written` bytes after `base` initialized. Every part's
 /// payload is [`Piece::of`]'s to state, and no string part may be `ptr`.
 #[expect(
     unsafe_code,
@@ -2137,6 +2549,7 @@ pub unsafe extern "C" fn nvs_str_append_parts(
 )]
 unsafe fn write_parts(
     ptr: NonNull<StrHeader>,
+    base: usize,
     written: usize,
     capacity: usize,
     parts: &[StrPart],
@@ -2144,6 +2557,7 @@ unsafe fn write_parts(
     let mut out = StrWriter {
         ptr,
         written,
+        base,
         capacity,
         owns: PhantomData,
     };
@@ -2200,11 +2614,22 @@ unsafe fn append_onto(
         // count is at most its string's length, so the sum of the two counts
         // is at most `needed` and never saturates on a path that writes.
         let needed = len.saturating_add(added);
-        if header.refcount.get() == 1 && header.cap >= needed {
+        // Where `src` lies inside the target's live bytes, as its offset
+        // there: reclaiming the dropped front moves those bytes, and `src`
+        // is read again from the offset afterwards.
+        let inside = src
+            .addr()
+            .checked_sub(live_payload(target).addr())
+            .filter(|offset| *offset < len);
+        if header.refcount.get() == 1 && room_in_place(target, needed) {
+            let src = match inside {
+                Some(offset) => live_payload(target).add(offset).cast_const(),
+                None => src,
+            };
             // The two ranges cannot overlap even when `src` is inside the
             // target: the source then lies before `len`, and the destination
             // begins at `len`.
-            let dst = target.cast::<u8>().add(PAYLOAD_OFFSET).add(len);
+            let dst = live_payload(target).add(len);
             std::ptr::copy_nonoverlapping(src, dst, added);
             header.len.set(needed);
             header.graphemes.set(COUNT_UNKNOWN);
@@ -2223,8 +2648,8 @@ unsafe fn append_onto(
         let Some(grown) = NvsStr::alloc_or_refusal(needed, grown_capacity(len, needed)) else {
             return target;
         };
-        let dst = grown.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
-        std::ptr::copy_nonoverlapping(target.cast::<u8>().add(PAYLOAD_OFFSET), dst, len);
+        let dst = live_payload(grown.as_ptr());
+        std::ptr::copy_nonoverlapping(live_payload(target), dst, len);
         std::ptr::copy_nonoverlapping(src, dst.add(len), added);
         if let Some((held, gained)) = counts
             && let Some(joined) = joined_count(
@@ -2964,7 +3389,8 @@ mod tests {
         assert_eq!(LEN_OFFSET, word);
         assert_eq!(CAP_OFFSET, 2 * word);
         assert_eq!(GRAPHEMES_OFFSET, 3 * word);
-        assert_eq!(PAYLOAD_OFFSET, 5 * word);
+        assert_eq!(START_OFFSET, 5 * word);
+        assert_eq!(PAYLOAD_OFFSET, 6 * word);
     }
 
     #[test]
@@ -3022,6 +3448,157 @@ mod tests {
                 nvs_str_release(ptr);
             }
         }
+    }
+
+    /// A sole string's cut moves `start` and `len` and nothing else: the
+    /// allocation and the address of every kept byte stay. A shared one is
+    /// copied, and the other holder still reads the whole string.
+    #[test]
+    fn a_sole_string_drops_its_front_in_place() {
+        let s = NvsStr::new(b"hello, world");
+        let at = s.as_bytes().as_ptr();
+        let cut = s.drop_front(7, None);
+        assert_eq!(cut.as_bytes(), b"world");
+        assert_eq!(cut.as_bytes().as_ptr(), at.wrapping_add(7), "no byte moved");
+        assert_eq!(cut.capacity(), 12, "the allocation is the same one");
+        let cut = cut.drop_back(2, None);
+        assert_eq!(cut.as_bytes(), b"wor");
+        assert_eq!(cut.as_bytes().as_ptr(), at.wrapping_add(7));
+        let both = NvsStr::new(b"[abc]").keep(1..4, None);
+        assert_eq!(both.as_bytes(), b"abc");
+
+        let held = NvsStr::new(b"hello");
+        let copy = held.clone().drop_front(2, None);
+        assert_eq!(copy.as_bytes(), b"llo");
+        assert_eq!(held.as_bytes(), b"hello", "the other holder sees no change");
+        assert_eq!(held.refcount(), 1, "the shared reference was released");
+    }
+
+    /// A cut that names how many clusters it removed keeps the count known,
+    /// and one that does not leaves it unknown.
+    #[test]
+    fn a_front_cut_keeps_a_known_grapheme_count() {
+        let s = NvsStr::new("\u{e9}e\u{1f1e6}\u{1f1f9}x".as_bytes());
+        assert_eq!(s.grapheme_count(), 4);
+        let cut = s.drop_front("\u{e9}".len(), Some(1));
+        assert_eq!(cut.known_count(), Some(3));
+        assert_eq!(cut.as_bytes(), "e\u{1f1e6}\u{1f1f9}x".as_bytes());
+        let cut = cut.drop_back(1, Some(1));
+        assert_eq!(cut.known_count(), Some(2));
+        let cut = cut.drop_front(1, None);
+        assert_eq!(
+            cut.known_count(),
+            None,
+            "an uncounted cut forgets the count"
+        );
+        assert_eq!(cut.grapheme_count(), 1);
+
+        let shared = NvsStr::new(b"abc");
+        assert_eq!(shared.grapheme_count(), 3);
+        let copy = shared.clone().drop_front(1, Some(1));
+        assert_eq!(copy.known_count(), Some(2), "a copy keeps the count too");
+    }
+
+    /// Every in-place change resets a cached digest, so the next lookup
+    /// hashes the bytes the string now has.
+    #[test]
+    fn an_in_place_change_resets_the_digest() {
+        let digest = |s: &NvsStr| KeyRef::of(s).digest();
+        let s = NvsStr::new(b"abcdef");
+        let at = s.as_bytes().as_ptr();
+        assert_eq!(digest(&s), digest_of(b"abcdef"));
+        let s = s.drop_front(1, None);
+        assert_eq!(digest(&s), digest_of(b"bcdef"));
+        let s = s.drop_back(1, None);
+        assert_eq!(digest(&s), digest_of(b"bcde"));
+        let s = s.prepend(b"a", None);
+        assert_eq!(digest(&s), digest_of(b"abcde"));
+        let s = s.append_counted(b"f", None);
+        assert_eq!(digest(&s), digest_of(b"abcdef"));
+        let mut s = s;
+        assert!(s.rewrite(|live| {
+            live.make_ascii_uppercase();
+            3
+        }));
+        assert_eq!(s.as_bytes(), b"ABC");
+        assert_eq!(digest(&s), digest_of(b"ABC"));
+        let s = s.replace_with(b"xy");
+        assert_eq!(digest(&s), digest_of(b"xy"));
+        assert_eq!(s.as_bytes().as_ptr(), at, "every change stayed in place");
+    }
+
+    /// A prepend writes into the dropped front where it fits, and an append
+    /// moves the live bytes back to the start before it grows once the
+    /// dropped front is half of `cap`, so a queue stays in one allocation.
+    #[test]
+    fn an_append_reclaims_the_dropped_front_before_it_grows() {
+        let s = NvsStr::new(b"abcdefgh");
+        let at = s.as_bytes().as_ptr();
+        let s = s.drop_front(5, None);
+        let s = s.prepend(b"xy", None);
+        assert_eq!(s.as_bytes(), b"xyfgh");
+        assert_eq!(
+            s.as_bytes().as_ptr(),
+            at.wrapping_add(3),
+            "written into the front"
+        );
+
+        // A dropped front of 3 is under half of the `cap` of 8, so an append
+        // that does not fit behind the live bytes grows.
+        let s = s.append(b"12");
+        assert_eq!(s.as_bytes(), b"xyfgh12");
+        assert!(
+            s.capacity() > 8,
+            "a front under half of cap is not reclaimed"
+        );
+
+        // A dropped front of half of `cap` is reclaimed instead.
+        let s = NvsStr::new(b"abcdefgh").drop_front(4, None);
+        let at = s.as_bytes().as_ptr();
+        let s = s.append(b"1234");
+        assert_eq!(s.as_bytes(), b"efgh1234");
+        assert_eq!(s.capacity(), 8, "no new allocation");
+        assert_eq!(
+            s.as_bytes().as_ptr(),
+            at.wrapping_sub(4),
+            "moved back to the start"
+        );
+
+        // The compiled entry points reclaim too, and read a piece that is the
+        // target itself from where its bytes moved to.
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            let s = NvsStr::new(b"abcdefgh").drop_front(6, None).into_raw();
+            let doubled = nvs_str_append(s, s);
+            assert_eq!(doubled, s, "the append was made in place");
+            assert_eq!(NvsStr::bytes_of(doubled), b"ghgh");
+            nvs_str_release(doubled);
+
+            let s = NvsStr::new(b"abcdefgh").drop_front(6, None).into_raw();
+            let joined = nvs_str_concat(s, s);
+            assert_eq!(joined, s, "the concatenation was made in place");
+            assert_eq!(NvsStr::bytes_of(joined), b"ghgh");
+            nvs_str_release(joined);
+
+            let s = NvsStr::new(b"abcdefgh").drop_front(5, None).into_raw();
+            let parts = [StrPart::int(42)];
+            let written = nvs_str_append_parts(s, parts.as_ptr(), parts.len());
+            assert_eq!(written, s, "the parts were written in place");
+            assert_eq!(NvsStr::bytes_of(written), b"fgh42");
+            nvs_str_release(written);
+        }
+
+        // A queue: each step appends one byte and drops one, and the string
+        // never leaves the allocation its first growth made.
+        let mut queue = NvsStr::new(b"abcd");
+        for byte in b'e'..=b'z' {
+            queue = queue.append(&[byte]).drop_front(1, None);
+            assert!(
+                queue.capacity() <= 8,
+                "a queue stays within twice its live bytes"
+            );
+        }
+        assert_eq!(queue.as_bytes(), b"wxyz");
     }
 
     #[test]

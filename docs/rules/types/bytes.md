@@ -17,6 +17,10 @@ throwing event rather than an unasserted assumption.
 There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
 `Core\Encoding::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
 
+`bytes` shares `string`'s allocation and header word for word, the start word included, so a `bytes`
+with one owner drops its front in place too (`rule:types/string-is-utf8`). Only the tag tells the
+two apart, and a `bytes` never carries a grapheme count.
+
 **Declined:**
 - **A lossy `bytes as string`** that replaces, drops or transliterates an invalid sequence. That is
   the silent substitution the checked conversion exists to prevent (`rule:types/conversion`).

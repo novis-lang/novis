@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/granularity.rs, crates/nvs-stdlib/src/str.rs]
   - id: 3
     title: a string can drop its front without moving the rest
-    status: open
+    status: done
     context: [docs/rules/types/bytes.md]
   - id: 4
     title: every Core\Str and Core\Bytes member changes only what its result changes
@@ -178,18 +178,18 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 
 ### 3. a string can drop its front without moving the rest
 
-- [ ] `crates/nvs-runtime/src/string.rs:189` `StrHeader` gains `start`. `immortal_header_bytes` (`:384`)
+- [x] `crates/nvs-runtime/src/string.rs:189` `StrHeader` gains `start`. `immortal_header_bytes` (`:384`)
   writes 0. Every payload read (`:1054`, `:1163`, `:1478`, `:2001`, `:2102`, `:2197`, `:2216`) adds it.
-- [ ] `NvsStr` gains the in-place operations the members call, each on a sole string only: drop the
+- [x] `NvsStr` gains the in-place operations the members call, each on a sole string only: drop the
   first k bytes, drop the last k bytes, append bytes, prepend into the dropped front, rewrite forward,
   and swap in a buffer. Each resets the digest and keeps or resets the grapheme count as § *Standing
   decisions* says.
-- [ ] `nvs_str_append` (`:1989`) and `nvs_str_append_parts` (`:2062`) reclaim the dropped front before
+- [x] `nvs_str_append` (`:1989`) and `nvs_str_append_parts` (`:2062`) reclaim the dropped front before
   they grow, under the half-of-`cap` rule. `grown_capacity` (`:529`) is unchanged.
-- [ ] `docs/rules/types/string-is-utf8.md` gains the start word, the reclaim rule and what each spends.
+- [x] `docs/rules/types/string-is-utf8.md` gains the start word, the reclaim rule and what each spends.
   `docs/rules/types/bytes.md` says `bytes` shares the layout. `bun nv rules --render`, then
   `bun nv rules --check` is green.
-- [ ] The four tests the `front-room` check names, in `string.rs`'s test module. Run once by name.
+- [x] The four tests the `front-room` check names, in `string.rs`'s test module. Run once by name.
 
 ### 4. every Core\Str and Core\Bytes member changes only what its result changes
 
@@ -220,28 +220,34 @@ The goal came from a conversation with the person, who asked for the same depth 
 that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stages 1 and 2 are done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, none
-ramped yet. The cut, pad and line-reader ladders are expected red until stages 3 and 4.
+Stages 1, 2 and 3 are done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, none
+ramped yet. The cut, pad and line-reader ladders are expected red until stage 4.
 
-Stage 2: `Unit::byte_of_signed_index_of`, `at`, `at_of` and `index_of_byte_of` in
-`crates/nvs-stdlib/src/granularity.rs` walk forward to a non-negative position (`walk_forward`) and
-backward from the end for a negative one (`walk_backward`), and never read the total. `window` in
-`str.rs` hands a negative length to the backward walk. `one_byte_over` is the one-byte shortcut, and
-it fills the cached count once a one-byte walk passes `COUNT_PAST` (standing decision). The runtime
-gained `Value::known_grapheme_count` (`value.rs`), and `string.rs`'s `cached_count` is `pub(crate)`.
-The `positions` check's three tests pass, with `the_cached_count_shortcut_answers_what_the_walk_answers`.
-`length_of` stays only where a result needs the total: `Core\Str::length`, `at`'s error message,
-`pieces_of` and `cursor_of`.
+Stage 3: `StrHeader` (`crates/nvs-runtime/src/string.rs:189`) has a sixth word, `start`, at
+`START_OFFSET` (`pub(crate)`). `live_payload` (`:606`) is the one place a payload's position is
+computed. `room_in_place` (`:653`) is the half-of-`cap` reclaim, and `concat_onto`, `append_onto` and
+`nvs_str_append_parts` call it before they grow. `StrWriter` gained a `base` field for writing past a
+dropped front. The in-place operations on `NvsStr`, each a no-copy change on a sole string and a copy
+of only what it keeps on a shared one: `is_sole` (`:1188`), `keep(range, removed)` (`:1218`),
+`drop_front` and `drop_back`, `append_counted(bytes, added)` (`:1275`), `prepend(bytes, added)`
+(`:1304`), `rewrite(&mut self, |live| kept) -> bool` (`:1381`) and `replace_with(bytes)` (`:1414`).
+`removed` and `added` are grapheme counts the member already has, or `None`. The `front-room` check's
+four tests pass. The module doc's § *The dropped front*, `rule:types/string-is-utf8` and
+`rule:types/bytes` state the word and what it spends. `cargo fmt` also formatted `granularity.rs`,
+which stage 2 left unformatted.
 
 The sweep's `env-secret-proofs` red is stale: it has no log, and `git log -S` finds it only in this
 goal's stage 1 handoff commit and `arrays-in-place`'s retire commit.
 
 ### Next
 
-Stage 3: `crates/nvs-runtime/src/string.rs` alone. `StrHeader` (`:189`) gains `start`, every
-payload read adds it, and `nvs_str_append` reclaims the dropped front. Then stage 4 in
-`crates/nvs-stdlib/src/str.rs` and `bytes.rs`. Expect `front-room`, `every-member` and `ladders` red
-until their stages land. No existing test is expected red from stage 2.
+Stage 4 in `crates/nvs-stdlib/src/str.rs` and `bytes.rs`: each owning member takes its subject as an
+owned `NvsStr` (how the `in-place-everywhere` protocol hands it over is in
+`rule:types/a-replaced-value-is-changed-in-place` and the `Core\Arr` members' code) and calls the
+`string.rs` operations above. Cutting members call `keep` with the clusters they removed when the
+count is known. Then `crates/nvs-stdlib/tests/in_place.rs` and the ladders. Expect `every-member` and
+`ladders` red until stage 4 lands. No existing test is expected red from stage 3; the layout test
+`the_layout_constants_describe_the_real_header` now wants `PAYLOAD_OFFSET` at six words.
 
 ### Backlog
 
