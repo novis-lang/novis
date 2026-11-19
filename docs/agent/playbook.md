@@ -211,6 +211,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   body at column 0. `crates/nvs-fmt/src/statement.rs` computes its breaks before any indentation, and
   `Indent::new` keeps them. A later rule that inserts a line break adds its offsets there.
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
+- **A member made cheaper can fail its old `.scale.nvs`, because the sibling counts its setup per
+  op.** `Core\Session::get` became constant, and `get.scale.nvs` still built a growing value inside
+  `run`, so the ramp read slope 1.39 and refused the record. Declare `complexity constant` and give the
+  sibling `// bench: rounds N` with `Bench::run(start, N)`, so half and full rounds cancel the setup.
+  See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
 - **A whole-suite run grepped five ways is five whole-suite runs.** A close's gate stage spent

@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-stdlib/src/cache/redis.rs]
   - id: 4
     title: the pages say what two requests at once do, and the session benches are recorded again
-    status: open
+    status: done
     context: [docs/examples/core/Session/set/about.md, docs/examples/core/Session/clear/about.md, docs/examples/core/Session/regenerate/about.md, benches/members/core/Session/get.scale.nvs, benches/members/README.md, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -308,12 +308,12 @@ ends first.
 **Does:** the user pages say what stage 2's cards say, and the benches record the new cost. Every
 line here is text an end user reads, held to `AGENTS.md` § *Text an end user reads*.
 
-- [ ] `docs/examples/core/Session/set/about.md:13`: a `**Good to know:**` paragraph after the
+- [x] `docs/examples/core/Session/set/about.md:13`: a `**Good to know:**` paragraph after the
   paragraph about saving once. Two requests that change different keys at the same time keep both
   changes. If they change the same key, the request that ends last wins.
-- [ ] `docs/examples/core/Session/clear/about.md:1` and `docs/examples/core/Session/regenerate/about.md:9`:
+- [x] `docs/examples/core/Session/clear/about.md:1` and `docs/examples/core/Session/regenerate/about.md:9`:
   one sentence each, matching `CLEAR_DOC` and `REGENERATE_DOC`.
-- [ ] `bun nv proofs --record-perf` records the `benches/members/core/Session/` members again, because
+- [x] `bun nv proofs --record-perf` records the `benches/members/core/Session/` members again, because
   the implementing file's hash changed (`benches/members/README.md:186`). `get.scale` reads `user`
   while `cart` grows, so its growth should now be constant. Write the measured growth into the
   handoff, whatever it is.
@@ -348,15 +348,27 @@ decode, not a probe: `get` of the other key reads, and `set` leaves the cut byte
 follow it; the ceiling case passes `200` as `ARGV[3]` through `eval`. Both checks ran once: 13 of 13
 green, and the script cases reached the real store (no "asserted nothing" line). Clippy is green.
 
+Stage 4 is done. The `set` page has a `**Good to know:**` paragraph on two requests at once, and the
+`clear` and `regenerate` pages say what happens to a key another request saved meanwhile; `bun nv
+prose` is green. All nine `Core\Session` perf records are measured on the new code. `get` and
+`remove` failed their ramp as `complexity linear` with scale siblings that counted `cart`'s setup per
+op, so both now declare `complexity constant`, and `get.scale.nvs` and `remove.scale.nvs` use the
+`// bench: rounds 64` form (`benches/members/README.md:115-119`). Measured: `get` growth unclear
+(the counts never agreed by the ceiling, in `growth_notes`), **size growth flat**; `remove` growth
+flat, size flat; `set`, `regenerate` growth flat, size unclear; `getSecret`, `setSecret` flat and
+flat; `start` flat. `bun nv proofs --gate` lists no `Session` gap. Other features' perf records are
+stale from earlier goals (`time.rs` 86, `io.rs` 42, `str.rs` 40, `http.rs` 28, and more): the full
+gate's debt, not this goal's.
+
 The sweep's reds are stale: no push since nightly 44510687786; `env-secret-proofs` is retired.
 
 ### Next
 
-Stage 4 from its first item: `docs/examples/core/Session/set/about.md:13`, then `clear/about.md:1`
-and `regenerate/about.md:9`, held to `AGENTS.md` § *Text an end user reads*. Then record the
-`benches/members/core/Session/` members with `bun nv proofs --record-perf` on a release binary
-(`bun nv relink --build` first), and write `get.scale`'s growth into the handoff. No test is expected
-to go red. The rest of the tree has not run since stage 2. Conformance cases about `Core\Session`
-throwing `ParseError` from `set` may go red at the gate.
+Stage 5: close the goal as the pack says (a build, clippy and this goal's three acceptance checks
+`wire`, `per-key`, `script` by name, unless the pack names this goal the full gate). Then `bun nv
+owners --closes session-per-key`, move any decision only the goal's prose holds into
+`crates/nvs-stdlib/src/session.rs`'s module doc or the two rules, and delete the goal file. At the full
+gate, conformance cases about `Core\Session` throwing `ParseError` from `set` may go red, and the
+pages under `docs/examples/core/Session/` may need `bun nv site --stamp`.
 
 ### Backlog
