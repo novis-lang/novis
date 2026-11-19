@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/reflect.rs, crates/nvs-runtime/src/object.rs, do
 stages:
   - id: 1
     title: the descriptor carries the parent class, and ClassInfo::parent returns it
-    status: open
+    status: done
     context: [crates/nvs-types/src/layout.rs, crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/src/lib.rs]
   - id: 2
     title: the reference card, the examples, the attack and the bench say what parent does
@@ -77,7 +77,14 @@ that name, because it is true. `forClass` already returns `null` for a `Core` cl
 the class's own `extends` entry, rendered as `conforms` renders its names
 (`crates/nvs-types/src/layout.rs:136`). `nvs_ir::ir::Class` carries it, codegen stores it on the
 descriptor with a setter beside `set_class_attributes`, and `ClassDesc` holds `parent: Option<String>`,
-`None` by default. Every other place that builds an IR `Class` sets `parent: None`.
+`None` by default. Every other place that builds an IR `Class` sets `parent: None`. The layout tells
+an interface from a class by a set `collect_own` fills, because `nvs_hir::ClassLinks` does not say
+which kind a declaration is.
+
+**`parent()` reads the descriptor at call time (my call).** It finds the descriptor by the
+description's name through `Ctx::class_desc`, as `construct` does, rather than reading a slot
+`describe` fills. A description that never asks pays nothing, and a name the table does not reach
+returns `null`.
 
 **What it costs.** One `String` per class that extends one, once per process and never per request.
 Per `parent()` call, one string, charged to the request that asked. Nothing on any other path: no
@@ -101,28 +108,28 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** the keystone. The class a class extends reaches its runtime descriptor, and `ClassInfo`
 returns it.
 
-- [ ] `crates/nvs-types/src/layout.rs:542`: `ClassLayout` gains `parent: Option<String>` beside
+- [x] `crates/nvs-types/src/layout.rs:542`: `ClassLayout` gains `parent: Option<String>` beside
   `conforms` (`:136`), set from the class's own `extends` entry in the class graph that
   `collect_conforms` (`:1125`) reads. It is `None` for an interface and for a class that extends none.
-- [ ] `crates/nvs-ir/src/ir.rs:477`: `Class` gains `parent: Option<String>` beside `conforms`.
+- [x] `crates/nvs-ir/src/ir.rs:477`: `Class` gains `parent: Option<String>` beside `conforms`.
   `crates/nvs-ir/src/lower/mod.rs:1316` copies the layout's. `crates/nvs-ir/src/lower/mod.rs:1382`,
   `crates/nvs-ir/src/lower/anon_fn.rs:371`, `crates/nvs-ir/src/lower/anon_fn.rs:1250` and
   `crates/nvs-ir/src/lower/generator.rs:565` set `None`.
-- [ ] `crates/nvs-runtime/src/object.rs:648`: `ClassDesc` gains `parent: Option<String>` with its cost
+- [x] `crates/nvs-runtime/src/object.rs:648`: `ClassDesc` gains `parent: Option<String>` with its cost
   in its doc comment, a `ClassTable::set_parent` beside `set_class_attributes` (`:2983`), and a
   `ClassDesc::parent()` reader. `crates/nvs-codegen/src/lib.rs:2215` calls the setter when the IR class
   has one.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:638`: the `parent` instance method beside `attributes`, returning
+- [x] `crates/nvs-stdlib/src/reflect.rs:638`: the `parent` instance method beside `attributes`, returning
   `?string`, with its reference card held to `AGENTS.md` § *Text an end user reads*. The card says it
   returns `null` for a class that extends none and for an interface, and that `forClass` returns `null`
   for a `Core` parent. The Rust test `class_info_parent_is_the_extended_class_and_null_at_a_root`
   beside `class_info_attributes_is_one_row_per_attach_site_in_the_descriptors_order` (`:4591`). The
   `rust` check runs once.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:157` and the `attributes` card (`:1721`): the own-only text
+- [x] `crates/nvs-stdlib/src/reflect.rs:157` and the `attributes` card (`:1721`): the own-only text
   points to `parent()` for a walk up the chain. `docs/rules/core-classes/reflect.md:1` gains the
   paragraph and the Declined list from § *Standing decisions*. Then `bun nv rules --render`, and
   `bun nv rules --check` is green.
-- [ ] `tests/conformance/core/reflect-parent-walks-the-chain-and-reads-each-levels-attributes.nvst:1`:
+- [x] `tests/conformance/core/reflect-parent-walks-the-chain-and-reads-each-levels-attributes.nvst:1`:
   an abstract base class with attributes on its properties, a middle class and a leaf. `parent()` from
   the leaf names each level and is `null` at the root and on an interface. A loop up the chain prints
   each level's own `attributes()`. The `case` check runs once.
@@ -155,17 +162,30 @@ the examples. Their files are disjoint, and no one builds until both end.
 
 ### State
 
-Written on 2026-11-19 from a user report. Nothing is built yet. The person chose `parent(): ?string`
-over an `attributes()` that includes the parents', and placed the goal on the chain behind
-`cheaper-forms`, whose stage 6 also changes `crates/nvs-ir/src/ir.rs`. Every other choice in
-§ *Standing decisions* is the authoring session's call under the priority ordering, and stands until
-the person picks another.
+Stage 1 is done, and its `case` and `rust` checks are green. `ClassLayout::parent`
+(`crates/nvs-types/src/layout.rs`, filled beside `no_instances`) reaches `ClassDesc::parent`
+(`crates/nvs-runtime/src/object.rs`) through `nvs_ir::ir::Class::parent` and codegen's
+`set_parent` call. `nvs_core_reflect_class_info_parent` (`crates/nvs-stdlib/src/reflect.rs`) reads it
+at call time, and its symbol is in the address table beside `attributes`'. The rule has its paragraph
+and Declined list, and is rendered. The IR `Class` has nine construction sites, not five, and every
+one but the layout's sets `None`.
+
+The sweep's `env-secret-proofs` red is stale: `.loop/last-sweep.md` was written by cheaper-forms' last
+sweep, before its retire, and no check by that name exists in the tree. The sweep after this session
+overwrites it.
 
 ### Next
 
-Stage 1 from its first item: the layout field, then the IR field and its five construction sites, then
-the descriptor, the setter and codegen, then the `ClassInfo` member with its card and Rust test, then
-the rule and the conformance case. The `case`, `rust` and `proofs` checks name a case, a test and proofs
-that do not exist yet, and fail until stages 1 and 2 write them.
+Stage 2, as its **Split:** line says: run `bun nv proofs --id 'Core\Reflect\ClassInfo::parent'` first,
+then write `docs/examples/core/Reflect-ClassInfo/parent/` (`about.md` and three examples with their
+`.out`), while a writing subagent writes the attack under
+`tests/hostile/core/Reflect-ClassInfo/parent/` and the bench at
+`benches/members/core/Reflect-ClassInfo/parent.nvs`. The new member has no perf record yet, and the
+edit to `crates/nvs-stdlib/src/reflect.rs` makes every `Core\Reflect` member's perf record stale
+(playbook: *A goal that changes a `Core` member's source file*); record them after the last edit to
+that file. `website/public/llms-full.txt` and `data/perf/members.*` list the `ClassInfo` members and
+expect to go red at the gate until they are regenerated. `cargo fmt --check` names 18 places in
+files this goal did not write, from earlier goals, and the full gate's `bun nv ci --check` will name
+them.
 
 ### Backlog
