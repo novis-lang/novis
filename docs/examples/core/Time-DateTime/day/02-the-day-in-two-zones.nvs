@@ -2,10 +2,10 @@
 // Shows that one moment can be on a different day in two time zones.
 
 // A customer in New York places an order late in the evening. The server saves it in UTC.
-var $placed = Core\Time::fromIso('2024-03-06T02:30:00Z');
+var $placed = Core\Time\Instant::fromIso('2024-03-06T02:30:00Z');
 
 // In New York it is still the evening of 5 March. This prints 5.
-echo $placed->in(Core\Time\Zone::of('America/New_York'))->day(), "\n";
+echo $placed->in('America/New_York')->day(), "\n";
 
 // In UTC it is already 6 March. This prints 6.
-echo $placed->in(Core\Time\Zone::UTC)->day(), "\n";
+echo $placed->in('UTC')->day(), "\n";

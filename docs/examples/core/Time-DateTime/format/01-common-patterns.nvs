@@ -2,7 +2,7 @@
 // Shows how to print a date and time in a few common ways.
 // `format` prints the value with a pattern. Each letter in the pattern is one part of the date or time.
 
-var $order = Core\Time::at(2024, 3, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 14, minute: 7, second: 9 });
+var $order = Core\Time\DateTime::fromIso('2024-03-05 14:07:09', 'Europe/Berlin');
 
 // `yyyy` is the year, `MM` the month, `dd` the day, `HH` the hour, `mm` the minute and `ss` the second.
 // This prints 2024-03-05 14:07:09.

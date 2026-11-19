@@ -2,11 +2,11 @@
 // Shows how to read the part of a second from a timestamp that an API sent.
 
 // The timestamp has nine digits after the seconds.
-var $received = Core\Time::fromIso('2024-03-05T10:15:30.123456789Z')->in(Core\Time\Zone::UTC);
+var $received = Core\Time\Instant::fromIso('2024-03-05T10:15:30.123456789Z')->in('UTC');
 
 // `second` is 30, and `nanos` is the rest. This prints 30 and then 123456789.
 echo $received->second(), "\n";
 echo $received->nanos(), "\n";
 
 // `.5` is half a second. This prints 500000000.
-echo Core\Time::fromIso('2024-03-05T10:15:30.5Z')->in(Core\Time\Zone::UTC)->nanos(), "\n";
+echo Core\Time\Instant::fromIso('2024-03-05T10:15:30.5Z')->in('UTC')->nanos(), "\n";

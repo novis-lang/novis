@@ -7,6 +7,6 @@ array<string> $requests = [
 ];
 
 foreach ($requests as string $at => string $request) {
-    echo Core\Time::fromIso($at)->toEpochMicros(), ' ', $request, "\n";
+    echo Core\Time\Instant::fromIso($at)->toEpochMicros(), ' ', $request, "\n";
 }
 // The two requests are 856 microseconds apart. A number in seconds or milliseconds would not show that.

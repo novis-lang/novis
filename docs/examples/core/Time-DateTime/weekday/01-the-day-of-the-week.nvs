@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to find the day of the week of a date and time.
 
-var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 14, minute: 30 });
+var $meeting = Core\Time\DateTime::fromIso('2024-03-05 14:30', 'Europe/Berlin');
 
 // `weekday` returns a case of the `Core\Time\Weekday` enum. You can compare it with `==`.
 // This prints Tuesday.

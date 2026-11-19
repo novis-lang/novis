@@ -2,7 +2,7 @@
 // Shows `startOf` and `endOf` on a day when the clocks change.
 
 // On 27 October 2024, Berlin moves its clocks from 03:00 back to 02:00, so that day has 25 hours.
-var $sunday = Core\Time::at(2024, 10, 27, Core\Time\Zone::of('Europe/Berlin'), { hour: 12 });
+var $sunday = Core\Time\DateTime::fromIso('2024-10-27 12:00', 'Europe/Berlin');
 var $start = $sunday->startOf(Core\Unit::Day);
 var $end = $sunday->endOf(Core\Unit::Day);
 

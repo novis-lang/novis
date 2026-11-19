@@ -8,6 +8,6 @@ var $newYork = Core\Time\Zone::of('America/New_York');
 
 // `toInstant` gives the moment in time, and `toIso` writes it in UTC.
 foreach ($rows as string $row) {
-    var $local = Core\Time::parse($row, 'MM/dd/yyyy hh:mm a', $newYork);
+    var $local = Core\Time\DateTime::parse($row, 'MM/dd/yyyy hh:mm a', $newYork);
     echo $row, ' -> ', $local->toInstant()->toIso(), "\n";
 }

@@ -25,7 +25,7 @@ class Week
 }
 
 var $utc = Core\Time\Zone::UTC;
-var $monday = Core\Time::at(2024, 5, 13, $utc);
+var $monday = Core\Time\DateTime::fromIso('2024-05-13', $utc);
 
 int $step = 0;
 while ($step < 7) {

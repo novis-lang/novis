@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to find the last moment of the day, the month and the year that a date and time is in.
 
-var $at = Core\Time::at(2024, 2, 10, Core\Time\Zone::of('Asia/Singapore'), { hour: 8, minute: 5 });
+var $at = Core\Time\DateTime::fromIso('2024-02-10 08:05', 'Asia/Singapore');
 string $pattern = 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS';
 
 // `endOf` returns the last nanosecond of the unit. That is one nanosecond before the next one starts.

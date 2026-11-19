@@ -20,7 +20,7 @@ var $vienna = Core\Time\Zone::of('Europe/Vienna');
 
 // Both orders are placed on Monday 13 May 2024.
 // This prints Tuesday 14 May, 10:00 and Wednesday 15 May, 10:00.
-var $morning = Core\Time::at(2024, 5, 13, $vienna, { hour: 9, minute: 40 });
-var $afternoon = Core\Time::at(2024, 5, 13, $vienna, { hour: 16, minute: 5 });
+var $morning = Core\Time\DateTime::fromIso('2024-05-13 09:40', $vienna);
+var $afternoon = Core\Time\DateTime::fromIso('2024-05-13 16:05', $vienna);
 echo Delivery::arrives($morning)->format('EEEE d MMMM, HH:mm'), "\n";
 echo Delivery::arrives($afternoon)->format('EEEE d MMMM, HH:mm'), "\n";

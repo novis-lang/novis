@@ -14,6 +14,6 @@ class Slot
 var $zone = Core\Time\Zone::of('Europe/Oslo');
 
 // This prints 10:45, 10:00 and 23:30.
-echo Slot::startOf(Core\Time::at(2024, 2, 9, $zone, { hour: 10, minute: 52, second: 18 }))->format('HH:mm'), "\n";
-echo Slot::startOf(Core\Time::at(2024, 2, 9, $zone, { hour: 10, minute: 0 }))->format('HH:mm'), "\n";
-echo Slot::startOf(Core\Time::at(2024, 2, 9, $zone, { hour: 23, minute: 44 }))->format('HH:mm'), "\n";
+echo Slot::startOf(Core\Time\DateTime::fromIso('2024-02-09 10:52:18', $zone))->format('HH:mm'), "\n";
+echo Slot::startOf(Core\Time\DateTime::fromIso('2024-02-09 10:00', $zone))->format('HH:mm'), "\n";
+echo Slot::startOf(Core\Time\DateTime::fromIso('2024-02-09 23:44', $zone))->format('HH:mm'), "\n";

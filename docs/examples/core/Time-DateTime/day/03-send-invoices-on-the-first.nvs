@@ -4,7 +4,7 @@
 var $zone = Core\Time\Zone::of('Europe/Vienna');
 
 // A real program uses `Core\Time::now()` here. Fixed days keep the output the same.
-var $day = Core\Time::at(2024, 4, 29, $zone, { hour: 6 });
+var $day = Core\Time\DateTime::fromIso('2024-04-29 06:00', $zone);
 int $runs = 0;
 while ($runs < 4) {
     // The invoices go out when the day of the month is 1.

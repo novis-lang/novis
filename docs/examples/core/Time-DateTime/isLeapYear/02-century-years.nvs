@@ -5,6 +5,6 @@
 // unless it also divides by 400. This prints no, yes and no.
 array<int> $years = [1900, 2000, 2100];
 foreach ($years as int $year) {
-    var $day = Core\Time::at($year, 1, 1, Core\Time\Zone::UTC);
+    var $day = Core\Time\DateTime::at(Core\Time\Date::at($year, 1, 1), Core\Time\TimeOfDay::at(0, 0), 'UTC');
     echo $year, ': ', $day->isLeapYear() ? 'yes' : 'no', "\n";
 }

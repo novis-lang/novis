@@ -9,7 +9,7 @@ array<string> $placed = [
 ];
 
 foreach ($placed as string $at => string $zone) {
-    Core\Time\DateTime $local = Core\Time::fromIso($at)->in(Core\Time\Zone::of($zone));
+    Core\Time\DateTime $local = Core\Time\Instant::fromIso($at)->in(Core\Time\Zone::of($zone));
     echo 'Ordered on ', $local->format("d MMMM yyyy 'at' HH:mm"), ' (', $zone, ")\n";
 }
 // The first order is on 2 March in Vienna. It is still 1 March in UTC.

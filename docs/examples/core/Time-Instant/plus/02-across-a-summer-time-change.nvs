@@ -4,7 +4,7 @@
 Core\Time\Zone $berlin = Core\Time\Zone::of('Europe/Berlin');
 
 // On 31 March 2024, clocks in Berlin moved from 02:00 to 03:00.
-Core\Time\Instant $evening = Core\Time::fromIso('2024-03-30T20:00:00Z');
+Core\Time\Instant $evening = Core\Time\Instant::fromIso('2024-03-30T20:00:00Z');
 Core\Time\Instant $next = $evening->plus(24h);
 
 // Exactly 24 hours pass, but the local clock shows one hour more.

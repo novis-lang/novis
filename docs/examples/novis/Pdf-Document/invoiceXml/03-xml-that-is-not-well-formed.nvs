@@ -10,7 +10,7 @@ string $broken = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:da
 try {
     Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><h1>Invoice Shop-1042</h1></body></html>")
         ->standard(Document::Standard::PdfA3b)
-        ->created(Core\Time::fromIso('2026-03-01T09:00:00Z'))
+        ->created(Core\Time\Instant::fromIso('2026-03-01T09:00:00Z'))
         ->invoiceXml($broken)
         ->render();
     echo "rendered\n";

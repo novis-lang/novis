@@ -1,7 +1,7 @@
 <?nvs
 // Shows how a shop tells its customers how long a sale still runs. The sale ends with the month.
 
-var $now = Core\Time::at(2024, 4, 28, Core\Time\Zone::of('America/Chicago'), { hour: 18, minute: 30 });
+var $now = Core\Time\DateTime::fromIso('2024-04-28 18:30', 'America/Chicago');
 
 // `endOf(Core\Unit::Month)` gives the last moment of April. This prints 30 April at 23:59.
 var $saleEnd = $now->endOf(Core\Unit::Month);

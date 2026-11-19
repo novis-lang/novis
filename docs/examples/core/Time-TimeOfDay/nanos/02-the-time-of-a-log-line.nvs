@@ -2,7 +2,7 @@
 // Shows how to read the part of a second from the time in a log line.
 
 // The log line has the time with milliseconds.
-var $logged = Core\Time::parse('2024-04-22 14:03:09.042', 'yyyy-MM-dd HH:mm:ss.SSS', Core\Time\Zone::UTC);
+var $logged = Core\Time\DateTime::parse('2024-04-22 14:03:09.042', 'yyyy-MM-dd HH:mm:ss.SSS', 'UTC');
 
 // `timeOfDay` keeps the time and drops the date and the zone.
 Core\Time\TimeOfDay $time = $logged->timeOfDay();

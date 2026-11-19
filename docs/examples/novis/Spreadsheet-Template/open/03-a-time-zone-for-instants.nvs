@@ -11,7 +11,7 @@ $design->sheet('Log')->addAll([['Shipped', Cell::of('{{shipped}}', Style::of({ f
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // An `Instant` is one moment, with no time zone. 12:00 in UTC is 14:00 in Berlin in summer.
-var $shipped = Core\Time::parse('2024-06-01 12:00', 'yyyy-MM-dd HH:mm', Core\Time\Zone::of('UTC'))->toInstant();
+var $shipped = Core\Time\DateTime::parse('2024-06-01 12:00', 'yyyy-MM-dd HH:mm', 'UTC')->toInstant();
 
 // With `zone`, the cell has the local date and time of Berlin.
 bytes $file = Template::open($template, { zone: 'Europe/Berlin' })->fill(['shipped' => $shipped])->bytes();

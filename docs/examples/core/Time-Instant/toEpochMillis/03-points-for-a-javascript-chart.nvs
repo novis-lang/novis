@@ -8,6 +8,6 @@ array<int> $visitors = [
 ];
 
 foreach ($visitors as string $at => int $count) {
-    echo '{x: ', Core\Time::fromIso($at)->toEpochMillis(), ', y: ', $count, "}\n";
+    echo '{x: ', Core\Time\Instant::fromIso($at)->toEpochMillis(), ', y: ', $count, "}\n";
 }
 // The browser reads each x with `new Date(x)`.

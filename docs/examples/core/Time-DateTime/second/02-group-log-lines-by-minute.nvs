@@ -14,7 +14,7 @@ array<string> $lines = [
 string $current = '';
 int $count = 0;
 foreach ($lines as string $text) {
-    var $time = Core\Time::fromIso($text)->in(Core\Time\Zone::UTC);
+    var $time = Core\Time\Instant::fromIso($text)->in('UTC');
     string $minute = $time->with({ second: 0, nanos: 0 })->format('HH:mm');
     if ($minute != $current && $count > 0) {
         echo $current, ': ', $count, " lines\n";

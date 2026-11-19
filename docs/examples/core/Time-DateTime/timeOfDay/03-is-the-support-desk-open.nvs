@@ -17,7 +17,7 @@ array<string> $received = [
 // Vienna is one hour ahead of UTC in November. `compareTo` returns -1, 0 or 1.
 // This prints closed, open, open and closed.
 foreach ($received as string $text) {
-    var $clock = Core\Time::fromIso($text)->in($desk)->timeOfDay();
+    var $clock = Core\Time\Instant::fromIso($text)->in($desk)->timeOfDay();
     string $state = 'closed';
     if ($clock->compareTo($opens) >= 0 && $clock->compareTo($closes) < 0) {
         $state = 'open';

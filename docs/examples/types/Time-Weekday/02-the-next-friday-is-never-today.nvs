@@ -5,7 +5,7 @@
 
 var $utc = Core\Time\Zone::UTC;
 var $day = 'yyyy-MM-dd';
-var $friday = Core\Time::at(2024, 5, 17, $utc);
+var $friday = Core\Time\DateTime::fromIso('2024-05-17', $utc);
 
 echo 'today is             ', $friday->format($day), ", a Friday\n";
 echo 'next Friday          ', $friday->next(Core\Time\Weekday::Friday)->format($day), "\n";

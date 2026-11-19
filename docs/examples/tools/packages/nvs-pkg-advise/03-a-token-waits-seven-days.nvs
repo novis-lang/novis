@@ -16,7 +16,7 @@ final class Advisory
 
 // You send the advisory from the command line, with your publish token.
 int $from = Advisory::inFeedFrom(false, $now);
-echo 'The advisory acme/http-1 is in the feed from ', Core\Time::fromEpoch($from)->toIso(), ".\n";
+echo 'The advisory acme/http-1 is in the feed from ', Core\Time\Instant::fromEpoch($from)->toIso(), ".\n";
 
 // The feed does not show it now. It shows it seven days later.
 echo 'In the feed now: ', $from <= $now ? 'yes' : 'no', "\n";

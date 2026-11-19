@@ -22,7 +22,7 @@ var $zone = Core\Time\Zone::of('Europe/Rome');
 // This prints spring, summer and winter.
 array<string> $days = ['2024-04-10', '2024-07-01', '2024-12-24'];
 foreach ($days as string $text) {
-    var $day = Core\Time::parse($text, 'yyyy-MM-dd', $zone);
+    var $day = Core\Time\DateTime::parse($text, 'yyyy-MM-dd', $zone);
     int $position = ($day->month() - 1) as int;
     echo $text, ': ', $seasons[$position], "\n";
 }

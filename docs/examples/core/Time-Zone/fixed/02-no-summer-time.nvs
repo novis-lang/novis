@@ -9,6 +9,6 @@ array<string> $days = ['2024-01-15T12:00:00Z', '2024-07-15T12:00:00Z'];
 // `offsetAt` returns the offset on that day, as a `Duration`.
 // The fixed zone prints 1h both times. Berlin prints 1h in January and 2h in July.
 foreach ($days as string $day) {
-    Core\Time\Instant $at = Core\Time::fromIso($day);
+    Core\Time\Instant $at = Core\Time\Instant::fromIso($day);
     echo $fixed->offsetAt($at)->toString(), ' ', $berlin->offsetAt($at)->toString(), "\n";
 }

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the day of the month of a date and time as a number.
 
-var $delivery = Core\Time::at(2024, 11, 8, Core\Time\Zone::of('Europe/Madrid'), { hour: 11 });
+var $delivery = Core\Time\DateTime::fromIso('2024-11-08 11:00', 'Europe/Madrid');
 
 // `day` returns a `uint`. This prints 8.
 echo $delivery->day(), "\n";

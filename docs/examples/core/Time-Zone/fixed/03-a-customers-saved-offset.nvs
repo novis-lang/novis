@@ -3,7 +3,7 @@
 
 // Each customer saved the distance from UTC of their clock, in minutes.
 array<int> $customers = ['Ana' => -180, 'Ben' => 0, 'Chitra' => 330];
-Core\Time\Instant $ordered = Core\Time::fromIso('2024-11-20T18:45:00Z');
+Core\Time\Instant $ordered = Core\Time\Instant::fromIso('2024-11-20T18:45:00Z');
 
 // `Core\Time\Duration::minutes` turns the saved number into an offset.
 // This prints 15:45, 18:45 and 00:15 on the next day.

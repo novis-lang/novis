@@ -2,7 +2,7 @@
 // Shows the four ways `DateFormat::ZoneStyle` writes the time zone of a meeting time.
 use Novis\Intl\DateFormat;
 
-array<Core\Time\DateTime> $meeting = [Core\Time::at(2026, 7, 14, Core\Time\Zone::of('Europe/Vienna'), { hour: 15, minute: 0 })];
+array<Core\Time\DateTime> $meeting = [Core\Time\DateTime::fromIso('2026-07-14 15:00', 'Europe/Vienna')];
 
 array<DateFormat::ZoneStyle> $styles = [DateFormat::ZoneStyle::None, DateFormat::ZoneStyle::Offset, DateFormat::ZoneStyle::Location, DateFormat::ZoneStyle::Generic];
 foreach ($styles as DateFormat::ZoneStyle $style) {

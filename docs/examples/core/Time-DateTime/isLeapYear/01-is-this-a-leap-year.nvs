@@ -7,7 +7,7 @@ var $zone = Core\Time\Zone::of('Europe/Berlin');
 // This prints 2024 is a leap year, and 2025 is not.
 array<int> $years = [2024, 2025];
 foreach ($years as int $year) {
-    var $day = Core\Time::at($year, 6, 1, $zone);
+    var $day = Core\Time\DateTime::at(Core\Time\Date::at($year, 6, 1), Core\Time\TimeOfDay::at(0, 0), $zone);
     if ($day->isLeapYear()) {
         echo $year, " is a leap year\n";
     } else {

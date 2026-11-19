@@ -15,7 +15,7 @@ try {
 try {
     Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><h1>Invoice Shop-1042</h1></body></html>")
         ->standard(Document::Standard::PdfA2b)
-        ->created(Core\Time::fromIso('2026-03-01T09:00:00Z'))
+        ->created(Core\Time\Instant::fromIso('2026-03-01T09:00:00Z'))
         ->invoiceXml($xml)
         ->render();
 } catch (LogicError $e) {

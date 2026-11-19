@@ -1,10 +1,10 @@
 <?nvs
 // Shows that the same moment can be in a different year in two time zones.
 
-var $moment = Core\Time::fromIso('2024-12-31T23:30:00Z');
+var $moment = Core\Time\Instant::fromIso('2024-12-31T23:30:00Z');
 
 // In London it is still 31 December. This prints 2024.
-echo $moment->in(Core\Time\Zone::of('Europe/London'))->year(), "\n";
+echo $moment->in('Europe/London')->year(), "\n";
 
 // Berlin is one hour ahead, so it is already 1 January. This prints 2025.
-echo $moment->in(Core\Time\Zone::of('Europe/Berlin'))->year(), "\n";
+echo $moment->in('Europe/Berlin')->year(), "\n";

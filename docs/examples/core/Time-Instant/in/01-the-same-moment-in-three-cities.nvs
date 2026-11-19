@@ -1,7 +1,7 @@
 <?nvs
 // Shows one moment on the clocks of three cities.
 
-Core\Time\Instant $call = Core\Time::fromIso('2024-03-01T15:00:00Z');
+Core\Time\Instant $call = Core\Time\Instant::fromIso('2024-03-01T15:00:00Z');
 
 array<string> $cities = ['Europe/London', 'Europe/Berlin', 'America/New_York'];
 foreach ($cities as string $city) {

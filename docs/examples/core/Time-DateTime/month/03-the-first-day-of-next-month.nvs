@@ -16,5 +16,5 @@ class Report
 var $zone = Core\Time\Zone::of('Asia/Singapore');
 
 // This prints 2024-07-01 and then 2025-01-01.
-echo Report::dueDate(Core\Time::at(2024, 6, 18, $zone))->format('yyyy-MM-dd'), "\n";
-echo Report::dueDate(Core\Time::at(2024, 12, 31, $zone))->format('yyyy-MM-dd'), "\n";
+echo Report::dueDate(Core\Time\DateTime::fromIso('2024-06-18', $zone))->format('yyyy-MM-dd'), "\n";
+echo Report::dueDate(Core\Time\DateTime::fromIso('2024-12-31', $zone))->format('yyyy-MM-dd'), "\n";

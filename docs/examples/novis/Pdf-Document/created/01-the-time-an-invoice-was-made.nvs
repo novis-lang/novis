@@ -9,5 +9,5 @@ bytes $plain = $invoice->render()->bytes;
 echo Core\Bytes::contains($plain, '/CreationDate' as bytes) ? 'true' : 'false', "\n";
 
 // With `created`, the file has the time you give. A program usually gives `Core\Time::now()`.
-bytes $dated = $invoice->created(Core\Time::fromIso('2026-03-01T09:30:00Z'))->render()->bytes;
+bytes $dated = $invoice->created(Core\Time\Instant::fromIso('2026-03-01T09:30:00Z'))->render()->bytes;
 echo Core\Bytes::contains($dated, '/CreationDate' as bytes) ? 'true' : 'false', "\n";

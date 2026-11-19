@@ -8,7 +8,7 @@ var $day = 'yyyy-MM-dd';
 
 // Adding months keeps the day number if the new month has it.
 // If not, the result is the last day of that month.
-var $endOfJanuary = Core\Time::at(2024, 1, 31, $utc);
+var $endOfJanuary = Core\Time\DateTime::fromIso('2024-01-31', $utc);
 echo '31 January plus one month:  ', $endOfJanuary->plus(1, Core\Unit::Month)->format($day), "\n";
 echo '31 January plus two months: ', $endOfJanuary->plus(2, Core\Unit::Month)->format($day), "\n";
 
@@ -18,13 +18,13 @@ var $there = $endOfJanuary->plus(1, Core\Unit::Month);
 echo 'and back one month again:   ', $there->minus(1, Core\Unit::Month)->format($day), "\n\n";
 
 // 2025 has no 29 February, so the result is 28 February.
-var $leapDay = Core\Time::at(2024, 2, 29, $utc);
+var $leapDay = Core\Time\DateTime::fromIso('2024-02-29', $utc);
 echo '29 February plus one year:  ', $leapDay->plus(1, Core\Unit::Year)->format($day), "\n\n";
 
 // The clocks go forward in Berlin on 31 March 2024, so that day has 23 hours.
 // The same day measured in days is still `1`.
 var $berlin = Core\Time\Zone::of('Europe/Berlin');
-var $morning = Core\Time::at(2024, 3, 31, $berlin)->startOf(Core\Unit::Day);
+var $morning = Core\Time\DateTime::fromIso('2024-03-31', $berlin)->startOf(Core\Unit::Day);
 var $nextMorning = $morning->plus(1, Core\Unit::Day);
 echo '31 March in Berlin is ', $morning->difference($nextMorning, Core\Unit::Hour), " hours long\n";
 echo 'and still ', $morning->difference($nextMorning, Core\Unit::Day), " day long\n";

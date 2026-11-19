@@ -14,7 +14,7 @@ string $html = "<html lang=\"en\"><head><title>Invoice Shop-1042</title></head>"
 // The XML needs the standard PDF/A-3b, and PDF/A needs a creation time.
 var $rendered = Document::fromHtml($html)
     ->standard(Document::Standard::PdfA3b)
-    ->created(Core\Time::fromIso('2026-03-01T09:00:00Z'))
+    ->created(Core\Time\Instant::fromIso('2026-03-01T09:00:00Z'))
     ->invoiceXml($xml)
     ->render();
 

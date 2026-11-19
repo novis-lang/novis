@@ -18,7 +18,7 @@ var $utc = Core\Time\Zone::UTC;
 
 uint $month = 1;
 while ($month <= 6) {
-    var $someDay = Core\Time::at(2024, $month, 1, $utc);
+    var $someDay = Core\Time\DateTime::at(Core\Time\Date::at(2024, $month, 1), Core\Time\TimeOfDay::at(0, 0), $utc);
     var $payday = Payroll::payday($someDay);
     echo $someDay->format('MMMM'), ': paid on ', $payday->format('yyyy-MM-dd'),
         ', ', $payday->difference($someDay->endOf(Core\Unit::Month), Core\Unit::Day),

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to set the time of a date and time and keep its date and time zone.
 
-var $due = Core\Time::at(2024, 11, 5, Core\Time\Zone::of('America/New_York'), { hour: 15, minute: 20 });
+var $due = Core\Time\DateTime::fromIso('2024-11-05 15:20', 'America/New_York');
 
 // `withTime` returns a new value with the time from a `Core\Time\TimeOfDay`.
 // This prints 2024-11-05 09:00:00.

@@ -11,12 +11,12 @@ class Invoice
 }
 
 var $shop = Core\Time\Zone::of('Europe/Berlin');
-var $today = Core\Time::at(2024, 11, 20, $shop, { hour: 9 });
+var $today = Core\Time\DateTime::fromIso('2024-11-20 09:00', $shop);
 
 array<Invoice> $invoices = [
-    new Invoice('A-100', Core\Time::at(2024, 11, 4, $shop)),
-    new Invoice('A-101', Core\Time::at(2024, 11, 19, $shop)),
-    new Invoice('A-102', Core\Time::at(2024, 12, 1, $shop)),
+    new Invoice('A-100', Core\Time\DateTime::fromIso('2024-11-04', $shop)),
+    new Invoice('A-101', Core\Time\DateTime::fromIso('2024-11-19', $shop)),
+    new Invoice('A-102', Core\Time\DateTime::fromIso('2024-12-01', $shop)),
 ];
 
 // `difference` counts days from the due date to today. A-102 is due later, so its result is negative.

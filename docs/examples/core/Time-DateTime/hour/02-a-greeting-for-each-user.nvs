@@ -20,7 +20,7 @@ class Greeting
 }
 
 // All three users open the page at the same moment, 08:00 UTC.
-var $moment = Core\Time::fromIso('2024-03-05T08:00:00Z');
+var $moment = Core\Time\Instant::fromIso('2024-03-05T08:00:00Z');
 array<string> $zones = ['Europe/Berlin', 'America/New_York', 'Asia/Tokyo'];
 
 // The hour is 9 in Berlin, 3 in New York and 17 in Tokyo, so each user gets a different greeting.

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to move a date and time forward by days, hours and months.
 
-var $start = Core\Time::at(2024, 3, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 9 });
+var $start = Core\Time\DateTime::fromIso('2024-03-05 09:00', 'Europe/Berlin');
 
 // `plus` returns a new value. The first argument is how many steps, and the second is the unit.
 // This prints 2024-03-15 09:00.

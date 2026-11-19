@@ -10,7 +10,7 @@ string $html = "<html lang=\"en\"><head><title>Certificate</title>"
 // PDF/A needs a creation time, so the program sets one with `created`.
 var $rendered = Document::fromHtml($html)
     ->standard(Document::Standard::PdfA2b)
-    ->created(Core\Time::fromIso('2026-03-01T09:00:00Z'))
+    ->created(Core\Time\Instant::fromIso('2026-03-01T09:00:00Z'))
     ->render();
 
 // This prints the page count and the title in the file.

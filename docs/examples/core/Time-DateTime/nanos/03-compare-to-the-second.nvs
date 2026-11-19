@@ -3,8 +3,8 @@
 
 // The database keeps nanoseconds. The browser sent the same time to the second only.
 var $zone = Core\Time\Zone::of('Europe/Warsaw');
-var $saved = Core\Time::fromIso('2024-09-01T08:00:12.734000000Z')->in($zone);
-var $sent = Core\Time::parse('2024-09-01 10:00:12', 'yyyy-MM-dd HH:mm:ss', $zone);
+var $saved = Core\Time\Instant::fromIso('2024-09-01T08:00:12.734000000Z')->in($zone);
+var $sent = Core\Time\DateTime::parse('2024-09-01 10:00:12', 'yyyy-MM-dd HH:mm:ss', $zone);
 
 // The nanoseconds are different. This prints 734000000 and 0.
 echo $saved->nanos(), ' ', $sent->nanos(), "\n";

@@ -2,7 +2,7 @@
 // Shows how to work out when to send reminders before an appointment.
 
 // A patient has an appointment in New York on Monday 4 November 2024 at 10:00.
-var $appointment = Core\Time::at(2024, 11, 4, Core\Time\Zone::of('America/New_York'), { hour: 10 });
+var $appointment = Core\Time\DateTime::fromIso('2024-11-04 10:00', 'America/New_York');
 
 // Reminders go out one week, one day and two hours before it.
 // This prints Monday 28 October, 10:00, then Sunday 3 November, 10:00, then Monday 4 November, 08:00.

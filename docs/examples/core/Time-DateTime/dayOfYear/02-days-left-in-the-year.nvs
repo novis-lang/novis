@@ -17,7 +17,7 @@ class Year
 var $berlin = Core\Time\Zone::of('Europe/Berlin');
 
 // 1 December 2024 is day 336 of 366. This prints 30.
-echo Year::daysLeft(Core\Time::at(2024, 12, 1, $berlin)), "\n";
+echo Year::daysLeft(Core\Time\DateTime::fromIso('2024-12-01', $berlin)), "\n";
 
 // On the last day of the year, the result is 0.
-echo Year::daysLeft(Core\Time::at(2023, 12, 31, $berlin, { hour: 23 })), "\n";
+echo Year::daysLeft(Core\Time\DateTime::fromIso('2023-12-31 23:00', $berlin)), "\n";

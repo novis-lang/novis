@@ -2,7 +2,8 @@
 // Shows how to plan a meeting in one time zone and show it in the zone of each person who joins.
 
 // The meeting is at 09:00 in New York on 14 May 2024.
-var $meeting = Core\Time::at(2024, 5, 14, Core\Time\Zone::of('America/New_York'), { hour: 9 });
+var $day = Core\Time\Date::at(2024, 5, 14);
+var $meeting = Core\Time\DateTime::at($day, Core\Time\TimeOfDay::at(9, 0), 'America/New_York');
 
 // `toInstant` gives the moment itself, and `in` shows that moment in another zone.
 // Tokyo is 13 hours ahead of New York in May, so it prints 22:00 for Tokyo.

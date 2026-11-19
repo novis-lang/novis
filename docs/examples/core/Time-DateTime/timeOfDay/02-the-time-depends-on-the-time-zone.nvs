@@ -1,7 +1,7 @@
 <?nvs
 // Shows that one moment has a different time of day in each time zone.
 
-var $start = Core\Time::fromIso('2024-06-10T12:00:00Z');
+var $start = Core\Time\Instant::fromIso('2024-06-10T12:00:00Z');
 
 // `timeOfDay` reads the clock in the time zone of the value.
 // This prints 14:00 for Berlin, 08:00 for New York and 17:30 for Kolkata.

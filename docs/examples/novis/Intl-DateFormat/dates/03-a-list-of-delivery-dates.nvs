@@ -5,8 +5,8 @@ use Novis\Intl\DateFormat;
 // The order dates come from a `Core\Time\DateTime` each. `date()` keeps only the calendar date.
 var $zone = Core\Time\Zone::of('Europe/Berlin');
 array<Core\Time\Date> $deliveries = [
-    Core\Time::at(2026, 5, 4, $zone, { hour: 10 })->date(),
-    Core\Time::at(2026, 5, 11, $zone, { hour: 16 })->date(),
+    Core\Time\DateTime::fromIso('2026-05-04 10:00', $zone)->date(),
+    Core\Time\DateTime::fromIso('2026-05-11 16:00', $zone)->date(),
 ];
 
 // The result has one string for each date, in the same order.

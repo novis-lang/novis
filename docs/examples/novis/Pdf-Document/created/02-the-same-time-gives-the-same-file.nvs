@@ -3,7 +3,7 @@
 use Novis\Pdf\Document;
 
 var $report = Document::fromHtml('<h1>Orders in March</h1><p>412 orders</p>');
-var $march = Core\Time::fromIso('2026-03-31T23:00:00Z');
+var $march = Core\Time\Instant::fromIso('2026-03-31T23:00:00Z');
 
 // The render reads no clock. The only time in the file is the one `created` gives.
 // So two renders with the same time are equal. This prints `same`.
@@ -12,5 +12,5 @@ bytes $second = $report->created($march)->render()->bytes;
 echo $first == $second ? 'same' : 'different', "\n";
 
 // A different time gives a different file. This prints `different`.
-bytes $later = $report->created(Core\Time::fromIso('2026-04-01T08:00:00Z'))->render()->bytes;
+bytes $later = $report->created(Core\Time\Instant::fromIso('2026-04-01T08:00:00Z'))->render()->bytes;
 echo $first == $later ? 'same' : 'different', "\n";

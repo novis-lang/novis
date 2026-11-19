@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to put your own words in a pattern, and how to use a 12-hour clock.
 
-var $start = Core\Time::at(2024, 11, 8, Core\Time\Zone::of('America/New_York'), { hour: 19, minute: 30 });
+var $start = Core\Time\DateTime::fromIso('2024-11-08 19:30', 'America/New_York');
 
 // Text in single quotes is printed as it is. Two single quotes print one quote.
 // `h` is the hour from 1 to 12, and `a` is AM or PM. This prints It's Friday, doors open at 7:30 PM.

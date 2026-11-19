@@ -8,7 +8,7 @@ array<array<string>> $log = [
 ];
 
 foreach ($log as array<string> $request) {
-    Core\Time\Duration $took = Core\Time::fromIso($request[2])->since(Core\Time::fromIso($request[1]));
+    Core\Time\Duration $took = Core\Time\Instant::fromIso($request[2])->since(Core\Time\Instant::fromIso($request[1]));
     // Durations can be compared with `>`. This prints only /search 750ms.
     if ($took > 500ms) {
         echo $request[0], ' ', $took->toString(), "\n";

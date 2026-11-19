@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read the year of a date and time as a number.
 
-var $order = Core\Time::at(2024, 3, 15, Core\Time\Zone::of('Europe/Berlin'), { hour: 10 });
+var $order = Core\Time\DateTime::fromIso('2024-03-15 10:00', 'Europe/Berlin');
 
 // `year` returns an `int`. This prints 2024.
 echo $order->year(), "\n";

@@ -3,7 +3,7 @@
 use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
-var $made = Core\Time::parse('2024-03-01 09:30', 'yyyy-MM-dd HH:mm', Core\Time\Zone::of('UTC'))->toInstant();
+var $made = Core\Time\DateTime::parse('2024-03-01 09:30', 'yyyy-MM-dd HH:mm', 'UTC')->toInstant();
 var $book = Workbook::createInMemory({ properties: { created: $made } });
 $book->sheet('Orders')->add(['Order']);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
@@ -12,5 +12,5 @@ var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 var $created = $reader->properties()->created;
 if ($created != null) {
     echo 'created: ', $created->toIso(), "\n";
-    echo 'in Berlin: ', $created->in(Core\Time\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm'), "\n";
+    echo 'in Berlin: ', $created->in('Europe/Berlin')->format('yyyy-MM-dd HH:mm'), "\n";
 }

@@ -7,7 +7,7 @@ array<string> $planned = ['2024-05-17T08:00:00Z', '2024-05-18T08:00:00Z', '2024-
 // A Saturday or a Sunday moves to the next Monday. `next` finds the next day with that weekday.
 // This prints Friday 17 May, then Monday 20 May twice.
 foreach ($planned as string $text) {
-    var $delivery = Core\Time::fromIso($text)->in($warehouse);
+    var $delivery = Core\Time\Instant::fromIso($text)->in($warehouse);
     var $day = $delivery->weekday();
     if ($day == Core\Time\Weekday::Saturday || $day == Core\Time\Weekday::Sunday) {
         $delivery = $delivery->next(Core\Time\Weekday::Monday);

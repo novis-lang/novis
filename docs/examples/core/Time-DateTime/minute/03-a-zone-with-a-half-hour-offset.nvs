@@ -1,13 +1,13 @@
 <?nvs
 // Shows that the minute can be different in a time zone that is not a whole number of hours from UTC.
 
-var $moment = Core\Time::fromIso('2024-03-05T10:15:00Z');
+var $moment = Core\Time\Instant::fromIso('2024-03-05T10:15:00Z');
 
 // In UTC the minute is 15.
-echo $moment->in(Core\Time\Zone::UTC)->minute(), "\n";
+echo $moment->in('UTC')->minute(), "\n";
 
 // India is 5 hours and 30 minutes ahead of UTC. The time there is 15:45, so this prints 45.
-echo $moment->in(Core\Time\Zone::of('Asia/Kolkata'))->minute(), "\n";
+echo $moment->in('Asia/Kolkata')->minute(), "\n";
 
 // Nepal is 5 hours and 45 minutes ahead of UTC. The time there is 16:00, so this prints 0.
-echo $moment->in(Core\Time\Zone::of('Asia/Kathmandu'))->minute(), "\n";
+echo $moment->in('Asia/Kathmandu')->minute(), "\n";

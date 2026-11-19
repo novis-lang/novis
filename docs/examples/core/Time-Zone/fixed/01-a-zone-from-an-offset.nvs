@@ -1,7 +1,7 @@
 <?nvs
 // Shows the same moment in two zones that are a fixed distance from UTC.
 
-Core\Time\Instant $at = Core\Time::fromIso('2024-03-05T10:00:00Z');
+Core\Time\Instant $at = Core\Time\Instant::fromIso('2024-03-05T10:00:00Z');
 
 // `Core\Time\Zone::fixed` makes a zone from an offset. `5h30m` is the offset for India.
 Core\Time\Zone $india = Core\Time\Zone::fixed(5h30m);

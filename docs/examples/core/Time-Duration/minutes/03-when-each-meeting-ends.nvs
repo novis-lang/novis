@@ -7,7 +7,7 @@ array<int> $lengths = [45, 90, 20];
 // The meetings end at 09:45, 13:00 and 16:05. This prints each end time in full.
 int $i = 0;
 while ($i < 3) {
-    var $start = Core\Time::fromIso($starts[$i]);
+    var $start = Core\Time\Instant::fromIso($starts[$i]);
     Core\Time\Duration $length = Core\Time\Duration::minutes($lengths[$i]);
     echo $start->plus($length)->toIso(), "\n";
     $i = $i + 1;

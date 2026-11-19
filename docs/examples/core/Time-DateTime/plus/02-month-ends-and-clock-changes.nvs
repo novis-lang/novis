@@ -3,12 +3,12 @@
 
 // One month after 31 January is the last day of February, because February has no 31st.
 // This prints 2024-02-29.
-var $january = Core\Time::at(2024, 1, 31, Core\Time\Zone::of('Europe/Berlin'));
+var $january = Core\Time\DateTime::fromIso('2024-01-31', 'Europe/Berlin');
 echo $january->plus(1, Core\Unit::Month)->format('yyyy-MM-dd'), "\n";
 
 // Berlin moves its clocks forward one hour on 31 March 2024, so that day has only 23 hours.
 // One day after 30 March at 12:00 is 31 March at 12:00. This prints 2024-03-31 12:00 +02:00.
-var $saturday = Core\Time::at(2024, 3, 30, Core\Time\Zone::of('Europe/Berlin'), { hour: 12 });
+var $saturday = Core\Time\DateTime::fromIso('2024-03-30 12:00', 'Europe/Berlin');
 var $sunday = $saturday->plus(1, Core\Unit::Day);
 echo $sunday->format('yyyy-MM-dd HH:mm XXX'), "\n";
 

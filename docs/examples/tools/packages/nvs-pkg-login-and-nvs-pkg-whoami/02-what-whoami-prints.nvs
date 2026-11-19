@@ -8,8 +8,8 @@ string $reply = '{"account":"3f2a9c0b7d4e4a1c9b8e2f6d0a5c7e13","scope":"Acme","e
     . '{"package":"Acme\\\\Log","version":"2.0.1","until":null}]}';
 
 var $holder = Core\Json::decode($reply) as array<mixed>;
-string $expires = Core\Time::fromEpoch($holder['expiresAt'] as int)
-    ->in(Core\Time\Zone::of('UTC'))
+string $expires = Core\Time\Instant::fromEpoch($holder['expiresAt'] as int)
+    ->in('UTC')
     ->format('yyyy-MM-dd');
 
 echo 'Account: ', $holder['account'] as string, "\n";

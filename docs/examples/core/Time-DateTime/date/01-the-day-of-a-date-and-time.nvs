@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to take the calendar day out of a date and time.
 
-var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 14, minute: 30 });
+var $meeting = Core\Time\DateTime::fromIso('2024-03-05 14:30', 'Europe/Berlin');
 
 // `date` returns a `Core\Time\Date` with only the year, month and day.
 // This prints 2024-03-05.
