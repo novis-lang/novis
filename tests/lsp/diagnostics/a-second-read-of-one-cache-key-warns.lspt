@@ -1,0 +1,14 @@
+--TEST--
+a second `get` of one cache key in straight code, with nothing between the two, warns W1035 at the second call and carries no fix
+--FILE--
+<?nvs
+final class Blog {
+    public static function show(Core\Cache\Store $cache): void {
+        var $title = $cache->get("post");
+        var $body = $cache->get("post");
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+5:21-5:40 warning W1035 this reads cache key `post` again, and each read copies the whole value

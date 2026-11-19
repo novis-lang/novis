@@ -1,0 +1,14 @@
+--TEST--
+the first entry of a filter, whose callback can throw an error but writes nothing, warns W1034 on the written form and names `Core\Arr::find`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+final class Shop {
+    public static function firstLarge(array<int> $prices): int {
+        // `$price * 2` can overflow, so this callback can throw an error.
+        return Core\Arr::first(Core\Arr::filter($prices, fn(int $price): bool => $price * 2 > 10)) ?? 0;
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+5:16-5:99 warning W1034 `Core\Arr::find` gives the same result faster
