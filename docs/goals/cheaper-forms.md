@@ -436,6 +436,18 @@ because `Core\Arr::contains` is no counted call, so its red needs callgrind in W
 - The constant-key literal takes only a literal where every element has a string or non-negative
   integer literal key. A literal that mixes positional elements in stays as written.
 
+**Stage 4's ceiling spares its tooling item (my call, stage 4).** Both comparator rows landed in
+the stage's second session, which is its ceiling. The `rounds N` item in `tools/nv/cmd/scaling.ts`
+and the ladder check after it are not rows: declining them would leave the `ladders` check red with
+nothing that could turn it green. So they take one more session, and the stage is done when they
+pass. A row cannot use this: the ceiling's purpose is to stop chasing a fast form.
+
+**A `Core` call in a proven callback (my call, stage 4).** Every `Core` call has an error edge in
+the IR, so counting each one made every callback that calls `Core\Str::length` a warning. A call to
+a member on `forms::QUIET_CORE`'s list whose reference card lists no errors is no error edge
+(`forms::throws_nothing`). Every member has a card, and the card lists every error the member
+throws. A wrong card is a wrong proof, and the differential suite is what finds it.
+
 **Lanes.** Stages 1, 2 and 3 need nothing from another goal. Stage 6 touches
 `crates/nvs-runtime/src/callable.rs`, `dispatch.rs` and the callback argument's lowering, and can run as
 a side goal at any time. Stage 7 touches the debug index and `crates/nvs-lsp/src/recorded.rs`, and stage
@@ -541,7 +553,7 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
 
 **Gate:** `crates/nvs-ir/src/effects.rs` exists, which is `in-place-everywhere` stage 5.
 
-- [ ] The lowering records a candidate for each callback row at `crates/nvs-ir/src/lower/expr.rs:5160`:
+- [x] The lowering records a candidate for each callback row at `crates/nvs-ir/src/lower/expr.rs:5160`:
   the site's span, the row, the callback's function and the operands the fast member takes. For a
   comparator row it also lowers the `by` function `fn(x) => E(x)`.
   - [x] `Function::form_candidates` and `ir::FormCandidate`, filled by the `Lowering` and taken at
@@ -549,10 +561,10 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
   - [x] `first`, `firstKey` and `isEmpty` of a filter recorded at the call lowering
     (`forms::of_filter`), and a count of a filter compared with `0` lowered as `isEmpty` of it
     (`Lowering::lower_count_of_filter`, `forms::count_of_filter_compared`).
-  - [ ] The comparator rows: match `comparator: fn(x, y) => E(x) <=> E(y)` on `sort`, `diff` and
+  - [x] The comparator rows: match `comparator: fn(x, y) => E(x) <=> E(y)` on `sort`, `diff` and
     `intersect`, lower `fn(x) => E(x)` as a second anonymous function beside the written one, and
-    record both values.
-- [ ] `forms.rs` runs after `effects.rs` and before `crates/nvs-ir/src/ownership.rs`. For each candidate
+    record both values (`forms::comparator_by`, `ir::ByTwin`, `Lowering::by_twin`).
+- [x] `forms.rs` runs after `effects.rs` and before `crates/nvs-ir/src/ownership.rs`. For each candidate
   it reads the callback's summary and its error edges, and takes one of the three outcomes. A proven
   candidate has its instructions replaced by the one fast `CoreCall`. A candidate that can fail is
   kept in a list beside the unit's copy table, with its span and the fast form as text.
@@ -560,14 +572,14 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
     `forms::quiet`.
   - [x] The filter rows rewritten (`forms::Rewrite`), and a can-fail candidate kept in
     `Program::forms` as a `forms::Recorded`.
-  - [ ] The comparator rows rewritten: the option's callable operand swapped for the `by` value, and
-    the unused one released.
-- [ ] The four tests the `callback-forms` check names. Run once.
+  - [x] The comparator rows rewritten (`forms::Retarget`): the comparator's object becomes an
+    object of the `by` class and moves to the `by` slot, so no second object is made or released.
+- [x] The four tests the `callback-forms` check names. Run once.
   - [x] `a_proven_callback_form_compiles_as_its_fast_member`,
     `a_callback_that_can_fail_keeps_the_form_and_is_recorded` and
     `a_callback_with_an_effect_keeps_the_form_and_is_silent` passed by name.
-  - [ ] `a_comparator_of_one_expression_sorts_by_it`.
-- [ ] `bun nv suite tests/conformance/ --no-cheaper-forms-too` once, green.
+  - [x] `a_comparator_of_one_expression_sorts_by_it`.
+- [x] `bun nv suite tests/conformance/ --no-cheaper-forms-too` once, green.
 - [ ] `tools/nv/cmd/scaling.ts`: `// scaling: rounds N` on a `run` ladder judges the difference of half
   and all of `N` rounds, as § *Standing decisions* says, with a test in `tools/nv/test/`. The two
   `expect constant` ladders under `benches/scaling/arrays/forms-` take it.
@@ -675,40 +687,39 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 4's three filter rows landed: the lowering records `first`,
-`firstKey` and `isEmpty` of a `Core\Arr::filter` (`forms::of_filter`, at the call lowering in
-`crates/nvs-ir/src/lower/expr.rs` beside `filter_contains`), and lowers a count of a filter
-compared with `0` as `isEmpty` of it (`Lowering::lower_count_of_filter`). `forms::run`
-(`crates/nvs-ir/src/forms.rs`) runs in `lower_program_as` before `ownership::run`. It judges each
-callback from `effects::Summaries` and a walk of every body it calls (`judge`, `quiet`). A proven
-candidate turns the filter's `CoreCall` into the fast member at the filter's place and the outer one
-into a `Reinterpret` or a `Not` of it (`Rewrite::apply`). A can-fail candidate goes to
-`Program::forms`. The three tests passed by name, and the nine filter-row cases under
-`tests/conformance/forms/callbacks/` passed with `--no-cheaper-forms-too`.
-`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named` states the pass.
-Sessions used: stage 1, one; stage 2, two; stage 3, two; stage 4, one. The sweep's
-`env-secret-proofs` red is stale: its log does not exist, and `git log -S` names the
-`strings-in-place` retire.
+Stages 1, 2 and 3 are done. Every stage-4 row landed. The filter rows: `forms::of_filter` and
+`Lowering::lower_count_of_filter` record, and `forms::Rewrite` compiles the fast member. The
+comparator rows: `forms::comparator_by` matches at the `Core` call lowering in
+`crates/nvs-ir/src/lower/expr.rs`, before `of_filter`. It sets `Lowering::by_twin`, and
+`lower_anon_fn_expr` lowers `fn($x) => E($x)` as class `<comparator>$by` with the comparator's
+captures and records an `ir::ByTwin`. Where `forms::run` proves the `by` body, `forms::Retarget`
+turns the comparator's `New`, field sets, arity and tags into the `by` class's and swaps the two
+option operands. The descending row also turns the default `order` `ConstInt(0)` into `1`.
+`forms::throws_nothing` makes a quiet `Core` call whose card lists no errors no error edge (a
+standing decision). All four `callback-forms` tests passed by name, and the full
+`bun nv suite tests/conformance/ --no-cheaper-forms-too` is green. The rule states both. Sessions
+used: stage 1, one; stage 2, two; stage 3, two; stage 4, two, with one more for its tooling item
+(standing decision). The sweep's `env-secret-proofs` red is stale: its log does not exist, and
+`git log -S` names only goal commits.
 
 ### Next
 
-Stage 4, its second and last session. First the comparator rows (`comparator-by`,
-`comparator-by-desc`): match the `comparator` option's arrow function `fn(x, y) => E(x) <=> E(y)`
-on `sort`, `diff` and `intersect` in `forms.rs`, where `E(y)` is `E(x)` with the parameter renamed
-(compare the source text with the name swapped). Lower `fn(x) => E(x)` as a second anonymous
-function: read how `Lowering::lower_anon_fn_expr` (`crates/nvs-ir/src/lower/anon_fn.rs`) builds one
-from an `ast::FnExpr`, and build a one-parameter `FnExpr` from the written one. Record both
-callables in a `FormCandidate` (it needs a new field for the `by` value and the option slot). In
-`forms::run`, a proven candidate swaps the option operands; the call's options are lowered in
-registry order by `lower_call_args`. Then `a_comparator_of_one_expression_sorts_by_it`, the full
-`bun nv suite tests/conformance/ --no-cheaper-forms-too`, and the `rounds N` scaling item
-(`tools/nv/cmd/scaling.ts`, beside `rampPerOp`). At the stage's ceiling, an unfinished comparator
-row moves to `### Backlog` as declined. Stages 6, 7, 8 and 10 can start as side goals at any time.
+Stage 4's last session, its tooling item. In `tools/nv/cmd/scaling.ts`, `ladderOf` (line 455)
+accepts `// scaling: rounds N` on a `run` ladder. `rampOne` (line 1040) then runs the work half and
+all of `N` times at each size and judges the difference, as `rampPerOp` (line 1086) and `perOpOf`
+(line 1071) do for a member bench, so setup cancels out. Read how `withIterations` (line 295)
+rewrites a program's count before choosing how a round count reaches the program. Add a test in
+`tools/nv/test/` beside the existing scaling tests. Put the line on the two `expect constant`
+ladders under `benches/scaling/arrays/forms-`. Then run `bun nv scaling --check arrays/forms-`
+once. The first two ladders must grow as their files say. The difference ladder's quadratic shows
+in the clock alone, so its red needs callgrind in WSL. Then set stage 4 done. Stages 6, 7, 8 and 10
+can start as side goals at any time.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
-a `static::m()` call or a `static::NAME` read nothing redeclares, or a `first`, `firstKey`,
-`isEmpty` or count of a filter, if any does. The three ladders under `benches/scaling/arrays/forms-`
+a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `firstKey`, `isEmpty`
+or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
+does. The three ladders under `benches/scaling/arrays/forms-`
 stay red until stages 4 and 6, and no sweep runs them before stage 4's check.
 
 ### Backlog
