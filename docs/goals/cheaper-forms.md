@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-runtime/src/callable.rs, crates/nvs-runtime/src/dispatch.rs, crates/nvs-ir/src/ir.rs]
   - id: 7
     title: a recorded request shows its HTTP, cache, session and file calls by line
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/recorded.rs, crates/nvs-cli/src/debug/index.rs, docs/rules/observability/a-query-span-names-its-call-site.md]
   - id: 8
     title: a parameter declared callable or mixed takes the type every caller passes, as an editor action
@@ -402,6 +402,16 @@ carries its site on `Event::site`, and a query keeps `Query::site`. A query's re
 `sql`. A secret key is never a target. Reusing `sql` or `label` for the target was declined: `sql`
 names a statement, and `label` holds the rendered span with its times, so no two labels match.
 
+**How a member files its event, as built in stage 7 (my call).** A cache, session or file member
+runs its body inside `nvs_stdlib::site::watched`, which tests `Ctx::records_spans` once and, only
+when it is true, times the body and calls `Ctx::record_site_event` with the member's name as the
+label (` failed` appended when the body threw), the key or path as the target, and the site id. An
+HTTP call keeps its transport span and passes the id to `traced`, whose target is the URL's host,
+port and path, with no userinfo, query or fragment. The three new kinds become no span of their own
+in `nvs-server`'s export: `rule:observability/four-kinds-become-a-span` names four, a cache read is
+cheap beside a span's export, and a key read in a loop would fill the span ceiling. Putting the site
+on `transport::Call` was declined: `traced` is the one reader, so a parameter is enough.
+
 **The editor action (my call).** On a parameter declared bare `callable` or `mixed`, *Write the type
 every caller passes* is offered when the reference index finds at least one call of the function and
 every call passes an argument of one static type. It writes that type and nothing else, under
@@ -680,23 +690,23 @@ under `tests/lsp/lens/`.
 
 - [x] An `Explore` subagent lists first: where a `query` event takes its site, where an `http` event is
   made, and where `crates/nvs-cli/src/debug/index.rs` stores the site columns.
-- [ ] An `http` event, a cache read or write, a session read or write and a file open each record the
+- [x] An `http` event, a cache read or write, a session read or write and a file open each record the
   site of their call when a request is recorded. `rule:observability/trace-events-carry-a-kind` gains
   the three new kinds, and `rule:observability/a-query-span-names-its-call-site` covers them.
   - [x] The roster: `nvs_stdlib::registry::RECORDED_SITE_MEMBERS` and `records_site`; the spool's
     `Event` has `target` and `site`; the index's `events` has `target` (schema 9), and the ingester
     writes both.
-  - [ ] `TraceKind` and `spool::EventKind` gain `Cache`, `Session` and `File`
+  - [x] `TraceKind` and `spool::EventKind` gain `Cache`, `Session` and `File`
     (`crates/nvs-runtime/src/ctx/trace.rs:112`, `spool.rs:561`, the ingester's `kind`,
     `crates/nvs-server/src/trace.rs:281` and `otlp.rs:1096`), with one `Ctx::record_site_event`.
-  - [ ] The lowering passes the site constant to every `records_site` member: swap
+  - [x] The lowering passes the site constant to every `records_site` member: swap
     `core_takes_query_site` for `core_records_site` at `lower/expr.rs:4950` and `:5560` and
     `anon_fn.rs:921`, and add one to each member's `args: [N]`.
-  - [ ] Each helper reads its last argument only under `Ctx::records_spans`, and files one event
+  - [x] Each helper reads its last argument only under `Ctx::records_spans`, and files one event
     with its `target`: `http.rs` `traced` (carry the site on `transport::Call`), the cache store's
     and the session's members, and the `Core\IO` members on the roster. A `secret` key is never a
     target: `getSecret` and `putSecret` record no target.
-  - [ ] The two rules say so, and one Rust test per kind files an event with its site.
+  - [x] The two rules say so, and one Rust test per kind files an event with its site.
 - [x] `crates/nvs-lsp/src/recorded.rs:40` `Ran` serves every kind, and the lens line names the kind.
   `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site` says so.
 - [x] The two `.lspt` cases the `recorded-sites` check names. Run once.
@@ -755,30 +765,27 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 6 are done. Stage 7 has had one session of its two. Items 1, 3 and 4 are done: the
-editor side. `nvs_stdlib::registry::RECORDED_SITE_MEMBERS` and `records_site` name the HTTP, cache,
-session and file members, and the reference index finds lens sites with
-`nvs_types::core_records_site` (`crates/nvs-lsp/src/index.rs`, `occurrences`).
-`crates/nvs-lsp/src/recorded.rs` `at_site` reads any of the five kinds, `Ran::kind` names it, and
-`title` words it ("6 HTTP calls ... one host and path repeated 5 times"). The index's `events` has a
-`target` column (schema 9), the spool `Event` has `target` and `site`, and the ingester writes both.
-The `recorded-sites` check is green, and the edited query lens case passed once. Build and clippy are
-green. Nothing at run time files a `cache`, `session` or `file` event yet, and an `http` event has
-no site: that is item 2. The sweep's `env-secret-proofs` red is stale: `git log -S` shows the newest
-hit is `strings-in-place`'s retire commit, and no log file exists for it.
+Stages 1 to 7 are done. Stage 7 took its two sessions. This one landed item 2: `TraceKind` and
+`spool::EventKind` have `Cache`, `Session` and `File` (`TraceKind::spelling`), and
+`Ctx::record_site_event` (`crates/nvs-runtime/src/ctx/trace.rs`) files a site event with its target
+and site row. The lowering passes the site constant to every `core_records_site` member, and each of
+the 25 roster helpers takes one more slot: the cache, session and `Core\IO` ones run under
+`crates/nvs-stdlib/src/site.rs` `watched`, and the HTTP ones pass the id to `http.rs` `traced`. The
+two observability rules say so. Build and clippy are green, the eleven new tests passed once by
+name, a compiled cache and file program ran, and `recorded-sites` is green. The sweep's
+`env-secret-proofs` red is stale: no goal defines it (`git log -S` hits only goal handoffs).
 
 ### Next
 
-Stage 7's item 2, by its four open checkpoints, in the stage's second and last session. Start at
-`crates/nvs-runtime/src/ctx/trace.rs:112` `TraceKind` and `:692` `record_http`, then the lowering's
-three `core_takes_query_site` calls (`lower/expr.rs:4950`, `:5560`, `anon_fn.rs:921`). The site id
-reaches a helper as its last argument, as `crates/nvs-stdlib/src/db/span.rs:110` `QueryWatch::at`
-reads it, and `ctx.query_site(id)` gives the row. Each roster member's registry row needs
-`args: [N]` one higher. `every_query_site_member_takes_a_fixed_argument_list` in `registry.rs` is
-the shape of the test the new roster needs. Stages 8 and 10 are disjoint from 7 and can run beside
-it. `looper check --name <id>` runs one goal check.
+Stage 8: *Write the type every caller passes* on a bare `callable` or `mixed` parameter, in
+`crates/nvs-lsp/src/actions.rs`, from the reference index's calls of the function
+(`crates/nvs-lsp/src/index.rs`). Its two `.lspt` cases are the `typed-parameter-action` check. Stage
+10 is disjoint from it (`crates/nvs-stdlib/src/str.rs` `split` and the case-folding search,
+`json.rs` `isValid`) and can run beside it. `looper check --name <id>` runs one goal check.
 
-Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
+Tests expected red: any test that calls one of the 25 `RECORDED_SITE_MEMBERS` helpers with its old
+argument count from outside the five stdlib files that define them (none was found), and any test
+that pins `trace-events-carry-a-kind`'s title or the debug stream's kind list as five. Also: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
 a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `firstKey`, `isEmpty`
 or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
