@@ -667,7 +667,8 @@ pub struct Function {
 }
 
 /// One callback form of `crate::forms` the lowering recorded: `first`,
-/// `firstKey` or `isEmpty` of a `Core\Arr::filter` call.
+/// `firstKey` or `isEmpty` of a `Core\Arr::filter` call, or a `sort`, `diff`
+/// or `intersect` call whose comparator compares one expression of each side.
 #[derive(Clone, Debug)]
 pub struct FormCandidate {
     /// The written form's span.
@@ -682,6 +683,33 @@ pub struct FormCandidate {
     pub negated: bool,
     /// The fast form as the program would write it.
     pub text: String,
+    /// For a comparator row, the `by` function lowered beside the written
+    /// comparator. `None` for a filter row.
+    pub by: Option<ByTwin>,
+}
+
+/// The `by` function of a comparator row: `fn(x) => E(x)`, made from the
+/// comparator `fn(x, y) => E(x) <=> E(y)`. Its body is lowered as a function
+/// of its own class, and the call makes no object of it: where the comparator
+/// is proven, `crate::forms::run` turns the comparator's object into one of
+/// this class and moves it to the `by` option. Its fields are the comparator's
+/// captures, in the same order, so the object's layout is the same.
+#[derive(Clone, Debug)]
+pub struct ByTwin {
+    /// The class whose `invoke` is the `by` function.
+    pub class: String,
+    /// The comparator's object, which the call passes as its `comparator`.
+    pub object: ValueId,
+    /// The comparator object's arity constant.
+    pub arity: ValueId,
+    /// The comparator object's parameter-tags constant.
+    pub tags: ValueId,
+    /// The `by` function's parameter-tags word.
+    pub tags_word: i64,
+    /// The call's argument index of the `by` option, and of `comparator`.
+    pub slots: (usize, usize),
+    /// The argument index of `order` where the fast form sorts descending.
+    pub desc: Option<usize>,
 }
 
 /// One by-value array `foreach` the lowering recorded for the ownership pass.

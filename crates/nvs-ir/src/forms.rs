@@ -37,10 +37,11 @@
 use nvs_diagnostics::{SourceFile, Span};
 use nvs_syntax::ast::BinaryOp;
 use nvs_syntax::ast::{
-    Arg, ArrayItem, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, Stmt, StmtKind,
-    Type, UnaryOp,
+    Arg, ArrayItem, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, FnExpr, Stmt,
+    StmtKind, Type, UnaryOp,
 };
 use nvs_types::expr_table::{ExprInfo, ExprTypeTable};
+use nvs_types::ty::TypeInterner;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::effects::{Summaries, Touches};
@@ -949,6 +950,221 @@ pub(crate) fn count_of_filter_compared<'a>(
     Some((lhs, none, form))
 }
 
+/// Rows `comparator-by` and `comparator-by-desc`, matched on the written tree:
+/// `Core\Arr::sort`, `diff` or `intersect` with no `by` option and a
+/// `comparator` option that is `fn(T $x, T $y) => E($x) <=> E($y)`. The
+/// descending row is `E($y) <=> E($x)` on `sort` with no `order` option.
+///
+/// `E($y)` must be `E($x)` with the variable renamed, read from the source
+/// text, and must not read `$y`. `E` is narrow, so it can be lowered a second
+/// time as the `by` function's body: a resolved static or `Core` call whose
+/// arguments are each a variable or a literal, or a conversion of a variable.
+/// Its result is `int`, `uint` or `string`: for those, `<=>` gives `0` exactly
+/// where the set members' own comparison finds two values the same, and orders
+/// as the sort's own comparison does. A `float` is not taken, because `NaN`
+/// and `-0.0` compare differently in the two.
+pub(crate) struct ComparatorForm<'a> {
+    /// The row's id in [`ROWS`].
+    pub row: &'static str,
+    /// The comparator's anonymous function, as written.
+    pub comparator: &'a Expr,
+    /// The `by` function: `fn(T $x) => E($x)`.
+    pub by: FnExpr,
+    /// What `E` gives.
+    pub ret: Ty,
+    /// The call's argument index of the `by` option, and of `comparator`.
+    pub slots: (usize, usize),
+    /// The argument index of `order` for the descending row.
+    pub desc: Option<usize>,
+    /// The fast form as the program would write it.
+    pub text: String,
+}
+
+/// See [`ComparatorForm`].
+pub(crate) fn comparator_by<'a>(
+    expr: &'a Expr,
+    exprs: &ExprTypeTable,
+    src: &SourceFile,
+    checked_types: &TypeInterner,
+) -> Option<ComparatorForm<'a>> {
+    const ARR: &str = r"Core\Arr";
+    // The flattened argument indices: `sort(a, {by, order, comparator,
+    // preserveKeys})` and `diff(a, b, {on, by, comparator})`.
+    let (method, args) = ["sort", "diff", "intersect"]
+        .into_iter()
+        .find_map(|method| core_call(expr, exprs, ARR, method).map(|args| (method, args)))?;
+    let CallArgs::List(list) = args else {
+        return None;
+    };
+    let (positional, slots, order) = match method {
+        "sort" => (1, (1, 3), Some(2)),
+        _ => (2, (3, 4), None),
+    };
+    if list.len() != positional + 1
+        || list
+            .iter()
+            .any(|arg| arg.name.is_some() || arg.spread || arg.inout)
+    {
+        return None;
+    }
+    let ExprKind::AnonObject(fields) = &list[positional].value.kind else {
+        return None;
+    };
+    let field = |name: &str| fields.iter().find(|f| span_text(src, f.name) == name);
+    if field("by").is_some() {
+        return None;
+    }
+    let comparator = &field("comparator")?.value;
+    let ExprKind::Fn(written) = &comparator.kind else {
+        return None;
+    };
+    let [x, y] = written.params.as_slice() else {
+        return None;
+    };
+    let plain = |p: &nvs_syntax::ast::Param| {
+        !p.inout && !p.variadic && !p.covariant && p.default.is_none() && p.ty.is_some()
+    };
+    if written.name.is_some()
+        || !plain(x)
+        || !plain(y)
+        || span_text(src, x.ty.as_ref()?.span) != span_text(src, y.ty.as_ref()?.span)
+    {
+        return None;
+    }
+    let FnBody::Expr(body) = &written.body else {
+        return None;
+    };
+    let ExprKind::Binary {
+        op: BinaryOp::Cmp,
+        lhs,
+        rhs,
+    } = &body.kind
+    else {
+        return None;
+    };
+    let (xn, yn) = (
+        strip_sigil(span_text(src, x.name)),
+        strip_sigil(span_text(src, y.name)),
+    );
+    let (lt, rt) = (span_text(src, lhs.span), span_text(src, rhs.span));
+    let (e, descending) =
+        if text_names_variable(lt, xn) && !text_names_variable(lt, yn) && renamed(lt, xn, yn) == rt
+        {
+            (lhs.as_ref(), false)
+        } else if order.is_some()
+            && field("order").is_none()
+            && text_names_variable(rt, xn)
+            && !text_names_variable(rt, yn)
+            && renamed(rt, xn, yn) == lt
+        {
+            (rhs.as_ref(), true)
+        } else {
+            return None;
+        };
+    let ret = by_expression_ty(e, exprs, checked_types)?;
+    let by = FnExpr {
+        is_static: written.is_static,
+        name: None,
+        params: vec![x.clone()],
+        return_type: None,
+        body: FnBody::Expr(Box::new(e.clone())),
+    };
+    let by_text = format!(
+        "fn({} {}) => {}",
+        span_text(src, x.ty.as_ref()?.span),
+        span_text(src, x.name),
+        span_text(src, e.span)
+    );
+    let written_args = list[..positional]
+        .iter()
+        .map(|arg| span_text(src, arg.span))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let (row, text) = if descending {
+        (
+            "comparator-by-desc",
+            format!(
+                r"Core\Arr::{method}({written_args}, {{by: {by_text}, order: Core\Arr::Order::Desc}})"
+            ),
+        )
+    } else {
+        (
+            "comparator-by",
+            format!(r"Core\Arr::{method}({written_args}, {{by: {by_text}}})"),
+        )
+    };
+    Some(ComparatorForm {
+        row,
+        comparator,
+        by,
+        ret,
+        slots,
+        desc: if descending { order } else { None },
+        text,
+    })
+}
+
+/// `text` with every `$from` that is a whole variable written `$to`.
+fn renamed(text: &str, from: &str, to: &str) -> String {
+    let needle = format!("${from}");
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(&needle) {
+        let after = &rest[at + needle.len()..];
+        let whole = !after
+            .chars()
+            .next()
+            .is_some_and(|c| c == '_' || c.is_alphanumeric());
+        out.push_str(&rest[..at]);
+        out.push_str(if whole { "$" } else { "" });
+        out.push_str(if whole { to } else { &needle });
+        rest = after;
+    }
+    out.push_str(rest);
+    out
+}
+
+/// What `E` of a comparator row gives, where it is one of the narrow shapes
+/// [`ComparatorForm`] takes and gives `int`, `uint` or `string`.
+fn by_expression_ty(e: &Expr, exprs: &ExprTypeTable, checked_types: &TypeInterner) -> Option<Ty> {
+    let plain = |arg: &Expr| {
+        matches!(
+            arg.kind,
+            ExprKind::Variable(_)
+                | ExprKind::Int(_)
+                | ExprKind::Str(_)
+                | ExprKind::Bool(_)
+                | ExprKind::Null
+        )
+    };
+    let id = match &e.kind {
+        ExprKind::Paren(inner) => return by_expression_ty(inner, exprs, checked_types),
+        ExprKind::StaticCall {
+            args: CallArgs::List(list),
+            ..
+        } => {
+            let Some(ExprInfo::Call(call)) = exprs.lookup(e.span) else {
+                return None;
+            };
+            if list
+                .iter()
+                .any(|arg| arg.name.is_some() || arg.spread || arg.inout || !plain(&arg.value))
+            {
+                return None;
+            }
+            call.return_ty
+        }
+        ExprKind::Conversion {
+            expr,
+            ty,
+            legacy: false,
+        } if matches!(expr.kind, ExprKind::Variable(_)) => exprs.declared_ty(ty.span)?,
+        _ => return None,
+    };
+    let ty = crate::lower::erase_checked_ty(id, checked_types);
+    matches!(ty, Ty::Int | Ty::Uint | Ty::Str).then_some(ty)
+}
+
 /// A callback form whose callback writes nothing but can fail. It is compiled
 /// as written, and is kept so `nvs check` can name its fast form.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -984,8 +1200,25 @@ pub(crate) fn run(functions: &mut [Function]) -> Vec<Recorded> {
         functions.iter().map(|f| (f.name.as_str(), f)).collect();
     let mut recorded = Vec::new();
     let mut fast: Vec<(usize, Rewrite)> = Vec::new();
+    let mut retargets: Vec<(usize, Retarget)> = Vec::new();
     for (at, f) in functions.iter().enumerate() {
         for candidate in &f.form_candidates {
+            if let Some(twin) = &candidate.by {
+                let Some(retarget) = Retarget::of(f, candidate.result, twin) else {
+                    continue;
+                };
+                let by = format!("{}::invoke", twin.class);
+                match judge(&by, &by_name, &summaries) {
+                    Outcome::Fast => retargets.push((at, retarget)),
+                    Outcome::Warning => recorded.push(Recorded {
+                        span: candidate.span,
+                        row: candidate.row,
+                        fast: candidate.text.clone(),
+                    }),
+                    Outcome::AsWritten => {}
+                }
+                continue;
+            }
             let Some(rewrite) = Rewrite::of(f, candidate) else {
                 continue;
             };
@@ -1002,6 +1235,9 @@ pub(crate) fn run(functions: &mut [Function]) -> Vec<Recorded> {
     }
     for (at, rewrite) in fast {
         rewrite.apply(&mut functions[at]);
+    }
+    for (at, retarget) in retargets {
+        retarget.apply(&mut functions[at]);
     }
     for f in functions.iter_mut() {
         f.form_candidates.clear();
@@ -1128,6 +1364,99 @@ impl Rewrite {
     }
 }
 
+/// A comparator candidate's instructions, found in its function: what [`run`]
+/// changes where the `by` function is proven.
+///
+/// The comparator's object becomes an object of the `by` function's class,
+/// with its arity and parameter tags, and moves to the `by` option. The `by`
+/// option's `null` moves to `comparator`. The descending row also turns the
+/// default `order` into `Desc`. The call makes the same one object, so the
+/// fast form allocates nothing more.
+struct Retarget {
+    /// The call's place.
+    call: At,
+    /// The `order` default's place, for the descending row.
+    order: Option<At>,
+    /// The `by` function, and where the comparator was made.
+    twin: crate::ir::ByTwin,
+}
+
+impl Retarget {
+    /// The candidate's instructions, or `None` where the IR is not the shape
+    /// the lowering records: a `Core` call with both option slots, and for the
+    /// descending row an `order` that is its own constant `Asc`.
+    fn of(f: &Function, result: ValueId, twin: &crate::ir::ByTwin) -> Option<Self> {
+        let mut defs: FxHashMap<ValueId, At> = FxHashMap::default();
+        let mut uses: FxHashMap<ValueId, usize> = FxHashMap::default();
+        for (b, block) in f.blocks.iter().enumerate() {
+            for (i, inst) in block.insts.iter().enumerate() {
+                if let Some(v) = inst.result {
+                    defs.insert(v, (b, i));
+                }
+                inst.kind
+                    .for_each_operand(|v| *uses.entry(v).or_default() += 1);
+            }
+            block
+                .term
+                .for_each_operand(|v| *uses.entry(v).or_default() += 1);
+        }
+        let inst = |at: At| &f.blocks[at.0].insts[at.1];
+        let call = *defs.get(&result)?;
+        let InstKind::CoreCall { args, .. } = &inst(call).kind else {
+            return None;
+        };
+        let (by, comparator) = twin.slots;
+        if args.len() <= by.max(comparator) {
+            return None;
+        }
+        crate::effects::callback(&inst(*defs.get(&twin.object)?).kind)?;
+        let order = match twin.desc {
+            None => None,
+            Some(slot) => {
+                let value = *args.get(slot)?;
+                let at = *defs.get(&value)?;
+                if !matches!(inst(at).kind, InstKind::ConstInt(0)) || uses.get(&value) != Some(&1) {
+                    return None;
+                }
+                Some(at)
+            }
+        };
+        Some(Self {
+            call,
+            order,
+            twin: twin.clone(),
+        })
+    }
+
+    /// Compiles the fast form in place of the written one.
+    fn apply(self, f: &mut Function) {
+        let twin = self.twin;
+        if let InstKind::CoreCall { args, .. } = &mut f.blocks[self.call.0].insts[self.call.1].kind
+        {
+            args.swap(twin.slots.0, twin.slots.1);
+        }
+        if let Some((b, i)) = self.order {
+            f.blocks[b].insts[i].kind = InstKind::ConstInt(1);
+        }
+        for block in &mut f.blocks {
+            for inst in &mut block.insts {
+                let result = inst.result;
+                match &mut inst.kind {
+                    InstKind::New { class, .. } if result == Some(twin.object) => {
+                        class.clone_from(&twin.class);
+                    }
+                    InstKind::FieldSet { object, class, .. } if *object == twin.object => {
+                        class.clone_from(&twin.class);
+                    }
+                    InstKind::ConstInt(n) if result == Some(twin.arity) => *n = 1,
+                    InstKind::ConstInt(n) if result == Some(twin.tags) => *n = twin.tags_word,
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 /// The outcome a callback gives its form. [`Outcome::Fast`] where its body,
 /// and every body it calls, writes nothing, prints nothing and cannot fail.
 /// [`Outcome::Warning`] where only a possible failure stands in the way.
@@ -1160,7 +1489,9 @@ fn judge(callback: &str, bodies: &FxHashMap<&str, &Function>, summaries: &Summar
         for block in &body.blocks {
             can_fail |= matches!(block.term, Terminator::Throw { .. });
             for inst in &block.insts {
-                can_fail |= inst.on_error.is_some() && !matches!(inst.kind, InstKind::Safepoint);
+                can_fail |= inst.on_error.is_some()
+                    && !matches!(inst.kind, InstKind::Safepoint)
+                    && !matches!(inst.kind, InstKind::CoreCall { symbol, .. } if throws_nothing(symbol));
                 match quiet(&inst.kind, &tys) {
                     Quiet::Yes => {}
                     Quiet::Calls(callee) => stack.push(callee.to_owned()),
@@ -1174,6 +1505,23 @@ fn judge(callback: &str, bodies: &FxHashMap<&str, &Function>, summaries: &Summar
     } else {
         Outcome::Fast
     }
+}
+
+/// Whether the `Core` member at `symbol` throws no error a program can catch:
+/// a member of a class on [`QUIET_CORE`] whose reference card lists no
+/// errors. Every member carries a card (`rule:core-api/reference-card`), and
+/// its `errors` list is every error the member throws, so an empty one is a
+/// member that throws none. Its call keeps an error edge for the memory
+/// ceiling and a stop, which are no outcome a program observes.
+fn throws_nothing(symbol: &str) -> bool {
+    let own = symbol.strip_suffix("_owned").unwrap_or(symbol);
+    QUIET_CORE.iter().any(|prefix| own.starts_with(prefix))
+        && nvs_stdlib::registry::CLASSES
+            .iter()
+            .flat_map(|class| class.members())
+            .find(|method| method.symbol == own)
+            .and_then(|method| method.doc)
+            .is_some_and(|doc| doc.errors.is_empty())
 }
 
 /// Whether one instruction of a callback has an effect a program can observe.

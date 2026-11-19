@@ -3541,6 +3541,34 @@ impl<'a> Lowering<'a> {
             self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
             captured.push((name, ty));
         }
+        // A comparator row's `by` function: its own class, with this
+        // comparator's captures as its fields, and no object made of it here.
+        if self
+            .by_twin
+            .as_ref()
+            .is_some_and(|(span, ..)| *span == expr.span)
+            && let Some((_, by, by_ret)) = self.by_twin.take()
+        {
+            let twin = format!("{class}$by");
+            let tags_word = param_tags_word(&by, self.exprs, self.checked_types);
+            self.twin_made = Some(crate::ir::ByTwin {
+                class: twin.clone(),
+                object: obj,
+                arity: arity_v,
+                tags: tags_v,
+                tags_word,
+                slots: (0, 0),
+                desc: None,
+            });
+            self.anon_fns.push(PendingAnonFn {
+                class: twin,
+                fn_expr: by,
+                captures: captured.clone(),
+                ret: by_ret,
+                this_class: this_class.clone(),
+                span: expr.span,
+            });
+        }
         self.anon_fns.push(PendingAnonFn {
             class,
             fn_expr: fn_expr.clone(),
@@ -5255,7 +5283,34 @@ impl<'a> Lowering<'a> {
                     fast,
                     negated: filter.negated,
                     text,
+                    by: None,
                 });
+                return lowered;
+            }
+            // Rows `comparator-by` and `comparator-by-desc`: the call is
+            // emitted as written, the `by` function is lowered beside the
+            // comparator, and `crate::forms::run` decides from the callback.
+            if cheaper_forms_on()
+                && self.debug.is_none()
+                && let Some(form) =
+                    crate::forms::comparator_by(expr, self.exprs, self.src, self.checked_types)
+            {
+                self.by_twin = Some((form.comparator.span, form.by, form.ret));
+                let lowered = self.lower_core_call(call, symbol, args, None, expr.span, env, cur);
+                self.by_twin = None;
+                if let Some(mut twin) = self.twin_made.take() {
+                    twin.slots = form.slots;
+                    twin.desc = form.desc;
+                    self.form_candidates.push(crate::ir::FormCandidate {
+                        span: expr.span,
+                        row: form.row,
+                        result: lowered.0,
+                        fast: symbol,
+                        negated: false,
+                        text: form.text,
+                        by: Some(twin),
+                    });
+                }
                 return lowered;
             }
             let form = if cheaper_forms_on() {
@@ -5589,6 +5644,7 @@ impl<'a> Lowering<'a> {
             fast,
             negated: true,
             text: filter.text(self.src, none),
+            by: None,
         });
         if none {
             return Some((empty, Ty::Bool));

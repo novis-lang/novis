@@ -2474,6 +2474,14 @@ pub(crate) struct Lowering<'a> {
     pub(crate) own_entry_loops: Vec<crate::ir::OwnEntryLoop>,
     /// The table [`crate::ir::Function::form_candidates`] receives.
     pub(crate) form_candidates: Vec<crate::ir::FormCandidate>,
+    /// A comparator row's `by` function, set while its call is lowered: the
+    /// comparator's span, the function, and what it gives. The comparator's
+    /// own lowering takes it ([`Self::lower_anon_fn_expr`]) and lowers the
+    /// function beside it.
+    pub(crate) by_twin: Option<(Span, nvs_syntax::ast::FnExpr, Ty)>,
+    /// What [`Self::lower_anon_fn_expr`] made of [`Self::by_twin`], taken by
+    /// the call that set it.
+    pub(crate) twin_made: Option<crate::ir::ByTwin>,
     /// [`Self::foreach_seq`]'s counterpart for `switch`, which reserves one
     /// [`Env`] name of its own for the subject it compares against every case
     /// — see [`Self::lower_switch`].
@@ -2824,6 +2832,8 @@ impl<'a> Lowering<'a> {
             foreach_seq: 0,
             own_entry_loops: Vec::new(),
             form_candidates: Vec::new(),
+            by_twin: None,
+            twin_made: None,
             switch_seq: 0,
             ref_locals: FxHashMap::default(),
             inout_elements: Vec::new(),

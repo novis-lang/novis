@@ -7012,6 +7012,38 @@ fn a_callback_with_an_effect_keeps_the_form_and_is_silent() {
     assert!(lower_whole_file_with_src(src).0.forms.is_empty());
 }
 
+/// Rows `comparator-by` and `comparator-by-desc`: a comparator that compares
+/// one proven expression of each side is passed as `by`, so the call makes one
+/// object of the `by` function's class. A comparator that can fail stays, and
+/// is recorded with the `by` form. With the table off, no call takes `by`.
+#[test]
+fn a_comparator_of_one_expression_sorts_by_it() {
+    let src = "<?nvs\nfinal class T {\n  \
+               public static function m(array<string> $a, array<string> $b): void {\n    \
+               echo Core\\Str::join(Core\\Arr::sort($a, {comparator: fn(string $x, string $y): int => Core\\Str::length($x) <=> Core\\Str::length($y)}), \",\");\n    \
+               echo Core\\Str::join(Core\\Arr::diff($a, $b, {comparator: fn(string $x, string $y): int => Core\\Str::length($x) <=> Core\\Str::length($y)}), \",\");\n    \
+               echo Core\\Str::join(Core\\Arr::sort($a, {comparator: fn(string $x, string $y): int => Core\\Str::length($y) <=> Core\\Str::length($x)}), \",\");\n    \
+               echo Core\\Str::join(Core\\Arr::sort($a, {comparator: fn(string $x, string $y): int => ($x as int) <=> ($y as int)}), \",\");\n  }\n}\n";
+    let by_objects = |program: &crate::ir::Program| {
+        insts_where(
+            program,
+            |kind| matches!(kind, InstKind::New { class, .. } if class.ends_with("$by")),
+        )
+    };
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(by_objects(&on), 3);
+    assert_eq!(by_objects(&off), 0);
+    let rows: Vec<(&str, &str)> = on.forms.iter().map(|f| (f.row, f.fast.as_str())).collect();
+    assert_eq!(
+        rows,
+        [(
+            "comparator-by",
+            "Core\\Arr::sort($a, {by: fn(string $x) => ($x as int)})"
+        )]
+    );
+}
+
 /// How many of `calls` are a `Core\Arr::filter`, its owning variant included.
 fn filters_in(calls: &[&str]) -> usize {
     calls

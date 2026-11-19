@@ -77,6 +77,22 @@ filter's instruction into the fast member, where the callback is still alive, an
 into a relabelling of it or its negation. A candidate that can fail is kept in `Program::forms`, with
 its fast form as the program would write it.
 
+A `Core` call in a callback is no error edge when its member is on that quiet list and its reference
+card lists no errors (`rule:core-api/reference-card`): every member has a card, and the card names
+every error the member throws. Its own edge is the memory ceiling and a stop, which no program
+observes.
+
+A comparator row takes a narrow `E`, read from the source text: `E($y)` is `E($x)` with the variable
+renamed, both parameters have the same written type, and there is no `by` option. `E` is a static or
+`Core` call whose arguments are variables or literals, or a conversion of a variable, and it gives
+`int`, `uint` or `string`. For those, `<=>` orders as the member's own comparison does and gives `0`
+exactly where the set members find two values the same. A `float` stays as written, because `NaN` and
+`-0.0` compare differently in the two. The lowering lowers `fn($x) => E($x)` as a function of its own
+class, with the comparator's captures as its fields. A proven candidate makes the comparator's object
+an object of that class and passes it as `by`, and the descending row turns the default `order` into
+`Desc`. So the call makes the same one object in both forms. **What it spends:** while compiling, one
+more function for each comparator row. At run time, nothing.
+
 **Two warnings, both raised by the compiler once.** A form the compiler could not choose is raised by
 the table's pass from its own decision, never from a second analysis, so the editor and `nvs check`
 cannot disagree. The same value read twice warns where two calls of one reading member in one
