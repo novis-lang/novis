@@ -1,7 +1,7 @@
 <?nvs
 // Saves a message in a session that has two other values and removes it, as a page does after it shows the message once.
 // bench: iterations 256
-// bench: complexity linear
+// bench: complexity constant
 // requires: redis
 
 class Bench

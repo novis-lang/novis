@@ -1,7 +1,7 @@
 <?nvs
 // Reads one value from a session that has three, as a page does to show who is signed in.
 // bench: iterations 256
-// bench: complexity linear
+// bench: complexity constant
 // requires: redis
 
 class Bench

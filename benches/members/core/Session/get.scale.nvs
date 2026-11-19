@@ -1,17 +1,19 @@
 <?nvs
 // Measures `Core\Session::get` on a session with one long value, at growing value lengths.
+// It shows that the long value does not make reading another key slower.
 // bench: start 256
 // bench: max 4096
+// bench: rounds 64
 // requires: redis
 
 class Bench
 {
-    public static function run(uint $size): uint
+    public static function run(uint $size, uint $rounds): uint
     {
         Core\Session::set('cart', Core\Str::repeat('a', $size));
         uint $total = 0;
         uint $i = 0;
-        while ($i < 64) {
+        while ($i < $rounds) {
             $total = $total + (Core\Session::get('user') as uint);
             $i = $i + 1;
         }
@@ -21,4 +23,4 @@ class Bench
 
 Core\Session::start();
 Core\Session::set('user', 17);
-echo Bench::run(256), "\n";
+echo Bench::run(256, 64), "\n";
