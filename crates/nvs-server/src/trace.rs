@@ -277,7 +277,13 @@ pub fn spans(
             // The two the rule excludes, and the `match` is exhaustive so a
             // sixth kind arriving is a compile error here rather than a span
             // nobody decided to create.
-            TraceKind::Call | TraceKind::Gc => continue,
+            // A cache, session or file event names a call site for the editor's lens and is
+            // no span of its own: `rule:observability/four-kinds-become-a-span` names the four.
+            TraceKind::Call
+            | TraceKind::Gc
+            | TraceKind::Cache
+            | TraceKind::Session
+            | TraceKind::File => continue,
             TraceKind::Query => SpanKind::Query,
             TraceKind::Http => SpanKind::Http,
             TraceKind::Spawn => SpanKind::Spawn,

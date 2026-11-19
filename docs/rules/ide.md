@@ -1957,6 +1957,16 @@ tree, through the editor's own `vscode.open` command, which a client names in
 `capabilities.experimental.commands` as it names the others. The server sends no command to a client
 that did not name it, and the lens is then a title alone.
 
+The same lens sits on four more kinds of call, the ones `nvs_stdlib::registry::RECORDED_SITE_MEMBERS`
+lists: an outbound HTTP call on `Core\Http\Client`, a read or write on a `Core\Cache\Store`, a read or
+write of `Core\Session`, and a `Core\IO` member that opens a file. The debug index records each as an
+event of kind `http`, `cache`, `session` or `file`, with the same site columns a query has, and the
+lens names the kind it counts: "5 HTTP calls, 12.0 ms in total, slowest 4.1 ms". Where a query
+repeats its statement text, the other kinds repeat their `target`: the host and path, the cache or
+session key, or the file path. A loop that opens one file many times reads "one file repeated 40
+times". A site's kind is the kind of the newest request's events there, and an event of any other
+kind at the line is not counted with it. The target is never a value the call sent or read.
+
 A query is grouped by its call site, the file, line and file hash its traced span records
 ([`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site)), never by its text. So the figures are a few
 numbers per site a request reached, however many times a loop ran the query, which is
@@ -1973,9 +1983,9 @@ The server opens the index read-only, from the data folder, and makes no network
 that is absent, or that the service holds locked, gives no lens and no error.
 
 - **Memory:** in the editor process, a few numbers per query site per lens request, freed with the
-  answer, and the start and end of each query call in the reference index. In the spool and the
-  index, one file, line and hash per traced query and one entry of the site index, under the
-  service's byte cap.
+  answer, and the start and end of each call the lens can sit on in the reference index. In the
+  spool and the index, one file, line and hash per traced site event, one target per event of the
+  four other kinds, and one entry of the site index, under the service's byte cap.
 
 **Declined:**
 - **One parameter set kept per site.** No query span holds a parameter value, and a parameter is

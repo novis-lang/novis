@@ -581,6 +581,12 @@ pub enum EventKind {
     Query,
     /// One outbound HTTP call.
     Http,
+    /// One cache store read or write.
+    Cache,
+    /// One session read or write.
+    Session,
+    /// One file a `Core\IO` member opened.
+    File,
 }
 
 impl From<crate::TraceKind> for EventKind {
@@ -591,6 +597,9 @@ impl From<crate::TraceKind> for EventKind {
             crate::TraceKind::Spawn => Self::Spawn,
             crate::TraceKind::Query => Self::Query,
             crate::TraceKind::Http => Self::Http,
+            crate::TraceKind::Cache => Self::Cache,
+            crate::TraceKind::Session => Self::Session,
+            crate::TraceKind::File => Self::File,
         }
     }
 }
@@ -1886,5 +1895,68 @@ mod tests {
         assert_eq!(event.query.as_ref(), Some(&query));
         assert!(event.start_us <= event.end_us);
         assert_eq!(ctx.trace().len(), 1, "the event is in the trace as well");
+    }
+
+    /// `rule:observability/a-query-span-names-its-call-site`: an `http`, `cache`, `session` or
+    /// `file` event filed with a site id is one `event` line with its kind, its target and the
+    /// row the program's site table gives the id.
+    fn a_site_event_line(name: &str, kind: crate::TraceKind, want: EventKind) {
+        let (mut ctx, dir) = storing(name, "[debug]\nstore = true\n");
+        let mut sites = crate::QuerySites::new();
+        sites.push("shop.nvs", 4, "aa");
+        sites.push("shop.nvs", 9, "aa");
+        ctx.set_query_sites(std::sync::Arc::new(sites));
+        ctx.record_site_event(
+            kind,
+            "Core\\Example::member",
+            Duration::from_millis(1),
+            Some("orders/7".to_owned()),
+            2,
+        );
+        ctx.record_site_event(kind, "Core\\Example::member", Duration::ZERO, None, 0);
+
+        let all = sealed_lines(&dir);
+        let [named, unnamed] = all.as_slice() else {
+            panic!("two filed events, two lines: {all:?}");
+        };
+        let (Record::Event(named), Record::Event(unnamed)) = (&named.record, &unnamed.record)
+        else {
+            panic!("not event lines: {all:?}");
+        };
+        assert_eq!(named.event, want);
+        assert_eq!(named.target.as_deref(), Some("orders/7"));
+        let site = named.site.as_ref().expect("id 2 names a site");
+        assert_eq!((site.file.as_str(), site.line), ("shop.nvs", 9));
+        assert_eq!(unnamed.site, None, "the zero id names no site");
+        assert_eq!(unnamed.target, None);
+        assert_eq!(ctx.trace().len(), 2, "both events are in the trace as well");
+    }
+
+    /// An `http` event names its call site and its host and path.
+    #[test]
+    fn an_http_event_line_names_its_site() {
+        a_site_event_line("spool-http-site", crate::TraceKind::Http, EventKind::Http);
+    }
+
+    /// A `cache` event names its call site and its key.
+    #[test]
+    fn a_cache_event_line_names_its_site() {
+        a_site_event_line("spool-cache-site", crate::TraceKind::Cache, EventKind::Cache);
+    }
+
+    /// A `session` event names its call site and its key.
+    #[test]
+    fn a_session_event_line_names_its_site() {
+        a_site_event_line(
+            "spool-session-site",
+            crate::TraceKind::Session,
+            EventKind::Session,
+        );
+    }
+
+    /// A `file` event names its call site and its path.
+    #[test]
+    fn a_file_event_line_names_its_site() {
+        a_site_event_line("spool-file-site", crate::TraceKind::File, EventKind::File);
     }
 }

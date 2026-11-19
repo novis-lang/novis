@@ -131,7 +131,7 @@ use std::time::Duration;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use nvs_config::session::Backend;
-use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, TraceKind, Value};
 use nvs_syntax::duration;
 
 use crate::cache::redis::Connection;
@@ -1354,27 +1354,34 @@ nvs_runtime::nvs_helper! {
     ///
     /// As [`record`]: [`unstarted`] before `start`, and a thrown `ParseError` for a record naming
     /// a class this program cannot resolve.
-    fn nvs_core_session_get(ctx, args: [1]) {
-        let key = crate::string_arg(&args[0], format_args!("{NAME}::get's $key"))?;
-        let held = record(ctx, "get")?;
-        // `NvsArray::get` borrows rather than retains, and the handle releases the whole record
-        // when it is dropped below — so the answer needs a reference of its own first.
-        let answer = match held.get(key.as_bytes()) {
-            Some(found) => {
-                #[expect(
-                    unsafe_code,
-                    reason = "the record holds a live reference to this value until \
-                              the handle is dropped, which is after the retain"
-                )]
-                unsafe {
-                    found.retain();
+    ///
+    /// The last slot is the call site's id, which [`crate::registry::RECORDED_SITE_MEMBERS`] puts
+    /// last, and [`crate::site::watched`] files the call's `session` event under it.
+    fn nvs_core_session_get(ctx, args: [2]) {
+        let site = args[1];
+        let target = args[0].as_text();
+        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::get", target, |ctx| {
+            let key = crate::string_arg(&args[0], format_args!("{NAME}::get's $key"))?;
+            let held = record(ctx, "get")?;
+            // `NvsArray::get` borrows rather than retains, and the handle releases the whole record
+            // when it is dropped below — so the answer needs a reference of its own first.
+            let answer = match held.get(key.as_bytes()) {
+                Some(found) => {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the record holds a live reference to this value until \
+                                  the handle is dropped, which is after the retain"
+                    )]
+                    unsafe {
+                        found.retain();
+                    }
+                    found
                 }
-                found
-            }
-            None => Value::null(),
-        };
-        drop(held);
-        Ok(answer)
+                None => Value::null(),
+            };
+            drop(held);
+            Ok(answer)
+        })
     }
 }
 
@@ -1393,21 +1400,27 @@ nvs_runtime::nvs_helper! {
     /// As [`record`] and [`write_back`]: [`unstarted`] before `start`, a thrown `ParseError` for a
     /// record this unit cannot decode, and a thrown `LogicError` for a `$value` the cross-boundary
     /// copy refuses.
-    fn nvs_core_session_set(ctx, args: [2]) {
-        let key = crate::string_arg(&args[0], format_args!("{NAME}::set's $key"))?;
-        let mut held = record(ctx, "set")?;
-        // The record takes over one reference and the argument slot keeps its own, which is the
-        // same split `Core\Cache\Store::put` makes before handing a value to the carrier.
-        #[expect(
-            unsafe_code,
-            reason = "the argument slot holds a live reference for the length of \
-                      the call, which is `Value::retain`'s whole obligation"
-        )]
-        unsafe {
-            args[1].retain();
-        }
-        held.set(NvsStr::new(key.as_bytes()), args[1]);
-        write_back(ctx, held, "set")
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is.
+    fn nvs_core_session_set(ctx, args: [3]) {
+        let site = args[2];
+        let target = args[0].as_text();
+        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::set", target, |ctx| {
+            let key = crate::string_arg(&args[0], format_args!("{NAME}::set's $key"))?;
+            let mut held = record(ctx, "set")?;
+            // The record takes over one reference and the argument slot keeps its own, which is the
+            // same split `Core\Cache\Store::put` makes before handing a value to the carrier.
+            #[expect(
+                unsafe_code,
+                reason = "the argument slot holds a live reference for the length of \
+                          the call, which is `Value::retain`'s whole obligation"
+            )]
+            unsafe {
+                args[1].retain();
+            }
+            held.set(NvsStr::new(key.as_bytes()), args[1]);
+            write_back(ctx, held, "set")
+        })
     }
 }
 
@@ -1434,15 +1447,21 @@ nvs_runtime::nvs_helper! {
     ///
     /// As [`record`] and [`write_back`], plus [`crate::keyring`]'s `LogicError` for a ring that is
     /// empty or holds something that is not a key.
-    fn nvs_core_session_set_secret(ctx, args: [3]) {
-        let mut held = record(ctx, "setSecret")?;
-        let key = crate::string_arg(&args[0], format_args!("{NAME}::setSecret's $key"))?;
-        let value = secret_at(&args[1], "setSecret")?;
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is. Its event names no
+    /// target, because the key is a secret's.
+    fn nvs_core_session_set_secret(ctx, args: [4]) {
+        let site = args[3];
+        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::setSecret", None, |ctx| {
+            let mut held = record(ctx, "setSecret")?;
+            let key = crate::string_arg(&args[0], format_args!("{NAME}::setSecret's $key"))?;
+            let value = secret_at(&args[1], "setSecret")?;
 
-        let who = format!("{NAME}::setSecret");
-        let ring = crate::keyring::borrow(args, 2, &who)?;
-        sealed_into(ctx, &mut held, key, value.as_bytes(), &ring, &who)?;
-        write_back(ctx, held, "setSecret")
+            let who = format!("{NAME}::setSecret");
+            let ring = crate::keyring::borrow(args, 2, &who)?;
+            sealed_into(ctx, &mut held, key, value.as_bytes(), &ring, &who)?;
+            write_back(ctx, held, "setSecret")
+        })
     }
 }
 
@@ -1466,15 +1485,21 @@ nvs_runtime::nvs_helper! {
     ///
     /// As [`record`], plus [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
     /// something that is not a key.
-    fn nvs_core_session_get_secret(ctx, args: [2]) -> Value, owns NvsStr {
-        let held = record(ctx, "getSecret")?;
-        let key = crate::string_arg(&args[0], format_args!("{NAME}::getSecret's $key"))?;
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is. Its event names no
+    /// target.
+    fn nvs_core_session_get_secret(ctx, args: [3]) -> Value, owns NvsStr {
+        let site = args[2];
+        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::getSecret", None, |ctx| {
+            let held = record(ctx, "getSecret")?;
+            let key = crate::string_arg(&args[0], format_args!("{NAME}::getSecret's $key"))?;
 
-        let who = format!("{NAME}::getSecret");
-        let ring = crate::keyring::borrow(args, 1, &who)?;
-        let answer = opened_from(ctx, &held, key, &ring, &who)?;
-        drop(held);
-        Ok(answer.unwrap_or_else(Value::null))
+            let who = format!("{NAME}::getSecret");
+            let ring = crate::keyring::borrow(args, 1, &who)?;
+            let answer = opened_from(ctx, &held, key, &ring, &who)?;
+            drop(held);
+            Ok(answer.unwrap_or_else(Value::null))
+        })
     } apply(result, _subject) {
         result
     }
@@ -1492,15 +1517,21 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// As [`nvs_core_session_set`].
-    fn nvs_core_session_remove(ctx, args: [1]) {
-        let key = crate::string_arg(&args[0], format_args!("{NAME}::remove's $key"))?;
-        let mut held = record(ctx, "remove")?;
-        if !held.has_key(key.as_bytes()) {
-            drop(held);
-            return Ok(Value::null());
-        }
-        held.unset(key.as_bytes());
-        write_back(ctx, held, "remove")
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_session_get`]'s is.
+    fn nvs_core_session_remove(ctx, args: [2]) {
+        let site = args[1];
+        let target = args[0].as_text();
+        crate::site::watched(ctx, site, TraceKind::Session, r"Core\Session::remove", target, |ctx| {
+            let key = crate::string_arg(&args[0], format_args!("{NAME}::remove's $key"))?;
+            let mut held = record(ctx, "remove")?;
+            if !held.has_key(key.as_bytes()) {
+                drop(held);
+                return Ok(Value::null());
+            }
+            held.unset(key.as_bytes());
+            write_back(ctx, held, "remove")
+        })
     }
 }
 
@@ -2535,7 +2566,8 @@ mod tests {
             if changes {
                 let key = Value::text("cart");
                 let value = Value::text("17");
-                nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &[key, value])
+                let site = Value::int(0);
+                nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &[key, value, site])
                     .expect("the value is saved");
                 dropped(key);
                 dropped(value);
@@ -2960,7 +2992,7 @@ mod tests {
         let requests = if cfg!(miri) { 20 } else { 20_000 };
         for _ in 0..requests {
             let mut ctx = request();
-            let read = [Value::text("user")];
+            let read = [Value::text("user"), Value::int(0)];
             let answer = nvs_runtime::call(super::nvs_core_session_get, &mut ctx, &read);
             read.into_iter().for_each(dropped);
             dropped(answer.expect("an empty session reads"));
@@ -2976,7 +3008,7 @@ mod tests {
         );
 
         let mut ctx = request();
-        let write = [Value::text("user"), Value::text("ada")];
+        let write = [Value::text("user"), Value::text("ada"), Value::int(0)];
         let answer = nvs_runtime::call(super::nvs_core_session_set, &mut ctx, &write);
         write.into_iter().for_each(dropped);
         dropped(answer.expect("the first write is kept"));
@@ -3013,7 +3045,8 @@ mod tests {
     fn get_answers_a_held_key_and_null_for_the_rest_and_earns_no_write() {
         fn got(ctx: &mut Ctx, key: &[u8]) -> Result<Value, i32> {
             let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
-            let answer = nvs_runtime::call(super::nvs_core_session_get, ctx, &[key]);
+            let args = [key, Value::int(0)];
+            let answer = nvs_runtime::call(super::nvs_core_session_get, ctx, &args);
             dropped(key);
             answer
         }
@@ -3074,7 +3107,8 @@ mod tests {
     fn remove_takes_a_held_key_out_and_earns_no_write_for_an_absent_one() {
         fn removed(ctx: &mut Ctx, key: &[u8]) -> Result<Value, i32> {
             let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
-            let answer = nvs_runtime::call(super::nvs_core_session_remove, ctx, &[key]);
+            let args = [key, Value::int(0)];
+            let answer = nvs_runtime::call(super::nvs_core_session_remove, ctx, &args);
             dropped(key);
             answer
         }
@@ -3130,7 +3164,8 @@ mod tests {
         fn saved(ctx: &mut Ctx, key: &[u8], value: &[u8]) -> Result<Value, i32> {
             let key = Value::text(std::str::from_utf8(key).expect("the test writes UTF-8"));
             let value = Value::text(std::str::from_utf8(value).expect("the test writes UTF-8"));
-            let answer = nvs_runtime::call(super::nvs_core_session_set, ctx, &[key, value]);
+            let args = [key, value, Value::int(0)];
+            let answer = nvs_runtime::call(super::nvs_core_session_set, ctx, &args);
             dropped(key);
             dropped(value);
             answer
@@ -3169,6 +3204,26 @@ mod tests {
         assert_eq!(read(&ctx, b"language").as_deref(), Some("de"));
     }
 
+    /// A `get` in a recorded request files one `session` event under the member's name.
+    #[test]
+    fn a_recorded_session_read_files_one_session_event() {
+        let mut ctx = started();
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+        let mut sites = nvs_runtime::QuerySites::new();
+        sites.push("shop.nvs", 4, "aa");
+        ctx.set_query_sites(Arc::new(sites));
+
+        let args = [Value::text("cart"), Value::int(1)];
+        let answer = nvs_runtime::call(super::nvs_core_session_get, &mut ctx, &args);
+        args.into_iter().for_each(dropped);
+        dropped(answer.expect("an empty record reads"));
+
+        let filed = ctx.trace().iter().any(|event| {
+            event.kind == nvs_runtime::TraceKind::Session && event.callee == r"Core\Session::get"
+        });
+        assert!(filed, "the read files one `session` event named after the member");
+    }
+
     /// A context with a session open over an empty record, as `start` leaves one.
     fn started() -> Ctx {
         let mut ctx = Ctx::buffered();
@@ -3189,6 +3244,7 @@ mod tests {
             Value::text(std::str::from_utf8(key).expect("the test writes UTF-8")),
             Value::text(std::str::from_utf8(value).expect("the test writes UTF-8")),
             crate::keyring::tests::ring_of(ring),
+            Value::int(0),
         ];
         let answer = nvs_runtime::call(super::nvs_core_session_set_secret, ctx, &args);
         args.into_iter().for_each(dropped);
@@ -3200,6 +3256,7 @@ mod tests {
         let args = [
             Value::text(std::str::from_utf8(key).expect("the test writes UTF-8")),
             crate::keyring::tests::ring_of(ring),
+            Value::int(0),
         ];
         let answer = nvs_runtime::call(super::nvs_core_session_get_secret, ctx, &args);
         args.into_iter().for_each(dropped);

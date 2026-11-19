@@ -741,6 +741,9 @@ const fn kind(kind: EventKind) -> &'static str {
         EventKind::Spawn => "spawn",
         EventKind::Query => "query",
         EventKind::Http => "http",
+        EventKind::Cache => "cache",
+        EventKind::Session => "session",
+        EventKind::File => "file",
     }
 }
 

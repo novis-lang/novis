@@ -29,16 +29,21 @@ use serde_json::value::RawValue;
 use super::api::{self, PAGE_DEFAULT, PAGE_MAX};
 
 /// The kinds of trace event the `events` table holds.
-const EVENT_KINDS: [&str; 5] = ["call", "query", "spawn", "gc", "http"];
+const EVENT_KINDS: [&str; 8] = [
+    "call", "query", "spawn", "gc", "http", "cache", "session", "file",
+];
 
 /// Every kind a stream filter names.
-const KINDS: [&str; 10] = [
+const KINDS: [&str; 13] = [
     "request",
     "call",
     "query",
     "spawn",
     "gc",
     "http",
+    "cache",
+    "session",
+    "file",
     "dump",
     "log",
     "dropped",

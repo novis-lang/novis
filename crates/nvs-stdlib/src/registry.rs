@@ -4099,10 +4099,14 @@ pub fn takes_query_site(class: &str, method: &str) -> bool {
 /// write, a session read or write, and a member that opens a file.
 ///
 /// The editor's lens reads this roster with [`records_site`] to find the calls it may show
-/// figures on (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`). Each is a
-/// fixed argument list, as [`QUERY_SITE_MEMBERS`]' are, so a trailing site id has a position.
+/// figures on (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`), and the
+/// lowering passes each call its site id as its last argument, as it does a
+/// [`QUERY_SITE_MEMBERS`] call. Each is a fixed argument list, so the id has a position, and the
+/// helper's `args: [N]` counts it. The helper reads it only when the request is recorded
+/// (`crate::site::watched`). A call through a callable reference passes the zero id.
 ///
-/// **What it spends:** nothing at run time. The editor tests one more short list per call.
+/// **What it spends:** one constant per call site in the compiled code, in every mode. The
+/// editor tests one more short list per call.
 pub const RECORDED_SITE_MEMBERS: &[(&str, &str)] = &[
     (crate::http::CLIENT_NAME, "get"),
     (crate::http::CLIENT_NAME, "post"),
@@ -6177,6 +6181,28 @@ mod tests {
                     "`{owner}::{name}` is on two rosters that each claim the last slot"
                 );
             }
+        }
+    }
+
+    /// Every [`RECORDED_SITE_MEMBERS`] entry is a registered fixed-length row that is on no
+    /// other roster claiming the last slot, so the site id the compiler appends is that slot.
+    #[test]
+    fn every_recorded_site_member_takes_a_fixed_argument_list() {
+        for (owner, name) in RECORDED_SITE_MEMBERS {
+            let class = self::class(owner)
+                .unwrap_or_else(|| panic!("`{owner}` records a site and is no class"));
+            let member = class
+                .members()
+                .find(|member| member.name == *name)
+                .unwrap_or_else(|| panic!("`{owner}::{name}` records a site and is no row"));
+            assert!(
+                member.variadic().is_none(),
+                "`{owner}::{name}` is variadic, so its last argument is its own tail"
+            );
+            assert!(
+                !takes_call_site(owner, name) && !takes_query_site(owner, name),
+                "`{owner}::{name}` is on two rosters that each claim the last slot"
+            );
         }
     }
 

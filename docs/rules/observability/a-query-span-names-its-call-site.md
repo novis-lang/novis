@@ -10,6 +10,13 @@ of the spool or the debug index needs no table of its own. An id is only meaning
 that numbered it, and a recompile numbers the sites again. A context that was given no table, such as
 a unit test's, records no site.
 
+Every member on `nvs_stdlib::registry::RECORDED_SITE_MEMBERS` takes the same id as its last argument:
+an outbound HTTP call, a cache or session read or write, and a `Core\IO` member that opens a file.
+Its `http`, `cache`, `session` or `file` event (`rule:observability/trace-events-carry-a-kind`)
+carries the table's row as a query's span does, and with it a target: the host and path, the key or
+the file path. The editor's recorded lens counts the most frequent target as the call's repeats. The
+member reads the id only when the request is recorded, so a call nobody records reads nothing.
+
 The id follows the rosters the registry already keeps for constants of a call
 (`rule:security/reflection-enforces-visibility`'s call site is one): there is no argument position a
 program can write it in. A call through a callable reference passes the zero id, which names no site,
@@ -19,9 +26,10 @@ The site is exact because the compiler wrote it. Two calls with the same SQL are
 call that builds its SQL at run time is one site. The span still holds no bound parameter
 (`rule:observability/a-query-is-a-trace-event`): a site id is not a value of the program.
 
-- **Memory:** one integer constant per query call site in the compiled code, and one table row per
-  site per compiled program, with one name and hash per file that has a site. A recorded span holds
-  the file, the line and the hash. A call nobody traces reads nothing.
+- **Memory:** one integer constant per query, HTTP, cache, session and file call site in the
+  compiled code, and one table row per site per compiled program, with one name and hash per file
+  that has a site. A recorded span holds the file, the line and the hash, and a recorded event of
+  the other four kinds holds its target too. A call nobody traces reads nothing.
 
 **Declined:**
 - **Passing the id only when tracing is on.** One compiled program serves requests with tracing on and

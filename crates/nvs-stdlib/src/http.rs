@@ -1505,16 +1505,19 @@ const IDLE: usize = 21;
 /// See [`IDLE`].
 const MAX_DURATION: usize = 22;
 
-/// How many arguments a request member takes: the URL plus one per option, which
-/// is what every `nvs_helper!` row below writes as its arity. Derived rather
-/// than written, so a key added to [`OPTIONS`] cannot leave a helper declaring
-/// an arity the call site does not pass. The body keys hold the slots after
-/// [`RETRY_KEY`] and are named where they are read.
+/// How many arguments a request member takes: the URL plus one per option. Each
+/// `nvs_helper!` row below takes one slot more, the call-site id
+/// `crate::registry::RECORDED_SITE_MEMBERS` puts last, and `request` one more
+/// again for its verb in front. Derived rather than written, so a key added to
+/// [`OPTIONS`] cannot leave a helper declaring an arity the call site does not
+/// pass. The body keys hold the slots after [`RETRY_KEY`] and are named where
+/// they are read.
 const REQUEST_ARITY: usize = OPTIONS.len() + 1;
 
 /// How many arguments `stream` takes after the verb it is handed: the URL plus
 /// one per key of [`STREAM_OPTIONS`], which is [`REQUEST_ARITY`] and the two
-/// bounds that bag adds. Derived for that constant's reason.
+/// bounds that bag adds. Its helper row takes the verb in front and the
+/// call-site id last as well. Derived for that constant's reason.
 const STREAM_ARITY: usize = STREAM_OPTIONS.len() + 1;
 
 /// The ABI slot each of [`SOCKET_OPTIONS`]' keys flattens into. The shared
@@ -3716,12 +3719,20 @@ fn fields_of(
 /// is measured from starts once all of it has passed, since a budget spent
 /// judging arguments is not a budget the other end was given.
 ///
+/// `site` is the call site's id, which the trace event names; 0 names none.
+///
 /// # Errors
 ///
 /// [`pin`]'s, [`judge_bound`]'s, [`judge_attempts`]', [`judge_verb`]'s and
 /// [`judge_trust`]'s, and then [`transport::send`]'s.
-fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
-    let (status, body, headers, tls) = exchanged(ctx, args, member, verb, false)?;
+fn request(
+    ctx: &mut Ctx,
+    args: &[Value],
+    member: &str,
+    verb: &str,
+    site: u32,
+) -> Result<Value, Fault> {
+    let (status, body, headers, tls) = exchanged(ctx, args, member, verb, false, site)?;
     Ok(crate::instance::build(
         &RESPONSE,
         [Value::int(status), body, headers, tls_info(tls)],
@@ -3865,6 +3876,8 @@ fn leaf_of(chain: &[Vec<u8>], member: &str) -> Result<nvs_host::tls::Leaf, Fault
 /// `tls` member, and building a `Core\Http\TlsInfo` for it would allocate an
 /// answer nothing can ask for.
 ///
+/// `site` is the call site's id, which [`traced`] files with the event.
+///
 /// # Errors
 ///
 /// [`approved`]'s refusals, [`judge_bound`]'s, [`judge_attempts`]',
@@ -3877,6 +3890,7 @@ fn exchanged(
     member: &str,
     verb: &str,
     streamed: bool,
+    site: u32,
 ) -> Result<(i64, Value, Value, Option<transport::Tls>), Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
     if ctx.faked_http().is_armed() {
@@ -3923,14 +3937,14 @@ fn exchanged(
         })?;
         let headers = header_map(&answer.headers);
         let body = filed(ctx, answer.body);
-        traced(ctx, &call);
+        traced(ctx, &call, site);
         return Ok((answer.status, body, headers, answer.tls));
     }
     let reply = transport::send(&call, &mut |hop, downgrade| {
         repinned(ctx, args, hop, downgrade, &named)
     })?;
     let headers = header_map(&reply.headers);
-    traced(ctx, &call);
+    traced(ctx, &call, site);
     Ok((
         reply.status,
         Value::bytes(NvsStr::new(&reply.body)),
@@ -4290,7 +4304,7 @@ pub fn extension_send(
         }
         repinned(ctx, &args, hop, downgrade, &named)
     })?;
-    traced(ctx, &call);
+    traced(ctx, &call, 0);
     Ok(ExtensionReply {
         status: reply.status,
         headers: reply.headers,
@@ -4367,7 +4381,7 @@ pub(crate) fn push_send(
             "{member} asked to follow a redirect under a limit of none"
         )))
     })?;
-    traced(ctx, &call);
+    traced(ctx, &call, 0);
     Ok(reply.status)
 }
 
@@ -4460,7 +4474,10 @@ fn call_of<'a>(
 /// [`faked`] before a span exists, so nothing crossed a network and there is
 /// nothing to report. On a streamed reply the event is filed with the head,
 /// which is where the call ends and the program's own reading begins.
-fn traced(ctx: &mut Ctx, call: &transport::Call<'_>) {
+///
+/// The event names `site`, the call site's id (0 names none), and
+/// [`trace_target`]'s host and path of the call's URL.
+fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
     if !ctx.records_spans() {
         return;
     }
@@ -4469,7 +4486,24 @@ fn traced(ctx: &mut Ctx, call: &transport::Call<'_>) {
         span.finished();
         (span.to_string(), span.duration())
     };
-    ctx.record_http(&line, took);
+    let target = trace_target(&call.url);
+    ctx.record_site_event(nvs_runtime::TraceKind::Http, &line, took, Some(target), site);
+}
+
+/// The host and path of `url`, as a trace event names its target: the scheme,
+/// any userinfo, the query string and the fragment are left out, so a
+/// credential or a token in the URL never reaches a trace. A port stays with
+/// its host.
+fn trace_target(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let end = rest.find(['?', '#']).unwrap_or(rest.len());
+    let rest = &rest[..end];
+    let (authority, path) = match rest.find('/') {
+        Some(slash) => rest.split_at(slash),
+        None => (rest, ""),
+    };
+    let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+    format!("{host}{path}")
 }
 
 /// A streamed reply's body, filed against this request, as the key its
@@ -4890,48 +4924,55 @@ fn redirects_of(ctx: &Ctx, args: &[Value]) -> u32 {
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::get(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. [`request`] is the body; the verb is this row's own name.
-    fn nvs_core_http_client_get(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "get", "GET")
+    /// The last slot is the call-site id `crate::registry::RECORDED_SITE_MEMBERS` appends.
+    fn nvs_core_http_client_get(ctx, args: [REQUEST_ARITY + 1]) {
+        let site = crate::site::site_id(args[REQUEST_ARITY]);
+        request(ctx, &args[..REQUEST_ARITY], "get", "GET", site)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::post(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_post(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "post", "POST")
+    fn nvs_core_http_client_post(ctx, args: [REQUEST_ARITY + 1]) {
+        let site = crate::site::site_id(args[REQUEST_ARITY]);
+        request(ctx, &args[..REQUEST_ARITY], "post", "POST", site)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::put(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_put(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "put", "PUT")
+    fn nvs_core_http_client_put(ctx, args: [REQUEST_ARITY + 1]) {
+        let site = crate::site::site_id(args[REQUEST_ARITY]);
+        request(ctx, &args[..REQUEST_ARITY], "put", "PUT", site)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::patch(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_patch(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "patch", "PATCH")
+    fn nvs_core_http_client_patch(ctx, args: [REQUEST_ARITY + 1]) {
+        let site = crate::site::site_id(args[REQUEST_ARITY]);
+        request(ctx, &args[..REQUEST_ARITY], "patch", "PATCH", site)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::delete(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_delete(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "delete", "DELETE")
+    fn nvs_core_http_client_delete(ctx, args: [REQUEST_ARITY + 1]) {
+        let site = crate::site::site_id(args[REQUEST_ARITY]);
+        request(ctx, &args[..REQUEST_ARITY], "delete", "DELETE", site)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::head(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_head(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "head", "HEAD")
+    fn nvs_core_http_client_head(ctx, args: [REQUEST_ARITY + 1]) {
+        let site = crate::site::site_id(args[REQUEST_ARITY]);
+        request(ctx, &args[..REQUEST_ARITY], "head", "HEAD", site)
     }
 }
 
@@ -4942,11 +4983,13 @@ nvs_runtime::nvs_helper! {
     /// The verb arrives at slot 0 and every option sits one slot further on, so
     /// the rest of the row is [`request`]'s under a slice of its own arguments
     /// rather than a second copy of the same reading. What the named rows
-    /// answer while compiling, [`judge_verb`] answers here.
-    fn nvs_core_http_client_request(ctx, args: [REQUEST_ARITY + 1]) {
+    /// answer while compiling, [`judge_verb`] answers here. The last slot is the
+    /// call-site id `crate::registry::RECORDED_SITE_MEMBERS` appends.
+    fn nvs_core_http_client_request(ctx, args: [REQUEST_ARITY + 2]) {
         let verb = crate::router::method_verb(&args[0], "Core\\Http\\Client::request")?
             .to_ascii_uppercase();
-        request(ctx, &args[1..], "request", &verb)
+        let site = crate::site::site_id(args[REQUEST_ARITY + 1]);
+        request(ctx, &args[1..=REQUEST_ARITY], "request", &verb, site)
     }
 }
 
@@ -5463,7 +5506,7 @@ mod tests {
 
         let url = Value::text(&format!("http://{at}/ok"));
         let args = asking(url);
-        let answer = super::request(&mut ctx, &args, "get", "GET").expect("the origin's answer");
+        let answer = super::request(&mut ctx, &args, "get", "GET", 0).expect("the origin's answer");
         #[expect(
             unsafe_code,
             reason = "this frame owns the references it just produced and the one \
@@ -5504,6 +5547,56 @@ mod tests {
         }
     }
 
+    /// A `get` called with a site word under a recording context and a site table files
+    /// one `http` event, and the site slot after the bag is read without disturbing it.
+    #[test]
+    fn a_recorded_call_with_a_site_files_one_http_event() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        ]);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+        let mut sites = nvs_runtime::QuerySites::new();
+        sites.push("shop.nvs", 4, "aa");
+        ctx.set_query_sites(std::sync::Arc::new(sites));
+
+        let url = Value::text(&format!("http://{at}/ok"));
+        let mut args = [Value::null(); REQUEST_ARITY + 1];
+        args[..REQUEST_ARITY].copy_from_slice(&asking(url));
+        args[REQUEST_ARITY] = Value::int(1);
+        let answer = nvs_runtime::call(super::nvs_core_http_client_get, &mut ctx, &args)
+            .expect("the origin's answer");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            answer.release();
+        }
+        assert_eq!(served.join().expect("the origin thread"), 1);
+
+        let trace = ctx.trace();
+        assert_eq!(trace.len(), 1, "one event per call: {trace:?}");
+        assert_eq!(trace[0].kind, nvs_runtime::TraceKind::Http);
+    }
+
+    /// A trace event's target is the URL's host and path: the scheme, the userinfo,
+    /// the query string and the fragment are left out.
+    #[test]
+    fn an_http_target_is_the_host_and_path_alone() {
+        assert_eq!(
+            super::trace_target("https://user:secret@api.example.test/v1/pay?token=x#top"),
+            "api.example.test/v1/pay"
+        );
+        assert_eq!(super::trace_target("http://example.test:8080?q=1"), "example.test:8080");
+        assert_eq!(super::trace_target("http://example.test/a#b"), "example.test/a");
+    }
+
     /// The rule's *one event carrying its attempt count*: a call the origin
     /// refused once is one line saying it took two tries, and not two lines.
     ///
@@ -5525,7 +5618,7 @@ mod tests {
         let mut args = asking(url);
         args[RETRY_ATTEMPTS] = Value::uint(2);
         let answer =
-            super::request(&mut ctx, &args, "get", "GET").expect("the second attempt's answer");
+            super::request(&mut ctx, &args, "get", "GET", 0).expect("the second attempt's answer");
         #[expect(
             unsafe_code,
             reason = "this frame owns the references it just produced and the one \
@@ -5573,7 +5666,8 @@ mod tests {
         args[0] = url;
         args[HEADERS] = headers;
         args[JSON] = body;
-        let answer = super::request(&mut ctx, &args, "post", "POST").expect("the origin's answer");
+        let answer =
+            super::request(&mut ctx, &args, "post", "POST", 0).expect("the origin's answer");
         #[expect(
             unsafe_code,
             reason = "this frame owns the four references it just produced, and a \
@@ -5624,7 +5718,7 @@ mod tests {
 
         let url = Value::text(URL);
         let args = asking(url);
-        let answer = super::request(&mut ctx, &args, "get", "GET").expect("the table's answer");
+        let answer = super::request(&mut ctx, &args, "get", "GET", 0).expect("the table's answer");
         #[expect(
             unsafe_code,
             reason = "this frame owns the references it just produced and the one \
@@ -6042,7 +6136,7 @@ mod tests {
         let url = Value::text(&format!("http://{at}/ok"));
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
-        let refused = super::request(&mut ctx, &args, "get", "GET")
+        let refused = super::request(&mut ctx, &args, "get", "GET", 0)
             .expect_err("loopback, which `net.internal` does not except");
         #[expect(
             unsafe_code,
@@ -6169,7 +6263,7 @@ mod tests {
         ctx.set_config(granting(REACHABLE));
         let url = Value::text(&format!("http://{at}{path}"));
         let args = asking(url);
-        let answer = super::request(&mut ctx, &args, member, verb).expect("the origin's answer");
+        let answer = super::request(&mut ctx, &args, member, verb, 0).expect("the origin's answer");
         let head = served.join().expect("the origin thread");
         #[expect(
             unsafe_code,
@@ -6309,8 +6403,8 @@ mod tests {
         args[JSON] = json;
         args[RETRY_ATTEMPTS] = Value::uint(2);
         args[RETRY_KEY] = key;
-        let answer =
-            super::request(&mut ctx, &args, "post", "POST").expect("the second attempt's answer");
+        let answer = super::request(&mut ctx, &args, "post", "POST", 0)
+            .expect("the second attempt's answer");
         let object = answer.obj_ptr().expect("the answer is an instance");
         let status = crate::instance::slot(object, STATUS_SLOT).as_int();
         #[expect(
@@ -6372,7 +6466,7 @@ mod tests {
         args[RETRY_ATTEMPTS] = Value::uint(2);
         args[JSON] = body;
         let answer =
-            super::request(&mut ctx, &args, "put", "PUT").expect("the second attempt's answer");
+            super::request(&mut ctx, &args, "put", "PUT", 0).expect("the second attempt's answer");
         let object = answer.obj_ptr().expect("the answer is an instance");
         let status = crate::instance::slot(object, STATUS_SLOT).as_int();
         #[expect(
@@ -6430,7 +6524,7 @@ mod tests {
         let mut keyless = asking(url);
         keyless[JSON] = status;
         keyless[RETRY_ATTEMPTS] = Value::uint(3);
-        let refused = super::request(&mut ctx, &keyless, "patch", "PATCH")
+        let refused = super::request(&mut ctx, &keyless, "patch", "PATCH", 0)
             .expect_err("a retried `PATCH` with no key");
         assert!(
             format!("{refused:?}").contains("retryIdempotencyKey"),
@@ -6442,7 +6536,7 @@ mod tests {
         keyed[RETRY_ATTEMPTS] = Value::uint(3);
         keyed[RETRY_KEY] = key;
         let answer =
-            super::request(&mut ctx, &keyed, "patch", "PATCH").expect("the origin's answer");
+            super::request(&mut ctx, &keyed, "patch", "PATCH", 0).expect("the origin's answer");
         let requests = served.join().expect("the origin thread");
         let object = answer.obj_ptr().expect("the answer is an instance");
         let answered = crate::instance::slot(object, STATUS_SLOT).as_int();
@@ -6553,7 +6647,7 @@ mod tests {
         args[HEADERS] = Value::array(NvsArray::new());
         args[JSON] = Value::unset();
         let (status, body, headers, _) =
-            super::exchanged(&mut ctx, &args, "stream", "POST", true).expect("the head arrived");
+            super::exchanged(&mut ctx, &args, "stream", "POST", true, 0).expect("the head arrived");
         release.send(()).ok();
         let (head, held_back) = served.join().expect("the origin thread");
 
@@ -7827,7 +7921,7 @@ mod tests {
         // and this call sends none — the bag's own `Const::NeverWritten`.
         args[JSON] = Value::unset();
         args[REQUEST_BAG.verify()] = Value::bool(false);
-        let refused = super::request(&mut ctx, &args, "get", "GET")
+        let refused = super::request(&mut ctx, &args, "get", "GET", 0)
             .expect_err("`tlsVerify: false` under a deployment that granted no `tls.insecure`");
         #[expect(
             unsafe_code,
@@ -8259,7 +8353,7 @@ mod tests {
         // and this call sends none — the bag's own `Const::NeverWritten`.
         args[JSON] = Value::unset();
         args[CONNECT_TO] = named;
-        let refused = super::request(&mut ctx, &args, "get", "GET")
+        let refused = super::request(&mut ctx, &args, "get", "GET", 0)
             .expect_err("loopback, which this deployment's `net.internal` does not except");
         #[expect(
             unsafe_code,

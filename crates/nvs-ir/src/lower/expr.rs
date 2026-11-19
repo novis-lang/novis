@@ -4943,12 +4943,12 @@ impl<'a> Lowering<'a> {
             // is opened, and pushed last below.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
                 .then(|| self.call_site(*cur, expr.span));
-            // A `Core\Db` member that sends a statement is handed its call
+            // A `Core\Db` member that sends a statement, and every member on
+            // `nvs_stdlib::registry::RECORDED_SITE_MEMBERS`, is handed its call
             // site's id as its last argument — `nvs_stdlib::registry::QUERY_SITE_MEMBERS`
             // owns the position and `Lowering::query_site_constant` the constant.
-            let query_site =
-                nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
-                    .then(|| self.query_site_constant(*cur, expr.span));
+            let query_site = nvs_types::core_records_site(&call.class.to_string(), &call.method)
+                .then(|| self.query_site_constant(*cur, expr.span));
             // A member on `nvs_stdlib::registry::PREPARED_MEMBERS` is handed
             // what the checker prepared out of its written literal, as argument
             // 0 — `Lowering::prepared_constant` owns the position, the lookup
@@ -5556,8 +5556,9 @@ impl<'a> Lowering<'a> {
         let site =
             nvs_types::core_takes_call_site(&class, method).then(|| self.call_site(*cur, span));
         // `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' trailing id, which
-        // that roster owns, emitted the way the instance path emits it.
-        let query_site = nvs_types::core_takes_query_site(&class, method)
+        // that roster owns, emitted the way the instance path emits it, and
+        // `RECORDED_SITE_MEMBERS`' the same way.
+        let query_site = nvs_types::core_records_site(&class, method)
             .then(|| self.query_site_constant(*cur, span));
         // `nvs_stdlib::registry::PREPARED_MEMBERS`' leading constant, which
         // that roster owns — `Core\Regex::compile("…")` is the shape it is

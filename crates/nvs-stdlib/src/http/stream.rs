@@ -1158,17 +1158,19 @@ nvs_runtime::nvs_helper! {
     /// arguments. Its bag is two keys wider than that member's — the bounds
     /// [`super::STREAM_OPTIONS`] adds — and those two are judged here, because
     /// they are the only part of the call the shared reading does not know
-    /// about.
-    fn nvs_core_http_client_stream(ctx, args: [STREAM_ARITY + 1]) {
+    /// about. The last slot is the call-site id
+    /// `crate::registry::RECORDED_SITE_MEMBERS` appends.
+    fn nvs_core_http_client_stream(ctx, args: [STREAM_ARITY + 2]) {
         let verb = crate::router::method_verb(&args[0], STREAM_MEMBER)?.to_ascii_uppercase();
-        let bag = &args[1..];
+        let site = crate::site::site_id(args[STREAM_ARITY + 1]);
+        let bag = &args[1..=STREAM_ARITY];
         judge_bound(bag, IDLE, "idle", STREAM_MEMBER)?;
         judge_bound(bag, MAX_DURATION, "maxDuration", STREAM_MEMBER)?;
         // The session the reply arrived over is dropped here rather than kept:
         // `rule:http-server/a-reply-reports-its-tls-session` puts the report on
         // `Core\Http\Response` alone, and a second surface for one measurement
         // is the copy that disagrees.
-        let (status, body, headers, _) = exchanged(ctx, bag, "stream", &verb, true)?;
+        let (status, body, headers, _) = exchanged(ctx, bag, "stream", &verb, true, site)?;
         Ok(crate::instance::build(
             &STREAM,
             [Value::int(status), headers, body, Value::null()],

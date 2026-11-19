@@ -915,10 +915,11 @@ pub(crate) fn lower_callable(
                 )
                 .0
             });
-        // A `Core\Db` member reached through a callable reference is handed the
-        // zero id, which names no site: the statement goes out wherever the
-        // callable is later invoked (`nvs_stdlib::registry::QUERY_SITE_MEMBERS`).
-        let query_site = nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
+        // A `Core\Db` member, or one on `nvs_stdlib::registry::RECORDED_SITE_MEMBERS`,
+        // reached through a callable reference is handed the zero id, which names no
+        // site: the call happens wherever the callable is later invoked
+        // (`nvs_stdlib::registry::QUERY_SITE_MEMBERS`).
+        let query_site = nvs_types::core_records_site(&call.class.to_string(), &call.method)
             .then(|| {
                 low.emit(
                     cur,

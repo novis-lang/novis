@@ -165,7 +165,7 @@ use std::time::{Duration, Instant};
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_config::{Quantity, Setting, Unit};
-use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, budget};
+use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, TraceKind, Value, budget};
 use nvs_syntax::duration;
 
 use crate::registry::{
@@ -2670,66 +2670,73 @@ nvs_runtime::nvs_helper! {
     /// the store names, because the two keep it differently and neither may
     /// read the option for itself — the module doc's own
     /// decision on a lifetime says which keeps what.
-    fn nvs_core_cache_put(ctx, args: [4]) {
-        let tier = tier_of(args, "put")?;
-        let key = key_of(args, 1, "put")?.as_bytes().to_vec();
-        let lifetime = lifetime_of(args, 3, "put")?;
+    ///
+    /// The last slot is the call site's id, which [`crate::registry::RECORDED_SITE_MEMBERS`]
+    /// puts last, and [`crate::site::watched`] files the call's `cache` event under it.
+    fn nvs_core_cache_put(ctx, args: [5]) {
+        let site = args[4];
+        let target = args[1].as_text();
+        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::put", target, |ctx| {
+            let tier = tier_of(args, "put")?;
+            let key = key_of(args, 1, "put")?.as_bytes().to_vec();
+            let lifetime = lifetime_of(args, 3, "put")?;
 
-        // The walk consumes one reference and the argument slot keeps its own,
-        // so this is the reference the walk gives up.
-        #[expect(
-            unsafe_code,
-            reason = "the argument slot holds a live reference for the length of \
-                      the call, which is `Value::retain`'s whole obligation"
-        )]
-        unsafe {
-            args[2].retain();
-        }
-        // The memory tier forgets a payload longer than its shard's cap as it
-        // lands, so the walk stops writing at that length: a value the tier
-        // could never keep costs no copy of its bytes under the request's
-        // memory ceiling.
-        let cap = match tier {
-            Tier::Memory => memory_cap(ctx),
-            Tier::Shared => None,
-        };
-        let limit = shard_cap(cap).unwrap_or(usize::MAX);
-        let payload = nvs_runtime::encode_within(args[2], limit).map_err(|why| {
-            Fault::thrown_as(ThrownClass::Logic, format!("{STORE_NAME}::put(): {why}"))
-        })?;
-        let payload = match payload {
-            Ok(payload) => payload,
-            // Only the memory tier passes a limit, and `Entries::put` takes the
-            // same exit for an arrival past it: what was under the key goes.
-            Err(nvs_runtime::budget::Stopped::Over) => {
-                memory_forget(&scoped(ctx, &key));
-                return Ok(Value::null());
+            // The walk consumes one reference and the argument slot keeps its own,
+            // so this is the reference the walk gives up.
+            #[expect(
+                unsafe_code,
+                reason = "the argument slot holds a live reference for the length of \
+                          the call, which is `Value::retain`'s whole obligation"
+            )]
+            unsafe {
+                args[2].retain();
             }
-            // The request's memory ceiling refused the encoding, so the request
-            // ends at its next poll. Nothing is stored: an empty payload would
-            // make every later `get` on the key throw a decode error.
-            Err(nvs_runtime::budget::Stopped::Refused) => return Ok(Value::null()),
-        };
+            // The memory tier forgets a payload longer than its shard's cap as it
+            // lands, so the walk stops writing at that length: a value the tier
+            // could never keep costs no copy of its bytes under the request's
+            // memory ceiling.
+            let cap = match tier {
+                Tier::Memory => memory_cap(ctx),
+                Tier::Shared => None,
+            };
+            let limit = shard_cap(cap).unwrap_or(usize::MAX);
+            let payload = nvs_runtime::encode_within(args[2], limit).map_err(|why| {
+                Fault::thrown_as(ThrownClass::Logic, format!("{STORE_NAME}::put(): {why}"))
+            })?;
+            let payload = match payload {
+                Ok(payload) => payload,
+                // Only the memory tier passes a limit, and `Entries::put` takes the
+                // same exit for an arrival past it: what was under the key goes.
+                Err(nvs_runtime::budget::Stopped::Over) => {
+                    memory_forget(&scoped(ctx, &key));
+                    return Ok(Value::null());
+                }
+                // The request's memory ceiling refused the encoding, so the request
+                // ends at its next poll. Nothing is stored: an empty payload would
+                // make every later `get` on the key throw a decode error.
+                Err(nvs_runtime::budget::Stopped::Refused) => return Ok(Value::null()),
+            };
 
-        match tier {
-            Tier::Memory => {
-                memory_put(&scoped(ctx, &key), payload, lifetime, cap);
+            match tier {
+                Tier::Memory => {
+                    memory_put(&scoped(ctx, &key), payload, lifetime, cap);
+                }
+                Tier::Shared => on_shared(STORE_NAME, "put", |open| {
+                    // The store keeps its own clock, so it is told a length of
+                    // time rather than an instant — and a lifetime already over
+                    // is not a write here either, which is the one command that
+                    // leaves the same state the memory tier does.
+                    if lifetime.elapsed() {
+                        return open.del(&key).map(drop);
+                    }
+                    match lifetime {
+                        Lifetime::Forever => open.set(&key, &payload),
+                        Lifetime::For(ttl) => open.set_expiring(&key, &payload, ttl),
+                    }
+                })?,
             }
-            Tier::Shared => on_shared(STORE_NAME, "put", |open| {
-                // The store keeps its own clock, so it is told a length of
-                // time rather than an instant — and a lifetime already over
-                // is not a write here either, which is the one command that
-                // leaves the same state the memory tier does.
-                if lifetime.elapsed() {
-                    return open.del(&key).map(drop);
-                }
-                match lifetime {
-                    Lifetime::Forever => open.set(&key, &payload),
-                    Lifetime::For(ttl) => open.set_expiring(&key, &payload, ttl),
-                }
-            })?,
-        }
-        Ok(Value::null())
+            Ok(Value::null())
+        })
     }
 }
 
@@ -2751,19 +2758,25 @@ nvs_runtime::nvs_helper! {
     /// **The tier is consulted before the copy, and only for the bytes**: it
     /// answers where the payload comes from and nothing about how it is read
     /// back, which is [`nvs_core_cache_put`]'s structure in the other direction.
-    fn nvs_core_cache_get(ctx, args: [2]) {
-        let tier = tier_of(args, "get")?;
-        let key = key_of(args, 1, "get")?.as_bytes().to_vec();
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_cache_put`]'s is.
+    fn nvs_core_cache_get(ctx, args: [3]) {
+        let site = args[2];
+        let target = args[1].as_text();
+        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::get", target, |ctx| {
+            let tier = tier_of(args, "get")?;
+            let key = key_of(args, 1, "get")?.as_bytes().to_vec();
 
-        let held = match tier {
-            Tier::Memory => memory_get(&scoped(ctx, &key), r"Core\Cache\Store::get")?,
-            Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
-        };
-        let Some(payload) = held else {
-            return Ok(Value::null());
-        };
-        nvs_runtime::decode(&payload, &ctx.receiving()).map_err(|why| {
-            Fault::thrown_as(ThrownClass::Parse, format!("{STORE_NAME}::get(): {why}"))
+            let held = match tier {
+                Tier::Memory => memory_get(&scoped(ctx, &key), r"Core\Cache\Store::get")?,
+                Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
+            };
+            let Some(payload) = held else {
+                return Ok(Value::null());
+            };
+            nvs_runtime::decode(&payload, &ctx.receiving()).map_err(|why| {
+                Fault::thrown_as(ThrownClass::Parse, format!("{STORE_NAME}::get(): {why}"))
+            })
         })
     }
 }
@@ -2789,15 +2802,21 @@ nvs_runtime::nvs_helper! {
     /// A thrown `IOError` on the shared tier for a store that cannot be
     /// reached or that refuses the command. The memory tier has no failure to
     /// report, so it has no error at all.
-    fn nvs_core_cache_forget(ctx, args: [2]) {
-        let tier = tier_of(args, "forget")?;
-        let key = key_of(args, 1, "forget")?.as_bytes().to_vec();
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_cache_put`]'s is.
+    fn nvs_core_cache_forget(ctx, args: [3]) {
+        let site = args[2];
+        let target = args[1].as_text();
+        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::forget", target, |ctx| {
+            let tier = tier_of(args, "forget")?;
+            let key = key_of(args, 1, "forget")?.as_bytes().to_vec();
 
-        match tier {
-            Tier::Memory => memory_forget(&scoped(ctx, &key)),
-            Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key).map(drop))?,
-        }
-        Ok(Value::null())
+            match tier {
+                Tier::Memory => memory_forget(&scoped(ctx, &key)),
+                Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key).map(drop))?,
+            }
+            Ok(Value::null())
+        })
     }
 }
 
@@ -2824,24 +2843,30 @@ nvs_runtime::nvs_helper! {
     /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
     /// something that is not a key, and a thrown `IOError` on the shared tier
     /// for a store that cannot be reached or that refuses the write.
-    fn nvs_core_cache_put_secret(ctx, args: [5]) {
-        let tier = tier_of(args, "putSecret")?;
-        let key = key_of(args, 1, "putSecret")?.as_bytes().to_vec();
-        let value = secret_of(args, 2, "putSecret")?;
-        let nanos = crate::time::nanos_of(args, 3, "putSecret")?;
+    ///
+    /// The last slot is the call site's id, as [`nvs_core_cache_put`]'s is. Its event names no
+    /// target, because the key is a secret's.
+    fn nvs_core_cache_put_secret(ctx, args: [6]) {
+        let site = args[5];
+        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::putSecret", None, |ctx| {
+            let tier = tier_of(args, "putSecret")?;
+            let key = key_of(args, 1, "putSecret")?.as_bytes().to_vec();
+            let value = secret_of(args, 2, "putSecret")?;
+            let nanos = crate::time::nanos_of(args, 3, "putSecret")?;
 
-        let who = format!("{STORE_NAME}::putSecret");
-        let ring = crate::keyring::borrow(args, 4, &who)?;
+            let who = format!("{STORE_NAME}::putSecret");
+            let ring = crate::keyring::borrow(args, 4, &who)?;
 
-        let at = Sealing {
-            tier,
-            key: &key,
-            ring: &ring,
-            member: "putSecret",
-            who: &who,
-        };
-        seal_and_store(ctx, &at, value.as_bytes(), nanos)?;
-        Ok(Value::null())
+            let at = Sealing {
+                tier,
+                key: &key,
+                ring: &ring,
+                member: "putSecret",
+                who: &who,
+            };
+            seal_and_store(ctx, &at, value.as_bytes(), nanos)?;
+            Ok(Value::null())
+        })
     }
 }
 
@@ -2878,57 +2903,63 @@ nvs_runtime::nvs_helper! {
     /// running when this call's `wait` was up, and a thrown `IOError` on the
     /// shared tier for a store that cannot be reached. What a `fill` itself
     /// throws reaches the request that ran it and no other.
-    fn nvs_core_cache_get_secret(ctx, args: [5]) -> Value, owns nvs_runtime::NvsStr, at 1 {
-        let tier = tier_of(args, "getSecret")?;
-        let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
+    ///
+    /// Slots 3 and 4 are the options' `fill` and `wait`, and the last slot is the call site's
+    /// id, as [`nvs_core_cache_put_secret`]'s is. Its event names no target.
+    fn nvs_core_cache_get_secret(ctx, args: [6]) -> Value, owns nvs_runtime::NvsStr, at 1 {
+        let site = args[5];
+        crate::site::watched(ctx, site, TraceKind::Cache, r"Core\Cache\Store::getSecret", None, |ctx| {
+            let tier = tier_of(args, "getSecret")?;
+            let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
 
-        let who = format!("{STORE_NAME}::getSecret");
-        let ring = crate::keyring::borrow(args, 2, &who)?;
+            let who = format!("{STORE_NAME}::getSecret");
+            let ring = crate::keyring::borrow(args, 2, &who)?;
 
-        let at = Sealing {
-            tier,
-            key: &key,
-            ring: &ring,
-            member: "getSecret",
-            who: &who,
-        };
-        let held = opened(ctx, &at)?;
-        let fill = args[3];
-        if matches!(fill.tag(), Some(Tag::Null)) {
-            return Ok(held.map_or_else(Value::null, |held| held.value));
-        }
-        let filling = scoped(ctx, &sealed_key(&key));
-
-        let Some(held) = held else {
-            // Read before the election so that what this call waits for does
-            // not depend on which caller won it.
-            let wait = wait_of(ctx, args, 4, "getSecret")?;
-            if let Some(value) = filled(ctx, &at, &filling, fill)? {
-                return Ok(value);
+            let at = Sealing {
+                tier,
+                key: &key,
+                ring: &ring,
+                member: "getSecret",
+                who: &who,
+            };
+            let held = opened(ctx, &at)?;
+            let fill = args[3];
+            if matches!(fill.tag(), Some(Tag::Null)) {
+                return Ok(held.map_or_else(Value::null, |held| held.value));
             }
-            return waited(ctx, &filling, wait, &who, |ctx| {
-                Ok(opened(ctx, &at)?.map_or_else(Value::null, |held| held.value))
-            });
-        };
-        if !held.refreshing {
-            return Ok(held.value);
-        }
+            let filling = scoped(ctx, &sealed_key(&key));
 
-        let refreshed = filled(ctx, &at, &filling, fill);
-        if matches!(refreshed, Ok(None)) {
-            // Another caller is already replacing it, and this one is answered
-            // what is there rather than waiting for a value it already holds.
-            return Ok(held.value);
-        }
-        #[expect(
-            unsafe_code,
-            reason = "the entry this frame opened is replaced by what the fill \
-                      answered, so the reference it built is never handed on"
-        )]
-        unsafe {
-            held.value.release();
-        }
-        refreshed.map(Option::unwrap_or_default)
+            let Some(held) = held else {
+                // Read before the election so that what this call waits for does
+                // not depend on which caller won it.
+                let wait = wait_of(ctx, args, 4, "getSecret")?;
+                if let Some(value) = filled(ctx, &at, &filling, fill)? {
+                    return Ok(value);
+                }
+                return waited(ctx, &filling, wait, &who, |ctx| {
+                    Ok(opened(ctx, &at)?.map_or_else(Value::null, |held| held.value))
+                });
+            };
+            if !held.refreshing {
+                return Ok(held.value);
+            }
+
+            let refreshed = filled(ctx, &at, &filling, fill);
+            if matches!(refreshed, Ok(None)) {
+                // Another caller is already replacing it, and this one is answered
+                // what is there rather than waiting for a value it already holds.
+                return Ok(held.value);
+            }
+            #[expect(
+                unsafe_code,
+                reason = "the entry this frame opened is replaced by what the fill \
+                          answered, so the reference it built is never handed on"
+            )]
+            unsafe {
+                held.value.release();
+            }
+            refreshed.map(Option::unwrap_or_default)
+        })
     } apply(result, _subject) {
         result
     }
@@ -4768,6 +4799,42 @@ pub(crate) mod tests {
             entry.release();
             ttl.release();
             value.release();
+        }
+    }
+
+    /// A `get` in a recorded request files one `cache` event under the member's name.
+    #[test]
+    fn a_recorded_cache_read_files_one_cache_event() {
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+        let mut sites = nvs_runtime::QuerySites::new();
+        sites.push("shop.nvs", 4, "aa");
+        ctx.set_query_sites(Arc::new(sites));
+        let store = crate::instance::build(&super::STORE, [Value::text(super::MEMORY_TIER)]);
+        let key = Value::text("recorded-cache-read");
+
+        let args = [store, key, Value::int(1)];
+        let answer = nvs_runtime::call(super::nvs_core_cache_get, &mut ctx, &args)
+            .expect("a miss on the memory tier is `null`");
+
+        assert!(
+            matches!(answer.tag(), Some(nvs_runtime::Tag::Null)),
+            "nothing was put under the key"
+        );
+        let filed = ctx.trace().iter().any(|event| {
+            event.kind == super::TraceKind::Cache && event.callee == r"Core\Cache\Store::get"
+        });
+        assert!(filed, "the read files one `cache` event named after the member");
+
+        #[expect(
+            unsafe_code,
+            reason = "this case owns the store and the key it built, and the member \
+                      borrowed its arguments"
+        )]
+        unsafe {
+            store.release();
+            key.release();
         }
     }
 }

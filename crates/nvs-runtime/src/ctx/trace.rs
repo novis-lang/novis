@@ -131,6 +131,31 @@ pub enum TraceKind {
     /// sentence and what makes this the event an outbound span is derived from
     /// (`rule:observability/four-kinds-become-a-span`).
     Http,
+    /// One read or write of a `Core\Cache\Store`, filed by the store's member with the site of
+    /// its call ([`Ctx::record_site_event`]).
+    Cache,
+    /// One read or write of the request's `Core\Session`, filed as a [`TraceKind::Cache`] is.
+    Session,
+    /// One `Core\IO` member that opens a file, filed as a [`TraceKind::Cache`] is.
+    File,
+}
+
+impl TraceKind {
+    /// The kind as `rule:observability/trace-events-carry-a-kind` spells it, which is also the
+    /// label of its window in a profile.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::Call => "call",
+            Self::Gc => "gc",
+            Self::Spawn => "spawn",
+            Self::Query => "query",
+            Self::Http => "http",
+            Self::Cache => "cache",
+            Self::Session => "session",
+            Self::File => "file",
+        }
+    }
 }
 
 /// One `rule:testing/debug-probes` call-site trace record, tagged with
@@ -690,18 +715,46 @@ impl Ctx {
     /// `took` is the call's duration as the transport's span measured it, for
     /// [`Ctx::record_query`]'s reason.
     pub fn record_http(&mut self, span: &str, took: Duration) {
+        self.record_site_event(TraceKind::Http, span, took, None, 0);
+    }
+
+    /// Records one `http`, `cache`, `session` or `file` event at the call site whose id the
+    /// compiler passed the member (`rule:observability/a-query-span-names-its-call-site`).
+    ///
+    /// `label` is what the event is of, as its member rendered it. `target` is what the editor's
+    /// lens counts repeats of: the host and path, the key or the file path, and never a value the
+    /// call sent or read. `site` is the id, and the zero id, or a context given no site table,
+    /// records no site. The caller asks [`Ctx::records_spans`] first, for
+    /// [`Ctx::record_query`]'s reason.
+    ///
+    /// **What it spends:** one site row and one target string per recorded event, freed with
+    /// the spool line.
+    pub fn record_site_event(
+        &mut self,
+        kind: TraceKind,
+        label: &str,
+        took: Duration,
+        target: Option<String>,
+        site: u32,
+    ) {
         let (start, end) = Self::ended_after(took);
-        self.profile_window("http", start, end);
-        self.file_event(
-            TraceEvent {
-                kind: TraceKind::Http,
-                callee: span.to_owned(),
-                status: None,
-                start,
-                end,
-            },
-            None,
-        );
+        self.profile_window(kind.spelling(), start, end);
+        let event = TraceEvent {
+            kind,
+            callee: label.to_owned(),
+            status: None,
+            start,
+            end,
+        };
+        let mut line = crate::spool::Event::of(&event);
+        line.target = target;
+        line.site = if site == 0 {
+            None
+        } else {
+            self.query_site(site)
+        };
+        crate::spool::record(self, crate::spool::Record::Event(line));
+        self.trace.push(event);
     }
 
     /// Opens `rule:observability/spawn-is-its-own-event`'s event where a child
