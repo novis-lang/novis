@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a program writes time zones in quotes that look real but are not.
+// A zone in quotes is checked while compiling, so none of the steps below compiles.
+// hostile: expect-refusal
+
+Core\Time\Instant $start = Core\Time\Instant::fromEpoch(0);
+
+// 1. Zone names with one letter wrong or missing.
+echo $start->in('Europe/Berln')->format('HH:mm'), "\n";
+echo $start->in('Asia/Tokio')->format('HH:mm'), "\n";
+echo Core\Time\DateTime::fromIso('2024-03-01 09:30', 'Amerika/New_York')->format('HH:mm'), "\n";
+
+// 2. A real zone name with a space before it, after it, or inside it.
+echo $start->in(' Europe/Berlin')->format('HH:mm'), "\n";
+echo $start->in('Europe/Berlin ')->format('HH:mm'), "\n";
+echo $start->in('Europe/ Berlin')->format('HH:mm'), "\n";
+
+// 3. Offsets just past the largest one, which is 25:59:59 from UTC.
+echo $start->in('+26:00')->format('HH:mm'), "\n";
+echo $start->in('-26:00')->format('HH:mm'), "\n";
+echo $start->in('+25:60')->format('HH:mm'), "\n";
+echo $start->in('+25:59:60')->format('HH:mm'), "\n";
