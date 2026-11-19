@@ -854,6 +854,12 @@ impl Emitter<'_, '_> {
                 let value = self.emit_const_duration(*nanos)?;
                 self.define(inst, value)?;
             }
+            // A written zone: a whole `Core\Time\Zone` in the data section,
+            // whose slot is the zone id as an immortal string.
+            InstKind::ConstZone(id) => {
+                let value = self.emit_const_zone(id.as_bytes())?;
+                self.define(inst, value)?;
+            }
             InstKind::ConstStr(text) => {
                 let (value, next) = self.emit_const_str(cur, text.as_bytes())?;
                 self.define(inst, value)?;
@@ -2051,6 +2057,45 @@ impl Emitter<'_, '_> {
             u32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
                 .map_err(|_| internal("an object's class word past u32"))?,
             class_ref,
+            0,
+        );
+
+        let object = self.define_literal_data(&desc)?;
+        Ok(self.literal_address(object))
+    }
+
+    /// A written zone: the whole `Core\Time\Zone` in the unit's data section,
+    /// [`Self::emit_const_markup`]'s shape with the `Zone` class. Its one slot
+    /// is the id, an immortal string, so neither relocation names anything a
+    /// request owns. No `Zone` member writes the slot, which is what makes the
+    /// instance safe to share across requests and cores. Every site gets its
+    /// own instance, so `==` on two written zones is identity.
+    fn emit_const_zone(&mut self, id: &[u8]) -> Result<Value, CodegenError> {
+        let id_data = self.immortal_str_data(id)?;
+
+        let mut desc = DataDescription::new();
+        desc.define(nvs_runtime::immortal_object_bytes(&[Tag::Str]).into_boxed_slice());
+        desc.set_align(
+            u64::try_from(nvs_runtime::OBJ_ALIGN)
+                .map_err(|_| internal("an object header's alignment past u64"))?,
+        );
+
+        let class = self.class_desc_data(nvs_stdlib::time::ZONE_NAME)?;
+        let class_ref = self.module.declare_data_in_data(class, &mut desc);
+        desc.write_data_addr(
+            u32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
+                .map_err(|_| internal("an object's class word past u32"))?,
+            class_ref,
+            0,
+        );
+
+        let slot = nvs_runtime::field_offset(0)
+            .checked_add(nvs_runtime::Value::BITS_OFFSET)
+            .ok_or_else(|| internal("an object's slot payload past the address space"))?;
+        let id_ref = self.module.declare_data_in_data(id_data, &mut desc);
+        desc.write_data_addr(
+            u32::try_from(slot).map_err(|_| internal("an object's slot payload past u32"))?,
+            id_ref,
             0,
         );
 

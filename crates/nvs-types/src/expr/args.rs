@@ -167,6 +167,15 @@ fn check_arg_list(
             }
             _ => None,
         };
+        // `rule:core-classes/a-time-class-builds-its-own-values`: a string
+        // literal at a `Zone` parameter is that zone, checked here and built
+        // while compiling. See [`crate::zones`].
+        let written_zone = match (&arg.value.kind, expected) {
+            (ExprKind::Str(text), Some(want)) => {
+                crate::zones::zone_parameter(want, env).map(|zone| (*text, zone))
+            }
+            _ => None,
+        };
         // `nvs_stdlib::registry::CoreTy::Dispatched`: the argument reaches a
         // member picked by name at run time, so it may carry no qualifier. A
         // literal is judged element by element where it is checked.
@@ -175,7 +184,10 @@ fn check_arg_list(
         let dispatched_literal = dispatched && matches!(arg.value.kind, ExprKind::ArrayLiteral(_));
         env.dispatched_literal = dispatched_literal;
         let before = env.diags.len();
-        let actual = if let Some((text, (holes, kind))) = written_holes {
+        let actual = if let Some((text, zone)) = written_zone {
+            crate::zones::check_written(text, env);
+            zone
+        } else if let Some((text, (holes, kind))) = written_holes {
             super::members::report_unwritten_string_holes(&kind, text, arg.value.span, env);
             holes
         } else if let Some((text, (key, qname, kind))) = written_key {

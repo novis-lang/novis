@@ -13,8 +13,12 @@
 //! `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)` and `parse(text, pattern, Zone)`. Each
 //! `fromIso` reads the one ISO 8601 extended form of its class through [`validate_iso`]'s
 //! readers, and `nvs_types::intrinsics` checks a literal text with the same function while
-//! compiling. A zone fixed in the source is written as text at a `Zone` parameter and built
-//! once; until the `time-constructors` goal lands that half, a zone is `Zone::of`'s.
+//! compiling. A zone fixed in the source is written as text at a `Zone` parameter:
+//! `nvs_types::zones` checks it against [`written_zone`], and `nvs-ir` builds it once, as
+//! one immortal `Zone` in the compiled unit's data section, as it builds `Zone::UTC` and
+//! `Zone::of` or `Zone::fixed` with a written argument. **What it spends:** a header, one
+//! slot and the id's bytes once per written zone, charged to the compiled unit, and nothing
+//! per use. Text that arrives at run time becomes a zone through `Zone::of` alone.
 //!
 //! # Two arithmetics, and the type says which one
 //!
@@ -4195,6 +4199,91 @@ pub(crate) fn render_offset(seconds: i32) -> String {
     } else {
         format!("{sign}{hours:02}:{minutes:02}:{seconds:02}")
     }
+}
+
+// ============================================================================
+// A zone written as text
+// ============================================================================
+
+/// Every zone name a written zone and the editor accept: each IANA name in
+/// `jiff`'s database, sorted, with `UTC` among them.
+///
+/// Built on the first call and kept for the process. Only the checker and the
+/// editor call it, so nothing on a request path builds it. **What it spends:**
+/// about 600 short strings, some 15 KB, once per process that compiles.
+#[must_use]
+pub fn zone_names() -> &'static [String] {
+    static NAMES: OnceLock<Vec<String>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut names: Vec<String> = jiff::tz::db()
+            .available()
+            .map(|name| name.as_str().to_owned())
+            .collect();
+        if !names.iter().any(|name| name == "UTC") {
+            names.push("UTC".to_owned());
+        }
+        names.sort_unstable();
+        names.dedup();
+        names
+    })
+}
+
+/// The id a zone written as text at a `Zone` parameter is stored under:
+/// the name itself for an IANA name, and `±HH:MM[:SS]` for an offset.
+/// `rule:core-classes/a-time-class-builds-its-own-values` § *A zone written as
+/// text*.
+///
+/// A name is matched exactly, case included, against [`zone_names`], so a
+/// written zone has one spelling. An offset is read by the same reader
+/// [`resolve_zone`] uses and written back as [`render_offset`] writes it, so
+/// `+2:00` and `+02:00` are one id.
+///
+/// # Errors
+///
+/// The sentence a diagnostic prints for text that names no zone.
+pub fn written_zone(text: &str) -> Result<String, String> {
+    if text.starts_with('+') || text.starts_with('-') {
+        return parse_offset(text)
+            .map(|offset| render_offset(offset.seconds()))
+            .ok_or_else(|| {
+                format!(
+                    "`{}` is not a zone offset. An offset is written `+HH:MM` and is at \
+                     most 25:59:59 from UTC",
+                    nvs_runtime::quoted(text)
+                )
+            });
+    }
+    if zone_names()
+        .binary_search_by(|name| name.as_str().cmp(text))
+        .is_ok()
+    {
+        return Ok(text.to_owned());
+    }
+    Err(format!(
+        "`{}` is not a time zone name",
+        nvs_runtime::quoted(text)
+    ))
+}
+
+/// The id `Zone::fixed` stores for an offset of `nanos` nanoseconds, or
+/// `None` where `Zone::fixed` throws: a part of a second, or more than
+/// 25:59:59 from UTC. The checker folds `Zone::fixed(2h)` with it.
+#[must_use]
+pub fn fixed_zone_id(nanos: i64) -> Option<String> {
+    if nanos % 1_000_000_000 != 0 {
+        return None;
+    }
+    let seconds = i32::try_from(nanos / 1_000_000_000).ok()?;
+    let offset = Offset::from_seconds(seconds).ok()?;
+    Some(render_offset(offset.seconds()))
+}
+
+/// The offset from UTC the zone with id `id` has now, written `+HH:MM`, or
+/// `None` for an id that names no zone. The editor shows it on hover.
+#[must_use]
+pub fn zone_offset_text_now(id: &str) -> Option<String> {
+    let zone = resolve_zone(id)?;
+    Some(render_offset(zone.to_offset(Timestamp::now()).seconds()))
 }
 
 // ============================================================================

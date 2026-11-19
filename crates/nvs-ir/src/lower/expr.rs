@@ -225,6 +225,11 @@ impl<'a> Lowering<'a> {
             // checker joined it to (`rule:programs/relative-paths-resolve-from-their-file`):
             // the same constant, with different bytes, and nothing at run time.
             ExprKind::Str(span) => {
+                // A zone written as text at a `Zone` parameter is the zone,
+                // built while compiling (`rule:core-classes/a-time-class-builds-its-own-values`).
+                if let Some(id) = self.exprs.written_zone(*span) {
+                    return self.emit(*cur, Ty::Object, InstKind::ConstZone(id.to_owned()));
+                }
                 let s = match self.exprs.written_path(*span) {
                     Some(path) => path.to_owned(),
                     None => cook_str_literal(self.src, *span),
@@ -362,6 +367,11 @@ impl<'a> Lowering<'a> {
                 // (`rule:programs/relative-paths-resolve-from-their-file`).
                 if let Some(path) = self.exprs.written_path(expr.span) {
                     return self.emit(*cur, Ty::Str, InstKind::ConstStr(path.to_owned()));
+                }
+                // `Zone::of` or `Zone::fixed` with a written argument, which
+                // the checker resolved to the zone's id.
+                if let Some(id) = self.exprs.written_zone(expr.span) {
+                    return self.emit(*cur, Ty::Object, InstKind::ConstZone(id.to_owned()));
                 }
                 // `rule:programs/implementing-with`'s join: the same list, each
                 // entry beside the attribute payload the checker folded for it.

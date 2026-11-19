@@ -201,6 +201,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ConstBytes(b) => format!("const.bytes {b:?}"),
         InstKind::ConstMarkup(s) => format!("const.markup {s:?}"),
         InstKind::ConstDuration(n) => format!("const.duration {n}"),
+        InstKind::ConstZone(id) => format!("const.zone {id:?}"),
         InstKind::Param(i) => format!("param {i}"),
         InstKind::BinOp { op, lhs, rhs } => {
             format!("{} v{}, v{}", bin_op_name(*op), lhs.index(), rhs.index())

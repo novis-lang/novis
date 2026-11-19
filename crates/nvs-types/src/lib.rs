@@ -221,6 +221,7 @@ pub mod test_hooks;
 mod test_inherit;
 pub mod testing;
 pub mod ty;
+pub(crate) mod zones;
 
 pub use check::{HOOK_VALUE_PARAM, check_program, check_program_granted, check_program_partial};
 pub use core_lib::interface_implementors as core_interface_implementors;

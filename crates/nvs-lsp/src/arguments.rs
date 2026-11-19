@@ -33,6 +33,9 @@
 //! `when` compares, and the single-value string types the parameter's declared
 //! type lists, read off `nvs_types::ResolvedCall::param_tys` so a set of allowed
 //! values is offered with no file at all (`rule:types/single-value-types`).
+//! It also says whether the literal names a time zone, at a parameter typed
+//! `Core\Time\Zone` or as `Zone::of`'s argument, read off the same signature
+//! so it holds while the text is no zone yet.
 //! [`named_in_document`] names every such literal the
 //! document writes, which the diagnostics read a completion file's `strict`
 //! against.
@@ -112,7 +115,16 @@ pub(crate) struct Named {
     /// `string<K>` or a `?string<K>`, the one position where the checker
     /// checks a literal's holes (`rule:types/string-holes`).
     pub holes: Option<nvs_types::HoleKind>,
+    /// Whether the literal names a time zone: the parameter's declared type is
+    /// [`ZONE`] or `?Zone`, or the literal is the first argument of `Zone::of`,
+    /// whose parameter is a `string`. Read off the signature, so it holds while
+    /// the text is not a zone yet.
+    pub zone: bool,
 }
+
+/// The class a string literal names a time zone of, at a parameter of its
+/// type (`rule:core-classes/a-time-class-builds-its-own-values`).
+const ZONE: &str = nvs_stdlib::time::ZONE_NAME;
 
 /// A node that holds the literal, with the spans and kinds of its own
 /// children.
@@ -340,7 +352,34 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
             .param_tys
             .get(index)
             .and_then(|ty| hole_kind(analysed, *ty)),
+        zone: names_a_zone(analysed, call, index),
     })
+}
+
+/// Whether a string literal at parameter `index` of `call` names a time zone:
+/// the parameter's type is [`ZONE`], `null` aside, or the call is `Zone::of`
+/// and the parameter its first.
+fn names_a_zone(analysed: &Analysed, call: &ResolvedCall, index: usize) -> bool {
+    if index == 0 && call.method == "of" && call.class.to_string() == ZONE {
+        return true;
+    }
+    let Some(ty) = call.param_tys.get(index) else {
+        return false;
+    };
+    let interner = &analysed.interner;
+    let members = match interner.get(*ty) {
+        Ty::Union(members) => members.as_slice(),
+        _ => std::slice::from_ref(ty),
+    };
+    let mut kept = members
+        .iter()
+        .filter(|member| !matches!(interner.get(**member), Ty::Null));
+    match (kept.next(), kept.next()) {
+        (Some(only), None) => {
+            matches!(interner.get(*only), Ty::Class(name, _) if name.to_string() == ZONE)
+        }
+        _ => false,
+    }
 }
 
 /// What each hole of a literal may hold where `ty` is `string<K>` or

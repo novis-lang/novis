@@ -80,3 +80,50 @@ echo (Job::wait() == Job::wait()) ? \"same\" : \"distinct\", \" \", (90m == 1h30
     entry.call(&mut ctx).expect("the script ran to completion");
     assert_eq!(nvs_runtime::budget::allocations() - before, 0);
 }
+
+#[test]
+fn a_written_zone_is_a_constant_with_no_call_and_no_allocation() {
+    // `rule:core-classes/a-time-class-builds-its-own-values`: a zone written
+    // as text, `Zone::UTC`, `Zone::of` with a written name and `Zone::fixed`
+    // with a written offset are each one immortal `Zone`, whose slot is the id
+    // `Zone::of` and `Zone::fixed` store.
+    let source = "<?nvs
+var $at = Core\\Time\\Instant::fromEpoch(0);
+echo $at->in('Europe/Berlin')->format('VV'), \" \";
+echo $at->in(Core\\Time\\Zone::UTC)->format('VV'), \" \";
+echo $at->in(Core\\Time\\Zone::of('Asia/Tokyo'))->format('VV'), \" \";
+echo $at->in(Core\\Time\\Zone::fixed(2h))->format('VV');
+";
+    assert_eq!(output_of(source), "Europe/Berlin UTC Asia/Tokyo +02:00");
+
+    let program = lower(source);
+    let kinds = || {
+        program
+            .functions
+            .iter()
+            .flat_map(|function| function.blocks.iter())
+            .flat_map(|block| block.insts.iter())
+            .map(|inst| &inst.kind)
+    };
+    let zones = kinds()
+        .filter(|kind| matches!(kind, nvs_ir::ir::InstKind::ConstZone(_)))
+        .count();
+    assert_eq!(zones, 4, "one per written zone");
+    let builds = kinds()
+        .filter(|kind| {
+            matches!(kind, nvs_ir::ir::InstKind::CoreCall { symbol, .. }
+                if symbol.starts_with("nvs_core_time_zone_"))
+        })
+        .count();
+    assert_eq!(builds, 0, "no written zone calls a Zone member");
+
+    // A run allocates nothing for a written zone held in a local.
+    let unit = compile("<?nvs\nCore\\Time\\Zone $z = Core\\Time\\Zone::UTC;\n")
+        .expect("the fixture compiles");
+    let entry = unit.script().expect("the script frame was compiled");
+    let mut ctx = Ctx::buffered();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    let before = nvs_runtime::budget::allocations();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    assert_eq!(nvs_runtime::budget::allocations() - before, 0);
+}

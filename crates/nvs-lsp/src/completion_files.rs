@@ -83,7 +83,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::num::NonZeroU32;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::SystemTime;
 
 use lsp_types::CompletionItemKind;
@@ -246,6 +246,28 @@ impl Value {
             separator: None,
             folder: Arc::from(Path::new("")),
         }
+    }
+
+    /// The values no completion file declares at a string that names a time
+    /// zone: every name of [`nvs_stdlib::time::zone_names`], split on `/`.
+    ///
+    /// Built on the first call and kept for the process, so a completion
+    /// inside such a string clones no list. **What it spends:** one value per
+    /// zone name, some 600, once per editor process that offers one.
+    #[must_use]
+    pub fn zones() -> &'static [Arc<Self>] {
+        static ZONES: OnceLock<Vec<Arc<Value>>> = OnceLock::new();
+        ZONES.get_or_init(|| {
+            nvs_stdlib::time::zone_names()
+                .iter()
+                .map(|name| {
+                    Arc::new(Self {
+                        separator: Some('/'),
+                        ..Self::member(name.clone())
+                    })
+                })
+                .collect()
+        })
     }
 
     /// A value no completion file declares: the name of one of the public

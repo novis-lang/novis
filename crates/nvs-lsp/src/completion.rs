@@ -13,7 +13,10 @@
 //! at a path parameter, the namespaces the workspace declares in an
 //! `autoload` prefix, the classes that are a `T` in the operand of `as
 //! class<T>`, loaded or loadable, the classes the program loads at a
-//! class-name parameter, the parameters of a link's route at a key of its
+//! class-name parameter, every time zone name one `/` segment at a time at a
+//! parameter typed `Core\Time\Zone` and in `Zone::of`'s argument, read off the
+//! call's signature because the half-written text is no zone yet
+//! ([`named_values`]), the parameters of a link's route at a key of its
 //! `$params`, and the security schemes the program declares in an entry of a
 //! `#[Core\Api]` `security` list ([`scheme_at`]). At the route argument of a
 //! `Core\Router` link or of `Match::is`, a bare position offers the methods
@@ -837,9 +840,11 @@ fn literal_at(
 
 /// The string argument the cursor at `offset` is inside, quotes included, and
 /// the values offered at it: those of the completion-file attachments that
-/// apply at its call, then each string in the parameter's set of allowed values
-/// that no file lists, then each name of a `property<T>` the parameter's type
-/// takes, alone or beside a `string`. `None` where no value applies.
+/// apply at its call, then every time zone name no file lists where the literal
+/// names a zone ([`completion_files::Value::zones`]), then each string in the
+/// parameter's set of allowed values that no file lists, then each name of a
+/// `property<T>` the parameter's type takes, alone or beside a `string`. `None`
+/// where no value applies.
 fn named_values(
     analysed: &Analysed,
     files: &CompletionFiles,
@@ -847,6 +852,17 @@ fn named_values(
 ) -> Option<(Span, Vec<Arc<completion_files::Value>>)> {
     let named = crate::arguments::named_at(analysed, offset)?;
     let mut values = files.values_at(&named.class, &named.method, &named.parameter, &named.others);
+    if named.zone {
+        let listed = values.len();
+        for zone in completion_files::Value::zones() {
+            if !values[..listed]
+                .iter()
+                .any(|value| value.value == zone.value)
+            {
+                values.push(Arc::clone(zone));
+            }
+        }
+    }
     for member in named.members {
         if !values.iter().any(|value| value.value == member) {
             values.push(Arc::new(completion_files::Value::member(member)));

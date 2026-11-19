@@ -15,7 +15,8 @@
 //! class<T>`, and an argument at a class-name parameter, answer the class
 //! their text names, the way that class's name does ([`written_class_name`]). An
 //! argument at a path parameter answers the absolute path it names and
-//! whether anything is there ([`path_argument`]). Each is asked before the
+//! whether anything is there ([`path_argument`]). A written time zone answers
+//! its id and its offset from UTC now ([`written_zone`]). Each is asked before the
 //! walk over the nodes, because a literal records no name and the walk would
 //! step out to what holds it.
 //!
@@ -181,6 +182,7 @@ pub fn answer(
         .or_else(|| written_class_name(analysed, offset))
         .or_else(|| property_segment(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
+        .or_else(|| written_zone(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
         .or_else(|| name(analysed, type_member_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, type_name_at(analysed, offset)?, offset))
@@ -709,6 +711,34 @@ fn path_argument(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)>
     Some((
         format!("```text\n{}\n```\n\n{there}", target.display()),
         argument.span,
+    ))
+}
+
+/// The zone a string literal names, and that literal's span, for a cursor
+/// inside it: its id and the offset from UTC it has now.
+///
+/// The checker records each written zone it accepted
+/// ([`nvs_types::ExprTypeTable::written_zone`]): a literal at a `Zone`
+/// parameter under its own span, and `Zone::of('…')` under the call's, which
+/// is the node that holds the literal. Text that names no zone has no record,
+/// and no hover. The offset is read at the time of the request.
+fn written_zone(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let path = analysed.index.at(offset);
+    let [string, rest @ ..] = path.nodes() else {
+        return None;
+    };
+    if string.kind != "Str" || !(string.span.start < offset && offset < string.span.end) {
+        return None;
+    }
+    let id = analysed.exprs.written_zone(string.span).or_else(|| {
+        rest.first()
+            .filter(|holder| holder.kind == "StaticCall")
+            .and_then(|holder| analysed.exprs.written_zone(holder.span))
+    })?;
+    let now = nvs_stdlib::time::zone_offset_text_now(id)?;
+    Some((
+        format!("The time zone `{id}`. Its offset from UTC is now `{now}`."),
+        string.span,
     ))
 }
 

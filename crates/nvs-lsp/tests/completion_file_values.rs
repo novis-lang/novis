@@ -4,7 +4,8 @@
 //! value, and one that is no value at a `strict` parameter is warned on
 //! (`rule:ide/completion-files-offer-values-at-named-parameters`). A parameter typed as a union of
 //! string literals offers its members with no file, and merged with a file's values
-//! (`rule:types/single-value-types`).
+//! (`rule:types/single-value-types`). A string at a `Core\Time\Zone` parameter, or in `Zone::of`,
+//! offers every zone name split on `/`, and a written zone hovers as its offset from UTC.
 //!
 //! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
 //! when it ends, as `tests/completion_files.rs` does.
@@ -1067,5 +1068,76 @@ fn a_field_name_in_an_attribute_payload_offers_the_fields_of_its_shape() {
     assert_eq!(
         named(&items, "size").detail.as_deref(),
         Some("\"small\"|\"large\"")
+    );
+}
+
+/// A statement that makes `$at` a `Core\Time\Instant`, whose `in` takes a `Zone`.
+const AT: &str = "Core\\Time\\Instant $at = Core\\Time\\Instant::fromEpoch(0); ";
+
+#[test]
+fn a_string_at_a_zone_parameter_offers_every_zone_name() {
+    let workspace = Workspace::new("zones");
+    let files = workspace.load();
+
+    // The first segment of every zone name, split on `/`. The edit replaces what is typed.
+    let call = format!("{AT}$at->in('Eu<|>');");
+    let (items, _) = offered(&workspace, &files, &call);
+    assert!(labels(&items).contains(&"UTC"), "{:?}", labels(&items));
+    let open = u32::try_from(call.find("'Eu").expect("a quote")).expect("short");
+    assert_eq!(
+        edit(&items, "Europe"),
+        ("Europe".to_owned(), between(open, 2))
+    );
+
+    // After `Europe/`, the cities, and only the segment after the separator is replaced.
+    let call = "Core\\Time\\DateTime::fromIso('2024-03-01', 'Europe/Be<|>');";
+    let (items, _) = offered(&workspace, &files, call);
+    assert!(!labels(&items).contains(&"Europe"), "{:?}", labels(&items));
+    let open = u32::try_from(call.find("'Europe").expect("a quote")).expect("short");
+    assert_eq!(
+        edit(&items, "Berlin"),
+        ("Berlin".to_owned(), between(open + 7, 2))
+    );
+
+    // `/` opens the list there.
+    let (_, triggered) = offered(&workspace, &files, &format!("{AT}$at->in('Europe/<|>');"));
+    assert!(triggered);
+
+    // `Zone::of` takes a `string`, and its argument offers the same names as a `Zone` parameter.
+    let (of, _) = offered(&workspace, &files, "Core\\Time\\Zone::of('<|>');");
+    let (at, _) = offered(&workspace, &files, &format!("{AT}$at->in('<|>');"));
+    assert!(labels(&of).contains(&"Europe") && labels(&of).contains(&"UTC"));
+    assert_eq!(labels(&of), labels(&at));
+
+    // A `string` parameter of another method offers no zone.
+    let (items, _) = offered(&workspace, &files, "Label::text('Eu<|>');");
+    assert!(items.is_empty(), "{items:?}");
+}
+
+#[test]
+fn hover_on_a_written_zone_shows_its_offset_from_utc() {
+    let workspace = Workspace::new("zone-hover");
+    let files = workspace.load();
+    let (text, _) = hovered(&workspace, &files, &format!("{AT}$at->in('U<|>TC');"))
+        .expect("a written zone hovers");
+    assert_eq!(
+        text,
+        "The time zone `UTC`. Its offset from UTC is now `+00:00`."
+    );
+    let (text, _) = hovered(
+        &workspace,
+        &files,
+        "Core\\Time\\Zone::of('Europe/Ber<|>lin');",
+    )
+    .expect("`Zone::of`'s argument hovers");
+    assert!(text.starts_with("The time zone `Europe/Berlin`."), "{text}");
+
+    // Text that names no zone has no zone hover.
+    let hover = hovered(&workspace, &files, &format!("{AT}$at->in('Nowh<|>ere');"));
+    assert!(
+        hover
+            .as_ref()
+            .is_none_or(|(text, _)| !text.contains("offset from UTC is now")),
+        "{hover:?}"
     );
 }

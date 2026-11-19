@@ -1706,6 +1706,7 @@ pub struct ExprTypeTable {
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
     written_paths: FxHashMap<Span, String>,
+    written_zones: FxHashMap<Span, String>,
     setting_names: crate::setting_names::SettingNames,
     prepared: FxHashMap<Span, Prepared>,
     plain_binds: FxHashSet<Span>,
@@ -1897,6 +1898,7 @@ impl ExprTypeTable {
             to_string,
             require_targets,
             written_paths,
+            written_zones,
             setting_names,
             prepared,
             plain_binds,
@@ -1961,6 +1963,7 @@ impl ExprTypeTable {
         self.to_string.extend(to_string);
         self.require_targets.extend(require_targets);
         self.written_paths.extend(written_paths);
+        self.written_zones.extend(written_zones);
         self.setting_names.absorb(setting_names);
         self.prepared.extend(prepared);
         self.plain_binds.extend(plain_binds);
@@ -2054,6 +2057,7 @@ impl ExprTypeTable {
         section("to_string", sorted(&self.to_string));
         section("require_targets", sorted(&self.require_targets));
         section("written_paths", sorted(&self.written_paths));
+        section("written_zones", sorted(&self.written_zones));
         section("setting_names", vec![format!("{:?}", self.setting_names)]);
         section("prepared", sorted(&self.prepared));
         section("plain_binds", sorted(&self.plain_binds));
@@ -3032,6 +3036,24 @@ impl ExprTypeTable {
         self.written_paths
             .iter()
             .map(|(span, path)| (*span, path.as_str()))
+    }
+
+    /// Records the zone id a zone written as text names
+    /// (`rule:core-classes/a-time-class-builds-its-own-values`). Decided by
+    /// [`crate::zones`].
+    pub(crate) fn record_written_zone(&mut self, span: Span, id: String) {
+        self.written_zones.insert(span, id);
+    }
+
+    /// The zone id `nvs-ir` builds one immortal `Core\Time\Zone` from, or
+    /// `None` for every other expression. Two kinds are recorded: a string
+    /// literal at a `Zone` parameter, keyed by the literal's own span (what
+    /// `nvs_syntax::ast::ExprKind::Str` carries), and `Zone::UTC`,
+    /// `Zone::of` or `Zone::fixed` with a written argument, keyed by the
+    /// expression's span.
+    #[must_use]
+    pub fn written_zone(&self, span: Span) -> Option<&str> {
+        self.written_zones.get(&span).map(String::as_str)
     }
 
     /// The names the program passes to `Core\Config::setting` and `secret`, which

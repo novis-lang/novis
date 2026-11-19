@@ -1,0 +1,51 @@
+--TEST--
+a time zone written as text at a `Zone` parameter is that zone, and `Zone::UTC`, `Zone::of` and `Zone::fixed` with a written argument are the same kind of constant: each is built while compiling, and a loop of conversions with one holds no more memory at its end (`rule:core-classes/a-time-class-builds-its-own-values`)
+--FILE--
+<?nvs
+// covers: Core\Time\Zone::of
+// covers: Core\Time\Zone::fixed
+// Each conversion below uses a written zone, and each result is printed.
+var $full = "yyyy-MM-dd HH:mm XXX VV";
+var $date = Core\Time\Date::at(2024, 3, 1);
+var $time = Core\Time\TimeOfDay::at(9, 30);
+var $at = Core\Time\Instant::fromIso("2024-03-01T08:30:00Z");
+
+echo Core\Time\DateTime::at($date, $time, 'Europe/Berlin')->format($full), "|\n";
+echo Core\Time\DateTime::fromIso('2024-03-01 09:30', 'America/New_York')->format($full), "|\n";
+echo Core\Time\DateTime::parse('01.03.2024 09:30', 'dd.MM.yyyy HH:mm', 'Asia/Tokyo')->format($full), "|\n";
+echo $at->in('UTC')->format($full), "|\n";
+echo $at->in(Core\Time\Zone::UTC)->format($full), "|\n";
+echo $at->in(Core\Time\Zone::of('Europe/Berlin'))->format($full), "|\n";
+echo $at->in('+05:30')->format($full), "|\n";
+echo $at->in(Core\Time\Zone::fixed(5h30m))->format($full), "|\n";
+
+// Text that arrives at run time still goes through `Zone::of`.
+var $name = "Europe/Berlin";
+echo $at->in(Core\Time\Zone::of($name))->format($full), "|\n";
+
+// Each written zone is its own value, so `==` compares identity.
+var $utc = Core\Time\Zone::UTC;
+echo ($utc == $utc) ? "same" : "distinct", " ", (Core\Time\Zone::of('UTC') == Core\Time\Zone::UTC) ? "same" : "distinct", "|\n";
+
+// Many conversions with a written zone. Only the results are new values,
+// and each is freed, so the memory held at the end is the same.
+var $local = $at->in('Europe/Berlin');
+uint $count = 0;
+uint $before = Core\Budget::memoryHeld();
+while ($count < 10000) {
+    $local = $at->in('Europe/Berlin');
+    $count = $count + 1;
+}
+echo (Core\Budget::memoryHeld() <= $before + 1024) ? "no growth" : "growth", "|\n";
+--EXPECT--
+2024-03-01 09:30 +01:00 Europe/Berlin|
+2024-03-01 09:30 -05:00 America/New_York|
+2024-03-01 09:30 +09:00 Asia/Tokyo|
+2024-03-01 08:30 Z UTC|
+2024-03-01 08:30 Z UTC|
+2024-03-01 09:30 +01:00 Europe/Berlin|
+2024-03-01 14:00 +05:30 +05:30|
+2024-03-01 14:00 +05:30 +05:30|
+2024-03-01 09:30 +01:00 Europe/Berlin|
+same distinct|
+no growth|

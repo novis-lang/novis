@@ -670,6 +670,13 @@ impl<'a> Lowering<'a> {
         cur: BlockId,
     ) -> (ValueId, Ty) {
         if let nvs_types::ConstArg::Built { symbol, args } = default {
+            // `Zone::UTC`, and every constant built the same way, is a written
+            // zone: one immortal instance and no call.
+            if *symbol == "nvs_core_time_zone_of"
+                && let [nvs_types::ConstArg::Str(id)] = args.as_slice()
+            {
+                return self.emit(cur, Ty::Object, InstKind::ConstZone(id.clone()));
+            }
             let mark = self.temporaries_mark();
             // A `Core` member *borrows* its arguments (`InstKind::CoreCall`),
             // and each of these was freshly materialized here, so this frame

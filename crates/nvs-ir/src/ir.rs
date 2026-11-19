@@ -1092,6 +1092,17 @@ pub enum InstKind {
     /// exactly. Each written duration is its own instance, so `90m == 1h30m`
     /// stays `false` (`rule:expressions/object-identity-equality`).
     ConstDuration(i64),
+    /// A written zone's id, as the whole `Core\Time\Zone` it names
+    /// (`rule:core-classes/a-time-class-builds-its-own-values`): one immortal
+    /// instance in the unit's data section, [`Self::ConstDuration`]'s shape
+    /// with a `string` slot that is itself an immortal literal. A string
+    /// literal at a `Zone` parameter, `Zone::UTC`, and `Zone::of` or
+    /// `Zone::fixed` with a written argument lower to it. No `Zone` member
+    /// writes its slot, which is what lets every request share it.
+    ///
+    /// [`Ty::Object`]. Each written zone is its own instance, so `==` stays
+    /// identity (`rule:expressions/object-identity-equality`).
+    ConstZone(String),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
     /// A binary arithmetic or comparison operator over two already-lowered
@@ -2569,7 +2580,7 @@ pub enum InstKind {
 impl InstKind {
     /// Whether the value this instruction defines is an immortal literal in
     /// the unit's data section: [`Self::ConstStr`], [`Self::ConstBytes`],
-    /// [`Self::ConstMarkup`] and [`Self::ConstDuration`].
+    /// [`Self::ConstMarkup`], [`Self::ConstDuration`] and [`Self::ConstZone`].
     ///
     /// A retain or release of such a value changes no count, because the
     /// header's count is `nvs_runtime::IMMORTAL_REFCOUNT`. So `nvs-codegen`
@@ -2584,7 +2595,11 @@ impl InstKind {
     pub const fn is_immortal_literal(&self) -> bool {
         matches!(
             self,
-            Self::ConstStr(_) | Self::ConstBytes(_) | Self::ConstMarkup(_) | Self::ConstDuration(_)
+            Self::ConstStr(_)
+                | Self::ConstBytes(_)
+                | Self::ConstMarkup(_)
+                | Self::ConstDuration(_)
+                | Self::ConstZone(_)
         )
     }
 }
@@ -4057,6 +4072,7 @@ impl InstKind {
             | InstKind::ConstBytes(..)
             | InstKind::ConstMarkup(..)
             | InstKind::ConstDuration(..)
+            | InstKind::ConstZone(..)
             | InstKind::Param(..)
             | InstKind::ClassDescConst { .. }
             | InstKind::ShapeCodecConst { .. }
@@ -4359,6 +4375,7 @@ impl InstKind {
             | InstKind::ConstBytes(..)
             | InstKind::ConstMarkup(..)
             | InstKind::ConstDuration(..)
+            | InstKind::ConstZone(..)
             | InstKind::Param(..)
             | InstKind::BinOp { .. }
             | InstKind::UnOp { .. }

@@ -1,0 +1,34 @@
+--TEST--
+a time zone written as text is checked while compiling: a name that is not a time zone, an offset past 25:59:59 and a `string` variable at a `Zone` parameter are each one diagnostic (`rule:core-classes/a-time-class-builds-its-own-values`)
+--FILE--
+<?nvs
+var $at = Core\Time\Instant::fromEpoch(0);
+
+// A misspelled name.
+var $misspelled = $at->in('Europe/Berln');
+// A name with the wrong case and a space at the end.
+var $spaced = $at->in('utc ');
+// An offset further from UTC than any zone is.
+var $far = $at->in('+26:00');
+// Text in a variable is not a zone. `Core\Time\Zone::of` converts it.
+var $name = 'Europe/Berlin';
+var $variable = $at->in($name);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0769]: this text is not valid for this function: `Europe/Berln` is not a time zone name
+%A
+  = help: Time zone names close to this text: `Europe/Berlin`, %s
+
+error[E0769]: this text is not valid for this function: `utc ` is not a time zone name
+%A
+  = help: Time zone names close to this text: `UTC`.
+
+error[E0769]: this text is not valid for this function: `+26:00` is not a zone offset. An offset is written `+HH:MM` and is at most 25:59:59 from UTC
+%A
+error[E0401]: expected `Core\Time\Zone`, found `string`
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
