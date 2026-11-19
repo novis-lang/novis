@@ -327,38 +327,20 @@ line here is text an end user reads, held to `AGENTS.md` § *Text an end user re
 
 ### State
 
-Stages 1 and 2 are done. The session is kept per key (`nvs_runtime::Session` has `entries`, `touched`
-and `cleared`), and both stores answer the five operations. On the shared store: `load` (`HGETALL`),
-`issue` (`EVAL` of `ISSUE`, `session.rs:607`), `save` (`EVAL` of `SAVE`, `:627`), `relocate` (the rule's
-`move`, `RENAMENX`) and `destroy`. On the `db` store, the same five in `sqlite.rs`, over
-`nvs_session_heads` and `nvs_session_entries`, each write in one `BEGIN IMMEDIATE` transaction
-(`atomically`). `set_if_present` is removed from `redis.rs`, and `REPLY_CEILING` and
-`STRING_ELEMENT_CEILING` are `pub(crate)`. The cards say what two requests at once do. `set`, `remove`
-and `setSecret` no longer throw `ParseError`, because they decode nothing. One standing decision is new:
-*`clear` always earns a write*.
+Stages 1 to 4 are done. The session is kept per key (`nvs_runtime::Session`: `entries`, `touched`,
+`cleared`), and both stores answer the five operations: the shared store through `ISSUE` and `SAVE`
+(`session.rs:607`, `:627`), `RENAMENX` and `DEL`, and the `db` store in `sqlite.rs` over
+`nvs_session_heads` and `nvs_session_entries`, each write one transaction. `set`, `remove` and
+`setSecret` no longer throw `ParseError`. The `per-key` cases (`session.rs:2907` on) and the `script`
+cases on the compose Redis (`real_store`, `:3180`) ran once: 13 of 13 green. Clippy is green.
 
-Stage 3 is done. The seven `per-key` cases sit after
-`a_regenerated_session_moves_only_a_row_that_still_exists`, on helpers `a_request`, `ended`,
-`stored_under`, `int_bytes` and `a_store_with_record` (`session.rs:2907`). Two requests are two
-`Ctx::buffered()` loaded from one store, each ended through `CASE_STORE`.
-`get_and_set_decode_and_encode_only_their_own_key` (`:3136`) uses a cut 64 KiB value that cannot
-decode, not a probe: `get` of the other key reads, and `set` leaves the cut bytes as they were.
-`real_store(label)` (`:3180`) reaches the compose Redis on 16379 through `redis.rs`'s test
-`REDIS` and `STORE_WAIT`, now `pub(crate)` in a `pub(crate) mod tests`. The four `script` cases
-follow it; the ceiling case passes `200` as `ARGV[3]` through `eval`. Both checks ran once: 13 of 13
-green, and the script cases reached the real store (no "asserted nothing" line). Clippy is green.
-
-Stage 4 is done. The `set` page has a `**Good to know:**` paragraph on two requests at once, and the
-`clear` and `regenerate` pages say what happens to a key another request saved meanwhile; `bun nv
+Stage 4: the `set`, `clear` and `regenerate` pages say what two requests at once do, and `bun nv
 prose` is green. All nine `Core\Session` perf records are measured on the new code. `get` and
-`remove` failed their ramp as `complexity linear` with scale siblings that counted `cart`'s setup per
-op, so both now declare `complexity constant`, and `get.scale.nvs` and `remove.scale.nvs` use the
-`// bench: rounds 64` form (`benches/members/README.md:115-119`). Measured: `get` growth unclear
-(the counts never agreed by the ceiling, in `growth_notes`), **size growth flat**; `remove` growth
-flat, size flat; `set`, `regenerate` growth flat, size unclear; `getSecret`, `setSecret` flat and
-flat; `start` flat. `bun nv proofs --gate` lists no `Session` gap. Other features' perf records are
-stale from earlier goals (`time.rs` 86, `io.rs` 42, `str.rs` 40, `http.rs` 28, and more): the full
-gate's debt, not this goal's.
+`remove` now declare `complexity constant`, and their scale siblings use `// bench: rounds 64`, so
+`cart`'s setup cancels out. Measured: `get` size growth **flat** (batch growth unclear, in
+`growth_notes`); `remove` flat and flat; `set` and `regenerate` flat, size unclear; `getSecret`,
+`setSecret` and `start` flat. `bun nv proofs --gate` lists no `Session` gap. Other members' perf
+records are stale from earlier goals (`time.rs`, `io.rs`, `str.rs`, `http.rs`): the full gate's debt.
 
 The sweep's reds are stale: no push since nightly 44510687786; `env-secret-proofs` is retired.
 
