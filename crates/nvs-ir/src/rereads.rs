@@ -34,7 +34,9 @@
 //! anonymous function is written, no method outside `Core` is called, no
 //! `Core` member that takes a callable is called (its callback is Novis
 //! code), no class outside `Core` is built, no property is read or written,
-//! nothing suspends, and no other member of the row's class is called.
+//! nothing suspends, and no `Core` call that [`Row::may_change`] names runs:
+//! for a file, that is every class but plain computation, because an open
+//! handle or a spawned process changes the file too.
 //! [`find`] runs once per
 //! lowered program, beside `crate::forms::run`.
 //!
@@ -81,7 +83,32 @@ impl Row {
             Self::File => &["isFile", "isDir", "size", "modifiedAt"],
         }
     }
+
+    /// Whether a call of a `Core` class other than this row's reading
+    /// members may change the row's answer. A query is a value, so only its
+    /// own class touches it. A cache store shares its entries with every
+    /// other store and with `Core\Cache`, so any class under `Core\Cache`
+    /// may. A file is changed by an open handle, a spawned process, a
+    /// database or an archive alike, so every class that is not plain
+    /// computation may.
+    fn may_change(self, class: &str) -> bool {
+        match self {
+            Self::Query => class == self.class(),
+            Self::Cache => class == r"Core\Cache" || class.starts_with(r"Core\Cache\"),
+            Self::File => !FILE_QUIET.contains(&class),
+        }
+    }
 }
+
+/// The `Core` classes that compute and never touch a file, which a pair of
+/// [`Row::File`] reads may have between them.
+const FILE_QUIET: &[&str] = &[
+    r"Core\Str",
+    r"Core\Math",
+    r"Core\Arr",
+    r"Core\Regex",
+    r"Core\Path",
+];
 
 /// One second call that does the first one's work again.
 #[derive(Clone, Debug)]
@@ -509,7 +536,8 @@ impl Guard<'_, '_> {
         };
         let class = call.class.to_string();
         in_core(&class)
-            && (class != self.row.class() || self.row.members().contains(&call.method.as_str()))
+            && (self.row.members().contains(&call.method.as_str()) && class == self.row.class()
+                || !self.row.may_change(&class))
             && !call
                 .param_tys
                 .iter()

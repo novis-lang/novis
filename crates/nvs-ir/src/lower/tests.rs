@@ -7054,6 +7054,16 @@ final class Shop {
     var $m = Core\\Arr::map($l, $f);
     var $b = $s->get(\"k\");
   }
+  public static function handle(string $p, Core\\IO\\File $h): void {
+    var $a = Core\\IO::size($p);
+    $h->truncate(8);
+    var $b = Core\\IO::size($p);
+  }
+  public static function path(string $p): void {
+    var $a = Core\\IO::size($p);
+    var $j = Core\\Path::join($p, \"x\");
+    var $b = Core\\IO::size($p);
+  }
 }
 ";
     let program = lower_whole_file_with_src(src).0;
@@ -7066,7 +7076,7 @@ final class Shop {
     let w = Some(nvs_diagnostics::code::W_REPEATED_READ);
     assert_eq!(
         found,
-        vec![(w, 7), (w, 8), (w, 12), (w, 16)],
+        vec![(w, 7), (w, 8), (w, 12), (w, 16), (w, 61)],
         "{warnings:#?}"
     );
     assert!(
