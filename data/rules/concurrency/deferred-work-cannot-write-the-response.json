@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/after-response-a-response-write-does-not-compile.nvst",
-    "tests/conformance/core/after-response-a-hidden-response-write-throws.nvst"
+    "tests/conformance/core/after-response-a-hidden-response-write-throws.nvst",
+    "tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst"
   ]
 }

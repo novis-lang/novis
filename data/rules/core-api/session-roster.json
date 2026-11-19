@@ -9,9 +9,9 @@
     "http-server/a-session-value-is-short-lived-or-long-lived"
   ],
   "guardedBy": [
-    "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",
-    "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
-    "tests/conformance/core/session-the-refusal-before-start-is-catchable-at-the-root.nvst",
+    "tests/conformance/core/session-every-member-names-itself-where-no-request-arrived.nvst",
+    "tests/conformance/core/session-every-member-gives-one-answer-where-no-request-arrived.nvst",
+    "tests/conformance/core/session-the-refusal-where-no-request-arrived-is-catchable-at-the-root.nvst",
     "crates/nvs-stdlib/src/session.rs"
   ]
 }

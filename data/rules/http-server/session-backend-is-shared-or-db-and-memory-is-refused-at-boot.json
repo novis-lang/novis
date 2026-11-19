@@ -12,6 +12,6 @@
     "crates/nvs-config/src/session.rs",
     "crates/nvs-stdlib/src/session.rs",
     "tests/conformance/core/a-session-survives-a-request-on-another-process.nvst",
-    "tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst"
+    "tests/conformance/core/session-a-first-use-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst"
   ]
 }

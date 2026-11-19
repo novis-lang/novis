@@ -9,7 +9,7 @@
     "concurrency/a-cached-value-is-copied-across-the-boundary"
   ],
   "guardedBy": [
-    "tests/conformance/core/session-start-takes-the-presented-identifier-or-none-at-all.nvst",
+    "tests/conformance/core/session-open-with-identifier-and-a-first-use-reach-the-same-store-question.nvst",
     "crates/nvs-stdlib/src/session.rs"
   ]
 }

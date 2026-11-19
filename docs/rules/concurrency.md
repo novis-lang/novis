@@ -511,9 +511,16 @@ The response is on the wire before deferred work runs, so **the deferred callabl
 refused in it: a compile error, `E0857`, where the call is written inside the anonymous function passed
 to `Core\Task::afterResponse` or one nested in it, and a `LogicError` at run time otherwise — a callable
 held in a variable, a method it calls, and every task the work starts. `Core\Request` and `Core\Server`
-stay readable, and so do `Core\Session::get` and `getSecret` — it is still the same tree, and the
-request's own values are still there to read. `echo` in deferred work is the work's own output and is not
-a response write.
+stay readable: it is still the same tree, and the request's own values are still there to read. `echo`
+in deferred work is the work's own output and is not a response write.
+
+**A session read compiles there and throws.** `Core\Session::get` and `getSecret` are not refused by the
+checker, because a read sends no header. But deferred work runs with no session: the request's session
+was written back when its program ended, so the first session call in the work throws `LogicError`
+([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)). A value the work needs is read before
+`Core\Task::afterResponse` is called and captured by the callable. That costs nothing past the response,
+where a view of the session kept for the work would hold the record for as long as the work runs and
+could show values another request has since changed.
 
 **A session write is refused for every visitor, not only a new one.** A write may draw an identifier,
 a short token or a cookie refresh, and each of those is a header. A rule that threw only where a header
