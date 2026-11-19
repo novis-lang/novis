@@ -3,8 +3,8 @@
 // numbers the method can return. It should return them and not crash or leak.
 
 // 1. The first and the last instant give the smallest and the largest number.
-Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
-Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+Core\Time\Instant $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00.999999999Z');
 echo $first->toEpochMicros(), ' ', $last->toEpochMicros(), "\n";
 
 // 2. The largest number is multiplied by 1000, as a program does to get nanoseconds.

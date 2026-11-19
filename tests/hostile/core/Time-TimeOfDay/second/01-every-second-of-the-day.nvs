@@ -42,6 +42,6 @@ while ($step < 86400) {
 Expect::same('step 3', $clock->compareTo(Core\Time\TimeOfDay::at(0, 0)) as string, '0');
 
 // 4. In 1870, Kolkata was 5 hours 21 minutes 10 seconds ahead of UTC. At 12:00 UTC its time of day was 17:21:10.
-var $kolkata = Core\Time::fromIso('1870-06-01T12:00:00Z')->in(Core\Time\Zone::of('Asia/Kolkata'));
+var $kolkata = Core\Time\Instant::fromIso('1870-06-01T12:00:00Z')->in(Core\Time\Zone::of('Asia/Kolkata'));
 Expect::same('step 4', $kolkata->timeOfDay()->second() as string, '10');
 echo "all seconds are right\n";

@@ -43,6 +43,6 @@ while ($h < 24) {
 
 // 4. The time of day of 02:30 on the day Berlin has it twice. Both are in hour 2.
 var $berlin = Core\Time\Zone::of('Europe/Berlin');
-Expect::same('step 4', Core\Time::fromIso('2024-10-27T00:30:00Z')->in($berlin)->timeOfDay()->hour() as string, '2');
-Expect::same('step 4', Core\Time::fromIso('2024-10-27T01:30:00Z')->in($berlin)->timeOfDay()->hour() as string, '2');
+Expect::same('step 4', Core\Time\Instant::fromIso('2024-10-27T00:30:00Z')->in($berlin)->timeOfDay()->hour() as string, '2');
+Expect::same('step 4', Core\Time\Instant::fromIso('2024-10-27T01:30:00Z')->in($berlin)->timeOfDay()->hour() as string, '2');
 echo "all hours are right\n";

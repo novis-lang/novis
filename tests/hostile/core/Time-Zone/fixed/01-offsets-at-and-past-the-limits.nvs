@@ -9,7 +9,7 @@ final class Try
     {
         try {
             Core\Time\Zone $zone = Core\Time\Zone::fixed($offset);
-            return $zone->offsetAt(Core\Time::fromEpoch(0))->toSeconds() as string;
+            return $zone->offsetAt(Core\Time\Instant::fromEpoch(0))->toSeconds() as string;
         } catch (RuntimeError $e) {
             return 'error';
         }
@@ -29,8 +29,8 @@ echo Try::fixed(1ns), ' ', Try::fixed((0s)->minus(1ns)), "\n";
 // 3. The widest zones are used on the first and the last instant there is.
 Core\Time\Zone $east = Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599));
 Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599));
-echo Core\Time::fromIso('9999-12-30T22:00:00Z')->in($east)->format('uuuu-MM-dd HH:mm:ss'), "\n";
-echo Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($west)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+echo Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($east)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+echo Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($west)->format('uuuu-MM-dd HH:mm:ss'), "\n";
 
 // 4. Many zones are made and thrown away, one for every offset in steps of seven seconds.
 int $made = 0;

@@ -34,8 +34,8 @@ Attack::attempt(3, { properties: { title: '</dc:title><x>', author: "Shop\u{0}Ad
 Attack::attempt(3, { properties: { title: Core\Str::repeat('x', 1000000) } });
 
 // 4. A creation time at the first and the last second there is.
-Attack::attempt(4, { properties: { created: Core\Time::fromEpoch(-377705023201) } });
-Attack::attempt(4, { properties: { created: Core\Time::fromEpoch(253402207200) } });
+Attack::attempt(4, { properties: { created: Core\Time\Instant::fromEpoch(-377705023201) } });
+Attack::attempt(4, { properties: { created: Core\Time\Instant::fromEpoch(253402207200) } });
 
 // 5. 300 workbooks that are started and never finished. Each one is logged as an error.
 uint $open = 0;

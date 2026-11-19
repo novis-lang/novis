@@ -42,7 +42,7 @@ final class Package
         array<bool> $seen = [];
         foreach ($this->published as int $at) {
             // The month is the start of the date, such as `2026-10`.
-            $seen[Core\Str::slice(Core\Time::fromEpoch($at)->toIso(), 0, 7)] = true;
+            $seen[Core\Str::slice(Core\Time\Instant::fromEpoch($at)->toIso(), 0, 7)] = true;
         }
         return Core\Arr::count($seen);
     }

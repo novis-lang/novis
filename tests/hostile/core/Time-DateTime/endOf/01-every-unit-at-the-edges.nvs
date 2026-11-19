@@ -24,8 +24,8 @@ array<Core\Time\Zone> $zones = [
 ];
 
 // 1. Every unit, at the first and the last moment, in every zone.
-var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
-var $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00.999999999Z');
 int $built = 0;
 int $refused = 0;
 foreach ($zones as Core\Time\Zone $zone) {
@@ -52,7 +52,7 @@ array<string> $names = ['America/Sao_Paulo', 'Europe/Berlin', 'Asia/Beirut', 'Pa
 int $late = 0;
 foreach ($days as string $day) {
     foreach ($names as string $name) {
-        var $at = Core\Time::fromIso($day)->in(Core\Time\Zone::of($name));
+        var $at = Core\Time\Instant::fromIso($day)->in(Core\Time\Zone::of($name));
         foreach ($units as Core\Unit $each) {
             if ($at->difference($at->endOf($each), Core\Unit::Nanosecond) >= 0) {
                 $late = $late + 1;
@@ -63,7 +63,7 @@ foreach ($days as string $day) {
 echo $late, " ends at or after the value\n";
 
 // 3. One million ends are built, one at a time. Each new value is freed.
-var $moving = Core\Time::at(2000, 1, 31, Core\Time\Zone::of('America/New_York'), { hour: 23, minute: 59 });
+var $moving = Core\Time\DateTime::fromIso('2000-01-31 23:59', 'America/New_York');
 int $round = 0;
 int $total = 0;
 while ($round < 1000000) {

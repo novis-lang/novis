@@ -9,7 +9,7 @@ final class Try
     {
         try {
             Core\Time\Zone $zone = Core\Time\Zone::of($name);
-            return $zone->offsetAt(Core\Time::fromEpoch(0))->toSeconds() as string;
+            return $zone->offsetAt(Core\Time\Instant::fromEpoch(0))->toSeconds() as string;
         } catch (RuntimeError $e) {
             return 'error';
         }

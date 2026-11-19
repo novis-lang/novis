@@ -1,5 +1,5 @@
 <?nvs
-// Attack: `Core\Time::parse` gets very long patterns, broken quotes, huge numbers and times past both ends of the range.
+// Attack: `Core\Time\DateTime::parse` gets very long patterns, broken quotes, huge numbers and times past both ends of the range.
 // Each bad pattern should throw a `LogicError`, each bad text a `ParseError`, and nothing should crash or leak.
 
 var $utc = Core\Time\Zone::of('UTC');
@@ -13,7 +13,7 @@ foreach ($letters as string $letter) {
     $everyLetter = $everyLetter . Core\Str::repeat($letter, 1000) . ' ';
 }
 try {
-    Core\Time::parse('2024-06-05', $everyLetter, $utc);
+    Core\Time\DateTime::parse('2024-06-05', $everyLetter, $utc);
 } catch (LogicError $letterPattern) {
     $badPattern = $badPattern + 1;
 } catch (ParseError $letterText) {
@@ -22,19 +22,19 @@ try {
 
 // 2. Quotes that never close, and one million quoted characters.
 try {
-    Core\Time::parse('2024', "yyyy '" . Core\Str::repeat('x', 1000000), $utc);
+    Core\Time\DateTime::parse('2024', "yyyy '" . Core\Str::repeat('x', 1000000), $utc);
 } catch (LogicError $open) {
     $badPattern = $badPattern + 1;
 }
 try {
-    Core\Time::parse('2024', Core\Str::repeat("'", 1000001), $utc);
+    Core\Time\DateTime::parse('2024', Core\Str::repeat("'", 1000001), $utc);
 } catch (LogicError $odd) {
     $badPattern = $badPattern + 1;
 } catch (ParseError $oddText) {
     $badText = $badText + 1;
 }
 try {
-    Core\Time::parse('2024', "'" . Core\Str::repeat('x', 1000000) . "'yyyy", $utc);
+    Core\Time\DateTime::parse('2024', "'" . Core\Str::repeat('x', 1000000) . "'yyyy", $utc);
 } catch (ParseError $longQuoted) {
     $badText = $badText + 1;
 }
@@ -42,29 +42,29 @@ try {
 // 3. A year field one million letters wide, with one million digits of text.
 string $digits = Core\Str::repeat('9', 1000000);
 try {
-    Core\Time::parse($digits, Core\Str::repeat('y', 1000000), $utc);
+    Core\Time\DateTime::parse($digits, Core\Str::repeat('y', 1000000), $utc);
 } catch (ParseError $hugeYear) {
     $badText = $badText + 1;
 }
 try {
-    Core\Time::parse('2024-06-05 12:00:00.' . $digits, 'yyyy-MM-dd HH:mm:ss.' . Core\Str::repeat('S', 1000000), $utc);
+    Core\Time\DateTime::parse('2024-06-05 12:00:00.' . $digits, 'yyyy-MM-dd HH:mm:ss.' . Core\Str::repeat('S', 1000000), $utc);
 } catch (ParseError $hugeFraction) {
     $badText = $badText + 1;
 }
 try {
-    Core\Time::parse($digits, 'g', $utc);
+    Core\Time\DateTime::parse($digits, 'g', $utc);
 } catch (ParseError $hugeJulian) {
     $badText = $badText + 1;
 }
 
 // 4. Ten million bytes of text, and a pattern that names a time zone.
 try {
-    Core\Time::parse(Core\Str::repeat('é', 5000000), 'yyyy-MM-dd', $utc);
+    Core\Time\DateTime::parse(Core\Str::repeat('é', 5000000), 'yyyy-MM-dd', $utc);
 } catch (ParseError $junk) {
     $badText = $badText + 1;
 }
 try {
-    Core\Time::parse('2024-06-05 UTC', 'yyyy-MM-dd ' . Core\Str::repeat('V', 2), $utc);
+    Core\Time\DateTime::parse('2024-06-05 UTC', 'yyyy-MM-dd ' . Core\Str::repeat('V', 2), $utc);
 } catch (LogicError $zonal) {
     $badPattern = $badPattern + 1;
 }
@@ -75,7 +75,7 @@ int $plain = 0;
 array<string> $past = ['9999-12-30 22:01', '9999-12-31 23:59', '-9999-01-01 00:00', '-9999-01-02 01:59'];
 foreach ($past as string $pastText) {
     try {
-        Core\Time::parse($pastText, 'uuuu-MM-dd HH:mm', $utc);
+        Core\Time\DateTime::parse($pastText, 'uuuu-MM-dd HH:mm', $utc);
     } catch (ParseError $outside) {
         if (Core\Str::startsWith($outside->message, "Core\\Time::parse(): the time is outside ")) {
             $plain = $plain + 1;
@@ -83,14 +83,14 @@ foreach ($past as string $pastText) {
     }
 }
 echo $plain, " of 4 name the range\n";
-echo Core\Time::parse('9999-12-30 22:00', 'uuuu-MM-dd HH:mm', $utc)->format('uuuu-MM-dd HH:mm XXX'), "\n";
+echo Core\Time\DateTime::parse('9999-12-30 22:00', 'uuuu-MM-dd HH:mm', $utc)->format('uuuu-MM-dd HH:mm XXX'), "\n";
 
 // 6. Many bad texts in a loop. Every error is caught and freed.
 uint $i = 0;
 int $caught = 0;
 while ($i < 100000) {
     try {
-        Core\Time::parse('2024-06-05 ' . ($i % 100) as string, 'yyyy-MM-dd HH:mm', $utc);
+        Core\Time\DateTime::parse('2024-06-05 ' . ($i % 100) as string, 'yyyy-MM-dd HH:mm', $utc);
     } catch (ParseError $short) {
         $caught = $caught + 1;
     }
@@ -104,7 +104,7 @@ int $total = 0;
 uint $j = 0;
 while ($j < 100000) {
     string $text = '2024-03-31 0' . ($j % 4) as string . ':' . Core\Str::padStart(($j % 60) as string, 2, '0');
-    $total = $total + Core\Time::parse($text, 'yyyy-MM-dd HH:mm', $berlin)->toInstant()->toEpochSeconds() % 1000;
+    $total = $total + Core\Time\DateTime::parse($text, 'yyyy-MM-dd HH:mm', $berlin)->toInstant()->toEpochSeconds() % 1000;
     $j = $j + 1;
 }
 echo $total, "\n";

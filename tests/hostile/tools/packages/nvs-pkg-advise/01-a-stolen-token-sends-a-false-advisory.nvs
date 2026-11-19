@@ -92,7 +92,7 @@ try {
     if ($registry->inFeed($now)) {
         echo "1. the advisory is in the feed at once\n";
     } else {
-        echo '1. stopped: the feed shows the advisory only from ', Core\Time::fromEpoch($from)->toIso(),
+        echo '1. stopped: the feed shows the advisory only from ', Core\Time\Instant::fromEpoch($from)->toIso(),
             ', and the owners got ', $registry->notices, " message\n";
     }
 } catch (Throwable $e) {

@@ -44,6 +44,6 @@ try {
 }
 
 // 4. In 1870, Kathmandu was 5 hours 41 minutes 16 seconds ahead of UTC. At 12:00 UTC its time of day was 17:41:16.
-var $kathmandu = Core\Time::fromIso('1870-06-01T12:00:00Z')->in(Core\Time\Zone::of('Asia/Kathmandu'));
+var $kathmandu = Core\Time\Instant::fromIso('1870-06-01T12:00:00Z')->in(Core\Time\Zone::of('Asia/Kathmandu'));
 Expect::same('step 4', $kathmandu->timeOfDay()->minute() as string, '41');
 echo "all minutes are right\n";

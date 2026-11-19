@@ -3,13 +3,13 @@
 // The weekdays should follow the calendar, and nothing should crash.
 
 // 1. The last day of the calendar is a Friday, and the first is a Monday.
-var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 echo $last->weekday() as int, ' ', $first->weekday() as int, "\n";
 
 // 2. Samoa skipped Friday 30 December 2011. Every hour from 29 to 31 December is read.
 // Thursday is followed by Saturday, so no hour is on a Friday.
-var $hour = Core\Time::at(2011, 12, 29, Core\Time\Zone::of('Pacific/Apia'));
+var $hour = Core\Time\DateTime::fromIso('2011-12-29', 'Pacific/Apia');
 int $fridays = 0;
 int $step = 0;
 while ($step < 48) {
@@ -22,7 +22,7 @@ while ($step < 48) {
 echo $fridays, " hours on a Friday\n";
 
 // 3. Seven hundred days in a row are read. Each weekday follows the one before.
-var $day = Core\Time::at(2024, 1, 1, Core\Time\Zone::of('Europe/Berlin'), { hour: 12 });
+var $day = Core\Time\DateTime::fromIso('2024-01-01 12:00', 'Europe/Berlin');
 int $inOrder = 0;
 int $previous = 6;
 int $count = 0;

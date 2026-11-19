@@ -14,7 +14,7 @@ class Attack
         try {
             var $rendered = Document::fromHtml("<html lang=\"en\"><head><title>Shop</title></head><body><p>Invoice</p></body></html>")
                 ->standard(Document::Standard::PdfA3b)
-                ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+                ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
                 ->invoiceXml($xml)
                 ->render();
             ?tainted string $back = Reader::open($rendered->bytes)->invoiceXml();

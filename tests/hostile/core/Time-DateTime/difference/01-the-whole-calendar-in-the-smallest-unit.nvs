@@ -4,8 +4,8 @@
 
 var $ahead = Core\Time\Zone::fixed(25h59m59s);
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
-var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind);
-var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead);
+var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind);
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead);
 
 // 1. About 20000 years in nanoseconds does not fit in an `int`. This throws an error.
 try {
@@ -30,12 +30,12 @@ echo $last->difference($first, Core\Unit::Second), "\n";
 // 4. Samoa skipped 30 December 2011. Every pair of hours in four days around it is counted in days.
 // No result should be more than 4 days.
 var $apia = Core\Time\Zone::of('Pacific/Apia');
-var $from = Core\Time::at(2011, 12, 28, $apia);
+var $from = Core\Time\DateTime::fromIso('2011-12-28', $apia);
 int $pairs = 0;
 int $wide = 0;
 int $i = 0;
 while ($i < 96) {
-    var $to = Core\Time::at(2011, 12, 28, $apia);
+    var $to = Core\Time\DateTime::fromIso('2011-12-28', $apia);
     int $j = 0;
     while ($j < 96) {
         int $days = $from->difference($to, Core\Unit::Day);

@@ -59,7 +59,7 @@ string $external = '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY secret SYSTEM "fi
 try {
     var $rendered = Document::fromHtml('<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>')
         ->standard(Document::Standard::PdfA3b)
-        ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+        ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
         ->invoiceXml($laughs)
         ->render()
         ->bytes;
@@ -72,7 +72,7 @@ try {
 try {
     var $withFile = Document::fromHtml('<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>')
         ->standard(Document::Standard::PdfA3b)
-        ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+        ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
         ->invoiceXml($external)
         ->render()
         ->bytes;

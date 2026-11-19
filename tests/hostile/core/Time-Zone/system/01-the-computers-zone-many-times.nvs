@@ -4,8 +4,8 @@
 
 // 1. The zone is used at the first and the last instant.
 Core\Time\Zone $here = Core\Time\Zone::system();
-Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
-Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00Z');
+Core\Time\Instant $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
 echo $first->in($here)->format('uuuu-MM-dd HH:mm:ss'), "\n";
 echo $last->in($here)->format('uuuu-MM-dd HH:mm:ss'), "\n";
 

@@ -18,19 +18,19 @@ var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 
 // 1. The last moment in time, read in the zone farthest ahead, is in the year 9999.
 // The first moment in time, read in the zone farthest behind, is in the year -9999.
-var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead);
-var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind);
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead);
+var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind);
 Expect::same('step 1', $last->year() as string, '9999');
 Expect::same('step 1', $first->year() as string, '-9999');
 
 // 2. One moment is read in Tokyo and in New York. It is already 2025 in Tokyo and still 2024 in New York.
-var $moment = Core\Time::fromIso('2024-12-31T23:30:00Z');
+var $moment = Core\Time\Instant::fromIso('2024-12-31T23:30:00Z');
 Expect::same('step 2', $moment->in(Core\Time\Zone::of('Asia/Tokyo'))->year() as string, '2025');
 Expect::same('step 2', $moment->in(Core\Time\Zone::of('America/New_York'))->year() as string, '2024');
 
 // 3. Every day from the year -400 to the year 400 is read and compared with `format`.
 // The year must go up by exactly one each time it changes.
-var $day = Core\Time::at(-400, 1, 1, Core\Time\Zone::UTC, { hour: 12 });
+var $day = Core\Time\DateTime::at(Core\Time\Date::at(-400, 1, 1), Core\Time\TimeOfDay::at(12, 0), 'UTC');
 int $previous = -400;
 int $changes = 0;
 int $count = 0;
@@ -51,7 +51,7 @@ Expect::same('step 3', $changes as string, '800');
 // The result must be the same moment.
 array<int> $leapYears = [-9996, -400, -4, 0, 4];
 foreach ($leapYears as int $leap) {
-    var $d = Core\Time::at($leap, 2, 29, Core\Time\Zone::of('Europe/Paris'), { hour: 23, nanos: 999999999 });
+    var $d = Core\Time\DateTime::at(Core\Time\Date::at($leap, 2, 29), Core\Time\TimeOfDay::at(23, 0, { nanos: 999999999 }), 'Europe/Paris');
     var $same = $d->with({ year: $d->year() });
     Expect::same('step 4', $same->toInstant()->compareTo($d->toInstant()) as string, '0');
 }

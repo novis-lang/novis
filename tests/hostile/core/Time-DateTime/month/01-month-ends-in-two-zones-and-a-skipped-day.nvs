@@ -17,17 +17,17 @@ final class Expect
 // The first moment in time is in January in the zone farthest behind.
 var $ahead = Core\Time\Zone::fixed(25h59m59s);
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
-Expect::same('step 1', Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->month() as string, '12');
-Expect::same('step 1', Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->month() as string, '1');
+Expect::same('step 1', Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->month() as string, '12');
+Expect::same('step 1', Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->month() as string, '1');
 
 // 2. One moment is read in Tokyo and in New York. It is February in Tokyo and January in New York.
-var $moment = Core\Time::fromIso('2024-01-31T23:30:00Z');
+var $moment = Core\Time\Instant::fromIso('2024-01-31T23:30:00Z');
 Expect::same('step 2', $moment->in(Core\Time\Zone::of('Asia/Tokyo'))->month() as string, '2');
 Expect::same('step 2', $moment->in(Core\Time\Zone::of('America/New_York'))->month() as string, '1');
 
 // 3. Samoa skipped 30 December 2011. Every hour from 28 December to 2 January is read.
 // The month must change from 12 to 1 exactly once.
-var $hour = Core\Time::at(2011, 12, 28, Core\Time\Zone::of('Pacific/Apia'));
+var $hour = Core\Time\DateTime::fromIso('2011-12-28', 'Pacific/Apia');
 int $changes = 0;
 uint $previous = 12;
 int $step = 0;
@@ -45,7 +45,7 @@ Expect::same('step 3', $changes as string, '1');
 
 // 4. Every hour of 2024 in Berlin is read and compared with `format`.
 // `with` sets the month it already has, and the result must be the same moment.
-var $berlin = Core\Time::fromIso('2023-12-31T23:00:00Z')->in(Core\Time\Zone::of('Europe/Berlin'));
+var $berlin = Core\Time\Instant::fromIso('2023-12-31T23:00:00Z')->in(Core\Time\Zone::of('Europe/Berlin'));
 int $count = 0;
 while ($count < 8784) {
     Expect::same('step 4', $berlin->month() as string, $berlin->format('M'));

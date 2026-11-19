@@ -142,7 +142,7 @@ try {
     if ($registry->showsRetracted($now)) {
         echo "2. the retraction shows at once\n";
     } else {
-        echo '2. stopped: the index shows the retraction only from ', Core\Time::fromEpoch($from)->toIso(), "\n";
+        echo '2. stopped: the index shows the retraction only from ', Core\Time\Instant::fromEpoch($from)->toIso(), "\n";
     }
 } catch (Throwable $e) {
     echo '2. stopped: ', $e->message, "\n";

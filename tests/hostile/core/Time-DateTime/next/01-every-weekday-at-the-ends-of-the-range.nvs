@@ -14,7 +14,7 @@ array<Core\Time\Weekday> $days = [
 
 // 1. Every weekday is looked for after the last second, and after each of the seven days before it.
 // Most of them are past the range. The ones that exist are counted.
-var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
 int $found = 0;
 int $refused = 0;
 int $back = 0;
@@ -34,7 +34,7 @@ echo $found + $refused, " of 56 answered\n";
 
 // 2. One million steps forward, one day each, from a time that a clock change skips in spring.
 // Each step frees the value before it.
-var $moving = Core\Time::at(2000, 3, 26, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+var $moving = Core\Time\DateTime::fromIso('2000-03-26 02:30', 'Europe/Berlin');
 uint $round = 0;
 while ($round < 1000000) {
     $moving = $moving->next($days[$round % 7]);

@@ -18,7 +18,7 @@ var $london = Core\Time\Zone::of('Europe/London');
 
 // 1. In Berlin on 31 March 2024, the clocks move from 02:00 to 03:00.
 // Every minute from midnight to 05:00 is read. No minute is in hour 2.
-var $minute = Core\Time::at(2024, 3, 31, $berlin);
+var $minute = Core\Time\DateTime::fromIso('2024-03-31', $berlin);
 int $inHourTwo = 0;
 int $step = 0;
 while ($step < 240) {
@@ -32,13 +32,13 @@ while ($step < 240) {
 Expect::same('step 1', $inHourTwo as string, '0');
 
 // 2. One nanosecond before the change is in hour 1. One nanosecond later it is hour 3.
-var $before = Core\Time::at(2024, 3, 31, $berlin, { hour: 1, minute: 59, second: 59, nanos: 999999999 });
+var $before = Core\Time\DateTime::fromIso('2024-03-31 01:59:59.999999999', $berlin);
 Expect::same('step 2', $before->hour() as string, '1');
 Expect::same('step 2', $before->plus(1, Core\Unit::Nanosecond)->hour() as string, '3');
 
 // 3. In autumn, Berlin has 02:30 twice, one hour apart. London has 01:30 twice at the same two moments.
-var $early = Core\Time::fromIso('2024-10-27T00:30:00Z');
-var $late = Core\Time::fromIso('2024-10-27T01:30:00Z');
+var $early = Core\Time\Instant::fromIso('2024-10-27T00:30:00Z');
+var $late = Core\Time\Instant::fromIso('2024-10-27T01:30:00Z');
 Expect::same('step 3', $early->in($berlin)->hour() as string, '2');
 Expect::same('step 3', $late->in($berlin)->hour() as string, '2');
 Expect::same('step 3', $early->in($london)->hour() as string, '1');
@@ -56,6 +56,6 @@ foreach ($twice as Core\Time\Instant $moment) {
 // 5. The ends of the range. The last moment is at 23:00 in the zone farthest ahead, and the first at 00:00 in the zone farthest behind.
 var $ahead = Core\Time\Zone::fixed(25h59m59s);
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
-Expect::same('step 5', Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->hour() as string, '23');
-Expect::same('step 5', Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->hour() as string, '0');
+Expect::same('step 5', Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->hour() as string, '23');
+Expect::same('step 5', Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->hour() as string, '0');
 echo "all hours are right\n";

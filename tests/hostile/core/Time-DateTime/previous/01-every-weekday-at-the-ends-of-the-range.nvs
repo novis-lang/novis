@@ -14,7 +14,7 @@ array<Core\Time\Weekday> $days = [
 
 // 1. Every weekday is looked for before the first second, and before each of the seven days after it.
 // Most of them are before the range. The ones that exist are counted.
-var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 int $found = 0;
 int $refused = 0;
 int $ahead = 0;
@@ -34,7 +34,7 @@ echo $found + $refused, " of 56 answered\n";
 
 // 2. One million steps back, one day each, from a time that happens twice when the clocks go back.
 // Each step frees the value before it.
-var $moving = Core\Time::at(9000, 10, 29, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+var $moving = Core\Time\DateTime::fromIso('9000-10-29 02:30', 'Europe/Berlin');
 uint $round = 0;
 while ($round < 1000000) {
     $moving = $moving->previous($days[6 - $round % 7]);

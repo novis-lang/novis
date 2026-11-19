@@ -62,13 +62,13 @@ try {
 
 // 5. The time is far in the future, and then far in the past.
 try {
-    var $late = Core\Time::fromIso('9999-12-31T23:59:59Z');
+    var $late = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z');
     echo '5: ', Queue::purge('q', { state: Queue::State::Pending, before: $late }), "\n";
 } catch (Throwable $e) {
     echo "5: error\n";
 }
 try {
-    var $early = Core\Time::fromIso('0001-01-01T00:00:00Z');
+    var $early = Core\Time\Instant::fromIso('0001-01-01T00:00:00Z');
     echo '5: ', Queue::purge('q', { state: Queue::State::Pending, before: $early }), "\n";
 } catch (Throwable $e) {
     echo "5: error\n";

@@ -6,7 +6,7 @@
 array<string> $names = ['Europe/Berlin', 'America/New_York', 'Australia/Lord_Howe', 'Pacific/Kiritimati'];
 array<string> $ends = ['-009999-01-02T01:59:59Z', '9999-12-30T22:00:00Z'];
 foreach ($ends as string $end) {
-    Core\Time\Instant $edge = Core\Time::fromIso($end);
+    Core\Time\Instant $edge = Core\Time\Instant::fromIso($end);
     foreach ($names as string $name) {
         echo Core\Time\Zone::of($name)->offsetAt($edge)->toSeconds(), ' ';
     }
@@ -16,8 +16,8 @@ foreach ($ends as string $end) {
 
 // 2. One zone is read every week from 1800 to 2200. Each change of the offset is counted.
 Core\Time\Zone $lordHowe = Core\Time\Zone::of('Australia/Lord_Howe');
-Core\Time\Instant $at = Core\Time::fromIso('1800-01-01T00:00:00Z');
-Core\Time\Instant $last = Core\Time::fromIso('2200-01-01T00:00:00Z');
+Core\Time\Instant $at = Core\Time\Instant::fromIso('1800-01-01T00:00:00Z');
+Core\Time\Instant $last = Core\Time\Instant::fromIso('2200-01-01T00:00:00Z');
 int $previous = $lordHowe->offsetAt($at)->toSeconds();
 int $changes = 0;
 int $weeks = 0;

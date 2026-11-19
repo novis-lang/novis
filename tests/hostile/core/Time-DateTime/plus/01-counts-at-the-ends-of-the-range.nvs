@@ -15,7 +15,7 @@ array<Core\Unit> $units = [
     Core\Unit::Quarter,
     Core\Unit::Year,
 ];
-var $middle = Core\Time::at(2024, 3, 31, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+var $middle = Core\Time\DateTime::fromIso('2024-03-31 02:30', 'Europe/Berlin');
 
 // 1. The largest and the smallest `int`, and one step less, in every unit.
 array<int> $counts = [9223372036854775807, -9223372036854775807 - 1, 9223372036854775806, -9223372036854775807];
@@ -33,8 +33,8 @@ echo $refused, " of 44 refused\n";
 
 // 2. The last and the first whole second are moved one step further, in every unit.
 // Only a step smaller than one second after the last second is still in the range.
-var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 int $past = 0;
 foreach ($units as Core\Unit $step) {
     try {
@@ -51,7 +51,7 @@ foreach ($units as Core\Unit $step) {
 echo $past, " of 22 past the range refused\n";
 
 // 3. One million months are added, one at a time, from 31 January. Each new value is freed.
-var $moving = Core\Time::at(2000, 1, 31, Core\Time\Zone::of('America/New_York'), { hour: 23, minute: 59 });
+var $moving = Core\Time\DateTime::fromIso('2000-01-31 23:59', 'America/New_York');
 int $round = 0;
 int $days = 0;
 while ($round < 1000000) {

@@ -11,7 +11,7 @@ class Attack
         try {
             var $rendered = Document::fromHtml($html)
                 ->standard($standard)
-                ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
+                ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
                 ->render();
             echo 'step ', $step, ' ran ', $rendered->pageCount, "\n";
         } catch (Throwable $e) {

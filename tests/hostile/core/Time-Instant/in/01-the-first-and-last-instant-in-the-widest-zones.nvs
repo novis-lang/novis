@@ -2,8 +2,8 @@
 // Attack: the first and the last instant are shown in the zones furthest from UTC. The dates
 // are the very first and very last days there are. Nothing should crash or leak.
 
-Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
-Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+Core\Time\Instant $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00.999999999Z');
 Core\Time\Zone $east = Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599));
 Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599));
 
@@ -31,7 +31,7 @@ try {
 
 // 4. One million `DateTime` values are made in four zones. Each one is freed again.
 array<Core\Time\Zone> $zones = [$east, $west, $kiritimati, Core\Time\Zone::of('Europe/Berlin')];
-Core\Time\Instant $clock = Core\Time::fromEpoch(0);
+Core\Time\Instant $clock = Core\Time\Instant::fromEpoch(0);
 uint $days = 0;
 int $round = 0;
 while ($round < 1000000) {

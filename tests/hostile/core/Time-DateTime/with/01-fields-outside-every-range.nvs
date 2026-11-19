@@ -2,7 +2,7 @@
 // Attack: `with` gets numbers that no field can have, and moves the last moment there is.
 // Each value outside a range should throw a `RuntimeError`, and nothing should crash.
 
-var $june = Core\Time::at(2024, 6, 30, Core\Time\Zone::of('Europe/Berlin'), { hour: 12 });
+var $june = Core\Time\DateTime::fromIso('2024-06-30 12:00', 'Europe/Berlin');
 
 // 1. The largest and the smallest `int`, and one year past each end, for `year`.
 array<int> $years = [9223372036854775807, -9223372036854775807 - 1, 10000, -10000];
@@ -95,16 +95,16 @@ echo $refused, " refused\n";
 
 // 4. The last moment there is gets its last nanosecond, and the same fields in UTC.
 // In UTC that moment is past the range, so the second call throws.
-var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
 echo $last->with({ nanos: 999999999 })->format('yyyy-MM-dd HH:mm:ss.SSSSSSSSS'), "\n";
 try {
-    Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::UTC)->with({ day: 31, hour: 23 });
+    Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::UTC)->with({ day: 31, hour: 23 });
 } catch (RuntimeError $late) {
     echo "past the range\n";
 }
 
 // 5. One million new values are built, one at a time. Each new value is freed.
-var $moving = Core\Time::at(2000, 1, 31, Core\Time\Zone::of('America/New_York'), { hour: 23, minute: 59 });
+var $moving = Core\Time\DateTime::fromIso('2000-01-31 23:59', 'America/New_York');
 int $round = 0;
 int $days = 0;
 while ($round < 1000000) {

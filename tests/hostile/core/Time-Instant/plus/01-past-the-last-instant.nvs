@@ -4,7 +4,7 @@
 
 Core\Time\Duration $longest = Core\Time\Duration::nanoseconds(9223372036854775807);
 Core\Time\Duration $mostNegative = Core\Time\Duration::nanoseconds(-9223372036854775807 - 1);
-Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
 
 // 1. The longest duration is added until the result is after the year 9999.
 Core\Time\Instant $at = $first;
@@ -26,7 +26,7 @@ try {
 }
 
 // 3. One million new instants are made. Each one is freed again.
-Core\Time\Instant $clock = Core\Time::fromEpoch(0);
+Core\Time\Instant $clock = Core\Time\Instant::fromEpoch(0);
 int $round = 0;
 while ($round < 1000000) {
     $clock = $clock->plus(Core\Time\Duration::nanoseconds(($round % 3 - 1) * 9223372036));

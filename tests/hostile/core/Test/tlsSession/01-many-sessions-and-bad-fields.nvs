@@ -38,7 +38,7 @@ foreach ($names as string $name) {
 array<string> $dates = ['1949-12-31T23:59:59Z', '1950-01-01T00:00:00Z', '9999-12-30T00:00:00Z'];
 foreach ($dates as string $date) {
     try {
-        echo Test::tlsSession({ expiry: Core\Time::fromIso($date) })->expiry()->toIso(), "\n";
+        echo Test::tlsSession({ expiry: Core\Time\Instant::fromIso($date) })->expiry()->toIso(), "\n";
     } catch (Throwable $error) {
         echo 'refused ', $date, "\n";
     }
