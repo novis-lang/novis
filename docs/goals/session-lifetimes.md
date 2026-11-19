@@ -49,7 +49,7 @@ checks:
   - id: lifetimes
     stage: 5
     name: "on every store, short-lived values end with the browser session or the short clock, long-lived values outlive both, a read refreshes a clock only past half its time, each clear keeps the other kind under a new identifier, clearAll leaves nothing, and the session opens on its first use"
-    run: [cargo, test, --lib, --, a_short_lived_value_is_gone_once_the_browser_drops_its_short_cookie_on_any_store, a_long_lived_value_survives_a_new_browser_session_on_any_store, a_short_lived_value_is_gone_after_the_short_clock_on_any_store, a_read_refreshes_a_clock_only_when_less_than_half_is_left_on_any_store, writing_a_key_with_the_other_lifetime_replaces_it_on_any_store, clear_short_lived_keeps_long_lived_values_under_a_new_identifier_on_any_store, clear_long_lived_keeps_short_lived_values_under_a_new_identifier_on_any_store, clear_all_leaves_no_row_and_expires_both_cookies, the_identifier_cookie_has_max_age_only_while_a_long_lived_value_exists, the_first_call_opens_the_session_and_a_request_that_never_calls_one_reaches_no_store, a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too, an_identifier_opened_by_hand_sees_its_short_lived_values_without_a_short_cookie]
+    run: [cargo, test, --lib, --, a_short_lived_value_is_gone_once_the_browser_drops_its_short_cookie_on_any_store, a_long_lived_value_survives_a_new_browser_session_on_any_store, a_short_lived_value_is_gone_after_the_short_clock_on_any_store, a_read_refreshes_a_clock_only_when_less_than_half_is_left_on_any_store, writing_a_key_with_the_other_lifetime_replaces_it_on_any_store, clear_short_lived_keeps_long_lived_values_under_a_new_identifier_on_any_store, clear_long_lived_keeps_short_lived_values_under_a_new_identifier_on_any_store, clear_all_leaves_no_row_and_expires_both_cookies, the_identifier_cookie_has_max_age_only_while_a_long_lived_value_exists, the_first_call_opens_the_session_and_a_request_that_never_calls_one_reaches_no_store, a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too, an_identifier_opened_by_hand_sees_its_short_lived_values_without_a_short_cookie, a_long_lived_secret_survives_a_new_browser_session_and_stays_sealed_on_any_store]
     timeout: 1800
     tests:
       - a_short_lived_value_is_gone_once_the_browser_drops_its_short_cookie_on_any_store
@@ -64,6 +64,7 @@ checks:
       - the_first_call_opens_the_session_and_a_request_that_never_calls_one_reaches_no_store
       - a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too
       - an_identifier_opened_by_hand_sees_its_short_lived_values_without_a_short_cookie
+      - a_long_lived_secret_survives_a_new_browser_session_and_stays_sealed_on_any_store
   - id: set-short-lived-proofs
     stage: 7
     name: "Core\\Session::setShortLived owes no proof"
@@ -93,6 +94,11 @@ checks:
     stage: 7
     name: "Core\\Session::setShortLivedSecret owes no proof"
     run: [bun, nv, proofs, --id, "Core\\Session::setShortLivedSecret"]
+    timeout: 900
+  - id: set-long-lived-secret-proofs
+    stage: 7
+    name: "Core\\Session::setLongLivedSecret owes no proof"
+    run: [bun, nv, proofs, --id, "Core\\Session::setLongLivedSecret"]
     timeout: 900
   - id: open-with-identifier-proofs
     stage: 7
@@ -132,7 +138,7 @@ operation and its write-back script. The proof it landed is
 `session-per-key` gone from `docs/goals/README.md`'s chain. Every `session.rs` line anchor below was
 taken before that goal ran. A session re-anchors by symbol (`bun nv peek --locate`) when a line moved.
 
-**The surface (the person's call; `openWithIdentifier` and the secret's name are my calls).**
+**The surface (the person's call; `openWithIdentifier` is my call).**
 
 | Method | What it does |
 |---|---|
@@ -144,14 +150,16 @@ taken before that goal ran. A session re-anchors by symbol (`bun nv peek --locat
 | `clearLongLived()` | Deletes every long-lived value, and moves the session to a new identifier |
 | `clearAll()` | Deletes the session, and expires both cookies |
 | `regenerate()` | Moves the session to a new identifier and keeps every value |
-| `setShortLivedSecret($key, $value, $keys)` | `setSecret` renamed. A sealed secret is short-lived only |
+| `setShortLivedSecret($key, $value, $keys)` | `setSecret` renamed: saves a sealed secret with the short lifetime |
+| `setLongLivedSecret($key, $value, $keys)` | Saves a sealed secret with the long lifetime |
 | `getSecret($key, $keys)` | Unchanged |
 | `openWithIdentifier($id)` | Optional. Opens the session under an identifier the program read itself, such as a header |
 
 `start`, `set`, `clear`, `destroy` and `setSecret` are removed, with no alias: Novis is pre-alpha.
 There is no plain `set`, so every write states its lifetime. All values share one set of keys, and the
-last write of a key sets its lifetime. A sealed secret is short-lived only, because a user's own secret
-must not outlive their login. Sessions written before this goal are not converted.
+last write of a key sets its lifetime, for a sealed secret too. A long-lived secret is readable with the
+identifier cookie alone after the browser closes. Its card says so, and says that a secret tied to a
+login belongs in `setShortLivedSecret`. Sessions written before this goal are not converted.
 
 **The session opens on its first use (the person's call).** The first call of any member loads the
 session, once per request. That keeps today's cost: a request that calls no member reaches no store,
@@ -216,7 +224,8 @@ three throw where the head is closed, as `regenerate` does.
 
 **A session write is refused where the head is closed (the person's call; the run-time half is my
 call).** At compile time, `HEAD_MEMBERS` (`crates/nvs-types/src/response.rs:197`) gains
-`setShortLived`, `setLongLived`, `setShortLivedSecret`, `remove`, `clearShortLived`, `clearLongLived`
+`setShortLived`, `setLongLived`, `setShortLivedSecret`, `setLongLivedSecret`, `remove`,
+`clearShortLived`, `clearLongLived`
 and `clearAll` beside `regenerate`. So `E0842` and `E0857` refuse each inside an anonymous function
 passed to `Core\Html::later` or `Core\Task::afterResponse`. `get` and `getSecret` stay allowed. At run
 time, every write member calls `head_open` (`crates/nvs-stdlib/src/response.rs:1286`) first. Today
@@ -241,7 +250,8 @@ costs its bytes for `long_lived`, so the store holds one row per browser that ke
   (two concepts for one mechanism), **one cookie** (a login would survive a browser restart), and **a
   long clock that starts only when the browser presents the cookie again** (it keeps cookieless bots
   out, but a visitor who saw one page loses their consent choice).
-- `docs/rules/http-server/a-session-holds-a-secret-only-sealed.md` names `setShortLivedSecret`.
+- `docs/rules/http-server/a-session-holds-a-secret-only-sealed.md` names `setShortLivedSecret` and
+  `setLongLivedSecret`, and says what a long-lived secret is exposed to.
 - `docs/rules/core-classes/html-later.md` and
   `docs/rules/concurrency/deferred-work-cannot-write-the-response.md` say that a session write is
   refused there, and a read is not.
@@ -307,7 +317,8 @@ end-user prose (`AGENTS.md` § *Text an end user reads*).
 - [ ] `crates/nvs-stdlib/src/session.rs:939` `nvs_core_session_start` becomes the private first-use
   open, reached by every member, and `openWithIdentifier` takes its argument path.
 - [ ] `:1396` `set`, `:1437` `setSecret`, `:1522` `clear` and `:1655` `destroy` become
-  `setShortLived` and `setLongLived`, `setShortLivedSecret`, `clearShortLived` and `clearLongLived`,
+  `setShortLived` and `setLongLived`, `setShortLivedSecret` and `setLongLivedSecret`,
+  `clearShortLived` and `clearLongLived`,
   and `clearAll`. `:1562` `regenerate` draws a new short token.
 - [ ] Every write member calls `crate::response::head_open` first.
 - [ ] The cards: `START_DOC` (`:301`) becomes `OPEN_WITH_IDENTIFIER_DOC`, and `SET_DOC` (`:362`),
@@ -321,7 +332,7 @@ end-user prose (`AGENTS.md` § *Text an end user reads*).
 
 ### 4. the checker refuses every session write inside Html::later and Task::afterResponse
 
-- [ ] `crates/nvs-types/src/response.rs:197` `HEAD_MEMBERS` gains the seven write members, and its doc
+- [ ] `crates/nvs-types/src/response.rs:197` `HEAD_MEMBERS` gains the eight write members, and its doc
   comment says why a write to an existing session is refused too.
 - [ ] `tests/conformance/reject/html-later-anonymous-function-cannot-change-the-response-head.nvst:46`
   and `tests/conformance/core/after-response-a-response-write-does-not-compile.nvst:48` gain one
@@ -335,11 +346,11 @@ end-user prose (`AGENTS.md` § *Text an end user reads*).
 **Does:** the tests the `lifetimes` check names, each on the fake shared store and the `db` file
 through `a_store`, as `session-per-key`'s cross-store cases do.
 
-**Split:** one writing subagent writes the twelve tests into `crates/nvs-stdlib/src/session.rs`'s
+**Split:** one writing subagent writes the thirteen tests into `crates/nvs-stdlib/src/session.rs`'s
 `mod tests`, in the shape of `a_destroyed_session_is_not_written_back_on_any_store`. A clock test
 moves time with the clock the crate's tests already use, never by waiting.
 
-- [ ] The twelve tests exist.
+- [ ] The thirteen tests exist.
 - [ ] The `lifetimes` check runs once.
 
 ### 6. every program, test and package in the tree uses the new members
@@ -392,18 +403,18 @@ once after all three end.
 
 ### 7. every Session member owes no feature proof
 
-**Does:** the feature proofs of the eleven members (`rule:testing/feature-proofs`). `bun nv proofs
+**Does:** the feature proofs of the twelve members (`rule:testing/feature-proofs`). `bun nv proofs
 --id 'Core\Session::<member>'` prints what each owes. The old members' folders are moved where the
 member was renamed (`set` to `setShortLived`, `setSecret` to `setShortLivedSecret`, `destroy` to
 `clearAll`, `clear` to `clearShortLived`, `start` to `openWithIdentifier`) and rewritten, and
-`setLongLived` and `clearLongLived` are new. This covers `docs/examples/core/Session/`,
+`setLongLived`, `setLongLivedSecret` and `clearLongLived` are new. This covers `docs/examples/core/Session/`,
 `benches/members/core/Session/` and `tests/hostile/core/Session/`. Every `about.md`, comment and
 example is end-user prose.
 
 **Split:** writing subagents, one per member, side by side: their folders are disjoint. The session
 then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
-- [ ] The seven proof checks are green, and `get`, `remove`, `regenerate` and `getSecret` owe nothing.
+- [ ] The eight proof checks are green, and `get`, `remove`, `regenerate` and `getSecret` owe nothing.
 
 ### 8. the website pages use the new members
 
@@ -424,8 +435,8 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 ### State
 
 Written on 2026-11-19 from a design conversation with the person. Nothing is built yet. The person
-decided: one session with two lifetimes, chosen in the method name; the eleven member names in the
-surface table except `openWithIdentifier` and `setShortLivedSecret`; the first-use open with `start`
+decided: one session with two lifetimes, chosen in the method name; the twelve member names in the
+surface table except `openWithIdentifier`, including a long-lived secret; the first-use open with `start`
 removed; and the checker refusing session writes inside `Html::later` and `Task::afterResponse`.
 Every other choice in § *Standing decisions* is the authoring session's call, and stands until the
 person picks another.
