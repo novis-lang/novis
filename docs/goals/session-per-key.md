@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/core/Session/set/about.md, docs/examples/core/Session/clear/about.md, docs/examples/core/Session/regenerate/about.md, benches/members/core/Session/get.scale.nvs, benches/members/README.md, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: wire
@@ -320,8 +320,8 @@ line here is text an end user reads, held to `AGENTS.md` § *Text an end user re
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
@@ -342,15 +342,20 @@ prose` is green. All nine `Core\Session` perf records are measured on the new co
 `setSecret` and `start` flat. `bun nv proofs --gate` lists no `Session` gap. Other members' perf
 records are stale from earlier goals (`time.rs`, `io.rs`, `str.rs`, `http.rs`): the full gate's debt.
 
-The sweep's reds are stale: no push since nightly 44510687786; `env-secret-proofs` is retired.
+Stage 5 is done: the goal closed without the full gate. The build and clippy are green, and
+`looper check` ran `wire`, `per-key` and `script` green. `bun nv owners --closes session-per-key`
+names no gap. Every standing decision already has its home: the two rules hold the layout, the five
+operations, `clear`, `regenerate`, the ceiling and the Declined list, and `session.rs` and `wiring.rs`
+hold the script, the RESP framing count and the record's shape.
+
+The sweep's reds are stale: no push since nightly 44510687786, and `env-secret-proofs` is a retired
+goal's check (`git grep` finds it only in the playbook and this file).
 
 ### Next
 
-Stage 5: close the goal as the pack says (a build, clippy and this goal's three acceptance checks
-`wire`, `per-key`, `script` by name, unless the pack names this goal the full gate). Then `bun nv
-owners --closes session-per-key`, move any decision only the goal's prose holds into
-`crates/nvs-stdlib/src/session.rs`'s module doc or the two rules, and delete the goal file. At the full
-gate, conformance cases about `Core\Session` throwing `ParseError` from `set` may go red, and the
-pages under `docs/examples/core/Session/` may need `bun nv site --stamp`.
+The driver retires the goal. At the next full gate, conformance cases about `Core\Session` throwing
+`ParseError` from `set` may go red, and the pages under `docs/examples/core/Session/` may need
+`bun nv site --stamp`. Perf records of `time.rs`, `io.rs`, `str.rs` and `http.rs` members are stale
+from earlier goals.
 
 ### Backlog
