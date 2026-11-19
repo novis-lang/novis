@@ -3113,6 +3113,69 @@ mod tests {
         TimeZone::UTC
     }
 
+    /// The letters in backticks in `text`, each token a run of one letter.
+    fn backticked_letters(text: &str) -> std::collections::BTreeSet<u8> {
+        text.split('`')
+            .skip(1)
+            .step_by(2)
+            .map(|token| {
+                let first = token.as_bytes()[0];
+                assert!(
+                    token.bytes().all(|byte| byte == first) && first.is_ascii_alphabetic(),
+                    "`{token}` is not a run of one letter"
+                );
+                first
+            })
+            .collect()
+    }
+
+    /// The pattern table on `Time-DateTime.md` lists exactly the letters
+    /// [`Field::of`] accepts, and the sentence under it names exactly the
+    /// letters it refuses. A letter added to either side without the other
+    /// fails here.
+    #[test]
+    fn the_reference_table_lists_every_letter_the_compiler_accepts() {
+        let page = include_str!("../../../docs/reference/core/Time-DateTime.md");
+        let mut lines = page
+            .lines()
+            .skip_while(|line| !line.starts_with("| Letter |"));
+        assert!(
+            lines.next().is_some(),
+            "the page has its `| Letter |` table"
+        );
+        let mut listed = std::collections::BTreeSet::new();
+        for row in lines.skip(1).take_while(|line| line.starts_with('|')) {
+            let cell = row.split('|').nth(1).expect("a row has a first cell");
+            listed.extend(backticked_letters(cell));
+        }
+        let (accepted, refused): (Vec<u8>, Vec<u8>) = (b'A'..=b'Z')
+            .chain(b'a'..=b'z')
+            .partition(|letter| Field::of(*letter).is_some());
+        let accepted: std::collections::BTreeSet<u8> = accepted.into_iter().collect();
+        let show = |set: &std::collections::BTreeSet<u8>| {
+            set.iter().map(|byte| char::from(*byte)).collect::<String>()
+        };
+        assert_eq!(
+            show(&listed),
+            show(&accepted),
+            "the table against `Field::of`"
+        );
+
+        let marker = "These letters do not compile:";
+        let start = page
+            .find(marker)
+            .expect("the page names the letters it refuses")
+            + marker.len();
+        let sentence = &page[start..start + page[start..].find('.').expect("the sentence ends")];
+        let named = backticked_letters(sentence);
+        let refused: std::collections::BTreeSet<u8> = refused.into_iter().collect();
+        assert_eq!(
+            show(&named),
+            show(&refused),
+            "the refused sentence against `Field::of`"
+        );
+    }
+
     /// A `Zoned` at the civil time given, in UTC.
     fn at(y: i16, mo: i8, d: i8, h: i8, mi: i8, s: i8, ns: i32) -> Zoned {
         utc()

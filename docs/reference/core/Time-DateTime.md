@@ -15,22 +15,38 @@ computed at run time throws a `LogicError` instead. Month and weekday names are 
 
 | Letter | Field | Counts |
 |---|---|---|
-| `y` | year | `yy` two digits; any other count zero-pads to it |
-| `M` | month | `M`/`MM` numeric, `MMM` `Mar`, `MMMM` `March`, `MMMMM` `M` |
+| `G` | era | `G`–`GGG` `AD` or `BC`, `GGGG` `Anno Domini`, `GGGGG` `A` |
+| `y` / `U` | year, such as `-0043` before year 1 | `yy` two digits; any other count zero-pads to it |
+| `u` / `r` | year | zero-pads to the count; `parse` also reads a `-` with these |
+| `Y` | the year the `w` week belongs to | as `y` |
+| `Q` / `q` | quarter | `Q`/`QQ` numeric, `QQQ` `Q1`, `QQQQ` `1st quarter`, `QQQQQ` `1` |
+| `M` / `L` | month | `M`/`MM` numeric, `MMM` `Mar`, `MMMM` `March`, `MMMMM` `M` |
+| `w` | week of the year | ISO 8601 weeks: a week starts on Monday |
+| `W` | week of the month | the same rule; `0` for a short first week |
 | `d` | day of month | numeric, zero-padded to the count |
 | `D` | day of year | numeric |
+| `F` | which of that weekday in the month | `1` for the first Friday of the month |
+| `g` | modified Julian day | numeric |
 | `E` | weekday | `E`–`EEE` `Tue`, `EEEE` `Tuesday`, `EEEEE` `T`, `EEEEEE` `Tu` |
+| `e` / `c` | weekday | `e`/`ee`/`c` the number, Monday `1`; three or more letters as `E` |
 | `a` | AM/PM | any count |
+| `b` | AM/PM, or `noon` and `midnight` at those times | 1–4 the name, 5 short |
+| `B` | part of the day, such as `in the morning` | 1–4 the name, 5 short |
 | `h` / `H` / `K` / `k` | hour 1–12 / 0–23 / 0–11 / 1–24 | numeric |
 | `m` | minute | numeric |
 | `s` | second | numeric |
 | `S` | fractional second | one digit per count, truncated |
+| `A` | milliseconds since the start of the day | numeric, zero-padded to the count |
 | `X` | offset, `Z` at zero | `X` `+01`, `XX` `+0100`, `XXX` `+01:00` |
 | `x` | offset, never `Z` | the same three counts |
+| `Z` | offset | `Z`–`ZZZ` `+0100`, `ZZZZ` `GMT+01:00`, `ZZZZZ` as `XXX` |
+| `O` | offset after `GMT` | `O` `GMT+1`, `OOOO` `GMT+01:00` |
+| `z` | offset after `GMT` | `z`–`zzz` `GMT+1`, `zzzz` `GMT+01:00` |
+| `v` | offset after `GMT` | `v` `GMT+1`, `vvvv` `GMT+01:00` |
 | `VV` | the zone's IANA identifier | `VV` only |
 
-Text between `'…'` is printed as it is, and `''` is one apostrophe. `G`, `Q`, `w`, `W`, `L`, `c`, `F` and `u`
-are refused.
+Text between `'…'` is printed as it is, and `''` is one apostrophe. These letters do not compile: `C`,
+`f`, `i`, `I`, `j`, `J`, `l`, `n`, `N`, `o`, `p`, `P`, `R`, `t` and `T`.
 
 ```nvs
 <?nvs

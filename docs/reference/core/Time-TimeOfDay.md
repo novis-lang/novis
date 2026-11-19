@@ -8,7 +8,7 @@ A `TimeOfDay` is a clock reading — hour, minute, second, nanosecond — with n
 smaller and wraps within the day, so `23:30` plus an hour is `00:30`; `Core\Unit::Day` and larger are
 refused, because a carry has no date to go to. `format` takes the time letters of the CLDR grammar
 `DateTime::format` uses, and a date or zone letter is refused. `DateTime::withTime` puts a reading
-back onto a date. Two readings are ordered with `compareTo`; the `<` operators do not compile.
+back onto a date. `<`, `>`, `<=`, `>=` and `compareTo` order two readings.
 
 ```nvs
 <?nvs
