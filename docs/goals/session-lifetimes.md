@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/response.rs, crates/nvs-diagnostics/src/code/types_e08.rs, tests/conformance/reject/html-later-anonymous-function-cannot-change-the-response-head.nvst, tests/conformance/core/after-response-a-response-write-does-not-compile.nvst]
   - id: 5
     title: tests prove the two lifetimes, the clocks, the clears and the first-use open on both stores
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/session.rs]
   - id: 6
     title: every program, test and package in the tree uses the new members
@@ -376,8 +376,8 @@ through `a_store`, as `session-per-key`'s cross-store cases do.
 `mod tests`, in the shape of `a_destroyed_session_is_not_written_back_on_any_store`. A clock test
 moves time with the clock the crate's tests already use, never by waiting.
 
-- [ ] The thirteen tests exist.
-- [ ] The `lifetimes` check runs once.
+- [x] The thirteen tests exist.
+- [x] The `lifetimes` check runs once.
 
 ### 6. every program, test and package in the tree uses the new members
 
@@ -459,30 +459,31 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 to 4 are done. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
+Stages 1 to 5 are done. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
 `cargo fmt --check` are green.
 
-Stage 3: `Core\Session` has the twelve roster members and opens on first use (`first_use`,
-`opened_under` in `crates/nvs-stdlib/src/session.rs`). `Core\Csrf::token` and `Core\Passkey` open
-the session on first use; their cards list `session.rs`'s now `pub(crate)` `NO_REQUEST`, `NO_STORE`
-and `STORE_DOWN` error docs and name no `start()`. `cargo test --lib -- session:: csrf:: passkey::`
-ran once and is green.
+Stage 5: the thirteen tests are in `session.rs`'s `mod tests`, and `looper check --name lifetimes`
+is green. Time moves through `stored_with`, which issues a record with chosen clock ends; nothing
+waits. The `db` store's member path reaches the process-wide data folder (`opened`'s `OnceLock`),
+so the clear tests split the member's body: `cleared` now calls `emptied` and `moved_to_fresh` calls
+`moved_on(store)`, with no change in behaviour, and the cross-store tests call those two directly.
+Tests 8, 9, 10 and 12 run on the shared fake store through the real members. The fake `Serving`
+counts every command in `commands`.
 
-Stage 4: `HEAD_MEMBERS` (`crates/nvs-types/src/response.rs`) holds every session write, and the
-E0842/E0857 message says "changes the session" for a `Core\Session` member. The two conformance
-cases and the new `tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst`
-pass under `target/debug/nvs.exe test <the three files>`. The `checker` check's `bun nv suite`
-command is red only because it also reruns 18 other red cases that still call `start`/`set`
-(stage 6).
+The sweep's reds before this session: `env-secret-proofs` has no log and is a retired goal's stale
+check (playbook). The nightly run 44510687786 built `adc7487822`, 116 commits old, and each of its
+causes already has a fix on `main`: miri's Stacked Borrows in `string.rs` (`4c82a2409a`), the
+wasmtime advisories (`eb5c02e983`), the debug-viewer site shots (`656f5b2f2d`) and the registry
+browser test (`1c75c4ef0e`). Nothing was changed for them.
+
+The `checker` check's three cases pass under `target/debug/nvs.exe test`, and its `bun nv suite`
+is red only through 18 other cases that still call `start`/`set` (stage 6).
 
 ### Next
 
-Stage 5: the thirteen tests the `lifetimes` check names, in `session.rs`'s `mod tests`, through
-`a_store`, in the shape of `a_destroyed_session_is_not_written_back_on_any_store`. The test
-`a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too` uses the
-`later` slot and `head_open`. Deferred work has no request (see Backlog), so after the response a
-write throws the no-request `LogicError` before `head_open` is reached; assert `LogicError`, not
-the message. Then stages 6, 7 and 8, which may run side by side. Expect red until stage 6 in the
+Stages 6, 7 and 8, which may run side by side (each stage's `**Split:**` line names its
+subagents). Stage 6 first if only one fits, since its conformance cases are what the `checker`
+check reruns. Expect red until stage 6 in the
 conformance suite (the 18 cases above, among them
 `tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst`, which describes
 removed behaviour), and in `crates/nvs-cli/tests/live_config.rs:1336` and `per_mount_config.rs:485`.

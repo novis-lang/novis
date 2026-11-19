@@ -2386,9 +2386,23 @@ fn cleared(
 ) -> Result<Value, Fault> {
     crate::response::head_open(ctx, who)?;
     first_use(ctx, who)?;
+    if emptied(ctx, member, lifetime)? {
+        moved_to_fresh(ctx, who, member)?;
+    }
+    Ok(Value::null())
+}
+
+/// [`cleared`]'s change to the request's copy: every value of `lifetime` deleted, and the clear
+/// flag set for the write-back. `false` for a session nobody has written, which has nothing to
+/// clear and nothing to move.
+///
+/// # Errors
+///
+/// [`unstarted`] where no session is open.
+fn emptied(ctx: &mut Ctx, member: &str, lifetime: Lifetime) -> Result<bool, Fault> {
     let open = ctx.session_mut().ok_or_else(|| unstarted(member))?;
     if open.id.is_empty() {
-        return Ok(Value::null());
+        return Ok(false);
     }
     let long = lifetime == Lifetime::Long;
     let gone: Vec<Vec<u8>> = open
@@ -2409,8 +2423,7 @@ fn cleared(
         open.cleared_short = true;
     }
     open.dirty = true;
-    moved_to_fresh(ctx, who, member)?;
-    Ok(Value::null())
+    Ok(true)
 }
 
 nvs_runtime::nvs_helper! {
@@ -2476,13 +2489,27 @@ fn moved_to_fresh(ctx: &mut Ctx, who: &str, member: &str) -> Result<(), Fault> {
     if open.id.is_empty() {
         return Ok(());
     }
-    if open.stored {
-        let store = opened(
+    let store = if open.stored {
+        Some(opened(
             ctx,
             &format!("{who}()"),
             ", which is where this session's record already lives",
-        )?;
-        regenerated(ctx, &store, who, member)?;
+        )?)
+    } else {
+        None
+    };
+    moved_on(ctx, store.as_ref(), who, member)
+}
+
+/// [`moved_to_fresh`] once the store is known: `store` is where a stored session lives, and
+/// `None` is a session this request drew and has not stored yet.
+///
+/// # Errors
+///
+/// [`regenerated`]'s, [`issue_cookie`]'s and [`redrawn_short_token`]'s.
+fn moved_on(ctx: &mut Ctx, store: Option<&Store>, who: &str, member: &str) -> Result<(), Fault> {
+    if let Some(store) = store {
+        regenerated(ctx, store, who, member)?;
     } else {
         // This request drew the identifier and the store has no row under it, so nothing moves.
         // The new identifier replaces it, and the write-back creates the row.
@@ -2958,6 +2985,8 @@ mod tests {
         /// How many `EVAL` commands the store received, which are its only writes: one per
         /// `issue` and one per `save`, written or not.
         writes: Arc<AtomicUsize>,
+        /// How many commands of any kind the store received, reads included.
+        commands: Arc<AtomicUsize>,
     }
 
     impl Serving {
@@ -2969,8 +2998,10 @@ mod tests {
             let expired = Arc::clone(&lapsed);
             let writes = Arc::new(AtomicUsize::new(0));
             let counting = Arc::clone(&writes);
+            let commands = Arc::new(AtomicUsize::new(0));
+            let received = Arc::clone(&commands);
             let accepting = thread::spawn(move || {
-                serving(&listener, &held, &expired, &counting, &stopping);
+                serving(&listener, &held, &expired, &counting, &received, &stopping);
             });
             Self {
                 address,
@@ -2978,6 +3009,7 @@ mod tests {
                 accepting: Some(accepting),
                 lapsed,
                 writes,
+                commands,
             }
         }
     }
@@ -3004,12 +3036,14 @@ mod tests {
     /// [`super::save`] send. Each script is run as the same steps in Rust, over the same hash.
     /// Any other command or script is a panic rather than a silent `+OK`, so one added upstream
     /// fails here instead of passing untested. A key in `lapsed` is deleted before any command
-    /// that names it runs. Each `EVAL` adds one to `writes`.
+    /// that names it runs. Each `EVAL` adds one to `writes`, and every command adds one to
+    /// `commands` before its reply is sent.
     fn serving(
         listener: &TcpListener,
         held: &Rows,
         lapsed: &Arc<Mutex<HashSet<Vec<u8>>>>,
         writes: &Arc<AtomicUsize>,
+        commands: &Arc<AtomicUsize>,
         stop: &AtomicBool,
     ) {
         let mut connections = Vec::new();
@@ -3020,10 +3054,12 @@ mod tests {
             let held = Arc::clone(held);
             let lapsed = Arc::clone(lapsed);
             let writes = Arc::clone(writes);
+            let commands = Arc::clone(commands);
             let handler = thread::spawn(move || {
                 let mut writing = stream.try_clone().expect("the write half");
                 let mut reading = BufReader::new(stream);
                 while let Some(parts) = command(&mut reading) {
+                    commands.fetch_add(1, Ordering::SeqCst);
                     let mut store = held.lock().expect("the store");
                     {
                         let mut expired = lapsed.lock().expect("the lapsed keys");
@@ -5289,5 +5325,1082 @@ mod tests {
         );
 
         dropped(ring);
+    }
+
+    /// The identifier the cases below store and present. It has the width [`super::issuable`]
+    /// checks, so a cookie that carries it reaches the store.
+    const LIVE: &str = "PmA5tKz1QvR3sYbNcW8xLq";
+
+    /// The short token the cases below store and present in the short cookie.
+    const SHORT_TOKEN: &str = "Tk4w9QbL2sYcXr7uVn1pMa";
+
+    /// The shipped short and long lifetimes, in milliseconds.
+    fn lifetimes() -> (i64, i64) {
+        let ctx = Ctx::buffered();
+        (short_lived(&ctx), super::long_lived(&ctx))
+    }
+
+    /// The `Max-Age` attribute the identifier cookie carries when the long clock starts again.
+    fn long_max_age() -> String {
+        format!("Max-Age={}", lifetimes().1 / 1000)
+    }
+
+    /// Integer values under their keys, encoded as the store keeps them.
+    fn ints(pairs: &[(&str, i64)]) -> Entries {
+        pairs
+            .iter()
+            .map(|(key, n)| (key.as_bytes().to_vec(), int_bytes(*n)))
+            .collect()
+    }
+
+    /// The names of long-lived keys.
+    fn longs(keys: &[&str]) -> LongKeys {
+        keys.iter().map(|key| key.as_bytes().to_vec()).collect()
+    }
+
+    /// `entries` stored under `id` on `store`, with `long` long-lived, the short `token`, and the
+    /// short and long clocks ending at `ends`. A case moves time by choosing those ends.
+    fn stored_with(
+        store: &Store,
+        id: &str,
+        entries: &Entries,
+        long: &LongKeys,
+        token: Option<&str>,
+        (short_until, long_until): (i64, i64),
+    ) {
+        let clocks = Clocks {
+            now: crate::queue::now_millis(),
+            short_until,
+            long_until,
+        };
+        let whole = Whole {
+            entries,
+            long,
+            token,
+            clocks,
+        };
+        assert!(
+            issued(store, NO_APP, "a case", id, &whole).expect("the store answers"),
+            "the row is issued"
+        );
+    }
+
+    /// The whole record `store` keeps under `id`, or `None` for a session that is gone.
+    fn record_under(store: &Store, id: &str) -> Option<super::Record> {
+        fetched(store, NO_APP, "a case", id).expect("the store answers")
+    }
+
+    /// A request from a visitor with no session yet, whose write-back sends to the case's store
+    /// once [`ended`] runs it.
+    fn a_visitor() -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.open_session(nvs_runtime::Session {
+            write_back: to_the_case_store,
+            ..super::fresh_session()
+        });
+        ctx
+    }
+
+    /// A request whose first use finds the session under `id` on `store`, opened as
+    /// [`super::opened_under`] opens it after the load: `short` is the short cookie the browser
+    /// presents, and `by_hand` is a session opened by `openWithIdentifier`. Its write-back sends to
+    /// `store` once [`ended`] runs it.
+    fn returning(store: &Store, id: &str, short: Option<&str>, by_hand: bool) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        let record = record_under(store, id).expect("the session the case stored");
+        let session = super::opened_record(&ctx, id.to_owned(), record, short, by_hand);
+        ctx.open_session(nvs_runtime::Session {
+            write_back: to_the_case_store,
+            ..session
+        });
+        super::refreshed_long_clock(&mut ctx, "a case").expect("the head is open");
+        ctx
+    }
+
+    /// The shared store with nothing in it, the configuration a request needs to reach it, and
+    /// what keeps it alive.
+    fn a_shared_store(case: &str) -> (Store, Arc<nvs_config::Snapshot>, Kept) {
+        let mut server = Ctx::buffered();
+        let (store, kept) = a_store(&mut server, case, Backend::Shared);
+        let config = Arc::clone(
+            server
+                .config()
+                .expect("the case configured the store")
+                .snapshot(),
+        );
+        (store, config, kept)
+    }
+
+    /// A request under `config` whose `Cookie` header carries `cookies`, or that has none where
+    /// `cookies` is empty.
+    fn a_browser(config: &Arc<nvs_config::Snapshot>, cookies: &str) -> Ctx {
+        let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
+        if !cookies.is_empty() {
+            inbound.push_header("cookie", cookies.as_bytes());
+        }
+        let mut ctx = Ctx::buffered();
+        ctx.set_inbound(inbound);
+        ctx.set_config(Arc::clone(config));
+        ctx
+    }
+
+    /// `member(key, n)` called the way a program calls `setShortLived` or `setLongLived`.
+    fn set_with(ctx: &mut Ctx, member: nvs_runtime::NvsFn, key: &str, n: i64) {
+        let args = [Value::text(key), Value::int(n), Value::int(0)];
+        let answer = nvs_runtime::call(member, ctx, &args);
+        args.into_iter().for_each(dropped);
+        dropped(answer.expect("the value is saved"));
+    }
+
+    /// `Core\Session::get(key)` called the way a program calls it, read as an integer.
+    fn got_int(ctx: &mut Ctx, key: &str) -> Option<i64> {
+        let args = [Value::text(key), Value::int(0)];
+        let answer = nvs_runtime::call(super::nvs_core_session_get, ctx, &args);
+        args.into_iter().for_each(dropped);
+        let value = answer.expect("the session reads");
+        let int = value.as_int();
+        dropped(value);
+        int
+    }
+
+    /// `Core\Session::remove(key)` called the way a program calls it.
+    fn removed(ctx: &mut Ctx, key: &str) {
+        let args = [Value::text(key), Value::int(0)];
+        let answer = nvs_runtime::call(super::nvs_core_session_remove, ctx, &args);
+        args.into_iter().for_each(dropped);
+        dropped(answer.expect("the key is removed"));
+    }
+
+    /// A member with no arguments, such as `clearAll`, called the way a program calls it.
+    fn called(ctx: &mut Ctx, member: nvs_runtime::NvsFn) {
+        dropped(nvs_runtime::call(member, ctx, &[]).expect("the member runs"));
+    }
+
+    /// `member(key, value, ring)` called the way a program calls `setShortLivedSecret` or
+    /// `setLongLivedSecret`.
+    fn sealed_with(ctx: &mut Ctx, member: nvs_runtime::NvsFn, key: &str, value: &str) {
+        let args = [
+            Value::text(key),
+            Value::text(value),
+            crate::keyring::tests::ring_of(&[NEW]),
+            Value::int(0),
+        ];
+        let answer = nvs_runtime::call(member, ctx, &args);
+        args.into_iter().for_each(dropped);
+        dropped(answer.expect("the secret is sealed"));
+    }
+
+    /// The value and the whole line of the last `Set-Cookie` in `headers` for the cookie `name`.
+    fn sent_cookie(
+        headers: &[nvs_runtime::DeclaredHeader],
+        name: &str,
+    ) -> Option<(String, String)> {
+        let start = format!("{name}=");
+        headers.iter().rev().find_map(|header| {
+            if !header.name.eq_ignore_ascii_case("set-cookie") {
+                return None;
+            }
+            let rest = header.value.strip_prefix(start.as_str())?;
+            let value = rest.split(';').next().unwrap_or_default();
+            Some((value.to_owned(), header.value.to_string()))
+        })
+    }
+
+    /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`: a short-lived value is
+    /// bound to the short cookie. A request that presents the identifier without it sees no
+    /// short-lived value, and its write-back deletes the value, so the old short cookie does not
+    /// bring it back.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_short_lived_value_is_gone_once_the_browser_drops_its_short_cookie_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-short-cookie-dropped", *backend);
+            let mut first = a_visitor();
+            set_with(
+                &mut first,
+                super::nvs_core_session_set_short_lived,
+                "cart",
+                3,
+            );
+            set_with(
+                &mut first,
+                super::nvs_core_session_set_long_lived,
+                "consent",
+                1,
+            );
+            let headers = first.take_headers();
+            let (id, _) = sent_cookie(&headers, "nvsid").expect("the identifier cookie is sent");
+            let (token, line) =
+                sent_cookie(&headers, "nvsid-short").expect("the short cookie is sent");
+            assert!(
+                !line.contains("Max-Age"),
+                "{word}: the short cookie ends when the browser closes: {line}"
+            );
+            ended(first, &store);
+
+            let mut same_browser = returning(&store, &id, Some(&token), false);
+            assert_eq!(
+                got_int(&mut same_browser, "cart"),
+                Some(3),
+                "{word}: the browser that has the short cookie sees the value"
+            );
+            ended(same_browser, &store);
+
+            let mut restarted = returning(&store, &id, None, false);
+            assert_eq!(
+                got_int(&mut restarted, "cart"),
+                None,
+                "{word}: without the short cookie the value is gone"
+            );
+            assert_eq!(
+                got_int(&mut restarted, "consent"),
+                Some(1),
+                "{word}: and the long-lived value is still there"
+            );
+            ended(restarted, &store);
+
+            assert_eq!(
+                stored_under(&store, &id),
+                Some(ints(&[("consent", 1)])),
+                "{word}: the write-back deleted the short-lived value from the store"
+            );
+            let mut copied = returning(&store, &id, Some(&token), false);
+            assert_eq!(
+                got_int(&mut copied, "cart"),
+                None,
+                "{word}: so the old short cookie does not bring it back"
+            );
+        }
+    }
+
+    /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`: a long-lived value needs
+    /// the identifier cookie alone. That cookie has a `Max-Age`, so the browser keeps it when it
+    /// closes, and every request without the short cookie sees the value and keeps it.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_long_lived_value_survives_a_new_browser_session_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-long-survives", *backend);
+            let mut first = a_visitor();
+            set_with(
+                &mut first,
+                super::nvs_core_session_set_long_lived,
+                "consent",
+                1,
+            );
+            let headers = first.take_headers();
+            let (id, line) = sent_cookie(&headers, "nvsid").expect("the identifier cookie is sent");
+            assert!(
+                line.contains(&long_max_age()),
+                "{word}: the identifier cookie outlives the browser: {line}"
+            );
+            assert!(
+                sent_cookie(&headers, "nvsid-short").is_none(),
+                "{word}: a session with no short-lived value sends no short cookie"
+            );
+            ended(first, &store);
+
+            for visit in 1..=2 {
+                let mut restarted = returning(&store, &id, None, false);
+                assert_eq!(
+                    got_int(&mut restarted, "consent"),
+                    Some(1),
+                    "{word}: new browser session {visit} sees the value"
+                );
+                ended(restarted, &store);
+            }
+            let record = record_under(&store, &id).expect("the session is kept");
+            assert!(
+                record.long.contains(b"consent".as_slice()),
+                "{word}: and the store keeps the value long-lived"
+            );
+        }
+    }
+
+    /// `rule:http-server/session-expiry-belongs-to-the-store`'s short clock: once it has ended, a
+    /// short-lived value is gone, also for the browser that has the short cookie. A long-lived value
+    /// keeps the record, and the write-back deletes the short-lived one.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_short_lived_value_is_gone_after_the_short_clock_on_any_store() {
+        let (_, long_lived) = lifetimes();
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-short-clock-ended", *backend);
+            let now = crate::queue::now_millis();
+            stored_with(
+                &store,
+                LIVE,
+                &ints(&[("cart", 3), ("consent", 1)]),
+                &longs(&["consent"]),
+                Some(SHORT_TOKEN),
+                (now - 1, now + long_lived),
+            );
+
+            let mut late = returning(&store, LIVE, Some(SHORT_TOKEN), false);
+            assert_eq!(
+                got_int(&mut late, "cart"),
+                None,
+                "{word}: the short clock ended 1 ms ago, so the value is gone"
+            );
+            assert_eq!(
+                got_int(&mut late, "consent"),
+                Some(1),
+                "{word}: the long-lived value is not on the short clock"
+            );
+            ended(late, &store);
+            assert_eq!(
+                stored_under(&store, LIVE),
+                Some(ints(&[("consent", 1)])),
+                "{word}: the write-back deleted the short-lived value"
+            );
+        }
+    }
+
+    /// `rule:http-server/session-expiry-belongs-to-the-store`'s half rule: a request that only
+    /// reads moves a clock when less than half of its time is left, and writes nothing while more
+    /// than half is left. Moving the long clock sends the identifier cookie again.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_read_refreshes_a_clock_only_when_less_than_half_is_left_on_any_store() {
+        let (short_lived, long_lived) = lifetimes();
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-half-rule", *backend);
+            for (left, refreshed) in [(60, false), (40, true)] {
+                let now = crate::queue::now_millis();
+
+                let short_id = format!("short-clock-{left}");
+                let short_until = now + short_lived * left / 100;
+                stored_with(
+                    &store,
+                    &short_id,
+                    &ints(&[("cart", 3)]),
+                    &LongKeys::new(),
+                    Some(SHORT_TOKEN),
+                    (short_until, 0),
+                );
+                let mut reader = returning(&store, &short_id, Some(SHORT_TOKEN), false);
+                assert_eq!(got_int(&mut reader, "cart"), Some(3), "{word}");
+                assert_eq!(
+                    reader.session().expect("the session is open").dirty,
+                    refreshed,
+                    "{word}: {left}% of the short clock is left"
+                );
+                assert!(
+                    reader.take_headers().is_empty(),
+                    "{word}: the short clock sends no cookie"
+                );
+                ended(reader, &store);
+                let moved = record_under(&store, &short_id)
+                    .expect("the session is kept")
+                    .short_until;
+                assert_eq!(
+                    moved > short_until,
+                    refreshed,
+                    "{word}: with {left}% of the short clock left, the read moves it: {refreshed}"
+                );
+
+                let long_id = format!("long-clock-{left}");
+                let long_until = now + long_lived * left / 100;
+                stored_with(
+                    &store,
+                    &long_id,
+                    &ints(&[("consent", 1)]),
+                    &longs(&["consent"]),
+                    None,
+                    (now + short_lived, long_until),
+                );
+                let mut reader = returning(&store, &long_id, None, false);
+                assert_eq!(got_int(&mut reader, "consent"), Some(1), "{word}");
+                assert_eq!(
+                    reader.session().expect("the session is open").dirty,
+                    refreshed,
+                    "{word}: {left}% of the long clock is left"
+                );
+                let headers = reader.take_headers();
+                assert_eq!(
+                    sent_cookie(&headers, "nvsid")
+                        .is_some_and(|(id, line)| id == long_id && line.contains(&long_max_age())),
+                    refreshed,
+                    "{word}: with {left}% of the long clock left, the cookie is sent again: \
+                     {headers:?}"
+                );
+                ended(reader, &store);
+                let moved = record_under(&store, &long_id)
+                    .expect("the session is kept")
+                    .long_until;
+                assert_eq!(
+                    moved > long_until,
+                    refreshed,
+                    "{word}: with {left}% of the long clock left, the read moves it: {refreshed}"
+                );
+            }
+        }
+    }
+
+    /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`: all values share one set of
+    /// keys, so the last write of a key sets its lifetime. The store keeps the key once, with the
+    /// lifetime of that write.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn writing_a_key_with_the_other_lifetime_replaces_it_on_any_store() {
+        let (short_lived, _) = lifetimes();
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, kept) = a_store(&mut server, "session-lifetime-replaced", *backend);
+            let now = crate::queue::now_millis();
+            stored_with(
+                &store,
+                LIVE,
+                &ints(&[("pref", 1)]),
+                &LongKeys::new(),
+                Some(SHORT_TOKEN),
+                (now + short_lived, 0),
+            );
+
+            let mut ctx = returning(&store, LIVE, Some(SHORT_TOKEN), false);
+            set_with(&mut ctx, super::nvs_core_session_set_long_lived, "pref", 2);
+            ended(ctx, &store);
+            let record = record_under(&store, LIVE).expect("the session is kept");
+            assert_eq!(
+                record.entries,
+                ints(&[("pref", 2)]),
+                "{word}: one value under the key"
+            );
+            assert!(
+                record.long.contains(b"pref".as_slice()),
+                "{word}: and it is long-lived now"
+            );
+            let mut restarted = returning(&store, LIVE, None, false);
+            assert_eq!(
+                got_int(&mut restarted, "pref"),
+                Some(2),
+                "{word}: so a new browser session sees it"
+            );
+
+            let mut ctx = returning(&store, LIVE, Some(SHORT_TOKEN), false);
+            set_with(&mut ctx, super::nvs_core_session_set_short_lived, "pref", 3);
+            ended(ctx, &store);
+            let record = record_under(&store, LIVE).expect("the session is kept");
+            assert_eq!(
+                record.entries,
+                ints(&[("pref", 3)]),
+                "{word}: one value under the key"
+            );
+            assert!(
+                record.long.is_empty(),
+                "{word}: and it is short-lived again"
+            );
+            if let Kept::Shared(_, held) = &kept {
+                let fields: Vec<Vec<u8>> = held
+                    .lock()
+                    .expect("the store")
+                    .get(&key_of(NO_APP, LIVE))
+                    .expect("the hash")
+                    .keys()
+                    .filter(|field| is_key_field(field))
+                    .cloned()
+                    .collect();
+                assert_eq!(
+                    fields,
+                    vec![field_of(b"pref", false)],
+                    "{word}: the hash keeps the key under one field"
+                );
+            }
+        }
+    }
+
+    /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`'s `clearShortLived`, the
+    /// logout: the short-lived values are deleted, and the session moves to a new identifier and a
+    /// new short token. The long-lived values stay under the new identifier. The member's two
+    /// steps run with the case's store in place of the configured one.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn clear_short_lived_keeps_long_lived_values_under_a_new_identifier_on_any_store() {
+        const WHO: &str = r"Core\Session::clearShortLived";
+        let (short_lived, long_lived) = lifetimes();
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-clear-short", *backend);
+            let now = crate::queue::now_millis();
+            stored_with(
+                &store,
+                LIVE,
+                &ints(&[("cart", 3), ("consent", 1)]),
+                &longs(&["consent"]),
+                Some(SHORT_TOKEN),
+                (now + short_lived, now + long_lived),
+            );
+
+            let mut ctx = returning(&store, LIVE, Some(SHORT_TOKEN), false);
+            assert!(
+                super::emptied(&mut ctx, "clearShortLived", Lifetime::Short)
+                    .expect("the session is open"),
+                "{word}: a stored session has values to clear"
+            );
+            super::moved_on(&mut ctx, Some(&store), WHO, "clearShortLived")
+                .unwrap_or_else(|why| panic!("{word}: the session moves: {why:?}"));
+            let headers = ctx.take_headers();
+            let (fresh, line) = sent_cookie(&headers, "nvsid").expect("the new identifier is sent");
+            assert_ne!(fresh, LIVE, "{word}: the identifier is new");
+            assert!(
+                line.contains("Max-Age="),
+                "{word}: its cookie outlives the browser, for the long-lived value: {line}"
+            );
+            let (token, _) = sent_cookie(&headers, "nvsid-short").expect("a new short token");
+            assert_ne!(token, SHORT_TOKEN, "{word}: the short token is new");
+            assert_eq!(got_int(&mut ctx, "cart"), None, "{word}");
+            ended(ctx, &store);
+
+            assert_eq!(
+                stored_under(&store, LIVE),
+                None,
+                "{word}: the old identifier names nothing"
+            );
+            assert_eq!(
+                stored_under(&store, &fresh),
+                Some(ints(&[("consent", 1)])),
+                "{word}: the new one keeps the long-lived value alone"
+            );
+            let mut next = returning(&store, &fresh, Some(&token), false);
+            assert_eq!(got_int(&mut next, "consent"), Some(1), "{word}");
+            assert_eq!(got_int(&mut next, "cart"), None, "{word}");
+        }
+    }
+
+    /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`'s `clearLongLived`: the
+    /// long-lived values are deleted and the session moves to a new identifier, whose cookie has no
+    /// `Max-Age`. The short-lived values stay under the new identifier and a new short token. The
+    /// member's two steps run with the case's store in place of the configured one.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn clear_long_lived_keeps_short_lived_values_under_a_new_identifier_on_any_store() {
+        const WHO: &str = r"Core\Session::clearLongLived";
+        let (short_lived, long_lived) = lifetimes();
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-clear-long", *backend);
+            let now = crate::queue::now_millis();
+            stored_with(
+                &store,
+                LIVE,
+                &ints(&[("cart", 3), ("consent", 1)]),
+                &longs(&["consent"]),
+                Some(SHORT_TOKEN),
+                (now + short_lived, now + long_lived),
+            );
+
+            let mut ctx = returning(&store, LIVE, Some(SHORT_TOKEN), false);
+            assert!(
+                super::emptied(&mut ctx, "clearLongLived", Lifetime::Long)
+                    .expect("the session is open"),
+                "{word}: a stored session has values to clear"
+            );
+            super::moved_on(&mut ctx, Some(&store), WHO, "clearLongLived")
+                .unwrap_or_else(|why| panic!("{word}: the session moves: {why:?}"));
+            let headers = ctx.take_headers();
+            let (fresh, line) = sent_cookie(&headers, "nvsid").expect("the new identifier is sent");
+            assert_ne!(fresh, LIVE, "{word}: the identifier is new");
+            assert!(
+                !line.contains("Max-Age"),
+                "{word}: no long-lived value is left, so the cookie ends with the browser: {line}"
+            );
+            let (token, _) = sent_cookie(&headers, "nvsid-short").expect("a new short token");
+            ended(ctx, &store);
+
+            assert_eq!(
+                stored_under(&store, LIVE),
+                None,
+                "{word}: the old identifier names nothing"
+            );
+            let record = record_under(&store, &fresh).expect("the new identifier is kept");
+            assert_eq!(
+                record.entries,
+                ints(&[("cart", 3)]),
+                "{word}: the new one keeps the short-lived value alone"
+            );
+            assert!(record.long.is_empty(), "{word}: and no long-lived key");
+            let mut next = returning(&store, &fresh, Some(&token), false);
+            assert_eq!(got_int(&mut next, "cart"), Some(3), "{word}");
+            assert_eq!(got_int(&mut next, "consent"), None, "{word}");
+        }
+    }
+
+    /// `rule:core-api/session-roster`'s `clearAll`, from the first use to the end of the request:
+    /// the row is deleted, both cookies expire, and the end of the request writes nothing. A
+    /// request that presents the old cookies afterwards gets a fresh session and leaves no row.
+    #[test]
+    fn clear_all_leaves_no_row_and_expires_both_cookies() {
+        let (short_lived, _) = lifetimes();
+        let (store, config, kept) = a_shared_store("session-clear-all");
+        let now = crate::queue::now_millis();
+        stored_with(
+            &store,
+            LIVE,
+            &ints(&[("cart", 3)]),
+            &LongKeys::new(),
+            Some(SHORT_TOKEN),
+            (now + short_lived, 0),
+        );
+        let cookies = format!("nvsid={LIVE}; nvsid-short={SHORT_TOKEN}");
+
+        let mut ctx = a_browser(&config, &cookies);
+        called(&mut ctx, super::nvs_core_session_clear_all);
+        assert_eq!(kept.rows(), 0, "the row is deleted");
+        let headers = ctx.take_headers();
+        for name in ["nvsid", "nvsid-short"] {
+            let (value, line) =
+                sent_cookie(&headers, name).unwrap_or_else(|| panic!("{headers:?} sends {name}"));
+            assert!(
+                value.is_empty() && line.contains("Max-Age=0"),
+                "{line} expires {name}"
+            );
+        }
+        assert_eq!(
+            got_int(&mut ctx, "cart"),
+            None,
+            "the request goes on with an empty session"
+        );
+        ctx.end_session();
+        assert_eq!(kept.rows(), 0, "and its end writes nothing back");
+
+        let mut after = a_browser(&config, &cookies);
+        assert_eq!(
+            got_int(&mut after, "cart"),
+            None,
+            "the old cookies name nothing"
+        );
+        assert!(
+            after.session().expect("the session is open").id.is_empty(),
+            "so the request has a fresh session with no identifier"
+        );
+        after.end_session();
+        assert_eq!(kept.rows(), 0, "and leaves no row");
+    }
+
+    /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`: the identifier cookie has a
+    /// `Max-Age` while the session has a long-lived value, and none otherwise. It is sent again
+    /// when the first long-lived value arrives, when the last one goes, and by `clearLongLived`.
+    #[test]
+    fn the_identifier_cookie_has_max_age_only_while_a_long_lived_value_exists() {
+        let (_store, config, _kept) = a_shared_store("session-identifier-max-age");
+
+        let mut first = a_browser(&config, "");
+        set_with(
+            &mut first,
+            super::nvs_core_session_set_short_lived,
+            "cart",
+            3,
+        );
+        let (id, line) =
+            sent_cookie(&first.take_headers(), "nvsid").expect("the first write sends it");
+        assert!(
+            !line.contains("Max-Age"),
+            "only a short-lived value, so the cookie ends with the browser: {line}"
+        );
+        set_with(
+            &mut first,
+            super::nvs_core_session_set_long_lived,
+            "consent",
+            1,
+        );
+        let (again, line) = sent_cookie(&first.take_headers(), "nvsid")
+            .expect("the first long-lived value sends it again");
+        assert_eq!(again, id, "under the same identifier");
+        assert!(
+            line.contains(&long_max_age()),
+            "a long-lived value, so the cookie outlives the browser: {line}"
+        );
+        let token = first
+            .session()
+            .expect("the session is open")
+            .short_token
+            .clone()
+            .expect("the short-lived write drew a token");
+        first.end_session();
+
+        let mut second = a_browser(&config, &format!("nvsid={id}; nvsid-short={token}"));
+        assert_eq!(got_int(&mut second, "consent"), Some(1));
+        assert!(
+            second.take_headers().is_empty(),
+            "a long clock with more than half left is not sent again"
+        );
+        removed(&mut second, "consent");
+        let (_, line) = sent_cookie(&second.take_headers(), "nvsid")
+            .expect("the last long-lived value going sends it again");
+        assert!(
+            !line.contains("Max-Age"),
+            "no long-lived value is left: {line}"
+        );
+        set_with(
+            &mut second,
+            super::nvs_core_session_set_long_lived,
+            "consent",
+            2,
+        );
+        let (_, line) = sent_cookie(&second.take_headers(), "nvsid")
+            .expect("a long-lived value arriving sends it again");
+        assert!(line.contains(&long_max_age()), "{line}");
+        called(&mut second, super::nvs_core_session_clear_long_lived);
+        let (moved, line) = sent_cookie(&second.take_headers(), "nvsid")
+            .expect("`clearLongLived` sends the new identifier");
+        assert_ne!(moved, id, "the identifier is new");
+        assert!(
+            !line.contains("Max-Age"),
+            "the long-lived values are gone: {line}"
+        );
+    }
+
+    /// `rule:core-classes/a-session-opens-on-its-first-use`: the first call of a member loads the
+    /// session with one read, and later calls use the request's copy. A request that presents the
+    /// cookies and calls no member sends the store nothing.
+    #[test]
+    fn the_first_call_opens_the_session_and_a_request_that_never_calls_one_reaches_no_store() {
+        let (short_lived, _) = lifetimes();
+        let (store, config, kept) = a_shared_store("session-first-call");
+        let now = crate::queue::now_millis();
+        stored_with(
+            &store,
+            LIVE,
+            &ints(&[("cart", 3)]),
+            &LongKeys::new(),
+            Some(SHORT_TOKEN),
+            (now + short_lived, 0),
+        );
+        let Kept::Shared(serving, _) = &kept else {
+            panic!("the case built the shared store");
+        };
+        let commands = || serving.commands.load(Ordering::SeqCst);
+        let writes = || serving.writes.load(Ordering::SeqCst);
+        let (before, written) = (commands(), writes());
+        let cookies = format!("nvsid={LIVE}; nvsid-short={SHORT_TOKEN}");
+
+        let mut idle = a_browser(&config, &cookies);
+        idle.end_session();
+        assert!(
+            idle.session().is_none(),
+            "a request that calls no member opens no session"
+        );
+        assert!(idle.take_headers().is_empty(), "and sends no cookie");
+        assert_eq!(commands(), before, "and sends the store nothing");
+
+        let mut reader = a_browser(&config, &cookies);
+        assert!(
+            reader.session().is_none(),
+            "nothing is open before the first call"
+        );
+        assert_eq!(
+            got_int(&mut reader, "cart"),
+            Some(3),
+            "the first call reads the stored value"
+        );
+        let open = reader.session().expect("the first call opened the session");
+        assert_eq!(open.id, LIVE);
+        assert_eq!(
+            open.opened_by, r"Core\Session::get",
+            "the session names the member whose call opened it"
+        );
+        assert_eq!(commands(), before + 1, "the open is one read");
+        assert_eq!(got_int(&mut reader, "cart"), Some(3));
+        assert_eq!(
+            commands(),
+            before + 1,
+            "a second call reads the request's copy"
+        );
+        reader.end_session();
+        assert_eq!(
+            (commands(), writes()),
+            (before + 1, written),
+            "and a request that only read writes nothing"
+        );
+    }
+
+    /// `rule:core-classes/a-session-opens-on-its-first-use`'s `openWithIdentifier`: a session the
+    /// program opens under an identifier it read itself has no browser, so its short-lived values
+    /// are bound to the identifier alone, and a write sends no cookie. A browser that presents the
+    /// identifier cookie without the short cookie still sees no short-lived value.
+    #[test]
+    fn an_identifier_opened_by_hand_sees_its_short_lived_values_without_a_short_cookie() {
+        let (short_lived, _) = lifetimes();
+        let (store, config, _kept) = a_shared_store("session-opened-by-hand");
+        let now = crate::queue::now_millis();
+        stored_with(
+            &store,
+            LIVE,
+            &ints(&[("cart", 3)]),
+            &LongKeys::new(),
+            Some(SHORT_TOKEN),
+            (now + short_lived, 0),
+        );
+        let by_hand = || {
+            let mut ctx = a_browser(&config, "");
+            let id = [Value::text(LIVE)];
+            let answer =
+                nvs_runtime::call(super::nvs_core_session_open_with_identifier, &mut ctx, &id);
+            id.into_iter().for_each(dropped);
+            dropped(answer.expect("the store has the identifier"));
+            ctx
+        };
+
+        let mut api = by_hand();
+        assert_eq!(
+            got_int(&mut api, "cart"),
+            Some(3),
+            "no short cookie, and the short-lived value is there"
+        );
+        set_with(&mut api, super::nvs_core_session_set_short_lived, "more", 4);
+        assert!(
+            api.take_headers().is_empty(),
+            "no browser, so a write sends no cookie"
+        );
+        api.end_session();
+
+        let mut again = by_hand();
+        assert_eq!(got_int(&mut again, "cart"), Some(3));
+        assert_eq!(
+            got_int(&mut again, "more"),
+            Some(4),
+            "the next request opened by hand sees the value the first one wrote"
+        );
+
+        let mut browser = a_browser(&config, &format!("nvsid={LIVE}"));
+        assert_eq!(
+            got_int(&mut browser, "cart"),
+            None,
+            "a browser without the short cookie sees no short-lived value"
+        );
+    }
+
+    /// `rule:http-server/a-session-holds-a-secret-only-sealed`: a long-lived secret opens with the
+    /// identifier cookie alone after the browser closes, and the store has only its ciphertext. A
+    /// short-lived secret saved beside it is gone in the new browser session.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_long_lived_secret_survives_a_new_browser_session_and_stays_sealed_on_any_store() {
+        const PLAIN: &str = "sk-live-7";
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-long-secret", *backend);
+            let mut first = a_visitor();
+            sealed_with(
+                &mut first,
+                super::nvs_core_session_set_long_lived_secret,
+                "refresh",
+                PLAIN,
+            );
+            sealed_with(
+                &mut first,
+                super::nvs_core_session_set_short_lived_secret,
+                "login",
+                "sess-9",
+            );
+            let id = first.session().expect("the session is open").id.clone();
+            ended(first, &store);
+
+            let kept = stored_under(&store, &id).expect("the session is kept");
+            assert!(
+                kept.iter().all(|(key, value)| {
+                    ![key, value].iter().any(|bytes| {
+                        bytes
+                            .windows(PLAIN.len())
+                            .any(|window| window == PLAIN.as_bytes())
+                    })
+                }),
+                "{word}: the store has no plaintext"
+            );
+
+            for visit in 1..=2 {
+                let mut restarted = returning(&store, &id, None, false);
+                assert_eq!(
+                    secret_got(&mut restarted, b"refresh", &[NEW]).expect("the secret reads"),
+                    Some(PLAIN.to_owned()),
+                    "{word}: new browser session {visit} opens the long-lived secret"
+                );
+                assert_eq!(
+                    secret_got(&mut restarted, b"login", &[NEW]).expect("the secret reads"),
+                    None,
+                    "{word}: the short-lived secret is gone"
+                );
+                assert!(
+                    read(&restarted, "get", b"refresh")
+                        .expect("an absent key reads")
+                        .is_none(),
+                    "{word}: `get` cannot read the secret"
+                );
+                ended(restarted, &store);
+            }
+        }
+    }
+
+    thread_local! {
+        /// What each write member threw inside [`writes_the_session`]: its name, and the class of
+        /// the throw or `None` where it did not throw.
+        static THROWN: std::cell::RefCell<Vec<(&'static str, Option<String>)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// Calls every member that writes the session on `ctx`, and notes in [`THROWN`] what each
+    /// threw.
+    fn every_write(ctx: &mut Ctx) {
+        let ring = crate::keyring::tests::ring_of(&[NEW]);
+        let (key, value, site) = (Value::text("cart"), Value::text("9"), Value::int(0));
+        let calls: [(&'static str, nvs_runtime::NvsFn, &[Value]); 9] = [
+            (
+                "setShortLived",
+                super::nvs_core_session_set_short_lived,
+                &[key, value, site],
+            ),
+            (
+                "setLongLived",
+                super::nvs_core_session_set_long_lived,
+                &[key, value, site],
+            ),
+            ("remove", super::nvs_core_session_remove, &[key, site]),
+            (
+                "setShortLivedSecret",
+                super::nvs_core_session_set_short_lived_secret,
+                &[key, value, ring, site],
+            ),
+            (
+                "setLongLivedSecret",
+                super::nvs_core_session_set_long_lived_secret,
+                &[key, value, ring, site],
+            ),
+            (
+                "clearShortLived",
+                super::nvs_core_session_clear_short_lived,
+                &[],
+            ),
+            (
+                "clearLongLived",
+                super::nvs_core_session_clear_long_lived,
+                &[],
+            ),
+            ("clearAll", super::nvs_core_session_clear_all, &[]),
+            ("regenerate", super::nvs_core_session_regenerate, &[]),
+        ];
+        for (name, member, args) in calls {
+            let class = match nvs_runtime::call(member, ctx, args) {
+                Ok(answer) => {
+                    dropped(answer);
+                    None
+                }
+                Err(_) => {
+                    let class = ctx.pending_class().unwrap_or_default();
+                    drop(ctx.take_pending());
+                    Some(class)
+                }
+            };
+            THROWN.with_borrow_mut(|thrown| thrown.push((name, class)));
+        }
+        [key, value, ring].into_iter().for_each(dropped);
+    }
+
+    /// A deferred function's entry point, as compiled code has one: it runs [`every_write`].
+    #[expect(
+        unsafe_code,
+        reason = "`call_callable` passes one live value this callee owes a release, and the \
+                  address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn writes_the_session(
+        ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        unsafe {
+            (*args).release();
+            every_write(&mut *ctx);
+            *out = Value::null();
+        }
+        nvs_runtime::OK
+    }
+
+    /// A callable with no parameters that calls `invoke`, owned by the caller:
+    /// `crates/nvs-stdlib/src/task.rs`'s `callable_of`, whose doc comment says why the table leaks.
+    fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
+        let mut table = nvs_runtime::ClassTable::new();
+        let id = table.define("{callable}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
+            }],
+        );
+        table.set_callable(id);
+        let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table is leaked, so the descriptor outlives every instance made from \
+                      it, which is `NvsObj::new`'s whole obligation"
+        )]
+        let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
+        object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(0));
+        object.set_field(nvs_runtime::CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
+        Value::object(object)
+    }
+
+    /// `rule:concurrency/deferred-work-cannot-write-the-response`: every member that writes the
+    /// session throws `LogicError` inside a `Core\Html::later` function and after the response.
+    /// The session already has an identifier and a short token, so no write would draw a cookie,
+    /// and it is left as it was.
+    #[test]
+    fn a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too() {
+        let (_, long_lived) = lifetimes();
+        for place in ["later", "afterResponse"] {
+            let mut ctx = Ctx::buffered();
+            ctx.open_session(nvs_runtime::Session {
+                long: longs(&["consent"]),
+                short_token: Some(SHORT_TOKEN.to_owned()),
+                long_until: crate::queue::now_millis() + long_lived,
+                ..loaded(ints(&[("cart", 3), ("consent", 1)]))
+            });
+            THROWN.with_borrow_mut(Vec::clear);
+            if place == "later" {
+                let marker = ctx.register_later(callable_of(writes_the_session), b"", b"", None);
+                ctx.write_output(&marker).expect("a buffer");
+                nvs_runtime::later::run_later(&mut ctx);
+            } else {
+                ctx.defer(callable_of(writes_the_session), 0)
+                    .expect("the request may defer work");
+                nvs_runtime::deferred::run_deferred(&mut ctx);
+            }
+
+            let thrown = THROWN.with_borrow_mut(std::mem::take);
+            assert_eq!(thrown.len(), 9, "{place}: every write member ran");
+            for (member, class) in thrown {
+                assert_eq!(
+                    class.as_deref(),
+                    Some("LogicError"),
+                    "{place}: `{member}` throws `LogicError`"
+                );
+            }
+            let open = ctx.session().expect("the session stays open");
+            assert_eq!(open.id, ID, "{place}: the identifier is the same");
+            assert_eq!(
+                open.entries,
+                ints(&[("cart", 3), ("consent", 1)]),
+                "{place}: the values are the same"
+            );
+            assert!(
+                !open.dirty && open.touched.is_empty(),
+                "{place}: nothing is owed to the store"
+            );
+            assert!(ctx.take_headers().is_empty(), "{place}: no cookie is sent");
+        }
     }
 }
