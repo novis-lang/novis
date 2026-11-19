@@ -4496,7 +4496,6 @@ fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
     );
 }
 
-
 /// A streamed reply's body, filed against this request, as the key its
 /// `Core\Http\Stream`'s body slot holds.
 ///
