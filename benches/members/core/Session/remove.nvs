@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Session::set('notice', $total);
+            Core\Session::setShortLived('notice', $total);
             Core\Session::remove('notice');
             $total = $total + 1;
             $i = $i + 1;
@@ -20,7 +20,6 @@ class Bench
     }
 }
 
-Core\Session::start();
-Core\Session::set('user', 17);
-Core\Session::set('language', 'de');
+Core\Session::setShortLived('user', 17);
+Core\Session::setLongLived('language', 'de');
 echo Bench::run(256), "\n";

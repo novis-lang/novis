@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to sign a user out and keep the user's preferences.
+// requires: redis
+
+// The user signed in earlier. The user also chose a dark theme.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('theme', 'dark');
+
+// The user signs out. `clearShortLived()` deletes `user`, and `theme` is kept.
+// This prints `user: (nobody)` and `theme: dark`.
+Core\Session::clearShortLived();
+echo 'user:  ', Core\Session::get('user') ?? '(nobody)', "\n";
+echo 'theme: ', Core\Session::get('theme') ?? '(default)', "\n";

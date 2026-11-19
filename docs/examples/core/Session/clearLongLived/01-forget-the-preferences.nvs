@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to delete a visitor's saved preferences and keep the user signed in.
+// requires: redis
+
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('theme', 'dark');
+Core\Session::setLongLived('language', 'de');
+
+// `clearLongLived()` deletes `theme` and `language`. The user stays signed in.
+Core\Session::clearLongLived();
+echo 'user:     ', Core\Session::get('user') ?? '(nobody)', "\n";
+echo 'theme:    ', Core\Session::get('theme') ?? '(default)', "\n";
+echo 'language: ', Core\Session::get('language') ?? '(default)', "\n";

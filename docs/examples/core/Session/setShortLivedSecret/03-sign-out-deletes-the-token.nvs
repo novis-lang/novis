@@ -1,0 +1,41 @@
+<?nvs
+// Shows a sign-in that saves an access token, and a sign-out that deletes it.
+// requires: redis
+
+class Login
+{
+    // A real program gets this token from the login service.
+    public static function exchangeCode(string $code): secret string
+    {
+        return 'at-' . $code;
+    }
+
+    public static function signIn(string $code, array<secret bytes> $keys): void
+    {
+        // A new session identifier after sign-in protects the user from session fixation.
+        Core\Session::regenerate();
+        Core\Session::setShortLived('user', 'ada');
+        Core\Session::setShortLivedSecret('access-token', Login::exchangeCode($code), $keys);
+    }
+
+    // `clearShortLived()` deletes every short-lived value, and the token with them.
+    public static function signOut(): void
+    {
+        Core\Session::clearShortLived();
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// The visitor's choice of language is long-lived, so the sign-out keeps it.
+Core\Session::setLongLived('language', 'en');
+
+Login::signIn('c0de42', $keys);
+// This prints `signed in: yes`.
+echo 'signed in: ', Core\Session::getSecret('access-token', $keys) == null ? 'no' : 'yes', "\n";
+
+Login::signOut();
+// This prints `signed in: no` and `language: en`.
+echo 'signed in: ', Core\Session::getSecret('access-token', $keys) == null ? 'no' : 'yes', "\n";
+echo 'language: ', Core\Session::get('language') ?? '(none)', "\n";

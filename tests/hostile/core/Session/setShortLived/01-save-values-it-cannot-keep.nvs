@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a request saves a callable, deeply nested arrays and large values in its
+// session. Saving a callable must throw a `LogicError`, and nothing may crash or leak.
+// hostile: timeout-ms 60000
+// requires: redis
+
+// 1. The request saves a callable. This throws a `LogicError`, and the session does not change.
+var $fn = fn(): int => 1;
+try {
+    Core\Session::setShortLived('handler', $fn);
+    echo "saved a callable\n";
+} catch (LogicError $callableError) {
+    echo "callable: LogicError\n";
+}
+echo 'handler: ', Core\Session::get('handler') ?? '(none)', "\n";
+
+// 2. The request saves a callable inside an array. This also throws a `LogicError`.
+try {
+    Core\Session::setShortLived('handlers', ['first' => $fn]);
+    echo "saved a callable in an array\n";
+} catch (LogicError $innerError) {
+    echo "callable in an array: LogicError\n";
+}
+
+// 3. The request saves an array inside an array, 200 levels deep.
+mixed $nested = 'bottom';
+uint $depth = 0;
+while ($depth < 200) {
+    $nested = [$nested];
+    $depth = $depth + 1;
+}
+try {
+    Core\Session::setShortLived('nested', $nested);
+    echo "nested: saved\n";
+} catch (LogicError $nestedError) {
+    echo "nested: LogicError\n";
+}
+
+// 4. The request replaces one value of 1 MB with another, 50 times.
+uint $i = 0;
+while ($i < 50) {
+    Core\Session::setShortLived('big', Core\Str::repeat('x', 1048576 + $i));
+    $i = $i + 1;
+}
+echo 'big length: ', Core\Str::length(Core\Session::get('big') as ?string ?? ''), "\n";
+
+// 5. The request saves 2000 keys, then saves a new value under each of them.
+uint $round = 0;
+while ($round < 2) {
+    uint $key = 0;
+    while ($key < 2000) {
+        Core\Session::setShortLived('item-' . $key, $key + $round);
+        $key = $key + 1;
+    }
+    $round = $round + 1;
+}
+echo 'item-1999: ', Core\Session::get('item-1999') ?? '(none)', "\n";
+
+// 6. The request tries to switch to a session it chose after a write. This throws a `LogicError`.
+try {
+    Core\Session::openWithIdentifier('a-session-of-another-visitor');
+    echo "switched to another session\n";
+} catch (LogicError $openError) {
+    echo "switch: LogicError\n";
+}
+
+// 7. The request deletes the session and then saves a value. The value goes to a new, empty session.
+Core\Session::clearAll();
+Core\Session::setShortLived('user', 'ada');
+echo 'item-1999 after clearAll: ', Core\Session::get('item-1999') ?? '(none)', "\n";
+echo 'user after clearAll: ', Core\Session::get('user') ?? '(none)', "\n";

@@ -1,6 +1,0 @@
---METHOD--
-POST
---PATH--
-/order/start-over
---HEADERS--
-host: example.com

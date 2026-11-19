@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/api/profile
+--HEADERS--
+host: example.com
+X-Session: made-up-identifier-000

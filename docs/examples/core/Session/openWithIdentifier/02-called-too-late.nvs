@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `openWithIdentifier()` must be the first call of `Core\Session` in a request.
+// requires: redis
+
+// `get()` opens the session from the session cookie.
+echo 'theme: ', Core\Session::get('theme') ?? '(default)', "\n";
+
+// The session is already open, so `openWithIdentifier()` throws a `LogicError`.
+// The message names `get()`, the method that opened the session.
+try {
+    Core\Session::openWithIdentifier('an-identifier-from-a-header');
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

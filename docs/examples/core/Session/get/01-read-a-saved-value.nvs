@@ -1,11 +1,12 @@
 <?nvs
-// Shows how to read a value that was saved in the session.
+// Shows how to read values that were saved in the session.
 // requires: redis
 
-Core\Session::start();
-Core\Session::set('language', 'de');
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('language', 'de');
 
-// `get()` returns the saved value. This prints `de`.
+// `get()` reads a value of either lifetime. This prints `ada` and then `de`.
+echo 'user: ', Core\Session::get('user') ?? '(none)', "\n";
 echo 'language: ', Core\Session::get('language') ?? 'en', "\n";
 
 // No value was saved under "currency", so `??` gives the default "EUR".

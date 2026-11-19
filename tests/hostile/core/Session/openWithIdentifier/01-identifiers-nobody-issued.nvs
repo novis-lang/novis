@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a request sends a huge session identifier that contains a store command, and then
+// tries to switch to other sessions. It should get one new, empty session, and every switch should fail.
+// hostile: timeout-ms 60000
+// requires: redis
+
+// 1. The identifier is 10 million characters long and contains a store command. The session is new and empty.
+Core\Session::openWithIdentifier(Core\Str::repeat('A', 10000000) . "\r\nFLUSHALL\r\nGET x");
+echo 'long command: ', Core\Session::get('user') ?? '(empty)', "\n";
+Core\Session::setShortLived('user', 'ada');
+
+// 2. The request tries to open another session 10000 times. Each call throws a `LogicError`.
+uint $i = 0;
+uint $refused = 0;
+while ($i < 10000) {
+    try {
+        Core\Session::openWithIdentifier('somebody-elses-session-' . $i);
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo 'switches that threw: ', $refused, "\n";
+
+// 3. The failed calls changed nothing. The value saved in step 1 is still there.
+echo 'kept: ', Core\Session::get('user') ?? '(lost)', "\n";
+
+// 4. The request deletes its session and tries to open an empty identifier. This throws a `LogicError` too.
+Core\Session::clearAll();
+try {
+    Core\Session::openWithIdentifier('');
+    echo "opened an empty identifier\n";
+} catch (LogicError $e) {
+    echo "after clearAll: LogicError\n";
+}
+
+// 5. The request saves 1000 values. They go into a new session that only this request knows.
+$i = 0;
+while ($i < 1000) {
+    Core\Session::setLongLived('key-' . $i, $i);
+    $i = $i + 1;
+}
+echo 'last value: ', Core\Session::get('key-999') ?? '(lost)', "\n";

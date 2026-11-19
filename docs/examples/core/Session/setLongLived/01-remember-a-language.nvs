@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to remember the language a visitor picked, also after the browser closes.
+// requires: redis
+
+// On the first visit there is no language yet, so `get()` returns `null`.
+echo 'before: ', Core\Session::get('language') ?? '(none)', "\n";
+
+// The visitor picks German. `setLongLived()` keeps it for 180 days by default.
+Core\Session::setLongLived('language', 'de');
+
+// This prints `de`.
+echo 'after: ', Core\Session::get('language') ?? '(none)', "\n";

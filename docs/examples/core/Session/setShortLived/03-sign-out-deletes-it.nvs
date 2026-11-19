@@ -1,0 +1,13 @@
+<?nvs
+// Shows that a sign-out deletes the short-lived login and keeps the long-lived language.
+// requires: redis
+
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('language', 'de');
+
+// The visitor signs out. `clearShortLived()` deletes every short-lived value.
+Core\Session::clearShortLived();
+
+// This prints `(none)` for the user and `de` for the language.
+echo 'user: ', Core\Session::get('user') ?? '(none)', "\n";
+echo 'language: ', Core\Session::get('language') ?? '(none)', "\n";

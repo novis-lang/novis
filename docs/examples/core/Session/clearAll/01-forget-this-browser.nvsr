@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/settings/forget-me
+--HEADERS--
+host: example.com

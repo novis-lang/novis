@@ -5577,6 +5577,7 @@ mod tests {
     /// `rule:http-server/a-session-value-is-short-lived-or-long-lived`: a long-lived value needs
     /// the identifier cookie alone. That cookie has a `Max-Age`, so the browser keeps it when it
     /// closes, and every request without the short cookie sees the value and keeps it.
+    // covers: Core\Session::setLongLived
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_long_lived_value_survives_a_new_browser_session_on_any_store() {
@@ -5875,6 +5876,7 @@ mod tests {
     /// long-lived values are deleted and the session moves to a new identifier, whose cookie has no
     /// `Max-Age`. The short-lived values stay under the new identifier and a new short token. The
     /// member's two steps run with the case's store in place of the configured one.
+    // covers: Core\Session::clearLongLived
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn clear_long_lived_keeps_short_lived_values_under_a_new_identifier_on_any_store() {
@@ -6177,6 +6179,7 @@ mod tests {
     /// `rule:http-server/a-session-holds-a-secret-only-sealed`: a long-lived secret opens with the
     /// identifier cookie alone after the browser closes, and the store has only its ciphertext. A
     /// short-lived secret saved beside it is gone in the new browser session.
+    // covers: Core\Session::setLongLivedSecret
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn a_long_lived_secret_survives_a_new_browser_session_and_stays_sealed_on_any_store() {

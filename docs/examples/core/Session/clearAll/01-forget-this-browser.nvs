@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to delete every value of a session, the short-lived and the long-lived ones.
+// requires: redis
+
+// The user signed in, and chose a language for the site.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('language', 'en');
+echo 'before: ', Core\Session::get('user') ?? '(nobody)', ', ', Core\Session::get('language') ?? '(none)', "\n";
+
+// `clearAll()` deletes the session from the store, and tells the browser to delete its cookies.
+Core\Session::clearAll();
+
+// Both values are gone. This prints `after: (nobody), (none)`.
+echo 'after: ', Core\Session::get('user') ?? '(nobody)', ', ', Core\Session::get('language') ?? '(none)', "\n";

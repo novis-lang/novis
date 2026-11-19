@@ -1,0 +1,15 @@
+<?nvs
+// Shows a page that deletes everything the site saved about a visitor.
+// requires: redis
+
+// The sign-in page saved the user's name, and the cookie banner saved a choice.
+// These two lines do the same, so the example has data to delete.
+Core\Session::setShortLived('name', 'Ada');
+Core\Session::setLongLived('consent', 'all');
+
+// The program reads the name first, because `clearAll()` deletes it.
+if (Core\Request::path() == '/privacy/delete-my-data') {
+    tainted string $name = Core\Session::get('name') as ?string ?? 'guest';
+    Core\Session::clearAll();
+    echo 'Goodbye, ', $name, ". Your data is deleted.\n";
+}

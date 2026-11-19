@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/checkout
+--HEADERS--
+host: example.com

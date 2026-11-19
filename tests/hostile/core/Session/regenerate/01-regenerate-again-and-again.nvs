@@ -4,27 +4,24 @@
 // hostile: timeout-ms 60000
 // requires: redis
 
-// 1. The request changes the identifier of a session it never started. This throws a `RuntimeError`.
-try {
-    Core\Session::regenerate();
-    echo "regenerated a session that was never started\n";
-} catch (RuntimeError $e) {
-    echo "not started: RuntimeError\n";
-}
+// 1. The request changes the identifier of a session with nothing saved. Nothing happens.
+Core\Session::regenerate();
+echo 'empty: ', Core\Session::get('user') ?? '(nothing)', "\n";
 
-Core\Session::start();
-Core\Session::set('user', 'ada');
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('language', 'de');
 
-// 2. The request changes the identifier 1000 times in a row. The value must still be there.
+// 2. The request changes the identifier 1000 times in a row. Both values must still be there.
 uint $i = 0;
 while ($i < 1000) {
     Core\Session::regenerate();
     $i = $i + 1;
 }
-echo 'after 1000: ', Core\Session::get('user') ?? '(lost)', "\n";
+echo 'after 1000: ', Core\Session::get('user') ?? '(lost)', ' ',
+    Core\Session::get('language') ?? '(lost)', "\n";
 
 // 3. The session holds 5 MB. Each change of identifier writes all of it to the store.
-Core\Session::set('big', Core\Str::repeat('x', 5000000));
+Core\Session::setShortLived('big', Core\Str::repeat('x', 5000000));
 uint $j = 0;
 while ($j < 20) {
     try {
@@ -39,17 +36,21 @@ echo 'big length: ', Core\Str::length(Core\Session::get('big') as ?string ?? '')
 // 4. The request changes a value and the identifier in turns. The last value must win.
 uint $k = 0;
 while ($k < 200) {
-    Core\Session::set('counter', $k);
+    Core\Session::setLongLived('counter', $k);
     Core\Session::regenerate();
     $k = $k + 1;
 }
 echo 'counter: ', Core\Session::get('counter') ?? '(lost)', "\n";
 
-// 5. The request ends the session and then changes the identifier. This throws a `RuntimeError`.
-Core\Session::destroy();
+// 5. The request deletes the session and then changes the identifier. Nothing comes back.
+Core\Session::clearAll();
+Core\Session::regenerate();
+echo 'after clearAll: ', Core\Session::get('user') ?? '(nothing)', "\n";
+
+// 6. The request tries to choose its own identifier after the session is open. This throws a `LogicError`.
 try {
-    Core\Session::regenerate();
-    echo "regenerated a session that was destroyed\n";
-} catch (RuntimeError $e) {
-    echo "destroyed: RuntimeError\n";
+    Core\Session::openWithIdentifier('chosen-by-the-attacker');
+    echo "opened under a chosen identifier\n";
+} catch (LogicError $e) {
+    echo "chosen identifier: LogicError\n";
 }

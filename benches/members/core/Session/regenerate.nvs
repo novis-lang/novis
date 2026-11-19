@@ -19,6 +19,6 @@ class Bench
     }
 }
 
-Core\Session::start();
-Core\Session::set('user', 17);
+Core\Session::setShortLived('user', 17);
+Core\Session::setLongLived('language', 'de');
 echo Bench::run(256), "\n";

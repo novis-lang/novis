@@ -13,10 +13,8 @@ class Notice
     }
 }
 
-Core\Session::start();
-
 // The form handler saves the message.
-Core\Session::set('notice', 'Your address was saved.');
+Core\Session::setShortLived('notice', 'Your address was saved.');
 
 // The first call returns the message. The second call returns an empty
 // string, because `remove()` deleted the message.

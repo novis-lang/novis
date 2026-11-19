@@ -1,0 +1,16 @@
+<?nvs
+// Shows that you can save new values in the session right after `clearShortLived()`.
+// requires: redis
+
+Core\Session::setShortLived('visits', 3);
+Core\Session::clearShortLived();
+
+// The session is still open. This saves a new value and prints `visits: 1`.
+Core\Session::setShortLived('visits', 1);
+echo 'visits: ', Core\Session::get('visits') as int, "\n";
+
+// You can call `clearShortLived()` again. A second call is allowed too.
+// This prints `visits: (none)`.
+Core\Session::clearShortLived();
+Core\Session::clearShortLived();
+echo 'visits: ', Core\Session::get('visits') ?? '(none)', "\n";

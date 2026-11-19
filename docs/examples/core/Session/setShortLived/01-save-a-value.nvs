@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to save the values of a login in the session and read them back.
+// requires: redis
+
+// `setShortLived()` saves a string, a whole number and a bool under three keys.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setShortLived('user-id', 42);
+Core\Session::setShortLived('is-admin', false);
+
+// This prints `ada`, `42` and `no`.
+echo 'user: ', Core\Session::get('user') ?? '(none)', "\n";
+echo 'user id: ', Core\Session::get('user-id') as ?int ?? 0, "\n";
+echo 'admin: ', Core\Session::get('is-admin') as bool ? 'yes' : 'no', "\n";

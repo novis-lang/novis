@@ -30,7 +30,7 @@ stages:
     context: [tests/conformance/core/, tests/hostile/core/, apps/, packages/rest/src/Session.nvs, benches/]
   - id: 7
     title: every Session member owes no feature proof
-    status: open
+    status: done
     context: [docs/examples/core/Session/, benches/members/core/Session/, tests/hostile/core/Session/, docs/agent/prose.md]
   - id: 8
     title: the website pages use the new members
@@ -440,7 +440,12 @@ example is end-user prose.
 **Split:** writing subagents, one per member, side by side: their folders are disjoint. The session
 then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
-- [ ] The eight proof checks are green, and `get`, `remove`, `regenerate` and `getSecret` owe nothing.
+- [x] The eight proof checks are green, and `get`, `remove`, `regenerate` and `getSecret` owe nothing.
+  - [x] The five renamed folders are moved and rewritten, and the three new members have theirs.
+  - [x] `get`, `remove`, `regenerate` and `getSecret` call no removed member.
+  - [x] `bun nv proofs --run` passes for every `Session` example and attack.
+  - [x] `bun nv proofs --comments` passes over every file written.
+  - [x] `bun nv proofs --record-perf` measured every `Session` bench.
 
 ### 8. the website pages use the new members
 
@@ -459,39 +464,40 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 to 6 are done. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
-`cargo fmt --check` are green.
+Stages 1 to 7 are done. `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
-Stage 6: outside `Session`'s own proof folders (stage 7) and `website/` (stage 8), nothing in the
-tree calls `start`, `set`, `clear`, `destroy` or `setSecret` (`debugger.rs` and `Test/advance/03`
-name their own classes). Checked: the changed conformance cases and the `checker` cases, 23 passed
-under `nvs test`; `bun nv proofs --run` over Passkey, Csrf and `Novis\Rest\Session`, 21 examples
-and 7 attacks passed; `live_config`'s
-`a_changed_session_backend_applies_to_new_requests` (its fake store now looks for `EVAL`, the
-command the store's issue script sends; it looked for `SET`, red since `session-per-key`) and
-`per_mount_config`'s `two_mounts_do_not_open_each_others_sessions` pass.
+Stage 7: all twelve `Core\Session` members owe no proof. `bun nv proofs --id` exits 0 for each.
+`bun nv proofs --run` over the twelve passed 36 examples and 12 attacks, and `bun nv proofs
+--comments` passed over the 68 files in `docs/examples/core/Session/`, `tests/hostile/core/Session/`
+and `benches/members/core/Session/`. The renamed members' folders were moved with `git mv` and
+rewritten. `setLongLived`, `setLongLivedSecret` and `clearLongLived` have new ones. `clearAll`'s
+examples changed purpose: sign-out is now `clearShortLived`'s, so its third example is a "delete my
+data" page. `openWithIdentifier`'s bench runs one operation, since the member opens once per request.
 
-A security gap found and closed: `quals.rs` `reject_secret_session_argument` refused a `secret`
-only for the removed `set`, so `setShortLived` and `setLongLived` took one silently. Both now get
-E0775, whose help names the sealed sibling of the same lifetime;
-`tests/conformance/reject/session-a-write-refuses-a-secret-and-names-its-sealed-sibling.nvst` and
-`qualifiers_hold.rs` `every_secret_sink_refuses_a_secret_mixed` prove it.
+Three existing Rust tests in `crates/nvs-stdlib/src/session.rs` gained the `covers:` line the
+proofs gate wanted: `a_long_lived_value_survives_a_new_browser_session_on_any_store`
+(`setLongLived`), `clear_long_lived_keeps_short_lived_values_under_a_new_identifier_on_any_store`
+(`clearLongLived`) and `a_long_lived_secret_survives_a_new_browser_session_and_stays_sealed_on_any_store`
+(`setLongLivedSecret`). The perf of every `Session` member is recorded in
+`data/perf/members.ndjson`, measured after that edit. The `setShortLived`, `setLongLived` and
+`regenerate` scale benches now ramp to `max 16384`: at `max 4096` the last three byte increments
+(2.0, 7.9, 5.0 per unit) read as faster than linear, and they are 5.0 at every size from 2048 up
+(playbook bullet under *Tooling*).
 
-Every doc comment and rule fragment that named `Core\Session::start` says what is true now, and
-`bun nv rules --render` rewrote the chapters and `docs/ground-rules.md`. The conformance case
-`a-nullable-core-parameter-keeps-the-mark-of-its-type` lost its `start(?id)` half, since
-`openWithIdentifier` takes no nullable; its `Core\Path` half remains. The sweep's reds are stale
-(retired `env-secret-proofs`; nightly 44510687786 built `adc7487822`, fixed on `main`).
+The sweep's reds are stale: `env-secret-proofs` is a retired goal's check, and nightly 44510687786
+built `adc7487822`, fixed on `main`.
 
 ### Next
 
-Stages 7 and 8, side by side (each stage's `**Split:**` line names its subagents). Stage 7's folders
-are `docs/examples/core/Session/`, `benches/members/core/Session/` and `tests/hostile/core/Session/`,
-which still use the removed members. Stage 8's pages: `website/src/content/docs/guides/cookbook/upload-file.mdx`,
-`website/src/content/docs/guides/example-apps/notes.mdx` and `chat.mdx`, then the generated
-`website/src/data/core.json` and `website/public/llms-full.txt`. Expect red until stage 7 in
-`bun nv proofs` for every `Session` member and in `perf: stale` for the Passkey and Csrf members
-(`passkey.rs` changed); stage 9 records perf, per the playbook's `perf: stale` bullet.
+Stage 8, then stage 9. Stage 8's pages:
+`website/src/content/docs/guides/cookbook/upload-file.mdx:33`,
+`website/src/content/docs/guides/example-apps/chat.mdx:336` and
+`website/src/content/docs/guides/example-apps/notes.mdx:163`. Then rebuild the generated
+`website/src/data/core.json`, `website/src/data/questions.json` and `website/public/llms-full.txt`
+with the command that owns each. The `about.md` files changed, so `core.json` changes too. Expect red
+until stage 8 wherever a check compares those generated files with the tree. Expect `perf: stale` for
+the Passkey and Csrf members (`passkey.rs` changed). Stage 9 records them, per the playbook's
+`perf: stale` bullet.
 
 ### Backlog
 
@@ -506,3 +512,6 @@ which still use the removed members. Stage 8's pages: `website/src/content/docs/
   run. Either the deferred context gets a read-only view of the request's session, or the rule says
   a read there throws. It needs its own design, and becomes a gap record if this goal ends with it
   open.
+- A session write counts about five bytes per byte of its value in `nvs run --count` (the value, its
+  encoding and the write-back's copies). It is linear, so no proof fails, but each copy is bytes moved
+  on the request path. A later perf goal may cut the copies.

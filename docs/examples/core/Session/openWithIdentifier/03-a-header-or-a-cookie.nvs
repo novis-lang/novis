@@ -1,0 +1,16 @@
+<?nvs
+// Shows a page that serves both a mobile app and a browser.
+// requires: redis
+
+// The app sends the identifier in the `X-Session` header. A browser sends a cookie.
+// Only a request with the header needs `openWithIdentifier()`.
+?tainted string $id = Core\Request::header('X-Session');
+if ($id != null) {
+    Core\Session::openWithIdentifier($id);
+}
+
+// This request came from a browser. So `setShortLived()` opens the session from the cookie.
+Core\Session::setShortLived('last-page', '/orders');
+
+// This prints `last page: /orders`.
+echo 'last page: ', Core\Session::get('last-page') ?? '(none)', "\n";

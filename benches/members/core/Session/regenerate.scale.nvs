@@ -1,14 +1,14 @@
 <?nvs
 // Measures `Core\Session::regenerate` on one session, at growing lengths of the value in the session.
 // bench: start 256
-// bench: max 4096
+// bench: max 16384
 // requires: redis
 
 class Bench
 {
     public static function run(uint $size): uint
     {
-        Core\Session::set('cart', Core\Str::repeat('a', $size));
+        Core\Session::setLongLived('cart',Core\Str::repeat('a', $size));
         uint $total = 0;
         uint $i = 0;
         while ($i < 16) {
@@ -20,5 +20,4 @@ class Bench
     }
 }
 
-Core\Session::start();
 echo Bench::run(256), "\n";

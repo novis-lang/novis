@@ -1,16 +1,18 @@
-`Core\Session::getSecret()` reads a secret that `Core\Session::setSecret()` saved in the session.
-A secret is a value that nobody else may read, for example an access token of the user.
+`Core\Session::getSecret()` reads a secret from the session, for example an access token of the
+user. It reads a secret that `Core\Session::setShortLivedSecret()` or
+`Core\Session::setLongLivedSecret()` saved. A short-lived secret ends when the visitor closes the
+browser. A long-lived secret stays after that.
 
-The secret is saved encrypted. `getSecret()` decrypts it with a key from `$keys`. Every key in the
-list is tried, so you can add a new key at the front and still read secrets that an older key
-encrypted.
+The secret is saved encrypted, and `getSecret()` tries every key in `$keys`. So you can add a new
+key at the front and still read secrets that an older key encrypted.
 
-The result is `null` when nothing is saved under the key, and also when no key in `$keys` can
-decrypt the secret. The result is the same `null` in every case, so a program cannot learn anything
-about a key it does not have. Reading does not change the session.
+The result is `null` when nothing is saved under the key, and when no key can decrypt the secret.
+Both cases give the same `null`, so a program learns nothing about a key it does not have.
+`Core\Session::get()` returns `null` for a secret.
 
-Call `Core\Session::start()` first. Before it, `getSecret()` throws a `RuntimeError`. An empty
-`$keys` list throws a `LogicError`.
+Outside a request, `getSecret()` throws a `LogicError`. An empty `$keys` list, or a key that is not
+32 bytes long, also throws a `LogicError`. A store that cannot be opened throws a `RuntimeError`,
+and a store that cannot be reached throws an `IOError`.
 
-**The examples below** show how to read a secret, how to change keys without losing secrets, and a
-page that needs the user's access token.
+**The examples below** show how to read a secret of each lifetime, how to change keys without
+losing secrets, and a page that needs the user's access token.

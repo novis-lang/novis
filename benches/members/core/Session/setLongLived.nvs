@@ -1,0 +1,24 @@
+<?nvs
+// Saves one long-lived value in a session that has two others, as a page does when a visitor changes a setting.
+// bench: iterations 256
+// bench: complexity linear
+// requires: redis
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Session::setLongLived('theme', $total);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::setShortLived('user', 17);
+Core\Session::setLongLived('language', 'de');
+echo Bench::run(256), "\n";

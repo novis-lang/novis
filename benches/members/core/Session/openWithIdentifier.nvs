@@ -1,0 +1,21 @@
+<?nvs
+// Opens a session under an identifier from a header, as an API for a mobile app does.
+// bench: iterations 1
+// bench: complexity constant
+// requires: redis
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // A request can open its session only once, so this runs one time.
+        uint $total = 0;
+        if ($rounds > 0) {
+            Core\Session::openWithIdentifier(Core\Request::header('X-Session') ?? '');
+            $total = $total + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1), "\n";

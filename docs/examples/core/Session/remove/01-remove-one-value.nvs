@@ -2,11 +2,11 @@
 // Shows how to delete one value from the session and keep the others.
 // requires: redis
 
-Core\Session::start();
-Core\Session::set('user', 'ada');
-Core\Session::set('cart', 3);
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('cart', 3);
 
 // `remove()` deletes the key "cart" and its value.
+// It works the same for a short-lived and a long-lived value.
 Core\Session::remove('cart');
 
 // "cart" is gone, so this prints `(none)`. "user" still has its value `ada`.

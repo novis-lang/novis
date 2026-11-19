@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/logout
+--HEADERS--
+host: example.com

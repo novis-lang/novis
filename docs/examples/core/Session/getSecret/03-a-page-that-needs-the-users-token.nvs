@@ -19,13 +19,11 @@ class Calendar
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $keys = [$key];
 
-Core\Session::start();
-
 // This prints `please connect your calendar`.
 echo Calendar::page($keys), "\n";
 
 // The user connects the calendar, and the program saves the token it got.
-Core\Session::setSecret('calendar-token', 'at-2d40c8e7', $keys);
+Core\Session::setShortLivedSecret('calendar-token', 'at-2d40c8e7', $keys);
 
 // This prints `showing your calendar`.
 echo Calendar::page($keys), "\n";

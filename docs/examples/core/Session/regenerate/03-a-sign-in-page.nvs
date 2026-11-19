@@ -13,12 +13,10 @@ class Login
 
         // The user is now signed in, so the session gets a new identifier first.
         Core\Session::regenerate();
-        Core\Session::set('user', $user);
+        Core\Session::setShortLived('user', $user);
         return 'welcome, ' . $user;
     }
 }
-
-Core\Session::start();
 
 // This prints `wrong password`. The session is not changed.
 echo Login::signIn('ada', 'guess'), "\n";

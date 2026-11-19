@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `clearLongLived()` deletes a key only when its last write was long-lived.
+// requires: redis
+
+// `language` is saved as long-lived, then saved again as short-lived.
+// The second write makes it short-lived.
+Core\Session::setLongLived('language', 'de');
+Core\Session::setShortLived('language', 'fr');
+Core\Session::setLongLived('theme', 'dark');
+
+// This prints `language: fr` and `theme: (default)`.
+Core\Session::clearLongLived();
+echo 'language: ', Core\Session::get('language') ?? '(default)', "\n";
+echo 'theme:    ', Core\Session::get('theme') ?? '(default)', "\n";

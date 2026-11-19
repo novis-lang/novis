@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to save a long-lived secret that belongs to the device and read it back.
+// requires: redis
+
+// A real program loads its keys from its configuration. This example creates one.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// `setLongLivedSecret()` encrypts the device token with the first key and saves it.
+// The token stays in the session after the visitor closes the browser.
+secret string $token = 'dev-4e81a0c2';
+Core\Session::setLongLivedSecret('device-token', $token, $keys);
+
+// `getSecret()` decrypts it with the same keys. This prints `the token is saved`.
+echo (Core\Session::getSecret('device-token', $keys) ?? '') == $token
+    ? 'the token is saved'
+    : 'the token is missing', "\n";

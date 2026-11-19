@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request saves many large preferences and deletes them again, many times.
+// The memory must be freed each time, the sign-in must stay, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: redis
+
+// 1. The request deletes the preferences of a session that has no values yet. Nothing happens.
+Core\Session::clearLongLived();
+echo 'empty session: ', Core\Session::get('theme') ?? '(none)', "\n";
+
+Core\Session::setShortLived('user', 'ada');
+
+// 2. The request writes 200 long-lived keys, then deletes them. It does this 50 times.
+uint $round = 0;
+while ($round < 50) {
+    uint $key = 0;
+    while ($key < 200) {
+        Core\Session::setLongLived('item-' . $key, 'value ' . $round . '-' . $key);
+        $key = $key + 1;
+    }
+    Core\Session::clearLongLived();
+    $round = $round + 1;
+}
+echo 'after many keys: ', Core\Session::get('item-0') ?? '(none)', "\n";
+
+// 3. The request writes one long-lived value of 1 MB, then deletes it. It does this 20 times.
+string $big = Core\Str::repeat('x', 1048576);
+uint $i = 0;
+while ($i < 20) {
+    Core\Session::setLongLived('big', $big);
+    Core\Session::clearLongLived();
+    $i = $i + 1;
+}
+echo 'after large values: ', Core\Session::get('big') ?? '(none)', "\n";
+
+// 4. The request deletes the preferences 1000 times in a row, with none left.
+uint $j = 0;
+while ($j < 1000) {
+    Core\Session::clearLongLived();
+    $j = $j + 1;
+}
+echo 'after empty clears: ', Core\Session::get('user') ?? '(nobody)', "\n";
+
+// 5. The request writes the sign-in key again as long-lived, then deletes the preferences.
+Core\Session::setLongLived('user', 'mallory');
+Core\Session::clearLongLived();
+echo 'user written again: ', Core\Session::get('user') ?? '(nobody)', "\n";
+
+// 6. The request deletes the whole session, then deletes the preferences. Nothing happens.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::clearAll();
+Core\Session::clearLongLived();
+echo 'after clearAll: ', Core\Session::get('user') ?? '(nobody)', "\n";

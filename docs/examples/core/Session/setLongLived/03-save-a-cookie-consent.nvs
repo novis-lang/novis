@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to save a cookie consent choice that stays after the visitor signs out.
+// requires: redis
+
+// The visitor accepts statistics cookies and declines ads.
+Core\Session::setLongLived('consent', ['statistics' => true, 'ads' => false]);
+Core\Session::setShortLived('user', 'ada');
+
+// The visitor signs out. `clearShortLived()` deletes the login and keeps the consent.
+Core\Session::clearShortLived();
+
+// This prints `statistics: yes` and `ads: no`.
+array<bool> $consent = (Core\Session::get('consent') ?? []) as array<bool>;
+foreach ($consent as string $kind => bool $allowed) {
+    echo $kind, ': ', $allowed ? 'yes' : 'no', "\n";
+}

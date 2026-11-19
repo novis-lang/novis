@@ -4,24 +4,26 @@
 // hostile: timeout-ms 60000
 // requires: redis
 
-// 1. The request reads a session it never started. This throws a `RuntimeError`.
+// 1. The request reads before it saves anything. The read opens an empty session and returns `null`.
+echo 'first read: ', Core\Session::get('user') ?? '(none)', "\n";
+
+// 2. The request then tries to open the session under its own identifier. The session is already open, so this throws a `LogicError`.
 try {
-    echo Core\Session::get('user') ?? '(none)', "\n";
-} catch (RuntimeError $e) {
-    echo "not started: RuntimeError\n";
+    Core\Session::openWithIdentifier('attacker-chosen-id');
+    echo "opened a second time\n";
+} catch (LogicError $e) {
+    echo "already open: LogicError\n";
 }
 
-Core\Session::start();
-
-// 2. The request reads with an empty key, a key of 1 MB and a key with a zero byte.
+// 3. The request reads with an empty key, a key of 1 MB and a key with a zero byte.
 // Nothing was saved under them, so each read returns `null`.
 string $long = Core\Str::repeat('k', 1048576);
 echo 'empty key: ', Core\Session::get('') ?? '(none)', "\n";
 echo 'long key: ', Core\Session::get($long) ?? '(none)', "\n";
 echo 'zero byte: ', Core\Session::get("user\0admin") ?? '(none)', "\n";
 
-// 3. The request saves one value of 1 MB and reads it 500 times.
-Core\Session::set('big', Core\Str::repeat('x', 1048576));
+// 4. The request saves one value of 1 MB and reads it 500 times.
+Core\Session::setLongLived('big', Core\Str::repeat('x', 1048576));
 uint $length = 0;
 uint $i = 0;
 while ($i < 500) {
@@ -31,10 +33,14 @@ while ($i < 500) {
 }
 echo 'big value length: ', $length, "\n";
 
-// 4. The request saves 500 keys and reads each one, and a missing one, 10 times.
+// 5. The request saves 500 keys of both lifetimes and reads each one, and a missing one, 10 times.
 uint $key = 0;
 while ($key < 500) {
-    Core\Session::set('item-' . $key, $key);
+    if ($key % 2 == 0) {
+        Core\Session::setShortLived('item-' . $key, $key);
+    } else {
+        Core\Session::setLongLived('item-' . $key, $key);
+    }
     $key = $key + 1;
 }
 uint $found = 0;
@@ -50,3 +56,8 @@ while ($round < 10) {
     $round = $round + 1;
 }
 echo 'keys found: ', $found, "\n";
+
+// 6. The request saves one key as short-lived and then as long-lived. The read returns only the last value.
+Core\Session::setShortLived('mode', 'short');
+Core\Session::setLongLived('mode', 'long');
+echo 'mode: ', Core\Session::get('mode') ?? '(none)', "\n";

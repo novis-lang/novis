@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/settings/reset
+--HEADERS--
+host: example.com

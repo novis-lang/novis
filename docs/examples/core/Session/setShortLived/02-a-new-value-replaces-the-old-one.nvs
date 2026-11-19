@@ -1,0 +1,11 @@
+<?nvs
+// Shows that saving under a key that already has a value replaces that value.
+// requires: redis
+
+Core\Session::setShortLived('step', 'address');
+
+// The visitor goes to the next step of the checkout. The second call replaces "address".
+Core\Session::setShortLived('step', 'payment');
+
+// This prints `payment`.
+echo 'step: ', Core\Session::get('step') ?? '(none)', "\n";

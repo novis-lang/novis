@@ -1,0 +1,13 @@
+<?nvs
+// Shows that the session can be used again in the same request after `clearAll()`.
+// requires: redis
+
+Core\Session::setLongLived('cart', 3);
+Core\Session::clearAll();
+
+// The session is empty now. `get()` returns `null`, and this prints `cart: (empty)`.
+echo 'cart: ', Core\Session::get('cart') ?? '(empty)', "\n";
+
+// A new value starts a new session with a new identifier. This prints `cart: 1`.
+Core\Session::setLongLived('cart', 1);
+echo 'cart: ', Core\Session::get('cart') ?? '(empty)', "\n";

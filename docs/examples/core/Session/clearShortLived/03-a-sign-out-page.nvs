@@ -1,0 +1,27 @@
+<?nvs
+// Shows a sign-out page that keeps the visitor's cookie choice.
+// requires: redis
+
+class Account
+{
+    public static function signOut(): void
+    {
+        if (Core\Session::get('user') == null) {
+            echo "you are not signed in\n";
+            return;
+        }
+        echo 'goodbye, ', Core\Session::get('user'), "\n";
+        Core\Session::clearShortLived();
+    }
+}
+
+// An earlier request saved these two values.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('cookie-consent', 'analytics');
+
+// The first call prints `goodbye, ada`. The second prints `you are not signed in`.
+Account::signOut();
+Account::signOut();
+
+// The cookie choice is kept. This prints `consent: analytics`.
+echo 'consent: ', Core\Session::get('cookie-consent') ?? '(not asked yet)', "\n";

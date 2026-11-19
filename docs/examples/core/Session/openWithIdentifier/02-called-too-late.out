@@ -1,0 +1,2 @@
+theme: (default)
+Core\Session::openWithIdentifier(): the session of this request is already open. `Core\Session::get()` opened it. Call `openWithIdentifier()` before any other `Core\Session` method.

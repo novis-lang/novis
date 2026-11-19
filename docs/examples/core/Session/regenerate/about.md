@@ -1,17 +1,17 @@
 `Core\Session::regenerate()` gives the session of the current request a new identifier. The
-identifier is the value in the session cookie that the browser sends back with every request.
+identifier is the value in the session cookie. Call it when a user signs in. Somebody else may have
+known the old identifier. After `regenerate()`, the old identifier no longer finds the session.
 
-Call `regenerate()` when a user signs in. Somebody else may have known the old identifier, for
-example because they gave the user a link that contains it. After `regenerate()`, the old
-identifier no longer finds the session, so it is useless to them.
+Every value is kept: short-lived values, long-lived values and secrets of both lifetimes. A value
+that another request saved in the meantime is kept too. The response sends the new identifier in
+the session cookie. A session with nothing saved has no identifier, so `regenerate()` does nothing.
 
-The data in the session does not change. Values saved with `Core\Session::set()` and secrets saved
-with `Core\Session::setSecret()` can still be read. A key that another request saved in the
-meantime is kept too. The store is updated at once, not at the end of
-the request, and the response sends the new identifier in the session cookie.
+To sign a user out, use `Core\Session::clearShortLived()`. It also gives a new identifier, but it
+deletes the short-lived values.
 
-Call `Core\Session::start()` first. Before it, `regenerate()` throws a `RuntimeError`. If the store
-cannot be reached, it throws an `IOError`.
+Outside a request, `regenerate()` throws a `LogicError`. Inside `Core\Html::later` or
+`Core\Task::afterResponse` the call does not compile or throws a `LogicError`. A store that cannot
+be opened throws a `RuntimeError`, and a store that cannot be reached throws an `IOError`.
 
 **The examples below** show a new identifier after sign-in, that values and secrets are kept, and
 a sign-in page.

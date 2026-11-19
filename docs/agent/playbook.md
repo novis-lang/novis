@@ -66,6 +66,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
   one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
   --only`. A doc comment edit in that file makes it stale again, so edit first and measure last.
   See `tools/nv/proofs/collect.ts` `perfAny`.
+- **A `.scale.nvs` ramp whose last three sizes start below where buffers settle reads a linear
+  cost as faster than linear.** Three `Session` scale benches failed at `max 4096` with increments
+  2.0, 7.9 and 5.0 bytes per unit. The increments were 5.0 at every size from 2048 up. A hand run
+  of `nvs run --count` shows the tool's figures only with `--request <bench>.nvsr --config
+  nvs.toml` and `NOVIS_NO_FILE_CACHE=1`, as `spawnProof` passes them. Raise `max` until the last
+  three increments agree, which makes the ramp longer and never looser. See
+  `benches/members/core/Session/setShortLived.scale.nvs`.
 - **A chapter example's expected output is its `.out` under `docs/examples/`, not the chapter.**
   A member that allocates less changes a bench example's `count:` line, and `bun nv reference`
   fails on the chapter. Editing `docs/reference/lang/*.md` makes `bun nv render --check` fail

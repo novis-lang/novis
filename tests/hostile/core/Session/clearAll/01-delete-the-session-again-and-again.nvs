@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request deletes its session many times, with large values in it.
+// Each session should be deleted and its memory freed, and nothing should crash.
+// hostile: timeout-ms 60000
+// requires: redis
+
+// 1. The request deletes a session that has no values. Nothing happens, and nothing throws.
+Core\Session::clearAll();
+echo 'empty session: ', Core\Session::get('big') ?? '(empty)', "\n";
+
+// 2. The request saves 1 MB of each kind, then deletes the session. It does this 200 times.
+string $big = Core\Str::repeat('x', 1048576);
+uint $round = 0;
+while ($round < 200) {
+    Core\Session::setShortLived('big', $big);
+    Core\Session::setLongLived('also-big', $big);
+    Core\Session::clearAll();
+    $round = $round + 1;
+}
+echo 'after many sessions: ', Core\Session::get('big') ?? '(empty)', "\n";
+
+// 3. The request deletes the same session twice. The second call changes nothing.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::clearAll();
+Core\Session::clearAll();
+echo 'twice: ', Core\Session::get('user') ?? '(empty)', "\n";
+
+// 4. The request uses every other method after `clearAll()`. Each one works on the empty session.
+Core\Session::remove('user');
+Core\Session::regenerate();
+Core\Session::clearShortLived();
+Core\Session::clearLongLived();
+echo 'other methods: ', Core\Session::get('user') ?? '(empty)', "\n";
+
+// 5. The request tries to switch to another identifier after `clearAll()`. This throws a `LogicError`.
+try {
+    Core\Session::openWithIdentifier('somebody-elses-session');
+    echo "switched to another session\n";
+} catch (LogicError $e) {
+    echo "switch: LogicError\n";
+}
+
+// 6. A value saved after all of this is in a new session, and nothing else is in it.
+Core\Session::setShortLived('user', 'grace');
+echo 'new session: ', Core\Session::get('user') ?? '(empty)', ', ', Core\Session::get('also-big') ?? '(empty)', "\n";

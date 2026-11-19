@@ -1,0 +1,27 @@
+<?nvs
+// Shows a "Withdraw consent" button that deletes the cookie choice and the cart.
+// requires: redis
+
+class Privacy
+{
+    public static function withdrawConsent(): void
+    {
+        Core\Session::clearLongLived();
+        echo "your choices were deleted\n";
+    }
+}
+
+// Earlier requests saved these values.
+Core\Session::setShortLived('user', 'ada');
+Core\Session::setLongLived('cookie-consent', 'analytics');
+Core\Session::setLongLived('cart', [3, 17]);
+
+// The request below is for `/privacy/withdraw`.
+if (Core\Request::path() == '/privacy/withdraw') {
+    Privacy::withdrawConsent();
+}
+
+// This prints `consent: (not asked yet)`, `cart: (empty)` and `user: ada`.
+echo 'consent: ', Core\Session::get('cookie-consent') ?? '(not asked yet)', "\n";
+echo 'cart:    ', Core\Session::get('cart') == null ? '(empty)' : 'has items', "\n";
+echo 'user:    ', Core\Session::get('user') ?? '(nobody)', "\n";

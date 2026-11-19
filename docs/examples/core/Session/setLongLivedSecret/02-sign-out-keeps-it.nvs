@@ -1,0 +1,19 @@
+<?nvs
+// Shows which clear deletes a long-lived secret and which one keeps it.
+// requires: redis
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+Core\Session::setLongLivedSecret('device-token', 'dev-4e81a0c2', $keys);
+Core\Session::setShortLivedSecret('access-token', 'at-7f3c9b21', $keys);
+
+// `clearShortLived()` signs the user out. It deletes only the short-lived secret.
+// This prints `access token: null` and `device token: a value`.
+Core\Session::clearShortLived();
+echo 'access token: ', Core\Session::getSecret('access-token', $keys) == null ? 'null' : 'a value', "\n";
+echo 'device token: ', Core\Session::getSecret('device-token', $keys) == null ? 'null' : 'a value', "\n";
+
+// `clearLongLived()` deletes the long-lived secret too. This prints `device token: null`.
+Core\Session::clearLongLived();
+echo 'device token: ', Core\Session::getSecret('device-token', $keys) == null ? 'null' : 'a value', "\n";

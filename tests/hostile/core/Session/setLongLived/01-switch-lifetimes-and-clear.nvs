@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request switches keys between the two lifetimes many times and saves values it cannot
+// keep. Each key should have its last value and lifetime, and each clear should delete only its own.
+// hostile: timeout-ms 60000
+// requires: redis
+
+// 1. The request saves a callable inside an array. This throws a `LogicError`.
+var $fn = fn(): int => 1;
+try {
+    Core\Session::setLongLived('consent', ['check' => $fn]);
+    echo "saved a callable in an array\n";
+} catch (LogicError $callableError) {
+    echo "callable in an array: LogicError\n";
+}
+echo 'consent: ', Core\Session::get('consent') == null ? '(none)' : 'saved', "\n";
+
+// 2. The request switches one key between the two lifetimes 1000 times. The last call is long-lived.
+uint $i = 0;
+while ($i < 1000) {
+    Core\Session::setShortLived('language', 'short-' . $i);
+    Core\Session::setLongLived('language', 'long-' . $i);
+    $i = $i + 1;
+}
+echo 'language: ', Core\Session::get('language') ?? '(none)', "\n";
+
+// 3. The request saves under an empty key and under a key of 64 KB.
+Core\Session::setLongLived('', 'empty key');
+Core\Session::setLongLived(Core\Str::repeat('k', 65536), 'long key');
+echo 'empty key: ', Core\Session::get('') ?? '(none)', "\n";
+echo 'long key: ', Core\Session::get(Core\Str::repeat('k', 65536)) ?? '(none)', "\n";
+
+// 4. The request saves 2000 long-lived keys and one short-lived login, then signs out.
+uint $key = 0;
+while ($key < 2000) {
+    Core\Session::setLongLived('pref-' . $key, $key);
+    $key = $key + 1;
+}
+Core\Session::setShortLived('user', 'ada');
+Core\Session::clearShortLived();
+echo 'user after sign-out: ', Core\Session::get('user') ?? '(none)', "\n";
+echo 'pref-1999 after sign-out: ', Core\Session::get('pref-1999') ?? '(none)', "\n";
+echo 'language after sign-out: ', Core\Session::get('language') ?? '(none)', "\n";
+
+// 5. The request deletes the long-lived values. Every long-lived key is gone.
+Core\Session::clearLongLived();
+echo 'pref-1999 after clearLongLived: ', Core\Session::get('pref-1999') ?? '(none)', "\n";
+echo 'language after clearLongLived: ', Core\Session::get('language') ?? '(none)', "\n";
+
+// 6. The request turns a long-lived key into a short-lived one, then deletes the short-lived values.
+Core\Session::setLongLived('theme', 'dark');
+Core\Session::setShortLived('theme', 'light');
+Core\Session::clearShortLived();
+echo 'theme: ', Core\Session::get('theme') ?? '(none)', "\n";

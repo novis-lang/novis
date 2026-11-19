@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/privacy/withdraw
+--HEADERS--
+host: example.com

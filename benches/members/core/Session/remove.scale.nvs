@@ -11,11 +11,11 @@ class Bench
 {
     public static function run(uint $size, uint $rounds): uint
     {
-        Core\Session::set('cart', Core\Str::repeat('a', $size));
+        Core\Session::setLongLived('cart', Core\Str::repeat('a', $size));
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Session::set('notice', $total);
+            Core\Session::setShortLived('notice', $total);
             Core\Session::remove('notice');
             $total = $total + 1;
             $i = $i + 1;
@@ -24,5 +24,4 @@ class Bench
     }
 }
 
-Core\Session::start();
 echo Bench::run(256, 64), "\n";

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request signs in with many large values and signs out again, many times.
+// The memory must be freed each time, the long-lived values must stay, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: redis
+
+// 1. The request signs out of a session that has no values yet. Nothing happens.
+Core\Session::clearShortLived();
+echo 'empty session: ', Core\Session::get('user') ?? '(none)', "\n";
+
+Core\Session::setLongLived('theme', 'dark');
+
+// 2. The request writes 200 short-lived keys, then signs out. It does this 50 times.
+uint $round = 0;
+while ($round < 50) {
+    uint $key = 0;
+    while ($key < 200) {
+        Core\Session::setShortLived('item-' . $key, 'value ' . $round . '-' . $key);
+        $key = $key + 1;
+    }
+    Core\Session::clearShortLived();
+    $round = $round + 1;
+}
+echo 'after many keys: ', Core\Session::get('item-0') ?? '(none)', "\n";
+
+// 3. The request writes one short-lived value of 1 MB, then signs out. It does this 20 times.
+string $big = Core\Str::repeat('x', 1048576);
+uint $i = 0;
+while ($i < 20) {
+    Core\Session::setShortLived('big', $big);
+    Core\Session::clearShortLived();
+    $i = $i + 1;
+}
+echo 'after large values: ', Core\Session::get('big') ?? '(none)', "\n";
+
+// 4. The request signs out 1000 times in a row, with no short-lived value left.
+uint $j = 0;
+while ($j < 1000) {
+    Core\Session::clearShortLived();
+    $j = $j + 1;
+}
+echo 'after empty clears: ', Core\Session::get('big') ?? '(none)', "\n";
+
+// 5. The request writes a long-lived key again as short-lived, then signs out. The key is deleted.
+Core\Session::setShortLived('theme', 'light');
+Core\Session::clearShortLived();
+echo 'theme written again: ', Core\Session::get('theme') ?? '(none)', "\n";
+
+// 6. The request deletes the whole session, then signs out. Nothing happens.
+Core\Session::setLongLived('theme', 'dark');
+Core\Session::clearAll();
+Core\Session::clearShortLived();
+echo 'after clearAll: ', Core\Session::get('theme') ?? '(none)', "\n";

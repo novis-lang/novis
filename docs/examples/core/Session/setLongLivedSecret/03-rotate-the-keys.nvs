@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a long-lived secret stays readable when the program starts to use a new key.
+// requires: redis
+
+secret bytes $oldKey = Core\Crypto::generateKey();
+secret bytes $newKey = Core\Crypto::generateKey();
+
+// The secret was saved while the old key was the only key.
+array<secret bytes> $oldKeys = [$oldKey];
+Core\Session::setLongLivedSecret('device-token', 'dev-4e81a0c2', $oldKeys);
+
+// The new list has the new key first and the old key second.
+// `getSecret()` can still decrypt the secret. This prints `with both keys: a value`.
+array<secret bytes> $keys = [$newKey, $oldKey];
+secret string $token = Core\Session::getSecret('device-token', $keys) ?? '';
+echo 'with both keys: ', $token == '' ? 'null' : 'a value', "\n";
+
+// Save the secret again. The first key in the list encrypts it, so now the new key alone can read it.
+// This prints `with the new key: a value`.
+Core\Session::setLongLivedSecret('device-token', $token, $keys);
+array<secret bytes> $newKeys = [$newKey];
+echo 'with the new key: ',
+    Core\Session::getSecret('device-token', $newKeys) == null ? 'null' : 'a value', "\n";
