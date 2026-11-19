@@ -232,6 +232,9 @@ pub(crate) fn infer_class_const(
                                 env.exprs.record(
                                     expr.span,
                                     ExprInfo::ClassConstLate {
+                                        redeclared: env
+                                            .signatures
+                                            .is_constant_redeclared(&owner, &constant),
                                         class: owner,
                                         name: constant.clone(),
                                         value,

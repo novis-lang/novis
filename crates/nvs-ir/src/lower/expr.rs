@@ -481,6 +481,23 @@ impl<'a> Lowering<'a> {
                 // exactly one use, staged as a borrowed temporary the way
                 // [`Self::emit_const_arg`]'s `Core` arguments are, so it is
                 // released on both edges of the call.
+                //
+                // Where no class below the declaring one declares the name
+                // again, every called class reads the declaring class's value,
+                // so it is emitted as the arm above emits it (row
+                // `static-member` of `crate::forms`). An enum-typed constant
+                // takes its enum position from the declared type, as there.
+                Some(ExprInfo::ClassConstLate {
+                    redeclared: false,
+                    value,
+                    ty,
+                    ..
+                }) if cheaper_forms_on() => {
+                    let value = value.clone();
+                    let declared = erase_checked_ty(*ty, self.checked_types);
+                    let position = matches!(declared, Ty::Enum(_)).then_some(declared);
+                    self.emit_const_arg(&value, position, env, *cur)
+                }
                 Some(ExprInfo::ClassConstLate { name, ty, .. }) => {
                     let ty = erase_checked_ty(*ty, self.checked_types);
                     let name = name.clone();

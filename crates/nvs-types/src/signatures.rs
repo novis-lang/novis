@@ -657,6 +657,14 @@ pub struct ClassSignature {
     /// instance call only pays for a name lookup where the language
     /// actually admits two answers (`nvs_ir::ir::InstKind::CallVirtual`).
     pub overridden_methods: FxHashSet<String>,
+    /// This declaration's own constant names that some *subtype* declares
+    /// again: the set that decides whether a `static::NAME` that resolves to
+    /// this declaration is inlined as its value, or reads the called class's
+    /// table at run time.
+    ///
+    /// Filled by [`mark_overridden_methods`] beside the method set, for the same
+    /// reason: a class cannot know who extends it.
+    pub redeclared_constants: FxHashSet<String>,
     /// This declaration's own class constants (`rule:classes/no-free-functions-or-constants`),
     /// by name — the type a *read* of one answers with, and the value that
     /// read is emitted as. Own declarations only, exactly like every other map
@@ -860,6 +868,15 @@ impl SignatureTable {
     pub fn is_overridden(&self, owner: &QName, method: &str) -> bool {
         self.get(owner)
             .is_some_and(|sig| sig.overridden_methods.contains(method))
+    }
+
+    /// Whether some subtype of `owner` declares the constant `name` again, so
+    /// that a `static::name` resolved to `owner` can read a different value.
+    /// See [`ClassSignature::redeclared_constants`].
+    #[must_use]
+    pub fn is_constant_redeclared(&self, owner: &QName, name: &str) -> bool {
+        self.get(owner)
+            .is_some_and(|sig| sig.redeclared_constants.contains(name))
     }
 
     fn entry(&mut self, qname: QName) -> &mut ClassSignature {
@@ -1110,8 +1127,9 @@ pub fn build_signatures(
     table
 }
 
-/// Fills every [`ClassSignature::overridden_methods`] set, once the whole
-/// table is collected.
+/// Fills every [`ClassSignature::overridden_methods`] and
+/// [`ClassSignature::redeclared_constants`] set, once the whole table is
+/// collected.
 ///
 /// The question — "can a call that statically resolves to `Owner::m` land on
 /// a different body at run time" — is one no single declaration can answer,
@@ -1130,9 +1148,12 @@ pub fn build_signatures(
 ///
 /// Each class walks its ancestors once, through [`nvs_hir::find_in_ancestors`],
 /// the same walk [`resolve_method`] takes, so the two agree on what "inherits
-/// from" means. Every method the class declares is looked up at each ancestor.
+/// from" means. Every method and constant the class declares is looked up at
+/// each ancestor. A constant counts whatever either value is, because the
+/// question is only whether two declarations can answer one read.
 fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
     let mut marks: Vec<(QName, String)> = Vec::new();
+    let mut const_marks: Vec<(QName, String)> = Vec::new();
     for (qname, sig) in table.iter() {
         // Most entries are native classes with no supertype in the program's
         // graph, and none of their methods can override anything.
@@ -1157,11 +1178,19 @@ fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
                     marks.push((ancestor.clone(), name.clone()));
                 }
             }
+            for name in sig.constants.keys() {
+                if found.constants.contains_key(name) {
+                    const_marks.push((ancestor.clone(), name.clone()));
+                }
+            }
             None
         });
     }
     for (qname, method) in marks {
         table.entry(qname).overridden_methods.insert(method);
+    }
+    for (qname, constant) in const_marks {
+        table.entry(qname).redeclared_constants.insert(constant);
     }
 }
 

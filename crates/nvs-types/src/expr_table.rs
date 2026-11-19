@@ -1107,17 +1107,22 @@ pub enum ExprInfo {
     /// `static::NAME` — a class-constant read whose class is the one the call
     /// was made on, which is not known until the call runs
     /// (`rule:statements/static-is-a-member-modifier`), and so the one
-    /// constant read that is **not** inlined.
+    /// constant read that is inlined only where no class declares it again.
     ///
-    /// Read differently from [`Self::ClassConst`]: `nvs-ir` takes the frame's
+    /// Where one does, it is read differently from [`Self::ClassConst`]: `nvs-ir` takes the frame's
     /// called class (`Lowering::lsb`) and reads `name` off that descriptor's
     /// own constant table through `nvs_ir::ir::Helper::ClassConstant`, at the
     /// representation `ty` erases to. The table answers a tagged value, so a
     /// subclass's `int` redeclared over `int|string` is read as that union
     /// holding the `int`. `class` and `value` are the *declaring* class's,
     /// recorded for the editor — a read is an occurrence of the declaration
-    /// it names; the value itself is never emitted.
+    /// it names. The value is emitted only where `redeclared` is false.
     ClassConstLate {
+        /// Whether some class below `class` declares `name` again
+        /// ([`crate::signatures::SignatureTable::is_constant_redeclared`]).
+        /// Where none does, every called class answers `value`, so `nvs-ir`
+        /// emits it as [`Self::ClassConst`] does and reads no table.
+        redeclared: bool,
         /// The class that declares the constant the read resolves to when
         /// `static` is the declaring class — [`Self::ClassConst`]'s `class`.
         class: QName,

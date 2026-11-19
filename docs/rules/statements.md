@@ -448,8 +448,10 @@ at run time against the declaring class. A path through a property only a subcla
 there: `steps` reads the class a path starts at off the argument's type, and the body has no type
 naming the subclass.
 
-`static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined:
-the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited
+`static::NAME` is late-bound the same way, and it is the one class-constant read that is not inlined
+wherever a class below the declaring one declares `NAME` again (where none does, every called class
+reads one value, and [`expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`](expressions.md#expressions-a-cheaper-form-with-the-same-result-is-compiled-or-named)
+inlines it): the frame's called class is asked for `NAME` when the read runs, so a default method or an inherited
 body reads the implementor's override where `self::NAME` reads the declaring class's value. Three things
 follow from that read being a run-time one. A redeclaration of an inherited constant keeps a type
 assignable to the ancestor's, in every class and interface, because the read is typed where the

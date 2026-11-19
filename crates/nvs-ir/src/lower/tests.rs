@@ -7044,21 +7044,33 @@ fn a_literal_with_constant_keys_is_built_in_one_step() {
     assert_eq!(insts_where(&off, sets), 6);
 }
 
-/// Row `static-member`: `static::m()` is a direct call where no class in the
-/// program overrides `m`, and stays late-bound where one does.
+/// Row `static-member`: `static::m()` is a direct call and `static::NAME` the
+/// declaring class's constant where no class in the program overrides `m` or
+/// declares `NAME` again, and each stays late-bound where one does.
 #[test]
 fn a_static_call_nothing_overrides_is_direct() {
-    let src = "<?nvs\nclass Base {\n  public static function kept(): string { return \"k\"; }\n  \
+    let src = "<?nvs\nclass Base {\n  public const string KEPT = \"kept-value\";\n  \
+               public const string SWAPPED = \"b\";\n  \
+               public static function kept(): string { return \"k\"; }\n  \
                public static function swapped(): string { return \"b\"; }\n  \
-               public static function run(): string { return static::kept() . static::swapped(); }\n}\n\
-               class Child extends Base {\n  \
+               public static function run(): string { return static::kept() . static::swapped(); }\n  \
+               public static function names(): string { return static::KEPT . static::SWAPPED; }\n}\n\
+               class Child extends Base {\n  public const string SWAPPED = \"c\";\n  \
                public static function swapped(): string { return \"c\"; }\n}\n";
     let direct = |kind: &InstKind| matches!(kind, InstKind::Call { target, .. } if target == "Base::kept");
     let late = |kind: &InstKind| matches!(kind, InstKind::CallVirtual { .. });
+    let inlined = |kind: &InstKind| matches!(kind, InstKind::ConstStr(s) if s == "kept-value");
+    let table_read = |kind: &InstKind| {
+        matches!(kind, InstKind::HelperCall { helper: Helper::ClassConstant, .. })
+    };
     let on = lower_whole_file_with_src(src).0;
     let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
     assert_eq!(insts_where(&on, direct), 1);
     assert_eq!(insts_where(&on, late), 1);
     assert_eq!(insts_where(&off, direct), 0);
     assert_eq!(insts_where(&off, late), 2);
+    assert_eq!(insts_where(&on, inlined), 1);
+    assert_eq!(insts_where(&on, table_read), 1);
+    assert_eq!(insts_where(&off, inlined), 0);
+    assert_eq!(insts_where(&off, table_read), 2);
 }
