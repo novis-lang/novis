@@ -1,0 +1,20 @@
+<?nvs
+// Keeps the ids of one list that are not in a second list, as a shop does to find products a customer has not bought.
+// scaling: start 1000
+// scaling: max 16000
+// scaling: expect linear
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        int $n = $size as int;
+        int $half = ($size / 2) as int;
+        array<int> $all = Core\Arr::range(1, $n);
+        array<int> $bought = Core\Arr::range($half + 1, $n + $half);
+        array<int> $missing = Core\Arr::filter($all, fn(int $id): bool => !Core\Arr::contains($bought, $id));
+        return Core\Arr::count($missing);
+    }
+}
+
+echo Bench::run(1000), "\n";
