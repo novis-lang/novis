@@ -7,7 +7,7 @@
 //! allocation. A cutting member moves the subject's ends ([`kept`]), an
 //! extending one writes into its room ([`extended`]), and a rewriting one
 //! writes over it or copies its built result into it ([`rewritten`]).
-//! [`nvs_core_str_split`] owns its subject too: with a positive `limit`, its
+//! [`nvs_core_str_split()`] owns its subject too: with a positive `limit`, its
 //! last piece is the subject with its start moved. Every other member borrows
 //! its subject.
 //!
