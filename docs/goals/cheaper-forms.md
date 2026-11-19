@@ -38,7 +38,7 @@ stages:
     context: [crates/nvs-lsp/src/actions.rs, docs/rules/ide/narrow-an-annotation-to-its-literal.md]
   - id: 9
     title: a method call the compiler can name is direct, and a method that returns one property reads it
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-types/src/signatures.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 10
     title: a split with a limit, a search that ignores case and a JSON validity test read only what their result needs
@@ -498,6 +498,21 @@ a member on `forms::QUIET_CORE`'s list whose reference card lists no errors is n
 (`forms::throws_nothing`). Every member has a card, and the card lists every error the member
 throws. A wrong card is a wrong proof, and the differential suite is what finds it.
 
+**How a call is named direct, as built in stage 9 (my call).** The fact is per receiver class,
+`ClassSignature::sole_bodies`: only an instantiable class can be a receiver's run-time class, so each
+one resolves every method name with `resolve_method_ref`, the walk the run-time dispatch takes, and
+the answer is merged up into every ancestor. An enum has no graph entry and needs none: it extends
+and implements nothing, and an anonymous class does not compile. Where the one body is another
+class's than the resolved declaration's (an interface or `abstract` method), its parameter types,
+return type, `inout` and variadic shape must equal the declared ones, so the arguments lowered for
+the declaration fit it. `ResolvedCall::overridden` keeps its meaning, and the new
+`ResolvedCall::direct` is read beside it, so the editor and every other reader of `class` see the
+declaration as before. The getter row takes a method with no attribute, no argument, not `static`,
+whose return type and the property's type are one type, and whose property record has no hook. Its
+record is `property_record`'s for the body's class, so the observer and the unset test are the
+body's own. Under the debug switch the call stays, so the body keeps its probe. **What it spends:**
+one map entry for each class and method name, while compiling only.
+
 **Lanes.** Stages 1, 2 and 3 need nothing from another goal. Stage 6 touches
 `crates/nvs-runtime/src/callable.rs`, `dispatch.rs` and the callback argument's lowering, and can run as
 a side goal at any time. Stage 7 touches the debug index and `crates/nvs-lsp/src/recorded.rs`, and stage
@@ -736,16 +751,16 @@ under `tests/lsp/actions/`.
 
 ### 9. a method call the compiler can name is direct, and a method that returns one property reads it
 
-- [ ] `crates/nvs-types/src/signatures.rs:1125` `mark_overridden_methods` marks a method by the class
+- [x] `crates/nvs-types/src/signatures.rs:1125` `mark_overridden_methods` marks a method by the class
   that declares it, so one override anywhere makes every call of it virtual. The fact becomes one per
   receiver class: whether any class at or below it declares the method again, and whether the method
   has exactly one body at or below it. `crates/nvs-ir/src/lower/expr.rs:5052` reads it for the
   receiver's static class. An interface or abstract method with one body in the program is direct by
   the same fact.
-- [ ] A direct call whose one body is `return $this->p;`, with `p` a property that has no hook, is
+- [x] A direct call whose one body is `return $this->p;`, with `p` a property that has no hook, is
   lowered as the read of `p` on the receiver. A class that implements a property observer or guard
   gets the same read the method body would have made.
-- [ ] The three tests the `named-calls` check names. Run once.
+- [x] The three tests the `named-calls` check names. Run once.
 
 ### 10. a split with a limit, a search that ignores case and a JSON validity test read only what their result needs
 
@@ -774,38 +789,41 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 8 are done. Stage 8 took one session. *Write the type every caller passes* is
-`crates/nvs-lsp/src/typed_parameter.rs`. The checker records the type each call passes to a bare
-`callable` or `mixed` parameter of a Novis method (`ExprTypeTable::bare_argument`, filled in
-`crates/nvs-types/src/expr/args.rs` `check_arg_list`), `nvs_types::narrow::parameter` writes it, and
-`actions::at` takes an `Option<&SymbolIndex>`: the server passes its own, and the `.lspt` runner
-builds one only when `typed_parameter::wanted` says the cursor is on such a type. The rule says so.
-Build and clippy are green, and `typed-parameter-action` is green. The sweep's `env-secret-proofs`
-red is stale: no goal defines it (`git log -S` hits only goal handoffs).
+Stages 1 to 9 are done. Stage 9 took one session. `nvs_types::signatures::mark_sole_bodies` fills
+`ClassSignature::sole_bodies`: each instantiable class resolves every method name its ancestors
+declare, and the owner of the body is merged into the class and each ancestor. The instance call
+arm (`crates/nvs-types/src/expr/calls.rs` `direct_body`) reads it for the receiver's static class
+and sets `ResolvedCall::direct`, and `reads_property` where the one body is `return $this->p;`
+(`ClassSignature::property_getters`, from `returned_property`). `lower_method_call` calls `direct`'s
+label, and lowers `reads_property` through `Lowering::lower_class_property_read`, the tail of
+`lower_property_access` moved into its own method. Build and clippy are green, and the three
+`named-calls` tests pass. The sweep's `env-secret-proofs` red is stale: no goal defines it.
 
 ### Next
 
-Stage 9: a method call the compiler can name is direct, from a per-receiver-class override fact
-(`crates/nvs-types/src/signatures.rs:1125` `mark_overridden_methods`, read at
-`crates/nvs-ir/src/lower/expr.rs:5052`), and a method whose one body is `return $this->p;` is the
-read of `p`. Stage 10 is disjoint from it (`crates/nvs-stdlib/src/str.rs` `split` and the
-case-folding search, `json.rs` `isValid`) and can run beside it. `looper check --name <id>` runs one
-goal check.
+Stage 10 (`crates/nvs-stdlib/src/str.rs` `split` with a limit and the case-folding search,
+`json.rs` `isValid`), then stage 11, which closes the goal. `looper check --name <id>` runs one goal
+check.
 
-Tests expected red: any test that pins `ExprTypeTable::canonical_text`, which now has a
-`bare_arguments` section, and any `.lspt` case whose cursor sits on a bare `callable` or `mixed`
-parameter type of a method with calls, which may now list one more action. Also: any test that calls one of the 25 `RECORDED_SITE_MEMBERS` helpers with its old
-argument count from outside the five stdlib files that define them (none was found), and any test
-that pins `trace-events-carry-a-kind`'s title or the debug stream's kind list as five. Also: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
-literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
-a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `firstKey`, `isEmpty`
-or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
-does. Also any case or `.term` snippet that pins `nvs check`'s output for
-`docs/examples/core/Cache-Store/get/01-reading-a-value.nvs` or the two `Uri/queryParameter`
-examples, which now print `W1035`. Also any test that pins `ExprTypeTable::canonical_text`, which
-now has a `proven_callbacks` section. A wrong proof from stage 6 shows as a debug-build panic that
-says "called as a proven callback". Also any test that seeds the debug index's `events` with a
-positional `INSERT` (it now has a `target` column), or pins `index.rs`'s `SCHEMA` as 8.
+Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints an
+instance call through a class whose method is overridden only in a sibling, an interface call with
+one implementor, or a call of a `return $this->p;` method: each is now a `Call` or a `FieldGet`.
+Any test that pins `CallVirtual` for those shapes. Also any test that pins
+`ExprTypeTable::canonical_text`, which now has a `bare_arguments` section, and any `.lspt` case
+whose cursor sits on a bare `callable` or `mixed` parameter type of a method with calls, which may
+now list one more action. Also: any test that calls one of the 25 `RECORDED_SITE_MEMBERS` helpers
+with its old argument count from outside the five stdlib files that define them (none was found),
+and any test that pins `trace-events-carry-a-kind`'s title or the debug stream's kind list as five.
+Also: an insta snapshot that prints a literal with all-literal keys, a `foreach` with an unread
+key, a `keys`, `values` or `range` loop, a `static::m()` call or a `static::NAME` read nothing
+redeclares, a `first`, `firstKey`, `isEmpty` or count of a filter, or a `sort`, `diff` or
+`intersect` with a one-expression comparator, if any does. Also any case or `.term` snippet that
+pins `nvs check`'s output for `docs/examples/core/Cache-Store/get/01-reading-a-value.nvs` or the two
+`Uri/queryParameter` examples, which now print `W1035`. Also any test that pins
+`ExprTypeTable::canonical_text`'s `proven_callbacks` section. A wrong proof from stage 6 shows as a
+debug-build panic that says "called as a proven callback". Also any test that seeds the debug
+index's `events` with a positional `INSERT` (it now has a `target` column), or pins `index.rs`'s
+`SCHEMA` as 8.
 
 ### Backlog
 
