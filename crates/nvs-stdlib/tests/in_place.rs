@@ -3,9 +3,10 @@
 //!
 //! A member owns its first parameter when that parameter is an `array<…>`, a
 //! `string` or a `bytes`, and its result is the same kind, nullable or not.
-//! The signature decides it, with no list and no opt-out, so the first test
-//! reads every registry row and the helper table and names each member whose
-//! entry disagrees. `nvs_runtime`'s `owned` module states the protocol the
+//! The signature decides it, with no opt-out, so the first test reads every
+//! registry row and the helper table and names each member whose entry
+//! disagrees. The one exception is the one the rule names, in
+//! [`LAST_PIECE_OWNERS`]. `nvs_runtime`'s `owned` module states the protocol the
 //! second test holds: an owning entry that throws leaves the subject with its
 //! caller, and one that succeeds consumes it. The next two hold
 //! `Core\Arr::reduce`, which gives its carry to the callback. The next three
@@ -13,7 +14,8 @@
 //! that keeps its storage returns a sole subject's own array, and a shared
 //! subject copies only the entries the result keeps. The last two hold every
 //! owning `Core\Str` and `Core\Bytes` member to its row in [`TEXT_ROWS`] the
-//! same way: on a sole subject, the result is the subject's own allocation.
+//! same way: on a sole subject, the result, or its last piece for `split`, is
+//! the subject's own allocation.
 
 use std::cell::RefCell;
 
@@ -58,16 +60,26 @@ fn kind(ty: &CoreTy) -> Option<Kind> {
     }
 }
 
+/// The members the rule names as owning a subject of another kind than their
+/// result: `Core\Str::split` with a positive `limit` returns the subject, its
+/// start moved, as the last piece of its array.
+const LAST_PIECE_OWNERS: &[&str] = &["nvs_core_str_split"];
+
 /// Whether the signature rule makes `method` own its first parameter. The
 /// result may be nullable and the parameter may not, because an owning entry
-/// takes a subject of its declared kind and a `null` is none of the three.
+/// takes a subject of its declared kind and a `null` is none of the three. A
+/// member in [`LAST_PIECE_OWNERS`] owns its subject and returns an array.
 fn signature_owns(method: &CoreMethod) -> bool {
+    let result = kind(&method.return_ty);
     method
         .params
         .first()
         .filter(|param| !matches!(param, CoreTy::Nullable(_)))
         .and_then(kind)
-        .is_some_and(|subject| kind(&method.return_ty) == Some(subject))
+        .is_some_and(|subject| {
+            result == Some(subject)
+                || (LAST_PIECE_OWNERS.contains(&method.symbol) && result == Some(Kind::Array))
+        })
 }
 
 #[test]
@@ -741,6 +753,14 @@ enum TextRow {
         args: fn() -> Vec<Value>,
         result: &'static str,
     },
+    /// It returns an array of `pieces`, and its last piece is the subject's
+    /// own allocation with its start moved. `args` gives the arguments after
+    /// the subject.
+    LastPiece {
+        subject: &'static str,
+        args: fn() -> Vec<Value>,
+        pieces: &'static [&'static str],
+    },
     /// It builds a new string, because the result keeps no byte of the subject
     /// in its place.
     Builds,
@@ -991,6 +1011,15 @@ const TEXT_ROWS: &[(&str, &str, TextRow)] = &[
         },
     ),
     (r"Core\Str", "format", TextRow::Builds),
+    (
+        r"Core\Str",
+        "split",
+        TextRow::LastPiece {
+            subject: "ab,cd,ef",
+            args: || vec![text(","), Value::int(2)],
+            pieces: &["ab", "cd,ef"],
+        },
+    ),
 ];
 
 /// A `string` value of `content`, with no spare room.
@@ -1054,6 +1083,22 @@ fn every_string_member_has_a_row_here() {
 fn every_string_member_keeps_what_it_does_not_change() {
     let mut wrong = Vec::new();
     for (class, name, symbol) in owning_text_members() {
+        let row = TEXT_ROWS.iter().find(|(c, n, _)| *c == class && *n == name);
+        if let Some((
+            _,
+            _,
+            TextRow::LastPiece {
+                subject,
+                args,
+                pieces,
+            },
+        )) = row
+        {
+            wrong.extend(last_piece_is_kept(
+                class, name, symbol, subject, *args, pieces,
+            ));
+            continue;
+        }
         let Some((
             _,
             _,
@@ -1063,7 +1108,7 @@ fn every_string_member_keeps_what_it_does_not_change() {
                 args,
                 result: want,
             },
-        )) = TEXT_ROWS.iter().find(|(c, n, _)| *c == class && *n == name)
+        )) = row
         else {
             continue;
         };
@@ -1098,4 +1143,57 @@ fn every_string_member_keeps_what_it_does_not_change() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// What is wrong with a [`TextRow::LastPiece`] member's call on a sole
+/// subject: its pieces differ from `want`, or its last piece is not the
+/// subject's own allocation.
+fn last_piece_is_kept(
+    class: &str,
+    name: &str,
+    symbol: &str,
+    subject: &str,
+    args: fn() -> Vec<Value>,
+    want: &[&str],
+) -> Vec<String> {
+    let mut wrong = Vec::new();
+    let entry = owned_entry(symbol);
+    let mut ctx = Ctx::buffered();
+    let passed = text_subject(class, subject, 0);
+    let storage = passed.buffer_ptr();
+    let rest = args();
+    let mut all = vec![passed];
+    all.extend(rest.iter().copied());
+    let result = call(entry, &mut ctx, &all)
+        .unwrap_or_else(|status| panic!("{class}::{name} returned status {status}"));
+    let pointer = result
+        .array_ptr()
+        .unwrap_or_else(|| panic!("{class}::{name} returns an array"));
+    #[expect(
+        unsafe_code,
+        reason = "the entry returned one fresh reference, which the handle takes over and releases on drop"
+    )]
+    let array = unsafe { NvsArray::from_raw(pointer) };
+    let mut got = Vec::new();
+    let mut last = None;
+    let mut from = 0usize;
+    while let Some(slot) = array.next_slot(from) {
+        let piece = array.value_at(slot).expect("a live slot has a value");
+        got.push(String::from_utf8_lossy(piece.as_str_bytes().unwrap_or_default()).into_owned());
+        last = Some(piece.buffer_ptr());
+        from = slot + 1;
+    }
+    if got != want {
+        wrong.push(format!("{class}::{name} gave {got:?}, not {want:?}"));
+    }
+    if last != Some(storage) {
+        wrong.push(format!(
+            "{class}::{name} built its last piece anew from a sole subject"
+        ));
+    }
+    drop(array);
+    for value in rest {
+        dropped(value);
+    }
+    wrong
 }
