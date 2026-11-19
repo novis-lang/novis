@@ -3,6 +3,20 @@
   "internal": [],
   "themes": [
     {
+      "title": "Short-lived and long-lived session values",
+      "text": "`Core\\Session::setShortLived` saves a value until the browser closes or the session is idle for two hours. `Core\\Session::setLongLived` saves a value for 180 days. The session opens at the first call of a `Core\\Session` method, so there is no `start`. A session write inside `Core\\Html::later` or `Core\\Task::afterResponse` does not compile.",
+      "goals": [
+        "session-lifetimes"
+      ]
+    },
+    {
+      "title": "Each time class builds its own values",
+      "text": "Each class in `Core\\Time` has its own static methods that build its values. `Core\\Time` is the clock. A date and time can be written in the ISO 8601 format, which is short and has one meaning.",
+      "goals": [
+        "time-constructors"
+      ]
+    },
+    {
       "title": "The website shows every change",
       "text": "When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.",
       "goals": [
