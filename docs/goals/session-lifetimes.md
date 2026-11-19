@@ -470,40 +470,46 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 to 8 are done. Stage 9 is under way: the fix pass for the second red verify is committed, and
-the third `looper verify` was started at the end of this session. `cargo build`, `cargo clippy
---all-targets -- -D warnings` and `cargo fmt --check` are green.
+Stages 1 to 8 are done. Stage 9: the third `looper verify` is **green**, `bun nv verify --doc` is
+green, and `bun nv ci --check` is green (exit 0). One defect of this goal is open (Next), so the goal
+is not `DONE` yet. `cargo build`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check`
+are green.
 
-Fixed and committed this session, each test green by name:
-- `07fc64a665`: `nvs-stdlib --test in_place`. `LAST_PIECE_OWNERS` admits `Core\Str::split`, the one
-  exception the rule already names, and its `TextRow::LastPiece` row checks that a positive limit's
-  last piece is a sole subject's own allocation.
-- `05c6119541`: `nvs-stdlib --test enum_owners`. The weekday enum is `Core\Time\Weekday` everywhere:
-  registry, examples (`docs/examples/types/Time-Weekday/`), cases, attacks, benches, references,
-  website data, and the enum rule's "stays" list.
-- `224ead3328`: `nvs-stdlib --test conformance_coverage`. Four cases under `tests/conformance/core/`
-  (`time-readers-carry-…`, `time-date-at-start-of-day-…`, two `reflect-parent-…`) lift the 17 thin
-  `Core\Time` readers, `Date::atStartOfDay` and `ClassInfo::parent` to three cases each.
-- `42ae5e46ba`: rustfmt on `crates/nvs-stdlib/src/http.rs`, left by an earlier goal.
+Committed this session: the `in_place`, `enum_owners` and `conformance_coverage` reds (`split`'s
+last-piece row, the enum renamed `Core\Time\Weekday`, four new cases), rustfmt and a rustdoc link.
+The chat and registry apps' test browsers send both session cookies. Attribution, website data,
+question stamps, two roadmap themes and 243 perf records are current.
 
 `bun nv owners --closes session-lifetimes` named no gap last session. The sweep's reds are stale:
 `env-secret-proofs` is a retired goal's check, and nightly 44510687786 built `adc7487822`.
 
 ### Next
 
-Stage 9: read the third `looper verify`'s report. If it is green, run the goal-end gates, `bun nv
-verify --doc` and `bun nv ci --check`, then `DONE`. Expect `perf: stale` for the Passkey, Csrf, Str,
-Http and Time members whose source changed; record them per the playbook's `perf: stale` bullet. The
-verify steps after the test step have not run in this gate before, so a red there is new. If it is
-red, this stage has used its two sessions: fix what is quick, and stop with `BLOCKED` naming the item
-a fix pass cannot close.
+Stage 9, one fix, then `DONE`. **A session's first use inside a `Core\Html::later` slot throws.**
+A route whose main script never touches the session, and whose slot calls `Core\Session::get("x")`
+or `Core\Csrf::token()`, gets `LogicError: …(): there is no request here` from the slot. The rule
+says reading the session inside `later` is allowed (`docs/rules/core-classes/html-later.md:47`).
+With `start` gone, a component that reads the session in a slot now fails. A slot works when the
+main script opened the session first (`session-a-read-inside-later-or-after-response-compiles.nvst`).
+- Cause: `first_use` → `opened_under` → `crate::request::served`
+  (`crates/nvs-stdlib/src/session.rs` `opened_under`, `crates/nvs-stdlib/src/request.rs:2138`) finds no
+  `inbound` on the slot's context. The slot runs on a child context
+  (`crates/nvs-runtime/src/ctx/isolate.rs:396` `Ctx::child`, set up by `crates/nvs-runtime/src/later.rs`
+  `fill`). Read what `child` copies: the session record and the inbound.
+- Fix to choose by the priorities: open the session on the request's context before the slots run
+  when a slot may use it, or let the child reach the parent's session and inbound. A first write in
+  the slot must still throw (head closed). `Csrf::token` for a new visitor draws an identifier and a
+  cookie, so in a slot it throws by `head_open`; say so in the html-later rule.
+- Pin it with a `--GET--`-style case (model: `tests/conformance/core/csrf-token-binds-to-the-session-the-response-sends.nvst`):
+  route `/read` echoes `Core\Html::later(fn => Core\Session::get("x"))` with no session use before it;
+  expect the read to return `null`. A second route calls `Csrf::token()` in the slot for a new visitor.
+- The fix touches `session.rs` or `later.rs`, so run `looper verify` once after it, then
+  `bun nv ci --check`. The perf records for the changed source go stale again; record them per the
+  playbook's `perf: stale` bullet, edit first and measure last.
 
 ### Backlog
 
-- `Core\Csrf::token` inside a `Core\Html::later` slot: the last handoff said it throws for a new
-  visitor. A `--GET--` case on a normal route showed it returns a token there. It is not checked yet
-  on a slotted route, where the head is out before the slots run. Settle it with a case on a slotted
-  route before `DONE`. If it throws there, the html-later rule says so; that needs no gap.
+
 - A session write counts about five bytes per byte of its value in `nvs run --count` (the value, its
   encoding and the write-back's copies). It is linear, so no proof fails, but each copy is bytes moved
   on the request path. A later perf goal may cut the copies.
