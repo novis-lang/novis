@@ -1,0 +1,71 @@
+<?nvs
+// Attack: `atStartOfDay` gets days whose midnight a time zone skipped or repeated, and the first and last days of the calendar.
+// Each day should start at its first real moment, a start outside the calendar should throw an error, and nothing should crash.
+
+// 1. Sao Paulo, Santiago and Havana moved their clocks from 00:00 to 01:00 on these days. Each day starts at 01:00.
+echo Core\Time\Date::at(2018, 11, 4)->atStartOfDay(Core\Time\Zone::of('America/Sao_Paulo'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
+echo Core\Time\Date::at(2022, 9, 11)->atStartOfDay(Core\Time\Zone::of('America/Santiago'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
+echo Core\Time\Date::at(2023, 3, 12)->atStartOfDay(Core\Time\Zone::of('America/Havana'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
+
+// 2. Havana moved its clocks from 01:00 back to 00:00 on 5 November 2023, so midnight happened twice. The day starts at the first one.
+echo Core\Time\Date::at(2023, 11, 5)->atStartOfDay(Core\Time\Zone::of('America/Havana'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
+
+// 3. The first and the last day of the calendar in UTC. Both start outside the range of times, so both throw an error. The errors are caught.
+int $thrown = 0;
+try {
+    Core\Time\Date::at(-9999, 1, 1)->atStartOfDay(Core\Time\Zone::UTC);
+} catch (RuntimeError $tooEarly) {
+    $thrown = $thrown + 1;
+}
+try {
+    Core\Time\Date::at(9999, 12, 31)->atStartOfDay(Core\Time\Zone::UTC);
+} catch (RuntimeError $tooLate) {
+    $thrown = $thrown + 1;
+}
+echo $thrown, " thrown\n";
+
+// 4. The same two days in the time zones farthest behind and farthest ahead. Both start inside the range.
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+echo Core\Time\Date::at(-9999, 1, 1)->atStartOfDay($behind)->format('yyyy-MM-dd HH:mm:ss'), "\n";
+echo Core\Time\Date::at(9999, 12, 31)->atStartOfDay($ahead)->format('yyyy-MM-dd HH:mm:ss'), "\n";
+
+// 5. The same two days, each in the other far time zone. Both throw an error. The errors are caught.
+$thrown = 0;
+try {
+    Core\Time\Date::at(-9999, 1, 1)->atStartOfDay($ahead);
+} catch (RuntimeError $earlier) {
+    $thrown = $thrown + 1;
+}
+try {
+    Core\Time\Date::at(9999, 12, 31)->atStartOfDay($behind);
+} catch (RuntimeError $later) {
+    $thrown = $thrown + 1;
+}
+echo $thrown, " thrown\n";
+
+// 6. Every day from 2010 to 2025 starts in Sao Paulo, Santiago and Havana.
+// Each start is on the same date, and the days that start after 00:00 are counted.
+array<Core\Time\Zone> $zones = [
+    Core\Time\Zone::of('America/Sao_Paulo'),
+    Core\Time\Zone::of('America/Santiago'),
+    Core\Time\Zone::of('America/Havana'),
+];
+int $wrong = 0;
+int $late = 0;
+foreach ($zones as Core\Time\Zone $zone) {
+    var $day = Core\Time\Date::at(2010, 1, 1);
+    int $count = 0;
+    while ($count < 5844) {
+        var $start = $day->atStartOfDay($zone);
+        if ($start->date()->compareTo($day) != 0) {
+            $wrong = $wrong + 1;
+        }
+        if ($start->format('HH:mm') != '00:00') {
+            $late = $late + 1;
+        }
+        $day = $day->plus(1, Core\Unit::Day);
+        $count = $count + 1;
+    }
+}
+echo $late, ' days start after midnight, ', $wrong, " on the wrong date\n";

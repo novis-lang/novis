@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to count the working days in a month.
+
+// The loop starts on 1 May and stops when the date reaches June.
+var $day = Core\Time\Date::at(2024, 5, 1);
+int $working = 0;
+while ($day->month() == 5) {
+    var $weekday = $day->weekday();
+    if ($weekday != Core\Time\DateTime::Weekday::Saturday && $weekday != Core\Time\DateTime::Weekday::Sunday) {
+        $working = $working + 1;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+}
+
+// May 2024 has 31 days, and 8 of them are on a weekend. This prints 23.
+echo $working, "\n";

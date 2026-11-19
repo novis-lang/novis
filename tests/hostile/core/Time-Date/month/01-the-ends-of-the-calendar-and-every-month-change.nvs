@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `month` reads the first and last days of the calendar, and every day for four hundred years.
+// Each month should be a number from 1 to 12 that matches `format`, and nothing should crash.
+
+var $first = Core\Time\Date::at(-9999, 1, 1);
+var $last = Core\Time\Date::at(9999, 12, 31);
+
+// 1. The first day is in month 1 and the last day is in month 12.
+echo $first->month(), ' ', $last->month(), "\n";
+
+// 2. Every day from the year -200 to the year 200 is read.
+// After month 12 comes month 1, and after any other month comes the next one.
+var $day = Core\Time\Date::at(-200, 1, 1);
+int $wrong = 0;
+int $changes = 0;
+uint $previous = 1;
+int $count = 0;
+while ($count < 146097) {
+    uint $month = $day->month();
+    if ($month < 1 || $month > 12 || ($month as string) != $day->format('M')) {
+        $wrong = $wrong + 1;
+    }
+    if ($month != $previous) {
+        if (!($month == $previous + 1 || ($previous == 12 && $month == 1))) {
+            $wrong = $wrong + 1;
+        }
+        $changes = $changes + 1;
+        $previous = $month;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $changes, ' month changes, ', $wrong, " wrong\n";
+
+// 3. One million reads of the last month.
+int $round = 0;
+uint $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + $last->month();
+    $round = $round + 1;
+}
+echo $sum, "\n";

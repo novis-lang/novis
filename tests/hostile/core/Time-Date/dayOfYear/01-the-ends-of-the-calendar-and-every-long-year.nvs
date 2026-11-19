@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `dayOfYear` reads the first and last days of the calendar, and every day for four hundred years.
+// Each result should be a day number from 1 to 366, and nothing should crash.
+
+var $first = Core\Time\Date::at(-9999, 1, 1);
+var $last = Core\Time\Date::at(9999, 12, 31);
+
+// 1. The first day of the calendar is day 1. The year 9999 is not a leap year, so its last day is day 365.
+echo $first->dayOfYear(), ' ', $last->dayOfYear(), "\n";
+
+// 2. The last day of the years 0, 1900 and 2000. This prints 366, 365 and 366.
+echo Core\Time\Date::at(0, 12, 31)->dayOfYear(), ' ', Core\Time\Date::at(1900, 12, 31)->dayOfYear(), ' ', Core\Time\Date::at(2000, 12, 31)->dayOfYear(), "\n";
+
+// 3. Every day from the year -200 to the year 200 is read. Each number is 1, or one more than the number before.
+// These four hundred years have 97 leap years, so day 366 comes 97 times.
+var $day = Core\Time\Date::at(-200, 1, 1);
+int $wrong = 0;
+int $longYears = 0;
+uint $previous = 0;
+int $count = 0;
+while ($count < 146097) {
+    uint $number = $day->dayOfYear();
+    if ($number < 1 || $number > 366 || !($number == $previous + 1 || $number == 1)) {
+        $wrong = $wrong + 1;
+    }
+    if ($number == 366) {
+        $longYears = $longYears + 1;
+    }
+    $previous = $number;
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $longYears, ' years with day 366, ', $wrong, " wrong\n";
+
+// 4. One million reads of the last day number.
+int $round = 0;
+uint $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + $last->dayOfYear();
+    $round = $round + 1;
+}
+echo $sum, "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the day of the week of a date.
+
+var $holiday = Core\Time\Date::at(2024, 12, 25);
+
+// `weekday` returns a case of the `Core\Time\DateTime::Weekday` enum. This prints Wednesday.
+if ($holiday->weekday() == Core\Time\DateTime::Weekday::Wednesday) {
+    echo "Wednesday\n";
+}
+
+// `as int` gives the position in the week, and Monday is 0. This prints 2.
+echo $holiday->weekday() as int, "\n";

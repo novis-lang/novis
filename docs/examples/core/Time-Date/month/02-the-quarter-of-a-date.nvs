@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to find the quarter of the year that a date is in.
+
+// Months 1 to 3 are the first quarter, 4 to 6 the second, and so on.
+class Report
+{
+    public static function quarter(Core\Time\Date $date): uint
+    {
+        uint $month = $date->month();
+        if ($month <= 3) {
+            return 1;
+        }
+        if ($month <= 6) {
+            return 2;
+        }
+        if ($month <= 9) {
+            return 3;
+        }
+        return 4;
+    }
+}
+
+// This prints Q1, Q2 and Q4.
+echo 'Q', Report::quarter(Core\Time\Date::at(2024, 2, 10)), "\n";
+echo 'Q', Report::quarter(Core\Time\Date::at(2024, 6, 30)), "\n";
+echo 'Q', Report::quarter(Core\Time\Date::at(2024, 11, 5)), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Reads the day of the week of a date, as a program does when it skips weekends.
+// bench: iterations 1024
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<Core\Time\Date> $days = [
+            Core\Time\Date::at(2024, 1, 1),
+            Core\Time\Date::at(2024, 7, 11),
+            Core\Time\Date::at(2023, 12, 31),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each weekday is a multiple of 3
+            $total = $total + ($days[(($total as uint + $i) % 3) as int]->weekday() as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to find the number of days in February and in the whole year.
+
+var $date = Core\Time\Date::at(2028, 7, 14);
+
+// 2028 is a leap year. This prints 29 and then 366.
+echo $date->isLeapYear() ? 29 : 28, "\n";
+echo $date->isLeapYear() ? 366 : 365, "\n";

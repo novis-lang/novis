@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to check whether a date is the last day of its month.
+
+// The next day is the 1st only when this date is the last day of the month.
+class Calendar
+{
+    public static function isLastDay(Core\Time\Date $date): bool
+    {
+        return $date->plus(1, Core\Unit::Day)->day() == 1;
+    }
+}
+
+// February has 29 days in 2024 and 28 days in 2023. This prints no, yes, yes and no.
+var $dates = [
+    Core\Time\Date::at(2024, 2, 28),
+    Core\Time\Date::at(2024, 2, 29),
+    Core\Time\Date::at(2023, 2, 28),
+    Core\Time\Date::at(2024, 12, 30),
+];
+foreach ($dates as Core\Time\Date $date) {
+    echo $date->format('yyyy-MM-dd'), ': ', Calendar::isLastDay($date) ? 'yes' : 'no', "\n";
+}

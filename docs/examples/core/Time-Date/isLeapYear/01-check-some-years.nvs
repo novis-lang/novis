@@ -1,0 +1,10 @@
+<?nvs
+// Shows which years are leap years.
+
+array<int> $years = [2023, 2024, 1900, 2000];
+
+// `isLeapYear` returns a `bool`. This prints no, yes, no and yes.
+foreach ($years as int $year) {
+    var $firstDay = Core\Time\Date::at($year, 1, 1);
+    echo $year, ': ', $firstDay->isLeapYear() ? 'yes' : 'no', "\n";
+}

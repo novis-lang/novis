@@ -1,0 +1,55 @@
+<?nvs
+// Attack: `year` reads the first and last days of the calendar, and every day across the year 0.
+// Each year should match `format`, a step past either end should throw an error, and nothing should crash.
+
+var $first = Core\Time\Date::at(-9999, 1, 1);
+var $last = Core\Time\Date::at(9999, 12, 31);
+
+// 1. The first day is in the year -9999 and the last day is in the year 9999.
+echo $first->year(), ' ', $last->year(), "\n";
+
+// 2. One day before the first day and one day after the last day. Both errors are caught.
+int $thrown = 0;
+try {
+    $first->minus(1, Core\Unit::Day);
+} catch (RuntimeError $before) {
+    $thrown = $thrown + 1;
+}
+try {
+    $last->plus(1, Core\Unit::Day);
+} catch (RuntimeError $after) {
+    $thrown = $thrown + 1;
+}
+echo $thrown, " thrown\n";
+
+// 3. Every day from the year -400 to the year 400 is read and compared with `format`.
+var $day = Core\Time\Date::at(-400, 1, 1);
+int $wrong = 0;
+int $changes = 0;
+int $previous = -400;
+int $count = 0;
+while ($count < 292194) {
+    int $year = $day->year();
+    if (($year as string) != $day->format('u')) {
+        $wrong = $wrong + 1;
+    }
+    if ($year != $previous) {
+        if ($year != $previous + 1) {
+            $wrong = $wrong + 1;
+        }
+        $changes = $changes + 1;
+        $previous = $year;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $changes, ' new years, ', $wrong, " wrong, ends in ", $day->year(), "\n";
+
+// 4. One million reads of the last year.
+int $round = 0;
+int $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + $last->year();
+    $round = $round + 1;
+}
+echo $sum, "\n";

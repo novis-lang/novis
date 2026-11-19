@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to choose the date of a birthday on 29 February in each year.
+
+// In a year that is not a leap year, this program uses 28 February.
+class Birthday
+{
+    public static function in(int $year): Core\Time\Date
+    {
+        if (Core\Time\Date::at($year, 1, 1)->isLeapYear()) {
+            return Core\Time\Date::at($year, 2, 29);
+        }
+        return Core\Time\Date::at($year, 2, 28);
+    }
+}
+
+// This prints 28 February for 2025 to 2027, and 29 February for 2028.
+int $year = 2025;
+while ($year <= 2028) {
+    echo Birthday::in($year)->format('EEEE d MMMM yyyy'), "\n";
+    $year = $year + 1;
+}

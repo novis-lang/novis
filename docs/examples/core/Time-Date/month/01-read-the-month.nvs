@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the month of a date as a number.
+
+var $order = Core\Time\Date::at(2024, 3, 15);
+
+// `month` returns a `uint`, and January is 1. This prints 3.
+echo $order->month(), "\n";
+
+// `format` with `MMMM` prints the name of the month. This prints March.
+echo $order->format('MMMM'), "\n";
+
+// `with` takes the same number. This prints 2024-04-15.
+echo $order->with({ month: $order->month() + 1 })->format('yyyy-MM-dd'), "\n";

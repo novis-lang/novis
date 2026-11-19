@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to count the days until the next payday on the 25th of the month.
+
+class Payroll
+{
+    public static function daysUntilPayday(Core\Time\Date $today): int
+    {
+        var $payday = $today->with({ day: 25 });
+        // After the 25th, the next payday is in the next month.
+        if ($today->day() > 25) {
+            $payday = $payday->plus(1, Core\Unit::Month);
+        }
+        var $day = $today;
+        int $days = 0;
+        while ($day < $payday) {
+            $day = $day->plus(1, Core\Unit::Day);
+            $days = $days + 1;
+        }
+        return $days;
+    }
+}
+
+// This prints 10, then 0 on payday, then 29.
+echo Payroll::daysUntilPayday(Core\Time\Date::at(2024, 3, 15)), "\n";
+echo Payroll::daysUntilPayday(Core\Time\Date::at(2024, 3, 25)), "\n";
+echo Payroll::daysUntilPayday(Core\Time\Date::at(2024, 3, 27)), "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the year of a date as a number.
+
+var $invoice = Core\Time\Date::at(2024, 3, 15);
+
+// `year` returns an `int`. This prints 2024.
+echo $invoice->year(), "\n";
+
+// You can calculate with it. This prints 2034, the year the invoice can be deleted.
+echo $invoice->year() + 10, "\n";

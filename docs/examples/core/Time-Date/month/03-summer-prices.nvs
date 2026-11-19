@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to choose a hotel price from the month of the stay.
+
+// A night in June, July or August costs 120. A night in any other month costs 80.
+class Hotel
+{
+    public static function nightPrice(Core\Time\Date $night): int
+    {
+        uint $month = $night->month();
+        if ($month >= 6 && $month <= 8) {
+            return 120;
+        }
+        return 80;
+    }
+}
+
+// A stay of four nights, from 30 May to 2 June 2024. This prints 400.
+var $night = Core\Time\Date::at(2024, 5, 30);
+int $total = 0;
+int $nights = 0;
+while ($nights < 4) {
+    $total = $total + Hotel::nightPrice($night);
+    $night = $night->plus(1, Core\Unit::Day);
+    $nights = $nights + 1;
+}
+echo $total, "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Reads the month of a date, as a program does when it sorts payments into monthly totals.
+// bench: iterations 256
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Time\Date> $days = [
+            Core\Time\Date::at(2024, 3, 3),
+            Core\Time\Date::at(2024, 6, 16),
+            Core\Time\Date::at(2023, 12, 29),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each month is a multiple of 3
+            $total = $total + $days[(($total + $i) % 3) as int]->month();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

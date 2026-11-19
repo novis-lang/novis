@@ -1,0 +1,38 @@
+<?nvs
+// Attack: `weekday` reads the first and last days of the calendar, and every day for four hundred years.
+// The weekdays should follow each other in order, and nothing should crash.
+
+var $first = Core\Time\Date::at(-9999, 1, 1);
+var $last = Core\Time\Date::at(9999, 12, 31);
+
+// 1. The first day of the calendar is a Monday and the last is a Friday. This prints 0 and 4.
+echo $first->weekday() as int, ' ', $last->weekday() as int, "\n";
+
+// 2. Every day from the year -200 to the year 200 is read.
+// Each weekday is the one after the weekday before it.
+var $day = Core\Time\Date::at(-200, 1, 1);
+int $previous = ($day->weekday() as int + 6) % 7;
+int $inOrder = 0;
+int $count = 0;
+while ($count < 146097) {
+    int $now = $day->weekday() as int;
+    if ($now == ($previous + 1) % 7) {
+        $inOrder = $inOrder + 1;
+    }
+    $previous = $now;
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $inOrder, " of 146097 in order\n";
+
+// 3. Four hundred years later, the weekday is the same again. This prints `same`.
+echo $day->weekday() == Core\Time\Date::at(-200, 1, 1)->weekday() ? 'same' : 'different', "\n";
+
+// 4. One million reads of the last weekday.
+int $round = 0;
+int $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + ($last->weekday() as int);
+    $round = $round + 1;
+}
+echo $sum, "\n";

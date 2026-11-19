@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to work out how many days are left in the year.
+
+// A leap year has 366 days, and other years have 365.
+class Year
+{
+    public static function daysLeft(Core\Time\Date $date): uint
+    {
+        uint $length = 365;
+        if ($date->isLeapYear()) {
+            $length = 366;
+        }
+        return $length - $date->dayOfYear();
+    }
+}
+
+// 1 December 2024 is day 336 of 366. This prints 30.
+echo Year::daysLeft(Core\Time\Date::at(2024, 12, 1)), "\n";
+
+// On the last day of the year, the result is 0.
+echo Year::daysLeft(Core\Time\Date::at(2023, 12, 31)), "\n";

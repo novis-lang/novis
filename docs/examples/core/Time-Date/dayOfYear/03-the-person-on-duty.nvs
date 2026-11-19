@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to choose the person on duty for each day from a list.
+
+array<string> $team = ['Ana', 'Ben', 'Chen'];
+
+// The day number divided by 3 leaves a remainder of 0, 1 or 2.
+// The remainder is the position in the list, so the names repeat every three days.
+var $day = Core\Time\Date::at(2024, 3, 30);
+int $shown = 0;
+while ($shown < 4) {
+    int $position = ($day->dayOfYear() % 3) as int;
+    echo $day->format('d MMMM'), ': ', $team[$position], "\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $shown = $shown + 1;
+}

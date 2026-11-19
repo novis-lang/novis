@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to calculate the age of a person in whole years.
+
+class Person
+{
+    public static function age(Core\Time\Date $born, Core\Time\Date $today): int
+    {
+        int $years = $today->year() - $born->year();
+        // If this year's birthday has not come yet, the person is one year younger.
+        if ($today < $born->with({ year: $today->year() })) {
+            $years = $years - 1;
+        }
+        return $years;
+    }
+}
+
+var $born = Core\Time\Date::at(1990, 8, 20);
+
+// The birthday in 2024 is on 20 August. This prints 33 and then 34.
+echo Person::age($born, Core\Time\Date::at(2024, 8, 19)), "\n";
+echo Person::age($born, Core\Time\Date::at(2024, 8, 20)), "\n";

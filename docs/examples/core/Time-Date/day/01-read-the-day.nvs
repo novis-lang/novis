@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the day of the month of a date as a number.
+
+var $due = Core\Time\Date::at(2024, 3, 15);
+
+// `day` returns a `uint`. This prints 15.
+echo $due->day(), "\n";
+
+// The three readers give the parts of the date. This prints 15.3.2024.
+echo $due->day(), '.', $due->month(), '.', $due->year(), "\n";

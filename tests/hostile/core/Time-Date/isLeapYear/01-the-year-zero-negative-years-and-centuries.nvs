@@ -1,0 +1,46 @@
+<?nvs
+// Attack: `isLeapYear` reads the year 0, negative years, century years and every year of the calendar.
+// Each result should follow the leap year rule, and nothing should crash.
+
+// 1. The years 0, -4, -400, 2000 and 2400 are leap years. This prints `yes` five times.
+array<int> $leapYears = [0, -4, -400, 2000, 2400];
+foreach ($leapYears as int $leapYear) {
+    echo $leapYear, ' ', Core\Time\Date::at($leapYear, 1, 1)->isLeapYear() ? 'yes' : 'no', "\n";
+}
+
+// 2. The years -1, -100, -9999, 1900, 2100 and 9999 are not. This prints `no` six times.
+array<int> $otherYears = [-1, -100, -9999, 1900, 2100, 9999];
+foreach ($otherYears as int $otherYear) {
+    echo $otherYear, ' ', Core\Time\Date::at($otherYear, 12, 31)->isLeapYear() ? 'yes' : 'no', "\n";
+}
+
+// 3. Every year from -9999 to 9999 is compared with the rule. The calendar has 4849 leap years.
+// A year is a leap year when 4 divides it and 100 does not, or when 400 divides it.
+int $year = -9999;
+int $leap = 0;
+int $wrong = 0;
+while ($year <= 9999) {
+    bool $expected = ($year % 4 == 0 && $year % 100 != 0) || $year % 400 == 0;
+    bool $actual = Core\Time\Date::at($year, 6, 15)->isLeapYear();
+    if ($actual != $expected) {
+        $wrong = $wrong + 1;
+    }
+    if ($actual) {
+        $leap = $leap + 1;
+    }
+    $year = $year + 1;
+}
+echo $leap, ' leap years, ', $wrong, " wrong\n";
+
+// 4. Every leap year has a 29 February, and every other year throws an error for it. The errors are caught.
+int $missing = 0;
+$year = -9999;
+while ($year <= 9999) {
+    try {
+        Core\Time\Date::at($year, 2, 29);
+    } catch (RuntimeError $none) {
+        $missing = $missing + 1;
+    }
+    $year = $year + 1;
+}
+echo $missing, " years without 29 February\n";

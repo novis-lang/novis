@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `day` reads the first and last days of the calendar, and every day for four hundred years.
+// Each day should be a number from 1 to 31 that matches `format`, and nothing should crash.
+
+var $first = Core\Time\Date::at(-9999, 1, 1);
+var $last = Core\Time\Date::at(9999, 12, 31);
+
+// 1. The first day of the calendar is day 1 and the last is day 31.
+echo $first->day(), ' ', $last->day(), "\n";
+
+// 2. A 29 February in a year that does not have one. The error is caught.
+try {
+    Core\Time\Date::at(1900, 2, 29);
+    echo "no error\n";
+} catch (RuntimeError $missing) {
+    echo "1900 has no 29 February\n";
+}
+
+// 3. Every day from the year -200 to the year 200 is read.
+// Four hundred years have 97 days with the number 29 in February.
+var $day = Core\Time\Date::at(-200, 1, 1);
+int $wrong = 0;
+int $leapDays = 0;
+int $count = 0;
+while ($count < 146097) {
+    uint $number = $day->day();
+    if ($number < 1 || $number > 31 || ($number as string) != $day->format('d')) {
+        $wrong = $wrong + 1;
+    }
+    if ($number == 29 && $day->month() == 2) {
+        $leapDays = $leapDays + 1;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+echo $leapDays, ' days on 29 February, ', $wrong, " wrong\n";
+
+// 4. One million reads of the last day.
+int $round = 0;
+uint $sum = 0;
+while ($round < 1000000) {
+    $sum = $sum + $last->day();
+    $round = $round + 1;
+}
+echo $sum, "\n";

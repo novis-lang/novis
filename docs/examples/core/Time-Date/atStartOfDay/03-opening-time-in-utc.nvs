@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find when a shop in another time zone opens, in UTC.
+
+var $tokyo = Core\Time\Zone::of('Asia/Tokyo');
+var $opens = Core\Time\TimeOfDay::at(10, 0);
+
+// The shop in Tokyo opens at 10:00. Tokyo is 9 hours ahead of UTC.
+// This prints the opening time in UTC for three dates.
+var $day = Core\Time\Date::at(2024, 12, 30);
+int $shown = 0;
+while ($shown < 3) {
+    var $opening = $day->atStartOfDay($tokyo)->withTime($opens);
+    var $utc = $opening->toInstant()->in(Core\Time\Zone::UTC);
+    echo $day->format('yyyy-MM-dd'), ': ', $utc->format('yyyy-MM-dd HH:mm'), " UTC\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $shown = $shown + 1;
+}

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to find the same day in the next year for a yearly contract.
+
+var $signed = Core\Time\Date::at(2024, 9, 1);
+
+// `with` replaces the year, and the month and the day stay the same. This prints 2025-09-01.
+echo $signed->with({ year: $signed->year() + 1 })->format('yyyy-MM-dd'), "\n";
+
+// 29 February 2025 does not exist, so `with` throws a `RuntimeError`.
+var $leapDay = Core\Time\Date::at(2024, 2, 29);
+try {
+    $leapDay->with({ year: $leapDay->year() + 1 });
+} catch (RuntimeError $error) {
+    echo "2025-02-29 does not exist\n";
+}

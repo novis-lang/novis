@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check whether a date is a working day or on the weekend.
+
+// Monday is 0 and Friday is 4, so a working day has a number less than 5.
+class Calendar
+{
+    public static function isWorkingDay(Core\Time\Date $date): bool
+    {
+        return ($date->weekday() as int) < 5;
+    }
+}
+
+// This prints one line for each day from Thursday 6 June to Monday 10 June 2024.
+var $day = Core\Time\Date::at(2024, 6, 6);
+int $shown = 0;
+while ($shown < 5) {
+    echo $day->format('EEEE d MMMM'), ': ', Calendar::isWorkingDay($day) ? 'working day' : 'weekend', "\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $shown = $shown + 1;
+}
