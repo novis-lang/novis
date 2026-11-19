@@ -10,6 +10,9 @@ refused, because a carry has no date to go to. `format` takes the time letters o
 `DateTime::format` uses, and a date or zone letter is refused. `DateTime::withTime` puts a reading
 back onto a date. `<`, `>`, `<=`, `>=` and `compareTo` order two readings.
 
+`hour()`, `minute()`, `second()` and `nanos()` return the four fields as numbers. Each returns a
+`uint`, with the same name as the field `with` takes.
+
 ```nvs
 <?nvs
 var $t = Core\Time\TimeOfDay::at(23, 30);

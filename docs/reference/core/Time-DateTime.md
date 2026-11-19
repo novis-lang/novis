@@ -8,7 +8,13 @@ built by `Core\Time::at` or `Core\Time::parse` or read off an `Instant` with `->
 immutable: every member answers a new value. Its arithmetic is calendar arithmetic: `plus(1,
 Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
 across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
-zone. `format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
+zone.
+
+`year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanos()` return the fields as
+numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
+return a `uint`. These are the same names and types that `with` takes.
+
+`format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
 and `TimeOfDay::format` use them for their own fields. A pattern written directly
 in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
 computed at run time throws a `LogicError` instead. Month and weekday names are always in English.

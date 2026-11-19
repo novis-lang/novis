@@ -12,13 +12,13 @@ final class DateFormat
         array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }> $fields = [];
         foreach ($values as Core\Time\DateTime $value) {
             $fields[] = {
-                year: $value->format('u') as int,
-                month: $value->format('M') as int,
-                day: $value->format('d') as int,
-                hour: $value->format('H') as int,
-                minute: $value->format('m') as int,
-                second: $value->format('s') as int,
-                nanos: $value->format('SSSSSSSSS') as int,
+                year: $value->year(),
+                month: $value->month() as int,
+                day: $value->day() as int,
+                hour: $value->hour() as int,
+                minute: $value->minute() as int,
+                second: $value->second() as int,
+                nanos: $value->nanos() as int,
                 offsetSeconds: $value->zone()->offsetAt($value->toInstant())->toSeconds(),
                 zone: $value->format('VV'),
             };
