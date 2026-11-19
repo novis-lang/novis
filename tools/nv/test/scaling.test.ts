@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspScript, missingAreas,
-  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, perOpOf, printedFiles, printedInputs, proposed, rebased, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch, withRounds,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, perOpOf, printedFiles, printedInputs, proposed, rebased, roundsPlan, runsPerMutantGrow, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch, withRounds,
 } from "../cmd/scaling.ts";
 import { lspFrame } from "../lib/lsp.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -84,7 +84,7 @@ test("a printing sibling's input replaces its bench's files, and its program rep
 
 test("a ladder declares its start, max and expect, defaults to kind run, and never expects quadratic", () => {
   const src = "<?nvs\n// scaling: start 100\n// scaling: max 100_000\n// scaling: expect nlogn\necho Bench::run(100), \"\\n\";\n";
-  expect(ladderOf(src)).toEqual({ kind: "run", start: 100, max: 100000, expect: "nlogn", proposal: false, size: "" });
+  expect(ladderOf(src)).toEqual({ kind: "run", start: 100, max: 100000, expect: "nlogn", proposal: false, size: "", rounds: null });
   expect(ladderOf(src.replace("nlogn", "linear\n// scaling: proposal"))).toMatchObject({ expect: "linear", proposal: true });
   expect(ladderOf(src.replace("nlogn", "quadratic"))).toContain("never accepted");
   expect(ladderOf(src.replace("// scaling: max 100_000\n", ""))).toContain("needs");
@@ -202,6 +202,33 @@ test("a constant bench's sibling is judged per operation, so an input that grows
   expect(judgeCounts(totals, keys, boundsOf("constant").count).over).toHaveLength(4);
   const follows = perOpRamp((s) => 3 * s, (s) => s);
   expect(judgeCounts(follows, keys, boundsOf("constant").count).over).toHaveLength(4);
+});
+
+test("a run ladder with rounds runs half and all of them at each size, and is judged by the difference", () => {
+  const src = "<?nvs\n// scaling: start 1000\n// scaling: max 8000\n// scaling: expect constant\n// scaling: rounds 20\necho Bench::run(1000, 20), \"\\n\";\n";
+  const ladder = ladderOf(src);
+  expect(ladder).toMatchObject({ kind: "run", rounds: 20 });
+  if (typeof ladder === "string") throw new Error(ladder);
+  const plan = roundsPlan(src, ladder);
+  if (typeof plan === "string") throw new Error(plan);
+  expect(plan).toMatchObject({ sizes: [1000, 2000, 4000, 8000], lo: 10, rounds: 20, prints: false });
+  expect(plan.programAt(4000, 10)).toContain("echo Bench::run(4000, 10)");
+  expect(plan.programAt(4000, 20)).toContain("echo Bench::run(4000, 20)");
+  // A closing line that does not pass the rounds cannot be ramped.
+  expect(roundsPlan(src.replace("run(1000, 20)", "run(1000)"), ladder)).toContain("does not pass");
+  expect(ladderOf(src.replace("rounds 20", "rounds 1"))).toContain("at least 2");
+  expect(ladderOf(`${src}// scaling: kind compile\n`)).toContain("`run` ladder alone");
+  // An input that costs 50 per size once and 3 per round passes `constant`; the totals alone do not.
+  const keys = ["statements", "calls", "allocations", "bytes"] as const;
+  const batch = (size: number, n: number): Batch => {
+    const c = 50 * size + 3 * n;
+    return { size: n, counts: { statements: c, calls: c, allocations: c, bytes: c }, ns: c };
+  };
+  const perRound = plan.sizes.map((size) => perOpOf(size, batch(size, plan.lo), batch(size, plan.rounds), keys));
+  expect(perRound.map((b) => b.counts.calls)).toEqual([3, 3, 3, 3]);
+  expect(judgeCounts(perRound, keys, boundsOf("constant").count).over).toEqual([]);
+  const totals = plan.sizes.map((size) => ({ ...batch(size, plan.rounds), size }));
+  expect(judgeCounts(totals, keys, boundsOf("constant").count).over).toHaveLength(4);
 });
 
 test("a sibling that runs its member itself passes the size where it passed start and the batch where it passed its rounds", () => {

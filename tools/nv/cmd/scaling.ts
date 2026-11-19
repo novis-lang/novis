@@ -81,6 +81,11 @@
 // only increments that shrink; `quadratic` is never accepted. A ladder that would fail and is marked
 // `proposal` is reported as waiting for the user's decision and does not fail.
 //
+// A `run` ladder whose input costs more to build than its work may declare `// scaling: rounds N`, and
+// its closing line passes N beside `start`. At each size it runs half of N rounds and all of them, and
+// the difference per round is judged (`roundsPlan`, `judgePerOp`), as a constant bench's sibling is, so
+// the set-up cancels. The clock of one round is recorded and not judged.
+//
 // A ladder's kind says what is measured at each size. `run` is a bench's: `nvs run --count` and the
 // clock of `nvs run`. `compile` runs the ladder once to print a program, writes it beside the copy, and
 // takes the `compile:` line of `nvs check --count` and the `ir` of `nvs run --count` on it; their sum
@@ -449,13 +454,16 @@ export interface Ladder {
   expect: string;
   proposal: boolean;
   size: string;
+  /** A `run` ladder's `// scaling: rounds N`: each size runs half and all of N rounds, and the
+   * difference per round is judged (`rampRounds`). Null when the ladder has no such line. */
+  rounds: number | null;
 }
 
 /** The ladder `source` declares, or what is wrong with its `// scaling:` lines. */
 export function ladderOf(source: string): Ladder | string {
   const seen: Record<string, string> = {};
   for (const m of source.matchAll(/^\/\/\s*scaling:\s*([a-z]+)(?:[ \t]+([^\s]+))?[ \t]*\r?$/gm)) seen[m[1]!] = m[2] ?? "";
-  const unknown = Object.keys(seen).find((k) => !["kind", "start", "max", "expect", "proposal", "size"].includes(k));
+  const unknown = Object.keys(seen).find((k) => !["kind", "start", "max", "expect", "proposal", "size", "rounds"].includes(k));
   if (unknown) return `\`// scaling: ${unknown}\` is not a ladder line`;
   const kind = seen.kind || "run";
   if (!(KINDS as readonly string[]).includes(kind)) return `\`// scaling: kind ${kind}\` is not one of ${KINDS.join(", ")}`;
@@ -466,7 +474,13 @@ export function ladderOf(source: string): Ladder | string {
   const expect = seen.expect ?? "";
   if (expect === "quadratic") return "`// scaling: expect quadratic` is never accepted";
   if (!(expect in EXPECT)) return `\`// scaling: expect\` must be one of ${Object.keys(EXPECT).join(", ")}`;
-  return { kind, start: number(seen.start!), max: number(seen.max!), expect, proposal: "proposal" in seen, size };
+  let rounds: number | null = null;
+  if ("rounds" in seen) {
+    if (kind !== "run") return "`// scaling: rounds` belongs to a `run` ladder alone";
+    if (!/^[0-9][0-9_]*$/.test(seen.rounds!) || number(seen.rounds!) < 2) return "`// scaling: rounds N` needs a whole number of at least 2";
+    rounds = number(seen.rounds!);
+  }
+  return { kind, start: number(seen.start!), max: number(seen.max!), expect, proposal: "proposal" in seen, size, rounds };
 }
 
 /** The sizes a ladder runs: `start`, doubling, up to `max`. */
@@ -1106,6 +1120,28 @@ export async function rampPerOp(sibling: string, bench: string, expect: string, 
       return { ...judged, notes: [`its closing \`echo Bench::run(...)\` does not pass \`start\` and the rounds as one literal each at size ${size}`] };
     }
   }
+  return judgePerOp(judged, { own, prints, bench, sizes, lo, rounds, siblingAt, programAt }, boundsOf(expect).count, measure, opts);
+}
+
+/** What `judgePerOp` ramps: the program text at each size and batch, and, for a sibling that prints its
+ * bench's input (`prints`), the sibling's own text at each size and the `bench` it prints for. */
+export interface PerOpPlan {
+  own: string;
+  prints: boolean;
+  bench: string;
+  sizes: number[];
+  lo: number;
+  rounds: number;
+  siblingAt: (size: number) => string | null;
+  programAt: (size: number, batch: number) => string | null;
+}
+
+/** Runs `plan` at `lo` and at all of its rounds at each size, and judges the difference per round
+ * (`perOpOf`) against `bound`. A count fails only when a second ramp puts it over its bound too, and
+ * the clock is recorded and not judged. `judged.bench` is the program the copy is made from. */
+async function judgePerOp(judged: Judged, plan: PerOpPlan, bound: number, measure: Measure, opts: Options): Promise<Judged> {
+  const { own, prints, bench, sizes, lo, rounds, siblingAt, programAt } = plan;
+  const sibling = judged.bench;
   const missing = await servicesFor(own);
   if (missing) throw new PerfError(`${sibling} ${missing}`);
   const root = join(opts.scratch, sibling.replace(/[\\/]/g, "~"));
@@ -1128,7 +1164,6 @@ export async function rampPerOp(sibling: string, bench: string, expect: string, 
     }
     return out;
   };
-  const bound = boundsOf(expect).count;
   const batches = await ramp();
   judged.sizes = sizes;
   judged.perOp = batches.at(-1)!.counts;
@@ -1231,7 +1266,27 @@ async function ladderOne(bench: string, opts: Options): Promise<Judged> {
   const sizes = ladderSizes(ladder.start, ladder.max);
   if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`start ${ladder.start}\` to \`max ${ladder.max}\` is fewer than ${MIN_BATCHES} doublings`] };
   if (measure.rewrites && withBatch(source, ladder.start, ladder.start) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `start` as one literal"] };
+  if (ladder.rounds !== null) {
+    const plan = roundsPlan(source, ladder);
+    if (typeof plan === "string") return { ...judged, notes: [plan] };
+    return proposed(await judgePerOp(judged, plan, boundsOf(ladder.expect).count, measure, opts), ladder);
+  }
   return proposed(await rampAt(judged, source, ladder.start, sizes, boundsOf(ladder.expect), measure, opts), ladder);
+}
+
+/**
+ * What a `run` ladder with `// scaling: rounds N` ramps: at each size its closing call passes the size
+ * where it passed `start`, and half of N or all of N where it passed N (`withRounds`), so the input it
+ * builds once cancels out of the difference. A string says why the closing call cannot be rewritten.
+ */
+export function roundsPlan(source: string, ladder: Ladder): PerOpPlan | string {
+  const rounds = ladder.rounds!;
+  const lo = rounds >> 1;
+  const sizes = ladderSizes(ladder.start, ladder.max);
+  const programAt = (size: number, batch: number) => withRounds(source, ladder.start, size, rounds, batch);
+  const bad = sizes.find((size) => programAt(size, lo) === null || programAt(size, rounds) === null);
+  if (bad !== undefined) return `its closing \`echo Bench::run(...)\` does not pass \`start\` and the rounds as one literal each at size ${bad}`;
+  return { own: source, prints: false, bench: "", sizes, lo, rounds, siblingAt: () => null, programAt };
 }
 
 /** A ladder marked `proposal` that grows waits for the user's decision, and does not fail. */

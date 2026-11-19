@@ -3,15 +3,22 @@
 // scaling: start 1000
 // scaling: max 16000
 // scaling: expect constant
+// scaling: rounds 20
 
 class Bench
 {
-    public static function run(uint $size): uint
+    public static function run(uint $size, uint $rounds): uint
     {
         array<int> $orders = Core\Arr::range(1, $size as int);
-        int $open = Core\Arr::first(Core\Arr::filter($orders, fn(int $x): bool => $x < 10)) ?? 0;
-        return $open as uint;
+        uint $total = 0;
+        uint $round = 0;
+        while ($round < $rounds) {
+            int $open = Core\Arr::first(Core\Arr::filter($orders, fn(int $x): bool => $x < 10)) ?? 0;
+            $total = $total + ($open as uint);
+            $round = $round + 1;
+        }
+        return $total;
     }
 }
 
-echo Bench::run(1000), "\n";
+echo Bench::run(1000, 20), "\n";

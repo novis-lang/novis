@@ -31,6 +31,7 @@ echo Bench::run(1000), "\n";
 | `// scaling: expect <class>` | the growth the work may have: `constant`, `linear`, `nlogn` or `karatsuba`. `quadratic` is never accepted |
 | `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt`, `serve`, `fetch` or `mutate` |
 | `// scaling: size <what>` | a `serve` ladder's size: `requests` (the default), `headers`, `header-bytes`, `body-bytes`, `query`, `form`, `connections` or `routes` |
+| `// scaling: rounds N` | a `run` ladder's work is repeated: the closing line passes N beside `start`, and the difference of half and all of N rounds is judged, so the input it builds once cancels |
 | `// scaling: proposal` | the ladder grows past its bound and the fix waits for a decision; it is reported, and does not fail |
 
 Size the work so that **the size is the only thing that grows**: build the input inside `run` from
