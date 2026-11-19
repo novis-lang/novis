@@ -385,10 +385,14 @@ class Page {
     }
   }
 
-  /** Opens `path` and waits until it has loaded. */
+  /**
+   * Opens `path` and waits until it has loaded and its body has text. A nightly run read an empty
+   * `innerText` right after `readyState` was `complete`. So a page with no text is not loaded yet,
+   * and a page that stays empty fails here with the status line.
+   */
   async go(path: string) {
     await this.send("Page.navigate", { url: origin + path });
-    await this.until(loaded(path));
+    await this.until(`${loaded(path)} && document.body.innerText.trim() !== ""`);
   }
 
   /** Fills the form `selector` with `fields`, sends it, and waits until `done` is true. */
