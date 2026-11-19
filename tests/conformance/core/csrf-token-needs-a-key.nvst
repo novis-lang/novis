@@ -1,0 +1,16 @@
+--TEST--
+`Core\Csrf::token` opens the session on its first use, so it needs no started session, and with no `[http] csrf_key` it throws a `RuntimeError` naming that key — `rule:core-classes/a-session-opens-on-its-first-use`
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// covers: Core\Csrf::token
+// No `Core\Session` method runs first: `token` opens the session itself.
+// This case writes no `[http] csrf_key`, so `token` throws naming it.
+try {
+    echo Core\Csrf::token();
+} catch (RuntimeError $missing) {
+    echo "with no key: ", Core\Str::contains($missing->message, "[http] csrf_key") ? "names the key" : $missing->message, "\n";
+}
+--EXPECT--
+with no key: names the key

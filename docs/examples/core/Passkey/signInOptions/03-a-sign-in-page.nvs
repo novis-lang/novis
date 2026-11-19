@@ -17,7 +17,6 @@ class SignInPage
     // The server half. It answers the first `fetch` in the script.
     public static function options(): string
     {
-        Core\Session::start();
         return Core\Passkey::signInOptions('example.com');
     }
 }

@@ -112,7 +112,7 @@ pub struct Session {
     pub dirty: bool,
     /// Whether the store holds a row under [`Self::id`].
     ///
-    /// `start` sets it for a row it loaded, and the write-back sets it after the
+    /// The first use sets it for a row it loaded, and the write-back sets it after the
     /// write that creates the row. The write-back reads it to choose its write:
     /// a stored session is *saved*, which changes only a session that still
     /// exists, and a session this request drew is *issued*. So a session that

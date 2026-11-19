@@ -17,9 +17,8 @@ class Shop
 }
 
 // The session counts the pages this visitor opened.
-Core\Session::start();
 int $views = Core\Session::get('views') as ?int ?? 0;
-Core\Session::set('views', $views + 1);
+Core\Session::setShortLived('views', $views + 1);
 
 // The page writes 20 products to the database and reads them back in price order.
 var $db = Core\Db::connect('shop');

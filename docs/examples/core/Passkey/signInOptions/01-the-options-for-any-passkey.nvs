@@ -2,10 +2,8 @@
 // Shows the options a server sends to the browser to sign in with a passkey.
 // requires: redis
 
-// The challenge in the options is saved in the session, so start it first.
-Core\Session::start();
-
-// The account is not known yet, so no passkeys are passed.
+// The account is not known yet, so no passkeys are passed. `signInOptions` saves
+// the challenge in the session, and the session opens on this first use.
 string $json = Core\Passkey::signInOptions('example.com');
 
 // The challenge is random, so this prints only the fields that are the same each time.

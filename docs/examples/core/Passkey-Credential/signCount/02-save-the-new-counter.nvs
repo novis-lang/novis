@@ -34,7 +34,6 @@ bytes $publicKey = Core\Bytes::join([
     $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
 ]);
 Core\Passkey\Credential $saved = Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 4);
-Core\Session::start();
 
 // The device signs in three times. Its counts are 5, 9 and 12.
 // After each sign-in, the application saves the passkey that `verifySignIn` returns.

@@ -2,8 +2,6 @@
 // Shows how the passkeys an account already has go into the options for a new one.
 // requires: redis
 
-Core\Session::start();
-
 // The account already has a passkey on a laptop. The application stored its four values.
 // Here they are made up: an Ed25519 public key from `Core\Crypto`, and a random id.
 var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);

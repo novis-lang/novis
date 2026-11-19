@@ -44,7 +44,7 @@
 //! request is refused unless it carries a token this deployment issued, bound to
 //! *this* request's session — `nvs_runtime::csrf` is the construction, the
 //! session is the value of the cookie `[session] cookie` names, read by the
-//! reader `Core\Session::start` uses, a request with no session passes no
+//! reader `Core\Session`'s first-use open uses, a request with no session passes no
 //! token, and
 //! [`TOKEN_HEADER`] says where the door looks: the header, the `_csrf` query
 //! parameter, and an urlencoded form's `_csrf` field, which the request's own
@@ -243,7 +243,7 @@ pub enum Csrf {
 /// is named, a request with no such token is refused even same-origin, because a
 /// deployment that named a key asked for its unsafe verbs to carry one.
 ///
-/// The session is read the way `Core\Session::start` reads it ([`session`]),
+/// The session is read the way `Core\Session`'s first-use open reads it ([`session`]),
 /// and a request with no session has no token that passes ([`verified`]).
 ///
 /// The token is the [`TOKEN_HEADER`] header, else the [`TOKEN_FIELD`] query
@@ -336,7 +336,7 @@ fn header<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a [u8]> {
 /// `None` where the request carries no session.
 ///
 /// [`nvs_runtime::Inbound::cookie`] reads it, which is the reader
-/// `Core\Session::start` uses, so the door checks the token against the session
+/// `Core\Session`'s first-use open uses, so the door checks the token against the session
 /// the program will open: every `Cookie` line, pair by pair. A value that is
 /// not UTF-8 is no identifier this server minted, and an empty one is no session.
 fn session<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a str> {
@@ -875,7 +875,7 @@ mod tests {
 
     /// Attack: a signed-in visitor's session cookie arrives on a second `Cookie`
     /// line, or beside a cookie with a byte that is not UTF-8. The door must find
-    /// the session `Core\Session::start` finds, so a token for no session is
+    /// the session `Core\Session`'s first-use open finds, so a token for no session is
     /// refused and the visitor's own token passes.
     #[test]
     fn the_door_finds_the_session_wherever_the_session_reader_finds_it() {

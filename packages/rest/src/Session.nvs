@@ -3,23 +3,24 @@ namespace Novis\Rest;
 
 // Keeps the tokens of a signed-in user in the user's session.
 // The tokens are encrypted with `$keys`, so the session store only sees encrypted bytes.
-// Call `Core\Session::start()` before you use these functions.
+// The session opens the first time one of these functions uses it.
+// The tokens are short-lived values, so signing out with `Core\Session::clearShortLived` deletes them.
 final class Session
 {
     // Saves `$token` in the session. The refresh token is kept in the session
     // and not in a cache, because a cache may delete it at any time.
     public static function save(Token $token, array<secret bytes> $keys): void
     {
-        Core\Session::setSecret('novis-rest.access', $token->accessToken, $keys);
+        Core\Session::setShortLivedSecret('novis-rest.access', $token->accessToken, $keys);
         ?secret string $refreshToken = $token->refreshToken;
         if ($refreshToken != null) {
-            Core\Session::setSecret('novis-rest.refresh', $refreshToken, $keys);
+            Core\Session::setShortLivedSecret('novis-rest.refresh', $refreshToken, $keys);
         } else {
             Core\Session::remove('novis-rest.refresh');
         }
-        Core\Session::set('novis-rest.type', $token->type);
-        Core\Session::set('novis-rest.expires', $token->expiresAt->toEpochSeconds());
-        Core\Session::set('novis-rest.scope', $token->scope);
+        Core\Session::setShortLived('novis-rest.type', $token->type);
+        Core\Session::setShortLived('novis-rest.expires', $token->expiresAt->toEpochSeconds());
+        Core\Session::setShortLived('novis-rest.scope', $token->scope);
     }
 
     // Returns the token from the session, or `null` when the session has none.

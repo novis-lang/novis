@@ -9,11 +9,11 @@ page=2
 [capabilities.script]
 spawn = true
 
-# A store is chosen, so that the child's `Core\Session::start` is refused for the
-# reason this case is about and not for an unconfigured tree. Nothing ever reaches
-# it: `start` asks whether there is a request before it asks anything about where
-# a record would live, and the message asserted below is how the child says which
-# question stopped it.
+# A store is chosen, so that the child's first `Core\Session` call is refused for
+# the reason this case is about and not for an unconfigured tree. Nothing ever
+# reaches it: the first use asks whether there is a request before it asks
+# anything about where a record would live, and the message asserted below is how
+# the child says which question stopped it.
 [session]
 backend = "shared"
 --FILE child.nvs--
@@ -37,7 +37,7 @@ try {
 // message, and the line below reads the message rather than the count.
 string $said = "";
 try {
-    Core\Session::start();
+    Core\Session::get("cart");
 } catch (LogicError $nothing) {
     $refused = $refused + 1;
     $said = $nothing->message;

@@ -1619,7 +1619,7 @@ pub(crate) const SET_COOKIE_HEADER: &str = "Set-Cookie";
 /// could end the part it is in.
 ///
 /// A shape rather than eight arguments because it has a second caller:
-/// `Core\Session::start` writes the identifier's cookie
+/// `Core\Session` writes its two cookies
 /// ([`crate::session`]), and a second rendering there would be a second place
 /// the `SameSite` spelling, the attribute order and the `Secure`/`HttpOnly`
 /// flags could drift. The *policy* already has one home in

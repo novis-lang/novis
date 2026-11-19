@@ -940,8 +940,8 @@ impl Inbound {
     /// The cookie `name`, or `None` where the request carries none a reader is
     /// allowed to see.
     ///
-    /// **The one cookie reader.** `Core\Request::cookie`, `Core\Session::start`
-    /// and the server's CSRF door all read through it, so the session a token is
+    /// **The one cookie reader.** `Core\Request::cookie`, the first-use open of
+    /// `Core\Session` and the server's CSRF door all read through it, so the session a token is
     /// checked against is the session the program opens. Two readers that split
     /// the header differently were how a token issued for no session passed for a
     /// signed-in visitor whose cookie arrived on a second line.

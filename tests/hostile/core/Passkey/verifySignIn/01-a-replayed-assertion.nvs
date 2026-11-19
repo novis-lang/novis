@@ -64,7 +64,6 @@ bytes $publicKey = Core\Bytes::join([
 bytes $id = Core\Random::bytes(16);
 // The saved passkey has the sign counter 10.
 Core\Passkey\Credential $saved = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 10);
-Core\Session::start();
 
 // 1. Checks an answer before the server made any options. Every error below is caught, so each step runs.
 echo 'no options: ', Device::check('{"type":"public-key"}', $saved), " signed in\n";

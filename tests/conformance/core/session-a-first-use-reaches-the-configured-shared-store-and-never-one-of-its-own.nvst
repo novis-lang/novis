@@ -1,11 +1,11 @@
 --TEST--
-`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-five-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`
+The first use of `Core\Session` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-five-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, `rule:core-classes/a-session-opens-on-its-first-use`
 --GET--
 under=a-request
 --FILE--
 <?nvs
-// The case answers a request, because `start` asks whether there is one before
-// it asks anything about the store
+// The case answers a request, because the first use asks whether there is one
+// before it asks anything about the store
 // (`rule:security/request-state-throws-in-an-isolate`), so the store question
 // below is out of reach without one.
 //
@@ -19,7 +19,7 @@ under=a-request
 uint $named = 0;
 string $said = "";
 try {
-    Core\Session::start();
+    Core\Session::get("cart");
 } catch (RuntimeError $nowhere) {
     $said = $nowhere->message;
     if (Core\Str::contains($said, "[cache.shared] url")) {
@@ -40,9 +40,10 @@ if (Core\Str::contains($said, "[session] backend")) {
 // The refusal is the store's absence and not the record's: `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` refuses
 // `Core\Session` the memory tier, so there is no in-process store for this to
 // have quietly fallen back to, and a fallback is what a second call would reveal.
+// The open that failed left no session behind, so the next member opens again.
 uint $again = 0;
 try {
-    Core\Session::start();
+    Core\Session::setShortLived("cart", 3);
 } catch (RuntimeError $still) {
     $again = $again + 1;
 }

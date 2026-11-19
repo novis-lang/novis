@@ -33,7 +33,6 @@ final class Device
     }
 }
 
-Core\Session::start();
 string $options = Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada@example.com');
 tainted string $answer = Device::answer($options, 'https://example.com');
 

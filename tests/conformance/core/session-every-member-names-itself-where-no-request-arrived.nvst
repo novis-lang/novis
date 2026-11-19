@@ -1,0 +1,137 @@
+--TEST--
+Every `Core\Session` member opens the session on its first call, so in a program answering no request every one of them throws a `LogicError`, and the refusal names the member the program called -- `rule:core-classes/a-session-opens-on-its-first-use` and `rule:core-api/session-roster`
+--FILE--
+<?nvs
+// `rule:core-classes/a-session-opens-on-its-first-use`: the first call of any member opens the
+// session, and a program answering no request has none to open. So every member
+// below refuses, the sealed trio `rule:http-server/a-session-holds-a-secret-only-sealed`
+// adds included — a member that reached for its key ring before it asked whether
+// a request arrived would report the ring instead of the rule. Each refused open
+// leaves no session behind, so every call below is a first use.
+uint $refused = 0;
+uint $named = 0;
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+secret string $token = "sk-live";
+
+try {
+    Core\Session::get("cart");
+} catch (LogicError $noRequestToRead) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToRead->message, "Core\\Session::get()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::setShortLived("cart", 1);
+} catch (LogicError $noRequestToWrite) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToWrite->message, "Core\\Session::setShortLived()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::setLongLived("theme", "dark");
+} catch (LogicError $noRequestToKeep) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToKeep->message, "Core\\Session::setLongLived()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (LogicError $noRequestToChange) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToChange->message, "Core\\Session::remove()")) {
+        $named = $named + 1;
+    }
+}
+
+// The clears and `regenerate` reach the store, and they are refused *before*
+// they reach it: there is no `[session]` block in this tree at all, so a member
+// that got as far as opening a store would refuse for another reason and name
+// the wrong thing.
+try {
+    Core\Session::clearShortLived();
+} catch (LogicError $noRequestToSignOut) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToSignOut->message, "Core\\Session::clearShortLived()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::clearLongLived();
+} catch (LogicError $noRequestToForgetPreferences) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToForgetPreferences->message, "Core\\Session::clearLongLived()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::clearAll();
+} catch (LogicError $noRequestToForget) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToForget->message, "Core\\Session::clearAll()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::regenerate();
+} catch (LogicError $noRequestToMove) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToMove->message, "Core\\Session::regenerate()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::setShortLivedSecret("refresh", $token, $ring);
+} catch (LogicError $noRequestToSealInto) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToSealInto->message, "Core\\Session::setShortLivedSecret()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::setLongLivedSecret("device", $token, $ring);
+} catch (LogicError $noRequestToSealLong) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToSealLong->message, "Core\\Session::setLongLivedSecret()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::getSecret("refresh", $ring);
+} catch (LogicError $noRequestToOpen) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToOpen->message, "Core\\Session::getSecret()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::openWithIdentifier("PmA5tKz1QvR3sYbNqLwXe2");
+} catch (LogicError $noRequestToOpenUnder) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRequestToOpenUnder->message, "Core\\Session::openWithIdentifier()")) {
+        $named = $named + 1;
+    }
+}
+
+echo "refused ", $refused, " of 12\n";
+
+// Naming the member is the half that makes the refusal actionable: the program
+// is told which of its own calls ran where no request arrived.
+echo "and each names the member the program called ", $named, " of 12\n";
+--EXPECT--
+refused 12 of 12
+and each names the member the program called 12 of 12

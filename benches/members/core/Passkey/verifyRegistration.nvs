@@ -53,5 +53,4 @@ class Bench
     }
 }
 
-Core\Session::start();
 echo Bench::run(128), "\n";

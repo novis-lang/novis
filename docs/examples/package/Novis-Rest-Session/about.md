@@ -10,10 +10,10 @@ refresh token to the server and saves the new token. It returns `null` when the 
 in, or when the expired token has no refresh token.
 
 `forget` deletes the tokens from the session, for example when the user signs out. Other values in
-the session stay.
+the session stay. The tokens are short-lived values, so `Core\Session::clearShortLived()` deletes
+them too.
 
 `load` checks every value it reads from the session store. A value with the wrong type, or with
 characters a token may not have, gives `null`.
 
-Call `Core\Session::start()` first. `$keys` is a list of encryption keys, newest first.
-`Core\Crypto::generateKey()` creates a key.
+`$keys` is a list of encryption keys, newest first. `Core\Crypto::generateKey()` creates a key.

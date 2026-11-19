@@ -5,14 +5,14 @@
 // hostile: timeout-ms 60000
 // hostile: ends-early 7 FATAL
 
-// 1. Asks for options before the session is started. The error is caught, so step 2 still runs.
+// 1. Asks for options as the first session call of the request. This call opens the session.
+// Any error is caught, so step 2 still runs.
 try {
     Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada');
-    echo "options without a session\n";
-} catch (RuntimeError $e) {
-    echo "no session: error\n";
+    echo "first call: options\n";
+} catch (Throwable $e) {
+    echo 'first call: ', $e::class, "\n";
 }
-Core\Session::start();
 
 // 2. An empty site, and account ids of 0, 64 and 65 bytes. Each error is caught.
 array<bytes> $ids = [Core\Bytes::fill(0, 0), Core\Random::bytes(64), Core\Random::bytes(65)];

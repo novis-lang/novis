@@ -1,9 +1,10 @@
 Returns a CSRF token for the visitor's session. You put it in a form, and the server checks it when
 the form comes back.
 
-Call `Core\Session::start()` first, and set `[http] csrf_key` in `nvs.toml`. Without either one,
-`token()` throws a `RuntimeError`. If the visitor has no session yet, the call creates one and the
-response sends its cookie. A login form for a new visitor works the same way.
+Set `[http] csrf_key` in `nvs.toml`. Without it, `token()` throws a `RuntimeError`. If the visitor
+has no session yet, the call creates one and the response sends its cookie. A login form for a new
+visitor works the same way. A program that answers no web request has no session, so there
+`token()` throws a `LogicError`.
 
 Send the token back in a form field named `_csrf`, in the `x-csrf-token` header or in a `_csrf`
 query parameter. The server checks it before your route method runs. A request without a valid
@@ -14,4 +15,4 @@ Every call returns a different token, and each one is valid for the whole sessio
 second browser tab still works.
 
 **The examples below** show a form for a new visitor, the form sent back with and without its token,
-and the error before `start()`.
+and the error in a command-line program.

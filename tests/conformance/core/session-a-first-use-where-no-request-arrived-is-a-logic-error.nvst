@@ -1,13 +1,12 @@
 --TEST--
-`Core\Session::start` in a program answering no request throws a `LogicError` naming the absent request, and it asks that question before it asks anything about the store — `rule:security/request-state-throws-in-an-isolate`, `rule:core-api/session-roster`
+The first `Core\Session` call in a program answering no request throws a `LogicError` naming the absent request and the member, and it asks that question before it asks anything about the store — `rule:security/request-state-throws-in-an-isolate`, `rule:core-classes/a-session-opens-on-its-first-use`, `rule:core-api/session-roster`
 --FILE nvs.toml--
 # A store *is* chosen here, and that is the point of the file. The refusal below
 # has to be the one about the absent request, and a tree that configured nothing
 # cannot tell that refusal apart from
 # `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s
-# — both would stop `start()` and only the message would say which. Nothing ever
-# reaches the store: `start` asks whether a request arrived first
-# (`crates/nvs-stdlib/src/session.rs:752`).
+# — both would stop the first use and only the message would say which. Nothing
+# ever reaches the store: the first use asks whether a request arrived first.
 [session]
 backend = "shared"
 --FILE--
@@ -21,12 +20,12 @@ backend = "shared"
 uint $refused = 0;
 string $said = "";
 try {
-    Core\Session::start();
+    Core\Session::get("cart");
 } catch (LogicError $refusal) {
     $refused = $refused + 1;
     $said = $refusal->message;
 }
-echo "start was refused ", $refused, " of 1\n";
+echo "the first use was refused ", $refused, " of 1\n";
 
 // The class is the assertion above; the sentence is the one below. An empty
 // session would say the request arrived and carried no session, which is a
@@ -35,10 +34,10 @@ echo "start was refused ", $refused, " of 1\n";
 echo "and it says there is no request here: ",
     Core\Str::contains($said, "there is no request here") ? "yes" : "no", "\n";
 echo "and it names the member the program wrote: ",
-    Core\Str::contains($said, "Core\\Session::start()") ? "yes" : "no", "\n";
+    Core\Str::contains($said, "Core\\Session::get()") ? "yes" : "no", "\n";
 
 // The bound on the other side of the ordering. `[session] backend` is written in
-// this tree, so a `start` that asked the store question first would have opened a
+// this tree, so a first use that asked the store question first would have opened a
 // record here and minted an identifier for a caller that can never present one.
 // A refusal naming the directive would mean the questions run the other way
 // round, so the absence of that name is what is asserted.
@@ -75,15 +74,16 @@ echo "the process is still readable: draining=",
 
 // It is catchable at `Throwable`, the root of the tree, as well: a program that cannot
 // open a session is one that can say so, not one that dies.
+// The open that failed left no session behind, so a write refuses the same way.
 uint $byRoot = 0;
 try {
-    Core\Session::start();
+    Core\Session::setShortLived("cart", 3);
 } catch (Throwable $any) {
     $byRoot = $byRoot + 1;
 }
 echo "caught by the root of the tree ", $byRoot, " of 1\n";
 --EXPECT--
-start was refused 1 of 1
+the first use was refused 1 of 1
 and it says there is no request here: yes
 and it names the member the program wrote: yes
 and it is not the store's refusal: yes

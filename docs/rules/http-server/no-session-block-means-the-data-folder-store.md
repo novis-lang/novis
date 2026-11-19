@@ -1,6 +1,6 @@
 A tree that writes no `[session] backend` gets the `db` store: `session.sqlite` in Novis's own data
 folder (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`), in WAL mode. A first
-program that calls `Core\Session::start` needs no configuration. Every server process on the machine
+program that calls a `Core\Session` member needs no configuration. Every server process on the machine
 that shares the data folder reads the same file, so a request another process handles finds the
 session, and a restart keeps it. That is the reason the memory tier is refused
 (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`), and the file

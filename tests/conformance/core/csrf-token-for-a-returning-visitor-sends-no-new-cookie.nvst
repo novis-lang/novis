@@ -10,7 +10,6 @@ class Notes {
     #[Core\Route(path: "/form", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function form(): void {
-        Core\Session::start();
         echo Core\Csrf::token();
     }
 

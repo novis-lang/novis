@@ -4,7 +4,7 @@ namespace Registry;
 use Core\Time;
 
 // The account a visitor signed in to, and the account a sign-up is creating.
-// Both are kept in the session. `Gate::allows` starts the session before every route.
+// Both are kept in the session. The session opens the first time this class uses it.
 final class Session
 {
     private const string ACCOUNT = 'registry.account';
@@ -26,9 +26,9 @@ final class Session
     public static function signIn(string $account, bool $byPasskey): void
     {
         Core\Session::regenerate();
-        Core\Session::set(Session::ACCOUNT, $account);
+        Core\Session::setShortLived(Session::ACCOUNT, $account);
         if ($byPasskey) {
-            Core\Session::set(Session::PASSKEY_AT, Time::now()->toEpochSeconds());
+            Core\Session::setShortLived(Session::PASSKEY_AT, Time::now()->toEpochSeconds());
         }
     }
 
@@ -40,16 +40,16 @@ final class Session
         return $at != null && Time::now()->toEpochSeconds() - $at <= Session::PASSKEY_WINDOW;
     }
 
-    // Ends the session.
+    // Signs the visitor out. The short-lived values are deleted, and the session gets a new id.
     public static function signOut(): void
     {
-        Core\Session::destroy();
+        Core\Session::clearShortLived();
     }
 
     // Saves the id of the account that the sign-up creates once its passkey is checked.
     public static function startSignUp(string $account): void
     {
-        Core\Session::set(Session::SIGN_UP, $account);
+        Core\Session::setShortLived(Session::SIGN_UP, $account);
     }
 
     // Returns the id that `startSignUp` saved, and deletes it. The result is `null` when there is none.

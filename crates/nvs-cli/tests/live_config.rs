@@ -1330,14 +1330,14 @@ fn sessions(store: &Store, backend: &str) -> String {
     )
 }
 
-/// An entry file that starts a session and writes one value to it, and prints
-/// `started`, or `refused` when `Core\Session::start` throws. The write is what
-/// makes a record: a session nobody writes leaves none.
-const SESSIONED: &str = "<?nvs\ntry {\n    Core\\Session::start();\n    \
-                         Core\\Session::set(\"seen\", true);\n    echo \"started\";\n} \
+/// An entry file that writes one value to its session, and prints `started`,
+/// or `refused` when the write throws. The write opens the session and makes
+/// the record: a session nobody writes leaves none.
+const SESSIONED: &str = "<?nvs\ntry {\n    \
+                         Core\\Session::setShortLived(\"seen\", true);\n    echo \"started\";\n} \
                          catch (RuntimeError $refused) {\n    echo \"refused\";\n}\n";
 
-/// `Core\Session::start` reads `[session]` from the snapshot its request
+/// The session's first use reads `[session]` from the snapshot its request
 /// cloned. A server that booted with `backend = "db"` keeps its sessions in
 /// the data folder's SQLite file, so the shared store receives nothing. After
 /// a reload names `shared`, the next request's record reaches the shared store.
@@ -1353,7 +1353,7 @@ fn a_changed_session_backend_applies_to_new_requests() {
         answer.body == "started"
     });
     assert!(
-        !store.received("SET"),
+        !store.received("EVAL"),
         "a session on the `db` backend wrote a record to the shared store"
     );
 
@@ -1366,7 +1366,7 @@ fn a_changed_session_backend_applies_to_new_requests() {
         answer.body == "started"
     });
     assert!(
-        store.received("SET"),
+        store.received("EVAL"),
         "a session started after the reload wrote no record to the shared store"
     );
 }

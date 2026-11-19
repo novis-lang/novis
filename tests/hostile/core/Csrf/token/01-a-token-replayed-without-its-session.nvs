@@ -10,7 +10,6 @@ class Notes
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
-        Core\Session::start();
         echo Core\Csrf::token();
     }
 

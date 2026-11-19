@@ -1,0 +1,73 @@
+--TEST--
+Every `Core\Session` member called where no request arrived refuses with a throw `Throwable`, the root of the error tree, catches, so a program that cannot use sessions can say so -- `rule:core-classes/a-session-opens-on-its-first-use`, `rule:core-api/session-roster`, `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// The sibling cases pinned the class and the wording. This pins the *tree*: the
+// refusal is a `Throwable`, so a program that reaches one of these without a
+// request is a program that can answer for itself rather than one that dies.
+// Each refused open leaves no session behind, so every call below opens again.
+uint $caught = 0;
+
+try {
+    Core\Session::get("cart");
+} catch (Throwable $anyForRead) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::setShortLived("cart", 1);
+} catch (Throwable $anyForShortWrite) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::setLongLived("theme", "dark");
+} catch (Throwable $anyForLongWrite) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (Throwable $anyForChange) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::clearShortLived();
+} catch (Throwable $anyForShortClear) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::clearLongLived();
+} catch (Throwable $anyForLongClear) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::clearAll();
+} catch (Throwable $anyForForget) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::regenerate();
+} catch (Throwable $anyForMove) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::openWithIdentifier("PmA5tKz1QvR3sYbNqLwXe2");
+} catch (Throwable $anyForOpen) {
+    $caught = $caught + 1;
+}
+
+echo "caught by the root of the tree ", $caught, " of 9\n";
+
+// And the program continues past all nine. A refusal that left the program
+// unable to go on would be a fatal wearing a class name, which is the
+// distinction the error class tree exists to draw.
+echo "and the program is still running\n";
+--EXPECT--
+caught by the root of the tree 9 of 9
+and the program is still running

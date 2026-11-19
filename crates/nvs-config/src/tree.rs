@@ -1542,7 +1542,7 @@ pub struct CacheShared {
 /// and no `save_path` — `rule:http-server/session-expiry-belongs-to-the-store` gives expiry to the
 /// store, and the backend rule above gives it no backend that keeps files.
 ///
-/// The block being absent is **not** a default backend: `Core\Session::start()` throws naming this
+/// The block being absent is **not** a default backend: a request's first `Core\Session` call throws naming this
 /// block, which is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s "nothing configured is already safe" applied to a store nobody chose.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]

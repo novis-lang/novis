@@ -1,0 +1,34 @@
+--TEST--
+The first use of `Core\Session` with no `[session]` block opens the SQLite store in the data folder, the session it opens reads back what it saved, and `openWithIdentifier` after it throws naming the member that opened it -- `rule:core-api/session-roster`, `rule:core-classes/a-session-opens-on-its-first-use` and `rule:http-server/no-session-block-means-the-data-folder-store`
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// The case answers a request, because that is the first thing the first use checks
+// (`rule:security/request-state-throws-in-an-isolate`).
+//
+// No `[session]` block is written, so the store is the data folder's
+// `session.sqlite`. The first `get` opens a new, empty session there.
+echo "a new session has no value: ", Core\Session::get("visits") == null ? "yes" : "no", "\n";
+
+Core\Session::setShortLived("visits", 1);
+echo "the session reads back what it saved: ", Core\Session::get("visits"), "\n";
+
+// The session is open now, so `openWithIdentifier` throws. The message names the
+// method that opened it.
+uint $refused = 0;
+string $said = "";
+try {
+    Core\Session::openWithIdentifier("PmA5tKz1QvR3sYbNqLwXe2");
+} catch (LogicError $twice) {
+    $refused = $refused + 1;
+    $said = $twice->message;
+}
+echo "a second open was refused ", $refused, " of 1\n";
+echo "and it names the method that opened the session: ",
+    Core\Str::contains($said, "`Core\\Session::get()` opened it") ? "yes" : $said, "\n";
+--EXPECT--
+a new session has no value: yes
+the session reads back what it saved: 1
+a second open was refused 1 of 1
+and it names the method that opened the session: yes

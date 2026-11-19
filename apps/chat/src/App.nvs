@@ -39,9 +39,8 @@ final class App
         }
         // The session keeps the name on the server. The browser only gets a random identifier in a cookie.
         // `regenerate` gives the session a new identifier, as after a sign-in.
-        Session::start();
         Session::regenerate();
-        Session::set('name', $name);
+        Session::setShortLived('name', $name);
         Response::redirect(Router::url(App::room, ['room' => $room]));
     }
 
@@ -108,7 +107,6 @@ final class App
     // Returns the name that `App::join` saved in the session, or `null` when the visitor has none.
     private static function name(): ?tainted string
     {
-        Session::start();
         // The default comes before the conversion, because `null as string` is an empty string.
         tainted string $name = (Session::get('name') ?? '') as string;
         return $name == '' ? null : $name;

@@ -1,18 +1,17 @@
 <?nvs
 // One visitor's session, read and written by two kinds of request.
 // `/slow` adds 1 to a counter in the session, then works for 2 seconds.
-// `/fast` only reads the counter. Every other path starts the session.
+// `/fast` only reads the counter. Every other path sets the counter to 0.
 
-Core\Session::start();
 int $count = (Core\Session::get('count') ?? 0) as int;
 
 if (Core\Request::path() == '/slow') {
-    Core\Session::set('count', $count + 1);
+    Core\Session::setShortLived('count', $count + 1);
     Core\Time::sleep(Core\Time\Duration::seconds(2));
     Core\Response::text("slow done\n");
 } elseif (Core\Request::path() == '/fast') {
     Core\Response::text('count: ' . $count . "\n");
 } else {
-    Core\Session::set('count', 0);
+    Core\Session::setShortLived('count', 0);
     Core\Response::text("started\n");
 }

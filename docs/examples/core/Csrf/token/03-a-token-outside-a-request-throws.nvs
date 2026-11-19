@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `token()` works only while the program answers a web request.
+
+// This program runs from the command line, so it has no visitor and no session.
+// `token()` throws a `LogicError`.
+try {
+    echo Core\Csrf::token();
+} catch (LogicError $e) {
+    echo "no request: LogicError\n";
+}

@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/session.rs]
   - id: 6
     title: every program, test and package in the tree uses the new members
-    status: open
+    status: done
     context: [tests/conformance/core/, tests/hostile/core/, apps/, packages/rest/src/Session.nvs, benches/]
   - id: 7
     title: every Session member owes no feature proof
@@ -390,34 +390,34 @@ before `start`).
 **Split:** three writing subagents, one per group, side by side. The session runs each group's suite
 once after all three end.
 
-- [ ] Conformance: `tests/conformance/core/` `a-nullable-core-parameter-keeps-the-mark-of-its-type`,
+- [x] Conformance: `tests/conformance/core/` `a-nullable-core-parameter-keeps-the-mark-of-its-type`,
   `a-session-survives-a-request-on-another-process`,
   `csrf-token-binds-to-the-session-the-response-sends`,
   `csrf-token-for-a-returning-visitor-sends-no-new-cookie`,
-  `csrf-token-needs-a-started-session-and-a-key`,
+  `csrf-token-needs-a-key`,
   `passkey-a-challenge-verifies-once-and-only-for-its-origin`,
   `passkey-a-stored-credential-signs-in-while-its-counter-rises`,
-  `passkey-credential-readers-after-a-sign-in`, `passkey-every-ceremony-member-needs-a-started-session`,
+  `passkey-credential-readers-after-a-sign-in`, `passkey-every-ceremony-member-needs-a-request`,
   `session-a-secret-round-trips-sealed-and-survives-regenerate`,
   `session-get-answers-null-for-a-sealed-value`,
-  `session-start-reaches-the-configured-shared-store-and-never-one-of-its-own`,
-  `session-start-takes-the-presented-identifier-or-none-at-all`,
-  `session-start-where-no-request-arrived-is-a-logic-error`,
-  `session-start-with-no-block-opens-the-data-folder-store`,
-  `session-a-member-called-before-start-throws-naming-it`,
-  `session-every-member-refuses-a-record-nobody-opened`,
-  `session-the-refusal-before-start-is-catchable-at-the-root`,
-  `tests/conformance/reject/session-set-refuses-a-secret-and-names-set-secret.nvst:1`, and
+  `session-a-first-use-reaches-the-configured-shared-store-and-never-one-of-its-own`,
+  `session-open-with-identifier-and-a-first-use-reach-the-same-store-question`,
+  `session-a-first-use-where-no-request-arrived-is-a-logic-error`,
+  `session-a-first-use-with-no-block-opens-the-data-folder-store`,
+  `session-every-member-names-itself-where-no-request-arrived`,
+  `session-every-member-gives-one-answer-where-no-request-arrived`,
+  `session-the-refusal-where-no-request-arrived-is-catchable-at-the-root`,
+  `tests/conformance/reject/session-a-write-refuses-a-secret-and-names-its-sealed-sibling.nvst:1`, and
   `tests/conformance/isolate/a-child-refuses-request-state-and-still-reads-the-process.nvst:1`.
   A case renamed for its new subject keeps its expected output's meaning.
-- [ ] Programs: `apps/chat/src/App.nvs:1`, `apps/registry/src/App.nvs:1`,
+- [x] Programs: `apps/chat/src/App.nvs:1`, `apps/registry/src/App.nvs:1`,
   `apps/registry/src/Gate.nvs:1`, `packages/rest/src/Session.nvs:6`, the hostile files
   `tests/hostile/core/Csrf/token/01-a-token-replayed-without-its-session.nvs:1`,
   `tests/hostile/core/Passkey-Credential/signCount/01-counters-at-the-limits.nvs:1`, the four under
   `tests/hostile/core/Passkey/`, `tests/hostile/package/Novis-Rest-Session/01-plant-forged-tokens-in-the-session.nvs:1`,
   and the Rust strings at `crates/nvs-cli/tests/live_config.rs:1336` and
   `crates/nvs-cli/tests/per_mount_config.rs:485`.
-- [ ] Benches and examples outside `Session`: `benches/compare/scenarios/session/main.nvs:1`,
+- [x] Benches and examples outside `Session`: `benches/compare/scenarios/session/main.nvs:1`,
   `benches/members/core/Csrf/token.nvs:1`, the six under `benches/members/core/Passkey/`,
   `benches/members/package/Novis-Rest-Session.nvs:1`, `benches/scaling/app/clients.nvs:1`,
   `benches/scaling/app/requests.nvs:1`, `docs/examples/core/Csrf/token/` (three examples and
@@ -425,7 +425,7 @@ once after all three end.
   `docs/examples/core/Passkey-Credential/signCount/`, the four `docs/examples/core/Passkey/` members,
   `docs/examples/core/Test/advance/03-a-session-that-ends-after-idle-time.nvs:1` and
   `docs/examples/package/Novis-Rest-Session/`. Every comment is end-user prose.
-- [ ] `docs/agent/playbook.md` and its two bullets that name `Session::start` say what is now true.
+- [x] `docs/agent/playbook.md` and its two bullets that name `Session::start` say what is now true.
 
 ### 7. every Session member owes no feature proof
 
@@ -459,37 +459,39 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 to 5 are done. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
+Stages 1 to 6 are done. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
 `cargo fmt --check` are green.
 
-Stage 5: the thirteen tests are in `session.rs`'s `mod tests`, and `looper check --name lifetimes`
-is green. Time moves through `stored_with`, which issues a record with chosen clock ends; nothing
-waits. The `db` store's member path reaches the process-wide data folder (`opened`'s `OnceLock`),
-so the clear tests split the member's body: `cleared` now calls `emptied` and `moved_to_fresh` calls
-`moved_on(store)`, with no change in behaviour, and the cross-store tests call those two directly.
-Tests 8, 9, 10 and 12 run on the shared fake store through the real members. The fake `Serving`
-counts every command in `commands`.
+Stage 6: outside `Session`'s own proof folders (stage 7) and `website/` (stage 8), nothing in the
+tree calls `start`, `set`, `clear`, `destroy` or `setSecret` (`debugger.rs` and `Test/advance/03`
+name their own classes). Checked: the changed conformance cases and the `checker` cases, 23 passed
+under `nvs test`; `bun nv proofs --run` over Passkey, Csrf and `Novis\Rest\Session`, 21 examples
+and 7 attacks passed; `live_config`'s
+`a_changed_session_backend_applies_to_new_requests` (its fake store now looks for `EVAL`, the
+command the store's issue script sends; it looked for `SET`, red since `session-per-key`) and
+`per_mount_config`'s `two_mounts_do_not_open_each_others_sessions` pass.
 
-The sweep's reds before this session: `env-secret-proofs` has no log and is a retired goal's stale
-check (playbook). The nightly run 44510687786 built `adc7487822`, 116 commits old, and each of its
-causes already has a fix on `main`: miri's Stacked Borrows in `string.rs` (`4c82a2409a`), the
-wasmtime advisories (`eb5c02e983`), the debug-viewer site shots (`656f5b2f2d`) and the registry
-browser test (`1c75c4ef0e`). Nothing was changed for them.
+A security gap found and closed: `quals.rs` `reject_secret_session_argument` refused a `secret`
+only for the removed `set`, so `setShortLived` and `setLongLived` took one silently. Both now get
+E0775, whose help names the sealed sibling of the same lifetime;
+`tests/conformance/reject/session-a-write-refuses-a-secret-and-names-its-sealed-sibling.nvst` and
+`qualifiers_hold.rs` `every_secret_sink_refuses_a_secret_mixed` prove it.
 
-The `checker` check's three cases pass under `target/debug/nvs.exe test`, and its `bun nv suite`
-is red only through 18 other cases that still call `start`/`set` (stage 6).
+Every doc comment and rule fragment that named `Core\Session::start` says what is true now, and
+`bun nv rules --render` rewrote the chapters and `docs/ground-rules.md`. The conformance case
+`a-nullable-core-parameter-keeps-the-mark-of-its-type` lost its `start(?id)` half, since
+`openWithIdentifier` takes no nullable; its `Core\Path` half remains. The sweep's reds are stale
+(retired `env-secret-proofs`; nightly 44510687786 built `adc7487822`, fixed on `main`).
 
 ### Next
 
-Stages 6, 7 and 8, which may run side by side (each stage's `**Split:**` line names its
-subagents). Stage 6 first if only one fits, since its conformance cases are what the `checker`
-check reruns. Expect red until stage 6 in the
-conformance suite (the 18 cases above, among them
-`tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst`, which describes
-removed behaviour), and in `crates/nvs-cli/tests/live_config.rs:1336` and `per_mount_config.rs:485`.
-Doc comments that still name `Core\Session::start` go in stage 6: `nvs-config` `directive.rs:301`,
-`session.rs:191`, `tree.rs:1545`; `nvs-runtime` `inbound.rs:943`; `nvs-server` `route.rs:47,246,339,878`;
-`nvs-stdlib` `request.rs:2285`, `response.rs:1622`, and the module doc at the top of `session.rs`.
+Stages 7 and 8, side by side (each stage's `**Split:**` line names its subagents). Stage 7's folders
+are `docs/examples/core/Session/`, `benches/members/core/Session/` and `tests/hostile/core/Session/`,
+which still use the removed members. Stage 8's pages: `website/src/content/docs/guides/cookbook/upload-file.mdx`,
+`website/src/content/docs/guides/example-apps/notes.mdx` and `chat.mdx`, then the generated
+`website/src/data/core.json` and `website/public/llms-full.txt`. Expect red until stage 7 in
+`bun nv proofs` for every `Session` member and in `perf: stale` for the Passkey and Csrf members
+(`passkey.rs` changed); stage 9 records perf, per the playbook's `perf: stale` bullet.
 
 ### Backlog
 

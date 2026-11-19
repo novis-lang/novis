@@ -3,29 +3,29 @@
 //! where that store is and how long a session survives.
 //!
 //! **What is on disk is the store `rule:http-server/a-session-store-answers-five-operations` names
-//! and all seven members of `rule:core-api/session-roster`.** The five operations a backend
+//! and all twelve members of `rule:core-api/session-roster`.** The five operations a backend
 //! answers are here — [`issue`], [`load`], [`save`], [`relocate`] (the rule's `move`) and
 //! [`destroy`], with [`mint`] and the key they share — over the shared tier's wire, one hash per
 //! session, and [`sqlite`]'s over the data folder's SQLite file. `issue` is the only write that
 //! creates a session, and `save` and `move` change only a session that still exists, so a
-//! destroyed session stays destroyed. [`opened`] picks one as a [`Store`], and
-//! [`nvs_core_session_start`] is the member that reaches it: it takes the identifier the client
+//! destroyed session stays destroyed. [`opened`] picks one as a [`Store`], and [`first_use`] is
+//! what reaches it, at the first call of any member in a request
+//! (`rule:core-classes/a-session-opens-on-its-first-use`): it takes the identifier the client
 //! presented, loads every key the store keeps under it, and opens a fresh, empty session where
-//! there is none, which reaches the store only once something is written to it. The other six
-//! operate on the session `start` left on the request ([`nvs_runtime::Session`]), and each of them
-//! throws until `start` has run — the whole benefit
-//! `rule:core-classes/a-session-opens-on-its-first-use` was buying, and worth nothing if
-//! the first `get` can silently start one.
+//! there is none, which reaches the store only once something is written to it.
+//! [`nvs_core_session_open_with_identifier`] does the same under an identifier the program read
+//! itself. Every member then operates on the session left on the request
+//! ([`nvs_runtime::Session`]).
 //!
 //! **The write-back of `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` is on disk
 //! too.** [`write`] changes one key on the request and marks it touched, [`send_at_end`] sends the
 //! touched keys when the program that opened the session ends, and
-//! [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`] reach the store as they land
-//! because that rule makes those two immediate. The section below is where the send is decided.
+//! [`nvs_core_session_regenerate`], the clears' moves and [`nvs_core_session_clear_all`] reach the
+//! store as they land because that rule makes them immediate. The section below is where the send is decided.
 //!
 //! **`db` is the default store.** A tree that writes no `[session] backend` gets the data folder's
 //! `session.sqlite` (`rule:http-server/no-session-block-means-the-data-folder-store`), and a
-//! process with no usable data folder throws at `start` naming `[session]`. [`sqlite`]'s module
+//! process with no usable data folder throws at the first session call naming `[session]`. [`sqlite`]'s module
 //! doc owns the file's schema, its sweep, and why a request never waits on another.
 //!
 //! # Decision: a dirty record is sent by the *program's* end, and it travels there itself
@@ -35,14 +35,14 @@
 //! crates have a claim and none of them can hold it alone: this one owns the store and cannot see
 //! a request end; `nvs-host` ends every isolate and may not name `nvs-stdlib`; `nvs-server` ends
 //! the HTTP request and names neither. So the send is a `fn` pointer that rides on the record —
-//! [`nvs_runtime::Session::write_back`], filled in here by `start` and `regenerate`, called
+//! [`nvs_runtime::Session::write_back`], filled in here by the open and by `regenerate`, called
 //! through `Ctx::end_session` by whoever ends the program. That method's own docs own the
 //! mechanism; what is decided here is the *where*, and it is three refusals:
 //!
 //! **Not the door.** The obvious reading of that rule puts the send in `nvs-server`, at the line where a
 //! request's response is collected — and the door does not have the record. A request is a root
 //! isolate (`rule:security/isolate-shares-nothing`), so
-//! `Core\Session::start` opened the session on the *isolate's* context, which is built and dropped
+//! the first `Core\Session` call opened the session on the *isolate's* context, which is built and dropped
 //! inside `nvs-host` (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
 //! ) and is nothing the connection's own context can reach. Giving `nvs-server` a dependency on
 //! this crate would not have fixed that; it would have bought the wrong context with a new edge.
@@ -98,7 +98,7 @@
 //! because a second question is a second thing that can
 //! disagree with the first. [`issuable`] is not that second question. It answers **absent** — the
 //! same answer [`load`] gives for an expired identifier and for one an attacker minted, and
-//! `start` responds to all three identically by issuing a fresh one. Having no third answer to
+//! the open responds to all three identically by issuing a fresh one. Having no third answer to
 //! give, it has nothing to disagree with.
 //!
 //! What it buys is that a presented identifier of a megabyte never becomes a key this core sends
@@ -108,20 +108,20 @@
 //!
 //! # What this spends
 //!
-//! One round trip to the configured store per request that starts a session, and a second only for
+//! One round trip to the configured store per request that opens a session, and a second only for
 //! a request that changed the record (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`).
 //! A request that presents no identifier spends a draw
-//! and one write. Memory is one encoded record per in-flight request that started one, released
+//! and one write. Memory is one encoded record per in-flight request that opened one, released
 //! with the request heap — O(in-flight), never O(sessions served).
 //!
-//! A `setSecret` spends one XChaCha20-Poly1305 seal and a `getSecret` one open per key of the ring
+//! A `setShortLivedSecret` or `setLongLivedSecret` spends one XChaCha20-Poly1305 seal and a `getSecret` one open per key of the ring
 //! tried, over a record entry holding the value plus a nonce and a tag. Nothing is held between
 //! calls: the ring is the program's and the ciphertext is the record's.
 //!
 //! **Every member that touches the record decodes it, and every member that changes it encodes it
 //! back** — O(record) per call, over the bytes [`nvs_runtime::Session`] already holds, with the
 //! decoded array living only for the length of the call. That is the accepted trade rather than an
-//! oversight: a session record is a handful of keys beside the network round trip `start` has
+//! oversight: a session record is a handful of keys beside the network round trip the open has
 //! already spent, and the alternative — holding the decoded array on the context — would put an
 //! object at teardown that an
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart` unit swap could strand,
@@ -696,7 +696,7 @@ const FRAMING: usize = 32;
 
 /// The most counted bytes the shared store keeps under one session.
 ///
-/// [`crate::cache::redis::REPLY_CEILING`] bounds the one reply `HGETALL` reads at `start`, so a
+/// [`crate::cache::redis::REPLY_CEILING`] bounds the one reply `HGETALL` reads at the open, so a
 /// session past it could never be loaded again until it expired. 64 KiB is left for `m`, the
 /// reply's own framing and the counting's rounding.
 const SIZE_CEILING: usize = crate::cache::redis::REPLY_CEILING - 64 * 1024;
@@ -1212,7 +1212,7 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// Absent is the answer to all three of
 /// `rule:security/a-session-id-the-store-did-not-issue-is-rejected`
 /// 's cases at once: an id no store issued, one that has expired, and one an attacker minted.
-/// `Core\Session::start()` responds to it by issuing a fresh id, which is why there is no separate
+/// The first `Core\Session` call responds to it by issuing a fresh id, which is why there is no separate
 /// `validateId` for the two of them to disagree about.
 ///
 /// # Errors
@@ -1411,7 +1411,7 @@ const ID_CHARS: usize = ID_BYTES.div_ceil(3) * 4 - (3 - ID_BYTES % 3) % 3;
 /// Whether `presented` is a string this store could have issued — the module doc's decision.
 ///
 /// Not a second question about validity: an identifier that fails here is **absent**, exactly as
-/// one [`load`] finds no record for is, and `start` takes the same branch for both. What it saves
+/// one [`load`] finds no record for is, and the open takes the same branch for both. What it saves
 /// is the round trip, and what it prevents is an arbitrary presented string becoming a key this
 /// core sends to a store it shares with a cache and a limiter.
 pub(crate) fn issuable(presented: &str) -> bool {
@@ -1942,7 +1942,7 @@ pub(crate) enum Lifetime {
 ///
 /// # Errors
 ///
-/// [`unstarted`] before `start`, and where a cookie must be drawn,
+/// [`first_use`]'s, and where a cookie must be drawn,
 /// [`crate::response::head_open`]'s and [`issue_cookie`]'s.
 fn write(
     ctx: &mut Ctx,
@@ -2652,7 +2652,7 @@ const SENDER: &str = "Core\\Session's write-back at the end of the request";
 
 /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s write-back, as the function every session this module opens carries.
 ///
-/// Installed on [`nvs_runtime::Session::write_back`] by `start` and `regenerate`, and reached
+/// Installed on [`nvs_runtime::Session::write_back`] by the open and by `regenerate`, and reached
 /// through [`Ctx::end_session`] at the end of the program that opened the record — the isolate an
 /// HTTP request is, or `nvs run`'s root task. Only a record something changed gets here: the flag
 /// is the whole of `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "writing only
@@ -3357,7 +3357,7 @@ mod tests {
     /// **Here rather than in a `.nvst` case**, because no conformance case can reach a session
     /// store and none of this needs one: the session is loaded once and every change until the end
     /// of the request happens in the request's own heap, so the members below never touch a socket.
-    /// The corpus asks the *language* rule instead — that a member called before `start` throws.
+    /// The corpus asks the *language* rule instead — that the first call opens the session.
     ///
     /// **The entries are asserted, not only the answers.** A member that kept a decoded array of
     /// its own on the side would satisfy every assertion about what `get` said and leave

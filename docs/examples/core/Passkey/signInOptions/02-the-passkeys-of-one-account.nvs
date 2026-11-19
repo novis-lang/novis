@@ -2,8 +2,6 @@
 // Shows how the passkeys of one account go into the options to sign in.
 // requires: redis
 
-Core\Session::start();
-
 // The account has a passkey on a laptop and one on a phone. The application stored them.
 // Here they are made up: an Ed25519 public key from `Core\Crypto`, and random ids.
 var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);

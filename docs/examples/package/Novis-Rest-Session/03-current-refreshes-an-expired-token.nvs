@@ -14,7 +14,6 @@ array<secret bytes> $keys = [Core\Crypto::generateKey()];
 
 // The saved token expires now, so a request cannot use it any more.
 Novis\Rest\Token $old = new Novis\Rest\Token('at-old', 'Bearer', Core\Time::now(), 'rt-5b7f', 'read');
-Core\Session::start();
 Novis\Rest\Session::save($old, $keys);
 
 // `current` sends the refresh token to the server and saves the new token.

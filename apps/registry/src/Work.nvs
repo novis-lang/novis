@@ -20,7 +20,7 @@ final class Work
     public static function issue(): string
     {
         string $challenge = Random::token(16);
-        Core\Session::set(Work::KEY, Time::now()->toEpochSeconds() . ':' . $challenge);
+        Core\Session::setShortLived(Work::KEY, Time::now()->toEpochSeconds() . ':' . $challenge);
         return $challenge;
     }
 

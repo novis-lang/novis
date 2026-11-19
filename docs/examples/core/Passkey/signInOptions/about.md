@@ -6,8 +6,8 @@ Send the JSON to the page. There, JavaScript passes it to
 answer. Read the passkey id in that answer with `Core\Passkey::credentialId`, and check the answer
 with `Core\Passkey::verifySignIn`.
 
-The options contain a new random challenge, which is saved in the session. So call
-`Core\Session::start()` first. A challenge can be checked once, and only for five minutes. A new
+The options contain a new random challenge, which is saved in the session. If the visitor has no
+session yet, the call creates one. A challenge can be checked once, and only for five minutes. A new
 call replaces the challenge of the last call. The options also ask the device to check that the
 user is really there, with a fingerprint, a face or a PIN.
 

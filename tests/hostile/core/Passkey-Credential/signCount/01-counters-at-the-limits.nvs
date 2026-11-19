@@ -64,7 +64,6 @@ echo 'largest: ', $top->signCount(), ', plus one: ', $top->signCount() + 1, "\n"
 
 // 3. A copied passkey sends counts that wrap around after the largest counter: 0, 1 and the largest again.
 // The count must rise, so none of them signs in.
-Core\Session::start();
 array<int> $wrapped = [0, 1, 4294967295];
 foreach ($wrapped as int $count) {
     echo 'saved 4294967295, sent ', $count, ': ', Device::try($top, $key, $count), "\n";

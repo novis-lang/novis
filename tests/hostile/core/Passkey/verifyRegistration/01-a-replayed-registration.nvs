@@ -65,7 +65,6 @@ final class Device
 string $origin = 'https://example.com';
 bytes $x = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
 bytes $ed25519 = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $x]);
-Core\Session::start();
 
 // 1. Checks an answer before the server made any options. Every error below is caught, so each step runs.
 echo 'no options: ', Device::check('{"type":"public-key"}'), " registered\n";

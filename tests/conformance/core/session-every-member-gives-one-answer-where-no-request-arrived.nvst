@@ -1,0 +1,123 @@
+--TEST--
+Every `Core\Session` member gives one answer to a program answering no request, asserted by counting rather than read off any one of them -- `rule:core-classes/a-session-opens-on-its-first-use`, `rule:core-api/session-roster`, `rule:http-server/a-session-holds-a-secret-only-sealed`
+--FILE--
+<?nvs
+// `rule:core-classes/a-session-opens-on-its-first-use` states one rule for all of them, so this
+// asks whether they *agree* rather than what each said: a member that grew a
+// refusal of its own still looks right on its own line, and fails here. Each
+// message has its own member name taken out first, which is the only part
+// allowed to differ.
+string $fromGet = "";
+string $fromSetShort = "";
+string $fromSetLong = "";
+string $fromRemove = "";
+string $fromClearShort = "";
+string $fromClearLong = "";
+string $fromClearAll = "";
+string $fromRegenerate = "";
+string $fromSetShortSecret = "";
+string $fromSetLongSecret = "";
+string $fromGetSecret = "";
+string $fromOpen = "";
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+secret string $token = "sk-live";
+
+try {
+    Core\Session::get("cart");
+} catch (LogicError $e) {
+    $fromGet = Core\Str::replace($e->message, "::get()", "::<member>()");
+}
+
+try {
+    Core\Session::setShortLived("cart", 1);
+} catch (LogicError $e) {
+    $fromSetShort = Core\Str::replace($e->message, "::setShortLived()", "::<member>()");
+}
+
+try {
+    Core\Session::setLongLived("theme", "dark");
+} catch (LogicError $e) {
+    $fromSetLong = Core\Str::replace($e->message, "::setLongLived()", "::<member>()");
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (LogicError $e) {
+    $fromRemove = Core\Str::replace($e->message, "::remove()", "::<member>()");
+}
+
+try {
+    Core\Session::clearShortLived();
+} catch (LogicError $e) {
+    $fromClearShort = Core\Str::replace($e->message, "::clearShortLived()", "::<member>()");
+}
+
+try {
+    Core\Session::clearLongLived();
+} catch (LogicError $e) {
+    $fromClearLong = Core\Str::replace($e->message, "::clearLongLived()", "::<member>()");
+}
+
+try {
+    Core\Session::clearAll();
+} catch (LogicError $e) {
+    $fromClearAll = Core\Str::replace($e->message, "::clearAll()", "::<member>()");
+}
+
+try {
+    Core\Session::regenerate();
+} catch (LogicError $e) {
+    $fromRegenerate = Core\Str::replace($e->message, "::regenerate()", "::<member>()");
+}
+
+// The sealed trio takes the same rule, and takes it before it looks at its key
+// ring: a member that refused the ring first would answer a program with no
+// request with a different rule's message.
+try {
+    Core\Session::setShortLivedSecret("refresh", $token, $ring);
+} catch (LogicError $e) {
+    $fromSetShortSecret = Core\Str::replace($e->message, "::setShortLivedSecret()", "::<member>()");
+}
+
+try {
+    Core\Session::setLongLivedSecret("device", $token, $ring);
+} catch (LogicError $e) {
+    $fromSetLongSecret = Core\Str::replace($e->message, "::setLongLivedSecret()", "::<member>()");
+}
+
+try {
+    Core\Session::getSecret("refresh", $ring);
+} catch (LogicError $e) {
+    $fromGetSecret = Core\Str::replace($e->message, "::getSecret()", "::<member>()");
+}
+
+try {
+    Core\Session::openWithIdentifier("PmA5tKz1QvR3sYbNqLwXe2");
+} catch (LogicError $e) {
+    $fromOpen = Core\Str::replace($e->message, "::openWithIdentifier()", "::<member>()");
+}
+
+array<string> $answers = [
+    $fromSetShort, $fromSetLong, $fromRemove, $fromClearShort, $fromClearLong, $fromClearAll,
+    $fromRegenerate, $fromSetShortSecret, $fromSetLongSecret, $fromGetSecret, $fromOpen,
+];
+uint $agreed = 0;
+foreach ($answers as string $answer) {
+    if ($answer == $fromGet) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "the refusals agree ", $agreed, " of 11\n";
+
+// Counting is not enough on its own: empty strings agree too, and would mean
+// nothing was thrown at all. So the answer they agree on is also non-empty.
+if (Core\Str::length($fromGet) > 0) {
+    echo "and what they agree on is an answer\n";
+} else {
+    echo "and what they agree on is nothing at all\n";
+}
+--EXPECT--
+the refusals agree 11 of 11
+and what they agree on is an answer

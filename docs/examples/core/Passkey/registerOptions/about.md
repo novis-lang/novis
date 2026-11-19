@@ -5,8 +5,8 @@ Send the JSON to the page. There, JavaScript passes it to
 `navigator.credentials.create()`. The browser asks the user to create the passkey and gives back
 its answer. Check that answer on the server with `Core\Passkey::verifyRegistration`.
 
-The options contain a new random challenge, which is saved in the session. So call
-`Core\Session::start()` first. A challenge can be checked once, and only for five minutes. The
+The options contain a new random challenge, which is saved in the session. If the visitor has no
+session yet, the call creates one. A challenge can be checked once, and only for five minutes. The
 options also ask the device to check that the user is really there, with a fingerprint, a face or
 a PIN.
 

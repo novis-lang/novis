@@ -56,7 +56,6 @@ class PasskeyPage
     // The server half for the first `fetch`. It returns the options.
     public static function options(Account $account): string
     {
-        Core\Session::start();
         return Core\Passkey::registerOptions('example.com', 'Example Shop', $account->id, $account->email, $account->passkeys);
     }
 

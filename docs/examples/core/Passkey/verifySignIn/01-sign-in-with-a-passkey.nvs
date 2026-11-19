@@ -41,7 +41,6 @@ Core\Passkey\Credential $saved = Core\Passkey\Credential::of(
 );
 
 // The server makes the options. The challenge in them is saved in the session.
-Core\Session::start();
 string $options = Core\Passkey::signInOptions('example.com', [$saved]);
 
 // The device signs the challenge. Its counter is now 5.

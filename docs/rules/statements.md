@@ -660,7 +660,7 @@ by a `static` method on a reserved `Core` class, populated per isolate:
 |---|---|
 | `$_SERVER` | `Core\Server` — server metadata and request headers |
 | `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` | `Core\Request` — query, body, cookie and upload input |
-| `$_SESSION` | `Core\Session`, after an explicit `Core\Session::start()`; there is no auto-start |
+| `$_SESSION` | `Core\Session`, whose first call in a request opens the session |
 | `$_ENV`, `getenv()` | `Core\Env` |
 | `$argv`, `$argc` | `Core\Cli` — the CLI entry point only |
 | `$_ARGS` | `Core\Script::args()` |

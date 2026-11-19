@@ -2282,7 +2282,7 @@ fn grouped_fields<'a>(inbound: &'a Inbound) -> Vec<(String, Vec<&'a [u8]>)> {
 /// one [`nvs_core_request_scheme`] answers, so a plain-HTTP listener with no
 /// trusted proxy shows no `__Host-` or `__Secure-` cookie at all. The server's
 /// CSRF door reads the same way, so the session a token is checked against is
-/// the one `Core\Session::start` opens.
+/// the one a request's first `Core\Session` call opens.
 pub(crate) fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8]> {
     inbound.cookie(name)
 }

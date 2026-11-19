@@ -478,12 +478,13 @@ fn two_mounts_do_not_share_memory_tier_cache_entries() {
     );
 }
 
-/// A program that starts a session, writes `name` into it when the query has
-/// `put=yes`, and prints what the session has, or `absent`.
+/// A program that writes `name` into its session when the query has `put=yes`,
+/// and prints what the session has, or `absent`. The value is long-lived, so
+/// the identifier cookie alone reads it back.
 fn sessioned(name: &str) -> String {
     format!(
-        "<?nvs\nCore\\Session::start();\n\
-         if (Core\\Request::query(\"put\") == \"yes\") {{\n    Core\\Session::set(\"owner\", \"{name}\");\n}}\n\
+        "<?nvs\n\
+         if (Core\\Request::query(\"put\") == \"yes\") {{\n    Core\\Session::setLongLived(\"owner\", \"{name}\");\n}}\n\
          echo (Core\\Session::get(\"owner\") ?? \"absent\") as string;\n"
     )
 }

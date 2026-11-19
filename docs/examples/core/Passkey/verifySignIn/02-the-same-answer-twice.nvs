@@ -40,7 +40,6 @@ Core\Passkey\Credential $saved = Core\Passkey\Credential::of(
     0,
 );
 
-Core\Session::start();
 string $options = Core\Passkey::signInOptions('example.com', [$saved]);
 tainted string $answer = Device::signIn($options, $key, $saved->id(), 1);
 

@@ -13,8 +13,6 @@ secret string $clientSecret = 's3cret';
 Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
 array<secret bytes> $keys = [Core\Crypto::generateKey()];
 
-Core\Session::start();
-
 // `save` encrypts both tokens with the first key and saves them in the session.
 Novis\Rest\Token $token = $client->requestToken(['grant_type' => 'client_credentials', 'scope' => 'read']);
 Novis\Rest\Session::save($token, $keys);

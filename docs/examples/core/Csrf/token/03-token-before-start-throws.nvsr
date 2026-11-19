@@ -1,6 +1,0 @@
---METHOD--
-GET
---PATH--
-/contact
---HEADERS--
-host: example.com

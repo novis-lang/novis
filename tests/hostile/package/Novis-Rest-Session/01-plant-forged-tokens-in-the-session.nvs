@@ -18,34 +18,32 @@ class Probe
         echo $step, ': ', $found == null ? 'null' : 'a token ' . $found->type . ' ' . $found->scope, "\n";
     }
 
-    // Saves a real token, then replaces one value with `Core\Session::set`.
+    // Saves a real token, then replaces one value with `Core\Session::setShortLived`.
     public static function plant(Novis\Rest\Token $token, array<secret bytes> $keys, string $name, mixed $value): void
     {
         Novis\Rest\Session::save($token, $keys);
-        Core\Session::set($name, $value);
+        Core\Session::setShortLived($name, $value);
     }
 }
 
-// 1. The request loads a token before the session is started. This throws a `RuntimeError`.
+// 1. The request loads a token before anything is saved. This call opens the session.
+// The result is `null`. Any error is caught, so step 2 still runs.
 try {
-    Novis\Rest\Session::load($keys);
-    echo "read a session that was never started\n";
-} catch (RuntimeError $e) {
-    echo "not started: RuntimeError\n";
+    Probe::show('empty session', $keys);
+} catch (Throwable $e) {
+    echo 'empty session: ', $e::class, "\n";
 }
 
-Core\Session::start();
-
-// 2. The request plants every value but the access token with `set()`. The result is `null`.
-Core\Session::set('novis-rest.type', 'Bearer');
-Core\Session::set('novis-rest.expires', 4102444800);
-Core\Session::set('novis-rest.scope', 'admin');
+// 2. The request plants every value but the access token with `setShortLived()`. The result is `null`.
+Core\Session::setShortLived('novis-rest.type', 'Bearer');
+Core\Session::setShortLived('novis-rest.expires', 4102444800);
+Core\Session::setShortLived('novis-rest.scope', 'admin');
 Probe::show('no access token', $keys);
 
 // 3. The request plants the access token as plain text. `getSecret` does not read it, so the result is `null`.
-Core\Session::set('novis-rest.access', 'at-forged');
+Core\Session::setShortLived('novis-rest.access', 'at-forged');
 Probe::show('plain access token', $keys);
-Core\Session::set("\x00secret\x00novis-rest.access", 'at-forged');
+Core\Session::setShortLived("\x00secret\x00novis-rest.access", 'at-forged');
 Probe::show('plain text as a secret', $keys);
 
 // 4. The request reads a real token with a different key. The result is `null`.
@@ -102,7 +100,7 @@ try {
 // 9. The request tries to copy the saved refresh token over the access token.
 // A refresh token should never be sent as an access token.
 Novis\Rest\Session::save($token, $keys);
-Core\Session::set("\x00secret\x00novis-rest.access", Core\Session::get("\x00secret\x00novis-rest.refresh"));
+Core\Session::setShortLived("\x00secret\x00novis-rest.access", Core\Session::get("\x00secret\x00novis-rest.refresh"));
 ?Novis\Rest\Token $swapped = Novis\Rest\Session::load($keys);
 secret string $refreshText = 'rt-real';
 echo 'swapped tokens: ', $swapped == null ? 'null' : ($swapped->accessToken == $refreshText ? 'the refresh token' : 'another token'), "\n";

@@ -1,11 +1,11 @@
 --TEST--
-The sealed door is the only door into a session too: `get` answers `null` for a name `setSecret` wrote, a plain `set` under that name is a separate value, and `remove` takes the plain one and leaves the sealed one — `rule:http-server/a-session-holds-a-secret-only-sealed`, `rule:security/secret-crosses-no-boundary`
+The sealed door is the only door into a session too: `get` answers `null` for a name `setShortLivedSecret` wrote, a plain `setShortLived` under that name is a separate value, and `remove` takes the plain one and leaves the sealed one — `rule:http-server/a-session-holds-a-secret-only-sealed`, `rule:security/secret-crosses-no-boundary`
 --SKIPIF--
 <?nvs
 // As the round-trip case beside this one: the record crosses the store
 // `[cache.shared]` names, and a tree without one skips. The store is asked
-// directly rather than through `Core\Session::start`, which refuses where no
-// request arrived (`rule:security/request-state-throws-in-an-isolate`) — and
+// directly rather than through a `Core\Session` method, whose first use refuses
+// where no request arrived (`rule:security/request-state-throws-in-an-isolate`) — and
 // this scaffolding answers none whatever the case does, since a `--GET--`
 // section describes the program under `--FILE--` alone.
 try {
@@ -17,29 +17,28 @@ try {
 under=a-request
 --FILE--
 <?nvs
-// `set` refuses a `secret` at the boundary and `setSecret` is where one goes
-// instead. The other half of that is asserted here: nothing `setSecret` wrote
+// `setShortLived` refuses a `secret` at the boundary and `setShortLivedSecret` is
+// where one goes instead. The other half of that is asserted here: nothing it wrote
 // is reachable through the members that read and write the record the ordinary
 // way, so a program cannot arrive at the ciphertext by asking for the name.
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
 secret string $token = "sk-live-7";
 
-Core\Session::start();
-Core\Session::setSecret("refresh", $token, $ring);
+Core\Session::setShortLivedSecret("refresh", $token, $ring);
 
 echo "get is blind to a sealed value: ",
     Core\Session::get("refresh") == null ? "null" : "something", "\n";
 
 // The two live in spaces of their own, so writing the ordinary way under the
 // same name neither replaces the sealed value nor is replaced by it.
-Core\Session::set("refresh", "plain");
+Core\Session::setShortLived("refresh", "plain");
 echo "a plain set under the same name: ", Core\Session::get("refresh") as string, "\n";
 echo "and the sealed value is untouched: ",
     (Core\Session::getSecret("refresh", $ring) ?? "") == $token ? "yes" : "no", "\n";
 
 // The same claim through the member that takes a key away: `remove` takes what
-// `set` wrote and leaves what `setSecret` wrote.
+// `setShortLived` wrote and leaves what `setShortLivedSecret` wrote.
 Core\Session::remove("refresh");
 echo "remove takes the plain value: ",
     Core\Session::get("refresh") == null ? "null" : "something", "\n";

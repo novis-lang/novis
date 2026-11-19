@@ -3560,14 +3560,14 @@ The token half applies only to a matched row, because the opt-out is written on 
 with no table could not exempt a webhook from it, and every write it serves under a key would be
 refused.
 
-**The session a token is bound to is read the way `Core\Session::start` reads it**: the cookie
+**The session a token is bound to is read the way `Core\Session` opens it**: the cookie
 `[session] cookie` names, found on any `Cookie` line, pair by pair, with one reader for both. Two
 readers that split the header differently would check a token against one session while the program
 opens another. **A request with no session passes no token**, from any origin. A token for no session
 is what a page shows a visitor who has none, so anyone can load one, and accepting it would let
 another site sign a visitor in to an account the attacker chose.
 
-**A page issues a token with `Core\Csrf::token`**, after `Core\Session::start`. It binds the token to
+**A page issues a token with `Core\Csrf::token`**, which opens the session on its first use. It binds the token to
 the identifier the response's session cookie carries, under `[http] csrf_key` read by the door's own
 reader, so the token it renders is one the door accepts on the next request. For a visitor with no
 session, the call is the session's first write: it draws the identifier and sends the cookie, so a
@@ -3951,8 +3951,8 @@ boundary sits, and this rule is the boundary's home.
 
 `rule:security/a-session-id-the-store-did-not-issue-is-rejected`
 
-`Core\Session::start()` accepts a presented id only if its own store issued it and it is still
-live. An unknown, expired or attacker-minted id is discarded and a fresh, empty session is opened in
+The first `Core\Session` call of a request accepts a presented id only if its own store issued it
+and it is still live, and so does `openWithIdentifier`. An unknown, expired or attacker-minted id is discarded and a fresh, empty session is opened in
 its place. Its new id is drawn when something is first written to it
 ([`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use)), so the presented id is never used.
 There is no toggle, no ini, no option, on the security priority: an off switch for fixation

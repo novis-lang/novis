@@ -34,7 +34,6 @@ final class Device
 }
 
 // The server makes the options. The challenge in them is saved in the session.
-Core\Session::start();
 string $options = Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada@example.com');
 
 // The browser sends its answer. Text from a request is `tainted`.

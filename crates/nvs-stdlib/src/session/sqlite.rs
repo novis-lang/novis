@@ -9,7 +9,7 @@
 //! that shares the data folder.
 //!
 //! `load` is one statement, and every write is one short transaction on this core's connection,
-//! so nothing is held between `start` and the write-back at the end of the request. Two requests
+//! so nothing is held between the first use and the write-back at the end of the request. Two requests
 //! of one session never wait on each other beyond the few statements of a write, two that change
 //! different keys keep both, and two that change one key keep the last
 //! (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). WAL mode lets every
@@ -31,7 +31,7 @@
 //! ([`nvs_db::SqliteConn::query`]), so a core never waits on the disk.
 //!
 //! Cost: one connection and its statement cache per core, O(cores). Per request, one indexed range
-//! read at `start`, and for a changed session one transaction that writes one row per changed key
+//! read at the first use, and for a changed session one transaction that writes one row per changed key
 //! and the head, plus two indexed deletes per core per minute. The file holds one row per key of
 //! each live session.
 
@@ -195,7 +195,7 @@ fn opened(path: &Path) -> io::Result<Held> {
 ///
 /// # Errors
 ///
-/// SQLite's refusal, which `start` throws as an `IOError` and never reads as absent. A session
+/// SQLite's refusal, which the first use throws as an `IOError` and never reads as absent. A session
 /// larger than the request's memory has left is that error too, and its refusal is recorded, so
 /// the member ends with the memory `FATAL`.
 ///
@@ -292,8 +292,8 @@ fn blob(value: SqliteValue) -> Option<Vec<u8>> {
 ///
 /// `IMMEDIATE` takes the write lock at the start, so two writers never both read and then both
 /// try to upgrade: the second waits `busy_timeout` for the first's few statements. The
-/// transaction lasts only as long as its own statements, so no request holds it between `start`
-/// and the write-back.
+/// transaction lasts only as long as its own statements, so no request holds it between the first
+/// use and the write-back.
 ///
 /// # Errors
 ///

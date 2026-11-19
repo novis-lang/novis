@@ -188,7 +188,7 @@ mod tests {
 
     /// `rule:http-server/no-session-block-means-the-data-folder-store`: a tree with no `[session]`
     /// block, and one that wrote the block without choosing, both boot. Both get the data folder's
-    /// SQLite file, which `Core\Session::start()` opens.
+    /// SQLite file, which a request's first `Core\Session` call opens.
     #[test]
     fn a_tree_that_configures_no_session_still_boots() {
         validate(&Config::default(), &BTreeMap::new()).expect("no block at all");

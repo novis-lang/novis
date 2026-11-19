@@ -1,7 +1,8 @@
 - **A request's per-request state is not on the context the door holds; the connection's `Ctx` and
   the isolate's are different objects.** The request is a root isolate whose `Ctx` `nvs-host` builds
   and drops inside `isolate::finish`, so a write-back filed at `crates/nvs-server/src/serve.rs`'s
-  request end reaches the connection's context and never the record `Core\Session::start` opened.
+  request end reaches the connection's context and never the record the first `Core\Session` call
+  opened.
   Whatever a request's end owes a context happens in `isolate::finish` and `nvs run`'s root task;
   where `nvs-host` cannot name `nvs-stdlib`, it travels as a `fn` pointer on the state itself.
-  `until: gone crates/nvs-stdlib/src/session.rs:Core\Session::start`
+  `until: gone crates/nvs-stdlib/src/session.rs:write_back`

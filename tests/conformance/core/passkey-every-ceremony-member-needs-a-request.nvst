@@ -1,7 +1,5 @@
 --TEST--
-Each `Core\Passkey` member that saves or takes a challenge throws a `RuntimeError` naming `Core\Session::start()` before the session is started, `credentialId` needs no session, and a credential built with `of` returns its four values — `rule:core-classes/passkey-verifies-a-webauthn-ceremony` and `rule:core-classes/a-session-opens-on-its-first-use`
---GET--
-under=a-request
+Each `Core\Passkey` member that saves or takes a challenge opens the session on its first use, so in a program that answers no request it throws a `LogicError` naming itself; `credentialId` needs no session, and a credential built with `of` returns its four values — `rule:core-classes/passkey-verifies-a-webauthn-ceremony` and `rule:core-classes/a-session-opens-on-its-first-use`
 --FILE--
 <?nvs
 // covers: Core\Passkey::registerOptions
@@ -22,27 +20,27 @@ echo "id ", Core\Encoding::toHex($stored->id()), ", key of ", Core\Bytes::length
     " bytes, counter ", $stored->signCount(), "\n";
 echo "algorithm: ", $stored->algorithm() == Core\Passkey\Credential::Algorithm::Ed25519 ? "Ed25519" : "another", "\n";
 
-// No session is started yet, so each of these four calls throws.
+// This program answers no request, so it has no session, and each of these four calls throws.
 string $response = "{\"type\":\"public-key\",\"id\":\"AQIDBAU\",\"response\":{}}";
 try {
     echo Core\Passkey::registerOptions("example.com", "Example", Core\Encoding::fromHex("01"), "ada");
-} catch (RuntimeError $e) {
-    echo "registerOptions: ", Core\Str::contains($e->message, "Core\\Session::start()") ? "names start" : $e->message, "\n";
+} catch (LogicError $e) {
+    echo "registerOptions: ", Core\Str::contains($e->message, "Core\\Passkey::registerOptions()") ? "names itself" : $e->message, "\n";
 }
 try {
     Core\Passkey::verifyRegistration($response, "example.com", "https://example.com");
-} catch (RuntimeError $e) {
-    echo "verifyRegistration: ", Core\Str::contains($e->message, "Core\\Session::start()") ? "names start" : $e->message, "\n";
+} catch (LogicError $e) {
+    echo "verifyRegistration: ", Core\Str::contains($e->message, "Core\\Passkey::verifyRegistration()") ? "names itself" : $e->message, "\n";
 }
 try {
     echo Core\Passkey::signInOptions("example.com", [$stored]);
-} catch (RuntimeError $e) {
-    echo "signInOptions: ", Core\Str::contains($e->message, "Core\\Session::start()") ? "names start" : $e->message, "\n";
+} catch (LogicError $e) {
+    echo "signInOptions: ", Core\Str::contains($e->message, "Core\\Passkey::signInOptions()") ? "names itself" : $e->message, "\n";
 }
 try {
     Core\Passkey::verifySignIn($response, $stored, "example.com", "https://example.com");
-} catch (RuntimeError $e) {
-    echo "verifySignIn: ", Core\Str::contains($e->message, "Core\\Session::start()") ? "names start" : $e->message, "\n";
+} catch (LogicError $e) {
+    echo "verifySignIn: ", Core\Str::contains($e->message, "Core\\Passkey::verifySignIn()") ? "names itself" : $e->message, "\n";
 }
 
 // `credentialId` only reads the response, so it works without a session.
@@ -50,8 +48,8 @@ echo "credentialId: ", Core\Encoding::toHex(Core\Passkey::credentialId($response
 --EXPECT--
 id 0102030405, key of 42 bytes, counter 9
 algorithm: Ed25519
-registerOptions: names start
-verifyRegistration: names start
-signInOptions: names start
-verifySignIn: names start
+registerOptions: names itself
+verifyRegistration: names itself
+signInOptions: names itself
+verifySignIn: names itself
 credentialId: 0102030405
