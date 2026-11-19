@@ -4697,7 +4697,7 @@ pub(crate) fn decimal_literal_parts(text: &str) -> Option<(u128, u8)> {
 /// `crate::string_lit`'s own module docs already record for the double-quoted half: the checker
 /// has to diagnose exactly the cooking that happens here, so one routine has to perform both —
 /// unlike [`int_literal_digits`], where the crate boundary runs the other way.
-fn cook_str_literal(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
+pub(crate) fn cook_str_literal(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
     nvs_types::string_lit::cook_string_literal(src, span)
 }
 
@@ -4712,7 +4712,7 @@ fn cook_str_literal(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
 /// function to do so, since this crate has no reverse dependency on that one) and reports `rule:types/arithmetic`'s diagnostic before lowering ever runs — see its doc comment — so [`Lowering::lower_int_literal`] can
 /// treat an out-of-range literal as unreachable input, the same "trusts `nvs_types::check_program`
 /// already ran" contract every other panic in this crate relies on.
-fn int_literal_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> (u32, String) {
+pub(crate) fn int_literal_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> (u32, String) {
     let digits = clean_digits(src, span);
     for (prefix, radix) in [
         ("0x", 16),

@@ -7006,7 +7006,9 @@ impl<'a> Lowering<'a> {
     /// single-`ArrayNew` shape: each element's key is simply
     /// its index, auto-numbered from `0` exactly like PHP's own
     /// `[$a, $b]` shorthand, computed at lowering time with no runtime
-    /// key instruction at all. Anything else instead builds an empty
+    /// key instruction at all. A literal whose keys are all different string
+    /// or integer literals takes it too, with those keys
+    /// ([`crate::forms::constant_keys`]). Anything else instead builds an empty
     /// array first and writes one element at a time into it in source
     /// order — seeing `crate::ir::InstKind::ArrayNew`'s own doc
     /// comment for why that's the only shape general enough to give an
@@ -7047,7 +7049,13 @@ impl<'a> Lowering<'a> {
         // aliasing element no owner, so it is a shape the language does not
         // have rather than one this function has not learned.
         let spread = items.iter().any(|item| item.spread);
-        if !spread && items.iter().all(|item| item.key.is_none()) {
+        let positional = !spread && items.iter().all(|item| item.key.is_none());
+        // Row `constant-key-literal`: keys that are all different literals
+        // take the one-`ArrayNew` path too, each at the key it is stored at.
+        let keys = (!positional && cheaper_forms_on())
+            .then(|| crate::forms::constant_keys(items, self.src, self.exprs))
+            .flatten();
+        if positional || keys.is_some() {
             // Every element is evaluated before the one `ArrayNew` that takes
             // them all, so a later element that throws leaves the earlier ones
             // owned by nobody. Each is staged as a transferred temporary: the
@@ -7063,7 +7071,8 @@ impl<'a> Lowering<'a> {
                     }
                     self.own_transferred_temporary(v);
                 }
-                entries.push((i.to_string(), v));
+                let key = keys.as_ref().map_or_else(|| i.to_string(), |keys| keys[i].clone());
+                entries.push((key, v));
             }
             self.forget_transferred_since(mark);
             self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })

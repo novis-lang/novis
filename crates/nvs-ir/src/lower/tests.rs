@@ -7020,3 +7020,26 @@ fn a_key_nobody_reads_is_not_made() {
     assert_eq!(insts_where(&on, keys), 1);
     assert_eq!(insts_where(&off, keys), 2);
 }
+
+/// Row `constant-key-literal`: a literal whose keys are all different literals
+/// is one `ArrayNew` with its entries, and an integer key is its decimal. A
+/// literal with a computed key or two equal keys writes one entry at a time.
+#[test]
+fn a_literal_with_constant_keys_is_built_in_one_step() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(string $k): void {\n    \
+               array<int> $a = ['x' => 1, 0x10 => 2];\n    \
+               array<int> $b = [$k => 1, 'y' => 2];\n    \
+               array<int> $c = ['z' => 1, 'z' => 2];\n    \
+               echo Core\\Arr::count($a), Core\\Arr::count($b), Core\\Arr::count($c);\n  }\n}\n";
+    let sets = |kind: &InstKind| matches!(kind, InstKind::ArraySet { .. });
+    let built = |kind: &InstKind| {
+        matches!(kind, InstKind::ArrayNew { entries }
+            if entries.iter().map(|(key, _)| key.as_str()).eq(["x", "16"]))
+    };
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(insts_where(&on, built), 1);
+    assert_eq!(insts_where(&on, sets), 4);
+    assert_eq!(insts_where(&off, built), 0);
+    assert_eq!(insts_where(&off, sets), 6);
+}

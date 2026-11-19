@@ -2127,7 +2127,10 @@ pub enum InstKind {
     /// positional element's key is simply its index in the list, auto-
     /// numbered from `0` exactly like PHP's own `[$a, $b]` shorthand — known
     /// statically without a runtime index-tracking instruction. A literal
-    /// with at least one explicit `key =>` element instead lowers to an
+    /// whose keys are all different string or integer literals takes the same
+    /// one instruction, each entry at the key it is stored at (row
+    /// `constant-key-literal` of `crate::forms`). Any other literal
+    /// with an explicit `key =>` element instead lowers to an
     /// *empty* `ArrayNew` (`entries` is `Vec::new()`) followed by a chain of
     /// [`InstKind::ArraySet`]s, one per element in source order, each writing
     /// into the value the last one defined —
@@ -2159,8 +2162,8 @@ pub enum InstKind {
     /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm.
     ArrayNew {
         /// `(key, value)` pairs, in insertion order — `rule:types/arrays`'s
-        /// "iteration order is insertion order, always." Always empty for a
-        /// literal with an explicit `key =>` element; see above.
+        /// "iteration order is insertion order, always." Empty for a
+        /// literal that writes its entries one at a time; see above.
         entries: Vec<(String, ValueId)>,
     },
     /// Reads the element at `key` off `array` — `$arr[$i]`, whose base

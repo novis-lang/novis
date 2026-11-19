@@ -36,7 +36,7 @@
 
 use nvs_diagnostics::{SourceFile, Span};
 use nvs_syntax::ast::{
-    Arg, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, Stmt, StmtKind, Type,
+    Arg, ArrayItem, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, Stmt, StmtKind, Type,
     UnaryOp,
 };
 use nvs_types::expr_table::{ExprInfo, ExprTypeTable};
@@ -781,6 +781,42 @@ pub(crate) fn foreach_range<'a>(
         end: &end.value,
         step,
     })
+}
+
+/// Row `constant-key-literal`: the key each element of `items` is stored
+/// at, where every element has a written key that is a string or integer
+/// literal, no two of those keys are equal, and none is a spread.
+///
+/// An integer key is the decimal string the array stores. A write at a
+/// decimal string key moves the append counter as a write at the integer
+/// does, so one `ArrayNew` builds the same array as the chain of writes.
+pub(crate) fn constant_keys(
+    items: &[ArrayItem],
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+) -> Option<Vec<String>> {
+    let mut keys = Vec::with_capacity(items.len());
+    let mut seen = rustc_hash::FxHashSet::default();
+    for item in items {
+        if item.spread || item.by_ref {
+            return None;
+        }
+        let key = match &item.key.as_ref()?.kind {
+            ExprKind::Str(span) if exprs.written_path(*span).is_none() => {
+                crate::lower::cook_str_literal(src, *span)
+            }
+            ExprKind::Int(span) => {
+                let (radix, digits) = crate::lower::int_literal_digits(src, *span);
+                u64::from_str_radix(&digits, radix).ok()?.to_string()
+            }
+            _ => return None,
+        };
+        if !seen.insert(key.clone()) {
+            return None;
+        }
+        keys.push(key);
+    }
+    Some(keys)
 }
 
 /// Row `unread-foreach-key`: whether `text`, a loop body's source, may read
