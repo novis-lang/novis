@@ -7194,6 +7194,51 @@ fn insts_where(program: &crate::ir::Program, pick: impl Fn(&InstKind) -> bool) -
         .count()
 }
 
+/// The `proven` mask of each `Core` call in `src` whose symbol starts with
+/// `member`, in order.
+fn proven_masks(src: &str, member: &str) -> Vec<u32> {
+    lower_whole_file_with_src(src)
+        .0
+        .functions
+        .iter()
+        .flat_map(|f| f.blocks.iter())
+        .flat_map(|block| block.insts.iter())
+        .filter_map(|inst| match inst.kind {
+            InstKind::CoreCall { symbol, proven, .. } if symbol.starts_with(member) => Some(proven),
+            _ => None,
+        })
+        .collect()
+}
+
+/// An anonymous function whose parameters take what `Core\Arr::map` passes,
+/// exactly as it passes it, is marked in its argument slot, so the member
+/// calls it without checking each argument. One that needs `int` widened to
+/// `float`, and a callable held in a variable, keep the check. An anonymous
+/// function `Core\Arr::fill` stores is a value, not a callback, so it is never
+/// marked.
+#[test]
+fn a_proven_callback_runs_without_the_check_of_each_call() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $a, array<string> $s): void {\n    \
+               var $b = Core\\Arr::map($a, fn(int $x): int => $x + 1);\n    \
+               var $c = Core\\Arr::map($s, fn(string $v, string $k): string => $v . $k);\n    \
+               var $d = Core\\Arr::map($a, fn(float $x): float => $x);\n    \
+               var $f = fn(int $x): int => $x;\n    \
+               var $e = Core\\Arr::map($a, $f);\n    \
+               var $g = Core\\Arr::fill(2, fn(int $x): int => $x);\n  }\n}\n";
+    assert_eq!(proven_masks(src, "nvs_core_arr_map"), [0b10, 0b10, 0, 0]);
+    assert_eq!(proven_masks(src, "nvs_core_arr_fill"), [0]);
+}
+
+/// A subject whose element type is `mixed` or a union says nothing about the
+/// tag each entry has, so the callback keeps the check of each call.
+#[test]
+fn a_callback_over_a_mixed_subject_keeps_the_check() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<mixed> $a, array<int|string> $u): void {\n    \
+               var $b = Core\\Arr::map($a, fn(mixed $x): string => \"x\");\n    \
+               var $c = Core\\Arr::map($u, fn(int|string $x): string => \"x\");\n  }\n}\n";
+    assert_eq!(proven_masks(src, "nvs_core_arr_map"), [0, 0]);
+}
+
 /// Row `foreach-keys-or-values`: a loop over `keys(m)` or `values(m)` builds
 /// neither list. The loop over the keys reads each key of `m` itself.
 #[test]

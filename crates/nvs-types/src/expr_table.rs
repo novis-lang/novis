@@ -1648,6 +1648,7 @@ pub struct ExprTypeTable {
     unresolved_calls: FxHashMap<Span, UnresolvedCall>,
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
+    proven_callbacks: FxHashSet<Span>,
     guarded_target_reads: FxHashSet<Span>,
     covariant_writes: FxHashSet<Span>,
     never_stmts: FxHashSet<Span>,
@@ -1836,6 +1837,7 @@ impl ExprTypeTable {
             unresolved_calls,
             types,
             float_widened,
+            proven_callbacks,
             guarded_target_reads,
             covariant_writes,
             never_stmts,
@@ -1897,6 +1899,7 @@ impl ExprTypeTable {
         self.unresolved_calls.extend(unresolved_calls);
         self.types.extend(types);
         self.float_widened.extend(float_widened);
+        self.proven_callbacks.extend(proven_callbacks);
         self.guarded_target_reads.extend(guarded_target_reads);
         self.covariant_writes.extend(covariant_writes);
         self.never_stmts.extend(never_stmts);
@@ -1983,6 +1986,7 @@ impl ExprTypeTable {
         section("unresolved_calls", sorted(&self.unresolved_calls));
         section("types", sorted(&self.types));
         section("float_widened", sorted(&self.float_widened));
+        section("proven_callbacks", sorted(&self.proven_callbacks));
         section("guarded_target_reads", sorted(&self.guarded_target_reads));
         section("covariant_writes", sorted(&self.covariant_writes));
         section("never_stmts", sorted(&self.never_stmts));
@@ -3341,6 +3345,24 @@ impl ExprTypeTable {
     #[must_use]
     pub fn widens_to_float(&self, span: Span) -> bool {
         self.float_widened.contains(&span)
+    }
+
+    /// Records that the anonymous function at `span`, an argument of a `Core`
+    /// member call, takes every argument the member passes as it is passed
+    /// (`crate::expr::assign::callback_is_proven`). See
+    /// [`Self::callback_is_proven`].
+    pub(crate) fn record_proven_callback(&mut self, span: Span) {
+        self.proven_callbacks.insert(span);
+    }
+
+    /// Whether the anonymous function at `span` was proven against the
+    /// `Core` member's callback signature it is passed at. `nvs-ir` marks
+    /// such an argument, and the member then calls it without checking each
+    /// argument's tag and type. One span per proven callback, held for the
+    /// compile.
+    #[must_use]
+    pub fn callback_is_proven(&self, span: Span) -> bool {
+        self.proven_callbacks.contains(&span)
     }
 
     /// Records that the level at `span` of a `??=` target is read guarded.

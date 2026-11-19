@@ -1588,6 +1588,7 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_HTML_MARKUP,
                 args: vec![v],
                 subject: None,
+                proven: 0,
             },
             env,
         );

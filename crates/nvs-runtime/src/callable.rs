@@ -158,6 +158,14 @@ pub(crate) enum TagCheck {
     /// checked every argument against a declared parameter type and `nvs-ir`
     /// inserted the one conversion the tag check would otherwise have
     /// performed. Reading the tags again could only agree.
+    ///
+    /// A `Core\Arr` member's callback is this kind too when its slot carries
+    /// [`Value::PROVEN_CALLABLE_BIT`]: the checker proved that every
+    /// parameter the anonymous function declares takes what the member
+    /// passes, with no conversion (`nvs_types::expr::assign::callback_is_proven`).
+    /// The proof travels in the argument's own slot, so a callback the
+    /// callee passes on to another member is checked there again. A debug
+    /// build still runs both checks on it and stops on a mismatch.
     Proven,
 }
 
@@ -298,6 +306,17 @@ fn call_prepared(
     // slots are already what the callee reads. After the tags, the `invoke`
     // row's checks test the rest of each declared type: the class, an array's
     // elements and an enum's case values.
+    //
+    // A callable a `Core\Arr` member was handed with
+    // `Value::PROVEN_CALLABLE_BIT` set was proven by the checker against the
+    // member's callback signature, so the check could only agree. A debug
+    // build checks it anyway and stops on a mismatch, so a wrong proof shows
+    // in the tests and the fuzzer before a release build trusts it.
+    let tags = if callable.is_proven_callable() {
+        TagCheck::Proven
+    } else {
+        tags
+    };
     if tags == TagCheck::Required {
         check_param_tags(
             &"a `callable`",
@@ -305,6 +324,8 @@ fn call_prepared(
             &mut slots[1..],
         )?;
         crate::dispatch::check_param_types(&"a `callable`", row, &slots[1..])?;
+    } else if cfg!(debug_assertions) && callable.is_proven_callable() {
+        assert_proven(callable, row, &slots[1..]);
     }
     #[expect(
         unsafe_code,
@@ -336,6 +357,37 @@ fn call_prepared(
         debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
         Fault::Pending(status)
     })
+}
+
+/// The debug build's check of a callback the checker proved: the same two
+/// checks [`TagCheck::Required`] runs, over a copy of the arguments, so the
+/// call itself is what a release build makes.
+///
+/// # Panics
+///
+/// When an argument fails either check, or the tag check would convert it.
+/// Either means the proof in `nvs_types::expr::assign::callback_is_proven` is
+/// wrong, and a release build would pass the callee a value it reads unchecked.
+#[expect(
+    clippy::panic,
+    reason = "a wrong proof is an engine bug that a debug build stops at, \
+              which is the whole purpose of this check"
+)]
+fn assert_proven(callable: Value, row: &crate::MethodRow, args: &[Value]) {
+    let mut copy = args.to_vec();
+    let checked = callable_param_tags(callable)
+        .and_then(|word| check_param_tags(&"a proven `callable`", word, &mut copy))
+        .and_then(|()| crate::dispatch::check_param_types(&"a proven `callable`", row, args));
+    let converted = copy.iter().zip(args).any(|(after, before)| {
+        after.tag_byte() != before.tag_byte() || after.bits() != before.bits()
+    });
+    if checked.is_err() || converted {
+        panic!(
+            "internal error: `{}` was called as a proven callback, and an argument fails \
+             the check the proof skips",
+            invoke_label(callable)
+        );
+    }
 }
 
 /// `Class::invoke` for the class of `callable`, which is the name its body is
@@ -1162,5 +1214,89 @@ unsafe extern "C" fn invoke_native<B: NativeBody>(
         (*args).release();
         *out = Value::null();
         status
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::OutputSink;
+    use crate::object::{ClassTable, MethodRow};
+
+    /// The callee of [`one_int_param`]: releases the receiver and its one
+    /// argument, as a compiled callee's exit sweep does, and returns `null`.
+    #[expect(
+        unsafe_code,
+        reason = "`call_callable` passes the receiver and one argument, each \
+                  retained, and the address of a live `Value` for the result"
+    )]
+    unsafe extern "C" fn takes_one(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        // SAFETY: as the reason says.
+        unsafe {
+            (*args).release();
+            (*args.add(1)).release();
+            *out = Value::null();
+        }
+        OK
+    }
+
+    /// A callable declaring one `int` parameter, built by hand the way
+    /// `nvs_ir::lower::lower_anon_fn` lays one out: the arity and the tag
+    /// nibbles in its first two slots, and `invoke` in its class's table.
+    fn one_int_param() -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define("{callable}", &["arity", "params"], &[]);
+        let invoke: NvsFn = takes_one;
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: CALLABLE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+                param_classes: Vec::new(),
+                param_checks: Vec::new(),
+                is_static: false,
+                by_reference: false,
+            }],
+        );
+        table.set_callable(id);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table is leaked, so the descriptor outlives every \
+                      instance made from it"
+        )]
+        // SAFETY: as the reason says.
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(CALLABLE_ARITY_SLOT, Value::int(1));
+        object.set_field(CALLABLE_PARAM_TAGS_SLOT, Value::int(Tag::Int as i64));
+        Value::object(object)
+    }
+
+    /// A proven callable called with the argument it declares runs, and an
+    /// unproven one called with the wrong argument throws. A debug build
+    /// checks the proven one too, and a `bool` where it declares an `int`
+    /// stops the test at the check, before the callee reads it.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "called as a proven callback")]
+    fn a_debug_build_checks_a_proven_callback_and_traps_a_mismatch() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let callable = one_int_param();
+        assert!(!callable.is_proven_callable());
+        assert!(
+            call_callable(&mut ctx, callable, &[Value::bool(true)]).is_err(),
+            "an unproven callable checks its argument"
+        );
+        let proven = callable.proven_callable();
+        assert!(proven.is_proven_callable());
+        assert!(call_callable(&mut ctx, proven, &[Value::int(3)]).is_ok());
+        let _ = call_callable(&mut ctx, proven, &[Value::bool(true)]);
     }
 }

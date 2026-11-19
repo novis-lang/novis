@@ -2695,6 +2695,10 @@ pub(crate) enum TemporaryKind {
 pub(crate) struct LoweredArgs {
     /// The argument values, positional.
     values: Vec<ValueId>,
+    /// The values among [`Self::values`] that are anonymous functions the
+    /// checker proved against the parameter they fill
+    /// (`ExprTypeTable::callback_is_proven`). Only a `Core` call reads it.
+    proven: Vec<ValueId>,
 }
 
 /// One resolved signature's argument-shape, as [`Lowering::lower_call_args`]

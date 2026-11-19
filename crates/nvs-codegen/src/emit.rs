@@ -902,7 +902,7 @@ impl Emitter<'_, '_> {
                     Helper::CallCallable | Helper::CallCallableProven => RuntimeSig::HelperVariadic,
                     _ => RuntimeSig::Helper,
                 };
-                return self.emit_helper(cur, inst, symbol, args, sig, None);
+                return self.emit_helper(cur, inst, symbol, args, sig, None, 0);
             }
             // A `Core` member is native Rust behind the same `rule:errors/propagation` helper
             // entry point every runtime helper uses, so it needs no path of
@@ -912,9 +912,22 @@ impl Emitter<'_, '_> {
             // `rule:testing/debug-probes`'s probe pair, labelled with the
             // member's written name; a symbol no member row names is a helper
             // the compiler called on its own, and has none.
-            InstKind::CoreCall { symbol, args, .. } => {
+            InstKind::CoreCall {
+                symbol,
+                args,
+                proven,
+                ..
+            } => {
                 let label = nvs_stdlib::registry::member_label(symbol);
-                return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper, label);
+                return self.emit_helper(
+                    cur,
+                    inst,
+                    symbol,
+                    args,
+                    RuntimeSig::Helper,
+                    label,
+                    *proven,
+                );
             }
             InstKind::ExtensionCall {
                 class,
@@ -1323,6 +1336,7 @@ impl Emitter<'_, '_> {
                     &[*array, *key],
                     RuntimeSig::Helper,
                     None,
+                    0,
                 );
             }
             InstKind::ArraySole { array } => {
@@ -3120,7 +3134,7 @@ impl Emitter<'_, '_> {
 
                 self.b.switch_to_block(slow);
                 let symbol = helper_symbol(helper)?;
-                self.emit_helper(slow, inst, symbol, args, RuntimeSig::Helper, None)?;
+                self.emit_helper(slow, inst, symbol, args, RuntimeSig::Helper, None, 0)?;
                 let defined = inst
                     .result
                     .ok_or_else(|| internal("a widening with no result"))?;
@@ -3158,6 +3172,11 @@ impl Emitter<'_, '_> {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`proven` is the `CoreCall` mask and is 0 for every other \
+                  caller; a struct would buy the four call sites nothing"
+    )]
     fn emit_helper(
         &mut self,
         cur: Block,
@@ -3166,6 +3185,7 @@ impl Emitter<'_, '_> {
         args: &[ValueId],
         sig: RuntimeSig,
         label: Option<&str>,
+        proven: u32,
     ) -> Result<Block, CodegenError> {
         let label = match label {
             Some(label) => {
@@ -3193,7 +3213,17 @@ impl Emitter<'_, '_> {
                 let offset = i32::try_from(index)
                     .map_err(|_| internal("a helper call past i32 args"))?
                     * VALUE_SIZE;
-                self.store_value(base, offset, value, ty)?;
+                // `nvs_ir::InstKind::CoreCall`'s `proven` mask: a callback
+                // the checker proved carries the mark in its slot's tag word.
+                let marked = u32::try_from(index)
+                    .ok()
+                    .and_then(|at| proven.checked_shr(at))
+                    .is_some_and(|bits| bits & 1 == 1);
+                if marked && ty == Ty::Object {
+                    self.store_proven_callable(base, offset, value)?;
+                } else {
+                    self.store_value(base, offset, value, ty)?;
+                }
             }
             base
         };
@@ -5327,6 +5357,27 @@ impl Emitter<'_, '_> {
     /// [`crate::ty::clif_ty`] for why every producer holds that.
     fn join_tagged(&mut self, tag_word: Value, bits: Value) -> Value {
         self.b.ins().iconcat(tag_word, bits)
+    }
+
+    /// [`Self::store_value`] for an object argument the checker proved as a
+    /// `Core\Arr` member's callback: the tag word also carries
+    /// [`NvsValue::PROVEN_CALLABLE_BIT`], which `nvs_runtime::call_callable`
+    /// reads to skip the check of each call.
+    fn store_proven_callable(
+        &mut self,
+        base: Value,
+        offset: i32,
+        value: Value,
+    ) -> Result<(), CodegenError> {
+        let tag_offset =
+            offset + i32::try_from(NvsValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+        let bits_offset = offset
+            + i32::try_from(NvsValue::BITS_OFFSET).map_err(|_| internal("a payload past i32"))?;
+        let word = u64::from(Tag::Object as u8) | NvsValue::PROVEN_CALLABLE_BIT;
+        let tag_word = self.b.ins().iconst(types::I64, word.cast_signed());
+        self.b.ins().store(trusted(), tag_word, base, tag_offset);
+        self.b.ins().store(trusted(), value, base, bits_offset);
+        Ok(())
     }
 
     fn store_tag_and_bits(

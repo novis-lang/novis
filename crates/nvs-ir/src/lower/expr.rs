@@ -1254,6 +1254,7 @@ impl<'a> Lowering<'a> {
                     symbol,
                     args: vec![receiver],
                     subject: None,
+                    proven: 0,
                 },
                 env,
             );
@@ -2723,6 +2724,7 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_STR_FORMAT_PIECE,
                 args: vec![spec, v],
                 subject: None,
+                proven: 0,
             },
             env,
         );
@@ -2839,6 +2841,7 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_HTML_MARKUP,
                 args: vec![bytes],
                 subject: None,
+                proven: 0,
             },
             env,
         );
@@ -2895,6 +2898,7 @@ impl<'a> Lowering<'a> {
                     symbol: nvs_types::CORE_HTML_MARKUP_TEXT,
                     args: vec![v],
                     subject: None,
+                    proven: 0,
                 },
                 env,
             );
@@ -2938,6 +2942,7 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_HTML_ESCAPE_TEXT,
                 args: vec![part.value],
                 subject: None,
+                proven: 0,
             },
             PartKind::Format(_) => panic!(
                 "nvs-ir: an html template hole lowered to a `Core\\Str::format` placeholder — \
@@ -3840,6 +3845,7 @@ impl<'a> Lowering<'a> {
                     symbol,
                     args: values,
                     subject: None,
+                    proven: 0,
                 },
                 env,
             );
@@ -4465,6 +4471,7 @@ impl<'a> Lowering<'a> {
                 },
                 args: call_args,
                 subject: None,
+                proven: 0,
             },
             env,
         );
@@ -4579,6 +4586,7 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_SCRIPT_AWAIT,
                 args: vec![handle],
                 subject: None,
+                proven: 0,
             },
             env,
         );
@@ -4700,6 +4708,7 @@ impl<'a> Lowering<'a> {
                 symbol,
                 args: lowered,
                 subject: None,
+                proven: 0,
             },
             env,
         );
@@ -4806,6 +4815,7 @@ impl<'a> Lowering<'a> {
                 symbol: nvs_types::CORE_ROUTE_IS,
                 args: vec![object_v, label],
                 subject: None,
+                proven: 0,
             },
             env,
         );
@@ -4983,7 +4993,7 @@ impl<'a> Lowering<'a> {
             let route_attributes =
                 nvs_types::core_takes_route_attributes(&call.class.to_string(), &call.method)
                     .then(|| self.route_attributes_constant(*cur, call, env));
-            let LoweredArgs { values } =
+            let LoweredArgs { values, .. } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let mut arg_values = Vec::with_capacity(values.len() + 6);
             arg_values.extend(prepared);
@@ -5006,6 +5016,7 @@ impl<'a> Lowering<'a> {
                     symbol,
                     args: arg_values,
                     subject,
+                    proven: 0,
                 },
                 env,
             );
@@ -5586,6 +5597,13 @@ impl<'a> Lowering<'a> {
             .chain(site)
             .chain(query_site)
             .collect::<Vec<_>>();
+        // A proven callback is marked only for `Core\Arr`, whose members call
+        // a callback during the call and keep no reference to it.
+        let proven = if class == "Core\\Arr" {
+            proven_bits(&arg_values, &lowered.proven)
+        } else {
+            0
+        };
         let result = self.emit_fallible(
             *cur,
             return_ty,
@@ -5593,6 +5611,7 @@ impl<'a> Lowering<'a> {
                 symbol,
                 args: arg_values,
                 subject,
+                proven,
             },
             env,
         );
@@ -5722,6 +5741,7 @@ impl<'a> Lowering<'a> {
                 symbol,
                 args: lowered.values,
                 subject: Some(0),
+                proven: 0,
             },
             env,
         );
@@ -8817,6 +8837,17 @@ pub(super) fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
 /// [`Lowering::reinterpret_enum_to_backing`]'s reason — `nvs-codegen`'s binary
 /// operator table carries no [`Ty::Enum`] row. The tag test before it still
 /// reads the enum's own tag.
+/// The [`InstKind::CoreCall`] `proven` mask for `args`: bit `i` is set when
+/// `args[i]` is one of `proven`. A position past the mask's 32 bits stays
+/// checked.
+fn proven_bits(args: &[ValueId], proven: &[ValueId]) -> u32 {
+    args.iter()
+        .enumerate()
+        .filter(|(_, arg)| proven.contains(arg))
+        .filter_map(|(at, _)| u32::try_from(at).ok().and_then(|at| 1u32.checked_shl(at)))
+        .fold(0, |mask, bit| mask | bit)
+}
+
 fn payload_repr(repr: Ty) -> Ty {
     match repr {
         Ty::Enum(EnumRepr::Int) => Ty::Int,

@@ -194,6 +194,70 @@ pub(crate) fn note_float_widening_at(span: Span, from: TypeId, to: TypeId, env: 
     }
 }
 
+/// Whether a callback written at a `Core` member's `callable(...)` parameter
+/// takes every argument the member passes exactly as it is passed, so the
+/// runtime check of each call could only agree
+/// (`nvs_runtime::callable::TagCheck::Proven`).
+///
+/// `declared` is the member's parameter with its type variables bound, and
+/// `actual` the signature the anonymous function written there declares. Each
+/// parameter the callback declares must take what the member passes in
+/// place: no `int` into `float`, which the runtime check would convert. What
+/// the member passes must have one representation: `mixed`, a union, a type
+/// variable nothing bound and an array of any of those keep the check, because
+/// the static type then says nothing about the tag a value has at run time.
+pub(crate) fn callback_is_proven(declared: TypeId, actual: TypeId, env: &mut Env<'_>) -> bool {
+    let (Ty::CallableSig { params: passed, .. }, Ty::CallableSig { params: taken, .. }) = (
+        env.interner.get(declared).clone(),
+        env.interner.get(actual).clone(),
+    ) else {
+        return false;
+    };
+    taken.len() <= passed.len()
+        && passed.iter().zip(&taken).all(|(&passed, &taken)| {
+            has_one_representation(passed, env.interner)
+                && !env.interner.is_error(taken)
+                && assignable(
+                    passed,
+                    taken,
+                    Widening::InPlace,
+                    env.interner,
+                    env.graph,
+                    env.signatures,
+                )
+        })
+}
+
+/// Whether every value of `ty` carries the same tag at run time and the
+/// static type says all the runtime check of a callback argument tests.
+fn has_one_representation(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Null
+        | Ty::Bool
+        | Ty::True
+        | Ty::False
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::Bytes
+        | Ty::TaintedString
+        | Ty::TaintedBytes
+        | Ty::SecretString
+        | Ty::SecretBytes
+        | Ty::SecretTaintedString
+        | Ty::SecretTaintedBytes
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_)
+        | Ty::Class(..)
+        | Ty::Enum(..)
+        | Ty::EnumCase(..) => true,
+        Ty::Array(element) => has_one_representation(*element, interner),
+        _ => false,
+    }
+}
+
 /// [`is_assignable`] with the `int` → `float` row on or off — see [`Widening`].
 fn assignable(
     from: TypeId,

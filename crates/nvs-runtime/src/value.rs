@@ -466,6 +466,33 @@ impl Value {
         self.tag
     }
 
+    /// The bit of the tag word, the tag byte and the padding read as one
+    /// little-endian `u64`, that marks a callable argument the checker proved
+    /// against a `Core\Arr` member's callback signature. It is the first
+    /// padding byte, so the tag byte is unchanged.
+    ///
+    /// `nvs-codegen` sets it only in a `Core\Arr` call's own argument slot,
+    /// and [`crate::call_callable`] reads it there to skip the check of each
+    /// argument. No `Core\Arr` member keeps its callback, so a marked value
+    /// never reaches storage that compiled code reads back as a tagged value.
+    pub const PROVEN_CALLABLE_BIT: u64 = 1 << 8;
+
+    /// Whether this is an object value carrying [`Self::PROVEN_CALLABLE_BIT`].
+    #[must_use]
+    pub const fn is_proven_callable(self) -> bool {
+        self.tag == Tag::Object as u8 && self.pad[0] == 1
+    }
+
+    /// This object value with [`Self::PROVEN_CALLABLE_BIT`] set, which is
+    /// what compiled code writes for a proven callback. A test builds one
+    /// with this.
+    #[must_use]
+    pub const fn proven_callable(self) -> Self {
+        let mut marked = self;
+        marked.pad[0] = 1;
+        marked
+    }
+
     /// The raw payload.
     #[must_use]
     pub const fn bits(self) -> u64 {

@@ -197,6 +197,7 @@ fn use_of(kind: &InstKind, p: ValueId) -> Option<Option<Use>> {
             symbol,
             args,
             subject,
+            ..
         } => {
             let owned = nvs_stdlib::owning_entry(symbol).is_none() && symbol.ends_with("_owned");
             let on_subject = subject.and_then(|s| args.get(s as usize)) == Some(&p);

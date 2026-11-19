@@ -118,6 +118,7 @@ impl<'a> Lowering<'a> {
         // `rule:core-api/options-bag`'s bag flattens into one value per declared option.
         let mut filled: Vec<Option<LoweredArgs>> = (0..fixed).map(|_| None).collect();
         let mut tail = Vec::new();
+        let mut proven = Vec::new();
         let values: Vec<&Expr> = list.iter().map(|arg| &arg.value).collect();
         for (i, (arg, slot)) in list.iter().zip(&sig.arg_slots).enumerate() {
             let index = match *slot {
@@ -144,6 +145,13 @@ impl<'a> Lowering<'a> {
                 cur,
                 &mut one,
             );
+            if let [value] = one.values[..]
+                && self
+                    .exprs
+                    .callback_is_proven(arg.value.unparenthesized().span)
+            {
+                proven.push(value);
+            }
             filled[index] = Some(one);
         }
         assert!(
@@ -151,7 +159,10 @@ impl<'a> Lowering<'a> {
             "nvs-ir: a resolved call passes more arguments than its signature has parameters — \
              this crate trusts nvs_types::check_program already enforced arity"
         );
-        let mut out = LoweredArgs::default();
+        let mut out = LoweredArgs {
+            proven,
+            ..LoweredArgs::default()
+        };
         for (index, one) in filled.into_iter().enumerate() {
             match one {
                 Some(one) => out.values.extend(one.values),
@@ -680,6 +691,7 @@ impl<'a> Lowering<'a> {
                     symbol,
                     args: values,
                     subject: None,
+                    proven: 0,
                 },
                 env,
             );

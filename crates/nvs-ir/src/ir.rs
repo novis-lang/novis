@@ -2523,6 +2523,14 @@ pub enum InstKind {
         /// member's owning entry only where this equals that entry's slot, so
         /// a prepared argument that shifts the subject is never misread.
         subject: Option<u32>,
+        /// Bit `i` is set when `args[i]` is an anonymous function the checker
+        /// proved against the member's callback signature
+        /// (`nvs_types::expr_table::ExprTypeTable::callback_is_proven`).
+        /// `nvs-codegen` writes the mark into that argument's slot, and the
+        /// member then calls the callback without checking each argument.
+        /// Only a `Core\Arr` member is marked: none of them keeps its callback
+        /// past the call, so the mark never leaves the slot.
+        proven: u32,
     },
     /// A static call to a method of a loaded extension — `Shop\Ledger::echoInt($n)`
     /// (`rule:packaging/extension-calls-are-statically-typed`).

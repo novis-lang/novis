@@ -1975,6 +1975,15 @@ pub(crate) fn check_generic_args(
             bindings.insert(name.clone(), *bound);
         }
     }
+    // The parameters the member declares as callbacks, before the bindings go
+    // in. `Core\Arr::fill(3, fn() => 1)` binds `T` to a signature, and that
+    // value is stored, not called, so it is never a proven callback.
+    let callbacks: Vec<bool> = (0..list.len())
+        .map(|index| {
+            declared_for(slots[index], &sig, env.interner)
+                .is_some_and(|id| matches!(env.interner.get(id), Ty::CallableSig { .. }))
+        })
+        .collect();
     let sig = sig.substituted(&bindings, env.interner);
 
     for (index, arg) in list.iter().enumerate() {
@@ -2019,6 +2028,18 @@ pub(crate) fn check_generic_args(
         }
         if is_assignable(compared, declared, env.interner, env.graph, env.signatures) {
             note_float_widening(&arg.value, compared, declared, env);
+            // An anonymous function written here has exactly the signature
+            // it declares, so a proof against the member's bound callback
+            // type holds for every call the member makes. A callable held in
+            // a variable may be any callable its type admits, so it keeps the
+            // check.
+            let written = arg.value.unparenthesized();
+            if callbacks[index]
+                && matches!(written.kind, ExprKind::Fn(_))
+                && super::assign::callback_is_proven(declared, actual, env)
+            {
+                env.exprs.record_proven_callback(written.span);
+            }
         } else {
             report_mismatch(arg.value.span, declared, actual, env);
         }

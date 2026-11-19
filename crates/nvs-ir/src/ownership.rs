@@ -1063,6 +1063,7 @@ impl Lend<'_> {
                 symbol,
                 args,
                 subject: Some(subject),
+                ..
             } => {
                 let entry = nvs_stdlib::owning_entry(symbol)?;
                 let at = *subject as usize;
@@ -1773,6 +1774,7 @@ fn candidates(
             symbol,
             args,
             subject: Some(subject),
+            ..
         } => {
             let Some(entry) = nvs_stdlib::owning_entry(symbol) else {
                 return Vec::new();
