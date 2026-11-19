@@ -261,6 +261,17 @@ characters on requests of a session with short-lived values. A constant-time com
 one per clock per half-lifetime of an active session, and one per browser restart. Store: the long
 clock keeps rows for `long_lived`. Code: a second clock, a token and two field prefixes.
 
+**Stage 2's store details (my call, built).** The long clock moves only where the identifier cookie
+is sent with it: at the first long-lived write, at a long-lived write past half the clock, and by
+the half rule at the first use. A write-back always moves the short clock, and sends the long one as
+the request holds it. So the store and the cookie end together. On the shared store the long clock
+is a hash field `y` beside `t` and `x`, because `HGETALL` does not return the expiry; the key prefix
+is now `nvs:session-lives:`, so an older hash is never read. On the `db` store the head row also
+gains `long_expires_at`, and a table without the new columns is dropped at open (sessions are not
+converted). Each clock in a save moves forward only (`max`), so a request that loaded an older record
+never shortens one another request refreshed. `http-server/session-expiry-belongs-to-the-store.md`
+still says "a write-back refreshes both clocks"; stage 3 corrects it to this.
+
 **Lanes.** Stages 1 to 5 run in order: each one changes `session.rs` or the rules it cites. Stages 6,
 7 and 8 touch disjoint files and may run side by side once stage 3 is done.
 
@@ -299,12 +310,12 @@ configuration key. Nothing a session does changes yet.
 the clocks, the half rule and the short cookie work. The old members still exist and write
 short-lived values, so the tree keeps building.
 
-- [ ] `crates/nvs-runtime/src/ctx/wiring.rs:47`: `Session` keeps each entry's lifetime, the short token
+- [x] `crates/nvs-runtime/src/ctx/wiring.rs:47`: `Session` keeps each entry's lifetime, the short token
   and both clocks, with doc comments that state what each spends.
-- [ ] `crates/nvs-stdlib/src/session.rs:581` `TTL` and `:754` `ttl` become the two clocks.
-- [ ] `crates/nvs-stdlib/src/session/sqlite.rs:55` `SCHEMA` and its statements follow the `db`
+- [x] `crates/nvs-stdlib/src/session.rs:581` `TTL` and `:754` `ttl` become the two clocks.
+- [x] `crates/nvs-stdlib/src/session/sqlite.rs:55` `SCHEMA` and its statements follow the `db`
   layout. The shared store's scripts in `session.rs` follow the `s:`/`l:` layout.
-- [ ] `crates/nvs-stdlib/src/session.rs:1017` `issue_cookie` sends the identifier cookie with or
+- [x] `crates/nvs-stdlib/src/session.rs:1017` `issue_cookie` sends the identifier cookie with or
   without `Max-Age`, and a new `issue_short_cookie` sends the token. The load at `:973` checks the
   token and applies the half rule.
 - [ ] `cargo test --lib -- session::` runs once, and every test it breaks is updated to the new shape.
@@ -433,35 +444,33 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stage 1 is done. The rules say what a session with two lifetimes is:
-`docs/rules/core-classes/a-session-opens-on-its-first-use.md` (renamed, every citation follows),
-`core-api/session-roster.md`, `http-server/session-expiry-belongs-to-the-store.md`, the new
-`http-server/a-session-value-is-short-lived-or-long-lived.md`, the sealed-secret rule, `html-later.md`
-and `deferred-work-cannot-write-the-response.md`. `[session] ttl` is `[session] short_lived`, and
-`[session] long_lived` (default `180d`, `nvs_config::defaults::SESSION_LONG_LIVED`) exists. Only
-`Core\Config::get` reads `long_lived` so far, and `default.toml` says it is not implemented until
-stage 2. `bun nv rules --check` and `bun nv directives --check` are green.
+Stages 1 and 2's code are done; stage 2's last item (the `session::` test run) has not run yet.
+`nvs_runtime::Session` (`crates/nvs-runtime/src/ctx/wiring.rs`) has `long`, `short_token`,
+`long_until`, `by_hand` and a `Session::empty(write_back)` constructor. `session.rs` has `Lifetime`,
+`Clocks`, `Whole`, `Record`, `short_lived`/`long_lived`, `past_half`, `opened_record` (token check in
+constant time, short visibility, short half rule), `refreshed_long_clock` (long half rule at the
+first use), `issue_cookie(.., max_age)`, `issue_short_cookie`, `redrawn_short_token` (regenerate),
+and `write(.., lifetime)`. The old members all write `Lifetime::Short`; `start($id)` sets `by_hand`.
+Both stores keep lifetimes, the token and both clocks (see Standing decisions, *Stage 2's store
+details*). `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
-The sweep's nightly reds are on `adc7487822`, before the 108 unpushed commits. Supply chain is fixed by
-`eb5c02e983`, the Miri UB at `string.rs:1817` by `4c82a2409a`, and the debug-viewer shots are re-shot
-locally. The `browser` red was one empty `innerText` after a load: `Page.go` in
-`tools/nv/test/registry-browser.test.ts` now also waits for the body to have text. `env-secret-proofs`
-is a retired goal's check, and is stale.
-
-The rules describe stages 2 to 4 ahead of the code. One rule still names the old members:
-`docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md` (`start`, `set`, `clear`,
-`destroy`). Stage 3 rewrites it with the members.
+The sweep's nightly reds are on `adc7487822`, before the unpushed commits, and were answered last
+session (supply chain `eb5c02e983`, Miri `4c82a2409a`, browser wait in `registry-browser.test.ts`).
+`env-secret-proofs` is a retired goal's check, and is stale.
 
 ### Next
 
-Stage 2 from its first item: `crates/nvs-runtime/src/ctx/wiring.rs` `Session` (re-anchor with
-`bun nv peek --locate Session`). In `crates/nvs-stdlib/src/session.rs`, the key constant is
-`SHORT_LIVED` and `DEFAULT_SHORT_LIVED`, and the reader is still `fn ttl`. Stage 2 adds the long clock
-beside it and removes the `NOT IMPLEMENTED` note above `#long_lived` in
-`crates/nvs-config/src/default.toml`. The `checker` case
-`tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst` and every test the
-`lifetimes` check names do not exist yet, and fail until stages 4 and 5 write them. No test is
-expected to go red from stage 1.
+Stage 2's last item: `cargo test --lib -- session::` once, and update each test it breaks. Expect
+red: tests that open a stored session through `nvs_core_session_start` and read short-lived values,
+because the fake store's records carry no short token and the request presents no `nvsid-short`
+cookie, so `opened_record` hides them. Fix by giving those records a token (the `t` field, or the
+`short_token` column) and presenting the cookie, or by writing them long-lived. Also expect the fake
+store's `issued_in`/`saved_in` in `session.rs`'s tests (`bun nv peek --locate saved_in`) to need the
+new argv (now, x, y, token first; removed keys bare; `HDEL` of both prefixes): they were not
+rewritten yet, and every shared-store case runs through them. `a_record_is_keyed_under_its_own_prefix`
+may pin the old `nvs:session-keys:` prefix. Then stage 3 from `nvs_core_session_start`, and fix the
+"write-back refreshes both clocks" sentence in `session-expiry-belongs-to-the-store.md`. The `checker`
+case and the `lifetimes` tests do not exist yet and stay red until stages 4 and 5.
 
 ### Backlog
 

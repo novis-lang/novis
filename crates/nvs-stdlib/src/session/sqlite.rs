@@ -42,7 +42,7 @@ use std::time::{Duration, Instant};
 
 use nvs_db::{SqliteConn, SqliteTarget, SqliteValue};
 
-use super::{Changes, Entries};
+use super::{Changes, Record, Whole};
 use crate::cache::redis::Renamed;
 
 /// What a new connection runs as it opens, before the driver's pragma allow list applies.
@@ -55,22 +55,26 @@ const SETUP: &[&str] = &["PRAGMA synchronous = NORMAL"];
 
 /// What a new connection runs before its first statement, in order.
 ///
-/// `nvs_session_heads` has one row per session, with its expiry, and `nvs_session_entries` one row
-/// per key. `WITHOUT ROWID` stores each row in its key's own b-tree, so a session's entries sit
-/// together and a load is one range read.
+/// `nvs_session_heads` has one row per session: its expiry, its short token, and the ends of its
+/// short and long clocks, each time in milliseconds since the epoch. `nvs_session_entries` has one
+/// row per key, with `long` set for a long-lived one. `WITHOUT ROWID` stores each row in its key's
+/// own b-tree, so a session's entries sit together and a load is one range read.
 ///
 /// The two `DROP`s remove the tables earlier builds kept a session in whole, `nvs_session` keyed
 /// by the identifier alone and `nvs_sessions` with one record per session. Their sessions are not
 /// converted, so every user of an earlier build is signed out once. Each `DROP` runs once per
-/// connection, and finds nothing after the first.
+/// connection, and finds nothing after the first. [`opened`] drops the two tables below too where
+/// they lack a lifetime's columns, for the same reason.
 const SCHEMA: &[&str] = &[
-    "PRAGMA busy_timeout = 5000",
     "DROP TABLE IF EXISTS nvs_session",
     "DROP TABLE IF EXISTS nvs_sessions",
     "CREATE TABLE IF NOT EXISTS nvs_session_heads (\
          app BLOB NOT NULL, \
          id TEXT NOT NULL, \
          expires_at INTEGER NOT NULL, \
+         short_token TEXT, \
+         short_expires_at INTEGER NOT NULL, \
+         long_expires_at INTEGER NOT NULL, \
          PRIMARY KEY (app, id)\
      ) WITHOUT ROWID",
     "CREATE INDEX IF NOT EXISTS nvs_session_heads_expiry ON nvs_session_heads (expires_at)",
@@ -79,8 +83,16 @@ const SCHEMA: &[&str] = &[
          id TEXT NOT NULL, \
          key BLOB NOT NULL, \
          value BLOB NOT NULL, \
+         long INTEGER NOT NULL, \
          PRIMARY KEY (app, id, key)\
      ) WITHOUT ROWID",
+];
+
+/// One statement per table that fails where the table is missing or lacks the columns this build
+/// writes. [`opened`] drops both tables when either fails with SQLite's "no such" error.
+const PROBES: &[&str] = &[
+    "SELECT short_token, short_expires_at, long_expires_at FROM nvs_session_heads LIMIT 0",
+    "SELECT long FROM nvs_session_entries LIMIT 0",
 ];
 
 /// How often one core deletes the expired rows.
@@ -89,8 +101,8 @@ const SCHEMA: &[&str] = &[
 /// file's size, and a minute of expired rows is nothing beside `[session] short_lived`'s two hours.
 const SWEEP_EVERY: Duration = Duration::from_secs(60);
 
-/// How many prepared statements one connection keeps: the fourteen this module runs.
-const STATEMENTS: usize = 14;
+/// How many prepared statements one connection keeps: about the twenty-five this module runs.
+const STATEMENTS: usize = 28;
 
 /// One core's open connection, the file it is open on, and when it last swept.
 struct Held {
@@ -149,6 +161,19 @@ fn opened(path: &Path) -> io::Result<Held> {
         deadline: None,
         setup: SETUP,
     })?;
+    drop(conn.query("PRAGMA busy_timeout = 5000", Vec::new())?);
+    // A table of an earlier layout is dropped, and its sessions with it. A missing table fails the
+    // same way, and dropping it does nothing. Any other failure is the open's.
+    for probe in PROBES {
+        if let Err(why) = conn.query(probe, Vec::new()) {
+            if !why.to_string().contains("no such") {
+                return Err(why);
+            }
+            drop(conn.query("DROP TABLE IF EXISTS nvs_session_heads", Vec::new())?);
+            drop(conn.query("DROP TABLE IF EXISTS nvs_session_entries", Vec::new())?);
+            break;
+        }
+    }
     for statement in SCHEMA {
         drop(conn.query(statement, Vec::new())?);
     }
@@ -159,12 +184,8 @@ fn opened(path: &Path) -> io::Result<Held> {
     })
 }
 
-/// Milliseconds since the epoch, `lifetime` from now.
-fn expiry(now: i64, lifetime: Duration) -> i64 {
-    now.saturating_add(i64::try_from(lifetime.as_millis()).unwrap_or(i64::MAX))
-}
-
-/// `load`: every key of the session under `id`, or absent for an identifier with no live head.
+/// `load`: every key of the session under `id` with its lifetime, the short token and both clocks,
+/// or absent for an identifier with no live head.
 ///
 /// One statement: the live head `LEFT JOIN` its entries. No row is absent, and one row with a
 /// `NULL` key is a session with no keys.
@@ -180,7 +201,7 @@ fn expiry(now: i64, lifetime: Duration) -> i64 {
 /// request's headroom, so a session that does not fit is never read out of the file. Every key and
 /// value is a blob, so the length is in bytes. What this spends: one sum over the session's
 /// entries per load, in the same statement.
-pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Entries>> {
+pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Record>> {
     let now = crate::queue::now_millis();
     let room = nvs_runtime::budget::headroom()
         .and_then(|room| i64::try_from(room).ok())
@@ -189,7 +210,8 @@ pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Entri
         let mut rows = held.conn.query(
             "SELECT size.total, \
                     CASE WHEN size.total <= ?4 THEN e.key END, \
-                    CASE WHEN size.total <= ?4 THEN e.value END \
+                    CASE WHEN size.total <= ?4 THEN e.value END, \
+                    e.long, h.short_token, h.short_expires_at, h.long_expires_at \
              FROM nvs_session_heads h \
              CROSS JOIN (SELECT coalesce(sum(length(key) + length(value)), 0) AS total \
                          FROM nvs_session_entries WHERE app = ?1 AND id = ?2) size \
@@ -202,17 +224,23 @@ pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Entri
                 SqliteValue::Int(room),
             ],
         )?;
-        let mut entries = Entries::new();
+        let mut record = Record::default();
         let mut live = false;
         while let Some(row) = rows.next_row() {
-            live = true;
             let mut row = row.into_iter();
             let total = match row.next() {
                 Some(SqliteValue::Int(total)) => usize::try_from(total).unwrap_or(usize::MAX),
                 _ => 0,
             };
-            let (Some(key), Some(value)) = (row.next().and_then(blob), row.next().and_then(blob))
-            else {
+            let (key, value) = (row.next().and_then(blob), row.next().and_then(blob));
+            let long = matches!(row.next(), Some(SqliteValue::Int(1)));
+            if !live {
+                live = true;
+                record.token = row.next().and_then(blob).and_then(|token| String::from_utf8(token).ok());
+                record.short_until = integer(row.next());
+                record.long_until = integer(row.next());
+            }
+            let (Some(key), Some(value)) = (key, value) else {
                 if total > 0 {
                     nvs_runtime::affordable(Some(total), "Core\\Session").map_err(|_| {
                         io::Error::other(
@@ -227,10 +255,21 @@ pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Entri
                 // A head with no entries: a session with no keys.
                 continue;
             };
-            entries.insert(key, value);
+            if long {
+                record.long.insert(key.clone());
+            }
+            record.entries.insert(key, value);
         }
-        Ok(live.then_some(entries))
+        Ok(live.then_some(record))
     })
+}
+
+/// An `INTEGER` column's value, and `0` for any other.
+fn integer(value: Option<SqliteValue>) -> i64 {
+    match value {
+        Some(SqliteValue::Int(number)) => number,
+        _ => 0,
+    }
 }
 
 /// A column's bytes, for a `BLOB` or a `TEXT` one, and `None` for `NULL`.
@@ -297,29 +336,48 @@ fn named(app: &[u8], id: &str) -> Vec<SqliteValue> {
     ]
 }
 
-/// `key` and `value` as the third and fourth parameters, after [`named`]'s.
-fn entry_of(app: &[u8], id: &str, key: &[u8], value: &[u8]) -> Vec<SqliteValue> {
+/// `key`, `value` and the lifetime as the third to fifth parameters, after [`named`]'s.
+fn entry_of(app: &[u8], id: &str, key: &[u8], value: &[u8], long: bool) -> Vec<SqliteValue> {
     let mut row = named(app, id);
     row.push(SqliteValue::Blob(key.to_vec()));
     row.push(SqliteValue::Blob(value.to_vec()));
+    row.push(SqliteValue::Int(i64::from(long)));
     row
 }
 
-/// The upsert of one entry, which [`issue`] and [`save`] share.
-const UPSERT: &str = "INSERT INTO nvs_session_entries (app, id, key, value) VALUES (?1, ?2, ?3, ?4) \
-     ON CONFLICT (app, id, key) DO UPDATE SET value = excluded.value";
+/// A short token as a parameter: its text, or `NULL`.
+fn token_of(token: Option<&str>) -> SqliteValue {
+    token.map_or(SqliteValue::Null, |token| SqliteValue::Text(token.to_owned()))
+}
 
-/// The insert of a head that takes over an expired one, which [`issue`] and [`relocate`] share. It
-/// takes the application, the identifier, the expiry and now, and changes no row for a live head.
-const NEW_HEAD: &str = "INSERT INTO nvs_session_heads (app, id, expires_at) VALUES (?1, ?2, ?3) \
-     ON CONFLICT (app, id) DO UPDATE SET expires_at = excluded.expires_at \
-     WHERE nvs_session_heads.expires_at <= ?4";
+/// The upsert of one entry, which [`issue`] and [`save`] share. A key written with the other
+/// lifetime takes the new one.
+const UPSERT: &str = "INSERT INTO nvs_session_entries (app, id, key, value, long) \
+     VALUES (?1, ?2, ?3, ?4, ?5) \
+     ON CONFLICT (app, id, key) DO UPDATE SET value = excluded.value, long = excluded.long";
+
+/// The insert of a head that takes over an expired one. It takes the application, the identifier,
+/// the expiry, the short token, the two clocks and now, and changes no row for a live head.
+const NEW_HEAD: &str = "INSERT INTO nvs_session_heads \
+     (app, id, expires_at, short_token, short_expires_at, long_expires_at) \
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6) \
+     ON CONFLICT (app, id) DO UPDATE SET expires_at = excluded.expires_at, \
+         short_token = excluded.short_token, short_expires_at = excluded.short_expires_at, \
+         long_expires_at = excluded.long_expires_at \
+     WHERE nvs_session_heads.expires_at <= ?7";
 
 /// The delete of every entry of one session.
 const DROP_ENTRIES: &str = "DELETE FROM nvs_session_entries WHERE app = ?1 AND id = ?2";
 
-/// `issue`: a new session under `id` holding `entries`, with its expiry `lifetime` from now, and
-/// whether it was written.
+/// The record's expiry, set from its clocks after a save: the later clock's end while a long-lived
+/// entry remains, and the short clock's end otherwise.
+const SET_EXPIRY: &str = "UPDATE nvs_session_heads SET expires_at = CASE \
+         WHEN EXISTS (SELECT 1 FROM nvs_session_entries \
+                      WHERE app = ?1 AND id = ?2 AND long = 1) \
+         THEN max(short_expires_at, long_expires_at) ELSE short_expires_at END \
+     WHERE app = ?1 AND id = ?2";
+
+/// `issue`: a new session under `id` holding `whole`, and whether it was written.
 ///
 /// One transaction, and never a write over a live session. `false` is an `id` that is already
 /// live, which keeps what it has. An expired head is absent, as [`load`] reads it, so its `id` is
@@ -329,67 +387,64 @@ const DROP_ENTRIES: &str = "DELETE FROM nvs_session_entries WHERE app = ?1 AND i
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn issue(
-    path: &Path,
-    app: &[u8],
-    id: &str,
-    entries: &Entries,
-    lifetime: Duration,
-) -> io::Result<bool> {
-    let now = crate::queue::now_millis();
+pub(crate) fn issue(path: &Path, app: &[u8], id: &str, whole: &Whole<'_>) -> io::Result<bool> {
+    let clocks = whole.clocks;
     with(path, |held| {
         let issued = atomically(&held.conn, |conn| {
             let mut head = named(app, id);
-            head.push(SqliteValue::Int(expiry(now, lifetime)));
-            head.push(SqliteValue::Int(now));
+            head.push(SqliteValue::Int(clocks.expiry(whole.has_long())));
+            head.push(token_of(whole.token));
+            head.push(SqliteValue::Int(clocks.short_until));
+            head.push(SqliteValue::Int(clocks.long_until));
+            head.push(SqliteValue::Int(clocks.now));
             if conn.query(NEW_HEAD, head)?.affected() == 0 {
                 return Ok((false, false));
             }
             drop(conn.query(DROP_ENTRIES, named(app, id))?);
-            if !entries.is_empty() {
-                let rows = entries
+            if !whole.entries.is_empty() {
+                let rows = whole
+                    .entries
                     .iter()
-                    .map(|(key, value)| entry_of(app, id, key, value))
+                    .map(|(key, value)| entry_of(app, id, key, value, whole.long.contains(key)))
                     .collect();
                 conn.execute_many(UPSERT, rows)?;
             }
             Ok((true, true))
         })?;
-        swept(held, now)?;
+        swept(held, clocks.now)?;
         Ok(issued)
     })
 }
 
-/// `save`: one request's `changes` applied to the session under `id`, with its expiry `lifetime`
-/// from now, and whether the session was still live.
+/// `save`: one request's `changes` applied to the session under `id`, and whether the session was
+/// still live.
 ///
-/// One transaction. It first moves a live head's expiry, and a head that is gone or expired
-/// changes no row: the transaction rolls back and answers `false`, so the session stays absent —
-/// another request destroyed it, or it expired
+/// One transaction. It first moves a live head's clocks forward and writes the token it is given,
+/// and a head that is gone or expired changes no row: the transaction rolls back and answers
+/// `false`, so the session stays absent — another request destroyed it, or it expired
 /// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). Then, in order: every
-/// entry deleted on `clear`, the removed keys deleted, and the changed keys upserted. A due
-/// [`sweep`] runs after it.
+/// entry deleted on `clear`, the removed keys deleted, the changed keys upserted, and the expiry
+/// set from the clocks. A due [`sweep`] runs after it.
 ///
 /// # Errors
 ///
 /// As [`load`].
-pub(crate) fn save(
-    path: &Path,
-    app: &[u8],
-    id: &str,
-    changes: &Changes<'_>,
-    lifetime: Duration,
-) -> io::Result<bool> {
-    let now = crate::queue::now_millis();
+pub(crate) fn save(path: &Path, app: &[u8], id: &str, changes: &Changes<'_>) -> io::Result<bool> {
+    let clocks = changes.clocks;
+    let now = clocks.now;
     with(path, |held| {
         let saved = atomically(&held.conn, |conn| {
             let mut head = named(app, id);
-            head.push(SqliteValue::Int(expiry(now, lifetime)));
+            head.push(token_of(changes.token));
+            head.push(SqliteValue::Int(clocks.short_until));
+            head.push(SqliteValue::Int(clocks.long_until));
             head.push(SqliteValue::Int(now));
             let live = conn
                 .query(
-                    "UPDATE nvs_session_heads SET expires_at = ?3 \
-                     WHERE app = ?1 AND id = ?2 AND expires_at > ?4",
+                    "UPDATE nvs_session_heads SET short_token = coalesce(?3, short_token), \
+                         short_expires_at = max(short_expires_at, ?4), \
+                         long_expires_at = max(long_expires_at, ?5) \
+                     WHERE app = ?1 AND id = ?2 AND expires_at > ?6",
                     head,
                 )?
                 .affected()
@@ -419,10 +474,11 @@ pub(crate) fn save(
                 let rows = changes
                     .changed
                     .iter()
-                    .map(|(key, value)| entry_of(app, id, key, value))
+                    .map(|(key, value, long)| entry_of(app, id, key, value, *long))
                     .collect();
                 conn.execute_many(UPSERT, rows)?;
             }
+            drop(conn.query(SET_EXPIRY, named(app, id))?);
             Ok((true, true))
         })?;
         swept(held, now)?;
@@ -430,12 +486,11 @@ pub(crate) fn save(
     })
 }
 
-/// `move`: the session under `old` moved to `new` with its expiry, as one transaction that runs
-/// only while the old head is live.
+/// `move`: the session under `old` moved to `new` with its expiry, token and clocks, as one
+/// transaction that runs only while the old head is live.
 ///
-/// It reads the old head's expiry, inserts the new head with it, which changes no row for a live
-/// one, re-points the entries, and deletes the old head. A gone old head and a taken new one roll
-/// back and move nothing.
+/// A gone old head and a live new one roll back and move nothing. Otherwise an expired session
+/// under `new` is deleted, and the old head and its entries are re-pointed at `new`.
 ///
 /// # Errors
 ///
@@ -444,35 +499,34 @@ pub(crate) fn relocate(path: &Path, app: &[u8], old: &str, new: &str) -> io::Res
     let now = crate::queue::now_millis();
     with(path, |held| {
         atomically(&held.conn, |conn| {
+            const LIVE: &str = "SELECT 1 FROM nvs_session_heads \
+                 WHERE app = ?1 AND id = ?2 AND expires_at > ?3";
             let mut head = named(app, old);
             head.push(SqliteValue::Int(now));
-            let mut rows = conn.query(
-                "SELECT expires_at FROM nvs_session_heads \
-                 WHERE app = ?1 AND id = ?2 AND expires_at > ?3",
-                head,
-            )?;
-            let Some(SqliteValue::Int(expires)) =
-                rows.next_row().and_then(|row| row.into_iter().next())
-            else {
+            if conn.query(LIVE, head)?.next_row().is_none() {
                 return Ok((false, Renamed::Gone));
-            };
-            drop(rows);
+            }
             let mut fresh = named(app, new);
-            fresh.push(SqliteValue::Int(expires));
             fresh.push(SqliteValue::Int(now));
-            if conn.query(NEW_HEAD, fresh)?.affected() == 0 {
+            if conn.query(LIVE, fresh)?.next_row().is_some() {
                 return Ok((false, Renamed::Taken));
             }
             drop(conn.query(DROP_ENTRIES, named(app, new))?);
+            drop(conn.query(
+                "DELETE FROM nvs_session_heads WHERE app = ?1 AND id = ?2",
+                named(app, new),
+            )?);
+            let mut moving = named(app, old);
+            moving.push(SqliteValue::Text(new.to_owned()));
+            drop(conn.query(
+                "UPDATE nvs_session_heads SET id = ?3 WHERE app = ?1 AND id = ?2",
+                moving,
+            )?);
             let mut moving = named(app, old);
             moving.push(SqliteValue::Text(new.to_owned()));
             drop(conn.query(
                 "UPDATE nvs_session_entries SET id = ?3 WHERE app = ?1 AND id = ?2",
                 moving,
-            )?);
-            drop(conn.query(
-                "DELETE FROM nvs_session_heads WHERE app = ?1 AND id = ?2",
-                named(app, old),
             )?);
             Ok((true, Renamed::Done))
         })
@@ -563,7 +617,39 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use super::{Changes, Entries, closed, issue, load, rows, save, sweep, with};
+    use super::super::{Clocks, Entries, LongKeys, Whole};
+    use super::{Changes, closed, issue, load, rows, save, sweep, with};
+
+    /// No long-lived key.
+    static SHORT_ONLY: LongKeys = LongKeys::new();
+
+    /// The clocks of a write taken now whose short clock runs for `lifetime`.
+    fn clocks(lifetime: Duration) -> Clocks {
+        let now = crate::queue::now_millis();
+        Clocks {
+            now,
+            short_until: now + i64::try_from(lifetime.as_millis()).expect("a short lifetime"),
+            long_until: 0,
+        }
+    }
+
+    /// `issue` of short-lived `entries` under `id`, whose short clock runs for `lifetime`.
+    fn issued(path: &std::path::Path, id: &str, entries: &Entries, lifetime: Duration) -> bool {
+        let whole = Whole {
+            entries,
+            long: &SHORT_ONLY,
+            token: None,
+            clocks: clocks(lifetime),
+        };
+        issue(path, APP, id, &whole).expect("the session is issued")
+    }
+
+    /// The keys of the live session under `id`, or absent.
+    fn keys_under(path: &std::path::Path, id: &str) -> Option<Entries> {
+        load(path, APP, id)
+            .expect("the store answers")
+            .map(|record| record.entries)
+    }
 
     /// The application every case here writes under.
     const APP: &[u8] = b"/srv/blog";
@@ -579,7 +665,8 @@ mod tests {
     /// One request's changes that set `key` to `value`.
     fn setting<'a>(key: &'a [u8], value: &'a [u8]) -> Changes<'a> {
         Changes {
-            changed: vec![(key, value)],
+            changed: vec![(key, value, false)],
+            clocks: clocks(Duration::from_secs(60)),
             ..Changes::default()
         }
     }
@@ -607,7 +694,7 @@ mod tests {
         let (_dir, path) = store("session-two-requests");
         let start = entries(&[(b"cart", b"empty")]);
         assert!(
-            issue(&path, APP, ID, &start, Duration::from_secs(60)).expect("the session is issued")
+            issued(&path, ID, &start, Duration::from_secs(60))
         );
 
         let (loaded, first_loaded) = mpsc::channel();
@@ -615,19 +702,13 @@ mod tests {
         let first = {
             let path = path.clone();
             thread::spawn(move || {
-                let seen = load(&path, APP, ID).expect("the first request loads");
+                let seen = keys_under(&path, ID);
                 loaded.send(()).expect("the test is waiting");
                 second_done
                     .recv_timeout(Duration::from_secs(30))
                     .expect("the second request finishes while the first is still open");
                 assert!(
-                    save(
-                        &path,
-                        APP,
-                        ID,
-                        &setting(b"cart", b"three books"),
-                        Duration::from_secs(60)
-                    )
+                    save(&path, APP, ID, &setting(b"cart", b"three books"))
                     .expect("the first saves")
                 );
                 seen
@@ -640,15 +721,9 @@ mod tests {
         let second = {
             let path = path.clone();
             thread::spawn(move || {
-                let seen = load(&path, APP, ID).expect("the second request loads");
+                let seen = keys_under(&path, ID);
                 assert!(
-                    save(
-                        &path,
-                        APP,
-                        ID,
-                        &setting(b"userId", b"17"),
-                        Duration::from_secs(60)
-                    )
+                    save(&path, APP, ID, &setting(b"userId", b"17"))
                     .expect("the second saves")
                 );
                 seen
@@ -659,14 +734,14 @@ mod tests {
             Some(start.clone())
         );
         assert_eq!(
-            load(&path, APP, ID).expect("a read between the two"),
+            keys_under(&path, ID),
             Some(entries(&[(b"cart", b"empty"), (b"userId", b"17")]))
         );
         go_on.send(()).expect("the first request is waiting");
         assert_eq!(first.join().expect("the first request"), Some(start));
 
         assert_eq!(
-            load(&path, APP, ID).expect("the session after both"),
+            keys_under(&path, ID),
             Some(entries(&[(b"cart", b"three books"), (b"userId", b"17")])),
             "each request's key is kept"
         );
@@ -684,14 +759,13 @@ mod tests {
         let (_dir, path) = store("session-another-process");
         let written = entries(&[(b"user", b"17")]);
         assert!(
-            issue(&path, APP, ID, &written, Duration::from_secs(60))
-                .expect("the first process writes")
+            issued(&path, ID, &written, Duration::from_secs(60))
         );
         closed();
 
         let read = {
             let path = path.clone();
-            thread::spawn(move || load(&path, APP, ID).expect("the second process reads"))
+            thread::spawn(move || keys_under(&path, ID))
         };
         assert_eq!(read.join().expect("the second process"), Some(written));
     }
@@ -705,19 +779,15 @@ mod tests {
         const GONE: &str = "A5tKz1QvR3sYbNqLwXe2Pm";
         let (_dir, path) = store("session-expired");
         let live = entries(&[(b"state", b"live")]);
-        assert!(issue(&path, APP, LIVE, &live, Duration::from_secs(3600)).expect("a live session"));
-        assert!(
-            issue(
-                &path,
-                APP,
-                GONE,
-                &entries(&[(b"state", b"gone")]),
-                Duration::ZERO
-            )
-            .expect("a session that expires at once")
-        );
+        assert!(issued(&path, LIVE, &live, Duration::from_secs(3600)));
+        assert!(issued(
+            &path,
+            GONE,
+            &entries(&[(b"state", b"gone")]),
+            Duration::ZERO
+        ));
 
-        assert_eq!(load(&path, APP, GONE).expect("the store answers"), None);
+        assert_eq!(keys_under(&path, GONE), None);
         assert_eq!(rows(&path), 2, "the expired row is still in the file");
 
         let now = crate::queue::now_millis();
@@ -725,7 +795,7 @@ mod tests {
         assert_eq!(deleted, 1);
         assert_eq!(rows(&path), 1);
         assert_eq!(
-            load(&path, APP, LIVE).expect("the store answers"),
+            keys_under(&path, LIVE),
             Some(live)
         );
         closed();

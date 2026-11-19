@@ -473,15 +473,7 @@ mod tests {
     /// The session `Core\Session::start` opens for a visitor who sent no cookie:
     /// no identifier and an empty record.
     fn fresh_session(ctx: &mut nvs_runtime::Ctx) {
-        ctx.open_session(nvs_runtime::Session {
-            id: String::new(),
-            stored: false,
-            entries: std::collections::BTreeMap::new(),
-            touched: std::collections::BTreeSet::new(),
-            cleared: false,
-            dirty: false,
-            write_back: |_| {},
-        });
+        ctx.open_session(nvs_runtime::Session::empty(|_| {}));
     }
 
     /// `Core\Csrf::token` called the way a program calls it, with the token as

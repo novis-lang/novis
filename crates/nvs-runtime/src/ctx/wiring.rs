@@ -39,9 +39,10 @@ use super::*;
 /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` unit swap
 /// has retired. Decoding is [`crate::decode`]'s, of one key's value per `get`.
 ///
-/// What it spends: one identifier, one encoded value per key, and the names of
-/// the keys the request set or removed, per **in-flight** request that started
-/// a session, freed with the request — never O(sessions served).
+/// What it spends: one identifier, one encoded value per key, the names of
+/// the keys the request set or removed and of the long-lived keys, and one
+/// short token, per **in-flight** request that started a session, freed with
+/// the request — never O(sessions served).
 #[derive(Debug)]
 pub struct Session {
     /// The identifier the store issued, as it rides in the cookie.
@@ -65,6 +66,31 @@ pub struct Session {
     /// value it read cannot overwrite a newer one another request wrote. What it
     /// spends: one key name per key the request wrote.
     pub touched: std::collections::BTreeSet<Vec<u8>>,
+    /// The keys of [`Self::entries`] whose lifetime is long
+    /// (`rule:http-server/a-session-value-is-short-lived-or-long-lived`).
+    ///
+    /// Every other key is short-lived. A write of a key sets its lifetime, so
+    /// a key moves in or out of this set with each write. What it spends: one
+    /// key name per long-lived key, per in-flight request.
+    pub long: std::collections::BTreeSet<Vec<u8>>,
+    /// The short token this browser presented and the record holds, or the
+    /// one this request drew: 22 characters of base64url.
+    ///
+    /// `None` while the record has no token this request may use: a new
+    /// session, and a browser that presented no matching short cookie. The
+    /// next short-lived write draws one and sends the short cookie. What it
+    /// spends: one 22-byte string per in-flight session that has one.
+    pub short_token: Option<String>,
+    /// When the long clock ends, in milliseconds since the epoch, or `0`
+    /// while the record has never held a long-lived value.
+    ///
+    /// It moves only where the identifier cookie is sent with a new
+    /// `Max-Age`, so the cookie and the store end together.
+    pub long_until: i64,
+    /// Whether the program opened the session under an identifier it read
+    /// itself. Its short-lived values are bound to the identifier alone, so
+    /// no short token is checked, drawn or sent for it.
+    pub by_hand: bool,
     /// Whether the request called `clear` since the load, so the write-back
     /// deletes every key the store holds before it sends [`Self::touched`].
     pub cleared: bool,
@@ -110,6 +136,28 @@ pub struct Session {
     /// handed — so a `dyn FnOnce` would be an allocation per request to say
     /// what one word already says.
     pub write_back: fn(&mut Ctx),
+}
+
+impl Session {
+    /// An empty session with no identifier and no row in the store, written
+    /// back by `write_back`: what a first use opens for a visitor with no
+    /// record. Every other field is the empty or `false` one.
+    #[must_use]
+    pub fn empty(write_back: fn(&mut Ctx)) -> Self {
+        Self {
+            id: String::new(),
+            entries: std::collections::BTreeMap::new(),
+            touched: std::collections::BTreeSet::new(),
+            long: std::collections::BTreeSet::new(),
+            short_token: None,
+            long_until: 0,
+            by_hand: false,
+            cleared: false,
+            dirty: false,
+            stored: false,
+            write_back,
+        }
+    }
 }
 
 impl Ctx {

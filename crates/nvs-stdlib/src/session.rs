@@ -563,20 +563,30 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 /// is drawn and a limiter's key is application-supplied, so without the prefixes an application
 /// could name a limiter key that reads a session.
 ///
-/// `-keys` names the layout: one hash per session, so an entry an earlier build wrote as one string
-/// under `nvs:session:` is never read as a hash. Those expire by their own lifetime.
-pub(crate) const PREFIX: &str = "nvs:session-keys:";
+/// `-lives` names the layout: one hash per session, with each key's lifetime in its field's prefix.
+/// A hash an earlier build wrote under `nvs:session-keys:`, or a string under `nvs:session:`, is
+/// never read. Those expire by their own lifetime, and their sessions are not converted.
+pub(crate) const PREFIX: &str = "nvs:session-lives:";
 
 /// A session's keys and their encoded values, as a store loads them and the request keeps them.
 pub(crate) type Entries = std::collections::BTreeMap<Vec<u8>, Vec<u8>>;
 
-/// What every session key's field in the shared store's hash starts with.
+/// The names of a session's long-lived keys.
+pub(crate) type LongKeys = std::collections::BTreeSet<Vec<u8>>;
+
+/// What a short-lived key's field in the shared store's hash starts with.
 ///
-/// The one other field is `m`, which [`ISSUE`] and [`SAVE`] write. It holds the session's counted
-/// size, and it keeps a session with no keys in the store: Redis deletes a hash when its last field
-/// goes, and the next write-back would then find the session destroyed. A program cannot reach `m`,
-/// because every field a program writes starts with this.
-const KEY_FIELD: &[u8] = b"k:";
+/// The other fields are the store's own, and [`ISSUE`] and [`SAVE`] write them: `m` is the
+/// session's counted size, `t` the short token, `x` the short clock and `y` the long clock, each
+/// clock in milliseconds since the epoch. `m` and `x` also keep a session with no keys in the
+/// store: Redis deletes a hash when its last field goes, and the next write-back would then find
+/// the session destroyed. A program cannot reach them, because every field a program writes starts
+/// with this or [`LONG_FIELD`].
+const SHORT_FIELD: &[u8] = b"s:";
+
+/// What a long-lived key's field starts with. It is as long as [`SHORT_FIELD`], so a key costs the
+/// same counted size with either lifetime.
+const LONG_FIELD: &[u8] = b"l:";
 
 /// The bytes each session key costs beyond its name and value in the counted size: `HGETALL`'s RESP
 /// framing for one field and one value.
@@ -600,62 +610,159 @@ const KEY_CEILING: usize = (crate::cache::redis::STRING_ELEMENT_CEILING / 2) as 
 /// `rule:http-server/a-session-store-answers-five-operations`'s `issue` on the shared store, run where
 /// the session lives.
 ///
-/// `KEYS[1]` is the session's hash. `ARGV[1]` is the lifetime in milliseconds, `ARGV[2]` the counted
-/// size, and every pair after it a field and its value. It answers `{0}` for a key that exists, which
-/// keeps what it has, and `{1}` once the hash is written. Each field is written by its own `HSET`, so
-/// no call takes more arguments than Lua's stack holds.
+/// `KEYS[1]` is the session's hash. `ARGV[1]` is now, `ARGV[2]` the short clock's end and `ARGV[3]`
+/// the long clock's end or `0`, all in milliseconds since the epoch. `ARGV[4]` is the counted size,
+/// `ARGV[5]` the short token or empty, and every pair after it a field and its value.
+///
+/// It answers `{0}` for a key that exists, which keeps what it has, and `{1}` once the hash is
+/// written. The hash expires at the long clock's end where it has a long-lived field, and at the
+/// short clock's end otherwise. Each field is written by its own `HSET`, so no call takes more
+/// arguments than Lua's stack holds.
 const ISSUE: &str = "\
 if redis.call('EXISTS', KEYS[1]) == 1 then return {0} end
-redis.call('HSET', KEYS[1], 'm', ARGV[2])
-for i = 3, #ARGV, 2 do redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1]) end
-redis.call('PEXPIRE', KEYS[1], ARGV[1])
+local now, x, y = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
+redis.call('HSET', KEYS[1], 'm', ARGV[4])
+redis.call('HSET', KEYS[1], 'x', ARGV[2])
+if y > 0 then redis.call('HSET', KEYS[1], 'y', ARGV[3]) end
+if ARGV[5] ~= '' then redis.call('HSET', KEYS[1], 't', ARGV[5]) end
+local expires = x
+for i = 6, #ARGV, 2 do
+  redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
+  if string.sub(ARGV[i], 1, 2) == 'l:' and y > expires then expires = y end
+end
+redis.call('PEXPIRE', KEYS[1], math.max(expires - now, 1))
 return {1}";
 
 /// `rule:http-server/a-session-store-answers-five-operations`'s `save` on the shared store, run where
 /// the session lives.
 ///
-/// `KEYS[1]` is the session's hash. `ARGV[1]` is the lifetime in milliseconds, `ARGV[2]` is `1` when
-/// the request called `clear`, `ARGV[3]` the size ceiling, `ARGV[4]` the key ceiling, and `ARGV[5]`
-/// how many removed fields follow. Every pair after those is a changed field and its value.
+/// `KEYS[1]` is the session's hash. `ARGV[1]` to `ARGV[3]` are now and the two clocks, as
+/// [`ISSUE`] takes them, and `ARGV[4]` the short token or empty. `ARGV[5]` is `1` when the request
+/// called `clear`, `ARGV[6]` the size ceiling, `ARGV[7]` the key ceiling, and `ARGV[8]` how many
+/// removed keys follow, each bare. Every pair after those is a changed field, with its lifetime's
+/// prefix, and its value.
 ///
 /// It answers `{0}` for a session that is gone and writes nothing. Then it counts the new size: `m`,
-/// less each old field it replaces or removes, plus each new one, each field as its name, its value
-/// and [`FRAMING`]. A size or a key count past its ceiling answers `{-1, size}` and writes nothing.
-/// Otherwise it deletes every key on `clear`, deletes the removed fields, sets the changed ones and
-/// `m`, refreshes the expiry, and answers `{1, size}`. Each step reads the hash as it is then, so a
-/// second run leaves the same hash.
+/// less each old field it replaces or removes under either prefix, plus each new one, each field as
+/// its name, its value and [`FRAMING`]. A size or a key count past its ceiling answers `{-1, size}`
+/// and writes nothing. Otherwise it deletes every key on `clear`, deletes both fields of each
+/// removed or changed key, sets the changed ones and `m`, and answers `{1, size}`.
+///
+/// Each clock moves forward only, so a request that loaded an older record never shortens one
+/// another request refreshed. The token is written when one is given. The expiry is the long
+/// clock's end where a long-lived field remains, and the short clock's end otherwise. Each step
+/// reads the hash as it is then, so a second run leaves the same hash.
 const SAVE: &str = "\
 local key = KEYS[1]
 if redis.call('EXISTS', key) == 0 then return {0} end
-local cleared = ARGV[2] == '1'
-local first = 6 + tonumber(ARGV[5])
+local now, x, y = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
+local cleared = ARGV[5] == '1'
+local first = 9 + tonumber(ARGV[8])
 local size, count = 0, 0
 if not cleared then
   size = tonumber(redis.call('HGET', key, 'm')) or 0
-  count = redis.call('HLEN', key) - 1
+  count = redis.call('HLEN', key)
+  for _, own in ipairs({'m', 'x', 'y', 't'}) do count = count - redis.call('HEXISTS', key, own) end
 end
-for i = 6, #ARGV do
-  local changed = i >= first
-  if (not changed or (i - first) % 2 == 0) and not cleared and redis.call('HEXISTS', key, ARGV[i]) == 1 then
-    size = size - #ARGV[i] - redis.call('HSTRLEN', key, ARGV[i]) - 32
+local function replaced(field)
+  if not cleared and redis.call('HEXISTS', key, field) == 1 then
+    size = size - #field - redis.call('HSTRLEN', key, field) - 32
     count = count - 1
   end
-  if changed and (i - first) % 2 == 0 then
-    size = size + #ARGV[i] + #ARGV[i + 1] + 32
-    count = count + 1
-  end
 end
-if size > tonumber(ARGV[3]) or count > tonumber(ARGV[4]) then return {-1, size} end
+for i = 9, first - 1 do replaced('s:' .. ARGV[i]); replaced('l:' .. ARGV[i]) end
+for i = first, #ARGV, 2 do
+  local bare = string.sub(ARGV[i], 3)
+  replaced('s:' .. bare); replaced('l:' .. bare)
+  size = size + #ARGV[i] + #ARGV[i + 1] + 32
+  count = count + 1
+end
+if size > tonumber(ARGV[6]) or count > tonumber(ARGV[7]) then return {-1, size} end
 if cleared then
   for _, field in ipairs(redis.call('HKEYS', key)) do
-    if field ~= 'm' then redis.call('HDEL', key, field) end
+    local prefix = string.sub(field, 1, 2)
+    if prefix == 's:' or prefix == 'l:' then redis.call('HDEL', key, field) end
   end
 end
-for i = 6, first - 1 do redis.call('HDEL', key, ARGV[i]) end
-for i = first, #ARGV, 2 do redis.call('HSET', key, ARGV[i], ARGV[i + 1]) end
+for i = 9, first - 1 do redis.call('HDEL', key, 's:' .. ARGV[i], 'l:' .. ARGV[i]) end
+for i = first, #ARGV, 2 do
+  local bare = string.sub(ARGV[i], 3)
+  redis.call('HDEL', key, 's:' .. bare, 'l:' .. bare)
+  redis.call('HSET', key, ARGV[i], ARGV[i + 1])
+end
 redis.call('HSET', key, 'm', size)
-redis.call('PEXPIRE', key, ARGV[1])
+local held = tonumber(redis.call('HGET', key, 'x')) or 0
+if x > held then redis.call('HSET', key, 'x', ARGV[2]) else x = held end
+held = tonumber(redis.call('HGET', key, 'y')) or 0
+if y > held then redis.call('HSET', key, 'y', ARGV[3]) else y = held end
+if ARGV[4] ~= '' then redis.call('HSET', key, 't', ARGV[4]) end
+local expires = x
+if y > x then
+  for _, field in ipairs(redis.call('HKEYS', key)) do
+    if string.sub(field, 1, 2) == 'l:' then expires = y break end
+  end
+end
+redis.call('PEXPIRE', key, math.max(expires - now, 1))
 return {1, size}";
+
+/// The two clocks a write sends, in milliseconds since the epoch, and the time it was taken.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Clocks {
+    /// The time the write was taken: what an expiry is counted from.
+    pub(crate) now: i64,
+    /// When the short clock ends. A write-back always moves it to now plus `[session]
+    /// short_lived`.
+    pub(crate) short_until: i64,
+    /// When the long clock ends, or `0` while the record has never held a long-lived value.
+    pub(crate) long_until: i64,
+}
+
+impl Clocks {
+    /// When a record expires: the later clock's end where it has a long-lived key, and the short
+    /// clock's end otherwise.
+    pub(crate) fn expiry(self, has_long: bool) -> i64 {
+        if has_long {
+            self.short_until.max(self.long_until)
+        } else {
+            self.short_until
+        }
+    }
+}
+
+/// A whole session, as `issue` writes it for the first time.
+#[derive(Debug)]
+pub(crate) struct Whole<'a> {
+    /// Every key and its encoded value.
+    pub(crate) entries: &'a Entries,
+    /// The keys whose lifetime is long.
+    pub(crate) long: &'a LongKeys,
+    /// The short token, where the session has one.
+    pub(crate) token: Option<&'a str>,
+    /// The two clocks.
+    pub(crate) clocks: Clocks,
+}
+
+impl Whole<'_> {
+    /// Whether any key is long-lived, which decides the record's expiry.
+    pub(crate) fn has_long(&self) -> bool {
+        self.entries.keys().any(|key| self.long.contains(key))
+    }
+}
+
+/// A session as a store loads it: every key with its lifetime, the short token and both clocks.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct Record {
+    /// Every key and its encoded value, of either lifetime.
+    pub(crate) entries: Entries,
+    /// The keys whose lifetime is long.
+    pub(crate) long: LongKeys,
+    /// The short token the record holds.
+    pub(crate) token: Option<String>,
+    /// When the short clock ends, in milliseconds since the epoch.
+    pub(crate) short_until: i64,
+    /// When the long clock ends, or `0`.
+    pub(crate) long_until: i64,
+}
 
 /// One request's changes to its session, as the write-back sends them to `save`.
 #[derive(Debug, Default)]
@@ -664,21 +771,27 @@ pub(crate) struct Changes<'a> {
     pub(crate) cleared: bool,
     /// The keys the request removed.
     pub(crate) removed: Vec<&'a [u8]>,
-    /// The keys the request set, each with its encoded value.
-    pub(crate) changed: Vec<(&'a [u8], &'a [u8])>,
+    /// The keys the request set, each with its encoded value and whether it is long-lived.
+    pub(crate) changed: Vec<(&'a [u8], &'a [u8], bool)>,
+    /// The short token to keep, where the request has one. `None` leaves the stored one.
+    pub(crate) token: Option<&'a str>,
+    /// The two clocks. Each moves forward only.
+    pub(crate) clocks: Clocks,
 }
 
 impl<'a> Changes<'a> {
     /// The changes `open` owes the store: each touched key with a value is a change, and each one
     /// without is a removal.
-    fn of(open: &'a nvs_runtime::Session) -> Self {
+    fn of(open: &'a nvs_runtime::Session, clocks: Clocks) -> Self {
         let mut changes = Self {
             cleared: open.cleared,
+            token: open.short_token.as_deref().filter(|_| !open.by_hand),
+            clocks,
             ..Self::default()
         };
         for key in &open.touched {
             match open.entries.get(key) {
-                Some(value) => changes.changed.push((key, value)),
+                Some(value) => changes.changed.push((key, value, open.long.contains(key))),
                 None => changes.removed.push(key),
             }
         }
@@ -704,6 +817,10 @@ const BACKEND: &str = "session.backend";
 /// `[session] short_lived` — how long a short-lived value survives its last write or refresh.
 const SHORT_LIVED: &str = "session.short_lived";
 
+/// `[session] long_lived` — how long a long-lived value, and the record that has one, survives its
+/// last refresh.
+const LONG_LIVED: &str = "session.long_lived";
+
 /// `[session] cookie` — the name the identifier rides under.
 const COOKIE: &str = "session.cookie";
 
@@ -717,6 +834,13 @@ const COOKIE: &str = "session.cookie";
 /// and two hours is the ordinary answer to that pair. It is deliberately not "until the browser
 /// closes": a session with no server-side expiry is one an attacker's copy never loses either.
 const DEFAULT_SHORT_LIVED: Duration = nvs_config::defaults::SESSION_SHORT_LIVED;
+
+/// The long clock a deployment that configured none inherits: 180 days, long enough for a consent
+/// choice or a language to outlive a season of visits.
+const DEFAULT_LONG_LIVED: Duration = nvs_config::defaults::SESSION_LONG_LIVED;
+
+/// What the name of the cookie that carries the short token adds to `[session] cookie`.
+const SHORT_COOKIE_SUFFIX: &str = "-short";
 
 /// The cookie name a deployment that configured none inherits.
 ///
@@ -806,38 +930,35 @@ pub(crate) fn opened(ctx: &Ctx, member: &str, remedy: &str) -> Result<Store, Fau
 ///
 /// A thrown `IOError` for a store that cannot be reached. Never an answer that looks like absence:
 /// [`load`]'s doc says why.
-fn fetched(store: &Store, app: &[u8], member: &str, id: &str) -> Result<Option<Entries>, Fault> {
+fn fetched(store: &Store, app: &[u8], member: &str, id: &str) -> Result<Option<Record>, Fault> {
     match store {
         Store::Shared => on_shared(NAME, member, |open| load(open, app, id)),
         Store::File(path) => on_file(member, sqlite::load(path, app, id)),
     }
 }
 
-/// `issue` on `store`, as [`fetched`]: `true` once a new session holds `entries`, and `false` for an
+/// `issue` on `store`, as [`fetched`]: `true` once a new session holds `whole`, and `false` for an
 /// `id` that is already live, which keeps what it has.
 ///
 /// # Errors
 ///
-/// As [`fetched`], and a thrown `RuntimeError` for `entries` past the shared store's ceiling.
+/// As [`fetched`], and a thrown `RuntimeError` for a session past the shared store's ceiling.
 fn issued(
     store: &Store,
     app: &[u8],
     member: &str,
     id: &str,
-    entries: &Entries,
-    ttl: Duration,
+    whole: &Whole<'_>,
 ) -> Result<bool, Fault> {
     match store {
         Store::Shared => {
-            let size = counted(entries);
-            if size > SIZE_CEILING || entries.len() > KEY_CEILING {
+            let size = counted(whole.entries);
+            if size > SIZE_CEILING || whole.entries.len() > KEY_CEILING {
                 return Err(too_large(member, size));
             }
-            on_shared(NAME, member, |open| {
-                issue(open, app, id, entries, size, ttl)
-            })
+            on_shared(NAME, member, |open| issue(open, app, id, whole, size))
         }
-        Store::File(path) => on_file(member, sqlite::issue(path, app, id, entries, ttl)),
+        Store::File(path) => on_file(member, sqlite::issue(path, app, id, whole)),
     }
 }
 
@@ -852,12 +973,11 @@ fn saved(
     member: &str,
     id: &str,
     changes: &Changes<'_>,
-    ttl: Duration,
 ) -> Result<Saved, Fault> {
     match store {
-        Store::Shared => on_shared(NAME, member, |open| save(open, app, id, changes, ttl)),
+        Store::Shared => on_shared(NAME, member, |open| save(open, app, id, changes)),
         Store::File(path) => {
-            on_file(member, sqlite::save(path, app, id, changes, ttl))
+            on_file(member, sqlite::save(path, app, id, changes))
                 .map(|done| if done { Saved::Done } else { Saved::Gone })
         }
     }
@@ -881,7 +1001,7 @@ fn moved(store: &Store, app: &[u8], member: &str, old: &str, new: &str) -> Resul
 fn counted(entries: &Entries) -> usize {
     entries
         .iter()
-        .map(|(key, value)| KEY_FIELD.len() + key.len() + value.len() + FRAMING)
+        .map(|(key, value)| SHORT_FIELD.len() + key.len() + value.len() + FRAMING)
         .sum()
 }
 
@@ -910,17 +1030,34 @@ fn on_file<T>(member: &str, answer: std::io::Result<T>) -> Result<T, Fault> {
     answer.map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{NAME}::{member}: {why}")))
 }
 
-/// `[session] short_lived`, or [`DEFAULT_SHORT_LIVED`].
+/// `[session] short_lived`, or [`DEFAULT_SHORT_LIVED`], in milliseconds.
 ///
 /// A directive that will not parse, or that parses to zero, is the shipped lifetime rather than a
 /// refusal — [`crate::cache`]'s `timeout_of` reasoning: `nvs.toml` is validated where it is loaded,
 /// and a zero here would be a session expiring the instant it is written.
-pub(crate) fn ttl(ctx: &Ctx) -> Duration {
-    configured(ctx, SHORT_LIVED)
+pub(crate) fn short_lived(ctx: &Ctx) -> i64 {
+    lifetime(ctx, SHORT_LIVED, DEFAULT_SHORT_LIVED)
+}
+
+/// `[session] long_lived`, or [`DEFAULT_LONG_LIVED`], in milliseconds, read as [`short_lived`].
+pub(crate) fn long_lived(ctx: &Ctx) -> i64 {
+    lifetime(ctx, LONG_LIVED, DEFAULT_LONG_LIVED)
+}
+
+/// The lifetime `key` configures, or `default`, in whole milliseconds and never zero.
+fn lifetime(ctx: &Ctx, key: &str, default: Duration) -> i64 {
+    let lifetime = configured(ctx, key)
         .and_then(|text| duration::parse(&text).ok())
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
         .filter(|lifetime| !lifetime.is_zero())
-        .unwrap_or(DEFAULT_SHORT_LIVED)
+        .unwrap_or(default);
+    i64::try_from(lifetime.as_millis()).unwrap_or(i64::MAX).max(1)
+}
+
+/// Whether a clock that ends at `until` has less than half of its `lifetime` left at `now`:
+/// `rule:http-server/session-expiry-belongs-to-the-store`'s half rule.
+fn past_half(until: i64, lifetime: i64, now: i64) -> bool {
+    until.saturating_sub(now) < lifetime / 2
 }
 
 /// `[session] cookie`, or [`DEFAULT_COOKIE`].
@@ -970,21 +1107,36 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// The store's own failure as text, for [`crate::cache::on_shared`] to classify. Never an answer
 /// that looks like absence: a store that cannot be reached must not read as a forged id, because
 /// the two have opposite responses.
-pub(crate) fn load(open: &mut Connection, app: &[u8], id: &str) -> Result<Option<Entries>, String> {
+pub(crate) fn load(open: &mut Connection, app: &[u8], id: &str) -> Result<Option<Record>, String> {
     let Some(fields) = open.hash_all(&key_of(app, id))? else {
         return Ok(None);
     };
-    // `m` and any field without the key prefix are the store's own, and never a key.
-    Ok(Some(
-        fields
-            .into_iter()
-            .filter_map(|(field, value)| {
-                field
-                    .strip_prefix(KEY_FIELD)
-                    .map(|key| (key.to_vec(), value))
-            })
-            .collect(),
-    ))
+    let mut record = Record::default();
+    for (field, value) in fields {
+        if let Some(key) = field.strip_prefix(SHORT_FIELD) {
+            record.entries.insert(key.to_vec(), value);
+        } else if let Some(key) = field.strip_prefix(LONG_FIELD) {
+            record.long.insert(key.to_vec());
+            record.entries.insert(key.to_vec(), value);
+        } else {
+            // `m` and any other field are the store's own, and never a key.
+            match field.as_slice() {
+                b"t" => record.token = String::from_utf8(value).ok(),
+                b"x" => record.short_until = integer_in(&value),
+                b"y" => record.long_until = integer_in(&value),
+                _ => {}
+            }
+        }
+    }
+    Ok(Some(record))
+}
+
+/// A clock field's decimal text as an integer, and `0` for text that is not one.
+fn integer_in(text: &[u8]) -> i64 {
+    std::str::from_utf8(text)
+        .ok()
+        .and_then(|text| text.parse().ok())
+        .unwrap_or(0)
 }
 
 /// `rule:http-server/a-session-store-answers-five-operations`'s `destroy` — the session under `id`,
@@ -999,21 +1151,22 @@ pub(crate) fn destroy(open: &mut Connection, app: &[u8], id: &str) -> Result<boo
     open.del(&key_of(app, id))
 }
 
-/// The hash field a session key is kept under: [`KEY_FIELD`] and the key.
-fn field_of(key: &[u8]) -> Vec<u8> {
-    let mut field = Vec::with_capacity(KEY_FIELD.len() + key.len());
-    field.extend_from_slice(KEY_FIELD);
+/// The hash field a session key is kept under: its lifetime's prefix and the key.
+fn field_of(key: &[u8], long: bool) -> Vec<u8> {
+    let prefix = if long { LONG_FIELD } else { SHORT_FIELD };
+    let mut field = Vec::with_capacity(prefix.len() + key.len());
+    field.extend_from_slice(prefix);
     field.extend_from_slice(key);
     field
 }
 
-/// A lifetime in whole milliseconds, as `PEXPIRE` takes it, and never zero.
-fn millis(ttl: Duration) -> Vec<u8> {
-    ttl.as_millis().max(1).to_string().into_bytes()
+/// An integer as the decimal text a script reads with `tonumber`.
+fn decimal(number: impl std::fmt::Display) -> Vec<u8> {
+    number.to_string().into_bytes()
 }
 
 /// `rule:http-server/a-session-store-answers-five-operations`'s `issue` — a new session under `id`
-/// holding `entries`, and whether it was written. One `EVAL` of [`ISSUE`]: `false` is a key that
+/// holding `whole`, and whether it was written. One `EVAL` of [`ISSUE`]: `false` is a key that
 /// already exists, which keeps what it has.
 ///
 /// `size` is [`counted`]'s, which the caller has already held to the ceiling. The expiry is the
@@ -1028,16 +1181,28 @@ pub(crate) fn issue(
     open: &mut Connection,
     app: &[u8],
     id: &str,
-    entries: &Entries,
+    whole: &Whole<'_>,
     size: usize,
-    ttl: Duration,
 ) -> Result<bool, String> {
-    let fields: Vec<Vec<u8>> = entries.keys().map(|key| field_of(key)).collect();
-    let (ttl, size) = (millis(ttl), size.to_string().into_bytes());
-    let mut argv: Vec<&[u8]> = Vec::with_capacity(2 + 2 * entries.len());
-    argv.push(&ttl);
+    let fields: Vec<Vec<u8>> = whole
+        .entries
+        .keys()
+        .map(|key| field_of(key, whole.long.contains(key)))
+        .collect();
+    let clocks = whole.clocks;
+    let (now, short, long) = (
+        decimal(clocks.now),
+        decimal(clocks.short_until),
+        decimal(clocks.long_until),
+    );
+    let size = decimal(size);
+    let mut argv: Vec<&[u8]> = Vec::with_capacity(5 + 2 * whole.entries.len());
+    argv.push(&now);
+    argv.push(&short);
+    argv.push(&long);
     argv.push(&size);
-    for (field, value) in fields.iter().zip(entries.values()) {
+    argv.push(whole.token.unwrap_or_default().as_bytes());
+    for (field, value) in fields.iter().zip(whole.entries.values()) {
         argv.push(field);
         argv.push(value);
     }
@@ -1065,26 +1230,32 @@ pub(crate) fn save(
     app: &[u8],
     id: &str,
     changes: &Changes<'_>,
-    ttl: Duration,
 ) -> Result<Saved, String> {
-    let removed: Vec<Vec<u8>> = changes.removed.iter().map(|key| field_of(key)).collect();
     let changed: Vec<Vec<u8>> = changes
         .changed
         .iter()
-        .map(|(key, _)| field_of(key))
+        .map(|(key, _, long)| field_of(key, *long))
         .collect();
-    let ttl = millis(ttl);
-    let ceiling = SIZE_CEILING.to_string().into_bytes();
-    let keys = KEY_CEILING.to_string().into_bytes();
-    let count = removed.len().to_string().into_bytes();
-    let mut argv: Vec<&[u8]> = Vec::with_capacity(5 + removed.len() + 2 * changed.len());
-    argv.push(&ttl);
+    let clocks = changes.clocks;
+    let (now, short, long) = (
+        decimal(clocks.now),
+        decimal(clocks.short_until),
+        decimal(clocks.long_until),
+    );
+    let ceiling = decimal(SIZE_CEILING);
+    let keys = decimal(KEY_CEILING);
+    let count = decimal(changes.removed.len());
+    let mut argv: Vec<&[u8]> = Vec::with_capacity(8 + changes.removed.len() + 2 * changed.len());
+    argv.push(&now);
+    argv.push(&short);
+    argv.push(&long);
+    argv.push(changes.token.unwrap_or_default().as_bytes());
     argv.push(if changes.cleared { b"1" } else { b"0" });
     argv.push(&ceiling);
     argv.push(&keys);
     argv.push(&count);
-    argv.extend(removed.iter().map(Vec::as_slice));
-    for (field, (_, value)) in changed.iter().zip(&changes.changed) {
+    argv.extend(changes.removed.iter().copied());
+    for (field, (_, value, _)) in changed.iter().zip(&changes.changed) {
         argv.push(field);
         argv.push(value);
     }
@@ -1200,8 +1371,22 @@ nvs_runtime::nvs_helper! {
         // A presented identifier this store cannot have issued is absent, and is absent here
         // rather than one round trip later.
         let named = cookie(ctx);
-        let presented = match args[0].as_text() {
-            Some(given) => Some(given.to_owned()),
+        let given = args[0].as_text().map(str::to_owned);
+        let by_hand = given.is_some();
+        // The short cookie is read only where the identifier rode in a cookie: a session opened
+        // under an identifier the program read itself binds its short-lived values to that alone.
+        let short = if by_hand {
+            None
+        } else {
+            let short_name = format!("{named}{SHORT_COOKIE_SUFFIX}");
+            ctx.inbound().and_then(|inbound| {
+                crate::request::cookie_of(inbound, short_name.as_bytes())
+                    .and_then(|value| std::str::from_utf8(value).ok())
+                    .map(str::to_owned)
+            })
+        };
+        let presented = match given {
+            Some(given) => Some(given),
             // The ordinary case: the identifier rides in the `[session] cookie` field, read
             // through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with —
             // one reading, so a `__Host-` name that arrived twice is invisible to both rather
@@ -1215,20 +1400,19 @@ nvs_runtime::nvs_helper! {
         .filter(|id| issuable(id));
         let opened = match presented {
             Some(id) => fetched(&store, crate::cache::application(ctx), "start", &id)?
-                .map(|entries| nvs_runtime::Session {
-                    id,
-                    entries,
-                    stored: true,
-                    ..fresh_session()
-                }),
+                .map(|record| opened_record(ctx, id, record, short.as_deref(), by_hand)),
             None => None,
         };
 
         // A visitor with no record gets an empty session with no identifier yet. Nothing reaches
         // the store and no cookie is sent until [`write_back`] keeps something in it, so a
         // request that only reads costs the store nothing.
-        let session = opened.unwrap_or_else(fresh_session);
+        let session = opened.unwrap_or_else(|| nvs_runtime::Session {
+            by_hand,
+            ..fresh_session()
+        });
         ctx.open_session(session);
+        refreshed_long_clock(ctx)?;
         Ok(Value::null())
     }
 }
@@ -1236,31 +1420,163 @@ nvs_runtime::nvs_helper! {
 /// An empty session with no identifier and no row in the store: what `start` opens for a visitor
 /// with no record, and what `regenerate` leaves when another request destroyed the session first.
 fn fresh_session() -> nvs_runtime::Session {
-    nvs_runtime::Session {
-        id: String::new(),
-        entries: Entries::new(),
-        touched: std::collections::BTreeSet::new(),
-        cleared: false,
-        dirty: false,
-        stored: false,
-        write_back: send_at_end,
-    }
+    nvs_runtime::Session::empty(send_at_end)
 }
 
-/// The `Set-Cookie` line carrying `id`, under `[session] cookie` and `[http.cookies]`' policy.
+/// The session a loaded `record` opens as, with
+/// `rule:http-server/a-session-value-is-short-lived-or-long-lived`'s visibility applied.
+///
+/// **A short-lived value is visible only while the short clock runs, and only to the browser that
+/// holds the record's short token.** The presented short cookie is compared with the record's
+/// token in constant time, so a response time says nothing about how much of a guess was right. A
+/// session the program opened under an identifier it read itself (`by_hand`) has no browser, so
+/// no token is checked for it. A value that is not visible is removed from the request's copy and
+/// marked touched, so the write-back deletes it from the store: one write per browser restart.
+///
+/// **The short clock's half rule** (`rule:http-server/session-expiry-belongs-to-the-store`): a
+/// record whose short clock has less than half of its time left counts as changed, so the
+/// write-back refreshes it. It applies where short-lived values are visible, and to a record with
+/// no long-lived value, whose expiry is the short clock. Neither needs a cookie, because the short
+/// cookie and a session with no long-lived value carry no `Max-Age`.
+fn opened_record(
+    ctx: &Ctx,
+    id: String,
+    record: Record,
+    presented: Option<&str>,
+    by_hand: bool,
+) -> nvs_runtime::Session {
+    use subtle::ConstantTimeEq as _;
+
+    let now = crate::queue::now_millis();
+    let matched = match (record.token.as_deref(), presented) {
+        (Some(held), Some(given)) => bool::from(held.as_bytes().ct_eq(given.as_bytes())),
+        _ => false,
+    };
+    let bound = by_hand || matched;
+    let visible = bound && now < record.short_until;
+    let mut session = nvs_runtime::Session {
+        id,
+        entries: record.entries,
+        long: record.long,
+        short_token: record.token.filter(|_| matched && !by_hand),
+        long_until: record.long_until,
+        by_hand,
+        stored: true,
+        ..fresh_session()
+    };
+    if !visible {
+        let hidden: Vec<Vec<u8>> = session
+            .entries
+            .keys()
+            .filter(|key| !session.long.contains(*key))
+            .cloned()
+            .collect();
+        for key in hidden {
+            session.entries.remove(&key);
+            session.touched.insert(key);
+            session.dirty = true;
+        }
+    }
+    if (visible || session.long.is_empty())
+        && past_half(record.short_until, short_lived(ctx), now)
+    {
+        session.dirty = true;
+    }
+    session
+}
+
+/// The long clock's half rule, at the first use: a session with a long-lived value whose long
+/// clock has less than half of its time left gets a fresh clock and an identifier cookie with a
+/// fresh `Max-Age`, and counts as changed so the write-back stores the clock.
+///
+/// The clock and the cookie move together, so the store never keeps a record the browser has
+/// already forgotten. Where the head is closed the refresh is skipped, and a later request does
+/// it. A session the program opened by hand sends no cookie, so its clock moves only with a
+/// long-lived write.
+///
+/// # Errors
+///
+/// [`issue_cookie`]'s.
+fn refreshed_long_clock(ctx: &mut Ctx) -> Result<(), Fault> {
+    let now = crate::queue::now_millis();
+    let lifetime = long_lived(ctx);
+    let Some(open) = ctx.session() else {
+        return Ok(());
+    };
+    if open.by_hand
+        || open.id.is_empty()
+        || open.long.is_empty()
+        || !past_half(open.long_until, lifetime, now)
+        || !head_is_open(ctx)
+    {
+        return Ok(());
+    }
+    let id = open.id.clone();
+    issue_cookie(ctx, &format!("{NAME}::start"), &id, Some(lifetime))?;
+    if let Some(open) = ctx.session_mut() {
+        open.long_until = now.saturating_add(lifetime);
+        open.dirty = true;
+    }
+    Ok(())
+}
+
+/// Whether this request may still send a header: not inside `Core\Html::later` and not after the
+/// response. [`crate::response::head_open`] is the same question asked as a throw.
+fn head_is_open(ctx: &Ctx) -> bool {
+    !ctx.in_deferred_work() && !ctx.in_later_slot()
+}
+
+/// The `Max-Age` the identifier cookie carries for this request's session, in milliseconds: what
+/// is left of the long clock while the session has a long-lived value, and none otherwise.
+fn identifier_age(ctx: &Ctx) -> Option<i64> {
+    let now = crate::queue::now_millis();
+    ctx.session()
+        .filter(|open| !open.long.is_empty())
+        .map(|open| open.long_until.saturating_sub(now).max(1))
+}
+
+/// The `Set-Cookie` line carrying `id`, under `[session] cookie` and `[http.cookies]`' policy, with
+/// a `Max-Age` of `max_age` milliseconds where it has one.
 ///
 /// `who` is the member a refusal names, written whole (`Core\Session::set`), because
 /// `Core\Csrf::token` draws an identifier too.
 ///
 /// # Errors
 ///
+/// As [`set_cookie`].
+fn issue_cookie(ctx: &mut Ctx, who: &str, id: &str, max_age: Option<i64>) -> Result<(), Fault> {
+    let name = cookie(ctx);
+    set_cookie(ctx, who, &name, id, max_age)
+}
+
+/// The `Set-Cookie` line carrying the short `token`, named `[session] cookie` plus `-short`. It
+/// never has a `Max-Age`, so the browser deletes it when it closes, and the short-lived values are
+/// no longer visible after that.
+///
+/// # Errors
+///
+/// As [`set_cookie`].
+fn issue_short_cookie(ctx: &mut Ctx, who: &str, token: &str) -> Result<(), Fault> {
+    let name = format!("{}{SHORT_COOKIE_SUFFIX}", cookie(ctx));
+    set_cookie(ctx, who, &name, token, None)
+}
+
+/// One of the session's two cookies, under `[http.cookies]`' policy.
+///
+/// # Errors
+///
 /// A thrown `RuntimeError` for a `[session] cookie` that is not a cookie name. That is an
 /// operator's typo rather than anything a program did, and it is refused here because the value
 /// reaches a header line: a name carrying a `;` or a newline would end the line and begin one
-/// nobody wrote. The identifier needs no such check — it is 22 characters this core drew.
-fn issue_cookie(ctx: &mut Ctx, who: &str, id: &str) -> Result<(), Fault> {
-    let name = cookie(ctx);
-    if !crate::response::nameable(&name) {
+/// nobody wrote. The value needs no such check — it is 22 characters this core drew.
+fn set_cookie(
+    ctx: &mut Ctx,
+    who: &str,
+    name: &str,
+    value: &str,
+    max_age: Option<i64>,
+) -> Result<(), Fault> {
+    if !crate::response::nameable(name) {
         return Err(Fault::thrown(format!(
             "{who}(): `[session] cookie = \"{name}\"` is not a cookie name — a name is \
              a non-empty token, and this one reaches a `Set-Cookie` line"
@@ -1270,14 +1586,14 @@ fn issue_cookie(ctx: &mut Ctx, who: &str, id: &str) -> Result<(), Fault> {
     let policy = crate::response::configured_cookies(ctx);
     let same_site = policy.same_site;
     let line = crate::response::Cookie {
-        name: &name,
-        value: id,
+        name,
+        value,
         path: &policy.path,
-        // A session cookie: no `Domain`, which is the narrower of that attribute's two meanings,
-        // and no `Max-Age`, because the record's lifetime is `[session] short_lived` on the store and a
-        // cookie that outlived it would present an identifier the store answers absent for.
+        // No `Domain`, which is the narrower of that attribute's two meanings. A `Max-Age` only
+        // where the long clock gives one: the store expires the record, and a cookie that outlived
+        // it would present an identifier the store answers absent for.
         domain: None,
-        max_age: None,
+        max_age: max_age.map(|millis| millis.saturating_add(999) / 1000),
         secure: policy.secure,
         http_only: policy.http_only,
         same_site,
@@ -1350,7 +1666,13 @@ fn sealed_into(
     let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
     let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, value, who)?;
     let encoded = encoded(Value::bytes(NvsStr::new(&sealed)), "setSecret")?;
-    write(ctx, "setSecret", &sealed_key(key.as_bytes()), Some(encoded))
+    write(
+        ctx,
+        "setSecret",
+        &sealed_key(key.as_bytes()),
+        Some(encoded),
+        Lifetime::Short,
+    )
 }
 
 /// The secret the session carries under `key`, or `None` for every way of not opening one.
@@ -1447,37 +1769,109 @@ fn encoded(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
         .map_err(|why| Fault::thrown_as(ThrownClass::Logic, format!("{NAME}::{member}(): {why}")))
 }
 
+/// How long a value lives (`rule:http-server/a-session-value-is-short-lived-or-long-lived`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Lifetime {
+    /// Visible while the short clock runs and the browser keeps its short cookie.
+    Short,
+    /// Kept for the long clock, and visible with the identifier cookie alone.
+    Long,
+}
+
 /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key`'s "change the copy in the
-/// request's own heap": `key` set to the encoded `value`, or removed for `None`, and marked as
-/// owing the store a write.
+/// request's own heap": `key` set to the encoded `value` with `lifetime`, or removed for `None`,
+/// and marked as owing the store a write.
 ///
 /// **Only `key` is marked.** The write-back sends the keys this request touched and no other, so
 /// a request that sets `cart` never writes back the `userId` it only read. A removal on a session
 /// nobody has written yet is nothing: there is no key to remove and no row to send it to.
 ///
+/// **The cookies follow the write.** The first write draws the identifier and sends its cookie,
+/// with a `Max-Age` when the value is long-lived. The first short-lived write in a session with no
+/// short token draws one and sends the short cookie. The identifier cookie gets a `Max-Age` when
+/// the session gains its first long-lived value, and loses it when the last one goes. A long-lived
+/// write past the half of the long clock refreshes the clock and the cookie together. Every cookie
+/// a write needs is sent before the session changes, so a cookie that cannot be sent leaves the
+/// session as it was.
+///
 /// # Errors
 ///
-/// [`unstarted`] before `start`, and for the first write to a session with no identifier,
+/// [`unstarted`] before `start`, and where a cookie must be drawn,
 /// [`crate::response::head_open`]'s and [`issue_cookie`]'s.
-fn write(ctx: &mut Ctx, member: &str, key: &[u8], value: Option<Vec<u8>>) -> Result<(), Fault> {
-    let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
-    if session.id.is_empty() {
+fn write(
+    ctx: &mut Ctx,
+    member: &str,
+    key: &[u8],
+    value: Option<Vec<u8>>,
+    lifetime: Lifetime,
+) -> Result<(), Fault> {
+    let who = format!("{NAME}::{member}");
+    let now = crate::queue::now_millis();
+    let long_lived = long_lived(ctx);
+    let long = lifetime == Lifetime::Long && value.is_some();
+    let session = ctx.session().ok_or_else(|| unstarted(member))?;
+    let drawn = session.id.is_empty();
+    if drawn {
         if value.is_none() {
             return Ok(());
         }
-        // The first write to a session `start` opened with no identifier: the identifier is drawn
-        // and sent now, before the session changes, so a cookie that cannot be sent leaves the
-        // session as it was.
-        crate::response::head_open(ctx, &format!("{NAME}::{member}"))?;
+        // The first write to a session opened with no identifier.
+        crate::response::head_open(ctx, &who)?;
         let id = mint(ctx);
-        issue_cookie(ctx, &format!("{NAME}::{member}"), &id)?;
-        ctx.session_mut().ok_or_else(|| unstarted(member))?.id = id;
+        issue_cookie(ctx, &who, &id, long.then_some(long_lived))?;
+        let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
+        session.id = id;
+        if long {
+            session.long_until = now.saturating_add(long_lived);
+        }
     }
+
+    let session = ctx.session().ok_or_else(|| unstarted(member))?;
+    if value.is_some() && !long && !session.by_hand && session.short_token.is_none() {
+        crate::response::head_open(ctx, &who)?;
+        let token = mint(ctx);
+        issue_short_cookie(ctx, &who, &token)?;
+        ctx.session_mut()
+            .ok_or_else(|| unstarted(member))?
+            .short_token = Some(token);
+    }
+
+    let session = ctx.session().ok_or_else(|| unstarted(member))?;
+    let had_long = !session.long.is_empty();
+    let has_long = long || session.long.iter().any(|held| held.as_slice() != key);
+    if !drawn && !session.by_hand {
+        let refresh = has_long && (!had_long || (long && past_half(session.long_until, long_lived, now)));
+        let ended = had_long && !has_long;
+        if (refresh || ended) && head_is_open(ctx) {
+            let id = session.id.clone();
+            issue_cookie(ctx, &who, &id, refresh.then_some(long_lived))?;
+            if refresh {
+                ctx.session_mut()
+                    .ok_or_else(|| unstarted(member))?
+                    .long_until = now.saturating_add(long_lived);
+            }
+        } else if refresh && !had_long {
+            // The store still needs a long clock where the cookie cannot carry one.
+            ctx.session_mut()
+                .ok_or_else(|| unstarted(member))?
+                .long_until = now.saturating_add(long_lived);
+        }
+    } else if !drawn && long && !had_long {
+        ctx.session_mut()
+            .ok_or_else(|| unstarted(member))?
+            .long_until = now.saturating_add(long_lived);
+    }
+
     let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
     match value {
         Some(value) => session.entries.insert(key.to_vec(), value),
         None => session.entries.remove(key),
     };
+    if long {
+        session.long.insert(key.to_vec());
+    } else {
+        session.long.remove(key);
+    }
     session.touched.insert(key.to_vec());
     session.dirty = true;
     Ok(())
@@ -1514,7 +1908,7 @@ pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
         // session as it was.
         crate::response::head_open(ctx, who)?;
         let id = mint(ctx);
-        issue_cookie(ctx, who, &id)?;
+        issue_cookie(ctx, who, &id, None)?;
         let session = ctx.session_mut().ok_or_else(unstarted)?;
         session.id = id;
         session.dirty = true;
@@ -1534,7 +1928,7 @@ pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
 /// As [`nvs_core_session_set`]: [`encoded`]'s and [`write`]'s.
 pub(crate) fn put_bytes(ctx: &mut Ctx, key: &str, value: &[u8]) -> Result<(), Fault> {
     let value = encoded(Value::bytes(NvsStr::new(value)), "set")?;
-    write(ctx, "set", key.as_bytes(), Some(value))
+    write(ctx, "set", key.as_bytes(), Some(value), Lifetime::Short)
 }
 
 /// The `bytes` saved under `key` in the started session, taken out of it: [`put_bytes`]'s other
@@ -1557,7 +1951,7 @@ pub(crate) fn take_bytes(ctx: &mut Ctx, key: &str) -> Result<Option<Vec<u8>>, Fa
         return Ok(None);
     }
     let taken = read_bytes(ctx, "remove", key.as_bytes())?;
-    write(ctx, "remove", key.as_bytes(), None)?;
+    write(ctx, "remove", key.as_bytes(), None, Lifetime::Short)?;
     Ok(taken)
 }
 
@@ -1628,7 +2022,8 @@ nvs_runtime::nvs_helper! {
                 args[1].retain();
             }
             let value = encoded(args[1], "set")?;
-            write(ctx, "set", key.as_bytes(), Some(value)).map(|()| Value::null())
+            write(ctx, "set", key.as_bytes(), Some(value), Lifetime::Short)
+                .map(|()| Value::null())
         })
     }
 }
@@ -1740,7 +2135,7 @@ nvs_runtime::nvs_helper! {
             if !session.entries.contains_key(key.as_bytes()) {
                 return Ok(Value::null());
             }
-            write(ctx, "remove", key.as_bytes(), None).map(|()| Value::null())
+            write(ctx, "remove", key.as_bytes(), None, Lifetime::Short).map(|()| Value::null())
         })
     }
 }
@@ -1772,6 +2167,7 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         }
         session.entries.clear();
+        session.long.clear();
         session.touched.clear();
         session.cleared = true;
         session.dirty = true;
@@ -1816,18 +2212,44 @@ nvs_runtime::nvs_helper! {
             // This request drew the identifier and the store has no row under it, so nothing
             // moves. The new identifier replaces it, and the write-back creates the row.
             let fresh = mint(ctx);
-            issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)?;
+            let age = identifier_age(ctx);
+            issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh, age)?;
             if let Some(open) = ctx.session_mut() {
                 open.id = fresh;
             }
-            return Ok(Value::null());
+            return redrawn_short_token(ctx, "regenerate").map(|()| Value::null());
         }
 
         let member = format!("{NAME}::regenerate()");
         let store = opened(ctx, &member, ", which is where this session's record already lives")?;
         regenerated(ctx, &store)?;
+        redrawn_short_token(ctx, "regenerate")?;
         Ok(Value::null())
     }
+}
+
+/// A new short token for a session that has one, sent in the short cookie, so a short token
+/// somebody copied before a `regenerate` stops working with it
+/// (`rule:http-server/a-session-value-is-short-lived-or-long-lived`). The session counts as
+/// changed, so the write-back stores the token.
+///
+/// # Errors
+///
+/// [`issue_short_cookie`]'s.
+fn redrawn_short_token(ctx: &mut Ctx, member: &str) -> Result<(), Fault> {
+    let Some(open) = ctx.session() else {
+        return Ok(());
+    };
+    if open.by_hand || open.id.is_empty() || open.short_token.is_none() {
+        return Ok(());
+    }
+    let token = mint(ctx);
+    issue_short_cookie(ctx, &format!("{NAME}::{member}"), &token)?;
+    if let Some(open) = ctx.session_mut() {
+        open.short_token = Some(token);
+        open.dirty = true;
+    }
+    Ok(())
 }
 
 /// `regenerate`'s move of a stored session on `store`: the store's `move` renames it to a fresh
@@ -1871,7 +2293,8 @@ fn regenerated(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
     if let Some(open) = ctx.session_mut() {
         open.id.clone_from(&fresh);
     }
-    issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh)
+    let age = identifier_age(ctx);
+    issue_cookie(ctx, &format!("{NAME}::regenerate"), &fresh, age)
 }
 
 nvs_runtime::nvs_helper! {
@@ -1970,12 +2393,24 @@ fn send_at_end(ctx: &mut Ctx) {
 /// session under the identifier this request drew; and [`too_large`]'s, naming the size, where the
 /// shared store would not keep the session.
 fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
-    let lifetime = ttl(ctx);
+    let now = crate::queue::now_millis();
+    let (short_lived, long_lived) = (short_lived(ctx), long_lived(ctx));
     let app = crate::cache::application(ctx);
     // Nothing is copied out of the session: the store calls borrow it, and the context is changed
     // only after the borrow has ended.
     let Some(open) = ctx.session().filter(|open| !open.id.is_empty()) else {
         return Ok(());
+    };
+    // The short clock moves with every write-back. The long clock moves only where the identifier
+    // cookie was sent with it, which a member did already, so it is sent as it is.
+    let clocks = Clocks {
+        now,
+        short_until: now.saturating_add(short_lived),
+        long_until: if open.long.is_empty() || open.long_until > 0 {
+            open.long_until
+        } else {
+            now.saturating_add(long_lived)
+        },
     };
     if open.stored {
         match saved(
@@ -1983,8 +2418,7 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
             app,
             "the write-back",
             &open.id,
-            &Changes::of(open),
-            lifetime,
+            &Changes::of(open, clocks),
         )? {
             Saved::Done => {}
             Saved::Gone => return Ok(()),
@@ -1995,8 +2429,12 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
         app,
         "the write-back",
         &open.id,
-        &open.entries,
-        lifetime,
+        &Whole {
+            entries: &open.entries,
+            long: &open.long,
+            token: open.short_token.as_deref().filter(|_| !open.by_hand),
+            clocks,
+        },
     )? {
         return Err(Fault::thrown(format!(
             "{SENDER}: the store already has a session under the identifier this request drew"
@@ -2057,10 +2495,10 @@ mod tests {
     use nvs_runtime::{Ctx, NvsStr, Value};
 
     use super::{
-        Changes, DEFAULT_SHORT_LIVED, Entries, KEY_FIELD, PREFIX, SEAL_DOMAIN, Saved, Store, backend,
-        cookie, counted, destroy, encoded, fetched, field_of, forgot, issue, issued, key_of, load,
-        mint, opened, opened_from, read, read_bytes, regenerated, saved, sealed_into, sealed_key,
-        sent_to, sqlite, ttl, write,
+        Changes, Clocks, Entries, Lifetime, LongKeys, PREFIX, SEAL_DOMAIN, SHORT_FIELD, Saved, Store,
+        Whole, backend, cookie, counted, destroy, encoded, fetched, field_of, forgot, issue, issued,
+        key_of, load, mint, opened, opened_from, read, read_bytes, regenerated, saved, sealed_into,
+        sealed_key, sent_to, short_lived, sqlite, write,
     };
     use crate::cache::redis::Connection;
     use crate::cache::tests::memory_held;
@@ -2083,26 +2521,62 @@ mod tests {
         ])
     }
 
+    /// No long-lived key.
+    static SHORT_ONLY: LongKeys = LongKeys::new();
+
+    /// The clocks every write a case makes directly sends: taken once per test process, with the
+    /// shipped short clock and no long one, so a hash a case expects has the same `x`.
+    fn clocks() -> Clocks {
+        static TAKEN: std::sync::OnceLock<Clocks> = std::sync::OnceLock::new();
+        *TAKEN.get_or_init(|| {
+            let now = crate::queue::now_millis();
+            Clocks {
+                now,
+                short_until: now
+                    + i64::try_from(super::DEFAULT_SHORT_LIVED.as_millis()).expect("two hours"),
+                long_until: 0,
+            }
+        })
+    }
+
+    /// `entries` as `issue` writes them: every key short-lived, no short token, and [`clocks`].
+    fn whole(entries: &Entries) -> Whole<'_> {
+        Whole {
+            entries,
+            long: &SHORT_ONLY,
+            token: None,
+            clocks: clocks(),
+        }
+    }
+
+    /// The keys of the session `load` found, or absent.
+    fn keys_of(record: Option<super::Record>) -> Option<Entries> {
+        record.map(|record| record.entries)
+    }
+
     /// One session's hash, as the fake shared store keeps it: each field and its value.
     type Hash = BTreeMap<Vec<u8>, Vec<u8>>;
 
-    /// The hash [`super::ISSUE`] writes for `entries`: `m` with the counted size, and one `k:` field
-    /// per key.
+    /// The hash [`super::ISSUE`] writes for [`whole`] of `entries`: `m` with the counted size, `x`
+    /// with the short clock, and one `s:` field per key.
     fn hash_of(entries: &Entries) -> Hash {
         let mut hash: Hash = entries
             .iter()
-            .map(|(key, value)| (field_of(key), value.clone()))
+            .map(|(key, value)| (field_of(key, false), value.clone()))
             .collect();
         hash.insert(b"m".to_vec(), counted(entries).to_string().into_bytes());
+        hash.insert(b"x".to_vec(), clocks().short_until.to_string().into_bytes());
         hash
     }
 
-    /// The session keys a hash holds, as [`load`] reads them: every `k:` field, and not `m`.
+    /// The session keys a hash holds, as [`load`] reads them: every `s:` and `l:` field, and none
+    /// of the store's own.
     fn entries_in(hash: &Hash) -> Entries {
         hash.iter()
             .filter_map(|(field, value)| {
                 field
-                    .strip_prefix(KEY_FIELD)
+                    .strip_prefix(SHORT_FIELD)
+                    .or_else(|| field.strip_prefix(super::LONG_FIELD))
                     .map(|key| (key.to_vec(), value.clone()))
             })
             .collect()
@@ -2114,18 +2588,15 @@ mod tests {
         nvs_runtime::Session {
             id: ID.to_owned(),
             entries,
-            touched: std::collections::BTreeSet::new(),
-            cleared: false,
-            dirty: false,
             stored: true,
-            write_back: super::send_at_end,
+            ..nvs_runtime::Session::empty(super::send_at_end)
         }
     }
 
     /// `value` written under `key` as `Core\Session::set` writes it. Consumes one reference.
     fn put(ctx: &mut Ctx, key: &[u8], value: Value) {
         let value = encoded(value, "set").expect("the value encodes");
-        write(ctx, "set", key, Some(value)).expect("a started session takes the value");
+        write(ctx, "set", key, Some(value), Lifetime::Short).expect("a started session takes the value");
     }
 
     /// The integer the session holds under `key`, read as `Core\Session::get` reads it.
@@ -2438,14 +2909,7 @@ mod tests {
         );
         let written = record();
         assert!(
-            issue(
-                &mut open,
-                NO_APP,
-                ID,
-                &written,
-                counted(&written),
-                DEFAULT_SHORT_LIVED
-            )
+            issue(&mut open, NO_APP, ID, &whole(&written), counted(&written))
             .expect("the session reaches the configured store")
         );
 
@@ -2485,14 +2949,7 @@ mod tests {
             );
             let written = record();
             assert!(
-                issue(
-                    &mut open,
-                    NO_APP,
-                    ID,
-                    &written,
-                    counted(&written),
-                    DEFAULT_SHORT_LIVED
-                )
+                issue(&mut open, NO_APP, ID, &whole(&written), counted(&written))
                 .expect("the session is written")
             );
         });
@@ -2503,7 +2960,7 @@ mod tests {
                 Dial::configured(Target::Tcp(address), None, None),
                 Duration::from_secs(5),
             );
-            load(&mut open, NO_APP, ID).expect("the store answers")
+            keys_of(load(&mut open, NO_APP, ID).expect("the store answers"))
         });
         let shared = read.join().expect("the second core");
 
@@ -2553,7 +3010,7 @@ mod tests {
             "what `set` wrote is what `get` reads, across the encode and the decode between them"
         );
 
-        write(&mut ctx, "remove", b"cart", None).expect("a held key is removed");
+        write(&mut ctx, "remove", b"cart", None, Lifetime::Short).expect("a held key is removed");
         let emptied = ctx.session().expect("the session is still open");
         assert!(emptied.entries.is_empty(), "the session has no keys left");
         assert!(
@@ -2718,19 +3175,12 @@ mod tests {
             );
             let written = record();
             assert!(
-                issue(
-                    &mut open,
-                    NO_APP,
-                    ID,
-                    &written,
-                    counted(&written),
-                    DEFAULT_SHORT_LIVED
-                )
+                issue(&mut open, NO_APP, ID, &whole(&written), counted(&written))
                 .expect("the session is written")
             );
-            let before = load(&mut open, NO_APP, ID).expect("the store answers");
+            let before = keys_of(load(&mut open, NO_APP, ID).expect("the store answers"));
             let first = destroy(&mut open, NO_APP, ID).expect("the record is forgotten");
-            let after = load(&mut open, NO_APP, ID).expect("the store answers");
+            let after = keys_of(load(&mut open, NO_APP, ID).expect("the store answers"));
             let second = destroy(&mut open, NO_APP, ID)
                 .expect("an id with no record under it is already forgotten");
             (before, after, first, second)
@@ -2839,12 +3289,11 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-destroyed-stays", *backend);
             assert!(
-                issued(&store, NO_APP, "a case", ID, &Entries::new(), DEFAULT_SHORT_LIVED)
+                issued(&store, NO_APP, "a case", ID, &whole(&Entries::new()))
                     .expect("the row is issued")
             );
-            let entries = fetched(&store, NO_APP, "a case", ID)
-                .expect("the store answers")
-                .expect("the row the case issued");
+            let entries = keys_of(fetched(&store, NO_APP, "a case", ID).expect("the store answers"))
+            .expect("the row the case issued");
             CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
             ctx.open_session(nvs_runtime::Session {
                 write_back: to_the_case_store,
@@ -2878,7 +3327,7 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-regenerate-gone", *backend);
             assert!(
-                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_SHORT_LIVED)
+                issued(&store, NO_APP, "a case", ID, &whole(&record()))
                     .expect("the row is issued")
             );
             ctx.open_session(loaded(record()));
@@ -2905,8 +3354,7 @@ mod tests {
     /// A request that loaded the session under [`ID`] from `store`, and whose write-back sends there
     /// once [`ended`] runs it.
     fn a_request(store: &Store) -> Ctx {
-        let entries = fetched(store, NO_APP, "a case", ID)
-            .expect("the store answers")
+        let entries = keys_of(fetched(store, NO_APP, "a case", ID).expect("the store answers"))
             .expect("the session the case issued");
         let mut ctx = Ctx::buffered();
         ctx.open_session(nvs_runtime::Session {
@@ -2925,7 +3373,7 @@ mod tests {
 
     /// The keys `store` keeps under `id`, or `None` for a session that is gone.
     fn stored_under(store: &Store, id: &str) -> Option<Entries> {
-        fetched(store, NO_APP, "a case", id).expect("the store answers")
+        keys_of(fetched(store, NO_APP, "a case", id).expect("the store answers"))
     }
 
     /// `n` encoded as `Core\Session::set` encodes it, as the store keeps it.
@@ -2938,7 +3386,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let (store, kept) = a_store(&mut ctx, case, backend);
         assert!(
-            issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_SHORT_LIVED)
+            issued(&store, NO_APP, "a case", ID, &whole(&record()))
                 .expect("the row is issued")
         );
         (store, kept)
@@ -3078,8 +3526,8 @@ mod tests {
         for (word, backend) in BACKENDS {
             let (store, kept) = a_store_with_record("session-last-key", *backend);
             let mut ctx = a_request(&store);
-            write(&mut ctx, "remove", b"user", None).expect("the key is removed");
-            write(&mut ctx, "remove", b"csrf", None).expect("the key is removed");
+            write(&mut ctx, "remove", b"user", None, Lifetime::Short).expect("the key is removed");
+            write(&mut ctx, "remove", b"csrf", None, Lifetime::Short).expect("the key is removed");
             ended(ctx, &store);
 
             assert_eq!(
@@ -3214,16 +3662,17 @@ mod tests {
             return;
         };
         let size = super::counted(&record());
-        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
+        assert!(issue(&mut open, &app, ID, &whole(&record()), size).expect("issued"));
         assert!(destroy(&mut open, &app, ID).expect("destroyed"));
 
         let value = int_bytes(3);
         let changes = Changes {
-            changed: vec![(b"cart".as_slice(), value.as_slice())],
+            changed: vec![(b"cart".as_slice(), value.as_slice(), false)],
+            clocks: clocks(),
             ..Changes::default()
         };
         assert_eq!(
-            super::save(&mut open, &app, ID, &changes, DEFAULT_SHORT_LIVED).expect("the store answers"),
+            super::save(&mut open, &app, ID, &changes).expect("the store answers"),
             Saved::Gone
         );
         assert_eq!(real_hash(&mut open, &app), None, "and nothing was written");
@@ -3239,14 +3688,14 @@ mod tests {
             return;
         };
         let size = super::counted(&record());
-        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
+        assert!(issue(&mut open, &app, ID, &whole(&record()), size).expect("issued"));
 
         let changes = Changes {
             removed: vec![b"user".as_slice(), b"csrf".as_slice()],
             ..Changes::default()
         };
         assert_eq!(
-            super::save(&mut open, &app, ID, &changes, DEFAULT_SHORT_LIVED).expect("the store answers"),
+            super::save(&mut open, &app, ID, &changes).expect("the store answers"),
             Saved::Done
         );
         assert_eq!(
@@ -3255,7 +3704,7 @@ mod tests {
             "the hash keeps `m` alone, at size 0"
         );
         assert_eq!(
-            load(&mut open, &app, ID).expect("the store answers"),
+            keys_of(load(&mut open, &app, ID).expect("the store answers")),
             Some(Entries::new()),
             "and `load` finds a session with no keys"
         );
@@ -3272,10 +3721,10 @@ mod tests {
             return;
         };
         let size = super::counted(&record());
-        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
+        assert!(issue(&mut open, &app, ID, &whole(&record()), size).expect("issued"));
         let before = real_hash(&mut open, &app);
 
-        let field = field_of(b"cart");
+        let field = field_of(b"cart", false);
         let saved_with = |open: &mut Connection, value: &[u8]| {
             let argv: [&[u8]; 7] = [b"60000", b"0", b"200", b"100", b"0", &field, value];
             open.eval(
@@ -3322,16 +3771,18 @@ mod tests {
                 return;
             };
             let size = super::counted(&record());
-            assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
+            assert!(issue(&mut open, &app, ID, &whole(&record()), size).expect("issued"));
 
             let value = int_bytes(3);
             let changes = Changes {
                 cleared,
                 removed: vec![b"user".as_slice()],
-                changed: vec![(b"cart".as_slice(), value.as_slice())],
+                changed: vec![(b"cart".as_slice(), value.as_slice(), false)],
+                token: None,
+                clocks: clocks(),
             };
             let save = |open: &mut Connection| {
-                super::save(open, &app, ID, &changes, DEFAULT_SHORT_LIVED).expect("the store answers")
+                super::save(open, &app, ID, &changes).expect("the store answers")
             };
             assert_eq!(save(&mut open), Saved::Done);
             let once = real_hash(&mut open, &app);
@@ -3346,7 +3797,7 @@ mod tests {
             want.remove(b"user".as_slice());
             want.insert(b"cart".to_vec(), value.clone());
             assert_eq!(
-                load(&mut open, &app, ID).expect("the store answers"),
+                keys_of(load(&mut open, &app, ID).expect("the store answers")),
                 Some(want),
                 "(clear: {cleared})"
             );
@@ -3494,18 +3945,19 @@ mod tests {
                 "{word}: the second application finds no session under the id"
             );
             let taking = Changes {
-                changed: vec![(b"user".as_slice(), b"taken".as_slice())],
+                changed: vec![(b"user".as_slice(), b"taken".as_slice(), false)],
+                clocks: clocks(),
                 ..Changes::default()
             };
             assert_eq!(
-                saved(&store, shop_app, "a case", ID, &taking, DEFAULT_SHORT_LIVED)
+                saved(&store, shop_app, "a case", ID, &taking)
                     .expect("the store answers"),
                 Saved::Gone,
                 "{word}: and cannot write over the first application's row"
             );
             let its_own = Entries::from([(b"user".to_vec(), b"its own".to_vec())]);
             assert!(
-                issued(&store, shop_app, "a case", ID, &its_own, DEFAULT_SHORT_LIVED)
+                issued(&store, shop_app, "a case", ID, &whole(&its_own))
                     .expect("the store answers"),
                 "{word}: its own session under that id is a row of its own"
             );
@@ -3516,8 +3968,7 @@ mod tests {
                 again.set_config(Arc::clone(config.snapshot()));
             }
             assert_eq!(
-                fetched(&store, crate::cache::application(&again), "start", ID)
-                    .expect("the store answers"),
+                keys_of(fetched(&store, crate::cache::application(&again), "start", ID).expect("the store answers")),
                 Some(record()),
                 "{word}: the first application still loads its record"
             );
@@ -3532,14 +3983,15 @@ mod tests {
     #[test]
     fn only_issue_inserts_a_session_row() {
         let changes = Changes {
-            changed: vec![(b"user".as_slice(), b"late".as_slice())],
+            changed: vec![(b"user".as_slice(), b"late".as_slice(), false)],
+                clocks: clocks(),
             ..Changes::default()
         };
         for (word, backend) in BACKENDS {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-only-create", *backend);
             assert_eq!(
-                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_SHORT_LIVED)
+                saved(&store, NO_APP, "a case", ID, &changes)
                     .expect("the store answers"),
                 Saved::Gone,
                 "{word}: a save of an absent id writes nothing"
@@ -3547,25 +3999,25 @@ mod tests {
             assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
 
             assert!(
-                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_SHORT_LIVED)
+                issued(&store, NO_APP, "a case", ID, &whole(&record()))
                     .expect("the store answers"),
                 "{word}: an issue of an absent id inserts the row"
             );
             let another = Entries::from([(b"user".to_vec(), b"another".to_vec())]);
             assert!(
-                !issued(&store, NO_APP, "a case", ID, &another, DEFAULT_SHORT_LIVED)
+                !issued(&store, NO_APP, "a case", ID, &whole(&another))
                     .expect("the store answers"),
                 "{word}: an issue of a held id fails"
             );
             assert_eq!(
-                fetched(&store, NO_APP, "a case", ID).expect("the store answers"),
+                keys_of(fetched(&store, NO_APP, "a case", ID).expect("the store answers")),
                 Some(record()),
                 "{word}: and the held keys stay"
             );
 
             kept.lapse(ID);
             assert_eq!(
-                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_SHORT_LIVED)
+                saved(&store, NO_APP, "a case", ID, &changes)
                     .expect("the store answers"),
                 Saved::Gone,
                 "{word}: a save of an expired row writes nothing"
@@ -4245,7 +4697,10 @@ mod tests {
     #[test]
     fn the_block_decides_the_store_and_absence_selects_the_data_folder_file() {
         let mut ctx = Ctx::buffered();
-        assert_eq!(ttl(&ctx), DEFAULT_SHORT_LIVED);
+        assert_eq!(
+            short_lived(&ctx),
+            i64::try_from(super::DEFAULT_SHORT_LIVED.as_millis()).expect("two hours")
+        );
         assert_eq!(cookie(&ctx), "nvsid");
         assert_eq!(
             backend(&ctx, "start").expect("no block is the default store"),
@@ -4275,7 +4730,7 @@ mod tests {
             backend(&ctx, "start").expect("a store the roster admits"),
             Backend::Shared
         );
-        assert_eq!(ttl(&ctx), Duration::from_secs(30 * 60));
+        assert_eq!(short_lived(&ctx), 30 * 60 * 1000);
         assert_eq!(cookie(&ctx), "sid");
     }
 

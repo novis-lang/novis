@@ -683,8 +683,8 @@
 # How long a short-lived value, such as a login, is kept after the session was last used. It also
 # ends when the browser closes.
 #short_lived = "2h"                   # default
-# NOT IMPLEMENTED until goal session-lifetimes stage 2. How long a long-lived value, such as a
-# consent choice, is kept after the session was last used. It survives the browser closing.
+# How long a long-lived value, such as a consent choice, is kept after the session was last used.
+# It survives the browser closing.
 #long_lived = "180d"                  # default
 # The cookie name the identifier rides under. The cookie's attributes are not here —
 # `[http.cookies]` already fixes them for every cookie this server writes, and a second spelling

@@ -1558,8 +1558,7 @@ pub struct Session {
     /// The long clock: how long a long-lived value, and the record that has one, survives after the
     /// session was last written or refreshed
     /// (`rule:http-server/a-session-value-is-short-lived-or-long-lived`). Omitted, the 180 days
-    /// `crate::defaults::SESSION_LONG_LIVED` ships. `Core\Config::get` reads it, and the session
-    /// store reads it from goal `session-lifetimes` stage 2.
+    /// `crate::defaults::SESSION_LONG_LIVED` ships.
     pub long_lived: Option<String>,
     /// The cookie name the identifier rides under. Omitted, `nvs_stdlib::session`'s default; the
     /// cookie's *attributes* are not here, because `rule:http-server/cookies-are-secure-httponly-and-lax` already fixes them for every cookie

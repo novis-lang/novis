@@ -1954,11 +1954,7 @@ mod tests {
         ctx.open_session(nvs_runtime::Session {
             id: "sid-test".to_owned(),
             stored: true,
-            entries: std::collections::BTreeMap::new(),
-            touched: std::collections::BTreeSet::new(),
-            cleared: false,
-            dirty: false,
-            write_back: |_| {},
+            ..nvs_runtime::Session::empty(|_| {})
         });
         ctx
     }
