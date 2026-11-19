@@ -784,7 +784,10 @@ a redirect, a body method, a cookie or a session write inside one throws `LogicE
 compile error where the checker sees it. A session write is every `Core\Session` member but `get` and
 `getSecret`, and it throws for every visitor
 ([`concurrency/deferred-work-cannot-write-the-response`](concurrency.md#concurrency-deferred-work-cannot-write-the-response)). Reading the request and the session is
-allowed. Outside an
+allowed. A slot reads the request's session, also where the main script never used it: while the slots
+run, the request lends them its session, and the first slot that needs it opens it from the request's
+cookie, once for every slot. `Core\Csrf::token` for a visitor with no session throws there, because its
+token needs a new identifier and that identifier's cookie. Outside an
 HTML response, or outside an HTTP request, `later` runs `fn` in place and returns its output, so a
 component still works there.
 
