@@ -1,23 +1,30 @@
 ---
 summary: a civil date and time in a zone — calendar arithmetic and CLDR formatting
-keywords: date, time, datetime, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month
+keywords: date, time, datetime, create a date, parse a date, ISO 8601, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month
 ---
 
-A `DateTime` is a civil reading — year, month, day, hour, minute, second, nanosecond — in one `Zone`,
-built by `Core\Time::at` or `Core\Time::parse` or read off an `Instant` with `->in($zone)`. It is
-immutable: every member answers a new value. Its arithmetic is calendar arithmetic: `plus(1,
-Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
-across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
-zone.
+A `DateTime` is a date and a time of day in one `Zone`. `DateTime::fromIso` reads a text such as
+`2024-03-01 09:30` in the zone you give it. A date alone, such as `2024-03-01`, is the start of
+that day. `DateTime::at($date, $time, $zone)` builds one from a `Date` and a `TimeOfDay`.
+`DateTime::parse` reads text in a pattern of your choice. `->in($zone)` gives the `DateTime` of an
+`Instant`.
+
+A zone that is fixed in the code is written as text, such as `'Europe/Berlin'`. It is checked when
+the program compiles. A zone name that arrives while the program runs needs `Core\Time\Zone::of`.
+
+A `DateTime` never changes: every method returns a new value. Its arithmetic follows the calendar.
+`plus(1, Core\Unit::Month)` keeps the day inside the new month. `plus(1, Core\Unit::Day)` across a
+daylight saving change is 23 or 25 hours. `difference` counts whole units in the zone of the value
+it is called on.
 
 `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanos()` return the fields as
 numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
 return a `uint`. These are the same names and types that `with` takes.
 
-`format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
-and `TimeOfDay::format` use them for their own fields. A pattern written directly
-in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
-computed at run time throws a `LogicError` instead. Month and weekday names are always in English.
+`format` takes a **CLDR pattern**. `DateTime::parse` reads the same patterns, and `Date::format`
+and `TimeOfDay::format` use them for their own fields. A pattern written in the code is
+checked when the program compiles, so a letter outside the table below is a compile error. A pattern
+computed at run time throws a `LogicError`. Month and weekday names are always in English.
 
 | Letter | Field | Counts |
 |---|---|---|
@@ -56,8 +63,7 @@ Text between `'…'` is printed as it is, and `''` is one apostrophe. These lett
 
 ```nvs
 <?nvs
-var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 1, 31, $utc, { hour: 9, minute: 30 });
+var $d = Core\Time\DateTime::fromIso('2024-01-31 09:30', 'UTC');
 echo $d->format('yyyy-MM-dd HH:mm:ss'), "\n";
 echo $d->format("EEEE, d MMMM yyyy 'at' h:mm a"), "\n";
 
@@ -68,10 +74,14 @@ echo $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), "\n";
 echo $d->startOf(Core\Unit::Day)->format('HH:mm'), ' ',
     $d->endOf(Core\Unit::Month)->format('dd HH:mm:ss.SSS'), "\n";
 
-echo $d->difference(Core\Time::at(2026, 8, 30, $utc), Core\Unit::Year), "\n";
+echo $d->difference(Core\Time\DateTime::fromIso('2026-08-30', 'UTC'), Core\Unit::Year), "\n";
 echo $d->weekday() == Core\Time\Weekday::Wednesday ? 'midweek' : 'other', "\n";
 echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', "\n";
 echo $d->toInstant()->toIso(), "\n";
+
+var $eve = Core\Time\DateTime::at(Core\Time\Date::at(2024, 3, 30), Core\Time\TimeOfDay::at(12, 0), 'Europe/Berlin');
+echo $eve->plus(1, Core\Unit::Day)->format('yyyy-MM-dd HH:mm XXX'), "\n";
+echo Core\Time\DateTime::parse('5 March 2024', 'd MMMM yyyy', 'UTC')->format('yyyy-MM-dd HH:mm'), "\n";
 ```
 ```output
 2024-01-31 09:30:00
@@ -85,4 +95,6 @@ Wednesday, 31 January 2024 at 9:30 AM
 midweek
 31 leap
 2024-01-31T09:30:00Z
+2024-03-31 12:00 +02:00
+2024-03-05 00:00
 ```

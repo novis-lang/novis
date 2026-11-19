@@ -1,18 +1,21 @@
 ---
 summary: an absolute point on the timeline, to the nanosecond, with no zone
-keywords: instant, timestamp, epoch, Unix time, milliseconds, timeline, UTC, RFC 3339, ISO 8601, time difference, add hours
+keywords: instant, timestamp, epoch, Unix time, milliseconds, timeline, UTC, RFC 3339, ISO 8601, from timestamp, parse a timestamp, time difference, add hours
 ---
 
-An `Instant` is a point on the timeline with no calendar attached: it has an epoch count and an
-RFC 3339 rendering in UTC, and nothing else until `->in($zone)` places it on a calendar. It moves
-only by an exact `Duration` — `plus(36h)` is thirty-six hours whatever a zone's clocks did in between —
-and `since` measures the exact gap between two instants; a step in days or months is taken on the
-`DateTime` that `->in($zone)` answers. Two instants are ordered with `compareTo`; the `<`, `>` and
-`<=>` operators do not compile on an `Instant`.
+An `Instant` is a point on the timeline. It has no calendar and no zone. `Instant::fromIso` reads an
+RFC 3339 timestamp such as `2024-03-01T12:00:00Z`. `Instant::fromEpoch` builds one from seconds
+since 1 January 1970. `Core\Time::now()` returns the current instant.
+
+An `Instant` has an epoch count and a text form in UTC. `->in($zone)` gives its date and time of day
+in a zone, as a `DateTime`. It moves only by an exact `Duration`: `plus(36h)` is always thirty-six
+hours. `since` returns the exact time between two instants. A step in days or months is taken on the
+`DateTime` that `->in($zone)` returns. `compareTo` orders two instants. The `<`, `>` and `<=>`
+operators do not compile on an `Instant`.
 
 ```nvs
 <?nvs
-var $start = Core\Time::fromIso('2024-03-01T12:00:00Z');
+var $start = Core\Time\Instant::fromIso('2024-03-01T12:00:00Z');
 echo $start->toIso(), "\n";
 echo $start->toEpochSeconds(), "\n";
 echo $start->toEpochMillis(), "\n";
@@ -23,8 +26,8 @@ echo $end->since($start), "\n";
 echo $start->minus(30m)->toIso(), "\n";
 echo $start->compareTo($end), "\n";
 
-echo $start->in(Core\Time\Zone::of('Asia/Tokyo'))->format('yyyy-MM-dd HH:mm'), "\n";
-echo Core\Time::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
+echo $start->in('Asia/Tokyo')->format('yyyy-MM-dd HH:mm'), "\n";
+echo Core\Time\Instant::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
 ```
 ```output
 2024-03-01T12:00:00Z

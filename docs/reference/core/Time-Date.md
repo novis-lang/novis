@@ -1,17 +1,17 @@
 ---
 summary: a calendar date with no time and no zone
-keywords: date, calendar date, day-month-year, zone-free, valid date, days in month, leap year
+keywords: date, calendar date, day-month-year, zone-free, parse a date, ISO 8601, valid date, days in month, leap year
 ---
 
-A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::at` builds one, and
-`->date()` gives the date of a `DateTime`. To read a date from text, use `Core\Time::parse` with a
-pattern and a zone, and call `->date()` on the result. A date that does not exist throws an error
-when it is built.
+A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::fromIso` reads a
+date written as `YYYY-MM-DD`, such as `2024-03-01`. `Date::at` builds one from three numbers, and
+`->date()` gives the date of a `DateTime`. A date that does not exist throws an error when it is
+built. A date written as a string literal in `Date::fromIso` is checked when the program compiles.
 
 `year()`, `month()` and `day()` return the three fields as numbers. `weekday()` returns a
 `Core\Time\Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
-`isLeapYear()` checks the year. `atStartOfDay($zone)` returns a `DateTime` at the first moment of
-the date in that zone. This is usually midnight. Add a time of day to it with `withTime`.
+`isLeapYear()` checks the year. `DateTime::at($date, TimeOfDay::at(0, 0), $zone)` returns the first
+moment of the date in a zone.
 
 `plus` and `minus` move a date by `Core\Unit::Day` or a larger unit. A smaller unit throws an
 error. Moving by months keeps the day inside the new month, as `DateTime::plus` does. `format`
@@ -21,7 +21,7 @@ order two dates.
 
 ```nvs
 <?nvs
-var $d = Core\Time\Date::at(2024, 1, 31);
+var $d = Core\Time\Date::fromIso('2024-01-31');
 echo $d->format('yyyy-MM-dd'), "\n";
 echo $d->format('EEEE, d MMMM'), "\n";
 
@@ -36,12 +36,12 @@ try {
     echo "2023-02-29 does not exist\n";
 }
 
-var $utc = Core\Time\Zone::UTC;
-echo Core\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), "\n";
+echo Core\Time\DateTime::fromIso('2024-03-01 23:00', 'UTC')->date()->format('d/M/yyyy'), "\n";
 
 echo $d->year(), ' ', $d->month(), ' ', $d->day(), "\n";
 echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap year' : 'not a leap year', "\n";
-echo $d->atStartOfDay(Core\Time\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
+var $midnight = Core\Time\TimeOfDay::at(0, 0);
+echo Core\Time\DateTime::at($d, $midnight, 'Europe/Berlin')->format('yyyy-MM-dd HH:mm XXX'), "\n";
 ```
 ```output
 2024-01-31
