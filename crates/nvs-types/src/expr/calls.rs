@@ -875,8 +875,8 @@ pub(crate) fn infer_static_call(
         // reason that call reads them. See
         // [`reject_secret_published_argument`].
         reject_secret_published_argument(owner, name, args, &arg_types, &slots, env);
-        // The same graph copy through a session record: `Core\Session::set`
-        // encodes its value into bytes a store holds until the session ends, and
+        // The same graph copy through a session record: `Core\Session::setShortLived`
+        // and `setLongLived` encode their value into bytes a store holds until the session ends, and
         // `rule:http-server/a-session-holds-a-secret-only-sealed` gives a user's
         // own secret a sealed door of its own there, which this refusal names.
         // See [`reject_secret_session_argument`].

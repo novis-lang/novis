@@ -274,7 +274,8 @@ fn every_secret_sink_refuses_a_secret_mixed() {
         "echo \"a{$m}\";",
         "string $s = Core\\Json::encode($m);",
         "bytes $b = Core\\Serialize::encode($m);",
-        "Core\\Session::set(\"k\", $m);",
+        "Core\\Session::setShortLived(\"k\", $m);",
+        "Core\\Session::setLongLived(\"k\", $m);",
         "throw new LogicException($m as string);",
     ] {
         let src = in_function("secret mixed", &line.replace("$m", "$x"));

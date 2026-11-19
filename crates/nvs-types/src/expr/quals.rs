@@ -55,7 +55,7 @@
 //! that same graph copy through a third carrier,
 //! [`reject_secret_cached_argument`], which is `Core\Cache\Store::put` reaching
 //! it through a fourth, [`reject_secret_session_argument`], which is
-//! `Core\Session::set` reaching it through the record a request writes back —
+//! `Core\Session::setShortLived` and `setLongLived` reaching it through the record a request writes back —
 //! those two being the refusals that name a member taking the secret rather
 //! than a reveal — [`reject_secret_encoded_argument`],
 //! [`reject_secret_enqueued_argument`], which is that same encoder reached
@@ -2469,19 +2469,21 @@ pub(crate) fn reject_secret_cached_argument(
 }
 
 /// `rule:http-server/a-session-holds-a-secret-only-sealed`'s record, which is
-/// [`reject_secret_crossing`]'s fifth carrier: `Core\Session::set` encodes its
-/// value into the record this request writes back to a store that outlives it.
+/// [`reject_secret_crossing`]'s fifth carrier: `Core\Session::setShortLived` and
+/// `setLongLived` encode their value into the record this request writes back
+/// to a store that outlives it.
 ///
 /// **The second carrier with a door of its own**, and it names it exactly as
-/// [`reject_secret_cached_argument`] names `putSecret`: `setSecret` takes the
-/// same secret, seals it under a key ring and writes ciphertext into the
-/// record, so a program that revealed here to get past the check would have put
-/// a plaintext credential in a session store rather than being told where the
-/// sealed one goes.
+/// [`reject_secret_cached_argument`] names `putSecret`: each plain write's
+/// sealed sibling of the same lifetime (`setShortLivedSecret`,
+/// `setLongLivedSecret`) takes the same secret, seals it under a key ring and
+/// writes ciphertext into the record, so a program that revealed here to get
+/// past the check would have put a plaintext credential in a session store
+/// rather than being told where the sealed one goes.
 ///
 /// A call-site rule rather than a parameter type, exactly as every sibling here
-/// is one: `set` declares `mixed` for its value, so the written argument is the
-/// last place the qualifier is visible. The value is found through its
+/// is one: both writes declare `mixed` for their value, so the written argument
+/// is the last place the qualifier is visible. The value is found through its
 /// [`ArgSlot`] for [`reject_secret_published_argument`]'s reason, and `$key` is
 /// not asked about, being text that reaches no answer at all.
 pub(crate) fn reject_secret_session_argument(
@@ -2492,29 +2494,31 @@ pub(crate) fn reject_secret_session_argument(
     slots: &[ArgSlot],
     env: &mut Env<'_>,
 ) {
-    if qname.to_string() != r"Core\Session" || member != "set" {
+    if qname.to_string() != r"Core\Session" {
         return;
     }
+    let sealed = match member {
+        "setShortLived" => "setShortLivedSecret",
+        "setLongLived" => "setLongLivedSecret",
+        _ => return,
+    };
     let CallArgs::List(list) = args else {
         return;
     };
-    // Slot 1 is `$value` in `nvs_stdlib::session`'s row, whose parameters are
+    let carrier = format!(
+        "`Core\\Session::{member}` encodes it into the record this request writes back to a \
+         store that outlives it"
+    );
+    let instead = format!(
+        "write `{sealed}($key, $value, $keys)` instead. It encrypts the value before it is stored"
+    );
+    // Slot 1 is `$value` in `nvs_stdlib::session`'s rows, whose parameters are
     // `[CoreTy::Text(Qual::Neutral), CoreTy::Mixed]`.
     for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
         if slot != ArgSlot::Param(1) {
             continue;
         }
-        reject_secret_crossing(
-            &arg.value,
-            ty,
-            "`Core\\Session::set` encodes it into the record this request writes back to a \
-             store that outlives it",
-            Some(
-                "write `setSecret($key, $value, $keys)` instead. It encrypts the value before \
-                 it is stored",
-            ),
-            env,
-        );
+        reject_secret_crossing(&arg.value, ty, &carrier, Some(&instead), env);
     }
 }
 
