@@ -358,10 +358,15 @@ impl Value {
     }
 
     /// A `string` copied from Rust text, which the type already proves UTF-8.
+    ///
+    /// One ASCII byte is not copied: it is the shared immortal string
+    /// [`NvsStr::ascii_byte`] gives, so splitting text into its letters makes
+    /// no allocation per letter.
     #[must_use]
     #[expect(clippy::disallowed_methods, reason = "a `&str` is UTF-8 by its type")]
     pub fn text(value: &str) -> Self {
-        Self::str(NvsStr::new(value.as_bytes()))
+        let bytes = value.as_bytes();
+        Self::str(NvsStr::ascii_byte(bytes).unwrap_or_else(|| NvsStr::new(bytes)))
     }
 
     /// A `bytes`, taking over the handle's reference.

@@ -26,6 +26,12 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A bigger string header can push a hostile proof's early step past the memory ceiling, and only
+  `floor-debt` runs every proof.** The start word made each one-letter string 49 bytes, and the
+  `chunk` and `graphemes` attacks hit the FATAL at step 1, not their last step. The gate and `ci
+  --check` were green, and the retire was refused. After a layout change, run `nvs run` on each
+  attack that makes millions of small values. Shrinking its input is refused as loosening a test.
+  See `tests/hostile/core/Str/chunk/`.
 - **A sweep red whose log file does not exist names a check no goal defines any more.** Three
   sessions searched the tree for `env-secret-proofs`, which a retired goal's sweep left behind. Run
   `git log -S '<name>' --oneline` once: when the newest hit is a goal's retire commit, the red is

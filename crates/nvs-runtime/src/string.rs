@@ -159,11 +159,13 @@
 //! written belongs to an allocation [`NvsStr::try_alloc_uninit`] made on the
 //! request's own thread and reachable from nowhere else.
 //!
-//! Two immortal headers exist, for two unrelated reasons. A literal's is in
-//! the compiled unit, written by [`immortal_header_bytes`]; [`EMPTY_IMMORTAL`]
+//! Three kinds of immortal header exist, for unrelated reasons. A literal's is
+//! in the compiled unit, written by [`immortal_header_bytes`]. [`EMPTY_IMMORTAL`]
 //! is this crate's own static, and it is the value every constructor here
 //! answers with when the running request has been refused the memory it asked
-//! for. Neither is ever written, so the paragraph above covers them alike.
+//! for. [`ASCII_IMMORTAL`] is a static string for every ASCII byte, which
+//! [`crate::Value::text`] answers with for one-byte text. None is ever
+//! written, so the paragraph above covers them alike.
 //!
 //! What it costs is one compare and a not-taken branch per release — the
 //! hottest operation in the runtime — against a sentinel every allocated
@@ -442,19 +444,26 @@ pub fn immortal_header_bytes(payload: &[u8]) -> [u8; PAYLOAD_OFFSET] {
     header
 }
 
-/// A [`StrHeader`] in this crate's own static data, shareable because nothing
-/// ever writes it.
+/// A whole string, header and `N` payload bytes, in this crate's own static
+/// data, shareable because nothing ever writes it.
 ///
 /// A `StrHeader`'s counts are `Cell`s and a `static`'s type has to be `Sync`,
-/// so the argument is made once here rather than at each use. The only header
-/// this wraps is [`EMPTY_IMMORTAL`]'s: its reference count is
-/// [`IMMORTAL_REFCOUNT`], which takes every retain and release down a path
-/// that writes nothing, and its grapheme count is already known, so the lazy
-/// fill an allocated string uses never reaches it either. That is this
-/// module's docs § *An immortal string* verbatim, for a header in this crate
-/// instead of in a compiled unit.
-#[repr(transparent)]
-struct SharedHeader(StrHeader);
+/// so the argument is made once here rather than at each use. The headers
+/// this wraps are [`EMPTY_IMMORTAL`]'s and [`ASCII_IMMORTAL`]'s: each
+/// reference count is [`IMMORTAL_REFCOUNT`], which takes every retain and
+/// release down a path that writes nothing, and each grapheme count is already
+/// known, so the lazy fill an allocated string uses never reaches it either.
+/// The digest stays unknown, and [`KeyRef::digest`] writes none into an
+/// immortal header. That is this module's docs § *An immortal string*
+/// verbatim, for a header in this crate instead of in a compiled unit.
+///
+/// `#[repr(C)]` puts `payload` at [`PAYLOAD_OFFSET`], where every payload read
+/// looks for it.
+#[repr(C)]
+struct SharedString<const N: usize> {
+    header: StrHeader,
+    payload: [u8; N],
+}
 
 #[expect(
     unsafe_code,
@@ -463,7 +472,54 @@ struct SharedHeader(StrHeader);
               be synchronized for"
 )]
 // SAFETY: as the type's own doc comment argues.
-unsafe impl Sync for SharedHeader {}
+unsafe impl<const N: usize> Sync for SharedString<N> {}
+
+impl<const N: usize> SharedString<N> {
+    /// The immortal string whose bytes are `payload`, which holds `graphemes`
+    /// clusters.
+    const fn new(payload: [u8; N], graphemes: usize) -> Self {
+        Self {
+            header: StrHeader {
+                refcount: Cell::new(IMMORTAL_REFCOUNT),
+                len: Cell::new(N),
+                cap: N,
+                graphemes: Cell::new(graphemes),
+                digest: Cell::new(DIGEST_UNKNOWN),
+                start: Cell::new(0),
+            },
+            payload,
+        }
+    }
+}
+
+/// How many one-byte strings [`ASCII_IMMORTAL`] has: one for every ASCII byte.
+const ASCII_COUNT: usize = 128;
+
+/// One immortal string for every ASCII byte, which [`NvsStr::ascii_byte`]
+/// hands out in place of an allocation.
+///
+/// A program that splits text into characters makes one string per character,
+/// and most of them are one ASCII byte. Each of those was an allocation of a
+/// header and one byte; now it is a pointer into this table, which costs no
+/// allocation, no free and none of the request's memory. So
+/// `Core\Str::chunk($s, 1)` over 4 MiB of letters holds the array alone.
+/// Every ASCII byte is one grapheme cluster on its own, `\r` included, so each
+/// count is 1. The table is `128 × 56` bytes of static data, about 7 KiB, once
+/// per process.
+static ASCII_IMMORTAL: [SharedString<1>; ASCII_COUNT] = {
+    let mut table = [const { SharedString::new([0], 1) }; ASCII_COUNT];
+    let mut byte = 0;
+    while byte < ASCII_COUNT {
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "`byte` is below 128, so it fits a `u8`"
+        )]
+        let value = byte as u8;
+        table[byte] = SharedString::new([value], 1);
+        byte += 1;
+    }
+    table
+};
 
 /// The empty string every constructor here answers with when the request has
 /// been refused the allocation it asked for.
@@ -475,17 +531,11 @@ unsafe impl Sync for SharedHeader {}
 /// string, and nothing is ever freed. That is what lets a ctx-less `extern
 /// "C"` primitive refuse by *returning a value* rather than by acquiring a
 /// status its signature has nowhere to put.
-static EMPTY_IMMORTAL: SharedHeader = SharedHeader(StrHeader {
-    refcount: Cell::new(IMMORTAL_REFCOUNT),
-    len: Cell::new(0),
-    cap: 0,
-    // Known rather than [`COUNT_UNKNOWN`], for [`immortal_header_bytes`]'s
-    // reason: nothing may write this header, so the lazy fill is not available
-    // to it. An empty payload has no clusters, so there is nothing to scan.
-    graphemes: Cell::new(0),
-    digest: Cell::new(DIGEST_UNKNOWN),
-    start: Cell::new(0),
-});
+///
+/// Its grapheme count is known rather than [`COUNT_UNKNOWN`], for
+/// [`immortal_header_bytes`]'s reason: nothing may write this header, so the
+/// lazy fill is not available to it. An empty payload has no clusters.
+static EMPTY_IMMORTAL: SharedString<0> = SharedString::new([], 0);
 
 /// The allocation shape for a string with room for `cap` payload bytes.
 ///
@@ -948,8 +998,23 @@ impl NvsStr {
     #[must_use]
     pub fn empty_immortal() -> Self {
         Self {
-            ptr: NonNull::from(&EMPTY_IMMORTAL.0),
+            ptr: NonNull::from(&EMPTY_IMMORTAL.header),
         }
+    }
+
+    /// The immortal one-byte string [`ASCII_IMMORTAL`] has for `bytes`, when
+    /// `bytes` is one ASCII byte, and `None` otherwise.
+    ///
+    /// Owned exactly as [`Self::empty_immortal`]'s handle is. It is never
+    /// changed in place, because an in-place change needs a reference count of
+    /// one.
+    #[must_use]
+    pub fn ascii_byte(bytes: &[u8]) -> Option<Self> {
+        let [byte] = bytes else { return None };
+        let shared = ASCII_IMMORTAL.get(usize::from(*byte))?;
+        Some(Self {
+            ptr: NonNull::from(&shared.header),
+        })
     }
 
     /// Allocates a fresh string with room for `capacity` bytes and lets

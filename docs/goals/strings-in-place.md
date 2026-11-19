@@ -168,6 +168,16 @@ is not done in place, because its search polls the request's deadline through a 
 throw, and `apply` cannot. **What it spends:** on a sole subject, one copy of a built result. On a
 shared subject, nothing beyond the build it did before.
 
+**One ASCII byte of text is a shared immortal string (my call, the floor-debt fix).** The start
+word made each one-letter string 49 bytes, so `Core\Str::chunk($s, 1)` and `Core\Str::graphemes`
+over 4 MiB of letters ran past the 256 MiB ceiling at their first step, and their hostile proofs
+went red. Shrinking the attack's input is loosening a test and was refused. Instead
+`string.rs`'s `ASCII_IMMORTAL` is a static string for each of the 128 ASCII bytes, and `Value::text`
+returns `NvsStr::ascii_byte`'s handle for one-byte text. It is never changed in place, because
+every in-place change needs a count of 1. The fix lives in the runtime, because a code change to
+`str.rs` would stale every `Core\Str` perf record. **What it spends:** about 7 KiB of static data
+per process, and one length compare per `Value::text`. It saves an allocation per letter.
+
 **Lanes.** Stage 2 touches `crates/nvs-stdlib/src/granularity.rs` and `str.rs`'s `window` alone. Stage 3
 touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at any time, even before
 `in-place-everywhere`. Stage 4 needs `in-place-everywhere` reached and stages 2 and 3 done.
@@ -251,7 +261,15 @@ The goal came from a conversation with the person, who asked for the same depth 
 that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Every stage is done. Stage 5's gate is green: `looper verify` ran 23 of 23 steps green, after one
+The first DONE was refused: `floor-debt` found two hostile proofs red,
+`tests/hostile/core/Str/chunk/01-millions-of-tiny-pieces.nvs` and
+`tests/hostile/core/Str/graphemes/01-one-huge-character-and-millions-of-small-ones.nvs`. Their step 1
+(4 million one-letter strings) ran past the ceiling, because the start word made each one 49 bytes.
+The fix is § *Standing decisions*' shared one-byte strings (`string.rs` `ASCII_IMMORTAL`,
+`NvsStr::ascii_byte`, `Value::text`). Both attacks now run to their last step and stop there with
+the memory FATAL. `looper verify` ran again after the fix (see the fix commit).
+
+Every stage is done. Stage 5's gate was green: `looper verify` ran 23 of 23 steps green, after one
 fix pass (`0e634e80c2`):
 
 - `crates/nvs-stdlib/src/uri.rs` `OverMemory::fault`: the `FATAL` past the memory ceiling is joined
@@ -273,7 +291,9 @@ sweep's `env-secret-proofs` red is stale: it has no log, and no goal defines it.
 
 ### Next
 
-Nothing in this goal. The driver runs the acceptance checks and retires it.
+Nothing in this goal. The driver runs the acceptance checks, `floor-debt` among them, and retires
+it. A test that counts the allocations of one-letter text may now count fewer; none was red at the
+fix's verify.
 
 ### Backlog
 
