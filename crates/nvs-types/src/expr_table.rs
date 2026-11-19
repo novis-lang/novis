@@ -1676,6 +1676,9 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
     proven_callbacks: FxHashSet<Span>,
+    /// Whether a call of `Core\Test::double` or `Core\Test::partial` was
+    /// checked. See [`Self::makes_classes_at_run_time`].
+    run_time_classes: bool,
     guarded_target_reads: FxHashSet<Span>,
     covariant_writes: FxHashSet<Span>,
     never_stmts: FxHashSet<Span>,
@@ -1866,6 +1869,7 @@ impl ExprTypeTable {
             types,
             float_widened,
             proven_callbacks,
+            run_time_classes,
             guarded_target_reads,
             covariant_writes,
             never_stmts,
@@ -1929,6 +1933,7 @@ impl ExprTypeTable {
         self.types.extend(types);
         self.float_widened.extend(float_widened);
         self.proven_callbacks.extend(proven_callbacks);
+        self.run_time_classes |= run_time_classes;
         self.guarded_target_reads.extend(guarded_target_reads);
         self.covariant_writes.extend(covariant_writes);
         self.never_stmts.extend(never_stmts);
@@ -2017,6 +2022,9 @@ impl ExprTypeTable {
         section("types", sorted(&self.types));
         section("float_widened", sorted(&self.float_widened));
         section("proven_callbacks", sorted(&self.proven_callbacks));
+        if self.run_time_classes {
+            section("run_time_classes", vec!["true".to_owned()]);
+        }
         section("guarded_target_reads", sorted(&self.guarded_target_reads));
         section("covariant_writes", sorted(&self.covariant_writes));
         section("never_stmts", sorted(&self.never_stmts));
@@ -2135,10 +2143,28 @@ impl ExprTypeTable {
             u32::try_from(self.entries.len())
                 .expect("far fewer than u32::MAX expressions are ever checked in one compilation"),
         );
+        if let ExprInfo::Call(call) | ExprInfo::CallableRef(call) = &info
+            && call.class.to_string() == r"Core\Test"
+            && matches!(call.method.as_str(), "double" | "partial")
+        {
+            self.run_time_classes = true;
+        }
         self.entries.push(info);
         self.spans.push(span);
         self.by_span.insert(span, id);
         id
+    }
+
+    /// Whether the program calls `Core\Test::double` or `Core\Test::partial`.
+    /// Each makes a class while the program runs, which implements the
+    /// interface or overrides the methods it is given. No class graph lists
+    /// it, so `nvs-ir` calls no instance method directly in such a program
+    /// (`ResolvedCall::direct` and `ResolvedCall::reads_property` are read
+    /// only when this is `false`). Only a test makes a double, so the
+    /// program that loses the direct calls is a test run.
+    #[must_use]
+    pub fn makes_classes_at_run_time(&self) -> bool {
+        self.run_time_classes
     }
 
     /// The [`ExprInfo`] recorded for the expression at `span`, if any — `None`

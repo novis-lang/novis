@@ -4921,9 +4921,14 @@ impl<'a> Lowering<'a> {
         // Row `property-getter` of `crate::forms`: a direct call whose one
         // body is `return $this->p;` is the read that body makes, observer and
         // unset test included. Under the debug switch the call stays, so the
-        // body keeps its statement probe.
+        // body keeps its statement probe. A call is a fresh producer, so no
+        // consumer retains its result: where the receiver is durable the slot
+        // read borrows, and it takes the reference the body's `return` would
+        // have taken. A receiver that is itself a temporary already makes the
+        // read its own (`Self::lower_class_property_read`).
         if cheaper_forms_on()
             && self.debug.is_none()
+            && !self.exprs.makes_classes_at_run_time()
             && let Some(read) = &call.reads_property
         {
             let read = (**read).clone();
@@ -4935,7 +4940,13 @@ impl<'a> Lowering<'a> {
                 observer: read.observer,
                 narrowed: None,
             };
-            return self.lower_class_property_read(object, nullsafe, facts, expr.span, env, cur);
+            let borrowed = self.sole_operand_borrowed(object);
+            let (v, ty) =
+                self.lower_class_property_read(object, nullsafe, facts, expr.span, env, cur);
+            if borrowed && ty.is_refcounted() {
+                self.emit_retain(*cur, v);
+            }
+            return (v, ty);
         }
         // A member of a `Core`-owned class is native Rust behind a
         // helper symbol, exactly as a static `Core` member is — the
@@ -5056,8 +5067,13 @@ impl<'a> Lowering<'a> {
             return self.close_nullsafe(guard, v, ty, env, cur);
         }
         // Row `named-method-call` of `crate::forms`: one body at or below the
-        // receiver's static class is called by its own label.
-        let direct = call.direct.clone().filter(|_| cheaper_forms_on());
+        // receiver's static class is called by its own label. A program that
+        // makes a class while it runs keeps every call virtual
+        // (`ExprTypeTable::makes_classes_at_run_time`).
+        let direct = call
+            .direct
+            .clone()
+            .filter(|_| cheaper_forms_on() && !self.exprs.makes_classes_at_run_time());
         let target_label = format!(
             "{}::{}",
             direct.as_ref().unwrap_or(&call.class),
