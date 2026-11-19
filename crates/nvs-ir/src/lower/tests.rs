@@ -6946,3 +6946,77 @@ fn a_difference_written_as_filter_and_contains_compiles_as_diff() {
     assert_eq!(count_of(&off, "nvs_core_arr_diff"), 0, "{off:?}");
     assert_eq!(count_of(&off, "nvs_core_arr_intersect"), 0, "{off:?}");
 }
+
+/// How many instructions of `program` `pick` accepts, across every function.
+fn insts_where(program: &crate::ir::Program, pick: impl Fn(&InstKind) -> bool) -> usize {
+    program
+        .functions
+        .iter()
+        .flat_map(|f| f.blocks.iter())
+        .flat_map(|block| block.insts.iter())
+        .filter(|inst| pick(&inst.kind))
+        .count()
+}
+
+/// Row `foreach-keys-or-values`: a loop over `keys(m)` or `values(m)` builds
+/// neither list. The loop over the keys reads each key of `m` itself.
+#[test]
+fn a_loop_over_keys_or_values_walks_the_array_itself() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $m): void {\n    \
+               foreach (Core\\Arr::keys($m) as string $k) { echo $k; }\n    \
+               foreach (Core\\Arr::values($m) as int $v) { echo $v; }\n  }\n}\n";
+    let (on, off) = core_calls_both_ways(src);
+    assert!(on.is_empty(), "{on:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_keys"), 1, "{off:?}");
+    let values = off
+        .iter()
+        .filter(|call| call.starts_with("nvs_core_arr_values"))
+        .count();
+    assert_eq!(values, 1, "{off:?}");
+    let program = lower_whole_file_with_src(src).0;
+    let keys = insts_where(&program, |kind| matches!(kind, InstKind::ArrayKeyAt { .. }));
+    assert_eq!(keys, 1);
+}
+
+/// Row `foreach-range`: a loop over `range` builds no list. One helper call
+/// checks the step and gives the last value, before the first step.
+#[test]
+fn a_loop_over_a_range_counts_without_an_array() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(int $a, int $b, int $s): void {\n    \
+               foreach (Core\\Arr::range($a, $b) as int $i) { echo $i; }\n    \
+               foreach (Core\\Arr::range($a, $b, options: {step: $s}) as int $i) { echo $i; }\n  }\n}\n";
+    let (on_calls, off_calls) = core_calls_both_ways(src);
+    assert!(on_calls.is_empty(), "{on_calls:?}");
+    assert_eq!(count_of(&off_calls, "nvs_core_arr_range"), 2, "{off_calls:?}");
+    let last = |kind: &InstKind| {
+        matches!(
+            kind,
+            InstKind::HelperCall {
+                helper: Helper::RangeLast,
+                ..
+            }
+        )
+    };
+    let walks = |kind: &InstKind| matches!(kind, InstKind::ArrayNextSlot { .. });
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(insts_where(&on, last), 2);
+    assert_eq!(insts_where(&on, walks), 0);
+    assert_eq!(insts_where(&off, last), 0);
+    assert_eq!(insts_where(&off, walks), 2);
+}
+
+/// Row `unread-foreach-key`: a key the body never names is not made, and a
+/// key an arrow function captures is.
+#[test]
+fn a_key_nobody_reads_is_not_made() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $m): void {\n    \
+               foreach ($m as string $k => int $v) { echo $v; }\n    \
+               foreach ($m as string $key => int $v) { var $f = fn() => $key; echo $v, $f(); }\n  \
+               }\n}\n";
+    let keys = |kind: &InstKind| matches!(kind, InstKind::ArrayKeyAt { .. });
+    let on = lower_whole_file_with_src(src).0;
+    let off = crate::lower::without_cheaper_forms(|| lower_whole_file_with_src(src).0);
+    assert_eq!(insts_where(&on, keys), 1);
+    assert_eq!(insts_where(&off, keys), 2);
+}

@@ -1852,6 +1852,35 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::RangeLast`: the last value `Core\Arr::range(start,
+    /// end, {step})` gives, for a loop that counts from `start` to it.
+    ///
+    /// The step check and its message are `nvs_core_arr_range`'s, so the loop
+    /// throws what the list would. The distance between the bounds is taken
+    /// in `i128`, because it can pass `i64::MAX`. The result lies between the
+    /// bounds, so it is an `int`.
+    fn nvs_range_last(_ctx, args: [3]) {
+        let start = expect_tag!("nvs_range_last", args[0], as_int, Tag::Int);
+        let end = expect_tag!("nvs_range_last", args[1], as_int, Tag::Int);
+        let step = expect_tag!("nvs_range_last", args[2], as_int, Tag::Int);
+        if step <= 0 {
+            return Err(Fault::thrown(format!(
+                "Core\\Arr::range(): the `step` option must be greater than 0, got {step}"
+            )));
+        }
+        let span = (i128::from(end) - i128::from(start)).abs();
+        let walked = span - span % i128::from(step);
+        let last = if start <= end {
+            i128::from(start) + walked
+        } else {
+            i128::from(start) - walked
+        };
+        let last = i64::try_from(last).expect("the last value lies between the two bounds");
+        Ok(Value::int(last))
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::IntToFloat`.
     fn nvs_int_to_float(_ctx, args: [1]) {
         let value = expect_tag!("nvs_int_to_float", args[0], as_int, Tag::Int);
@@ -3781,6 +3810,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             address(nvs_restricted_erased_act),
         ),
         ("nvs_late_init_running", address(nvs_late_init_running)),
+        ("nvs_range_last", address(nvs_range_last)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),
         ("nvs_float_truthy", address(nvs_float_truthy)),

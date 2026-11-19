@@ -695,3 +695,114 @@ pub(crate) fn null_tested_match<'a>(
         returns: Some(Ty::Bool),
     })
 }
+
+/// Which walk a `foreach` over a direct `keys` or `values` call is compiled as.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Walk {
+    /// `Core\Arr::keys(m)`: the loop over `m` binds each key as its value.
+    Keys,
+    /// `Core\Arr::values(m)`: the loop over `m` binds each value.
+    Values,
+}
+
+/// Row `foreach-keys-or-values`: `subject` is a direct `Core\Arr::keys(m)` or
+/// `Core\Arr::values(m)` call, and the fast form is the loop over `m` itself.
+///
+/// A loop walks the array it began with, so the body's writes to `m` reach
+/// neither walk. The site applies it only to a by-value loop with no key
+/// binding: a key over either list is its position, which `m` does not have.
+pub(crate) fn foreach_keys_or_values<'a>(
+    subject: &'a Expr,
+    exprs: &ExprTypeTable,
+) -> Option<(&'a Expr, Walk)> {
+    const ARR: &str = r"Core\Arr";
+    let (walk, args) = [("keys", Walk::Keys), ("values", Walk::Values)]
+        .into_iter()
+        .find_map(|(method, walk)| core_call(subject, exprs, ARR, method).map(|a| (walk, a)))?;
+    let [arg] = positional(args, 1)? else {
+        return None;
+    };
+    Some((&arg.value, walk))
+}
+
+/// Row `foreach-range`: the written arguments of a direct
+/// `Core\Arr::range(start, end)` call, or one with `{step: X}` as its third
+/// argument, positional or named `options`. Anything wider stays as written.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RangeForm<'a> {
+    /// The first value.
+    pub start: &'a Expr,
+    /// The bound the values do not pass.
+    pub end: &'a Expr,
+    /// The written step, or `None` for `range`'s step of 1.
+    pub step: Option<&'a Expr>,
+}
+
+/// [`RangeForm`]'s matcher, over a `foreach` subject.
+pub(crate) fn foreach_range<'a>(
+    subject: &'a Expr,
+    exprs: &ExprTypeTable,
+    src: &SourceFile,
+) -> Option<RangeForm<'a>> {
+    let CallArgs::List(list) = core_call(subject, exprs, r"Core\Arr", "range")? else {
+        return None;
+    };
+    let plain = |arg: &Arg| !arg.spread && !arg.inout;
+    let (start, end, options) = match list.as_slice() {
+        [start, end] => (start, end, None),
+        [start, end, options] => (start, end, Some(options)),
+        _ => return None,
+    };
+    if !(plain(start) && plain(end) && start.name.is_none() && end.name.is_none()) {
+        return None;
+    }
+    let step = match options {
+        None => None,
+        Some(options) => {
+            if !plain(options)
+                || options
+                    .name
+                    .is_some_and(|name| span_text(src, name) != "options")
+            {
+                return None;
+            }
+            let ExprKind::AnonObject(fields) = &options.value.kind else {
+                return None;
+            };
+            match fields.as_slice() {
+                [] => None,
+                [field] if span_text(src, field.name) == "step" => Some(&field.value),
+                _ => return None,
+            }
+        }
+    };
+    Some(RangeForm {
+        start: &start.value,
+        end: &end.value,
+        step,
+    })
+}
+
+/// Row `unread-foreach-key`: whether `text`, a loop body's source, may read
+/// the variable `name` (written without its `$`).
+///
+/// A variable is read only where its `$name` is written: an arrow function's
+/// capture, a closure's `use` and an interpolation each spell it. So a body
+/// whose text never has `$name` followed by a character that cannot continue
+/// a name never reads it. A comment or a string that has `$name` keeps the
+/// key, which is the safe direction.
+pub(crate) fn text_names_variable(text: &str, name: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut from = 0;
+    while let Some(at) = text[from..].find('$') {
+        let start = from + at + 1;
+        from = start;
+        if text[start..].starts_with(name) {
+            let next = bytes.get(start + name.len()).copied();
+            if !next.is_some_and(|b| b == b'_' || b.is_ascii_alphanumeric() || b >= 0x80) {
+                return true;
+            }
+        }
+    }
+    false
+}

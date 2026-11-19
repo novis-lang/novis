@@ -2962,6 +2962,13 @@ pub enum Helper {
     /// `$n as int` — the same row the other way. Exact, or throws above
     /// `i64::MAX`.
     UintToInt,
+    /// The last value of `Core\Arr::range(start, end, {step})`, from its three
+    /// `int` arguments: row `foreach-range` of `crate::forms`, which loops from
+    /// `start` to it. **Throws** `range`'s own error for a step of 0 or less,
+    /// so it is emitted through `crate::lower::Lowering::emit_fallible`. The
+    /// span between the bounds can pass `i64::MAX`, which is why it is a helper
+    /// and not IR arithmetic.
+    RangeLast,
     /// `$n as float` — exact, or throws above 2^53, where `f64` stops
     /// representing every integer. `rule:types/conversion` says so outright: `as` "never
     /// rounds, truncates, or substitutes a default."
@@ -4454,6 +4461,7 @@ impl Helper {
             | Helper::DecimalCmp
             | Helper::IntToUint
             | Helper::UintToInt
+            | Helper::RangeLast
             | Helper::IntToFloat
             | Helper::UintToFloat
             | Helper::FloatToInt

@@ -924,6 +924,45 @@ impl<'a> Lowering<'a> {
             return;
         }
         let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
+        let forms_on = crate::lower::cheaper_forms_on();
+        // Row `unread-foreach-key`: a key the body never names is not made.
+        // Under the debug switch every binding stays visible.
+        let key = key.filter(|k| {
+            !forms_on
+                || self.debug.is_some()
+                || crate::forms::text_names_variable(
+                    span_text(self.src, body.span),
+                    strip_sigil(span_text(self.src, k.name)),
+                )
+        });
+        // Row `foreach-range`: a by-value `int` loop with no key over a direct
+        // `range` call counts, and builds no list.
+        if forms_on
+            && key.is_none()
+            && !value_inout
+            && value_ty == Ty::Int
+            && let Some(range) = crate::forms::foreach_range(subject, self.exprs, self.src)
+        {
+            self.lower_foreach_range(range, value, body, subject.span, cur, env);
+            return;
+        }
+        // Row `foreach-keys-or-values`: a by-value loop with no key over a
+        // direct `keys(m)` or `values(m)` walks `m`. A walk of the keys binds
+        // each key as the value, so it needs a `string` binding.
+        let (subject, walk) = match forms_on
+            .then(|| crate::forms::foreach_keys_or_values(subject, self.exprs))
+            .flatten()
+        {
+            Some((walked, walk))
+                if key.is_none()
+                    && !value_inout
+                    && (walk == crate::forms::Walk::Values || value_ty == Ty::Str) =>
+            {
+                (walked, Some(walk))
+            }
+            _ => (subject, None),
+        };
+        let keys_as_values = walk == Some(crate::forms::Walk::Keys);
         let key_binding = key.map(|k| {
             let ty = binding_ty(k, "key", self.exprs, self.checked_types);
             if ty != Ty::Str {
@@ -1108,26 +1147,40 @@ impl<'a> Lowering<'a> {
                 });
             }
         }
-        let (v_v, _) = self.emit(
-            body_cur,
-            value_ty,
-            InstKind::ArrayValueAt {
-                array: array_v,
-                slot: slot_v,
-            },
-        );
-        // A by-reference binding writes its value back into the element, so
-        // it keeps the element's own representation.
-        let v_v = if value_inout {
-            v_v
+        if keys_as_values {
+            // The key is a fresh reference this iteration owns, as a key
+            // binding's is, so it takes no retain.
+            let (k_v, _) = self.emit(
+                body_cur,
+                Ty::Str,
+                InstKind::ArrayKeyAt {
+                    array: array_v,
+                    slot: slot_v,
+                },
+            );
+            body_env.insert(value_name.clone(), (k_v, Ty::Str));
         } else {
-            self.widen_marked_binding(value.span, v_v, value_ty, &mut body_env, body_cur)
-                .0
-        };
-        if value_ty.is_refcounted() {
-            self.emit_retain(body_cur, v_v);
+            let (v_v, _) = self.emit(
+                body_cur,
+                value_ty,
+                InstKind::ArrayValueAt {
+                    array: array_v,
+                    slot: slot_v,
+                },
+            );
+            // A by-reference binding writes its value back into the element, so
+            // it keeps the element's own representation.
+            let v_v = if value_inout {
+                v_v
+            } else {
+                self.widen_marked_binding(value.span, v_v, value_ty, &mut body_env, body_cur)
+                    .0
+            };
+            if value_ty.is_refcounted() {
+                self.emit_retain(body_cur, v_v);
+            }
+            body_env.insert(value_name.clone(), (v_v, value_ty));
         }
-        body_env.insert(value_name.clone(), (v_v, value_ty));
 
         if let Some(subject_name) = &subject_name {
             // The slot travels in the `Env` rather than as a `ValueId` for
@@ -1161,6 +1214,220 @@ impl<'a> Lowering<'a> {
         self.emit_release(after_block, array_v);
         *cur = after_block;
     }
+    /// Row `foreach-range` of [`crate::forms`]: `foreach (Core\Arr::range(a,
+    /// b, {step: s}) as int $i)` as a loop that counts, with no list.
+    ///
+    /// The three arguments are lowered once, in the order they are written.
+    /// [`Helper::RangeLast`] then throws `range`'s own error for a bad step and
+    /// gives the last value, and the direction is decided once, as the signed
+    /// step `delta`. Each iteration binds `$i` to the cursor, then advances
+    /// it: at the last value the loop stops, and otherwise the cursor moves by
+    /// `delta`, which cannot overflow because the next value lies before the
+    /// last one. The body's writes to the bounds and to `$i` reach none of it.
+    ///
+    /// **What it spends:** four `int` locals for the loop, and no array.
+    fn lower_foreach_range(
+        &mut self,
+        range: crate::forms::RangeForm<'_>,
+        value: &ForeachBinding,
+        body: &'a Stmt,
+        subject_span: Span,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        let int_operand = |this: &mut Self, e: &Expr, cur: &mut BlockId, env: &mut Env| {
+            let (v, ty) = this.lower_expr(e, None, env, cur);
+            this.coerce(*cur, v, ty, Ty::Int, env)
+        };
+        let start_v = int_operand(self, range.start, cur, env);
+        let end_v = int_operand(self, range.end, cur, env);
+        let step_v = match range.step {
+            Some(step) => int_operand(self, step, cur, env),
+            None => self.emit(*cur, Ty::Int, InstKind::ConstInt(1)).0,
+        };
+        let (last_v, _) = self.emit_fallible(
+            *cur,
+            Ty::Int,
+            InstKind::HelperCall {
+                helper: Helper::RangeLast,
+                args: vec![start_v, end_v, step_v],
+            },
+            env,
+        );
+        let (up_v, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::LtEq,
+                lhs: start_v,
+                rhs: end_v,
+            },
+        );
+
+        let seq = self.foreach_seq;
+        self.foreach_seq += 1;
+        let cursor_name = format!("range#{seq}$cursor");
+        let more_name = format!("range#{seq}$more");
+        let last_name = format!("range#{seq}$last");
+        let delta_name = format!("range#{seq}$delta");
+
+        // The signed step, decided once: `step` counting up, `0 - step` down.
+        let up_block = self.new_block();
+        let down_block = self.new_block();
+        let delta_block = self.new_block();
+        let up_edge = self.ids.next_edge(subject_span);
+        let down_edge = self.ids.next_edge(subject_span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: up_v,
+                then_block: up_block,
+                then_edge: up_edge,
+                else_block: down_block,
+                else_edge: down_edge,
+            },
+        );
+        let mut up_env = env.clone();
+        up_env.insert(delta_name.clone(), (step_v, Ty::Int));
+        self.seal(up_block, Terminator::Jump(delta_block));
+        let mut down_env = env.clone();
+        let (zero_v, _) = self.emit(down_block, Ty::Int, InstKind::ConstInt(0));
+        // `step` is above 0 here, so `0 - step` never throws.
+        let (negated_v, _) = self.emit_fallible(
+            down_block,
+            Ty::Int,
+            InstKind::BinOp {
+                op: BinOp::Sub,
+                lhs: zero_v,
+                rhs: step_v,
+            },
+            &down_env,
+        );
+        down_env.insert(delta_name.clone(), (negated_v, Ty::Int));
+        self.seal(down_block, Terminator::Jump(delta_block));
+        *env = self.merge_envs(
+            delta_block,
+            &[(up_block, up_env), (down_block, down_env)],
+            env,
+        );
+        *cur = delta_block;
+
+        let (more_v, _) = self.emit(*cur, Ty::Bool, InstKind::ConstBool(true));
+        env.insert(cursor_name.clone(), (start_v, Ty::Int));
+        env.insert(more_name.clone(), (more_v, Ty::Bool));
+        env.insert(last_name.clone(), (last_v, Ty::Int));
+
+        let mut seen = FxHashSet::default();
+        let reassigned = vec![cursor_name.clone(), more_name.clone()];
+        seen.extend(reassigned.iter().cloned());
+        let mut reassigned = reassigned;
+        self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        let (header_block, header_env, phi_slots) =
+            self.open_loop_header(*cur, env, seen, reassigned);
+
+        let body_block = self.new_block();
+        let after_block = self.new_block();
+        let body_edge = self.ids.next_edge(body.span);
+        let after_edge = self.ids.next_edge(subject_span);
+        self.seal(
+            header_block,
+            Terminator::Branch {
+                cond: header_env[&more_name].0,
+                then_block: body_block,
+                then_edge: body_edge,
+                else_block: after_block,
+                else_edge: after_edge,
+            },
+        );
+
+        let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
+        let private = vec![
+            cursor_name.clone(),
+            more_name.clone(),
+            last_name.clone(),
+            delta_name.clone(),
+        ];
+        self.loop_stack.push(LoopFrame {
+            continue_target: Some(header_block),
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+            iteration_owned: vec![value_name.clone()],
+            carried: header_env.keys().cloned().collect(),
+            loop_private: private.clone(),
+            try_depth: self.try_stack.len(),
+        });
+
+        // The advance runs first, so a `continue` carries the next cursor.
+        let cursor_v = header_env[&cursor_name].0;
+        let (at_last_v, _) = self.emit(
+            body_block,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::Eq,
+                lhs: cursor_v,
+                rhs: header_env[&last_name].0,
+            },
+        );
+        let stop_block = self.new_block();
+        let step_block = self.new_block();
+        let join_block = self.new_block();
+        let stop_edge = self.ids.next_edge(body.span);
+        let step_edge = self.ids.next_edge(body.span);
+        self.seal(
+            body_block,
+            Terminator::Branch {
+                cond: at_last_v,
+                then_block: stop_block,
+                then_edge: stop_edge,
+                else_block: step_block,
+                else_edge: step_edge,
+            },
+        );
+        let mut stop_env = header_env.clone();
+        let (done_v, _) = self.emit(stop_block, Ty::Bool, InstKind::ConstBool(false));
+        stop_env.insert(more_name.clone(), (done_v, Ty::Bool));
+        self.seal(stop_block, Terminator::Jump(join_block));
+        let mut step_env = header_env.clone();
+        // The next value lies between the cursor and the last value, so the
+        // add never throws.
+        let (next_v, _) = self.emit_fallible(
+            step_block,
+            Ty::Int,
+            InstKind::BinOp {
+                op: BinOp::Add,
+                lhs: cursor_v,
+                rhs: header_env[&delta_name].0,
+            },
+            &step_env,
+        );
+        step_env.insert(cursor_name.clone(), (next_v, Ty::Int));
+        let (go_v, _) = self.emit(step_block, Ty::Bool, InstKind::ConstBool(true));
+        step_env.insert(more_name.clone(), (go_v, Ty::Bool));
+        self.seal(step_block, Terminator::Jump(join_block));
+        let mut body_env = self.merge_envs(
+            join_block,
+            &[(stop_block, stop_env), (step_block, step_env)],
+            &header_env,
+        );
+        let mut body_cur = join_block;
+
+        let (v_v, v_ty) =
+            self.widen_marked_binding(value.span, cursor_v, Ty::Int, &mut body_env, body_cur);
+        body_env.insert(value_name, (v_v, v_ty));
+        self.lower_stmt(body, &mut body_cur, &mut body_env);
+        let frame = self.close_foreach_body(body_cur, body_env, header_block, &phi_slots);
+
+        let mut exit_env = header_env.clone();
+        for name in &private {
+            exit_env.remove(name);
+        }
+        let mut after_incoming: Vec<(BlockId, Env)> = vec![(header_block, exit_env.clone())];
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &exit_env);
+        *cur = after_block;
+    }
+
     /// The array a `foreach` is walking, read out of the [`Env`] name it is
     /// bound under.
     ///

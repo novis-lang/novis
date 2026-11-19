@@ -674,6 +674,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::DecimalCmp => "decimal_cmp",
         Helper::IntToUint => "int_to_uint",
         Helper::UintToInt => "uint_to_int",
+        Helper::RangeLast => "range_last",
         Helper::IntToFloat => "int_to_float",
         Helper::UintToFloat => "uint_to_float",
         Helper::FloatToInt => "float_to_int",

@@ -5586,6 +5586,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::GuardKeyPath => "nvs_guard_key_path",
         Helper::IntToUint => "nvs_int_to_uint",
         Helper::UintToInt => "nvs_uint_to_int",
+        Helper::RangeLast => "nvs_range_last",
         Helper::IntToFloat => "nvs_int_to_float",
         Helper::UintToFloat => "nvs_uint_to_float",
         Helper::FloatToInt => "nvs_float_to_int",
