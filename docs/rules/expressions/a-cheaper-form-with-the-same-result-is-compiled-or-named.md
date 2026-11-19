@@ -49,6 +49,15 @@ is one `catch` arm, its class is or contains the class the conversion throws, it
 or unread, its body is exactly `$v = null;`, and there is no `finally`. Anything wider stays as
 written.
 
+The two method rows count only the classes the program declares. `Core\Test::double` and
+`Core\Test::partial` make a class while the program runs, so a program that calls either keeps every
+instance call virtual and every getter a call (`ExprTypeTable::makes_classes_at_run_time`). Only a
+test makes a double, so only a test run loses them. Narrowing it to the doubled interface and its
+ancestors was declined: a partial's class stands in for an object of a declared class, and one flag
+for the whole program is the one answer that is right without a second walk. The getter's read takes
+the reference the body's `return` would have taken, because its consumer treats a call as a fresh
+value.
+
 **The rows that need the callback proven** are emitted as written, with a candidate recorded: the
 site, the row and the callback's function. A pass after `crates/nvs-ir/src/effects.rs` reads the
 callback's summary and takes one of the three outcomes:
