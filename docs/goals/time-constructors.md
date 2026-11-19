@@ -26,7 +26,7 @@ stages:
     context: [tools/nv/proofs/probe.ts, tools/nv/cmd/pdf-validate.ts]
   - id: 6
     title: the feature proofs of the moved members live under their new classes
-    status: open
+    status: done
     context: [docs/examples/core/Time, tests/hostile/core/Time, benches/members/core/Time]
   - id: 7
     title: the three fromIso members and the written zone have their proofs, and the reference and website say what each class builds
@@ -349,15 +349,15 @@ proof file that calls an old name. Every comment and `about.md` touched is end-u
 `docs/examples/`, `tests/hostile/` and `benches/members/`. Each moves its tree's directories first, then
 runs `nvs check --fix`, then rewrites the `at` calls.
 
-- [ ] The moves, in each of the three trees: `core/Time/at` to `core/Time-DateTime/at`, `core/Time/parse`
+- [x] The moves, in each of the three trees: `core/Time/at` to `core/Time-DateTime/at`, `core/Time/parse`
   to `core/Time-DateTime/parse`, `core/Time/fromIso` to `core/Time-Instant/fromIso`, `core/Time/fromEpoch`
   to `core/Time-Instant/fromEpoch` (a bench is one file, `benches/members/core/Time/at.nvs` and its
   `.scale.nvs` siblings). `docs/examples/core/Time-Date/atStartOfDay/` and its hostile and bench files are
   deleted. Each moved `about.md` describes the new signature.
-- [ ] `docs/examples/` uses the new names (about 190 files), and each `.out` still matches.
-- [ ] `tests/hostile/` uses the new names (about 60 files).
-- [ ] `benches/members/` uses the new names (about 50 files).
-- [ ] `bun nv proofs --id 'Core\Time\DateTime::at'`, `'Core\Time\DateTime::parse'`,
+- [x] `docs/examples/` uses the new names (about 190 files), and each `.out` still matches.
+- [x] `tests/hostile/` uses the new names (about 60 files).
+- [x] `benches/members/` uses the new names (about 50 files).
+- [x] `bun nv proofs --id 'Core\Time\DateTime::at'`, `'Core\Time\DateTime::parse'`,
   `'Core\Time\Instant::fromIso'` and `'Core\Time\Instant::fromEpoch'` each report the moved proofs.
 
 ### 7. the three fromIso members and the written zone have their proofs, and the reference and website say what each class builds
@@ -398,32 +398,38 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Stages 1 to 5 are done. Every program, test and tool outside `docs/examples/`, `tests/hostile/` and
-`benches/members/` uses the new names (`bb030c94cc`, `3394604b13`). The `constructors`, `zones`,
-`moved` and `zone-completion` checks are green, so no conformance case is red, and
-`spreadsheet_reader` passes all 8. The Spreadsheet reader builds its `DateTime` with
-`DateTime::at($day, $clock, $zone)` (`extensions/spreadsheet/nvs/Reader.nvs:178`, `:646`).
-`dd0d61a242` makes `written_zone` (`crates/nvs-stdlib/src/time.rs:4244`) accept a name as `Zone::of`
-does, case ignored; § *Standing decisions* records why.
+Stages 1 to 6 are done. No file under `docs/examples/`, `tests/hostile/` or `benches/members/` calls an
+old name. The `at`, `parse`, `fromIso` and `fromEpoch` proofs live under `core/Time-DateTime/` and
+`core/Time-Instant/` in all three trees, and `atStartOfDay`'s are deleted (`fce32b0f24`, `1c8d7cb275`,
+`9a3bd337fe`). The pure renames and deletions of the examples and attacks landed inside `9478fd2f66`,
+the Miri fix's commit, because two subagents had staged them when it was made. A no-cache
+`bun nv proofs --run` over the 69 touched example features gave 200 examples and 66 attacks ok, and each
+of the four moved ids reports its about, three examples, attack and bench.
 
-`nvs check --fix` does not read a `.nvst` case, so stage 5 rewrote the cases by hand. A case that
-expects a bad zone name or ISO text to throw at run time now reads it from a variable, because a
-literal does not compile.
+Two proofs changed past the rename. `docs/examples/core/Time-Zone/of/02-a-misspelled-name.nvs` reads
+its name from a variable, because a written unknown zone does not compile. `tests/hostile/core/Queue/purge/`
+step 5 writes `9999-12-30T22:00:00Z`, the last instant there is: its old text was past it, so it now
+does not compile, and before it threw before the purge ran.
 
-The old names left outside the proof trees are on purpose or stage 7's: the move table and its tests
+The nightly's other failures were fixed after its sha (`eb5c02e983`, `656f5b2f2d`, `1c75c4ef0e`,
+`4c82a2409a`), but two `granularity` tests timed out under Miri; `9478fd2f66` shrinks them, unrun there.
+
+The old names left in the tree are on purpose or stage 7's: the move table and its tests
 (`crates/nvs-stdlib/src/moved.rs`, `crates/nvs-types/src/moved.rs`, `crates/nvs-cli/tests/check_flags.rs:418`,
 `tests/conformance/lang/a-moved-core-member-says-where-it-went.nvst`), the rules that name the move,
 the reference cards under `docs/reference/core/Time*.md`, `website/src/data/` and `data/perf/`.
 
-**Red until stage 6, as expected:** every example, attack and bench under `Core/Time` that calls an old
-name, and so the proofs gate. The perf records of the moved members are stale.
+**Expected red:** the perf records of every time member are stale (`time.rs` changed), so the proofs
+gate is red until stage 7's `--record-perf` runs on a release binary. The three new `fromIso` members
+owe their proofs until stage 7.
 
 ### Next
 
-Stage 6, following its **Split:** line: three writing subagents, one per tree. `nvs check --fix` takes
-one path, a file or a directory, so each runs it per proof directory. A case that expects a run-time
-throw on a bad zone or ISO text writes it through a variable, as stage 5's cases do. Then stage 7: the
-reference cards under `docs/reference/core/Time*.md` still show `Core\Time::at`, `parse`, `fromIso`,
-`fromEpoch` and `atStartOfDay`.
+Stage 7, following its **Split:** line: three writing subagents, one per new `fromIso` member
+(`docs/examples/core/Time-Date/fromIso/`, `Time-TimeOfDay/fromIso/`, `Time-DateTime/fromIso/`), while
+the session rewrites `docs/reference/core/Time.md:1` and its four class cards, which still show
+`Core\Time::at`, `parse`, `fromIso`, `fromEpoch` and `atStartOfDay`. A subagent stages only its own
+files, and the session commits each slice with `git commit <paths>`, so no commit takes another
+slice's staged files. Record perf last, after every edit to `time.rs`, as the playbook says.
 
 ### Backlog

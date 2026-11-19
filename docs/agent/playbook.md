@@ -234,6 +234,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **`git add <file> && git commit` commits everything already staged, and a writing subagent's
+  `git mv` stages its moves.** A one-file Miri fix took 46 renames and deletions two subagents had
+  staged in the same tree. While writing subagents run, commit a slice with `git commit -F <msg>
+  <paths>`, which commits only those paths. See `9478fd2f66` and `crates/nvs-stdlib/src/granularity.rs`.
 - **A whole-suite run grepped five ways is five whole-suite runs.** A close's gate stage spent
   about 20 minutes rerunning the conformance suite through a different `grep` each time, only to
   see other lines of one red. Write a run of minutes once to `.agent-tmp/<name>.txt` and grep the
