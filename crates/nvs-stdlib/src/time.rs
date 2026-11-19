@@ -4233,8 +4233,11 @@ pub fn zone_names() -> &'static [String] {
 /// `rule:core-classes/a-time-class-builds-its-own-values` § *A zone written as
 /// text*.
 ///
-/// A name is matched exactly, case included, against [`zone_names`], so a
-/// written zone has one spelling. An offset is read by the same reader
+/// A name is accepted where [`nvs_core_time_zone_of`] accepts it, through the
+/// same `TimeZone::get`, which ignores case, and is stored as written, as
+/// `Zone::of` stores it. So checking a literal while compiling refuses only
+/// what the run time refuses (`rule:expressions/preparation-preserves-behaviour`).
+/// An offset is read by the same reader
 /// [`resolve_zone`] uses and written back as [`render_offset`] writes it, so
 /// `+2:00` and `+02:00` are one id.
 ///
@@ -4253,10 +4256,7 @@ pub fn written_zone(text: &str) -> Result<String, String> {
                 )
             });
     }
-    if zone_names()
-        .binary_search_by(|name| name.as_str().cmp(text))
-        .is_ok()
-    {
+    if TimeZone::get(text).is_ok() {
         return Ok(text.to_owned());
     }
     Err(format!(

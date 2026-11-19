@@ -4759,8 +4759,8 @@ the same way, and `DateTime::fromIso('2024-03-01', $zone)` is its short form.
   `T` or one space, as RFC 3339 allows. A date alone is the first instant of that day, and a local
   time resolves as `DateTime::at` resolves it. An offset or a `Z` in the text throws, and the message
   names `Instant::fromIso(...)->in($zone)`: the zone is the argument, never the text.
-- `Instant::fromIso` reads an ISO 8601 timestamp that carries its own offset or `Z`, the grammar
-  `Core\Time::fromIso` reads, and takes the same two separators.
+- `Instant::fromIso` reads an ISO 8601 timestamp that carries its own offset or `Z`, and takes the
+  same two separators.
 - A text outside the format throws `ParseError` naming the part that is wrong.
 
 **A literal text is checked while compiling.** A string literal at the text argument of every `fromIso`
@@ -4775,7 +4775,9 @@ pattern row under its new owner.
 for a value fixed in the source, and the member, `Zone::of($text)`, for text that arrives at run time,
 which is the one place a zone name throws. The checker reads the literal as it reads a key literal at
 a `property<C>` parameter ([`types/property-key`](types.md#types-property-key)): a name the time-zone database lacks, or an
-offset `Zone::fixed` does not take, is a compile error at the literal. Only a literal converts. A
+offset `Zone::fixed` does not take, is a compile error at the literal. A name is looked up as
+`Zone::of` looks it up, case ignored, and kept as written, so the literal refuses only what
+`Zone::of` throws on. Only a literal converts. A
 `string` variable at a `Zone` parameter stays a type error, so tainted text reaches a zone only through
 `Zone::of`. `Zone::of('UTC')` written with a literal still compiles, and the docs show the short form.
 The editor completes a string at a `Zone` parameter from the same database, one `/` segment at a time.
