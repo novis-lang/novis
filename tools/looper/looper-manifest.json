@@ -31,11 +31,11 @@
     "tools/looper/src/gates/commit-msg.ts": "8382d31002596b618351335e74c7d3f30170f8bdb034979fd1c4838108cd255c",
     "tools/looper/src/gates/gates.ts": "252425d2cb0486310c012c557a91f4c6c7b5f4bae30d9379092e5594c8ec7b46",
     "tools/looper/src/goal/config.ts": "b4ad85e28cce0b4efc5920e2804cbd23c66460a23d56e3cbafb51ffa5c8786dd",
-    "tools/looper/src/goal/edit.ts": "5fb862c7759df4d239e76dedca4ea4bd366fee9f8758eb20bb2ef008eac8b0d8",
+    "tools/looper/src/goal/edit.ts": "d63b0f4d9c750fd52d417194b2a02deb1cc20ea055858c936796637536590114",
     "tools/looper/src/goal/glob.ts": "d0e3c0e1400f23dd9bc60eb19fff2aa3fcb2f10c89642f4c243ca187a69816ed",
     "tools/looper/src/goal/lint.ts": "26d3aa02dbebe8054484f08788fbdee24484c3c84bc4c5f671a7639c29337b96",
     "tools/looper/src/goal/model.ts": "f2f4d63cae24197e26de3bb0032126bfa91a67c7dcde67934a27aee46fe6b7d8",
-    "tools/looper/src/goal/orient.ts": "d89a481007eb94dd11fe2b163dfb3e4b674754e0b730c2c8a62409a5a7006796",
+    "tools/looper/src/goal/orient.ts": "d897fc2e5f46e37bb92bbfe574e2e73911b0558d38b9bb40ce6b0194d3c0c370",
     "tools/looper/src/goal/playbook.ts": "f862774646cdb9815fa87582150bc23c41ab019c57008c2d1173b5946b64426b",
     "tools/looper/src/goal/reader.ts": "27e0e001f84c0633990cc85bd0864d16154488d85aabbdf400aea9b428d0148f",
     "tools/looper/src/goal/render.ts": "8b78bb8139de31ee7e085dd28ef758b6e6056c04a0a22ab19b649ec9d2251cbc",
@@ -98,7 +98,7 @@
     "tools/looper/src/verify/select.ts": "7107ad3bb7ee366f72ce7bf0564cc4e5084842ff4f94c6048879a4c3a69ffae5",
     "tools/looper/src/verify/shared.ts": "795778cd479e81d78d2a42bd99277c20a89edd080fe9d4cf69bc8df06e23212f",
     "tools/looper/src/verify/verify.ts": "d89fc97400046489ba2b35f61d2e691913f78f824be4021ea1eb1300155774e4",
-    "tools/looper/templates.json": "fd48981969780ceed65295f3173ad77fd34f180a1467ba8a5c1238149d1f2401",
+    "tools/looper/templates.json": "bc3c359a29e5247829e921e202065eb3ef2480502e31a839e68dcd6d698060da",
     "tools/loop": "cba052266cdcce84ac445efe46a18f510344a9d41312f69210f893f7e611a24e",
     "tools/loop.cmd": "700ce79b882cd5724199e1caa544f63427cf627952f8bd9769190015cd769b42"
   }

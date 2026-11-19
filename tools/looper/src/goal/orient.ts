@@ -445,7 +445,7 @@ function doneSteps(file: string, scratch: string, verifies: string | null): stri
   const atGate = verifies !== null;
   return [
     atGate
-      ? `1. \`${TOOL} verify\` over ${verifies}; fix every failure it names in one pass, then run it once more.`
+      ? `1. \`${TOOL} verify\` over ${verifies}. Only if it is red: fix every failure it names in one pass, then run it once more. A green first run is the gate's one run.`
       : "1. A build alone checks the work. No test and no verify runs, except a test you wrote, run once by name, and a run an item names.",
     `2. Overwrite ## Handoff in ${file} (### State, ### Next with anchors, ### Backlog), naming the tests you expect to go red; tick finished items; set a stage's status to done in the front matter when its items are done and its checks pass.`,
     "3. A playbook bullet if a trap cost you time.",
