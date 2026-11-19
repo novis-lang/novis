@@ -1,0 +1,62 @@
+--TEST--
+`Core\Time\TimeOfDay`'s readers `hour`, `minute`, `second` and `nanos` agree with `format` and with the same reader on the `DateTime` the reading came from, at both ends of the day and with a nanosecond part
+--FILE--
+<?nvs
+// covers: Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanos
+// Each reader can be answered on its own, which is how two of them come to
+// disagree. So every row asks each field three ways: the reader, `format`
+// (the independent oracle), and the same reader on the `DateTime` that
+// `timeOfDay` was read from. The rows reach midnight, the last nanosecond of
+// a day, a reading with nanoseconds, and a zone half an hour off the hour.
+array<string> $instants = [
+    "2024-02-29T00:00:00Z",
+    "2023-12-31T23:59:59.999999999Z",
+    "2025-07-04T16:45:30.000000001Z",
+    "2024-03-31T00:30:00.5Z",
+    "2024-03-31T00:30:00.5Z",
+    "2024-06-30T18:30:00Z",
+];
+array<string> $zoneIds = ["UTC", "UTC", "UTC", "Europe/Berlin", "Asia/Kolkata", "Asia/Kolkata"];
+
+int $rows = 0;
+int $formatAgrees = 0;
+int $dateTimeAgrees = 0;
+string $read = "";
+int $row = 0;
+for (; $row < 6; $row = $row + 1) {
+    var $d = Core\Time::fromIso($instants[$row as string])->in(Core\Time\Zone::of($zoneIds[$row as string]));
+    var $t = $d->timeOfDay();
+    $rows = $rows + 1;
+
+    string $readers = ($t->hour() as string) . " " . ($t->minute() as string) . " "
+        . ($t->second() as string);
+    if ($readers == $t->format("H m s") && $t->nanos() as int == $t->format("SSSSSSSSS") as int) {
+        $formatAgrees = $formatAgrees + 1;
+    }
+    if ($t->hour() == $d->hour() && $t->minute() == $d->minute()
+        && $t->second() == $d->second() && $t->nanos() == $d->nanos()) {
+        $dateTimeAgrees = $dateTimeAgrees + 1;
+    }
+    $read = $read . $readers . " " . ($t->nanos() as string) . "\n";
+}
+echo $rows as string, "|", $formatAgrees as string, "|", $dateTimeAgrees as string, "|\n";
+// The values themselves, so the counts above are anchored to output a
+// reader can check: hour, minute, second, nanoseconds.
+echo $read;
+
+// A reading built directly has the fields it was built from, and `with`
+// changes one field and keeps the others.
+var $built = Core\Time\TimeOfDay::at(23, 59)->with({ second: 59, nanos: 999999999 });
+echo $built->hour() as string, "|", $built->minute() as string, "|", $built->second() as string, "|", $built->nanos() as string, "|\n";
+var $moved = $built->with({ hour: $built->hour() - 23 });
+echo $moved->format("HH:mm:ss.SSSSSSSSS"), "|\n";
+--EXPECT--
+6|6|6|
+0 0 0 0
+23 59 59 999999999
+16 45 30 1
+1 30 0 500000000
+6 0 0 500000000
+0 0 0 0
+23|59|59|999999999|
+00:59:59.999999999|

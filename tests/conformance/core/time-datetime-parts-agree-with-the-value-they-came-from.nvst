@@ -1,8 +1,8 @@
 --TEST--
-`Core\Time`: A `DateTime`'s component views, `dayOfYear` and `difference` all answer about the same civil time
+`Core\Time`: A `DateTime`'s field readers, component views, `dayOfYear` and `difference` all answer about the same civil time
 --FILE--
 <?nvs
-// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant, Core\Time\DateTime::timeOfDay, Core\Time\DateTime::zone, Core\Time\DateTime::weekday, Core\Time\DateTime::isLeapYear
+// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant, Core\Time\DateTime::timeOfDay, Core\Time\DateTime::zone, Core\Time\DateTime::weekday, Core\Time\DateTime::isLeapYear, Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanos
 // A `DateTime` is one civil time in one named zone, and half its members
 // are views of that: `date`, `timeOfDay` and `zone` each drop part of it, and
 // `dayOfYear`, `isLeapYear` and `difference` count over it. Each of those can
@@ -24,6 +24,9 @@ array<string> $rows = [
 array<string> $zones = ["UTC", "Europe/Berlin", "Asia/Kolkata", "Pacific/Auckland"];
 
 int $values = 0;
+// The seven field readers are the civil time `format` renders, in the
+// value's own zone: `u` is the signed year, and nine `S` the nanoseconds.
+int $fieldsAgree = 0;
 // `date` and `timeOfDay` are the two halves of what the value renders as.
 int $dateAgrees = 0;
 int $timeAgrees = 0;
@@ -40,6 +43,12 @@ foreach ($rows as string $rowText) {
     foreach ($zones as string $zoneId) {
         var $d = Core\Time::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
         $values = $values + 1;
+        string $fields = ($d->year() as string) . " " . ($d->month() as string) . " "
+            . ($d->day() as string) . " " . ($d->hour() as string) . " "
+            . ($d->minute() as string) . " " . ($d->second() as string);
+        if ($fields == $d->format("u M d H m s") && $d->nanos() as int == $d->format("SSSSSSSSS") as int) {
+            $fieldsAgree = $fieldsAgree + 1;
+        }
         if ($d->date()->format("yyyy-MM-dd") == $d->format("yyyy-MM-dd")) {
             $dateAgrees = $dateAgrees + 1;
         }
@@ -61,7 +70,7 @@ foreach ($rows as string $rowText) {
         }
     }
 }
-echo $values as string, "|", $dateAgrees as string, "|", $timeAgrees as string, "|", $zoneAgrees as string, "|", $dayOfYearAgrees as string, "|", $leapAgrees as string, "|\n";
+echo $values as string, "|", $fieldsAgree as string, "|", $dateAgrees as string, "|", $timeAgrees as string, "|", $zoneAgrees as string, "|", $dayOfYearAgrees as string, "|", $leapAgrees as string, "|\n";
 
 // `difference` counts from the receiver **to** its argument, which makes it
 // the calendar's spelling of `Instant::since` with the operands the other way
@@ -118,6 +127,11 @@ var $leapDay = Core\Time::fromIso("2024-02-29T12:00:00Z")->in(Core\Time\Zone::of
 echo $leapDay->date()->format("yyyy-MM-dd"), "|", $leapDay->timeOfDay()->format("HH:mm:ss"), "|\n";
 echo $leapDay->dayOfYear() as string, "|", $leapDay->isLeapYear() as string, "|\n";
 echo $leapDay->zone()->offsetAt($leapDay->toInstant())->toSeconds() as string, "|\n";
+echo $leapDay->year() as string, "|", $leapDay->month() as string, "|", $leapDay->day() as string, "|", $leapDay->hour() as string, "|", $leapDay->minute() as string, "|", $leapDay->second() as string, "|", $leapDay->nanos() as string, "|\n";
+// The same instant is already 1 March in Auckland, and half a second shows
+// as 500000000 nanoseconds.
+var $auckland = Core\Time::fromIso("2024-02-29T12:00:00.5Z")->in(Core\Time\Zone::of("Pacific/Auckland"));
+echo $auckland->year() as string, "|", $auckland->month() as string, "|", $auckland->day() as string, "|", $auckland->hour() as string, "|", $auckland->nanos() as string, "|\n";
 echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|", $leapDay->with({year: 2023, month: 2, day: 28})->isLeapYear() as string, "|\n";
 
 // A fixed offset has no IANA name, so its id is the offset itself. `VV`
@@ -127,7 +141,7 @@ var $fixed = $leapDay->toInstant()->in(Core\Time\Zone::fixed(5h45m));
 var $again = Core\Time::fromIso("2024-07-01T00:00:00Z")->in($fixed->zone());
 echo $fixed->format("VV"), "|", $again->format("HH:mm VV"), "|", $leapDay->format("VV"), "|\n";
 --EXPECT--
-24|24|24|24|24|24|
+24|24|24|24|24|24|24|
 36|36|36|
 0|
 1|
@@ -138,5 +152,7 @@ Core\Time\DateTime::difference(): the count does not fit in an `int`|
 2024-02-29|17:30:00|
 60|1|
 19800|
+2024|2|29|17|30|0|0|
+2024|3|1|1|500000000|
 59||
 +05:45|05:45 +05:45|Asia/Kolkata|
