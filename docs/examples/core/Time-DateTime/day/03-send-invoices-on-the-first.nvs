@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a daily job checks if today is the day to send the monthly invoices.
+
+var $zone = Core\Time\Zone::of('Europe/Vienna');
+
+// A real program uses `Core\Time::now()` here. Fixed days keep the output the same.
+var $day = Core\Time::at(2024, 4, 29, $zone, { hour: 6 });
+int $runs = 0;
+while ($runs < 4) {
+    // The invoices go out when the day of the month is 1.
+    if ($day->day() == 1) {
+        echo $day->format('yyyy-MM-dd'), ": send invoices\n";
+    } else {
+        echo $day->format('yyyy-MM-dd'), ": nothing to do\n";
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+    $runs = $runs + 1;
+}

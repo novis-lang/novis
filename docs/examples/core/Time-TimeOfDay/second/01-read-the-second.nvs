@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the second of a time of day as a number.
+
+Core\Time\TimeOfDay $lap = Core\Time\TimeOfDay::at(0, 1, { second: 42 });
+
+// `second` returns a `uint` from 0 to 59. This prints 42.
+echo $lap->second(), "\n";
+
+// A time made without a `second` option has second 0. This prints 0.
+echo Core\Time\TimeOfDay::at(7, 30)->second(), "\n";

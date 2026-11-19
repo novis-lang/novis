@@ -1,0 +1,58 @@
+<?nvs
+// Attack: `year` reads the first and last moments in time, negative years, and a new year in two time zones.
+// Each year should be the year in the value's own time zone. A wrong year throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+
+// 1. The last moment in time, read in the zone farthest ahead, is in the year 9999.
+// The first moment in time, read in the zone farthest behind, is in the year -9999.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead);
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind);
+Expect::same('step 1', $last->year() as string, '9999');
+Expect::same('step 1', $first->year() as string, '-9999');
+
+// 2. One moment is read in Tokyo and in New York. It is already 2025 in Tokyo and still 2024 in New York.
+var $moment = Core\Time::fromIso('2024-12-31T23:30:00Z');
+Expect::same('step 2', $moment->in(Core\Time\Zone::of('Asia/Tokyo'))->year() as string, '2025');
+Expect::same('step 2', $moment->in(Core\Time\Zone::of('America/New_York'))->year() as string, '2024');
+
+// 3. Every day from the year -400 to the year 400 is read and compared with `format`.
+// The year must go up by exactly one each time it changes.
+var $day = Core\Time::at(-400, 1, 1, Core\Time\Zone::UTC, { hour: 12 });
+int $previous = -400;
+int $changes = 0;
+int $count = 0;
+while ($count < 292195) {
+    int $year = $day->year();
+    Expect::same('step 3', $year as string, $day->format('u'));
+    if ($year != $previous) {
+        Expect::same('step 3', $year as string, ($previous + 1) as string);
+        $changes = $changes + 1;
+        $previous = $year;
+    }
+    $day = $day->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+Expect::same('step 3', $changes as string, '800');
+
+// 4. `with` sets the year to the year it already has, on 29 February of leap years before the year 1.
+// The result must be the same moment.
+array<int> $leapYears = [-9996, -400, -4, 0, 4];
+foreach ($leapYears as int $leap) {
+    var $d = Core\Time::at($leap, 2, 29, Core\Time\Zone::of('Europe/Paris'), { hour: 23, nanos: 999999999 });
+    var $same = $d->with({ year: $d->year() });
+    Expect::same('step 4', $same->toInstant()->compareTo($d->toInstant()) as string, '0');
+}
+echo "all years are right\n";

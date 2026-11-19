@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to compare two times of day while ignoring the part of a second.
+
+// A sensor sent the first time. A person typed the second time, without the part of a second.
+Core\Time\TimeOfDay $sensor = Core\Time\TimeOfDay::at(6, 45, { second: 20, nanos: 318000000 });
+Core\Time\TimeOfDay $typed = Core\Time\TimeOfDay::at(6, 45, { second: 20 });
+
+// With the nanoseconds, the sensor time is later. This prints 1.
+echo $sensor->compareTo($typed), "\n";
+
+// `with({ nanos: 0 })` sets the part of a second to 0. Now the times are equal, so this prints 0.
+echo $sensor->with({ nanos: 0 })->compareTo($typed), "\n";

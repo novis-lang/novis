@@ -1,0 +1,48 @@
+<?nvs
+// Attack: `hour` reads times one nanosecond on each side of midnight, and times moved by huge numbers of hours.
+// Each hour should be from 0 to 23 and match the time. A wrong hour throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. The last nanosecond of the day is in hour 23. One nanosecond later it is midnight, hour 0.
+var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+Expect::same('step 1', $last->hour() as string, '23');
+Expect::same('step 1', $last->plus(1, Core\Unit::Nanosecond)->hour() as string, '0');
+Expect::same('step 1', Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Nanosecond)->hour() as string, '23');
+
+// 2. `plus` allows up to 175307616 hours. 175307615 hours is one hour less than a whole number of days.
+// Forward from midnight, the hour is 23. Back from midnight, it is 1. One hour more throws an error, which is caught.
+var $zero = Core\Time\TimeOfDay::at(0, 0);
+Expect::same('step 2', $zero->plus(175307615, Core\Unit::Hour)->hour() as string, '23');
+Expect::same('step 2', $zero->minus(175307615, Core\Unit::Hour)->hour() as string, '1');
+try {
+    $zero->plus(175307617, Core\Unit::Hour);
+    Expect::same('step 2', 'no error', 'an error');
+} catch (RuntimeError $tooMany) {
+    echo "175307617 hours is too many\n";
+}
+
+// 3. Every hour of the day is made with `at` and changed with `with`. Each must give back its own hour.
+uint $h = 0;
+while ($h < 24) {
+    var $time = Core\Time\TimeOfDay::at($h, 30, { second: 30, nanos: 999999999 });
+    Expect::same('step 3', $time->hour() as string, $h as string);
+    Expect::same('step 3', $last->with({ hour: $h })->hour() as string, $h as string);
+    Expect::same('step 3', $time->with({ hour: $time->hour() })->compareTo($time) as string, '0');
+    $h = $h + 1;
+}
+
+// 4. The time of day of 02:30 on the day Berlin has it twice. Both are in hour 2.
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+Expect::same('step 4', Core\Time::fromIso('2024-10-27T00:30:00Z')->in($berlin)->timeOfDay()->hour() as string, '2');
+Expect::same('step 4', Core\Time::fromIso('2024-10-27T01:30:00Z')->in($berlin)->timeOfDay()->hour() as string, '2');
+echo "all hours are right\n";

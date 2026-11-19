@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to count the seconds until a shop closes, for a countdown on its website.
+
+class Countdown
+{
+    public static function secondsOf(Core\Time\TimeOfDay $time): uint
+    {
+        return $time->hour() * 3600 + $time->minute() * 60 + $time->second();
+    }
+}
+
+Core\Time\TimeOfDay $closes = Core\Time\TimeOfDay::at(20, 0);
+
+// A real program reads the time from `Core\Time::now()`. A fixed time keeps the output the same.
+Core\Time\TimeOfDay $now = Core\Time\TimeOfDay::at(19, 58, { second: 15 });
+
+// There are 1 minute and 45 seconds left. This prints 105.
+echo Countdown::secondsOf($closes) - Countdown::secondsOf($now), "\n";

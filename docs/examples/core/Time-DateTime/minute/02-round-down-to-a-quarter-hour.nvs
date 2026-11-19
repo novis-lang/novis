@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to round a time down to the start of its quarter hour, for a booking calendar.
+
+class Slot
+{
+    public static function startOf(Core\Time\DateTime $time): Core\Time\DateTime
+    {
+        // `% 15` gives the minutes past the last quarter hour. 10:52 is 7 minutes past 10:45.
+        uint $minute = $time->minute();
+        return $time->with({ minute: $minute - $minute % 15, second: 0, nanos: 0 });
+    }
+}
+
+var $zone = Core\Time\Zone::of('Europe/Oslo');
+
+// This prints 10:45, 10:00 and 23:30.
+echo Slot::startOf(Core\Time::at(2024, 2, 9, $zone, { hour: 10, minute: 52, second: 18 }))->format('HH:mm'), "\n";
+echo Slot::startOf(Core\Time::at(2024, 2, 9, $zone, { hour: 10, minute: 0 }))->format('HH:mm'), "\n";
+echo Slot::startOf(Core\Time::at(2024, 2, 9, $zone, { hour: 23, minute: 44 }))->format('HH:mm'), "\n";

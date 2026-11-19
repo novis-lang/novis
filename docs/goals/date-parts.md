@@ -18,7 +18,7 @@ stages:
     context: [docs/agent/prose.md, docs/examples/core/Time-DateTime/weekday/about.md]
   - id: 4
     title: "the eleven DateTime and TimeOfDay readers have their feature proofs"
-    status: open
+    status: done
     context: [docs/agent/prose.md, docs/examples/core/Time-DateTime/dayOfYear/about.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -229,14 +229,14 @@ kind as its model.
 
 **Split:** as stage 3, three writing subagents, one per tree.
 
-- [ ] `docs/examples/core/Time-DateTime/<member>/` and `docs/examples/core/Time-TimeOfDay/<member>/`:
+- [x] `docs/examples/core/Time-DateTime/<member>/` and `docs/examples/core/Time-TimeOfDay/<member>/`:
   `about.md` and three examples with their `.out` for each of the eleven. The `DateTime` `about.md`
   files say the field is read in the value's own zone.
-- [ ] `tests/hostile/core/Time-DateTime/<member>/01-….nvs:1` and
+- [x] `tests/hostile/core/Time-DateTime/<member>/01-….nvs:1` and
   `tests/hostile/core/Time-TimeOfDay/<member>/01-….nvs:1` for each of the eleven.
-- [ ] `benches/members/core/Time-DateTime/<member>.nvs:1` and `benches/members/core/Time-TimeOfDay/<member>.nvs:1`
+- [x] `benches/members/core/Time-DateTime/<member>.nvs:1` and `benches/members/core/Time-TimeOfDay/<member>.nvs:1`
   for each of the eleven, each declaring `allocations 0`.
-- [ ] The `proofs-fields` check is green, and `bun nv proofs --comments` passes on the new files.
+- [x] The `proofs-fields` check is green, and `bun nv proofs --comments` passes on the new files.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -247,31 +247,36 @@ kind as its model.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3 landed in one commit, written by three subagents:
+Stages 1 to 4 are done. Stage 4 landed in one commit, written by three subagents:
 
-- `docs/examples/core/Time-Date/<member>/`: `about.md` and three examples with `.out` for each of the
-  seven. `weekday/02` is the working-day test, and `atStartOfDay/01` and `/03` use `withTime`.
-  `atStartOfDay/02` shows `America/Santiago` on 2024-09-08 starting at 01:00.
-- `tests/hostile/core/Time-Date/<member>/01-….nvs`: one attack each. `atStartOfDay`'s uses three zones
-  that skipped midnight (Sao_Paulo 2018-11-04, Santiago 2022-09-11, Havana 2023-03-12), Havana's
-  repeated midnight, and both ends of the range. All seven pass under `bun nv proofs --run`.
-- `benches/members/core/Time-Date/<member>.nvs`: the six readers declare `allocations 0`, and
-  `atStartOfDay` declares `calls 2` and `allocations 3`, measured with `nvs run --count`. All seven
-  are flat under `bun nv scaling --growth` and `--iterations --sized`.
-- `proofs-date` is green, and `bun nv proofs --comments` passes on all 66 files in the three trees.
-- The eleven `DateTime` and `TimeOfDay` readers of stage 2 are in `time.rs` and their address
-  functions, and `DateFormat.nvs` reads them; stage 4 owes only their proofs.
+- `docs/examples/core/Time-DateTime/<member>/` (seven) and `docs/examples/core/Time-TimeOfDay/<member>/`
+  (four): `about.md` and three examples with `.out` each. Every `DateTime` `about.md` says the field
+  is read in the value's own zone, and each shows the matching `with` call.
+- `tests/hostile/core/Time-DateTime/<member>/01-….nvs` and `Time-TimeOfDay/<member>/01-….nvs`: one
+  attack each (range ends, Samoa's skipped day, Berlin's skipped and repeated hours, LMT offsets with
+  odd minutes and seconds, the 2016 leap second, the wrap at midnight). All eleven pass under
+  `bun nv proofs --run`.
+- `benches/members/core/Time-DateTime/<member>.nvs` and `Time-TimeOfDay/<member>.nvs`: each declares
+  `calls 1` and `allocations 0`, measured with `nvs run --count`; all eleven flat under
+  `bun nv scaling --growth` and `--iterations --sized`. `Time-DateTime/month.nvs` runs 256 iterations.
+- `proofs-fields` is green (`looper check --name proofs-fields`), and `bun nv proofs --comments`
+  passes on the new files. The only proof still owed is perf, which no new member has recorded yet.
 - The sweep's reds are stale: `env-secret-proofs` names no check, and nightly run 44510687786 is at
   `adc7487822`, before the fix commits `4c82a2409a`, `eb5c02e983` and `656f5b2f2d`.
 
 ### Next
 
-Stage 4, split into three writing subagents per its `**Split:**` line, as stage 3 was. Each brief
-names `target/debug/nvs.exe` as current after a `cargo build`, says helpers must be static methods of
-a class (a free function does not compile), and points at `benches/members/core/Time-Date/day.nvs`
-for a bench whose printed total keeps its digit count across the ramp. Run `bun nv proofs --group
-'Core\Time\DateTime'` and `'Core\Time\TimeOfDay'` first. Expected red until the next full gate:
-`bun nv proofs --gate` for the perf of all eighteen new members, which have no record yet; the perf records of every `Core\Time` member, stale from the `time.rs` edits; and
-`website/public/llms-full.txt`, which may need `bun nv render --website` for the new cards.
+Stage 5, a close: this goal is not the chain's full gate. Run `cargo build`, `cargo clippy
+--all-targets -- -D warnings`, and this goal's checks by name (`looper check --name rust-date`,
+`table`, `case-date`, `rust-fields`, `case-datetime`, `case-time-of-day`, `proofs-date`,
+`proofs-fields`). Then `bun nv owners --closes date-parts`, move any decision only this file holds
+into `crates/nvs-stdlib/src/time.rs`'s module doc or a rule, and claim `DONE`. Expected red until
+the next full gate: `bun nv proofs --gate` for the perf of all eighteen new members, the stale perf
+records of every `Core\Time` member from the `time.rs` edits, and `website/public/llms-full.txt`,
+which may need `bun nv render --website` for the new cards.
 
 ### Backlog
+
+- Two subagents found `==` false for two `TimeOfDay` values (and two `DateTime` values) with the
+  same fields, which looks like identity comparison on a value class; and `DateTime` has no
+  `compareTo`, so `<` does not compile on it. Both are outside this goal; a later goal decides them.

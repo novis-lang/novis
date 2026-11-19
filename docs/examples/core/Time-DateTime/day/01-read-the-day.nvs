@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the day of the month of a date and time as a number.
+
+var $delivery = Core\Time::at(2024, 11, 8, Core\Time\Zone::of('Europe/Madrid'), { hour: 11 });
+
+// `day` returns a `uint`. This prints 8.
+echo $delivery->day(), "\n";
+
+// The readers give the parts of the date. This prints 8.11.2024.
+echo $delivery->day(), '.', $delivery->month(), '.', $delivery->year(), "\n";

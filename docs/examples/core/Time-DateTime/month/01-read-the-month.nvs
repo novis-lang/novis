@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the month of a date and time as a number.
+
+var $shipped = Core\Time::at(2024, 9, 3, Core\Time\Zone::of('Europe/Paris'), { hour: 16 });
+
+// `month` returns a `uint` from 1 to 12. September is month 9, so this prints 9.
+echo $shipped->month(), "\n";
+
+// `format` with `MMMM` gives the name of the month. This prints September.
+echo $shipped->format('MMMM'), "\n";

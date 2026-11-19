@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the hour of a date and time as a number.
+
+var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of('Europe/Berlin'), { hour: 14, minute: 30 });
+
+// `hour` returns a `uint` from 0 to 23. This prints 14.
+echo $meeting->hour(), "\n";
+
+// Midnight is hour 0. This prints 0.
+echo Core\Time::at(2024, 3, 6, Core\Time\Zone::of('Europe/Berlin'))->hour(), "\n";

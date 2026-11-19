@@ -1,0 +1,51 @@
+<?nvs
+// Attack: `minute` reads times in zones whose offset is not a whole hour, before 1880 and today.
+// Each minute should be the minute on the local clock. A wrong minute throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. Before about 1880, each city used its own local time. Its offset from UTC has odd minutes and seconds.
+// At 12:00 UTC on 1 June 1870, each city's clock shows the minute below.
+var $noon = Core\Time::fromIso('1870-06-01T12:00:00Z');
+array<string> $cities = ['America/New_York', 'Europe/Paris', 'Asia/Kolkata', 'Asia/Kathmandu', 'Europe/Dublin', 'Africa/Monrovia'];
+array<string> $minutes = ['3', '9', '21', '41', '34', '16'];
+int $i = 0;
+while ($i < 6) {
+    var $local = $noon->in(Core\Time\Zone::of($cities[$i]));
+    Expect::same('step 1 ' . $cities[$i], $local->minute() as string, $minutes[$i]);
+    $i = $i + 1;
+}
+
+// 2. Today, Kathmandu is 5 hours 45 minutes ahead of UTC, and the Chatham Islands are 13 hours 45 minutes ahead in January.
+var $newYear = Core\Time::fromIso('2024-01-01T00:00:00Z');
+Expect::same('step 2', $newYear->in(Core\Time\Zone::of('Asia/Kathmandu'))->minute() as string, '45');
+Expect::same('step 2', $newYear->in(Core\Time\Zone::of('Pacific/Chatham'))->minute() as string, '45');
+
+// 3. Every minute across the spring clock change on Lord Howe Island, which moves its clock by 30 minutes.
+// Each minute is compared with `format`, and `with` must give the same moment back.
+var $clock = Core\Time::fromIso('2024-10-05T14:00:00Z')->in(Core\Time\Zone::of('Australia/Lord_Howe'));
+int $step = 0;
+while ($step < 240) {
+    uint $minute = $clock->minute();
+    Expect::same('step 3', $minute as string, $clock->format('m'));
+    var $same = $clock->with({ minute: $minute });
+    Expect::same('step 3', $same->toInstant()->compareTo($clock->toInstant()) as string, '0');
+    $clock = $clock->plus(1, Core\Unit::Minute);
+    $step = $step + 1;
+}
+
+// 4. The ends of the range. Both zones are 25 hours 59 minutes 59 seconds from UTC.
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+Expect::same('step 4', Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->minute() as string, '59');
+Expect::same('step 4', Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->minute() as string, '0');
+echo "all minutes are right\n";

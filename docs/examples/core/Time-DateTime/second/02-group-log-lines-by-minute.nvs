@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to set the seconds to 0, so that log lines from the same minute are counted together.
+
+array<string> $lines = [
+    '2024-05-14T09:12:03Z',
+    '2024-05-14T09:12:41Z',
+    '2024-05-14T09:13:00Z',
+    '2024-05-14T09:13:59Z',
+    '2024-05-14T09:13:59Z',
+];
+
+// `with` sets the second and the nanoseconds to 0. The result is the start of the minute.
+// The lines are in time order, so a new minute starts a new group.
+string $current = '';
+int $count = 0;
+foreach ($lines as string $text) {
+    var $time = Core\Time::fromIso($text)->in(Core\Time\Zone::UTC);
+    string $minute = $time->with({ second: 0, nanos: 0 })->format('HH:mm');
+    if ($minute != $current && $count > 0) {
+        echo $current, ': ', $count, " lines\n";
+        $count = 0;
+    }
+    $current = $minute;
+    $count = $count + 1;
+}
+
+// This prints 09:12: 2 lines and then 09:13: 3 lines.
+echo $current, ': ', $count, " lines\n";

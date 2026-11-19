@@ -1,0 +1,29 @@
+<?nvs
+// Reads the year of a date and time, as a program does when it groups orders by year.
+// bench: iterations 1024
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        var $zone = Core\Time\Zone::UTC;
+        array<Core\Time\DateTime> $times = [
+            Core\Time::at(2022, 1, 3, $zone, { hour: 8 }),
+            Core\Time::at(2025, 7, 16, $zone, { hour: 13, minute: 30 }),
+            Core\Time::at(2028, 12, 29, $zone, { hour: 23, minute: 59, second: 59 }),
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each year is a multiple of 3
+            $total = $total + $times[(($total as uint + $i) % 3) as int]->year();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

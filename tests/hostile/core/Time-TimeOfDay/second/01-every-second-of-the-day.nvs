@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `second` reads every second of a day, the wrap at midnight, and a second that is not allowed.
+// Each second should be from 0 to 59 and match the time. A wrong second throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. The last nanosecond of the day is in second 59. One nanosecond later it is second 0.
+var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+Expect::same('step 1', $last->second() as string, '59');
+Expect::same('step 1', $last->plus(1, Core\Unit::Nanosecond)->second() as string, '0');
+Expect::same('step 1', Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Second)->second() as string, '59');
+
+// 2. Second 60, which a leap second would need, is not allowed. The error is caught.
+try {
+    Core\Time\TimeOfDay::at(23, 59, { second: 60 });
+    Expect::same('step 2', 'no error', 'an error');
+} catch (RuntimeError $sixty) {
+    echo "second 60 is not allowed\n";
+}
+
+// 3. Every second of a day is read, starting at midnight.
+// Each second is compared with `format`, and `with` must give the same time back.
+var $clock = Core\Time\TimeOfDay::at(0, 0);
+int $step = 0;
+while ($step < 86400) {
+    uint $second = $clock->second();
+    Expect::same('step 3', $second as string, ($step % 60) as string);
+    Expect::same('step 3', $second as string, $clock->format('s'));
+    Expect::same('step 3', $clock->with({ second: $second })->compareTo($clock) as string, '0');
+    $clock = $clock->plus(1, Core\Unit::Second);
+    $step = $step + 1;
+}
+Expect::same('step 3', $clock->compareTo(Core\Time\TimeOfDay::at(0, 0)) as string, '0');
+
+// 4. In 1870, Kolkata was 5 hours 21 minutes 10 seconds ahead of UTC. At 12:00 UTC its time of day was 17:21:10.
+var $kolkata = Core\Time::fromIso('1870-06-01T12:00:00Z')->in(Core\Time\Zone::of('Asia/Kolkata'));
+Expect::same('step 4', $kolkata->timeOfDay()->second() as string, '10');
+echo "all seconds are right\n";

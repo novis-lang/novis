@@ -1,0 +1,28 @@
+<?nvs
+// Reads the hour of a time of day, as a program does when it checks whether a shop is open.
+// bench: iterations 1024
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Time\TimeOfDay> $times = [
+            Core\Time\TimeOfDay::at(3, 10),
+            Core\Time\TimeOfDay::at(6, 30),
+            Core\Time\TimeOfDay::at(9, 59, { second: 59 }),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each hour is a multiple of 3
+            $total = $total + $times[(($total + $i) % 3) as int]->hour();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

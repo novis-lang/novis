@@ -1,0 +1,28 @@
+<?nvs
+// Reads the second of a time of day, as a program does when it prints a clock reading one field at a time.
+// bench: iterations 1024
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Time\TimeOfDay> $times = [
+            Core\Time\TimeOfDay::at(8, 10, { second: 6 }),
+            Core\Time\TimeOfDay::at(13, 30, { second: 24 }),
+            Core\Time\TimeOfDay::at(23, 59, { second: 51 }),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each second is a multiple of 3
+            $total = $total + $times[(($total + $i) % 3) as int]->second();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

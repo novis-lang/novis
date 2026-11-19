@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to greet each user by the time of day in the user's own time zone.
+
+class Greeting
+{
+    public static function choose(Core\Time\DateTime $local): string
+    {
+        uint $hour = $local->hour();
+        if ($hour < 5) {
+            return 'Good night';
+        }
+        if ($hour < 12) {
+            return 'Good morning';
+        }
+        if ($hour < 18) {
+            return 'Good afternoon';
+        }
+        return 'Good evening';
+    }
+}
+
+// All three users open the page at the same moment, 08:00 UTC.
+var $moment = Core\Time::fromIso('2024-03-05T08:00:00Z');
+array<string> $zones = ['Europe/Berlin', 'America/New_York', 'Asia/Tokyo'];
+
+// The hour is 9 in Berlin, 3 in New York and 17 in Tokyo, so each user gets a different greeting.
+foreach ($zones as string $name) {
+    var $local = $moment->in(Core\Time\Zone::of($name));
+    echo $name, ' (', $local->hour(), '): ', Greeting::choose($local), "\n";
+}

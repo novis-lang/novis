@@ -1,0 +1,68 @@
+<?nvs
+// Attack: `day` reads the ends of the range, every 29 February for 800 years, and a day that one country skipped.
+// Each day should be the day in the value's own time zone. A wrong day throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. The last moment in time is on day 31 in the zone farthest ahead.
+// The first moment in time is on day 1 in the zone farthest behind.
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+Expect::same('step 1', Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->day() as string, '31');
+Expect::same('step 1', Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->day() as string, '1');
+
+// 2. Samoa skipped 30 December 2011. Every hour from 28 December to 1 January is read.
+// No hour is on day 30, and the day after 29 December is 31 December.
+var $hour = Core\Time::at(2011, 12, 28, Core\Time\Zone::of('Pacific/Apia'));
+int $onThirty = 0;
+uint $previous = 28;
+int $step = 0;
+while ($step < 72) {
+    uint $day = $hour->day();
+    if ($day == 30) {
+        $onThirty = $onThirty + 1;
+    }
+    if ($day == 31 && $previous == 29) {
+        $previous = 31;
+    }
+    if ($day == 29) {
+        $previous = 29;
+    }
+    $hour = $hour->plus(1, Core\Unit::Hour);
+    $step = $step + 1;
+}
+Expect::same('step 2', $onThirty as string, '0');
+Expect::same('step 2', $previous as string, '31');
+
+// 3. Every day from the year -400 to the year 400 is read at noon in Paris, and compared with `format`.
+// 800 years have 194 days that are 29 February.
+var $noon = Core\Time::at(-400, 1, 1, Core\Time\Zone::of('Europe/Paris'), { hour: 12 });
+int $leapDays = 0;
+int $count = 0;
+while ($count < 292194) {
+    uint $number = $noon->day();
+    Expect::same('step 3', $number as string, $noon->format('d'));
+    if ($number == 29 && $noon->month() == 2) {
+        $leapDays = $leapDays + 1;
+    }
+    $noon = $noon->plus(1, Core\Unit::Day);
+    $count = $count + 1;
+}
+Expect::same('step 3', $leapDays as string, '194');
+
+// 4. `with` sets the day it already has, on the last nanosecond of 29 February.
+// The result must be the same moment.
+var $leap = Core\Time::at(2024, 2, 29, Core\Time\Zone::of('Asia/Kathmandu'), { hour: 23, minute: 59, second: 59, nanos: 999999999 });
+var $same = $leap->with({ day: $leap->day() });
+Expect::same('step 4', $same->toInstant()->compareTo($leap->toInstant()) as string, '0');
+Expect::same('step 4', $leap->plus(1, Core\Unit::Nanosecond)->day() as string, '1');
+echo "all days are right\n";

@@ -1,0 +1,29 @@
+<?nvs
+// Reads the month of a date and time, as a program does when it adds up sales for each month.
+// bench: iterations 256
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $zone = Core\Time\Zone::UTC;
+        array<Core\Time\DateTime> $times = [
+            Core\Time::at(2024, 3, 9, $zone, { hour: 8 }),
+            Core\Time::at(2024, 6, 18, $zone, { hour: 13, minute: 30 }),
+            Core\Time::at(2023, 12, 27, $zone, { hour: 23, minute: 59, second: 59 }),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each month is a multiple of 3
+            $total = $total + $times[(($total + $i) % 3) as int]->month();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

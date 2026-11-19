@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `minute` reads every minute of a day, the wrap at midnight, and a time with an odd offset.
+// Each minute should be from 0 to 59 and match the time. A wrong minute throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. The last nanosecond of the day is in minute 59. One nanosecond later it is minute 0.
+var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+Expect::same('step 1', $last->minute() as string, '59');
+Expect::same('step 1', $last->plus(1, Core\Unit::Nanosecond)->minute() as string, '0');
+
+// 2. Every minute of two days is read, starting one minute before midnight.
+// Each minute is compared with `format`, and `with` must give the same time back.
+var $clock = Core\Time\TimeOfDay::at(23, 59);
+int $step = 0;
+while ($step < 2880) {
+    uint $minute = $clock->minute();
+    Expect::same('step 2', $minute as string, (($step + 59) % 60) as string);
+    Expect::same('step 2', $minute as string, $clock->format('m'));
+    Expect::same('step 2', $clock->with({ minute: $minute })->compareTo($clock) as string, '0');
+    $clock = $clock->plus(1, Core\Unit::Minute);
+    $step = $step + 1;
+}
+
+// 3. `plus` allows up to 10518456960 minutes. 10518456959 minutes is one minute less than a whole number of days.
+// Forward from midnight, the minute is 59. One minute more than allowed throws an error, which is caught.
+var $zero = Core\Time\TimeOfDay::at(0, 0);
+Expect::same('step 3', $zero->plus(10518456959, Core\Unit::Minute)->minute() as string, '59');
+Expect::same('step 3', $zero->minus(10518456959, Core\Unit::Minute)->minute() as string, '1');
+try {
+    $zero->plus(10518456961, Core\Unit::Minute);
+    Expect::same('step 3', 'no error', 'an error');
+} catch (RuntimeError $tooMany) {
+    echo "10518456961 minutes is too many\n";
+}
+
+// 4. In 1870, Kathmandu was 5 hours 41 minutes 16 seconds ahead of UTC. At 12:00 UTC its time of day was 17:41:16.
+var $kathmandu = Core\Time::fromIso('1870-06-01T12:00:00Z')->in(Core\Time\Zone::of('Asia/Kathmandu'));
+Expect::same('step 4', $kathmandu->timeOfDay()->minute() as string, '41');
+echo "all minutes are right\n";

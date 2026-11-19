@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to count the minutes between two times on the same day, for a parking ticket.
+
+class Parking
+{
+    public static function minutesSinceMidnight(Core\Time\TimeOfDay $time): uint
+    {
+        return $time->hour() * 60 + $time->minute();
+    }
+}
+
+Core\Time\TimeOfDay $entered = Core\Time\TimeOfDay::at(9, 40);
+Core\Time\TimeOfDay $left = Core\Time\TimeOfDay::at(11, 5);
+
+// 09:40 is 580 minutes after midnight, and 11:05 is 665. This prints 85.
+echo Parking::minutesSinceMidnight($left) - Parking::minutesSinceMidnight($entered), "\n";

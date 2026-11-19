@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to turn the hour into a 12-hour clock with AM and PM.
+
+class TwelveHour
+{
+    public static function show(Core\Time\TimeOfDay $time): string
+    {
+        uint $hour = $time->hour() % 12;
+        // Midnight and noon are 12 on a 12-hour clock, not 0.
+        if ($hour == 0) {
+            $hour = 12;
+        }
+        string $half = $time->hour() < 12 ? 'AM' : 'PM';
+        return $hour . ' ' . $half;
+    }
+}
+
+// This prints 12 AM, 9 AM, 12 PM and 7 PM.
+array<uint> $hours = [0, 9, 12, 19];
+foreach ($hours as uint $h) {
+    echo TwelveHour::show(Core\Time\TimeOfDay::at($h, 0)), "\n";
+}
+
+// `format` with `h a` gives the same result. This prints 7 PM.
+echo Core\Time\TimeOfDay::at(19, 0)->format('h a'), "\n";

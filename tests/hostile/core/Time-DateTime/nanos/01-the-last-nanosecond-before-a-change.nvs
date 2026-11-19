@@ -1,0 +1,53 @@
+<?nvs
+// Attack: `nanos` reads the last nanosecond before a clock change, a new year and the first moment in time.
+// Each result should be from 0 to 999999999 and match the time. A wrong result throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. The last nanosecond of the first second in time, read in the zone farthest behind.
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59.999999999Z')->in($behind);
+Expect::same('step 1', $first->nanos() as string, '999999999');
+Expect::same('step 1', $first->year() as string, '-9999');
+
+// 2. In Berlin on 31 March 2024, the clocks move from 02:00 to 03:00.
+// One nanosecond before is 01:59:59.999999999, and one nanosecond later is exactly 03:00.
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+var $before = Core\Time::at(2024, 3, 31, $berlin, { hour: 1, minute: 59, second: 59, nanos: 999999999 });
+Expect::same('step 2', $before->nanos() as string, '999999999');
+var $after = $before->plus(1, Core\Unit::Nanosecond);
+Expect::same('step 2', $after->nanos() as string, '0');
+Expect::same('step 2', $after->hour() as string, '3');
+
+// 3. The last nanosecond of 1870 in Paris, when Paris was 9 minutes 21 seconds ahead of UTC.
+// One nanosecond later is 1 January 1871 at 00:00.
+var $paris = Core\Time::at(1870, 12, 31, Core\Time\Zone::of('Europe/Paris'), { hour: 23, minute: 59, second: 59, nanos: 999999999 });
+Expect::same('step 3', $paris->nanos() as string, '999999999');
+var $next = $paris->plus(1, Core\Unit::Nanosecond);
+Expect::same('step 3', $next->nanos() as string, '0');
+Expect::same('step 3', $next->year() as string, '1871');
+
+// 4. Steps of 999999937 nanoseconds go through the Berlin hour that happens twice in autumn.
+// After each step, `nanos` must match the sum of the steps, and `with` must give the same moment back.
+var $clock = Core\Time::fromIso('2024-10-26T23:00:00Z')->in($berlin);
+int $want = 0;
+int $step = 0;
+while ($step < 20000) {
+    uint $nanos = $clock->nanos();
+    Expect::same('step 4', $nanos as string, $want as string);
+    var $same = $clock->with({ nanos: $nanos });
+    Expect::same('step 4', $same->toInstant()->compareTo($clock->toInstant()) as string, '0');
+    $clock = $clock->plus(999999937, Core\Unit::Nanosecond);
+    $want = ($want + 999999937) % 1000000000;
+    $step = $step + 1;
+}
+echo "all nanoseconds are right\n";

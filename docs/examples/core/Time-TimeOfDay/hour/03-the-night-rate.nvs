@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to choose a taxi rate from the hour: the night rate is from 22:00 to 06:00.
+
+class Taxi
+{
+    public static function rate(Core\Time\TimeOfDay $pickup): string
+    {
+        uint $hour = $pickup->hour();
+        // The night goes past midnight, so it is two ranges: from 22 to 23, and from 0 to 5.
+        if ($hour >= 22 || $hour < 6) {
+            return 'night';
+        }
+        return 'day';
+    }
+}
+
+// This prints day, night, night and day.
+echo Taxi::rate(Core\Time\TimeOfDay::at(21, 59)), "\n";
+echo Taxi::rate(Core\Time\TimeOfDay::at(22, 0)), "\n";
+echo Taxi::rate(Core\Time\TimeOfDay::at(5, 45)), "\n";
+echo Taxi::rate(Core\Time\TimeOfDay::at(6, 0)), "\n";

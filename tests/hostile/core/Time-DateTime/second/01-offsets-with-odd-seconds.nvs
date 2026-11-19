@@ -1,0 +1,52 @@
+<?nvs
+// Attack: `second` reads times in zones whose offset has seconds, and the end of a year with a leap second.
+// Each second should be the second on the local clock, from 0 to 59. A wrong second throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. Before about 1880, each city used its own local time. Its offset from UTC has odd seconds.
+// At 12:00 UTC on 1 June 1870, each city's clock shows the second below.
+var $noon = Core\Time::fromIso('1870-06-01T12:00:00Z');
+array<string> $cities = ['America/New_York', 'Europe/Paris', 'Asia/Kolkata', 'Asia/Kathmandu', 'Europe/Dublin', 'Africa/Monrovia'];
+array<string> $seconds = ['58', '21', '10', '16', '39', '52'];
+int $i = 0;
+while ($i < 6) {
+    var $local = $noon->in(Core\Time\Zone::of($cities[$i]));
+    Expect::same('step 1 ' . $cities[$i], $local->second() as string, $seconds[$i]);
+    $i = $i + 1;
+}
+
+// 2. A zone one second behind UTC. At the start of 1970 in UTC, its clock shows 23:59:59 on 31 December 1969.
+var $behindOne = Core\Time::fromEpoch(0)->in(Core\Time\Zone::fixed(1s->negated()));
+Expect::same('step 2', $behindOne->second() as string, '59');
+Expect::same('step 2', $behindOne->year() as string, '1969');
+
+// 3. The year 2016 ended with a leap second. Every second across that new year is read in Paris.
+// A second is never 60, and it is the same as `format` shows.
+var $clock = Core\Time::fromIso('2016-12-31T23:58:00Z')->in(Core\Time\Zone::of('Europe/Paris'));
+int $step = 0;
+while ($step < 240) {
+    uint $second = $clock->second();
+    Expect::same('step 3', ($second < 60) ? 'yes' : 'no', 'yes');
+    Expect::same('step 3', $second as string, $clock->format('s'));
+    var $same = $clock->with({ second: $second });
+    Expect::same('step 3', $same->toInstant()->compareTo($clock->toInstant()) as string, '0');
+    $clock = $clock->plus(1, Core\Unit::Second);
+    $step = $step + 1;
+}
+
+// 4. The ends of the range. Both zones are 25 hours 59 minutes 59 seconds from UTC.
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+Expect::same('step 4', Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->second() as string, '59');
+Expect::same('step 4', Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->second() as string, '0');
+echo "all seconds are right\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to find the next free appointment, when appointments start on the hour and at half past.
+
+class Appointment
+{
+    public static function nextSlot(Core\Time\TimeOfDay $now): Core\Time\TimeOfDay
+    {
+        // Before half past, the next slot is at half past this hour.
+        if ($now->minute() < 30) {
+            return $now->with({ minute: 30, second: 0, nanos: 0 });
+        }
+        // Otherwise it is at the start of the next hour.
+        return $now->with({ minute: 0, second: 0, nanos: 0 })->plus(1, Core\Unit::Hour);
+    }
+}
+
+// `plus` goes past midnight to 00:00. This prints 10:30, 11:00 and 00:00.
+echo Appointment::nextSlot(Core\Time\TimeOfDay::at(10, 5))->format('HH:mm'), "\n";
+echo Appointment::nextSlot(Core\Time\TimeOfDay::at(10, 30))->format('HH:mm'), "\n";
+echo Appointment::nextSlot(Core\Time\TimeOfDay::at(23, 50))->format('HH:mm'), "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check if a support desk is open, using the hour in the desk's time zone.
+
+class SupportDesk
+{
+    // The desk in London is open from 09:00 to 17:00.
+    public static function isOpen(Core\Time\Instant $at): bool
+    {
+        uint $hour = $at->in(Core\Time\Zone::of('Europe/London'))->hour();
+        return $hour >= 9 && $hour < 17;
+    }
+}
+
+// A real program uses `Core\Time::now()` here. Fixed times keep the output the same.
+// In July, London is one hour ahead of UTC. 07:30 UTC is 08:30 in London, so the desk is closed.
+array<string> $times = ['2024-07-10T07:30:00Z', '2024-07-10T08:30:00Z', '2024-07-10T16:10:00Z'];
+foreach ($times as string $text) {
+    echo $text, ': ', SupportDesk::isOpen(Core\Time::fromIso($text)) ? 'open' : 'closed', "\n";
+}

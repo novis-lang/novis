@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to print the seconds of a time only when they are not 0.
+
+class Display
+{
+    public static function show(Core\Time\TimeOfDay $time): string
+    {
+        if ($time->second() == 0) {
+            return $time->format('HH:mm');
+        }
+        return $time->format('HH:mm:ss');
+    }
+}
+
+// This prints 08:00 and then 08:00:30.
+echo Display::show(Core\Time\TimeOfDay::at(8, 0)), "\n";
+echo Display::show(Core\Time\TimeOfDay::at(8, 0, { second: 30 })), "\n";

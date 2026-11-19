@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to drop the part of a second, so that two times from different systems can be compared.
+
+// The database keeps nanoseconds. The browser sent the same time to the second only.
+var $zone = Core\Time\Zone::of('Europe/Warsaw');
+var $saved = Core\Time::fromIso('2024-09-01T08:00:12.734000000Z')->in($zone);
+var $sent = Core\Time::parse('2024-09-01 10:00:12', 'yyyy-MM-dd HH:mm:ss', $zone);
+
+// The nanoseconds are different. This prints 734000000 and 0.
+echo $saved->nanos(), ' ', $sent->nanos(), "\n";
+
+// `with({ nanos: 0 })` sets the part of a second to 0. Now both times are 10:00:12.000.
+var $rounded = $saved->with({ nanos: 0 });
+echo $rounded->format('HH:mm:ss.SSS'), ' ', $sent->format('HH:mm:ss.SSS'), "\n";
+
+// `toInstant` gives the moment of each time, and `compareTo` returns 0 when they are equal.
+// This prints same.
+echo $rounded->toInstant()->compareTo($sent->toInstant()) == 0 ? 'same' : 'different', "\n";

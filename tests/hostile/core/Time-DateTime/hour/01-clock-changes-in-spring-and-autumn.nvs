@@ -1,0 +1,61 @@
+<?nvs
+// Attack: `hour` reads the hour that is skipped in spring and the hour that happens twice in autumn.
+// Each hour should be the hour on the clock in the value's own time zone. A wrong hour throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+var $berlin = Core\Time\Zone::of('Europe/Berlin');
+var $london = Core\Time\Zone::of('Europe/London');
+
+// 1. In Berlin on 31 March 2024, the clocks move from 02:00 to 03:00.
+// Every minute from midnight to 05:00 is read. No minute is in hour 2.
+var $minute = Core\Time::at(2024, 3, 31, $berlin);
+int $inHourTwo = 0;
+int $step = 0;
+while ($step < 240) {
+    if ($minute->hour() == 2) {
+        $inHourTwo = $inHourTwo + 1;
+    }
+    Expect::same('step 1', $minute->hour() as string, $minute->format('H'));
+    $minute = $minute->plus(1, Core\Unit::Minute);
+    $step = $step + 1;
+}
+Expect::same('step 1', $inHourTwo as string, '0');
+
+// 2. One nanosecond before the change is in hour 1. One nanosecond later it is hour 3.
+var $before = Core\Time::at(2024, 3, 31, $berlin, { hour: 1, minute: 59, second: 59, nanos: 999999999 });
+Expect::same('step 2', $before->hour() as string, '1');
+Expect::same('step 2', $before->plus(1, Core\Unit::Nanosecond)->hour() as string, '3');
+
+// 3. In autumn, Berlin has 02:30 twice, one hour apart. London has 01:30 twice at the same two moments.
+var $early = Core\Time::fromIso('2024-10-27T00:30:00Z');
+var $late = Core\Time::fromIso('2024-10-27T01:30:00Z');
+Expect::same('step 3', $early->in($berlin)->hour() as string, '2');
+Expect::same('step 3', $late->in($berlin)->hour() as string, '2');
+Expect::same('step 3', $early->in($london)->hour() as string, '1');
+Expect::same('step 3', $late->in($london)->hour() as string, '1');
+
+// 4. `with` sets the hour it already has, on both 02:30 times in Berlin.
+// Each result must be the same moment, so the second 02:30 stays the second one.
+array<Core\Time\Instant> $twice = [$early, $late];
+foreach ($twice as Core\Time\Instant $moment) {
+    var $local = $moment->in($berlin);
+    var $same = $local->with({ hour: $local->hour() });
+    Expect::same('step 4', $same->toInstant()->compareTo($moment) as string, '0');
+}
+
+// 5. The ends of the range. The last moment is at 23:00 in the zone farthest ahead, and the first at 00:00 in the zone farthest behind.
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+Expect::same('step 5', Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->hour() as string, '23');
+Expect::same('step 5', Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->hour() as string, '0');
+echo "all hours are right\n";

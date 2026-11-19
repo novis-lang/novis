@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the second of a date and time as a number.
+
+var $login = Core\Time::parse('2024-10-02 18:04:37', 'yyyy-MM-dd HH:mm:ss', Core\Time\Zone::of('Europe/Lisbon'));
+
+// `second` returns a `uint` from 0 to 59. This prints 37.
+echo $login->second(), "\n";
+
+// A time without seconds has second 0. This prints 0.
+echo Core\Time::at(2024, 10, 2, Core\Time\Zone::of('Europe/Lisbon'), { hour: 18, minute: 4 })->second(), "\n";

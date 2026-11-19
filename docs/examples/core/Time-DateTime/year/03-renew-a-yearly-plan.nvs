@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the renewal date of a plan that runs for one year.
+
+var $started = Core\Time::at(2024, 5, 20, Core\Time\Zone::of('America/Chicago'), { hour: 14, minute: 5 });
+
+// `with` replaces the year. The month, the day and the time stay the same.
+// This prints 2025-05-20 14:05.
+var $renews = $started->with({ year: $started->year() + 1 });
+echo $renews->format('yyyy-MM-dd HH:mm'), "\n";
