@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 4
     title: a form with a callback compiles as its fast form where the callback is proven, and is recorded where it is not
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/tests.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 5
     title: a form only an edit can change is a warning with its fix, in nvs check and in the editor
@@ -580,10 +580,17 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
     `a_callback_with_an_effect_keeps_the_form_and_is_silent` passed by name.
   - [x] `a_comparator_of_one_expression_sorts_by_it`.
 - [x] `bun nv suite tests/conformance/ --no-cheaper-forms-too` once, green.
-- [ ] `tools/nv/cmd/scaling.ts`: `// scaling: rounds N` on a `run` ladder judges the difference of half
+- [x] `tools/nv/cmd/scaling.ts`: `// scaling: rounds N` on a `run` ladder judges the difference of half
   and all of `N` rounds, as § *Standing decisions* says, with a test in `tools/nv/test/`. The two
   `expect constant` ladders under `benches/scaling/arrays/forms-` take it.
-- [ ] `bun nv scaling --check arrays/forms-` once: the first two ladders grow as their files say.
+  - [x] `Ladder::rounds`, read by `ladderOf`, for a `run` ladder alone.
+  - [x] `roundsPlan` and `judgePerOp`, which `rampPerOp` now shares, called from `ladderOne`.
+  - [x] The test `a run ladder with rounds runs half and all of them at each size, and is judged by
+    the difference`, passed by name.
+  - [x] Both `expect constant` ladders take `// scaling: rounds N`.
+- [x] `bun nv scaling --check arrays/forms-` once: the first two ladders grow as their files say.
+  All three were flat. `nvs run --count` of the first ladder gives `calls=42` with the table and
+  `calls=20042` with `--no-cheaper-forms`, so the per-round difference sees the slow form.
 
 ### 5. a form only an edit can change is a warning with its fix, in nvs check and in the editor
 
@@ -687,40 +694,30 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1, 2 and 3 are done. Every stage-4 row landed. The filter rows: `forms::of_filter` and
-`Lowering::lower_count_of_filter` record, and `forms::Rewrite` compiles the fast member. The
-comparator rows: `forms::comparator_by` matches at the `Core` call lowering in
-`crates/nvs-ir/src/lower/expr.rs`, before `of_filter`. It sets `Lowering::by_twin`, and
-`lower_anon_fn_expr` lowers `fn($x) => E($x)` as class `<comparator>$by` with the comparator's
-captures and records an `ir::ByTwin`. Where `forms::run` proves the `by` body, `forms::Retarget`
-turns the comparator's `New`, field sets, arity and tags into the `by` class's and swaps the two
-option operands. The descending row also turns the default `order` `ConstInt(0)` into `1`.
-`forms::throws_nothing` makes a quiet `Core` call whose card lists no errors no error edge (a
-standing decision). All four `callback-forms` tests passed by name, and the full
-`bun nv suite tests/conformance/ --no-cheaper-forms-too` is green. The rule states both. Sessions
-used: stage 1, one; stage 2, two; stage 3, two; stage 4, two, with one more for its tooling item
-(standing decision). The sweep's `env-secret-proofs` red is stale: its log does not exist, and
-`git log -S` names only goal commits.
+Stages 1, 2, 3 and 4 are done. Stage 4's last item landed: a `run` ladder takes
+`// scaling: rounds N` (`Ladder::rounds` in `tools/nv/cmd/scaling.ts`). `ladderOne` then builds a
+`roundsPlan` and judges it with `judgePerOp`, which `rampPerOp` shares, so the input a ladder builds
+once cancels out. The two `expect constant` ladders under `benches/scaling/arrays/forms-` take the
+line, and `bun nv scaling --check arrays/forms-` found all three flat. The map ladder, which stage
+6's last item names, is already flat under the per-round judgment. Sessions used: stage 1, one;
+stage 2, two; stage 3, two; stage 4, three (the third for its tooling item, as a standing decision
+allows). The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S`
+names only a retired goal's commits.
 
 ### Next
 
-Stage 4's last session, its tooling item. In `tools/nv/cmd/scaling.ts`, `ladderOf` (line 455)
-accepts `// scaling: rounds N` on a `run` ladder. `rampOne` (line 1040) then runs the work half and
-all of `N` times at each size and judges the difference, as `rampPerOp` (line 1086) and `perOpOf`
-(line 1071) do for a member bench, so setup cancels out. Read how `withIterations` (line 295)
-rewrites a program's count before choosing how a round count reaches the program. Add a test in
-`tools/nv/test/` beside the existing scaling tests. Put the line on the two `expect constant`
-ladders under `benches/scaling/arrays/forms-`. Then run `bun nv scaling --check arrays/forms-`
-once. The first two ladders must grow as their files say. The difference ladder's quadratic shows
-in the clock alone, so its red needs callgrind in WSL. Then set stage 4 done. Stages 6, 7, 8 and 10
-can start as side goals at any time.
+Stage 5. Its gate holds: `crates/nvs-lsp/Cargo.toml` links `nvs-ir`. The form warning takes
+`W1034`, after `W_COPY_FAILURE_AFTER_CHANGE` (`crates/nvs-diagnostics/src/code/warnings.rs:348`),
+raised from `Program::forms`'s `forms::Recorded` list the way `nvs_ir::copies::warnings` raises
+`W1033`. Follow that path into `nvs check` and the language server. Then the repeated-read warning
+and its session measurement, under the stage's split. Stages 6, 7, 8 and 10 can start as side
+goals at any time.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
 a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `firstKey`, `isEmpty`
 or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
-does. The three ladders under `benches/scaling/arrays/forms-`
-stay red until stages 4 and 6, and no sweep runs them before stage 4's check.
+does.
 
 ### Backlog
 
