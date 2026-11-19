@@ -262,35 +262,36 @@ before the first edit.
 **Split:** one writing subagent takes the editor items (`crates/nvs-lsp/` alone) while the session does
 the checker, IR and codegen. Their files are disjoint, and no one builds until both end.
 
-- [ ] The checker: a string literal at a parameter typed `Core\Time\Zone` checks against
+- [x] The checker: a string literal at a parameter typed `Core\Time\Zone` checks against
   `resolve_zone` (`crates/nvs-stdlib/src/time.rs:3902`) and is typed `Zone`. An unknown name is one
   diagnostic at the literal, whose help names the nearest zone ids. Find the key-literal path to copy
   with `bun nv peek --locate key_parameter_class` (`crates/nvs-types/src/expr/args.rs:158`). A `string`
   variable at a `Zone` parameter stays the type error it is.
-- [ ] `crates/nvs-ir/src/ir.rs:1094`: `InstKind::ConstZone(String)` beside `ConstDuration`, in every match
+- [x] `crates/nvs-ir/src/ir.rs:1094`: `InstKind::ConstZone(String)` beside `ConstDuration`, in every match
   that lists `ConstDuration` (`:2587`, `:4059`, `:4361`, `crates/nvs-ir/src/print.rs:203`), lowered beside
   `crates/nvs-ir/src/lower/expr.rs:3306`. A written zone, `Zone::UTC`, and `Zone::of`/`Zone::fixed` with a
   literal all lower to it, with the id `resolve_zone` reads (`fixed`'s canonical `±HH:MM[:SS]`).
-- [ ] `crates/nvs-codegen/src/emit.rs:853`: `ConstZone` emits one immortal instance with
+- [x] `crates/nvs-codegen/src/emit.rs:853`: `ConstZone` emits one immortal instance with
   `immortal_object_bytes`, its slot an immortal string. `crates/nvs-codegen/tests/core_members.rs:70`
   gains a test that a written zone emits no call and no allocation.
 - [ ] Measure the lookup: the counts `bun nv proofs --record-perf --group 'Core\Time\Instant'` gives
   for `in`, against the same member with the lookup stubbed in a scratch build under `.agent-tmp/`.
   Record the figure in the handoff. Only if the lookup is a visible share of `in`: an id-to-`TimeZone`
   table filled while compiling for written zones, and the figure goes into the rule.
-- [ ] `tests/conformance/core/time-a-written-zone-is-checked-and-shared.nvst:1`: a written zone at
+- [x] `tests/conformance/core/time-a-written-zone-is-checked-and-shared.nvst:1`: a written zone at
   `DateTime::at`, `fromIso`, `parse` and `Instant->in`, `Zone::UTC`, `Zone::of('Europe/Berlin')`, and a
   fixed offset, each printed. A loop of many conversions with a written zone, whose memory reading shows
   no growth per iteration.
-- [ ] `tests/conformance/reject/an-unknown-written-zone-does-not-compile.nvst:1`: `'Europe/Berln'`,
-  `'utc '`, `'+25:00'` and a `string` variable at a `Zone` parameter, each one diagnostic.
-- [ ] `crates/nvs-lsp/src/completion.rs:1042`: inside a string at a `Zone` parameter, `file_values` gets
+- [x] `tests/conformance/reject/an-unknown-written-zone-does-not-compile.nvst:1`: `'Europe/Berln'`,
+  `'utc '`, `'+26:00'` and a `string` variable at a `Zone` parameter, each one diagnostic. (`+25:00`
+  is a valid offset: `Zone::fixed` takes up to 25:59:59, so the case writes `+26:00`.)
+- [x] `crates/nvs-lsp/src/completion.rs:1042`: inside a string at a `Zone` parameter, `file_values` gets
   every id from `jiff::tz::db().available()` with `/` as the separator, built once per server and kept.
   Hover on a written zone shows its id and current offset.
-- [ ] `crates/nvs-lsp/tests/completion_file_values.rs:1`: the test
+- [x] `crates/nvs-lsp/tests/completion_file_values.rs:1`: the test
   `a_string_at_a_zone_parameter_offers_every_zone_name`: `'Eu` offers `Europe/`, `'Europe/Be` offers
   `Europe/Berlin`, and `Zone::of('` offers the same set.
-- [ ] The `zones` and `zone-completion` checks run once.
+- [x] The `zones` and `zone-completion` checks run once.
 
 ### 4. an old constructor name is a compile error that names the new one, with a fix
 
@@ -387,21 +388,20 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Stages 1 and 2 are done. The registry has the table: `Core\Time` registers `now`, `monotonic` and
-`sleep` alone (`crates/nvs-stdlib/src/time.rs:2541`). `Instant` has `fromEpoch` and `fromIso`, `Date`
-and `TimeOfDay` each have `fromIso`, and `DateTime` has `at(Date, TimeOfDay, Zone)`, `fromIso(text,
-Zone)` and `parse`. `Date::atStartOfDay` is gone. The symbols are renamed after their class:
-`nvs_core_time_instant_from_epoch`, `_instant_from_iso`, `_datetime_at`, `_datetime_from_iso`,
-`_datetime_parse`, `_date_from_iso` and `_of_day_from_iso`. Each has its address row.
+Stages 1 and 2 are done. Stage 3 is done but for measuring the zone lookup. Each time class builds
+itself (`crates/nvs-stdlib/src/time.rs`), and one reader per class, `validate_iso`, serves the member
+and the checker's `Grammar::Iso` rows.
 
-One reader per class serves both the member and the checker: `validate_iso` (`time.rs:3704`) over
-`iso_date`, `iso_time`, `iso_datetime` and `iso_instant`. `nvs_types::intrinsics` has one
-`Grammar::Iso(IsoForm)` row per `fromIso`, and `parse`'s row and `PREPARED_MEMBERS` name
-`Core\Time\DateTime`. jiff already reads a space between an `Instant`'s date and time, so
-`Instant::fromIso` needed no change for it. The three stage-2 cases pass alone (`nvs test <file>`, on
-the debug and the covws binary), and the rule's `guardedBy` names them.
+A string literal at a `Zone` or `?Zone` parameter is checked in `crates/nvs-types/src/zones.rs`
+against `nvs_stdlib::time::written_zone`. An unknown one is `E0769` at the literal, with the near
+names as help. A valid one is recorded in `ExprTypeTable::written_zone`, under the literal's span, or
+the call's span for `Zone::of('…')` and `Zone::fixed(<duration>)`. `nvs-ir` lowers it to
+`InstKind::ConstZone`, and `Zone::UTC` folds in `emit_const_arg` (`lower/call.rs`). Codegen's
+`emit_const_zone` writes one immortal `Zone`. The editor offers zone names by segment (`Europe`, then
+`Berlin`) and hovers the current offset. The two new cases, the codegen test and both editor tests
+pass by name, and `zone-completion` is green.
 
-**Red until stage 5, as expected:** the `constructors` check exits 1, because `bun nv suite --case`
+**Red until stage 5, as expected:** the `zones` check, for the reason below, and the `constructors` check exits 1, because `bun nv suite --case`
 reruns every red case, and over a hundred conformance cases still write `Core\Time::at`, `fromEpoch`, `fromIso`,
 `parse` or `atStartOfDay`. So do `crates/nvs-cli/tests/spreadsheet_reader.rs`, all 8 tests, through
 the Spreadsheet package's `Reader.nvs:178` and `:646` (`Core\Time::parse`), every example, attack
@@ -409,11 +409,15 @@ and bench under `Core/Time`, and the website snippets. The perf records of the m
 
 ### Next
 
-Stages 3 and 4 may run side by side (disjoint files). Stage 4 lands first if one session takes both,
-because stage 5 runs `nvs check --fix` with its rows. Stage 4: member rows in
+Stage 3's last item: measure what the name lookup costs `Instant->in` (`resolve_zone`,
+`crates/nvs-stdlib/src/time.rs`, `TimeZone::get`), with `bun nv proofs --record-perf --group
+'Core\Time\Instant'` against a scratch build with the lookup stubbed. Record the figure here, and add
+the id-to-`TimeZone` table only if it shows. Then set stage 3 to done.
+
+Stage 4 next, because stage 5 runs `nvs check --fix` with its rows. Stage 4: member rows in
 `crates/nvs-stdlib/src/moved.rs` `MOVES`, read by `crates/nvs-types/src/moved.rs` `note_moves` for an
-`E0405` (``Core\Time` has no member named `parse``, the code the old calls now get). Stage 3: the
-written zone, from `InstKind::ConstDuration` (`crates/nvs-ir/src/ir.rs:1094`). The `zones`,
-`zone-completion` and `moved` checks stay red until their stages write their cases.
+`E0405` (``Core\Time` has no member named `parse``, the code the old calls now get). The `moved`
+check stays red until stage 4 writes its cases. Stage 5 rewrites `Zone::of('…')` and `Zone::UTC`
+arguments to the written string where the decisions say so.
 
 ### Backlog
