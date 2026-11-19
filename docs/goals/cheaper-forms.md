@@ -411,6 +411,23 @@ because `Core\Arr::contains` is no counted call, so its red needs callgrind in W
   as written, because `value_hash` hashes an object by its address and no proof covers a class with
   its own equality. `b` is a variable other than the parameter, `$this` and the callback's own name.
 
+**Stage 3 matches the narrower form of each row too (my call).**
+
+- The `keys` and `values` loop takes a by-value loop with no key binding (after an unread key is
+  dropped). A key over either list is its position, which the array itself does not have. The
+  `keys` walk needs a `string` value binding.
+- The `range` loop takes `start` and `end` as positional arguments and a third argument, positional
+  or named `options`, that is an object literal with no field or only `step`. The value binding is
+  `int` and there is no key. `Helper::RangeLast` (`crates/nvs-runtime/src/helpers.rs`) throws
+  `range`'s own message for a bad step and gives the last value in `i128`, because the distance
+  between the bounds can pass `i64::MAX`. The loop stops at that value, so the step never overflows.
+  **What it spends:** four `int` locals for each loop, and no array.
+- An unread key is judged from the body's source text: a body with no `$name` followed by a
+  character that cannot continue a name never reads it, because `E0202` refuses `$$name`. A comment
+  or a string that has `$name` keeps the key. Under the debug switch every key stays.
+- The constant-key literal takes only a literal where every element has a string or non-negative
+  integer literal key. A literal that mixes positional elements in stays as written.
+
 **Lanes.** Stages 1, 2 and 3 need nothing from another goal. Stage 6 touches
 `crates/nvs-runtime/src/callable.rs`, `dispatch.rs` and the callback argument's lowering, and can run as
 a side goal at any time. Stage 7 touches the debug index and `crates/nvs-lsp/src/recorded.rs`, and stage
@@ -479,21 +496,37 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
 
 ### 3. a loop, a literal and a static call take the direct path
 
-- [ ] `crates/nvs-ir/src/lower/control.rs:880` `lower_foreach`: a subject that is a direct
+- [x] `crates/nvs-ir/src/lower/control.rs:880` `lower_foreach`: a subject that is a direct
   `Core\Arr::keys` or `Core\Arr::values` call loops over the argument, binding the key or the value. The
   loop still takes its own reference to the array it began with.
-- [ ] A subject that is a direct `Core\Arr::range` call (`crates/nvs-stdlib/src/arr.rs:4192`) is a
+  - [x] `forms::foreach_keys_or_values` matches the call
+  - [x] the loop over the keys binds `ArrayKeyAt` as its value
+  - [x] its cases pass both ways
+- [x] A subject that is a direct `Core\Arr::range` call (`crates/nvs-stdlib/src/arr.rs:4192`) is a
   counted loop. The argument checks `range` makes run once before the first step and throw the same
   errors. The direction is decided there too.
-- [ ] `control.rs:1080`: `ArrayKeyAt` is emitted only when the body reads the key binding. The same
+  - [x] `forms::foreach_range` matches the call
+  - [x] `Helper::RangeLast` checks the step and gives the last value
+  - [x] `Lowering::lower_foreach_range` counts with a signed step decided once
+  - [x] its cases and a scratch run of a generator, `break`, `continue` and the `int` limits pass both ways
+- [x] `control.rs:1080`: `ArrayKeyAt` is emitted only when the body reads the key binding. The same
   holds for the key binding of a loop the two items above rewrote.
-- [ ] `crates/nvs-ir/src/lower/expr.rs:6884`: a literal with no spread whose keys are all constants and
+  - [x] `forms::text_names_variable` tests the body's text for `$name`
+  - [x] the key stays under the debug switch
+- [x] `crates/nvs-ir/src/lower/expr.rs:6884`: a literal with no spread whose keys are all constants and
   all different takes the one-`ArrayNew` path with its keys. An integer key is written as the decimal
   string the array would store.
+  - [x] `forms::constant_keys` gives the keys
+  - [x] `lower_array_literal` takes the one-`ArrayNew` path with them
+  - [x] its cases and a scratch run of the append counter pass both ways
 - [ ] `static::m()` and `static::NAME` (`expr.rs:5320` and `:481`) ask the override knowledge an
   instance call already asks (`expr.rs:5052`, filled by `mark_overridden_methods`,
   `crates/nvs-types/src/signatures.rs:1125`). Where the table has no such fact for a constant, the item
   adds it beside the method one.
+  - [x] `static::m()` is a direct call where `ResolvedCall::overridden` is false
+  - [ ] `ExprInfo::ClassConstLate` carries whether a class redeclares the constant, and its value
+  - [ ] `static::NAME` is the constant where none does
+  - [ ] `a_static_call_nothing_overrides_is_direct` also checks `static::NAME`
 - [ ] The five tests the `direct-paths` check names. Run once.
 
 ### 4. a form with a callback compiles as its fast form where the callback is proven, and is recorded where it is not
@@ -616,36 +649,37 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 and 2 are done, and the `call-forms` check passes. `crates/nvs-ir/src/forms.rs` holds,
-below `ROWS`, the matchers each site asks: `over_keys_or_values`, `null_tested_match`, `caught_null`
-and `filter_contains` (`forms.rs:507`), which give a `CoreForm` (the fast member's name on the same
-class, the written arguments it takes, an `arity` cut and a result type), a `CaughtNull` or a
-`SetForm`. The `Core` call's emission is `Lowering::lower_core_call` in
-`crates/nvs-ir/src/lower/expr.rs`, which takes `Option<CoreForm>` and reads the rosters for the fast
-member. `Lowering::lower_set_form` (`expr.rs:5511`) builds `diff`'s two-argument `ArgSig` by hand from
-`filter`'s array parameter, lowers `a` and a clone of `b`, and emits each option's registry default
-through `nvs_types::core_const_arg`, which is `core_lib::lower_const` made public.
-`Lowering::lower_null_tested_match` runs from `lower_null_identity` (`operator.rs`) and
-`lower_type_test`. `Lowering::lower_caught_null` (`exception.rs`) runs first in `lower_try`. Each
-narrower match is under § *Standing decisions*. Each row's conformance cases passed with
-`bun nv suite tests/conformance/ --no-cheaper-forms-too --case …`.
-Sessions used: stage 1, one; stage 2, two. The sweep's `env-secret-proofs` red is stale: its log
-does not exist, and `git log -S` names the `strings-in-place` retire.
+Stages 1 and 2 are done. Stage 3 has four of its five rows in: `lower_foreach`
+(`crates/nvs-ir/src/lower/control.rs:880`) drops a key whose `$name` the body's text never has
+(`forms::text_names_variable`), sends a direct `Core\Arr::range` loop to
+`Lowering::lower_foreach_range` (a counted loop over the new `Helper::RangeLast`, which
+`crates/nvs-runtime/src/helpers.rs` `nvs_range_last` implements and `nvs-codegen` maps), and loops a
+direct `keys` or `values` call over its argument, binding `ArrayKeyAt` as the value for `keys`.
+`lower_array_literal` (`crates/nvs-ir/src/lower/expr.rs`) takes the one-`ArrayNew` path with
+`forms::constant_keys`. `static::m()` is a direct `Call` where `ResolvedCall::overridden` is false
+(`expr.rs`, `late_bound` in the static call lowering). Four of the five `direct-paths` tests exist
+and passed by name; `a_static_call_nothing_overrides_is_direct` covers the method half only. Each
+row's cases passed with `bun nv suite tests/conformance/ --no-cheaper-forms-too --case …`, and so did
+the 15 cases that use `static::m()`. The narrower matches are under § *Standing decisions*.
+Sessions used: stage 1, one; stage 2, two; stage 3, one. The sweep's `env-secret-proofs` red is
+stale: its log does not exist, and `git log -S` names the `strings-in-place` retire.
 
 ### Next
 
-Stage 3, from its first item: `crates/nvs-ir/src/lower/control.rs:880` `lower_foreach` asks a new
-`forms.rs` matcher whether the subject is a direct `Core\Arr::keys` or `values` call (reuse
-`core_call` and `positional`), and loops over the argument. Then the `range` item
-(`crates/nvs-stdlib/src/arr.rs:4192` for the checks `range` makes), the unread key at `control.rs:1080`,
-the constant-key literal at `expr.rs:6884`, and `static::` against `mark_overridden_methods`
-(`crates/nvs-types/src/signatures.rs:1134`). Each row's cases are under
-`tests/conformance/forms/loops/`, and the five `direct-paths` tests go in
-`crates/nvs-ir/src/lower/tests.rs` beside the `call-forms` ones, which use `core_calls_both_ways`.
-Stages 6, 7, 8 and 10 can start as side goals at any time.
+Stage 3's last row, `static::NAME`: the checker records `ExprInfo::ClassConstLate`
+(`crates/nvs-types/src/expr/members.rs:234`, defined at `crates/nvs-types/src/expr_table.rs:1120`)
+and the lowering reads it at `crates/nvs-ir/src/lower/expr.rs:484`. Add beside it whether any class
+in the program declares `NAME` again (filled the way `mark_overridden_methods`,
+`crates/nvs-types/src/signatures.rs:1134`, fills `overridden_methods`), and the declaring class's
+value, so the lowering emits the constant through `emit_const_arg` as the `ExprInfo::ClassConst` arm
+above it does. Then extend `a_static_call_nothing_overrides_is_direct` with a `static::NAME`
+that nothing redeclares and one that `Child` redeclares, run the five `direct-paths` tests once, and
+set stage 3 done. Stage 4 follows. Stages 6, 7, 8 and 10 can start as side goals at any time.
 
-Tests expected red: none. The three ladders under `benches/scaling/arrays/forms-` stay red until
-stages 4 and 6, and no sweep runs them before stage 4's check.
+Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
+literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
+or a `static::m()` call, if any does. The three ladders under `benches/scaling/arrays/forms-` stay
+red until stages 4 and 6, and no sweep runs them before stage 4's check.
 
 ### Backlog
 
