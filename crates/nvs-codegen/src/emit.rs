@@ -4469,6 +4469,15 @@ impl Emitter<'_, '_> {
     /// `nvs_ir::ir::InstKind::Concat`'s own doc comment owns that protocol and
     /// `nvs-ir` emits the retains and releases the rest of the pieces need.
     fn emit_concat(&mut self, pieces: &[ConcatPart]) -> Result<Value, CodegenError> {
+        if let [first, rest @ ..] = pieces
+            && first.kind == PartKind::Str
+            && !ConcatPart::all_str(rest)
+        {
+            // A string followed by typed parts is an append onto that string,
+            // which consumes it as the protocol above says: written in place
+            // when nothing else holds it, and copied once when something does.
+            return self.emit_str_append(first.value, rest);
+        }
         if !ConcatPart::all_str(pieces) {
             return self.emit_concat_parts(pieces);
         }

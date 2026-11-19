@@ -3386,7 +3386,7 @@ impl<'a> Lowering<'a> {
     /// and is staged like any fresh piece.
     /// [`InstKind::Concat`]'s own doc comment owns the protocol itself.
     ///
-    /// A join with any piece that is not a [`PartKind::Str`] consumes nothing,
+    /// A join led by a piece that is not a [`PartKind::Str`] consumes nothing,
     /// so it hands nothing over and retains nothing: a staged leading piece
     /// stays staged, and the caller's sweep releases it with the rest.
     pub(crate) fn emit_concat(
@@ -3395,7 +3395,7 @@ impl<'a> Lowering<'a> {
         pieces: Vec<ConcatPart>,
         leading: Option<usize>,
     ) -> ValueId {
-        if ConcatPart::all_str(&pieces) {
+        if ConcatPart::leads_with_str(&pieces) {
             match leading {
                 Some(slot) => self.forget_temporary(slot),
                 None => self.emit_retain(cur, pieces[0].value),

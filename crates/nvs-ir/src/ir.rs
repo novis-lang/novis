@@ -1797,15 +1797,18 @@ pub enum InstKind {
     /// digits, a `Core\Str::format` placeholder written padded, and html text
     /// written escaped, each straight into the result. A join of one typed
     /// piece is still a join, because the piece is not yet a string.
-    /// That join **reads every piece and consumes none**, so the protocol above
-    /// holds only when every piece is a [`PartKind::Str`]
-    /// ([`ConcatPart::all_str`]); otherwise the leading piece is owned like
-    /// every later one. `crate::lower::Lowering::emit_concat` is the one home
-    /// for that choice too.
+    /// A join whose leading piece is a [`PartKind::Str`]
+    /// ([`ConcatPart::leads_with_str`]) consumes that piece too: it calls
+    /// `nvs_str_append_parts` with the leading piece as the target, so
+    /// `$s = "{$s}row {$i}"` writes into `$s`'s buffer as `$s .= "row {$i}"`
+    /// does. A join led by any other kind **reads every piece and consumes
+    /// none**, and its leading piece is owned like every later one.
+    /// `crate::lower::Lowering::emit_concat` is the one home for that choice
+    /// too.
     Concat {
         /// The operands in evaluation order, each already lowered, and of the
-        /// [`Ty`] its [`PartKind`] names. When every one is a
-        /// [`PartKind::Str`], one reference to the first is consumed.
+        /// [`Ty`] its [`PartKind`] names. When the first is a
+        /// [`PartKind::Str`], one reference to it is consumed.
         pieces: Vec<ConcatPart>,
     },
     /// `$s .= e` where `$s` is a plain [`Ty::Str`] local, a plain `string`
@@ -2535,11 +2538,20 @@ impl ConcatPart {
         }
     }
 
-    /// Whether every piece is a [`PartKind::Str`], which is the join that
-    /// consumes its leading piece ([`InstKind::Concat`]).
+    /// Whether every piece is a [`PartKind::Str`], which codegen joins with
+    /// `nvs_str_concat` or `nvs_str_concat_n`.
     #[must_use]
     pub fn all_str(pieces: &[Self]) -> bool {
         pieces.iter().all(|piece| piece.kind == PartKind::Str)
+    }
+
+    /// Whether the first piece is a [`PartKind::Str`], which is the join that
+    /// consumes its leading piece ([`InstKind::Concat`]).
+    #[must_use]
+    pub fn leads_with_str(pieces: &[Self]) -> bool {
+        pieces
+            .first()
+            .is_some_and(|piece| piece.kind == PartKind::Str)
     }
 }
 
@@ -4371,7 +4383,7 @@ impl InstKind {
     pub fn consumes(&self) -> Option<ValueId> {
         match self {
             InstKind::StrAppend { target, .. } => Some(*target),
-            InstKind::Concat { pieces } if ConcatPart::all_str(pieces) => {
+            InstKind::Concat { pieces } if ConcatPart::leads_with_str(pieces) => {
                 pieces.first().map(|piece| piece.value)
             }
             InstKind::ArraySet {
