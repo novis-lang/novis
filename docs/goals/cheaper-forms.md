@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/tests.rs, crates/nvs-stdlib/src/arr.rs]
   - id: 5
     title: a form only an edit can change is a warning with its fix, in nvs check and in the editor
-    status: open
+    status: done
     context: [crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-lsp/src/actions.rs]
   - id: 6
     title: a callback the checker proved is called without the check of each call
@@ -619,9 +619,15 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
   - [x] `a_second_read_of_the_same_value_warns_only_in_straight_code`, run once, green.
   - [x] The session row measured under `nvs serve` with a 16 KiB record, and built or declined:
     946 µs against 945 µs, 1.0x, declined.
-- [ ] Every file the `reader` subagent lists is rewritten to the fast form, or keeps its form where
+- [x] Every file the `reader` subagent lists is rewritten to the fast form, or keeps its form where
   the example is about that form. Its `.out` file does not change.
-- [ ] The two tests the `warnings` check names and the two `.lspt` cases (a first of a filter, and a
+  - [x] The sweep: 6,909 files, five `W1035` sites and no `W1034`.
+  - [x] `Cache-Store/get/01` and both `Uri/queryParameter` examples keep their form: each is about
+    the member it reads twice.
+  - [x] `IO-File/truncate/02` was a false pair: `$file->truncate` changes the file between the two
+    `Core\IO::size` calls. `Row::may_change` now stops a file pair at any `Core` class but plain
+    computation, and a cache pair at any `Core\Cache` class.
+- [x] The two tests the `warnings` check names and the two `.lspt` cases (a first of a filter, and a
   second read of one cache key). Run once.
 
 ### 6. a callback the checker proved is called without the check of each call
@@ -705,39 +711,35 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has its two codes. `W1034` (`W_CHEAPER_FORM`) is raised by
-`nvs_ir::forms::warnings` from `Program::forms`: its span is the written form, its message names the
-member, and its one fix is the fast text as an `alternative`. `W1035` (`W_REPEATED_READ`) is raised
-by `nvs_ir::rereads::warnings` from `Program::rereads`, which `rereads::find` fills on the written
-tree in `lower_program_as`, whether or not the table is on, because it compiles nothing. Its rows
-are the cache, `queryParameter` and file rows; the session row is not built. Its shape is narrower
-than the standing decision: any property access, `clone`, `yield`, `await`, a by-reference write
-and a `Core` member that takes a callable between the two calls also stop it. Both reach `nvs
-check` (`crates/nvs-cli/src/main.rs`) and the editor (`copy_warnings` in
-`crates/nvs-lsp/src/document.rs`). Both named tests ran once, green. Sessions used: stage 5, one.
-The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only a
-retired goal's commits.
+Stages 1 to 5 are done. Stage 5 used two sessions. `W1034` is raised by `nvs_ir::forms::warnings`
+and `W1035` by `nvs_ir::rereads::warnings`; both reach `nvs check` and the editor. The session row
+was measured under `nvs serve` with a 16 KiB record and Redis: 946 µs with two reads against 945 µs
+with one (1.0x), so it is declined in the rule and the `warnings-editor` check names a cache-key
+case instead. That check ran once through `looper check`, green. The sweep found five `W1035` sites
+and no `W1034`; one was a false pair, fixed in `rereads.rs` (`Row::may_change`), and the rest are
+examples about the member they read twice. An `.lspt` case holds one request, so the "offers find"
+half of the filter case was checked by hand: `quickfix` offers the `Core\Arr::find` rewrite and
+`source.fixAll.nvs` offers nothing. The sweep's `env-secret-proofs` red is stale: its log does not
+exist, and `git log -S` names only a retired goal's and this goal's doc commits.
 
 ### Next
 
-Stage 5's rest, in this order. First the session row's measurement: under `nvs serve`, a handler
-that writes a 16 KiB session record and then reads one key with one `Core\Session::get` call, and
-one with two, timed over many requests. At 2x or more, add a `Session` row to `rereads::Row`
-(`crates/nvs-ir/src/rereads.rs`, a static call with one literal key, and `Core\Session` writing
-members such as `set` blocking it); under 2x, put the figure in the rule's Declined list and drop
-`Core\Session::get` from the rule's W1035 paragraph. Then the stage's split: one writing subagent
-writes the two `.lspt` cases (shape: `tests/lsp/diagnostics/a-failure-after-the-change-warns-and-its-fix-moves-it.lspt`;
-the session case needs the session row, so if it is declined, the case and the `warnings-editor`
-check move to another row, such as a cache key, and the goal's check is edited to name it). A
-`reader` subagent runs `nvs check` over `docs/examples/`, `benches/` and `website/snippets/` and lists
-every `W1034` and `W1035`. Stages 6, 7, 8 and 10 can start as side goals at any time.
+Stage 6, from its first item: an `Explore` subagent lists where the checker accepts a callback
+argument against a `Core` member's signature (`crates/nvs-types/src/expr/calls.rs`) and where a
+callable argument of a `CoreCall` is written to its slot (`crates/nvs-codegen/src/emit.rs:3070`).
+Then the mark through the lowering, and `call_callable` (`crates/nvs-runtime/src/callable.rs:253`)
+skipping `check_param_tags` and `check_param_types` for it, with the debug build still checking.
+Stages 7, 8 and 10 are disjoint from 6 and can run beside it. `bun nv suite lsp-test --case` builds
+into `target/covws` and runs the whole tree; `looper check --name <id>` is the cheaper way to run
+one goal check.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
 a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `firstKey`, `isEmpty`
 or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
-does. Also any case that pins `nvs check`'s or the editor's warnings for a file that now has a
-`W1034` or `W1035`.
+does. Also any case or `.term` snippet that pins `nvs check`'s output for
+`docs/examples/core/Cache-Store/get/01-reading-a-value.nvs` or the two `Uri/queryParameter`
+examples, which now print `W1035`.
 
 ### Backlog
 
