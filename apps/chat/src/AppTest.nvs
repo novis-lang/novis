@@ -102,10 +102,13 @@ final class AppTest
         return Test::request(Method::Post, '/join', { headers: $headers, body: $body });
     }
 
-    // The headers of a browser that joined with this name. Its cookie `nvsid` has the identifier of its session.
+    // The headers of a browser that joined with this name. The cookie `nvsid` has the identifier of its session.
+    // The name is saved with the short lifetime, so the browser also sends the cookie `nvsid-short`.
     public static function signedIn(string $name): array<string>
     {
-        string $session = AppTest::join('lobby', $name)->cookies()['nvsid'] ?? '';
-        return ['cookie' => 'nvsid=' . $session];
+        array<string> $cookies = AppTest::join('lobby', $name)->cookies();
+        string $session = $cookies['nvsid'] ?? '';
+        string $short = $cookies['nvsid-short'] ?? '';
+        return ['cookie' => 'nvsid=' . $session . '; nvsid-short=' . $short];
     }
 }
