@@ -141,6 +141,22 @@ reads the count without filling it. **What it spends:** no memory.
 
 On a shared subject every member builds only what it keeps.
 
+**An extending member plans its room in `check` (my call, stage 4).** `apply` cannot throw, and a
+count off the call site must still throw where the allocator refuses it. So `check` asks
+`Value::room_behind` or `Value::room_in_front` (`Room::Fits` or `Room::Fresh(cap)`). With `Fits`,
+`apply` writes a `Run` (a piece copied n times, then a prefix of one more) into the subject with
+`NvsStr::extend`, `prepend_run` or `repeated`. With `Fresh`, `check` builds the result fallibly at
+that capacity, which is an append's doubling for a sole subject. The padding is retained before the
+room is read, so a padding that is the subject makes it shared. `padEnd` keeps the subject's count
+only for an ASCII padding with no `\r`, because only `\r\n` joins two ASCII characters.
+**What it spends:** nothing beyond an append's doubling.
+
+**A join led by a string consumes that string (my call, stage 4).** `$s = "{$s}row {$i}"` was
+quadratic: a `Concat` with a number, placeholder or html piece consumed nothing, so the ownership
+pass could not move `$s` in. Now `InstKind::consumes` is `ConcatPart::leads_with_str`, the lowering
+hands the leading piece over as for an all-string join, and codegen calls `nvs_str_append_parts` with
+it as the target. **What it spends:** nothing. A shared leading piece is copied once, as before.
+
 **Lanes.** Stage 2 touches `crates/nvs-stdlib/src/granularity.rs` and `str.rs`'s `window` alone. Stage 3
 touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at any time, even before
 `in-place-everywhere`. Stage 4 needs `in-place-everywhere` reached and stages 2 and 3 done.
@@ -197,18 +213,18 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 
 - [x] The cutting members: `slice` (`str.rs:3277`), `at`, `before` (`:3775`), `after` (`:3794`), `trim`
   (`:2596`), `trimStart` (`:2622`), `trimEnd` (`:2632`), `Core\Bytes::slice` (`bytes.rs:938`).
-- [ ] The extending members: `padEnd` (`:3970`), `padStart`, `repeat`, `Core\Bytes::repeat`.
-- [ ] The rewriting members: `replaceRange` (`:3306`), `replace`, `replaceAll`, `lower` (`:4084`),
-  `upper` (`:4106`), `upperFirst` (`:4119`), `lowerFirst` (`:4126`), `fold`, `normalize`, `reverse`,
-  `wrap`.
+- [x] The extending members: `padEnd` (`:3970`), `padStart`, `repeat`, `Core\Bytes::repeat`.
+- [ ] The rewriting members: `replaceRange` (`:3361`), `replace` (`:3101`), `replaceAll` (`:3176`),
+  `lower` (`:4288`), `upper` (`:4312`), `upperFirst` (`:4327`), `lowerFirst` (`:4336`), `fold`
+  (`:4365`), `normalize` (`:4398`), `reverse` (`:3876`), `wrap` (`:3902`).
 - [ ] `crates/nvs-stdlib/tests/in_place.rs`: `every_string_member_has_a_row_here` reads every owning
   `Core\Str` and `Core\Bytes` row and fails naming one with no row in the test's table.
   `every_string_member_keeps_what_it_does_not_change` checks each row on a sole subject. Run once.
   - [x] `TEXT_ROWS` names all 24 owning members, and `every_string_member_has_a_row_here` passes.
   - [x] The cutting rows pass `every_string_member_keeps_what_it_does_not_change`.
-  - [ ] The extending rows pass it.
+  - [x] The extending rows pass it.
   - [ ] The rewriting rows pass it.
-- [ ] `bun nv scaling --check strings/in-place-` once. Every ladder grows linearly.
+- [x] `bun nv scaling --check strings/in-place-` once. Every ladder grows linearly.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -224,52 +240,47 @@ The goal came from a conversation with the person, who asked for the same depth 
 that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stages 1, 2 and 3 are done. The nine `benches/scaling/strings/in-place-*.nvs` ladders exist, none
-ramped yet. The pad ladder is expected red until the extending members land.
+Stages 1, 2 and 3 are done. In stage 4 the cutting members (`3543cf1dea`) and the extending members
+(`bc6704ff15`) are done, and the `ladders` check is green: all nine ladders are linear.
 
-Stage 4, the cutting members (commit `3543cf1dea`): `slice`, `at`, `before`, `after`, `trim`,
-`trimStart`, `trimEnd` return a `Cut` from `check` (`str.rs`, beside `nvs_core_str_trim`: a byte range
-and an optional `removed` count, built by `Cut::to(subject, part)` or `Cut::window(subject, start,
-end)`), and `apply` calls `kept(cut, subject)`, which is `NvsStr::keep`. `at` passes the known count
-less one. `before`/`after` plan an `Option<Cut>`, `None` being `null`. `Core\Bytes::slice` plans a
-`Range<usize>` and calls `keep(range, None)`. `tests/in_place.rs` has `TEXT_ROWS` (all 24 members,
-each with a subject, spare `room`, args and expected result) and the two stage tests. Run once:
-`every_string_member_has_a_row_here` passes, and `every_string_member_keeps_what_it_does_not_change`
-fails naming the 15 extending and rewriting members alone, each "built a new string". Every row's
-expected result already matches what the member returns, `normalize`'s form `0` included.
+- **Extending** (`bc6704ff15`): `crates/nvs-runtime/src/string.rs` has `Room` (`:687`), `room_for`,
+  `Run` (`:732`), `NvsStr::prepend_run` (`:1454`), `extend` (`:1531`) and `repeated` (`:1608`), and
+  `value.rs` has `Value::room_behind`/`room_in_front`. In `str.rs`, `padStart`/`padEnd` plan with
+  `padded` (`:4098`), `repeat` and `Core\Bytes::repeat` with `repeat_plan` (`:4231`), and `extended`
+  (`:4066`) is the `apply`. See § *Standing decisions*.
+- **Interpolation** (`668d5f1c4e`): the two interpolation ladders grew, because a join with a number
+  hole consumed nothing. A join led by a string now appends onto it (§ *Standing decisions*).
+- `cargo test --test in_place -- every_string_member` ran once: it fails naming only the 11
+  rewriting members, each "built a new string from a sole subject".
 
-The in-place operations on `NvsStr` (`crates/nvs-runtime/src/string.rs`): `keep(range, removed)`
-(`:1218`), `append_counted` (`:1275`), `prepend` (`:1304`), `rewrite` (`:1381`), `replace_with`
-(`:1414`); `room_in_place` (`:653`) is the reclaim an append makes. The sweep's `env-secret-proofs`
-red is stale (no log; `git log -S` finds only retire and handoff commits).
+The sweep's `env-secret-proofs` red is stale (no log; `git log -S` finds only retire and handoff
+commits).
 
 ### Next
 
-The extending members, then the rewriting ones, in `str.rs` and `bytes.rs`. Each is an
-`nvs_helper!` owning form (`crates/nvs-runtime/src/abi.rs:1147`) whose `apply` ignores its subject
-today. `check` must return a plan instead of a built `Value`, and `apply` changes the owned subject.
-The borrowed entry shares the subject before `check`, so it is never sole there.
+The rewriting members in `str.rs`, the last item of stage 4. Each is an `nvs_helper!` owning form
+whose `apply` ignores its subject today; `check` must return a plan and `apply` change the subject.
 
-- **`padEnd`/`padStart`** (`nvs_core_str_pad_end`, `padding_run`, `write_run`): `padding_run` reads
-  `unit.length(subject)`, which counts the whole subject on every call. Read
-  `crate::granularity::DEFAULT.length_of(&args[0], subject)` instead, so the cached count serves the
-  pad ladder, and keep the count with `added = Some(run)`. `NvsStr` has no op that appends a run it
-  writes itself: add one to `string.rs` (an `extend(self, extra, added, write: FnOnce(&mut
-  StrWriter))` that grows through `room_in_place` as `append_onto` does), or append a small scratch
-  run with `append_counted`. `padStart` uses `prepend`.
-- **`repeat`, `Core\Bytes::repeat`**: the same `extend`, copying the subject's own bytes `times - 1`
-  times behind it. `Core\Bytes::repeat` today builds a `Vec` and copies it again.
-- **Rewriting**: `rewrite` where the result never outgrows its input up to each point (ASCII
-  `lower`/`upper`/`fold`, `reverse` with a swap, `replace` with a replacement no longer than the
-  search); otherwise build into a scratch and `replace_with`. The test's subjects have `room: 0`, so
-  `replaceRange` shrinking `"abcdef"` to `"aXdef"` and `wrap` (same length) must stay in place.
-- Then run `cargo test --test in_place -- every_string_member` once, and `bun nv scaling --check
-  strings/in-place-` once.
+- **In place with `NvsStr::rewrite`** (`string.rs:1673`) where the result is never longer than the
+  input up to each point: ASCII `lower`/`upper`/`fold`/`upperFirst`/`lowerFirst` (byte case swap),
+  `reverse` (ASCII swap; graphemes reversed into a scratch otherwise), `replace`/`replaceAll` with a
+  replacement no longer than the search, and `replaceRange` where the replacement is no longer than
+  the range. Plan a small enum like `Extended` (`str.rs:4066`): `Built(Value)` for the rest, and a
+  rewrite variant whose `apply` falls back to building when `rewrite` answers `false`.
+- **Otherwise** build into a scratch and `NvsStr::replace_with` (`:1706`), which keeps the allocation
+  when it fits. The test's subjects have `room: 0`, so `replaceRange` shrinking `"abcdef"` to
+  `"aXdef"`, and `wrap`, `normalize` and the case members at the same length, must stay in place.
+  `case_mapped` (`:4693`) is the shared builder of the case members.
+- A `replace` with a callback runs it in `check`, before anything changes.
+- Then run `cargo test --test in_place -- every_string_member` once.
 - `str.rs`'s module doc still says every member borrows its subject, and § *A result is written once*
-  names `produced` as the copying path. Rewrite both once the members are done.
+  names `produced` as the copying path and says `repeat`/`padStart`/`padEnd` allocate exactly once.
+  Rewrite both once the members are done.
 
-Expect `every-member` red until the rewriting members land, and `ladders` red until the pad ladder's
-member does. No existing test is expected red: every cut gives the same text it gave.
+Expect `every-member` red until the rewriting members land. Possibly red at the gate:
+`crates/nvs-stdlib/tests/allocation_policy.rs` (pad and repeat on a sole subject now allocate an
+append's doubling, or nothing), and IR or codegen tests that print a `concat` led by a string with a
+number piece, which now has no `release` of its leading piece after it.
 
 ### Backlog
 
