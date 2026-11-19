@@ -392,6 +392,16 @@ for each, and "repeated" counts the most frequent host and path, key or file pat
 with recording off, nothing beyond the flag test a query site already makes. With recording on, one
 site id for each recorded call.
 
+**How a recorded site is stored, as built in stage 7 (my call).** One roster,
+`nvs_stdlib::registry::RECORDED_SITE_MEMBERS`, names the HTTP, cache, session and file members, and
+`records_site` joins it to the query members: the editor's reference index finds lens sites with it,
+and the lowering passes the site constant to it. The kinds are `http`, `cache`, `session` and
+`file`. What "repeated" counts is a new `target` column of the index's `events` (schema 9), filled
+from the spool `Event`'s `target`: the host and path, the key or the file path. A non-query event
+carries its site on `Event::site`, and a query keeps `Query::site`. A query's repeat still groups by
+`sql`. A secret key is never a target. Reusing `sql` or `label` for the target was declined: `sql`
+names a statement, and `label` holds the rendered span with its times, so no two labels match.
+
 **The editor action (my call).** On a parameter declared bare `callable` or `mixed`, *Write the type
 every caller passes* is offered when the reference index finds at least one call of the function and
 every call passes an argument of one static type. It writes that type and nothing else, under
@@ -668,14 +678,28 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
 **Split:** one writing subagent writes the two `.lspt` cases, copying the shape of an existing case
 under `tests/lsp/lens/`.
 
-- [ ] An `Explore` subagent lists first: where a `query` event takes its site, where an `http` event is
+- [x] An `Explore` subagent lists first: where a `query` event takes its site, where an `http` event is
   made, and where `crates/nvs-cli/src/debug/index.rs` stores the site columns.
 - [ ] An `http` event, a cache read or write, a session read or write and a file open each record the
   site of their call when a request is recorded. `rule:observability/trace-events-carry-a-kind` gains
   the three new kinds, and `rule:observability/a-query-span-names-its-call-site` covers them.
-- [ ] `crates/nvs-lsp/src/recorded.rs:40` `Ran` serves every kind, and the lens line names the kind.
+  - [x] The roster: `nvs_stdlib::registry::RECORDED_SITE_MEMBERS` and `records_site`; the spool's
+    `Event` has `target` and `site`; the index's `events` has `target` (schema 9), and the ingester
+    writes both.
+  - [ ] `TraceKind` and `spool::EventKind` gain `Cache`, `Session` and `File`
+    (`crates/nvs-runtime/src/ctx/trace.rs:112`, `spool.rs:561`, the ingester's `kind`,
+    `crates/nvs-server/src/trace.rs:281` and `otlp.rs:1096`), with one `Ctx::record_site_event`.
+  - [ ] The lowering passes the site constant to every `records_site` member: swap
+    `core_takes_query_site` for `core_records_site` at `lower/expr.rs:4950` and `:5560` and
+    `anon_fn.rs:921`, and add one to each member's `args: [N]`.
+  - [ ] Each helper reads its last argument only under `Ctx::records_spans`, and files one event
+    with its `target`: `http.rs` `traced` (carry the site on `transport::Call`), the cache store's
+    and the session's members, and the `Core\IO` members on the roster. A `secret` key is never a
+    target: `getSecret` and `putSecret` record no target.
+  - [ ] The two rules say so, and one Rust test per kind files an event with its site.
+- [x] `crates/nvs-lsp/src/recorded.rs:40` `Ran` serves every kind, and the lens line names the kind.
   `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site` says so.
-- [ ] The two `.lspt` cases the `recorded-sites` check names. Run once.
+- [x] The two `.lspt` cases the `recorded-sites` check names. Run once.
 
 ### 8. a parameter declared callable or mixed takes the type every caller passes, as an editor action
 
@@ -731,24 +755,28 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 took one session. The checker records a proven anonymous function
-in `ExprTypeTable::callback_is_proven` (`crates/nvs-types/src/expr/args.rs`, in
-`check_generic_args`, through `assign::callback_is_proven`). The lowering sets
-`InstKind::CoreCall`'s `proven` mask for a `Core\Arr` call (`lower/expr.rs`, `proven_bits`).
-Codegen writes `Value::PROVEN_CALLABLE_BIT` into the slot (`emit.rs` `store_proven_callable`).
-`call_prepared` in `crates/nvs-runtime/src/callable.rs` takes it as `TagCheck::Proven`, and a debug
-build runs `assert_proven`. The three `proven-callbacks` tests ran once by name, green, and
-`bun nv scaling --check arrays/forms-a-map-over-rows` is flat. The sweep's `env-secret-proofs` red
-is stale: `looper check --name env-secret-proofs` says no check matches, and no file in the tree
-defines it.
+Stages 1 to 6 are done. Stage 7 has had one session of its two. Items 1, 3 and 4 are done: the
+editor side. `nvs_stdlib::registry::RECORDED_SITE_MEMBERS` and `records_site` name the HTTP, cache,
+session and file members, and the reference index finds lens sites with
+`nvs_types::core_records_site` (`crates/nvs-lsp/src/index.rs`, `occurrences`).
+`crates/nvs-lsp/src/recorded.rs` `at_site` reads any of the five kinds, `Ran::kind` names it, and
+`title` words it ("6 HTTP calls ... one host and path repeated 5 times"). The index's `events` has a
+`target` column (schema 9), the spool `Event` has `target` and `site`, and the ingester writes both.
+The `recorded-sites` check is green, and the edited query lens case passed once. Build and clippy are
+green. Nothing at run time files a `cache`, `session` or `file` event yet, and an `http` event has
+no site: that is item 2. The sweep's `env-secret-proofs` red is stale: `git log -S` shows the newest
+hit is `strings-in-place`'s retire commit, and no log file exists for it.
 
 ### Next
 
-Stage 7, from its first item: an `Explore` subagent lists where a `query` event takes its site,
-where an `http` event is made, and where `crates/nvs-cli/src/debug/index.rs` stores the site
-columns. Stages 8 and 10 are disjoint from 7 and can run beside it. `bun nv suite lsp-test --case`
-builds into `target/covws` and runs the whole tree; `looper check --name <id>` is the cheaper way to
-run one goal check.
+Stage 7's item 2, by its four open checkpoints, in the stage's second and last session. Start at
+`crates/nvs-runtime/src/ctx/trace.rs:112` `TraceKind` and `:692` `record_http`, then the lowering's
+three `core_takes_query_site` calls (`lower/expr.rs:4950`, `:5560`, `anon_fn.rs:921`). The site id
+reaches a helper as its last argument, as `crates/nvs-stdlib/src/db/span.rs:110` `QueryWatch::at`
+reads it, and `ctx.query_site(id)` gives the row. Each roster member's registry row needs
+`args: [N]` one higher. `every_query_site_member_takes_a_fixed_argument_list` in `registry.rs` is
+the shape of the test the new roster needs. Stages 8 and 10 are disjoint from 7 and can run beside
+it. `looper check --name <id>` runs one goal check.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
@@ -758,7 +786,8 @@ does. Also any case or `.term` snippet that pins `nvs check`'s output for
 `docs/examples/core/Cache-Store/get/01-reading-a-value.nvs` or the two `Uri/queryParameter`
 examples, which now print `W1035`. Also any test that pins `ExprTypeTable::canonical_text`, which
 now has a `proven_callbacks` section. A wrong proof from stage 6 shows as a debug-build panic that
-says "called as a proven callback".
+says "called as a proven callback". Also any test that seeds the debug index's `events` with a
+positional `INSERT` (it now has a `target` column), or pins `index.rs`'s `SCHEMA` as 8.
 
 ### Backlog
 
