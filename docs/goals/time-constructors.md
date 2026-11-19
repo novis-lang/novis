@@ -22,7 +22,7 @@ stages:
     context: [tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst, docs/rules/core-api/a-moved-name-says-where-it-went.md]
   - id: 5
     title: every program, test and tool outside the feature proofs uses the new names
-    status: open
+    status: done
     context: [tools/nv/proofs/probe.ts, tools/nv/cmd/pdf-validate.ts]
   - id: 6
     title: the feature proofs of the moved members live under their new classes
@@ -164,6 +164,13 @@ separator, through the existing `file_values` (`crates/nvs-lsp/src/completion.rs
 then the cities under it. `UTC` is offered too. Hover on a written zone shows its current offset. The
 database is the one on the machine that compiles, and Novis compiles where it runs, so a name the
 editor offered and the server's database lacks is a compile error at start, never a failed request.
+
+**A written zone name is looked up as `Zone::of` looks it up (my call, stage 5).** `written_zone`
+asks the same `TimeZone::get`, which ignores case, and keeps the text as written, as `Zone::of` does.
+Stage 3 matched the sorted name list case included, so `'europe/berlin'` did not compile while
+`Zone::of` resolved it: a refusal the run time does not make, which
+`rule:expressions/preparation-preserves-behaviour` forbids. Completion still offers the database's
+own spelling.
 
 **`TimeOfDay::at` keeps its bag (my call).** Its bag holds only the finer parts of the same value,
 which is not the cut the person found arbitrary in `Core\Time::at`.
@@ -326,12 +333,12 @@ name `Core\Time::parse` (`crates/nvs-stdlib/src/cldr.rs`, `crates/nvs-runtime/sr
 `crates/nvs-types/src/intrinsics.rs`) and the three playbook files under `docs/agent/playbook/`.
 The session builds once they all end.
 
-- [ ] The list exists, and each subagent has its part of it.
-- [ ] `tests/conformance/` uses the new names. Each case whose expected output changed is checked by
+- [x] The list exists, and each subagent has its part of it.
+- [x] `tests/conformance/` uses the new names. Each case whose expected output changed is checked by
   reading its diff, not by regenerating it.
-- [ ] `apps/`, `packages/`, `extensions/` and `examples/` use the new names, and `cargo build` is green.
-- [ ] The tools, doc comments and playbook files use the new names.
-- [ ] The `Explore` search, run again, finds nothing outside the three proof trees.
+- [x] `apps/`, `packages/`, `extensions/` and `examples/` use the new names, and `cargo build` is green.
+- [x] The tools, doc comments and playbook files use the new names.
+- [x] The `Explore` search, run again, finds nothing outside the three proof trees.
 
 ### 6. the feature proofs of the moved members live under their new classes
 
@@ -391,27 +398,32 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Stages 1 to 4 are done. A written zone is checked in `crates/nvs-types/src/zones.rs` and built once
-as `InstKind::ConstZone`. The zone lookup is about 2% of `in`, so no id-to-`TimeZone` table landed.
-`crates/nvs-stdlib/src/moved.rs` `MOVES` has a row per old constructor, and `Move::call` is the call
-to write for `at` and `atStartOfDay`. `crates/nvs-types/src/moved.rs` reads an `E0405` back, and
-`member_fix` writes the new `Class::member`, a short name included. `nvs check --fix` also deletes a
-`use Core\Time;` that is unused afterwards. The nightly failures of run 44510687786 were fixed on
-main after it ran (`4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`, `eb5c02e983`).
+Stages 1 to 5 are done. Every program, test and tool outside `docs/examples/`, `tests/hostile/` and
+`benches/members/` uses the new names (`bb030c94cc`, `3394604b13`). The `constructors`, `zones`,
+`moved` and `zone-completion` checks are green, so no conformance case is red, and
+`spreadsheet_reader` passes all 8. The Spreadsheet reader builds its `DateTime` with
+`DateTime::at($day, $clock, $zone)` (`extensions/spreadsheet/nvs/Reader.nvs:178`, `:646`).
+`dd0d61a242` makes `written_zone` (`crates/nvs-stdlib/src/time.rs:4244`) accept a name as `Zone::of`
+does, case ignored; § *Standing decisions* records why.
 
-**Red until stage 5, as expected:** the `zones`, `constructors` and `moved` checks exit 1, because `bun nv suite --case`
-reruns every red case, and over a hundred conformance cases still write `Core\Time::at`, `fromEpoch`, `fromIso`,
-`parse` or `atStartOfDay`. So do `crates/nvs-cli/tests/spreadsheet_reader.rs`, all 8 tests, through
-the Spreadsheet package's `Reader.nvs:178` and `:646` (`Core\Time::parse`), every example, attack
-and bench under `Core/Time`, and the website snippets. The perf records of the moved members are stale.
+`nvs check --fix` does not read a `.nvst` case, so stage 5 rewrote the cases by hand. A case that
+expects a bad zone name or ISO text to throw at run time now reads it from a variable, because a
+literal does not compile.
+
+The old names left outside the proof trees are on purpose or stage 7's: the move table and its tests
+(`crates/nvs-stdlib/src/moved.rs`, `crates/nvs-types/src/moved.rs`, `crates/nvs-cli/tests/check_flags.rs:418`,
+`tests/conformance/lang/a-moved-core-member-says-where-it-went.nvst`), the rules that name the move,
+the reference cards under `docs/reference/core/Time*.md`, `website/src/data/` and `data/perf/`.
+
+**Red until stage 6, as expected:** every example, attack and bench under `Core/Time` that calls an old
+name, and so the proofs gate. The perf records of the moved members are stale.
 
 ### Next
 
-Stage 5, following its **Split:** line. An `Explore` subagent lists the files first. Then three
-writing subagents run side by side. Each runs `target/debug/nvs.exe check --fix <files>` for the
-three renames, then rewrites `at` and `atStartOfDay` by hand, as § *Rewriting callers* says. A
-`Zone::of('…')` or `Zone::UTC` argument becomes the string literal. Then the session builds and runs
-`spreadsheet_reader` and the three stage checks once. Stage 6 may run beside stage 5, because their
-trees are disjoint.
+Stage 6, following its **Split:** line: three writing subagents, one per tree. `nvs check --fix` takes
+one path, a file or a directory, so each runs it per proof directory. A case that expects a run-time
+throw on a bad zone or ISO text writes it through a variable, as stage 5's cases do. Then stage 7: the
+reference cards under `docs/reference/core/Time*.md` still show `Core\Time::at`, `parse`, `fromIso`,
+`fromEpoch` and `atStartOfDay`.
 
 ### Backlog
