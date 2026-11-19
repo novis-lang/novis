@@ -23,10 +23,17 @@
 // `nvs test --no-cheaper-forms`, which compiles every form as written. Given both flags, each switch
 // gets a second run of its own, so a difference names the switch that made it.
 //
+// A red second run writes its whole output to `.agent-tmp/suite/<switch>.log`, which each run of that
+// switch overwrites, and its RED line names the log and the first failing cases. A second run costs as
+// much as the suite, so a session reads the log and runs a named case alone, never the run again to
+// see other lines.
+//
 // The `nvs` is the covws build the runner makes, or the one `NVS_BIN` names. Exits 0 green, 1 red, 2 on
 // a usage error. A green run prints `(pass) <path>` for each `--case`, the line looper credits a goal
 // check's `tests:` entry from.
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Check, Verdict } from "../accept/accept.ts";
 import { PlanSweep } from "../accept/runner.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -46,6 +53,19 @@ const OFF_RUNS: Record<string, { flag: string; what: string }> = {
   "--no-in-place-too": { flag: "--no-in-place", what: "in-place changes off" },
   "--no-cheaper-forms-too": { flag: "--no-cheaper-forms", what: "the cheaper forms off" },
 };
+
+/** How many failing cases a red second run's line names; the log has them all. */
+const NAMED_FAILS = 3;
+
+/**
+ * The RED reason of a second run under `flag` that exited `code` with output `out`, whose whole output
+ * is at `log`: what was switched off, the first error, the first failing cases and the log's path.
+ */
+export function offRunFail(what: string, flag: string, out: string, code: number, log: string): string {
+  const fails = [...new Set([...out.matchAll(/^FAIL\s+(\S+)/gm)].map((m) => m[1]!.replace(/\\/g, "/")))];
+  const named = fails.length === 0 ? "" : ` -- failing: ${fails.slice(0, NAMED_FAILS).join(", ")}${fails.length > NAMED_FAILS ? ` and ${fails.length - NAMED_FAILS} more` : ""}`;
+  return `with ${what}: ${failLine(out, code, `nvs test ${flag}`)}${named} -- whole output: ${log}`;
+}
 
 /** A tree `nvs test` runs as a suite: one directory directly under `tests/`. */
 const TREE = /^tests\/[^/]+\/?$/;
@@ -108,7 +128,13 @@ async function sweepJudge(c: Check, full: boolean, offFlags: string[]): Promise<
       const what = Object.values(OFF_RUNS).find((o) => o.flag === flag)?.what ?? flag;
       console.log(`  nvs test ${flag} ${trees.join(" ")}`);
       const r = await runProgram([exe, "test", flag, ...trees], { cwd: ROOT, timeoutMs: OFF_TIMEOUT_MS });
-      if (r.code !== 0) return { fail: `with ${what}: ${failLine(`${r.stdout}\n${r.stderr}`, r.code, `nvs test ${flag}`)}`, short: "" };
+      if (r.code !== 0) {
+        const out = `${r.stdout}\n${r.stderr}`;
+        const log = `.agent-tmp/suite/${flag.replace(/^-+/, "")}.log`;
+        mkdirSync(join(ROOT, ".agent-tmp", "suite"), { recursive: true });
+        writeFileSync(join(ROOT, log), out);
+        return { fail: offRunFail(what, flag, out, r.code, log), short: "" };
+      }
     }
     return v;
   } finally {

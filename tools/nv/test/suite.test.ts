@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Check } from "../accept/accept.ts";
 import { type SuiteFacts, suiteVerdict } from "../accept/runner.ts";
-import { suite, suiteCheck } from "../cmd/suite.ts";
+import { offRunFail, suite, suiteCheck } from "../cmd/suite.ts";
 
 const TREE = "tests/demo";
 const CASES = [`${TREE}/one.nvst`, `${TREE}/two.nvst`];
@@ -80,6 +80,22 @@ describe("bun nv suite", () => {
   test("nv suite --no-cheaper-forms-too asks for a second run of its own beside --no-in-place-too", () => {
     expect(suiteCheck([TREE, "--no-cheaper-forms-too", "--no-in-place-too"])).toMatchObject({ offFlags: ["--no-cheaper-forms", "--no-in-place"] });
     expect(suiteCheck(["lsp-test", TREE, "--no-cheaper-forms-too"])).toEqual({ error: "--no-cheaper-forms-too runs only under nvs test" });
+  });
+
+  test("a red second run names its first error, its first failing cases and the log of its whole output", () => {
+    const out = [
+      "FAIL tests\\demo\\one.nvst",
+      "error[E0001]: something differs",
+      "FAIL tests/demo/two.nvst",
+      "FAIL tests/demo/two.nvst",
+      "FAIL tests/demo/three.nvst",
+      "FAIL tests/demo/four.nvst",
+      "1 passed, 4 failed, 0 skipped",
+    ].join("\n");
+    expect(offRunFail("the cheaper forms off", "--no-cheaper-forms", out, 1, ".agent-tmp/suite/no-cheaper-forms.log")).toBe(
+      "with the cheaper forms off: error[E0001]: something differs -- failing: tests/demo/one.nvst, tests/demo/two.nvst, tests/demo/three.nvst and 1 more -- whole output: .agent-tmp/suite/no-cheaper-forms.log",
+    );
+    expect(offRunFail("in-place changes off", "--no-in-place", "0 passed, 1 failed", 1, "x.log")).toBe("with in-place changes off: 0 passed, 1 failed -- whole output: x.log");
   });
 
   test("nv suite takes only trees directly under tests/ and whole numbers", () => {

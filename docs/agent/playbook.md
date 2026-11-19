@@ -213,6 +213,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **A whole-suite run grepped five ways is five whole-suite runs.** A close's gate stage spent
+  about 20 minutes rerunning the conformance suite through a different `grep` each time, only to
+  see other lines of one red. Write a run of minutes once to `.agent-tmp/<name>.txt` and grep the
+  file. A red `bun nv suite --no-*-too` run already saves its output under `.agent-tmp/suite/` and
+  names the failing cases, so read that log and run one named case alone.
 - **An owning member's `apply` cannot throw, so a `let _ =` there drops the allocator's refusal.**
   `Core\Arr::padStart`/`padEnd` returned a short array for a run the process could not hold, and
   only two `count-shaped-producers-*` conformance cases saw it, at the gate. Build or reserve what

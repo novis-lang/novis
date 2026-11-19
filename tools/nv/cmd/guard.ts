@@ -467,7 +467,8 @@ export const RULES: Rule[] = [
           if (cmd === "head" || cmd === "tail") {
             return (
               `this cuts a build or test's output with \`${cmd}\`, which hides the lines it drops, and \`head\` can stop the run early. ` +
-              "The harness keeps the whole output, so run it untrimmed, or pipe it into `grep` for the lines you need."
+              "The harness keeps the whole output, so run it untrimmed, or pipe it into `grep` for the lines you need. " +
+              "For a run of minutes, write it once to a file under `.agent-tmp/` and grep that file, so seeing other lines never runs it again."
             );
           }
           if (!segs[k]!.piped) break;
