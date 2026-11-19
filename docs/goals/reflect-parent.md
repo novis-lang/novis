@@ -179,18 +179,17 @@ The sweep's nightly reds (run 44510687786, at `adc7487822`) are fixed, one commi
   RUSTSEC-2026-0566 to -0573. `cargo deny check advisories` is ok.
 - **proofs / linux-x86_64:** the seven `website/snippets/tools/debug-viewer/*.shot` are taken
   again. Only the assets hash changed in each.
-- **browser:** `registry-browser.test.ts` "an owner freezes the first stable API after reading
-  it" read an empty page once on CI, and it passes here. It is not changed. If it fails again,
-  the page text is read before the page renders, and the test waits on `shows(...)` instead.
+- **browser:** `registry-browser.test.ts` read an empty page once on CI and passes here. If it
+  fails again, it should wait on `shows(...)` before reading the page text.
 
-The sweep's `env-secret-proofs` red is stale: no check by that name exists in the tree.
+`env-secret-proofs` is a stale red: no check by that name exists. The `cargo fmt` output and the
+fuzz lock are committed, and `looper check --name rust` is green on the clean tree.
 
 ### Next
 
 The goal is reached. The next nightly should show the Miri, supply-chain and proofs jobs green.
 147 perf records outside `Core\Reflect` are stale from earlier goals' edits, and `string.rs`'s
 edit adds the `Core\Str` ones. The next full gate's `bun nv ci --check` names them.
-`website/public/llms-full.txt` may need regenerating for the `ClassInfo` members. `cargo fmt
---check` names 18 places from earlier goals.
+`website/public/llms-full.txt` may need regenerating for the `ClassInfo` members.
 
 ### Backlog
