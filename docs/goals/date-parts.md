@@ -14,7 +14,7 @@ stages:
     context: [extensions/intl/nvs/DateFormat.nvs, tests/conformance/core/time-datetime-parts-agree-with-the-value-they-came-from.nvst]
   - id: 3
     title: "the seven Date members have their feature proofs"
-    status: open
+    status: done
     context: [docs/agent/prose.md, docs/examples/core/Time-DateTime/weekday/about.md]
   - id: 4
     title: "the eleven DateTime and TimeOfDay readers have their feature proofs"
@@ -211,15 +211,15 @@ benches. Their files are disjoint, and none builds until all end. Each brief nam
 `docs/agent/prose.md` and the `Time-DateTime/weekday` or `Time-DateTime/dayOfYear` proof of the same
 kind as its model.
 
-- [ ] `docs/examples/core/Time-Date/<member>/about.md:1` and three examples with their `.out` for each
+- [x] `docs/examples/core/Time-Date/<member>/about.md:1` and three examples with their `.out` for each
   of `weekday`, `dayOfYear`, `isLeapYear`, `year`, `month`, `day` and `atStartOfDay`. The `weekday`
   examples include a working-day test. The `atStartOfDay` examples include `withTime` for a time of day.
-- [ ] `tests/hostile/core/Time-Date/<member>/01-….nvs:1` for each of the seven, modelled on
+- [x] `tests/hostile/core/Time-Date/<member>/01-….nvs:1` for each of the seven, modelled on
   `tests/hostile/core/Time-DateTime/dayOfYear/01-the-ends-of-the-calendar-and-a-skipped-day.nvs`.
   `atStartOfDay`'s attack uses a zone that skips midnight and both ends of the range.
-- [ ] `benches/members/core/Time-Date/<member>.nvs:1` for each of the seven, modelled on
+- [x] `benches/members/core/Time-Date/<member>.nvs:1` for each of the seven, modelled on
   `benches/members/core/Time-DateTime/dayOfYear.nvs`. The six readers declare `allocations 0`.
-- [ ] The `proofs-date` check is green, and `bun nv proofs --comments` passes on the new files.
+- [x] The `proofs-date` check is green, and `bun nv proofs --comments` passes on the new files.
 
 ### 4. the eleven DateTime and TimeOfDay readers have their feature proofs
 
@@ -247,35 +247,31 @@ kind as its model.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 landed in three commits:
+Stages 1, 2 and 3 are done. Stage 3 landed in one commit, written by three subagents:
 
-- The seven `DateTime` readers sit after `isLeapYear` in `DATETIME`, their cards after
-  `DATETIME_IS_LEAP_YEAR_DOC`, and their bodies after `nvs_core_time_datetime_is_leap_year`. The four
-  `TimeOfDay` readers sit after `compareTo` in `TIME_OF_DAY`, their bodies after
-  `nvs_core_time_of_day_compare_to`. All eleven are in their address functions. The module doc's
-  `# Each class answers its own fields` names all three classes' readers.
-- The Rust tests `datetime_fields_are_read_in_the_values_own_zone` (Kiritimati and Pago Pago, plus
-  both ends of the range) and `time_of_day_fields_are_its_four_slots`. `rust-fields`,
-  `case-datetime` and `case-time-of-day` each ran once, green.
-- `DateFormat.nvs` reads the seven numbers from the readers. Its `zone` field keeps `format('VV')`,
-  since that is the zone id as text and not a parsed number. `cargo test --test intl` is green.
-
-- `Time-DateTime.md`'s table lists all 37 letters `Field::of` accepts, and its refused sentence starts
-  `These letters do not compile:`, the marker `the_reference_table_lists_every_letter_the_compiler_accepts`
-  finds. `z` and `v` render the `GMT+1` form, since no zone names are carried.
-- `<` on `Date` and `TimeOfDay` was already shown by `the-time-types-are-comparable.nvst`, so no new
-  case was written for it.
-- `atStartOfDay` throws `PAST_THE_RANGE` for `-9999-01-01` and `9999-12-31` in UTC. Both days start
-  inside the range only at `Zone::fixed(25h59m59s)` and its negation, which the case uses.
-- The sweep's reds were stale: `env-secret-proofs` names no check, and nightly run 44510687786 is at
+- `docs/examples/core/Time-Date/<member>/`: `about.md` and three examples with `.out` for each of the
+  seven. `weekday/02` is the working-day test, and `atStartOfDay/01` and `/03` use `withTime`.
+  `atStartOfDay/02` shows `America/Santiago` on 2024-09-08 starting at 01:00.
+- `tests/hostile/core/Time-Date/<member>/01-….nvs`: one attack each. `atStartOfDay`'s uses three zones
+  that skipped midnight (Sao_Paulo 2018-11-04, Santiago 2022-09-11, Havana 2023-03-12), Havana's
+  repeated midnight, and both ends of the range. All seven pass under `bun nv proofs --run`.
+- `benches/members/core/Time-Date/<member>.nvs`: the six readers declare `allocations 0`, and
+  `atStartOfDay` declares `calls 2` and `allocations 3`, measured with `nvs run --count`. All seven
+  are flat under `bun nv scaling --growth` and `--iterations --sized`.
+- `proofs-date` is green, and `bun nv proofs --comments` passes on all 66 files in the three trees.
+- The eleven `DateTime` and `TimeOfDay` readers of stage 2 are in `time.rs` and their address
+  functions, and `DateFormat.nvs` reads them; stage 4 owes only their proofs.
+- The sweep's reds are stale: `env-secret-proofs` names no check, and nightly run 44510687786 is at
   `adc7487822`, before the fix commits `4c82a2409a`, `eb5c02e983` and `656f5b2f2d`.
 
 ### Next
 
-Stages 3 and 4, which have disjoint files and may run side by side, each split into three writing
-subagents per its `**Split:**` line. Run `bun nv proofs --only` with the stage's ids first. Expected
-red until the next full gate: `bun nv proofs --gate` for the eighteen new members, which have no
-proofs yet; the perf records of every `Core\Time` member, stale from the `time.rs` edits; and
+Stage 4, split into three writing subagents per its `**Split:**` line, as stage 3 was. Each brief
+names `target/debug/nvs.exe` as current after a `cargo build`, says helpers must be static methods of
+a class (a free function does not compile), and points at `benches/members/core/Time-Date/day.nvs`
+for a bench whose printed total keeps its digit count across the ramp. Run `bun nv proofs --group
+'Core\Time\DateTime'` and `'Core\Time\TimeOfDay'` first. Expected red until the next full gate:
+`bun nv proofs --gate` for the perf of all eighteen new members, which have no record yet; the perf records of every `Core\Time` member, stale from the `time.rs` edits; and
 `website/public/llms-full.txt`, which may need `bun nv render --website` for the new cards.
 
 ### Backlog
