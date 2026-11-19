@@ -4,8 +4,9 @@
 //
 // - It runs the live goal's acceptance as the driver does: the floor, the due stages' checks, then the
 //   reach checks once all else is green.
-// - With `--name`, it runs only the floor and goal checks whose id, or whose name ignoring case,
-//   contains the text. Logs go to `.looper/checks/<id>.log`.
+// - With `--name`, it runs only the check whose id is the text. When no id is the text, it runs the
+//   floor and goal checks whose id, or whose name ignoring case, contains it. Logs go to
+//   `.looper/checks/<id>.log`.
 // - A check that is a unit of the project's unit store, the one verify keeps, runs only when a change
 //   reaches it, and prints one `·` line when its last green still holds.
 // - With `--all`, every check runs. A unit that is red although no change reached it prints a `!` line

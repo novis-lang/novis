@@ -195,10 +195,17 @@ function count(checks: Check[], counted: ReadonlyMap<string, boolean>): [Check[]
   return [toRun, verdicts];
 }
 
-/** The floor's and the goal's checks whose id, or whose name ignoring case, contains `text`. */
+/**
+ * The floor's and the goal's checks that `text` names. A check whose id is exactly `text` is the only
+ * match, so naming one check by its id never also runs a heavier check whose name contains that id.
+ * Otherwise every check whose id, or whose name ignoring case, contains `text`.
+ */
 export function named(floor: Check[], goal: Goal, text: string): Check[] {
+  const all = [...floor, ...goal.front.checks];
+  const exact = all.filter((c) => c.id === text);
+  if (exact.length > 0) return exact;
   const lower = text.toLowerCase();
-  return [...floor, ...goal.front.checks].filter((c) => c.id.includes(text) || (c.name?.toLowerCase().includes(lower) ?? false));
+  return all.filter((c) => c.id.includes(text) || (c.name?.toLowerCase().includes(lower) ?? false));
 }
 
 /**

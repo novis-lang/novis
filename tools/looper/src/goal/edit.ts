@@ -237,10 +237,10 @@ export const GATE_TITLE = "the goal is verified once, and every failure is fixed
 /**
  * The items of the gate stage `newGoal` writes, as the lines under its heading. They name no command,
  * because the pack says which check the stage runs: `looper verify` at a full gate, or a build and the
- * goal's own tests at a close (`[loop] gate`).
+ * tests the goal wrote, by name, at a close (`[loop] gate`), whose DONE runs the goal's checks.
  */
 export const GATE_ITEMS = [
-  "- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.",
+  "- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.",
   "- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.",
 ].join("\n");
 

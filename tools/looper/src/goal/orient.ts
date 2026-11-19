@@ -433,7 +433,7 @@ function checkLineOf(atGate: boolean, gateId: number, g: Gating): string {
     return `This is the goal's gate stage, and the full gate: run \`${TOOL} verify\`. It runs everything since the last full gate${since}. Its DONE runs the floor and the \`after_gate\` hooks.`;
   }
   const left = g.every > 0 ? `after ${g.every - g.ungated.length - 1} more goal(s), or at the chain's last goal` : "at the chain's last goal";
-  return `This is the goal's gate stage, and it closes the goal without the full gate: \`${TOOL} verify\` does not run. Check with a build and the tests this goal wrote, by name. Its DONE runs the goal's own checks. The full gate runs ${left}.`;
+  return `This is the goal's gate stage, and it closes the goal without the full gate: \`${TOOL} verify\` does not run. Check with a build and the tests this goal wrote, by name. Do not run the goal's checks yourself: its DONE runs each of them once, and a red one comes back to a retry session with its reasons, which reruns that check alone with \`${TOOL} check --name <its id>\`. The full gate runs ${left}.`;
 }
 
 /**
