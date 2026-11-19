@@ -411,3 +411,43 @@ fn check_fix_writes_where_a_moved_core_name_went_and_the_program_compiles() {
     let (_, err, ok) = run_check(&[], &main);
     assert!(ok, "the fixed program compiles: {err}");
 }
+
+/// A program that calls the three renamed `Core\Time` constructors, one of
+/// them through a short name a `use` line brought in
+/// (`rule:core-classes/a-time-class-builds-its-own-values`).
+const MOVED_MEMBERS: &str = r#"<?nvs
+use Core\Time;
+
+Core\Time\Instant $a = Core\Time::fromEpoch(1709294400);
+Core\Time\Instant $b = Core\Time::fromIso('2024-03-01T12:00:00Z');
+Core\Time\DateTime $c = Time::parse('01.03.2024', 'dd.MM.yyyy', 'UTC');
+echo $a == $b ? "same\n" : "different\n";
+echo $c->day(), "\n";
+"#;
+
+/// [`MOVED_MEMBERS`] once `--fix` has written each new member. The `use` line
+/// is unused then, and its own fix deletes it.
+const MOVED_MEMBERS_FIXED: &str = r#"<?nvs
+
+Core\Time\Instant $a = Core\Time\Instant::fromEpoch(1709294400);
+Core\Time\Instant $b = Core\Time\Instant::fromIso('2024-03-01T12:00:00Z');
+Core\Time\DateTime $c = Core\Time\DateTime::parse('01.03.2024', 'dd.MM.yyyy', 'UTC');
+echo $a == $b ? "same\n" : "different\n";
+echo $c->day(), "\n";
+"#;
+
+#[test]
+fn check_fix_writes_where_a_moved_core_member_went_and_the_program_compiles() {
+    let dir = scratch("check-fix-moved-members", &[("main.nvs", MOVED_MEMBERS)]);
+    let main = dir.join("main.nvs");
+    let (out, err, ok) = run_check(&["--fix"], &main);
+    assert!(ok, "{err}");
+    assert!(out.starts_with("made 4 edits in 1 file\n"), "{out}");
+    assert_eq!(
+        std::fs::read_to_string(&main).expect("the file is still there"),
+        MOVED_MEMBERS_FIXED,
+        "each call names the class that now builds its value"
+    );
+    let (_, err, ok) = run_check(&[], &main);
+    assert!(ok, "the fixed program compiles: {err}");
+}

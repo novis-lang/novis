@@ -4,10 +4,12 @@
 //! [`note_moves`] is a pass over the finished diagnostics, in the shape of
 //! `nvs_hir::AutoloadMap::note_searched_roots`. It reads
 //! `nvs_stdlib::moved::MOVES`, and it lives here because this crate already
-//! reads both `nvs-hir` and `nvs-stdlib`. A moved name reaches it in one of two
-//! codes. A type and an expression such as `Core\Order::Desc` get `E0303`,
+//! reads both `nvs-hir` and `nvs-stdlib`. A moved name reaches it in one of
+//! three codes. A type and an expression such as `Core\Order::Desc` get `E0303`,
 //! which `nvs_hir::hierarchy::undeclared_subject` reads back. A `use` line gets
-//! `E0306`, which `nvs_hir::resolve::unresolved_import_subject` reads back. The
+//! `E0306`, which `nvs_hir::resolve::unresolved_import_subject` reads back. A
+//! member such as `Core\Time::fromEpoch` gets `E0405`, which
+//! [`unknown_member_subject`] reads back. The
 //! short name such a `use` brought in is reported nowhere, because the `use`
 //! line already is (`rule:types/one-mistake-reports-once`), so the fix on the
 //! `use` line rewrites those references too.
@@ -18,23 +20,43 @@
 //! deletes the line and writes the new name at every reference to the short
 //! name, because a class-scoped enum such as `Core\Arr::Order` cannot be
 //! imported. A form the fix cannot rewrite exactly, such as an aliased or a
-//! grouped `use`, gets the help line alone.
+//! grouped `use`, gets the help line alone. A member's fix writes the new
+//! `Class::member` over the class and the member as written, whatever the
+//! class's spelling, because the checker already resolved it to the old class.
+//! A member whose arguments changed gets the help line alone, with the call to
+//! write instead.
 //!
 //! The pass runs on a failed compile, and in the editor on every analysis, where
-//! it costs one comparison per `E0303` and `E0306`. A `use` line of a moved name
-//! costs one lex of its file.
+//! it costs one comparison per `E0303`, `E0306` and `E0405`. A `use` line of a
+//! moved name costs one lex of its file.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceMap, Span, Suggestion, code};
 use nvs_stdlib::moved::Move;
 use nvs_syntax::{Keyword, TokenKind};
 
-/// The row for the name `diagnostic` says is not declared (`E0303`) or does not
-/// resolve (`E0306`), if that name moved.
+/// The row for the name `diagnostic` says is not declared (`E0303`), does not
+/// resolve (`E0306`) or has no such member (`E0405`), if that name moved.
 #[must_use]
 pub fn moved_subject(diagnostic: &Diagnostic) -> Option<&'static Move> {
+    if let Some((class, member)) = unknown_member_subject(diagnostic) {
+        return nvs_stdlib::moved::moved(&format!("{class}::{member}"));
+    }
     let name = nvs_hir::hierarchy::undeclared_subject(diagnostic)
         .or_else(|| nvs_hir::resolve::unresolved_import_subject(diagnostic))?;
     nvs_stdlib::moved::moved(&name.to_string())
+}
+
+/// The class and the member an `E0405` names, read back from the message
+/// `crate::expr::members` writes: `` `Core\Time` has no member named `at` ``.
+fn unknown_member_subject(diagnostic: &Diagnostic) -> Option<(&str, &str)> {
+    if diagnostic.code != Some(code::E_UNKNOWN_MEMBER) {
+        return None;
+    }
+    let (class, rest) = diagnostic.message.strip_prefix('`')?.split_once("` has no ")?;
+    let (_, member) = rest.split_once(" named `")?;
+    let member = member.strip_suffix('`')?;
+    let plain = |text: &str| !text.is_empty() && !text.contains('`');
+    (plain(class) && plain(member)).then_some((class, member))
 }
 
 /// Adds to every diagnostic about a moved name the help line that names its new
@@ -48,7 +70,9 @@ pub fn note_moves(diags: &mut Diagnostics, map: &SourceMap) {
         let import = diagnostic.code == Some(code::E_UNRESOLVED_IMPORT);
         let fix = diagnostic.primary_span().and_then(|span| {
             let file = map.get(span.file)?;
-            if import {
+            if let Some((_, member)) = row.member() {
+                member_fix(row, member, span, file).map(|edit| vec![edit])
+            } else if import {
                 import_fix(row, span, file)
             } else {
                 written_fix(row, span, file).map(|edit| vec![edit])
@@ -58,7 +82,9 @@ pub fn note_moves(diags: &mut Diagnostics, map: &SourceMap) {
             Some(version) => format!("`{}` moved to `{}` in {version}", row.old, row.new),
             None => format!("`{}` moved to `{}`", row.old, row.new),
         };
-        let help = if import {
+        let help = if let Some(call) = row.call {
+            format!("{moved_to}, which takes other arguments. Write `{call}` here")
+        } else if import {
             format!(
                 "{moved_to}. A `use` line cannot import it. Delete this line, and write `{}` \
                  where this file writes `{}`",
@@ -109,6 +135,28 @@ fn written_fix(row: &Move, span: Span, file: &SourceFile) -> Option<(Span, Strin
         Span::new(span.file, span.start, end),
         format!("{lead}{}", row.new),
     ))
+}
+
+/// The edit that writes `row.new` over `Class::member` at the start of `span`,
+/// a static call such as `Time::fromIso('…')`, whatever the class's spelling.
+/// `None` for a member whose arguments changed ([`Move::call`]) and where the
+/// text after the class's `::` is not `member`.
+fn member_fix(row: &Move, member: &str, span: Span, file: &SourceFile) -> Option<(Span, String)> {
+    if row.call.is_some() {
+        return None;
+    }
+    let text = file.span_text(span)?;
+    let colons = text.find("::")?;
+    let after = colons + 2;
+    let written = text.get(after..after + member.len())?;
+    let next = text[after + member.len()..].chars().next();
+    if !written.eq_ignore_ascii_case(member)
+        || next.is_some_and(|c| c.is_alphanumeric() || c == '_')
+    {
+        return None;
+    }
+    let end = span.start + u32::try_from(after + member.len()).ok()?;
+    Some((Span::new(span.file, span.start, end), row.new.to_owned()))
 }
 
 /// The edits that delete `use <old>;` and write `row.new` at every reference to

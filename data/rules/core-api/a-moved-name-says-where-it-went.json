@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst",
+    "tests/conformance/lang/a-moved-core-member-says-where-it-went.nvst",
     "crates/nvs-cli/tests/check_flags.rs",
     "crates/nvs-stdlib/src/moved.rs"
   ]

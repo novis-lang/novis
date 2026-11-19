@@ -3,9 +3,17 @@ the name went. `Core\Order` became `Core\Arr::Order`, so `use Core\Order;` is `E
 in a type or in an expression is `E0303`. Each of those errors gets a help line that names the new place
 and one safe fix that writes it, which `nvs check --fix` applies and an editor offers as one action.
 
+**A member moves too.** `Core\Time::fromEpoch` became `Core\Time\Instant::fromEpoch`, so a call to the old
+member is `E0405`, and it gets the same help line and fix. The fix writes the new `Class::member` over the
+class and the member as written, a short name a `use` brought in included, because the checker already
+resolved that name to the old class. A member whose arguments changed as it moved, such as `Core\Time::at`
+and `Core\Time\Date::atStartOfDay`, gets the help line alone, and the help gives the call to write as code.
+No fix can write that call, because the old arguments do not map onto the new ones one to one.
+
 **One table lists every move.** `crates/nvs-stdlib/src/moved.rs` has one row per move: the old name, the
-new name and the release that moved it. A test reads the registry and fails when a row's new name does
-not exist or its old name still does, so the table cannot name a place that is not there. The pass that
+new name, the release that moved it, and for a member whose arguments changed the call to write. A test
+reads the registry and fails when a row's new name, a type or a member, does not exist or its old name
+still does, so the table cannot name a place that is not there. The pass that
 reads the table, `nvs_types::moved`, runs over the finished diagnostics in `nvs check` and in the language
 server, as the `autoload` note does, and leaves every other diagnostic as it was.
 
@@ -21,7 +29,8 @@ mistake, and one code lets the moved-name note find every place.
 
 **A row stays until 1.0.** Before 1.0 any release may move a `Core` name
 (`rule:core-api/no-deprecation-window-before-a-release`), and a project that skips several releases meets
-every move at once. A row costs a few bytes in the binary and is read only for an `E0303` or an `E0306`, so
+every move at once. A row costs a few bytes in the binary and is read only for an `E0303`, an `E0306` or an
+`E0405`, so
 it costs nothing on the request path. At 1.0 the table is emptied, and the mechanism stays for the next
 major version.
 

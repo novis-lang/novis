@@ -1,0 +1,44 @@
+--TEST--
+The five old `Core\Time` constructors each say where they went. A rename carries the fix that writes the new member, and a member whose arguments changed gives the call to write (`rule:core-api/a-moved-name-says-where-it-went`)
+--FILE--
+<?nvs
+use Core\Time;
+
+Core\Time\Instant $a = Core\Time::fromEpoch(1709294400);
+Core\Time\Instant $b = Core\Time::fromIso('2024-03-01T12:00:00Z');
+Core\Time\DateTime $c = Time::parse('01.03.2024', 'dd.MM.yyyy', 'UTC');
+Core\Time\DateTime $d = Core\Time::at(2024, 3, 1, 'UTC');
+Core\Time\DateTime $e = Core\Time\Date::at(2024, 3, 1)->atStartOfDay('UTC');
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Time` has no member named `fromEpoch`
+  --> case.nvs:4:24
+%A
+  = help: `Core\Time::fromEpoch` moved to `Core\Time\Instant::fromEpoch`. Write `Core\Time\Instant::fromEpoch` here
+  = suggestion: write the new name: `Core\Time\Instant::fromEpoch`
+
+error[E0405]: `Core\Time` has no member named `fromIso`
+  --> case.nvs:5:24
+%A
+  = help: `Core\Time::fromIso` moved to `Core\Time\Instant::fromIso`. Write `Core\Time\Instant::fromIso` here
+  = suggestion: write the new name: `Core\Time\Instant::fromIso`
+
+error[E0405]: `Core\Time` has no member named `parse`
+  --> case.nvs:6:25
+%A
+  = help: `Core\Time::parse` moved to `Core\Time\DateTime::parse`. Write `Core\Time\DateTime::parse` here
+  = suggestion: write the new name: `Core\Time\DateTime::parse`
+
+error[E0405]: `Core\Time` has no member named `at`
+  --> case.nvs:7:25
+%A
+  = help: `Core\Time::at` moved to `Core\Time\DateTime::at`, which takes other arguments. Write `Core\Time\DateTime::at(Core\Time\Date::at(…), Core\Time\TimeOfDay::at(…), $zone)` here
+
+error[E0405]: `Core\Time\Date` has no method named `atStartOfDay`
+  --> case.nvs:8:25
+%A
+  = help: `Core\Time\Date::atStartOfDay` moved to `Core\Time\DateTime::at`, which takes other arguments. Write `Core\Time\DateTime::at($date, Core\Time\TimeOfDay::at(0, 0), $zone)` here
+
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
