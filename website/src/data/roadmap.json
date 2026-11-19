@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Rules a framework can set",
-      "text": "A method can take a route and its parameters, and the compiler checks them like a link. Two requests that change different session keys both keep their changes.",
-      "goals": [
-        "session-per-key"
-      ]
-    },
-    {
       "title": "The website shows every change",
       "text": "When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.",
       "goals": [
