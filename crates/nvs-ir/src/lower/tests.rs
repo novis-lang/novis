@@ -1780,27 +1780,34 @@ fn a_literal_with_an_aliasing_element_retains_it() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `["k" => 1]` — a literal with an explicit `key =>` element lowers to
-/// an empty `ArrayNew` plus one `ArraySet`: `"k"` is a fresh `ConstStr`
-/// (a string literal is never an aliasing read), so it needs no
-/// retain of its own, mirroring the value `1`.
+/// `["k" => 1]` with the cheaper forms off — a literal with an explicit
+/// `key =>` element lowers to an empty `ArrayNew` plus one `ArraySet`: `"k"`
+/// is a fresh `ConstStr` (a string literal is never an aliasing read), so it
+/// needs no retain of its own, mirroring the value `1`. With the cheaper
+/// forms on, row `constant-key-literal` builds it in one step
+/// (`a_literal_with_constant_keys_is_built_in_one_step`); the chain is what a
+/// computed key still takes.
 #[test]
 fn a_string_literal_keyed_array_element_lowers_to_array_new_then_array_set() {
-    let (f, map, file) = lower_first_method(
-        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [\"k\" => 1];\n  }\n}\n",
-    );
+    let (f, map, file) = crate::lower::without_cheaper_forms(|| {
+        lower_first_method(
+            "<?nvs\nclass T {\n  function m(): void {\n    array $a = [\"k\" => 1];\n  }\n}\n",
+        )
+    });
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `[5 => "a"]` — an explicit `int` key travels to the `InstKind::ArraySet`
-/// chain unrendered, exactly as an `$arr[$i]` subscript does: this is the
-/// same `Lowering::lower_array_key` on both sides, which is why the two
-/// can never drift.
+/// `[5 => "a"]` with the cheaper forms off — an explicit `int` key travels
+/// to the `InstKind::ArraySet` chain unrendered, exactly as an `$arr[$i]`
+/// subscript does: this is the same `Lowering::lower_array_key` on both
+/// sides, which is why the two can never drift.
 #[test]
 fn an_int_literal_keyed_array_element_carries_the_integer_unrendered() {
-    let (f, map, file) = lower_first_method(
-        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [5 => \"a\"];\n  }\n}\n",
-    );
+    let (f, map, file) = crate::lower::without_cheaper_forms(|| {
+        lower_first_method(
+            "<?nvs\nclass T {\n  function m(): void {\n    array $a = [5 => \"a\"];\n  }\n}\n",
+        )
+    });
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 

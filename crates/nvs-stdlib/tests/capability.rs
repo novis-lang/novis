@@ -585,7 +585,11 @@ fn call_arguments(rest: &str) -> Option<Vec<String>> {
             '"' => quoted = true,
             '(' | '[' | '{' => depth += 1,
             ')' | ']' | '}' if depth == 0 => {
-                args.push(current.trim().to_owned());
+                // A trailing comma, as rustfmt writes on a call it splits over lines, ends
+                // no argument: the last argument is the one before it.
+                if args.is_empty() || !current.trim().is_empty() {
+                    args.push(current.trim().to_owned());
+                }
                 return Some(args);
             }
             ')' | ']' | '}' => depth -= 1,

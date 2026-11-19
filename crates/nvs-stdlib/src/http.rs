@@ -4476,7 +4476,7 @@ fn call_of<'a>(
 /// which is where the call ends and the program's own reading begins.
 ///
 /// The event names `site`, the call site's id (0 names none), and
-/// [`trace_target`]'s host and path of the call's URL.
+/// [`span::trace_target`]'s host and path of the call's URL.
 fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
     if !ctx.records_spans() {
         return;
@@ -4486,7 +4486,7 @@ fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
         span.finished();
         (span.to_string(), span.duration())
     };
-    let target = trace_target(&call.url);
+    let target = span::trace_target(&call.url);
     ctx.record_site_event(
         nvs_runtime::TraceKind::Http,
         &line,
@@ -4496,23 +4496,6 @@ fn traced(ctx: &mut Ctx, call: &transport::Call<'_>, site: u32) {
     );
 }
 
-/// The host and path of `url`, as a trace event names its target: the scheme,
-/// any userinfo, the query string and the fragment are left out, so a
-/// credential or a token in the URL never reaches a trace. A port stays with
-/// its host.
-fn trace_target(url: &str) -> String {
-    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
-    let end = rest.find(['?', '#']).unwrap_or(rest.len());
-    let rest = &rest[..end];
-    let (authority, path) = match rest.find('/') {
-        Some(slash) => rest.split_at(slash),
-        None => (rest, ""),
-    };
-    let host = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-    format!("{host}{path}")
-}
 
 /// A streamed reply's body, filed against this request, as the key its
 /// `Core\Http\Stream`'s body slot holds.
@@ -5591,24 +5574,6 @@ mod tests {
         let trace = ctx.trace();
         assert_eq!(trace.len(), 1, "one event per call: {trace:?}");
         assert_eq!(trace[0].kind, nvs_runtime::TraceKind::Http);
-    }
-
-    /// A trace event's target is the URL's host and path: the scheme, the userinfo,
-    /// the query string and the fragment are left out.
-    #[test]
-    fn an_http_target_is_the_host_and_path_alone() {
-        assert_eq!(
-            super::trace_target("https://user:secret@api.example.test/v1/pay?token=x#top"),
-            "api.example.test/v1/pay"
-        );
-        assert_eq!(
-            super::trace_target("http://example.test:8080?q=1"),
-            "example.test:8080"
-        );
-        assert_eq!(
-            super::trace_target("http://example.test/a#b"),
-            "example.test/a"
-        );
     }
 
     /// The rule's *one event carrying its attempt count*: a call the origin

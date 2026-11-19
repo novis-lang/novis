@@ -263,11 +263,45 @@ impl fmt::Display for HttpSpan {
     }
 }
 
+/// The host and path of `url`, as a trace event names its target: the scheme,
+/// any userinfo, the query string and the fragment are left out, so a
+/// credential or a token in the URL never reaches a trace. A port stays with
+/// its host. It lives here, beside the span, because it is the second half of
+/// what this module keeps out of a trace.
+pub(super) fn trace_target(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let end = rest.find(['?', '#']).unwrap_or(rest.len());
+    let rest = &rest[..end];
+    let (authority, path) = match rest.find('/') {
+        Some(slash) => rest.split_at(slash),
+        None => (rest, ""),
+    };
+    let host = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
+    format!("{host}{path}")
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use super::HttpSpan;
+    use super::{HttpSpan, trace_target};
+
+    /// A trace event's target is the URL's host and path: the scheme, the userinfo,
+    /// the query string and the fragment are left out.
+    #[test]
+    fn an_http_target_is_the_host_and_path_alone() {
+        assert_eq!(
+            trace_target("https://user:secret@api.example.test/v1/pay?token=x#top"),
+            "api.example.test/v1/pay"
+        );
+        assert_eq!(
+            trace_target("http://example.test:8080?q=1"),
+            "example.test:8080"
+        );
+        assert_eq!(trace_target("http://example.test/a#b"), "example.test/a");
+    }
 
     /// The exclusion of `rule:observability/trace-events-carry-a-kind`, over the
     /// two renderings a consumer can reach: neither

@@ -99,6 +99,7 @@ use nvs_diagnostics::{BytePos, Diagnostic, PositionEncoding, SourceId, Suggestio
 use crate::completion_files::CompletionFiles;
 use crate::diagnostics::{from_completion_files, phase_gated};
 use crate::document::{Analysed, Documents};
+use crate::index::SymbolIndex;
 use crate::position::range_at;
 use crate::render::{Action, Edit};
 
@@ -202,7 +203,7 @@ impl Kind {
 pub fn at(
     analysed: &Analysed,
     documents: &Documents,
-    index: Option<&crate::index::SymbolIndex>,
+    index: Option<&SymbolIndex>,
     files: &CompletionFiles,
     start: BytePos,
     end: BytePos,
