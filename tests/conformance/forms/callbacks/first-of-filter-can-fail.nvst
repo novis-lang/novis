@@ -1,0 +1,37 @@
+--TEST--
+`Core\Arr::first` of `Core\Arr::filter` calls the callback for every entry, so an error for an entry after the first match is still thrown — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// Every value converts to a whole number, so nothing throws. The first value above 2 is `5`.
+array<string> $good = ["1", "5", "7"];
+?string $found = Core\Arr::first(Core\Arr::filter($good, fn(string $s): bool => ($s as int) > 2));
+echo $found ?? "null", "\n";
+
+// `"5"` matches first. `"x"` comes later and is not a whole number, so `as int` throws an error.
+array<string> $bad = ["1", "5", "x"];
+try {
+    ?string $first = Core\Arr::first(Core\Arr::filter($bad, fn(string $s): bool => ($s as int) > 2));
+    echo "no error: ", $first ?? "null", "\n";
+} catch (Throwable $e) {
+    echo "error after the match\n";
+}
+
+// The callback reads `$limits[$k]`. The key `c` is missing, so the read throws an error.
+array<int> $limits = ['a' => 1, 'b' => 5];
+array<string> $keys = ['a', 'b', 'c'];
+try {
+    ?string $key = Core\Arr::first(Core\Arr::filter($keys, fn(string $k): bool => $limits[$k] > 2));
+    echo "no error: ", $key ?? "null", "\n";
+} catch (Throwable $e) {
+    echo "missing key after the match\n";
+}
+
+// With only the keys `a` and `b`, nothing throws. The result is `b`.
+array<string> $known = ['a', 'b'];
+?string $match = Core\Arr::first(Core\Arr::filter($known, fn(string $k): bool => $limits[$k] > 2));
+echo $match ?? "null", "\n";
+--EXPECT--
+5
+error after the match
+missing key after the match
+b

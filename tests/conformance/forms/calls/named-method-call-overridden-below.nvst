@@ -1,0 +1,37 @@
+--TEST--
+A method call on a variable of class `Animal` runs the body of the object's own class, where a class that extends `Animal` declares the method again — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+class Animal {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function describe(int $legs): string {
+        return $this->name . " has " . $legs . " legs";
+    }
+}
+
+// `Fish` declares `describe` again, so a `Fish` runs this body.
+class Fish extends Animal {
+    public function describe(int $legs): string {
+        return $this->name . " has no legs";
+    }
+}
+
+final class Zoo {
+    public static function show(Animal $a, int $legs): string {
+        return $a->describe($legs);
+    }
+}
+
+echo Zoo::show(new Animal("bird"), 2), "\n";
+echo Zoo::show(new Fish("trout"), 4), "\n";
+Animal $pet = new Fish("nemo");
+echo $pet->describe(3), "\n";
+--EXPECT--
+bird has 2 legs
+trout has no legs
+nemo has no legs

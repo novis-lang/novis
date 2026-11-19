@@ -1,0 +1,26 @@
+--TEST--
+A conversion with `as int` in a `try` whose `catch` arm reads the error gives the number, or `null` and the error message — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Convert {
+    public static function toInt(mixed $x): ?int {
+        ?int $v = 0;
+        try {
+            $v = $x as int;
+        } catch (RuntimeError $e) {
+            // The arm prints the message of the error, then sets `$v` to `null`.
+            echo $e->message, ": ";
+            $v = null;
+        }
+        return $v;
+    }
+}
+
+array<mixed> $inputs = ["42", "abc", 3.9];
+foreach ($inputs as mixed $x) {
+    echo Core\Json::encode(Convert::toInt($x)), "\n";
+}
+--EXPECT--
+42
+cannot convert this value to `int`: null
+cannot convert this value to `int`: null

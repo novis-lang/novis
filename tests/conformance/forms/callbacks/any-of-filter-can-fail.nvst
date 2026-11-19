@@ -1,0 +1,39 @@
+--TEST--
+`Core\Arr::count` and `Core\Arr::isEmpty` of `Core\Arr::filter` call the callback for every entry, so an error for an entry after the first match is still thrown — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// Every value converts to a whole number, so nothing throws. `"5"` and `"7"` are above 2.
+array<string> $good = ["1", "5", "7"];
+echo Core\Arr::count(Core\Arr::filter($good, fn(string $s): bool => ($s as int) > 2)) > 0 ? "some" : "none", "\n";
+echo Core\Arr::isEmpty(Core\Arr::filter($good, fn(string $s): bool => ($s as int) > 2)) ? "none" : "some", "\n";
+
+// `"5"` matches first. `"x"` comes later and is not a whole number, so `as int` throws an error.
+array<string> $bad = ["1", "5", "x"];
+try {
+    bool $any = Core\Arr::count(Core\Arr::filter($bad, fn(string $s): bool => ($s as int) > 2)) != 0;
+    echo "no error: ", $any ? "some" : "none", "\n";
+} catch (Throwable $e) {
+    echo "count: error after the match\n";
+}
+try {
+    bool $empty = Core\Arr::isEmpty(Core\Arr::filter($bad, fn(string $s): bool => ($s as int) > 2));
+    echo "no error: ", $empty ? "none" : "some", "\n";
+} catch (Throwable $e) {
+    echo "isEmpty: error after the match\n";
+}
+
+// The callback reads `$limits[$k]`. The key `c` is missing, so the read throws an error.
+array<int> $limits = ['a' => 1, 'b' => 5];
+array<string> $keys = ['a', 'b', 'c'];
+try {
+    bool $none = Core\Arr::count(Core\Arr::filter($keys, fn(string $k): bool => $limits[$k] > 2)) == 0;
+    echo "no error: ", $none ? "none" : "some", "\n";
+} catch (Throwable $e) {
+    echo "missing key after the match\n";
+}
+--EXPECT--
+some
+some
+count: error after the match
+isEmpty: error after the match
+missing key after the match

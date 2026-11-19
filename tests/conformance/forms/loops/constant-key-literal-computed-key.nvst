@@ -1,0 +1,18 @@
+--TEST--
+An array literal with a key read from a variable keeps every entry in the order it is written — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// `$key` is a variable, so the second key is only known when the program runs.
+string $key = 'mid';
+array<string> $a = [10 => 'ten', $key => 'middle', 'a' => 'ay'];
+echo Core\Json::encode(Core\Arr::keys($a)), "\n";
+echo $a['mid'], " ", $a[10], " ", $a['a'], "\n";
+
+// When the variable is equal to a later key, the literal keeps one entry with the last value.
+string $same = 'a';
+array<string> $b = [$same => 'first', 'b' => 'bee', 'a' => 'last'];
+echo Core\Json::encode($b), "\n";
+--EXPECT--
+["10","mid","a"]
+middle ten ay
+{"a":"last","b":"bee"}

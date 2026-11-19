@@ -1,0 +1,24 @@
+--TEST--
+`sort` with a comparator that compares one expression of the second side with the same expression of the first, which writes nothing and cannot throw, orders from largest to smallest — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// `"bb"` and `"cc"` have the same length, and so do `"a"` and `"d"`.
+array<string> $words = ["bb", "a", "eee", "cc", "d"];
+
+// `$b` comes first in the comparator, so the longest word comes first.
+// Words of equal length keep their order from the input.
+array<string> $sorted = Core\Arr::sort($words, {comparator: fn(string $a, string $b): int => Core\Str::length($b) <=> Core\Str::length($a)});
+echo Core\Str::join($sorted, ","), "\n";
+
+// Here the expression is the absolute value. `-2` and `2` are equal by it, and so are `3` and `-3`.
+array<int> $nums = [3, -2, 1, 2, -3];
+array<int> $byAbs = Core\Arr::sort($nums, {comparator: fn(int $a, int $b): int => Core\Math::abs($b) <=> Core\Math::abs($a)});
+echo Core\Json::encode($byAbs), "\n";
+
+// With string keys and no `preserveKeys` option, the result is a list.
+array<string> $pets = ['p' => "cat", 'q' => "horse", 'r' => "owl"];
+echo Core\Json::encode(Core\Arr::sort($pets, {comparator: fn(string $a, string $b): int => Core\Str::length($b) <=> Core\Str::length($a)})), "\n";
+--EXPECT--
+eee,bb,cc,a,d
+[3,-3,-2,2,1]
+["horse","cat","owl"]

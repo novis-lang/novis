@@ -1,0 +1,27 @@
+--TEST--
+`Core\Uuid::parse` in a `try` with a `finally` gives the UUID or `null`, and the `finally` runs every time — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Ids {
+    public static function read(string $s): string {
+        ?Core\Uuid $v = null;
+        try {
+            $v = Core\Uuid::parse($s);
+        } catch (RuntimeError) {
+            $v = null;
+        } finally {
+            // This line runs after the parse, also when it fails.
+            echo "done ";
+        }
+        return $v?->toString() ?? "null";
+    }
+}
+
+array<string> $inputs = ["0123ABCD-0000-4000-8000-00000000000F", "nope", ""];
+foreach ($inputs as string $s) {
+    echo Ids::read($s), "\n";
+}
+--EXPECT--
+done 0123abcd-0000-4000-8000-00000000000f
+done null
+done null

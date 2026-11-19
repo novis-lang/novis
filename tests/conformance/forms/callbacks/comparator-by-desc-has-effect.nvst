@@ -1,0 +1,33 @@
+--TEST--
+`sort` with a comparator that compares the second side with the first and counts its calls runs the comparator, and gives the same order as without the count — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Tally {
+    public static int $calls = 0;
+
+    // Adds 1 to `Tally::$calls`, then returns the length of `$s`.
+    public static function length(string $s): int {
+        Tally::$calls = Tally::$calls + 1;
+        return Core\Str::length($s) as int;
+    }
+}
+
+// `"bb"` and `"cc"` have the same length, and so do `"a"` and `"d"`.
+array<string> $words = ["bb", "a", "eee", "cc", "d"];
+
+// The comparator counts each call. The number of calls depends on how the sort works,
+// so this prints only whether the comparator ran. The longest word comes first.
+array<string> $sorted = Core\Arr::sort($words, {comparator: fn(string $a, string $b): int => Tally::length($b) <=> Tally::length($a)});
+echo Core\Str::join($sorted, ","), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
+
+// This comparator adds 1 to `Tally::$calls` in its own body. The result is `[3,2,1]`.
+Tally::$calls = 0;
+array<int> $nums = [3, 1, 2];
+array<int> $desc = Core\Arr::sort($nums, {comparator: fn(int $a, int $b): int => {
+    Tally::$calls = Tally::$calls + 1;
+    return $b <=> $a;
+}});
+echo Core\Json::encode($desc), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
+--EXPECT--
+eee,bb,cc,a,d ran
+[3,2,1] ran

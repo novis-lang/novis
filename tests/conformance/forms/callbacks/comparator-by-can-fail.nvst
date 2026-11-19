@@ -1,0 +1,53 @@
+--TEST--
+`sort`, `diff` and `intersect` with a comparator that compares one expression of each side, where that expression can throw, throw the error for an entry that cannot be converted — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// Every value converts to a whole number, so nothing throws.
+// `"02"` and `"2"` are the same number, and they keep their order from the input.
+array<string> $good = ["10", "02", "3", "2"];
+array<string> $sorted = Core\Arr::sort($good, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
+echo Core\Str::join($sorted, ","), "\n";
+
+// `diff` keeps each value whose number is not in the second array. `"2"` and `"02"` are both 2.
+array<string> $twos = ["2"];
+echo Core\Json::encode(Core\Arr::diff($good, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)})), "\n";
+echo Core\Json::encode(Core\Arr::intersect($good, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)})), "\n";
+
+// `"x"` is not a whole number, so `as int` throws an error when the comparator gets it.
+array<string> $bad = ["10", "02", "x", "2"];
+try {
+    array<string> $out = Core\Arr::sort($bad, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
+    echo "no error: ", Core\Str::join($out, ","), "\n";
+} catch (Throwable $e) {
+    echo "sort: error\n";
+}
+try {
+    array<string> $left = Core\Arr::diff($bad, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
+    echo "no error: ", Core\Json::encode($left), "\n";
+} catch (Throwable $e) {
+    echo "diff: error\n";
+}
+try {
+    array<string> $both = Core\Arr::intersect($bad, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
+    echo "no error: ", Core\Json::encode($both), "\n";
+} catch (Throwable $e) {
+    echo "intersect: error\n";
+}
+
+// The comparator reads `$rank[$a]`. The key `cy` is missing, so the read throws an error.
+array<int> $rank = ['ada' => 2, 'bo' => 1];
+array<string> $people = ['ada', 'bo', 'cy'];
+try {
+    array<string> $ranked = Core\Arr::sort($people, {comparator: fn(string $a, string $b): int => $rank[$a] <=> $rank[$b]});
+    echo "no error: ", Core\Str::join($ranked, ","), "\n";
+} catch (Throwable $e) {
+    echo "missing key\n";
+}
+--EXPECT--
+02,2,3,10
+{"0":"10","2":"3"}
+{"1":"02","3":"2"}
+sort: error
+diff: error
+intersect: error
+missing key

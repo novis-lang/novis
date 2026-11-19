@@ -1,0 +1,32 @@
+--TEST--
+`Core\Arr::firstKey` of `Core\Arr::filter` with a callback that writes nothing and cannot throw returns the key of the first entry that matches, or `null` — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+array<int> $nums = [1, 5, 2, 7, 3];
+// `5` is the first entry greater than 2. Its key is `1`.
+?string $found = Core\Arr::firstKey(Core\Arr::filter($nums, fn(int $x): bool => $x > 2));
+echo $found ?? "null", "\n";
+
+// No entry is greater than 10, so `firstKey` returns `null`.
+?string $none = Core\Arr::firstKey(Core\Arr::filter($nums, fn(int $x): bool => $x > 10));
+echo $none ?? "null", "\n";
+
+// In a map with string keys, the first price above 15 has the key `banana`.
+array<int> $prices = ['apple' => 10, 'banana' => 20, 'berry' => 30];
+?string $name = Core\Arr::firstKey(Core\Arr::filter($prices, fn(int $v): bool => $v > 15));
+echo $name ?? "null", "\n";
+
+// The callback may also read the key. The first key longer than 5 characters is `banana`.
+?string $long = Core\Arr::firstKey(Core\Arr::filter($prices, fn(int $v, string $k): bool => Core\Str::length($k) > 5));
+echo $long ?? "null", "\n";
+
+// An empty array has no first key, so the result is `null`.
+array<int> $empty = [];
+?string $nothing = Core\Arr::firstKey(Core\Arr::filter($empty, fn(int $x): bool => $x > 0));
+echo $nothing ?? "null", "\n";
+--EXPECT--
+1
+null
+banana
+banana
+null

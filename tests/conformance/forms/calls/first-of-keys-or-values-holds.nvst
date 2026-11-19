@@ -1,0 +1,23 @@
+--TEST--
+`Core\Arr::first` of `Core\Arr::keys` is the first key, and of `Core\Arr::values` the first value, or `null` for an empty array — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Ends {
+    public static function show(array<int> $m): string {
+        ?string $key = Core\Arr::first(Core\Arr::keys($m));
+        ?int $value = Core\Arr::first(Core\Arr::values($m));
+        return Core\Json::encode($key) . " " . Core\Json::encode($value);
+    }
+}
+
+// The first key is the one added first, not the smallest one.
+echo Ends::show(['z' => 3, 'a' => 1]), "\n";
+// An empty array has no first key and no first value, so both are `null`.
+echo Ends::show([]), "\n";
+// The first entry of this list has the key `"1"`, because the key `"0"` was removed.
+array<int> $list = Core\Arr::filter([10, 20, 30], fn(int $x): bool => $x != 10);
+echo Core\Json::encode(Core\Arr::first(Core\Arr::keys($list))), " ", Core\Json::encode(Core\Arr::first(Core\Arr::values($list))), "\n";
+--EXPECT--
+"z" 3
+null null
+"1" 20

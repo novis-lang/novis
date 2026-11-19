@@ -1,0 +1,34 @@
+--TEST--
+`Core\Uuid::parse` in a `try`, whose text comes from a call that can throw, gives `null` for an error from the call as well — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Ids {
+    // `trimmed` throws an error for an empty string.
+    public static function trimmed(string $s): string {
+        if ($s == "") {
+            throw new RuntimeError("empty");
+        }
+        return Core\Str::trim($s);
+    }
+
+    public static function read(string $s): string {
+        ?Core\Uuid $v = null;
+        try {
+            $v = Core\Uuid::parse(Ids::trimmed($s));
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v?->toString() ?? "null";
+    }
+}
+
+// The first text is a UUID after `trimmed` removes the spaces. `"nope"` is not a UUID,
+// and `""` makes `trimmed` throw. Both give `null`.
+array<string> $inputs = [" 00000000-0000-4000-8000-000000000000 ", "nope", ""];
+foreach ($inputs as string $s) {
+    echo Ids::read($s), "\n";
+}
+--EXPECT--
+00000000-0000-4000-8000-000000000000
+null
+null

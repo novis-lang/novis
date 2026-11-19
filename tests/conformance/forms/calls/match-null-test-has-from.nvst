@@ -1,0 +1,24 @@
+--TEST--
+`Core\Regex::match` with a `from` option, compared with `null`, looks for the pattern only from that position — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Find {
+    public static function hasFrom(string $s, string $p, int $from): string {
+        if (Core\Regex::match($s, $p, {from: $from}) == null) {
+            return "no";
+        }
+        return "yes";
+    }
+}
+
+// The only digit is at position 1. From position 2 it is not found.
+echo Find::hasFrom("a1bc", "\\d", 0), "\n";
+echo Find::hasFrom("a1bc", "\\d", 2), "\n";
+// A negative `from` counts from the end of the text.
+echo Find::hasFrom("a1bc", "c", -1), "\n";
+echo Core\Regex::match("abc", "a", {from: 1}) is null ? "missing" : "found", "\n";
+--EXPECT--
+yes
+no
+yes
+missing

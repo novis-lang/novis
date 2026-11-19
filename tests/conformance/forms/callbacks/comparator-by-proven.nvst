@@ -1,0 +1,38 @@
+--TEST--
+`sort`, `diff` and `intersect` with a comparator that compares one expression of each side, which writes nothing and cannot throw, order and match by that expression — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// `"bb"` and `"cc"` have the same length, and so do `"a"` and `"d"`.
+array<string> $words = ["bb", "a", "eee", "cc", "d"];
+
+// The comparator compares the lengths, so the shortest word comes first.
+// Words of equal length keep their order from the input.
+array<string> $sorted = Core\Arr::sort($words, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)});
+echo Core\Str::join($sorted, ","), "\n";
+
+// The comparator can use any one expression of each side. Here it is the absolute value.
+// `-2` and `2` are equal by that value, and so are `3` and `-3`.
+array<int> $nums = [3, -2, 1, 2, -3];
+array<int> $byAbs = Core\Arr::sort($nums, {comparator: fn(int $a, int $b): int => Core\Math::abs($a) <=> Core\Math::abs($b)});
+echo Core\Json::encode($byAbs), "\n";
+
+// `diff` keeps each word whose length no word in the second array has.
+// The second array has lengths 1 and 3, so only the words of length 2 are left.
+array<string> $other = ["x", "yyy"];
+echo Core\Json::encode(Core\Arr::diff($words, $other, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+
+// `intersect` keeps each word whose length a word in the second array has.
+echo Core\Json::encode(Core\Arr::intersect($words, $other, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+
+// With string keys, `diff` and `intersect` keep the keys of the first array.
+array<string> $pets = ['p' => "cat", 'q' => "dog", 'r' => "horse"];
+array<string> $short = ["owl"];
+echo Core\Json::encode(Core\Arr::diff($pets, $short, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+echo Core\Json::encode(Core\Arr::intersect($pets, $short, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+--EXPECT--
+a,d,bb,cc,eee
+[1,-2,2,3,-3]
+{"0":"bb","3":"cc"}
+{"1":"a","2":"eee","4":"d"}
+{"r":"horse"}
+{"p":"cat","q":"dog"}

@@ -1,0 +1,18 @@
+--TEST--
+An array literal with a spread of another array adds that array's entries at the place of the spread — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// `...$middle` adds the entries of `$middle` between `1` and `4`.
+array<int> $middle = [2, 3];
+array<int> $a = [1, ...$middle, 4];
+echo Core\Json::encode($a), "\n";
+echo Core\Json::encode(Core\Arr::keys($a)), "\n";
+
+// A spread of an empty list adds nothing.
+array<int> $none = [];
+array<int> $b = [7, ...$none, 8];
+echo Core\Json::encode($b), "\n";
+--EXPECT--
+[1,2,3,4]
+["0","1","2","3"]
+[7,8]

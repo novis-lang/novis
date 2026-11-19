@@ -1,0 +1,24 @@
+--TEST--
+An array literal with constant keys, no two equal, keeps every entry in the order it is written — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// The keys are an integer, strings, and a string that looks like an integer.
+array<string> $a = [10 => 'ten', 'b' => 'bee', '1' => 'one', 0 => 'zero', 'a' => 'ay'];
+
+// The entries keep the order they are written in.
+echo Core\Json::encode(Core\Arr::keys($a)), "\n";
+echo Core\Json::encode(Core\Arr::values($a)), "\n";
+
+// `$a[1]` and `$a['1']` read the same entry, because a key is always a string.
+echo $a[1], " ", $a['1'], " ", $a[10], " ", $a['b'], " ", $a[0], "\n";
+echo Core\Arr::count($a), "\n";
+
+// A literal with no keys numbers its entries from 0.
+array<string> $list = ['x', 'y', 'z'];
+echo Core\Json::encode(Core\Arr::keys($list)), " ", $list[2], "\n";
+--EXPECT--
+["10","b","1","0","a"]
+["ten","bee","one","zero","ay"]
+one one ten bee zero
+5
+["0","1","2"] z

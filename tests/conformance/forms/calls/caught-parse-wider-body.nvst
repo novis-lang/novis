@@ -1,0 +1,26 @@
+--TEST--
+`Core\Uuid::parse` in a `try` that does more after the parse runs that step only where the parse works — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Ids {
+    public static function read(string $s): string {
+        ?Core\Uuid $v = null;
+        try {
+            $v = Core\Uuid::parse($s);
+            // This line runs only when the parse works.
+            echo "parsed ";
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v?->toString() ?? "null";
+    }
+}
+
+array<string> $inputs = ["0123ABCD-0000-4000-8000-00000000000F", "nope", ""];
+foreach ($inputs as string $s) {
+    echo Ids::read($s), "\n";
+}
+--EXPECT--
+parsed 0123abcd-0000-4000-8000-00000000000f
+null
+null

@@ -1,0 +1,37 @@
+--TEST--
+`sort` with a comparator that compares one expression of the second side with the first, where that expression can throw, throws the error for an entry that cannot be converted — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// Every value converts to a whole number, so nothing throws. The largest number comes first.
+// `"02"` and `"2"` are the same number, and they keep their order from the input.
+array<string> $good = ["10", "02", "3", "2"];
+array<string> $sorted = Core\Arr::sort($good, {comparator: fn(string $a, string $b): int => ($b as int) <=> ($a as int)});
+echo Core\Str::join($sorted, ","), "\n";
+
+// `"x"` is not a whole number, so `as int` throws an error when the comparator gets it.
+array<string> $bad = ["10", "02", "x", "2"];
+try {
+    array<string> $out = Core\Arr::sort($bad, {comparator: fn(string $a, string $b): int => ($b as int) <=> ($a as int)});
+    echo "no error: ", Core\Str::join($out, ","), "\n";
+} catch (Throwable $e) {
+    echo "conversion error\n";
+}
+
+// The comparator reads `$rank[$a]`. The key `cy` is missing, so the read throws an error.
+array<int> $rank = ['ada' => 2, 'bo' => 1];
+array<string> $people = ['ada', 'bo', 'cy'];
+try {
+    array<string> $ranked = Core\Arr::sort($people, {comparator: fn(string $a, string $b): int => $rank[$b] <=> $rank[$a]});
+    echo "no error: ", Core\Str::join($ranked, ","), "\n";
+} catch (Throwable $e) {
+    echo "missing key\n";
+}
+
+// Without `cy`, nothing throws. `ada` has the higher rank, so it comes first.
+array<string> $known = ['bo', 'ada'];
+echo Core\Str::join(Core\Arr::sort($known, {comparator: fn(string $a, string $b): int => $rank[$b] <=> $rank[$a]}), ","), "\n";
+--EXPECT--
+10,3,02,2
+conversion error
+missing key
+ada,bo

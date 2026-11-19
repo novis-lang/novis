@@ -1,0 +1,45 @@
+--TEST--
+A class's own `parse` in a `try`, whose `catch` sets the variable to `null`, gives the value or `null` where the class has no `tryParse` — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// `Port::parse` returns a port number from 1 to 65535, and throws an error for anything else.
+// `Port` has no `tryParse` method.
+final class Port {
+    public int $number;
+
+    public function constructor(int $number) {
+        $this->number = $number;
+    }
+
+    public static function parse(string $s): Port {
+        int $n = $s as int;
+        if ($n < 1 || $n > 65535) {
+            throw new RuntimeError("not a port: " . $s);
+        }
+        return new Port($n);
+    }
+}
+
+final class Ports {
+    public static function read(string $s): string {
+        ?Port $v = null;
+        try {
+            $v = Port::parse($s);
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v == null ? "null" : $v->number as string;
+    }
+}
+
+// `"8080"` and `"1"` are ports. `"0"` and `"70000"` are out of range, and `"web"` is not a number.
+array<string> $inputs = ["8080", "1", "0", "70000", "web"];
+foreach ($inputs as string $s) {
+    echo Ports::read($s), "\n";
+}
+--EXPECT--
+8080
+1
+null
+null
+null

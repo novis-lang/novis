@@ -1,0 +1,42 @@
+--TEST--
+A method whose only line is `return $this->name;` gives the value the property has when the method is called — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class User {
+    private string $name;
+    private ?int $age = null;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function getName(): string {
+        return $this->name;
+    }
+
+    public function getAge(): ?int {
+        return $this->age;
+    }
+
+    public function rename(string $name): void {
+        $this->name = $name;
+    }
+
+    public function setAge(int $age): void {
+        $this->age = $age;
+    }
+}
+
+User $u = new User("ana");
+string $before = $u->getName();
+$u->rename("bo");
+// `$before` keeps the old name. The second call gives the new name.
+echo $before, " ", $u->getName(), "\n";
+// `age` has no value yet, so `getAge` returns `null`.
+echo Core\Json::encode($u->getAge()), "\n";
+$u->setAge(30);
+echo Core\Json::encode($u->getAge()), "\n";
+--EXPECT--
+ana bo
+null
+30

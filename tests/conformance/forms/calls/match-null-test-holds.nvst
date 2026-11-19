@@ -1,0 +1,34 @@
+--TEST--
+`Core\Regex::match` compared with `null` tells whether the pattern is found in the text — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Find {
+    public static function has(string $s, string $p): string {
+        if (Core\Regex::match($s, $p) == null) {
+            return "no";
+        }
+        return "yes";
+    }
+}
+
+// `\d+` is found in the first text and not in the second.
+echo Find::has("order 4711", "\\d+"), "\n";
+echo Find::has("no digits", "\\d+"), "\n";
+// An empty pattern is found in any text, also in an empty one.
+echo Find::has("", ""), "\n";
+// `!=` and `is null` give the same answers.
+echo Core\Regex::match("abc", "b") != null ? "found" : "missing", "\n";
+echo Core\Regex::match("abc", "^b") is null ? "missing" : "found", "\n";
+// A pattern that is not valid throws an error.
+try {
+    echo Core\Regex::match("abc", "(") == null ? "no" : "yes", "\n";
+} catch (Throwable $e) {
+    echo "error\n";
+}
+--EXPECT--
+yes
+no
+yes
+found
+missing
+error

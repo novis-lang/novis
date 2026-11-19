@@ -1,0 +1,31 @@
+--TEST--
+A conversion with `as int` in a `try`, whose `catch` sets the variable to `null`, gives the number or `null` — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Convert {
+    public static function toInt(mixed $x): ?int {
+        ?int $v = 0;
+        try {
+            $v = $x as int;
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v;
+    }
+}
+
+// `"42"`, `7` and `5.0` convert. The other values do not, so the result is `null`.
+array<mixed> $inputs = ["42", 7, 5.0, "abc", 3.9, " 5", "", null, true];
+foreach ($inputs as mixed $x) {
+    echo Core\Json::encode(Convert::toInt($x)), "\n";
+}
+--EXPECT--
+42
+7
+5
+null
+null
+null
+null
+null
+null

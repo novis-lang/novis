@@ -1,0 +1,19 @@
+--TEST--
+An array literal where two keys are equal keeps one entry with the last value, at the place of the first key — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// `1` and `'1'` are the same key, so the literal has one entry for it.
+// The entry stays in the first place, and its value is the last one written.
+array<string> $a = [1 => 'first', 'b' => 'bee', '1' => 'last'];
+echo Core\Json::encode(Core\Arr::keys($a)), "\n";
+echo Core\Json::encode(Core\Arr::values($a)), "\n";
+echo Core\Arr::count($a), " ", $a[1], "\n";
+
+// The same string key written twice also gives one entry.
+array<int> $b = ['x' => 1, 'y' => 2, 'x' => 3];
+echo Core\Json::encode($b), "\n";
+--EXPECT--
+["1","b"]
+["last","bee"]
+2 last
+{"x":3,"y":2}

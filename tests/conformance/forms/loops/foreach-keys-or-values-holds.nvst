@@ -1,0 +1,43 @@
+--TEST--
+A loop over `Core\Arr::keys` or `Core\Arr::values` of a map walks the entries the map had when the loop began, even when the body changes the map — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+array<int> $m = [3 => 30, 'b' => 20, 1 => 10];
+
+// This loop prints the keys in order. A key is always a string.
+foreach (Core\Arr::keys($m) as string $k) {
+    // The body adds a new key and changes an old one.
+    $m['new' . $k] = 0;
+    $m['b'] = 99;
+    echo $k, ";";
+}
+echo "\n";
+echo Core\Arr::count($m), "\n";
+
+array<int> $n = [3 => 30, 'b' => 20, 1 => 10];
+
+// This loop prints the values in order.
+foreach (Core\Arr::values($n) as int $v) {
+    // The body changes the next value and adds one. The loop still prints `30;20;10;`.
+    $n['b'] = $v + 1;
+    $n['x' . $v] = $v;
+    echo $v, ";";
+}
+echo "\n";
+echo $n['b'], " ", Core\Arr::count($n), "\n";
+
+// A loop over an empty map runs its body zero times.
+array<int> $empty = [];
+foreach (Core\Arr::keys($empty) as string $k) {
+    echo "key ", $k, "\n";
+}
+foreach (Core\Arr::values($empty) as int $v) {
+    echo "value ", $v, "\n";
+}
+echo "done\n";
+--EXPECT--
+3;b;1;
+6
+30;20;10;
+11 6
+done

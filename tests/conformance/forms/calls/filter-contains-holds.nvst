@@ -1,0 +1,40 @@
+--TEST--
+`Core\Arr::filter` with a test of `Core\Arr::contains` keeps the entries of `a` that are in `b`, or that are not, with their keys and their order — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Sets {
+    public static function without(array<int|float> $a, array<int|float> $b): array<int|float> {
+        return Core\Arr::filter($a, fn(int|float $x): bool => !Core\Arr::contains($b, $x));
+    }
+
+    public static function within(array<int|float> $a, array<int|float> $b): array<int|float> {
+        return Core\Arr::filter($a, fn(int|float $x): bool => Core\Arr::contains($b, $x));
+    }
+
+    public static function words(array<string> $a, array<string> $b): array<string> {
+        return Core\Arr::filter($a, fn(string $x): bool => !Core\Arr::contains($b, $x));
+    }
+}
+
+// `a` has `2` twice. Both copies are removed, and the other keys stay as they were.
+echo Core\Json::encode(Sets::without([1, 2, 3, 2, 4], [2, 4])), "\n";
+// Both copies of `2` are kept, at keys `1` and `3`.
+echo Core\Json::encode(Sets::within([1, 2, 3, 2, 4], [2, 4])), "\n";
+// `2.0` is equal to `2`.
+echo Core\Json::encode(Sets::without([1, 2, 3], [2.0])), "\n";
+echo Core\Json::encode(Sets::within([1, 2, 3], [2.0])), "\n";
+// An empty `b` keeps every entry, and an empty `a` gives an empty array.
+echo Core\Json::encode(Sets::without([5, 6], [])), "\n";
+echo Core\Json::encode(Sets::within([], [1])), "\n";
+// String keys stay with their values.
+echo Core\Json::encode(Core\Arr::filter(['x' => 'red', 'y' => 'blue', 'z' => 'red'], fn(string $s): bool => !Core\Arr::contains(['blue'], $s))), "\n";
+echo Core\Json::encode(Sets::words(['b', 'a', 'c'], ['c'])), "\n";
+--EXPECT--
+{"0":1,"2":3}
+{"1":2,"3":2,"4":4}
+{"0":1,"2":3}
+{"1":2}
+[5,6]
+[]
+{"x":"red","z":"red"}
+["b","a"]

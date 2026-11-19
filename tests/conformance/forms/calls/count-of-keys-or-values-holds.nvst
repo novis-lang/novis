@@ -1,0 +1,23 @@
+--TEST--
+`Core\Arr::count` of `Core\Arr::keys` or `Core\Arr::values` is the number of entries in the array — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Sizes {
+    public static function show(array<int> $m): string {
+        uint $keys = Core\Arr::count(Core\Arr::keys($m));
+        uint $values =Core\Arr::count(Core\Arr::values($m));
+        return $keys . " " . $values;
+    }
+}
+
+// Two keys have the same value. The count is still `3`.
+echo Sizes::show(['a' => 1, 'b' => 1, 'c' => 2]), "\n";
+// An empty array has no keys and no values, so both counts are `0`.
+echo Sizes::show([]), "\n";
+// A list with gaps in its keys.
+array<int> $list = Core\Arr::filter([10, 20, 30, 40], fn(int $x): bool => $x != 20);
+echo Core\Arr::count(Core\Arr::keys($list)), " ", Core\Arr::count(Core\Arr::values($list)), "\n";
+--EXPECT--
+3 3
+0 0
+3 3

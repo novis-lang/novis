@@ -1,0 +1,21 @@
+--TEST--
+`Core\Arr::filter` with a test of `Core\Arr::contains` uses the value `b` has when the filter runs, where the function assigns `b` again — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Sets {
+    public static function twice(array<int> $a): string {
+        array<int> $b = [1, 2];
+        array<int> $first = Core\Arr::filter($a, fn(int $x): bool => !Core\Arr::contains($b, $x));
+        // `$b` changes here, so the second filter removes `3` and keeps `1` and `2`.
+        $b = [3];
+        array<int> $second = Core\Arr::filter($a, fn(int $x): bool => !Core\Arr::contains($b, $x));
+        array<int> $kept = Core\Arr::filter($a, fn(int $x): bool => Core\Arr::contains($b, $x));
+        return Core\Json::encode($first) . " " . Core\Json::encode($second) . " " . Core\Json::encode($kept);
+    }
+}
+
+echo Sets::twice([1, 2, 3, 1]), "\n";
+echo Sets::twice([]), "\n";
+--EXPECT--
+{"2":3} {"0":1,"1":2,"3":1} {"2":3}
+[] [] []

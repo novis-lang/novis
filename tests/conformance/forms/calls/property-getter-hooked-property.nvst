@@ -1,0 +1,33 @@
+--TEST--
+A method whose only line is `return $this->name;` runs the property's `get` hook on every call, where the property has one — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class User {
+    public int $reads = 0;
+
+    // The `get` hook counts each read and returns the name in angle brackets.
+    public string $name {
+        get {
+            $this->reads = $this->reads + 1;
+            return "<" . $this->name . ">";
+        }
+    }
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function getName(): string {
+        return $this->name;
+    }
+}
+
+User $u = new User("ana");
+echo $u->getName(), "\n";
+echo $u->getName(), "\n";
+// The hook ran once for each call, so this prints `2`.
+echo $u->reads, "\n";
+--EXPECT--
+<ana>
+<ana>
+2

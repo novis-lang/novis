@@ -1,0 +1,31 @@
+--TEST--
+`static::m()` and `static::NAME` in a base class method reach the base class's method and constant when no subclass declares them again — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+class Base {
+    public const string NAME = "base";
+
+    public static function m(): string {
+        return "Base::m";
+    }
+
+    // `static::m()` and `static::NAME` use the class the call was made on.
+    public static function describe(): string {
+        return static::m() . " " . static::NAME;
+    }
+}
+
+// `Child` declares neither `m` nor `NAME`, so it uses the ones from `Base`.
+class Child extends Base {
+    public static function other(): string {
+        return "Child::other";
+    }
+}
+
+echo Base::describe(), "\n";
+echo Child::describe(), "\n";
+echo Child::other(), "\n";
+--EXPECT--
+Base::m base
+Base::m base
+Child::other

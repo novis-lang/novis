@@ -1,0 +1,29 @@
+--TEST--
+`static::m()` in a base class method calls the subclass's `m` when the call is made on a subclass that overrides it — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+class Base {
+    public const string NAME = "base";
+
+    public static function m(): string {
+        return "Base::m";
+    }
+
+    // `static::m()` and `static::NAME` use the class the call was made on.
+    public static function describe(): string {
+        return static::m() . " " . static::NAME;
+    }
+}
+
+// `Child` overrides `m`, so `Child::describe()` prints `Child::m`.
+class Child extends Base {
+    public static function m(): string {
+        return "Child::m";
+    }
+}
+
+echo Base::describe(), "\n";
+echo Child::describe(), "\n";
+--EXPECT--
+Base::m base
+Child::m base

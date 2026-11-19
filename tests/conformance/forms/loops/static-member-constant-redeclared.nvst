@@ -1,0 +1,29 @@
+--TEST--
+`static::NAME` in a base class method reads the subclass's constant when the call is made on a subclass that declares `NAME` again — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+class Base {
+    public const string NAME = "base";
+
+    public static function m(): string {
+        return "Base::m";
+    }
+
+    // `static::m()` and `static::NAME` use the class the call was made on.
+    public static function describe(): string {
+        return static::m() . " " . static::NAME;
+    }
+}
+
+// `Child` declares `NAME` again, so `Child::describe()` prints `child`.
+class Child extends Base {
+    public const string NAME = "child";
+}
+
+echo Base::describe(), "\n";
+echo Child::describe(), "\n";
+echo Base::NAME, " ", Child::NAME, "\n";
+--EXPECT--
+Base::m base
+Base::m child
+base child

@@ -1,0 +1,33 @@
+--TEST--
+`Core\Arr::count` of `Core\Arr::filter` compared with `0`, and `Core\Arr::isEmpty` of it, with a callback that writes nothing and cannot throw, tells whether any entry matches — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+array<int> $nums = [1, 5, 2, 7, 3];
+
+// Two entries are greater than 4, so the count is above `0`.
+echo Core\Arr::count(Core\Arr::filter($nums, fn(int $x): bool => $x > 4)) > 0 ? "some" : "none", "\n";
+// No entry is greater than 10, so the count is `0`.
+echo Core\Arr::count(Core\Arr::filter($nums, fn(int $x): bool => $x > 10)) == 0 ? "none" : "some", "\n";
+// `!= 0` is true when at least one entry matches. `7` matches.
+echo Core\Arr::count(Core\Arr::filter($nums, fn(int $x): bool => $x == 7)) != 0 ? "some" : "none", "\n";
+
+// `isEmpty` is true when nothing matches. No entry is negative.
+echo Core\Arr::isEmpty(Core\Arr::filter($nums, fn(int $x): bool => $x < 0)) ? "none" : "some", "\n";
+// `!` turns it around. `1` is odd, so the result is `some`.
+echo !Core\Arr::isEmpty(Core\Arr::filter($nums, fn(int $x): bool => $x % 2 == 1)) ? "some" : "none", "\n";
+
+// The callback may also read the key. One key starts with `b`.
+array<int> $prices = ['apple' => 10, 'banana' => 20, 'cherry' => 30];
+echo Core\Arr::count(Core\Arr::filter($prices, fn(int $v, string $k): bool => Core\Str::startsWith($k, 'b'))) > 0 ? "some" : "none", "\n";
+
+// An empty array has no entry that matches.
+array<int> $empty = [];
+echo Core\Arr::isEmpty(Core\Arr::filter($empty, fn(int $x): bool => $x > 0)) ? "none" : "some", "\n";
+--EXPECT--
+some
+none
+some
+none
+some
+some
+none

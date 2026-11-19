@@ -1,0 +1,28 @@
+--TEST--
+A loop that names a key and never reads it still walks every value in order — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// The body reads only `$name`, so this prints the values of the list in order.
+array<string> $list = ['a', 'b', 'c'];
+foreach ($list as string $k => string $name) {
+    echo $name, ";";
+}
+echo "\n";
+
+// The same loop over a map with string and integer keys.
+array<int> $map = ['x' => 1, 5 => 2, 'y' => 3, 0 => 4];
+foreach ($map as string $k => int $v) {
+    echo $v, ";";
+}
+echo "\n";
+
+// An empty map runs the body zero times.
+array<int> $empty = [];
+foreach ($empty as string $k => int $v) {
+    echo $v, ";";
+}
+echo "done\n";
+--EXPECT--
+a;b;c;
+1;2;3;4;
+done

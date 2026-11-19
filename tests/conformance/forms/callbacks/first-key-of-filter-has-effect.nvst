@@ -1,0 +1,38 @@
+--TEST--
+`Core\Arr::firstKey` of `Core\Arr::filter` with a callback that counts or prints calls the callback for every entry — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Tally {
+    public static int $calls = 0;
+}
+
+array<int> $nums = [1, 5, 2, 7, 3];
+// The callback adds 1 to `Tally::$calls` each time it runs.
+?string $found = Core\Arr::firstKey(Core\Arr::filter($nums, fn(int $x): bool => {
+    Tally::$calls = Tally::$calls + 1;
+    return $x > 2;
+}));
+// The result is the key `1`, and the callback ran once for each of the 5 entries.
+echo $found ?? "null", " ", Tally::$calls, "\n";
+
+// This callback prints each value it checks. It prints all three values, then the key `banana`.
+array<int> $prices = ['apple' => 10, 'banana' => 20, 'berry' => 30];
+?string $name = Core\Arr::firstKey(Core\Arr::filter($prices, fn(int $v): bool => {
+    echo $v, "\n";
+    return $v > 15;
+}));
+echo $name ?? "null", "\n";
+
+// Nothing matches, so the result is `null`. The callback still ran 5 more times.
+?string $none = Core\Arr::firstKey(Core\Arr::filter($nums, fn(int $x): bool => {
+    Tally::$calls = Tally::$calls + 1;
+    return $x > 10;
+}));
+echo $none ?? "null", " ", Tally::$calls, "\n";
+--EXPECT--
+1 5
+10
+20
+30
+banana
+null 10

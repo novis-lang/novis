@@ -1,0 +1,34 @@
+--TEST--
+`Core\Uuid::parse` in a `try`, whose `catch` sets the variable to `null`, gives the UUID or `null` — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Ids {
+    public static function read(string $s): string {
+        ?Core\Uuid $v = null;
+        try {
+            $v = Core\Uuid::parse($s);
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v?->toString() ?? "null";
+    }
+}
+
+// The first two texts are UUIDs. Upper-case letters are written in lower case.
+// The other texts are not UUIDs, so the result is `null`.
+array<string> $inputs = [
+    "00000000-0000-4000-8000-000000000000",
+    "0123ABCD-0000-4000-8000-00000000000F",
+    "0123abcd000040008000000000000000",
+    "nope",
+    "",
+];
+foreach ($inputs as string $s) {
+    echo Ids::read($s), "\n";
+}
+--EXPECT--
+00000000-0000-4000-8000-000000000000
+0123abcd-0000-4000-8000-00000000000f
+null
+null
+null

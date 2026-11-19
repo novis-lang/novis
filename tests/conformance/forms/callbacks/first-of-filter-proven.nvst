@@ -1,0 +1,27 @@
+--TEST--
+`Core\Arr::first` of `Core\Arr::filter` with a callback that writes nothing and cannot throw returns the first entry that matches, or `null` — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+array<int> $nums = [1, 5, 2, 7, 3];
+// The first entry greater than 2 is `5`.
+?int $found = Core\Arr::first(Core\Arr::filter($nums, fn(int $x): bool => $x > 2));
+echo $found ?? -1, "\n";
+
+// No entry is greater than 10, so `first` returns `null`.
+?int $none = Core\Arr::first(Core\Arr::filter($nums, fn(int $x): bool => $x > 10));
+echo $none is null ? "null" : "not null", "\n";
+
+// The callback may also read the key. The first entry whose key starts with `b` is `20`.
+array<int> $prices = ['apple' => 10, 'banana' => 20, 'berry' => 30];
+?int $price = Core\Arr::first(Core\Arr::filter($prices, fn(int $v, string $k): bool => Core\Str::startsWith($k, 'b')));
+echo $price ?? -1, "\n";
+
+// An empty array has no first entry, so the result is `null`.
+array<int> $empty = [];
+?int $nothing = Core\Arr::first(Core\Arr::filter($empty, fn(int $x): bool => $x > 0));
+echo $nothing is null ? "null" : "not null", "\n";
+--EXPECT--
+5
+null
+20
+null

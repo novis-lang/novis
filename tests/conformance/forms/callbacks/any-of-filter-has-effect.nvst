@@ -1,0 +1,38 @@
+--TEST--
+`Core\Arr::count` and `Core\Arr::isEmpty` of `Core\Arr::filter` with a callback that counts or prints call the callback for every entry — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Tally {
+    public static int $calls = 0;
+}
+
+array<int> $nums = [1, 5, 2, 7, 3];
+// The callback adds 1 to `Tally::$calls` each time it runs.
+bool $any = Core\Arr::count(Core\Arr::filter($nums, fn(int $x): bool => {
+    Tally::$calls = Tally::$calls + 1;
+    return $x > 2;
+})) > 0;
+// `5` matches, and the callback ran once for each of the 5 entries.
+echo $any ? "some" : "none", " ", Tally::$calls, "\n";
+
+// The same with `isEmpty`. The callback ran 5 more times.
+bool $empty = Core\Arr::isEmpty(Core\Arr::filter($nums, fn(int $x): bool => {
+    Tally::$calls = Tally::$calls + 1;
+    return $x == 1;
+}));
+echo $empty ? "none" : "some", " ", Tally::$calls, "\n";
+
+// This callback prints each key it checks. It prints all three keys, then `some`.
+array<int> $prices = ['apple' => 10, 'banana' => 20, 'cherry' => 30];
+bool $found = Core\Arr::count(Core\Arr::filter($prices, fn(int $v, string $k): bool => {
+    echo $k, "\n";
+    return $v > 5;
+})) != 0;
+echo $found ? "some" : "none", "\n";
+--EXPECT--
+some 5
+some 10
+apple
+banana
+cherry
+some

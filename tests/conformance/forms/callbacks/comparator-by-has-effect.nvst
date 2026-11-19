@@ -1,0 +1,34 @@
+--TEST--
+`sort`, `diff` and `intersect` with a comparator that counts its calls run the comparator, and give the same result as without the count — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Tally {
+    public static int $calls = 0;
+
+    // Adds 1 to `Tally::$calls`, then returns the length of `$s`.
+    public static function length(string $s): int {
+        Tally::$calls = Tally::$calls + 1;
+        return Core\Str::length($s) as int;
+    }
+}
+
+// `"bb"` and `"cc"` have the same length, and so do `"a"` and `"d"`.
+array<string> $words = ["bb", "a", "eee", "cc", "d"];
+array<string> $other = ["x", "yyy"];
+
+// The comparator counts each call. The number of calls depends on how the sort works,
+// so this prints only whether the comparator ran.
+array<string> $sorted = Core\Arr::sort($words, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
+echo Core\Str::join($sorted, ","), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
+
+Tally::$calls = 0;
+array<string> $left = Core\Arr::diff($words, $other, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
+echo Core\Json::encode($left), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
+
+Tally::$calls = 0;
+array<string> $both = Core\Arr::intersect($words, $other, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
+echo Core\Json::encode($both), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
+--EXPECT--
+a,d,bb,cc,eee ran
+{"0":"bb","3":"cc"} ran
+{"1":"a","2":"eee","4":"d"} ran

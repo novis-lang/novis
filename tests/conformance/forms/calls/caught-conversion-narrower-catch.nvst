@@ -1,0 +1,32 @@
+--TEST--
+A conversion with `as int` in a `try` that catches only `LogicError` does not catch the error a failed conversion throws — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Convert {
+    public static function toInt(mixed $x): ?int {
+        ?int $v = 0;
+        try {
+            $v = $x as int;
+        } catch (LogicError) {
+            $v = null;
+        }
+        return $v;
+    }
+}
+
+// A failed conversion throws a `RuntimeError`. The `catch (LogicError)` arm does not run,
+// so the error reaches this loop.
+array<mixed> $inputs = ["42", 5.0, "abc", 3.9, null];
+foreach ($inputs as mixed $x) {
+    try {
+        echo Core\Json::encode(Convert::toInt($x)), "\n";
+    } catch (RuntimeError) {
+        echo "error\n";
+    }
+}
+--EXPECT--
+42
+5
+error
+error
+error

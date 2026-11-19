@@ -1,0 +1,33 @@
+--TEST--
+A conversion with `as int` in a `try`, whose value comes from a call that can throw, gives `null` for an error from the call as well — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Convert {
+    // `read` throws an error for an empty string.
+    public static function read(string $s): mixed {
+        if ($s == "") {
+            throw new RuntimeError("empty");
+        }
+        return $s;
+    }
+
+    public static function toInt(string $s): ?int {
+        ?int $v = 0;
+        try {
+            $v = Convert::read($s) as int;
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v;
+    }
+}
+
+// `"42"` converts. `"abc"` does not convert, and `""` makes `read` throw. Both give `null`.
+array<string> $inputs = ["42", "abc", ""];
+foreach ($inputs as string $s) {
+    echo Core\Json::encode(Convert::toInt($s)), "\n";
+}
+--EXPECT--
+42
+null
+null

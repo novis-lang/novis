@@ -1,0 +1,28 @@
+--TEST--
+A conversion with `as int` in a `try` that does more after the conversion runs that step only where the conversion works — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+final class Convert {
+    public static function toInt(mixed $x): ?int {
+        ?int $v = 0;
+        try {
+            $v = $x as int;
+            // This line runs only when the conversion works.
+            echo "converted ";
+        } catch (RuntimeError) {
+            $v = null;
+        }
+        return $v;
+    }
+}
+
+array<mixed> $inputs = ["42", 5.0, "abc", 3.9, null];
+foreach ($inputs as mixed $x) {
+    echo Core\Json::encode(Convert::toInt($x)), "\n";
+}
+--EXPECT--
+converted 42
+converted 5
+null
+null
+null

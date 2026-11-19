@@ -1,0 +1,29 @@
+--TEST--
+A loop over `Core\Arr::range` with a step of zero or less throws an error before its body runs once — `rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`
+--FILE--
+<?nvs
+// A step of 0 throws an error. The body never runs, so nothing is printed before the message.
+try {
+    foreach (Core\Arr::range(1, 5, options: {step: 0}) as int $i) {
+        echo "body ", $i, "\n";
+    }
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+// A negative step also throws an error, and also when counting down.
+int $step = -2;
+try {
+    foreach (Core\Arr::range(5, 1, options: {step: $step}) as int $i) {
+        echo "body ", $i, "\n";
+    }
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+echo "done\n";
+--EXPECT--
+Core\Arr::range(): the `step` option must be greater than 0, got 0
+Core\Arr::range(): the `step` option must be greater than 0, got -2
+done
