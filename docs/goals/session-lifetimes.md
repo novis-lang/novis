@@ -470,44 +470,33 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 to 8 are done. Stage 9 is under way: the full gate's `looper verify` ran twice and is red.
-`cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+Stages 1 to 8 are done. Stage 9 is under way: the fix pass for the second red verify is committed, and
+the third `looper verify` was started at the end of this session. `cargo build`, `cargo clippy
+--all-targets -- -D warnings` and `cargo fmt --check` are green.
 
-Fixed and committed this session (`b5c52dcb8f`, `c49a3e165b`, `cbcfc89ee3`):
-- `bun nv rules --check`: eleven rule records named session and passkey cases the first-use open
-  renamed. Each names its successor now.
-- `nvs-fmt` identity: four corpus files and the `Time-Date.md` block were reformatted, and the website
-  data rerendered.
-- `nvs-ir` keyed-literal snapshots run under `without_cheaper_forms`. The `nvs-lsp` index scan, and
-  both `capability.rs` scans (`trace_target` moved to `http/span.rs`; the argument splitter ignores a
-  trailing comma). All eight tests pass by name.
-- The Backlog's `afterResponse` read is settled (Standing decisions, stage 9).
+Fixed and committed this session, each test green by name:
+- `07fc64a665`: `nvs-stdlib --test in_place`. `LAST_PIECE_OWNERS` admits `Core\Str::split`, the one
+  exception the rule already names, and its `TextRow::LastPiece` row checks that a positive limit's
+  last piece is a sole subject's own allocation.
+- `05c6119541`: `nvs-stdlib --test enum_owners`. The weekday enum is `Core\Time\Weekday` everywhere:
+  registry, examples (`docs/examples/types/Time-Weekday/`), cases, attacks, benches, references,
+  website data, and the enum rule's "stays" list.
+- `224ead3328`: `nvs-stdlib --test conformance_coverage`. Four cases under `tests/conformance/core/`
+  (`time-readers-carry-…`, `time-date-at-start-of-day-…`, two `reflect-parent-…`) lift the 17 thin
+  `Core\Time` readers, `Date::atStartOfDay` and `ClassInfo::parent` to three cases each.
+- `42ae5e46ba`: rustfmt on `crates/nvs-stdlib/src/http.rs`, left by an earlier goal.
 
-`bun nv owners --closes session-lifetimes` names no gap. The sweep's reds are stale:
+`bun nv owners --closes session-lifetimes` named no gap last session. The sweep's reds are stale:
 `env-secret-proofs` is a retired goal's check, and nightly 44510687786 built `adc7487822`.
 
 ### Next
 
-Stage 9, the same pass: fix the three reds the gate still names, then run `looper verify` once more.
-Each came from an earlier goal in this gate (date-parts, cheaper-forms), not from this one.
-- `nvs-stdlib --test in_place`: `every_member_owns_exactly_what_its_signature_says` and
-  `every_string_member_has_a_row_here`. `00aa18de62` made `Core\Str::split` own its subject
-  (`crates/nvs-stdlib/src/str.rs` module doc), so the result is an array, not a string. The test's
-  `signature_owns` (`crates/nvs-stdlib/tests/in_place.rs:63`) and `TEXT_ROWS` (`:751`) need a row
-  kind for a member whose last array piece is the subject, with a check that the piece reuses the
-  allocation. `rule:types/a-replaced-value-is-changed-in-place` should name `split` as well.
-- `nvs-stdlib --test enum_owners`: `Core\Time\DateTime::Weekday` is used by `Core\Time\Date` too, so
-  by `crates/nvs-stdlib/tests/enum_owners.rs:146` it is declared in its namespace, as
-  `Core\Time\Weekday`. That rename covers the registry, the checker's enum table, examples and docs.
-  Run `bun nv brief --where enum` for the rule. The goal `time-constructors` is next on the chain and
-  touches the same classes.
-- `nvs-stdlib --test conformance_coverage`: 17 `Core\Time\DateTime` members (`day`, `hour`, `minute`,
-  `month`, `nanos` and more) are asked by 2 cases, and the floor is 3. Write one case that asks all
-  of them, under `tests/conformance/core/`. The full list is in `.agent-tmp/verify-test.log`, or comes
-  from `cargo test --test conformance_coverage`.
-Verify stopped at its test step, so the steps after it have not run yet. Then the goal-end gates:
-`bun nv verify --doc` and `bun nv ci --check`. Expect `perf: stale` for the Passkey, Csrf, Str and
-Http members whose source changed. Record them per the playbook's `perf: stale` bullet.
+Stage 9: read the third `looper verify`'s report. If it is green, run the goal-end gates, `bun nv
+verify --doc` and `bun nv ci --check`, then `DONE`. Expect `perf: stale` for the Passkey, Csrf, Str,
+Http and Time members whose source changed; record them per the playbook's `perf: stale` bullet. The
+verify steps after the test step have not run in this gate before, so a red there is new. If it is
+red, this stage has used its two sessions: fix what is quick, and stop with `BLOCKED` naming the item
+a fix pass cannot close.
 
 ### Backlog
 
