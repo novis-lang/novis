@@ -3,8 +3,18 @@
 
 // The list has one season for each month, from January to December.
 array<string> $seasons = [
-    'winter', 'winter', 'spring', 'spring', 'spring', 'summer',
-    'summer', 'summer', 'autumn', 'autumn', 'autumn', 'winter',
+    'winter',
+    'winter',
+    'spring',
+    'spring',
+    'spring',
+    'summer',
+    'summer',
+    'summer',
+    'autumn',
+    'autumn',
+    'autumn',
+    'winter',
 ];
 var $zone = Core\Time\Zone::of('Europe/Rome');
 

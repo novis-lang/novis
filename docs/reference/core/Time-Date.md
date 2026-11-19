@@ -39,8 +39,8 @@ try {
 var $utc = Core\Time\Zone::UTC;
 echo Core\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), "\n";
 
-echo $d->year(), " ", $d->month(), " ", $d->day(), "\n";
-echo $d->dayOfYear(), " ", $d->isLeapYear() ? "leap year" : "not a leap year", "\n";
+echo $d->year(), ' ', $d->month(), ' ', $d->day(), "\n";
+echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap year' : 'not a leap year', "\n";
 echo $d->atStartOfDay(Core\Time\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
 ```
 ```output

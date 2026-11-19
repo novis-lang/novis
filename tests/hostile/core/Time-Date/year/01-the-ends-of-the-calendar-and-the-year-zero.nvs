@@ -43,7 +43,7 @@ while ($count < 292194) {
     $day = $day->plus(1, Core\Unit::Day);
     $count = $count + 1;
 }
-echo $changes, ' new years, ', $wrong, " wrong, ends in ", $day->year(), "\n";
+echo $changes, ' new years, ', $wrong, ' wrong, ends in ', $day->year(), "\n";
 
 // 4. One million reads of the last year.
 int $round = 0;
