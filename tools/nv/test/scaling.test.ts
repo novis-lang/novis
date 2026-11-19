@@ -103,7 +103,7 @@ test("a made-up linear ladder passes its bound, a quadratic one fails, and an n 
 
 test("a ladder marked proposal that grows waits for the user, and one that does not grow keeps its verdict", () => {
   const grows: Judged = { bench: "benches/scaling/arrays/sort.nvs", verdict: "grows", sizes: [16, 32, 64, 128], slopes: {}, clock: null, notes: ["bytes grows"] };
-  const ladder = { kind: "run", start: 16, max: 128, expect: "linear", proposal: true, size: "" };
+  const ladder = { kind: "run", start: 16, max: 128, expect: "linear", proposal: true, size: "", rounds: null };
   expect(proposed(grows, ladder).verdict).toBe("proposal");
   expect(proposed(grows, { ...ladder, proposal: false }).verdict).toBe("grows");
   expect(proposed({ ...grows, verdict: "flat" }, ladder).verdict).toBe("flat");

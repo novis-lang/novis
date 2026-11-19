@@ -109,10 +109,13 @@ export interface CovwsOptions {
 /**
  * Deletes the files of `DISCARD_PROFILE`'s merge pool. Its `%m` names a file by a signature built from
  * the sizes of a binary's counters, so a rebuilt binary can share a name with an older one and then
- * fails to merge into it, printing `LLVM Profile Error` lines to the stderr of every run. Nothing
- * reads the pool, and a file another run still holds open is left for the next build.
+ * fails to merge into it, printing `LLVM Profile Error` lines to the stderr of every run, and every
+ * case that compares its stderr fails. Nothing reads the pool, and a file another run still holds open
+ * is left for the next build. Every build that hands out the covws `nvs` calls it: this module's
+ * `buildCovws`, and `PlanSweep`'s binary in `accept/runner.ts`, which also serves a binary `nv verify`
+ * built.
  */
-function emptyDiscardPool(): void {
+export function emptyDiscardPool(): void {
   const pool = dirname(DISCARD_PROFILE);
   if (!existsSync(pool)) return;
   for (const f of readdirSync(pool)) {

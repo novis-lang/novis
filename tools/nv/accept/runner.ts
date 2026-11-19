@@ -43,7 +43,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { cpus } from "node:os";
 import { join } from "node:path";
 import { allTestBinaries, metadata, type Graph, targetFilters } from "../keys/graph.ts";
-import { covwsCargo, covwsNvs } from "../lib/covws.ts";
+import { covwsCargo, covwsNvs, emptyDiscardPool } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run } from "../lib/proc.ts";
 import { linked, RELEASE_ARGV, releaseCli } from "../lib/relink.ts";
@@ -312,6 +312,8 @@ export class PlanSweep {
       const { env, args } = covwsCargo();
       const r = await capture(["cargo", "build", "--quiet", ...args], ROOT, env);
       if (r.code !== 0) return { fail: `the native build failed -- ${firstErrLine(r)}` };
+      // A profile an earlier build left in the pool would fail to merge and print to every case's stderr.
+      emptyDiscardPool();
       return covwsNvs();
     })();
     return this.cli;
