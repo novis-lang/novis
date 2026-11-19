@@ -8660,6 +8660,151 @@ mod tests {
         }
     }
 
+    /// `filter` with a test of `contains` and `diff` or `intersect` keep the
+    /// same entries of `$a`, under the same keys: the table of cheaper forms
+    /// compiles the first as the second
+    /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+    ///
+    /// `filter` keeps an entry exactly where its predicate is truthy, so the
+    /// predicate `contains($b, $x)` is called here once per entry. The values
+    /// cover each scalar tag, a `float` equal to an `int`, `0.0` beside `-0.0`,
+    /// a `NaN`, and two instances of one class, one of them in `$b`.
+    #[test]
+    fn filter_with_contains_keeps_what_diff_and_intersect_keep() {
+        #[expect(
+            unsafe_code,
+            reason = "the table is leaked, so the descriptor outlives every \
+                      instance made from it — `NvsObj::new`'s whole obligation"
+        )]
+        fn instance() -> Value {
+            let mut table = ClassTable::new();
+            let id = table.define("Item", &[] as &[&str], &[]);
+            let table: &'static ClassTable = Box::leak(Box::new(table));
+            Value::object(unsafe { NvsObj::new(table.desc(id)) })
+        }
+        fn keys_of(result: Value) -> Vec<Vec<u8>> {
+            #[expect(
+                unsafe_code,
+                reason = "the helper returned one fresh reference, which the handle \
+                          takes over and releases on drop"
+            )]
+            let array = unsafe {
+                NvsArray::from_raw(result.array_ptr().expect("the member returns an array"))
+            };
+            let mut out = Vec::new();
+            let mut from = 0usize;
+            while let Some(slot) = array.next_slot(from) {
+                out.push(
+                    array
+                        .key_at(slot)
+                        .expect("a live entry has a key")
+                        .as_bytes()
+                        .to_vec(),
+                );
+                from = slot + 1;
+            }
+            out
+        }
+        // One more reference for an array to own, so that each array releases
+        // its own and the lists below keep theirs.
+        #[expect(
+            unsafe_code,
+            reason = "each value is live: the lists below own one reference until the end"
+        )]
+        fn held(value: Value) -> Value {
+            unsafe {
+                value.retain();
+            }
+            value
+        }
+        let (kept, other) = (instance(), instance());
+        let values = [
+            Value::int(2),
+            Value::uint(7),
+            Value::float(2.0),
+            Value::float(0.0),
+            Value::float(-0.0),
+            Value::float(f64::NAN),
+            Value::float(1.5),
+            Value::text("2"),
+            Value::text("x"),
+            Value::bool(true),
+            Value::bool(false),
+            kept,
+            other,
+            Value::int(2),
+            Value::null(),
+        ];
+        let theirs: [Vec<Value>; 5] = [
+            vec![Value::int(2), Value::float(-0.0), Value::float(f64::NAN)],
+            vec![
+                Value::float(2.0),
+                Value::uint(7),
+                Value::text("x"),
+                held(kept),
+            ],
+            vec![Value::bool(false), Value::null(), Value::float(1.5)],
+            vec![Value::text("2"), Value::bool(true)],
+            Vec::new(),
+        ];
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for b_values in &theirs {
+            let mut entries = NvsArray::new();
+            for (index, value) in values.iter().enumerate() {
+                entries.set(NvsStr::new(index.to_string().as_bytes()), held(*value));
+            }
+            let a = Value::array(entries);
+            let mut other_side = NvsArray::new();
+            for value in b_values {
+                other_side.append(held(*value));
+            }
+            let b = Value::array(other_side);
+            let mut present = Vec::new();
+            let mut absent = Vec::new();
+            for (index, value) in values.iter().enumerate() {
+                let found = call(super::nvs_core_arr_contains, &mut ctx, &[b, *value])
+                    .expect("contains takes an array and a value");
+                let key = index.to_string().into_bytes();
+                if found.as_bool() == Some(true) {
+                    present.push(key);
+                } else {
+                    absent.push(key);
+                }
+            }
+            let options = [Value::int(0), Value::null(), Value::null()];
+            let diff = call(
+                super::nvs_core_arr_diff,
+                &mut ctx,
+                &[a, b, options[0], options[1], options[2]],
+            )
+            .expect("two arrays and the default options are what diff takes");
+            let intersect = call(
+                super::nvs_core_arr_intersect,
+                &mut ctx,
+                &[a, b, options[0], options[1], options[2]],
+            )
+            .expect("two arrays and the default options are what intersect takes");
+            assert_eq!(
+                keys_of(diff),
+                absent,
+                "diff against {} values",
+                b_values.len()
+            );
+            assert_eq!(
+                keys_of(intersect),
+                present,
+                "intersect against {} values",
+                b_values.len()
+            );
+            dropped(a);
+            dropped(b);
+        }
+        values
+            .into_iter()
+            .chain(theirs.into_iter().flatten())
+            .for_each(dropped);
+    }
+
     /// `unique` keeps the *first* occurrence of a value under its own key, and
     /// compares by strict identity — the half `array_unique`'s `SORT_STRING`
     /// default collapses. The second call is where identity is visible: the

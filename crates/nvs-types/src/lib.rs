@@ -224,6 +224,7 @@ pub mod ty;
 
 pub use check::{HOOK_VALUE_PARAM, check_program, check_program_granted, check_program_partial};
 pub use core_lib::interface_implementors as core_interface_implementors;
+pub use core_lib::lower_const as core_const_arg;
 pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};

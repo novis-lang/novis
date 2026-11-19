@@ -457,8 +457,7 @@ impl<'a> Lowering<'a> {
         if !cheaper_forms_on() || self.debug.is_some() {
             return false;
         }
-        let Some(caught) =
-            crate::forms::caught_null(body, catches, finally, self.exprs, self.src)
+        let Some(caught) = crate::forms::caught_null(body, catches, finally, self.exprs, self.src)
         else {
             return false;
         };

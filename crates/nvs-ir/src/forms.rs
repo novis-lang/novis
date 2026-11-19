@@ -34,14 +34,15 @@
 //! **What it spends:** while compiling, one match of each `Core` call, null
 //! test and `try` lowered against the rows whose stage applies it. At run time, nothing.
 
-use nvs_diagnostics::SourceFile;
+use nvs_diagnostics::{SourceFile, Span};
 use nvs_syntax::ast::{
-    Arg, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, Stmt, StmtKind, Type,
+    Arg, AssignOp, Block, CallArgs, CatchClause, Expr, ExprKind, FnBody, Stmt, StmtKind, Type,
+    UnaryOp,
 };
 use nvs_types::expr_table::{ExprInfo, ExprTypeTable};
 
-use crate::{span_text, strip_sigil};
 use crate::ty::Ty;
+use crate::{span_text, strip_sigil};
 
 /// Where a row's conformance cases live, under the repository root.
 pub const CASES_DIR: &str = "tests/conformance/forms";
@@ -478,6 +479,94 @@ pub(crate) fn over_keys_or_values<'a>(
     })
 }
 
+/// Row `filter-contains`, matched on the written tree: `expr` is
+/// `Core\Arr::filter(a, fn(x) => Core\Arr::contains(b, x))`, negated or not,
+/// and the fast form is `diff(a, b)` or `intersect(a, b)`.
+///
+/// Both members compare with the same strict identity, keep `a`'s keys and
+/// order, and keep each copy of a kept entry.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SetForm<'a> {
+    /// `diff` where the test is negated, and `intersect` where it is not.
+    pub method: &'static str,
+    /// The written first argument.
+    pub a: &'a Arg,
+    /// The variable the callback captured and tests against.
+    pub b: &'a Expr,
+    /// The callback's one parameter's written type. The site reads what it
+    /// resolved to: an element that can be an array keeps the form as written.
+    pub param_ty: &'a Type,
+}
+
+/// See [`SetForm`]. `src` is the file the spans index.
+///
+/// The callback is one parameter, plain and typed, with a body that is one `return` or
+/// an arrow expression. `b` is a variable other than the parameter and the
+/// callback's own name. Such a body assigns nothing, so `b` has the value
+/// the callback captured when the filter runs.
+pub(crate) fn filter_contains<'a>(
+    expr: &'a Expr,
+    exprs: &ExprTypeTable,
+    src: &SourceFile,
+) -> Option<SetForm<'a>> {
+    const ARR: &str = r"Core\Arr";
+    let text = |span: Span| strip_sigil(span_text(src, span));
+    let [a, predicate] = positional(core_call(expr, exprs, ARR, "filter")?, 2)? else {
+        return None;
+    };
+    let ExprKind::Fn(callback) = &predicate.value.kind else {
+        return None;
+    };
+    let [param] = callback.params.as_slice() else {
+        return None;
+    };
+    let param_ty = param.ty.as_ref()?;
+    if param.inout || param.variadic || param.default.is_some() {
+        return None;
+    }
+    let returned = match &callback.body {
+        FnBody::Expr(returned) => &**returned,
+        FnBody::Block(block) => match block.stmts.as_slice() {
+            [
+                Stmt {
+                    kind: StmtKind::Return(Some(returned)),
+                    ..
+                },
+            ] => returned,
+            _ => return None,
+        },
+    };
+    let (method, test) = match &returned.kind {
+        ExprKind::Unary {
+            op: UnaryOp::Not,
+            expr: test,
+        } => ("diff", &**test),
+        _ => ("intersect", returned),
+    };
+    let [haystack, needle] = positional(core_call(test, exprs, ARR, "contains")?, 2)? else {
+        return None;
+    };
+    let name = text(param.name);
+    let (ExprKind::Variable(_), ExprKind::Variable(_)) = (&haystack.value.kind, &needle.value.kind)
+    else {
+        return None;
+    };
+    let captured = text(haystack.value.span);
+    if text(needle.value.span) != name
+        || captured == name
+        || captured == "this"
+        || callback.name.is_some_and(|own| text(own) == captured)
+    {
+        return None;
+    }
+    Some(SetForm {
+        method,
+        a,
+        b: &haystack.value,
+        param_ty,
+    })
+}
+
 /// Rows `caught-conversion` and `caught-parse`, matched on the written `try`:
 /// its body is one `$v = …;`, it has one `catch` arm whose body is
 /// `$v = null;` and which does not bind `$v`, and it has no `finally`.
@@ -544,13 +633,16 @@ pub(crate) fn caught_null<'a>(
     if !matches!(null.kind, ExprKind::Null) || text(reset_target) != name {
         return None;
     }
-    if arm.var.is_some_and(|var| strip_sigil(span_text(src, var)) == name) {
+    if arm
+        .var
+        .is_some_and(|var| strip_sigil(span_text(src, var)) == name)
+    {
         return None;
     }
     let fast = match &value.kind {
-        ExprKind::Conversion { expr: operand, ty, .. }
-            if matches!(operand.kind, ExprKind::Variable(_)) =>
-        {
+        ExprKind::Conversion {
+            expr: operand, ty, ..
+        } if matches!(operand.kind, ExprKind::Variable(_)) => {
             CaughtFast::Conversion { operand, ty }
         }
         ExprKind::StaticCall { args, .. } => {

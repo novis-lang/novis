@@ -721,7 +721,11 @@ fn param_names(method: &nvs_stdlib::registry::CoreMethod) -> Vec<String> {
 
 /// One registry default into the checker's own [`ConstArg`] — the same
 /// translation [`lower`] performs for a type, and for the same reason.
-fn lower_const(value: &Const) -> ConstArg {
+///
+/// Public for `nvs-ir`, which emits the defaults of a member no written call
+/// resolved to: a fast form of the table of cheaper forms.
+#[must_use]
+pub fn lower_const(value: &Const) -> ConstArg {
     match *value {
         Const::Null => ConstArg::Null,
         Const::NeverWritten => ConstArg::NeverWritten,

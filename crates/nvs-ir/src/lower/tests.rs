@@ -6888,13 +6888,61 @@ fn a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion() {
     assert_eq!(taken(&on), 0, "{}", print_program(&on, map.file(file)));
     assert_eq!(taken(&off), 2);
     let (on_calls, off_calls) = core_calls_both_ways(src);
-    assert_eq!(count_of(&on_calls, "nvs_core_uuid_try_parse"), 1, "{on_calls:?}");
-    assert_eq!(count_of(&on_calls, "nvs_core_uuid_parse"), 0, "{on_calls:?}");
-    assert_eq!(count_of(&off_calls, "nvs_core_uuid_parse"), 1, "{off_calls:?}");
+    assert_eq!(
+        count_of(&on_calls, "nvs_core_uuid_try_parse"),
+        1,
+        "{on_calls:?}"
+    );
+    assert_eq!(
+        count_of(&on_calls, "nvs_core_uuid_parse"),
+        0,
+        "{on_calls:?}"
+    );
+    assert_eq!(
+        count_of(&off_calls, "nvs_core_uuid_parse"),
+        1,
+        "{off_calls:?}"
+    );
 
     let finally = "<?nvs\nfinal class T {\n  public static function m(mixed $x): void {\n    \
                    ?int $v = 0;\n    \
                    try {\n      $v = $x as int;\n    } catch (RuntimeError) {\n      $v = null;\n    \
                    } finally {\n      echo 1;\n    }\n    echo $v ?? 0;\n  }\n}\n";
     assert!(taken(&lower_whole_file_with_src(finally).0) > 0);
+}
+
+/// Row `filter-contains`: a `filter` whose callback tests `contains` against a
+/// captured array is `diff` where the test is negated and `intersect` where it
+/// is not, in an arrow body and in a block of one `return`. A callback over
+/// array elements, and one that tests a literal array, stay a `filter`. With
+/// the table off, all five are `filter`.
+#[test]
+fn a_difference_written_as_filter_and_contains_compiles_as_diff() {
+    let src = "<?nvs\nfinal class T {\n  \
+               public static function m(array<int|float> $a, array<int|float> $b, \
+               array<array<int>> $c, array<array<int>> $d): void {\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int|float $x): bool => \
+               !Core\\Arr::contains($b, $x)));\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int|float $x): bool => { \
+               return Core\\Arr::contains($b, $x); }));\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($c, fn(array<int> $x): bool => \
+               !Core\\Arr::contains($d, $x)));\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int|float $x): bool => \
+               !Core\\Arr::contains([1, 2], $x)));\n    \
+               echo Core\\Arr::count(Core\\Arr::filter($a, fn(int|float $x): bool => \
+               $x > 1));\n  }\n}\n";
+    // A `filter` whose subject is sole is its owning variant.
+    fn filters(calls: &[&str]) -> usize {
+        calls
+            .iter()
+            .filter(|call| call.starts_with("nvs_core_arr_filter"))
+            .count()
+    }
+    let (on, off) = core_calls_both_ways(src);
+    assert_eq!(count_of(&on, "nvs_core_arr_diff"), 1, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_intersect"), 1, "{on:?}");
+    assert_eq!(filters(&on), 3, "{on:?}");
+    assert_eq!(filters(&off), 5, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_diff"), 0, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_intersect"), 0, "{off:?}");
 }

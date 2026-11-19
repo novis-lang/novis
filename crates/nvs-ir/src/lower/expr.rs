@@ -5209,6 +5209,12 @@ impl<'a> Lowering<'a> {
                 }
                 return self.lower_format_pieces(&pieces, list, env, cur);
             }
+            if cheaper_forms_on()
+                && let Some(set) = crate::forms::filter_contains(expr, self.exprs, self.src)
+                && let Some(lowered) = self.lower_set_form(call, set, env, cur)
+            {
+                return lowered;
+            }
             let form = if cheaper_forms_on() {
                 crate::forms::over_keys_or_values(expr, self.exprs)
             } else {
@@ -5361,7 +5367,8 @@ impl<'a> Lowering<'a> {
             return None;
         };
         let symbol = nvs_types::core_symbol_of(&call.class, &call.method)?;
-        let (found, _) = self.lower_core_call(call, symbol, form.args, Some(form), operand.span, env, cur);
+        let (found, _) =
+            self.lower_core_call(call, symbol, form.args, Some(form), operand.span, env, cur);
         if !is_null {
             return Some((found, Ty::Bool));
         }
@@ -5397,7 +5404,7 @@ impl<'a> Lowering<'a> {
                 form.method,
                 nvs_types::core_symbol_of(&call.class, form.method).unwrap_or_else(|| {
                     panic!(
-                        "nvs-ir: the fast form `{}::{}` names no `Core` member —                          crate::forms names only members of the written call's class",
+                        "nvs-ir: the fast form `{}::{}` names no `Core` member: crate::forms names only members of the written call's class",
                         call.class, form.method
                     )
                 }),
@@ -5422,25 +5429,23 @@ impl<'a> Lowering<'a> {
         // handed what its call site wrote as a type argument, as arguments
         // 0 to 2 — that roster owns the ABI and
         // `Lowering::written_type_constants` emits it.
-        let written_class =
-            nvs_types::core_takes_written_class(&class, method)
-                .then(|| self.written_type_constants(*cur, call));
+        let written_class = nvs_types::core_takes_written_class(&class, method)
+            .then(|| self.written_type_constants(*cur, call));
         // A member on `nvs_stdlib::registry::SOURCE_MEMBERS` is handed
         // where it was called, as argument 0 — `Lowering::producer_source`
         // owns the position.
-        let source = nvs_types::core_takes_source(&class, method)
-            .then(|| self.producer_source(*cur));
+        let source =
+            nvs_types::core_takes_source(&class, method).then(|| self.producer_source(*cur));
         // `nvs_stdlib::registry::CALL_SITE_MEMBERS`' trailing constant,
         // which that roster owns — the same ABI a static member gets as an
         // instance one, so a member joining the roster needs nothing
         // decided about which of the two paths reached it.
-        let site = nvs_types::core_takes_call_site(&class, method)
-            .then(|| self.call_site(*cur, span));
+        let site =
+            nvs_types::core_takes_call_site(&class, method).then(|| self.call_site(*cur, span));
         // `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' trailing id, which
         // that roster owns, emitted the way the instance path emits it.
-        let query_site =
-            nvs_types::core_takes_query_site(&class, method)
-                .then(|| self.query_site_constant(*cur, span));
+        let query_site = nvs_types::core_takes_query_site(&class, method)
+            .then(|| self.query_site_constant(*cur, span));
         // `nvs_stdlib::registry::PREPARED_MEMBERS`' leading constant, which
         // that roster owns — `Core\Regex::compile("…")` is the shape it is
         // here for, and `Lowering::prepared_constant` owns the lookup.
@@ -5449,9 +5454,8 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         // `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`' leading `string`,
         // staged after the mark — `Lowering::written_enum_constant` owns it.
-        let written_enum =
-            nvs_types::core_takes_written_enum(&class, method)
-                .then(|| self.written_enum_constant(*cur, call));
+        let written_enum = nvs_types::core_takes_written_enum(&class, method)
+            .then(|| self.written_enum_constant(*cur, call));
         let mut lowered =
             self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
         // The written member's own trailing defaults, which the fast member
@@ -5461,9 +5465,8 @@ impl<'a> Lowering<'a> {
         }
         // `nvs_stdlib::registry::PATH_GRAPH_MEMBERS`' trailing string —
         // `Lowering::path_graph_constant` owns it.
-        let path_graph =
-            nvs_types::core_takes_path_graph(&class, method)
-                .then(|| self.path_graph_constant(*cur, call.path_graph.as_deref()));
+        let path_graph = nvs_types::core_takes_path_graph(&class, method)
+            .then(|| self.path_graph_constant(*cur, call.path_graph.as_deref()));
         let leading: Vec<ValueId> = prepared
             .into_iter()
             .chain(source)
@@ -5496,6 +5499,75 @@ impl<'a> Lowering<'a> {
         // no other owner and would leak without this.
         self.release_temporaries_since(mark, *cur);
         result
+    }
+
+    /// Row `filter-contains` of `crate::forms`: the written `Core\Arr::filter`
+    /// call `call` as `diff(a, b)` or `intersect(a, b)`, with the fast member's
+    /// options at their defaults. `None` leaves the call as written.
+    ///
+    /// The callback's parameter must be declared a type whose every value is
+    /// a scalar, a string, bytes or an enum case: an element that can be an
+    /// array or an object keeps the form as written.
+    pub(crate) fn lower_set_form(
+        &mut self,
+        call: &ResolvedCall,
+        form: crate::forms::SetForm<'_>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> Option<(ValueId, Ty)> {
+        let element = self.exprs.declared_ty(form.param_ty.span)?;
+        if !compared_by_value(element, self.checked_types) {
+            return None;
+        }
+        let symbol = nvs_types::core_symbol_of(&call.class, form.method)?;
+        let member = nvs_stdlib::registry::class(&call.class.to_string())?
+            .members()
+            .find(|member| member.name == form.method)?;
+        let array = *call.param_tys.first()?;
+        let sig = ArgSig {
+            param_tys: vec![array, array],
+            inout: vec![false, false],
+            variadic: false,
+            defaults: vec![None, None],
+            arg_slots: vec![
+                nvs_types::expr_table::ArgSlot::Param(0),
+                nvs_types::expr_table::ArgSlot::Param(1),
+            ],
+            helper: true,
+        };
+        let args = CallArgs::List(vec![
+            form.a.clone(),
+            nvs_syntax::ast::Arg {
+                name: None,
+                spread: false,
+                inout: false,
+                value: form.b.clone(),
+                span: form.b.span,
+            },
+        ]);
+        let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
+        let checked_types = self.checked_types;
+        let mark = self.temporaries_mark();
+        let mut lowered =
+            self.lower_call_args(&args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
+        for option in member.options().unwrap_or_default() {
+            let default = nvs_types::core_const_arg(&option.default);
+            let (v, ty) = self.emit_const_arg(&default, None, env, *cur);
+            self.account_for_arg(v, ty, ArgOwnership::Borrowed, false, *cur);
+            lowered.values.push(v);
+        }
+        let result = self.emit_fallible(
+            *cur,
+            return_ty,
+            InstKind::CoreCall {
+                symbol,
+                args: lowered.values,
+                subject: Some(0),
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        Some(result)
     }
 
     /// `rule:types/class-reference-sites`'s `$cls::f` — [`Self::lower_static_call`]'s class-reference
@@ -8580,6 +8652,38 @@ fn payload_repr(repr: Ty) -> Ty {
         Ty::Enum(EnumRepr::Int) => Ty::Int,
         Ty::Enum(EnumRepr::Uint) => Ty::Uint,
         other => other,
+    }
+}
+
+/// Whether every value of the checked type `id` is a scalar, a string, bytes,
+/// an enum case or `null`. [`Lowering::lower_set_form`] asks it: `diff` and
+/// `contains` are shown to agree on those, and an array or an object element
+/// keeps the form as written.
+fn compared_by_value(id: TypeId, checked_types: &TypeInterner) -> bool {
+    match checked_types.get(id) {
+        CheckedTy::Null
+        | CheckedTy::Bool
+        | CheckedTy::True
+        | CheckedTy::False
+        | CheckedTy::Int
+        | CheckedTy::Uint
+        | CheckedTy::Float
+        | CheckedTy::Decimal
+        | CheckedTy::String
+        | CheckedTy::Bytes
+        | CheckedTy::TaintedString
+        | CheckedTy::TaintedBytes
+        | CheckedTy::SecretString
+        | CheckedTy::SecretBytes
+        | CheckedTy::SecretTaintedString
+        | CheckedTy::SecretTaintedBytes
+        | CheckedTy::SingleValueString(_)
+        | CheckedTy::SingleValueInt(_)
+        | CheckedTy::EnumCase(..) => true,
+        CheckedTy::Union(members) => members
+            .iter()
+            .all(|member| compared_by_value(*member, checked_types)),
+        _ => false,
     }
 }
 
