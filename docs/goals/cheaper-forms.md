@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/exception.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 3
     title: a loop, a literal and a static call take the direct path
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 4
     title: a form with a callback compiles as its fast form where the callback is proven, and is recorded where it is not
@@ -519,15 +519,15 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
   - [x] `forms::constant_keys` gives the keys
   - [x] `lower_array_literal` takes the one-`ArrayNew` path with them
   - [x] its cases and a scratch run of the append counter pass both ways
-- [ ] `static::m()` and `static::NAME` (`expr.rs:5320` and `:481`) ask the override knowledge an
+- [x] `static::m()` and `static::NAME` (`expr.rs:5320` and `:481`) ask the override knowledge an
   instance call already asks (`expr.rs:5052`, filled by `mark_overridden_methods`,
   `crates/nvs-types/src/signatures.rs:1125`). Where the table has no such fact for a constant, the item
   adds it beside the method one.
   - [x] `static::m()` is a direct call where `ResolvedCall::overridden` is false
-  - [ ] `ExprInfo::ClassConstLate` carries whether a class redeclares the constant, and its value
-  - [ ] `static::NAME` is the constant where none does
-  - [ ] `a_static_call_nothing_overrides_is_direct` also checks `static::NAME`
-- [ ] The five tests the `direct-paths` check names. Run once.
+  - [x] `ExprInfo::ClassConstLate` carries whether a class redeclares the constant, and its value
+  - [x] `static::NAME` is the constant where none does
+  - [x] `a_static_call_nothing_overrides_is_direct` also checks `static::NAME`
+- [x] The five tests the `direct-paths` check names. Run once.
 
 ### 4. a form with a callback compiles as its fast form where the callback is proven, and is recorded where it is not
 
@@ -649,37 +649,32 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3 has four of its five rows in: `lower_foreach`
-(`crates/nvs-ir/src/lower/control.rs:880`) drops a key whose `$name` the body's text never has
-(`forms::text_names_variable`), sends a direct `Core\Arr::range` loop to
-`Lowering::lower_foreach_range` (a counted loop over the new `Helper::RangeLast`, which
-`crates/nvs-runtime/src/helpers.rs` `nvs_range_last` implements and `nvs-codegen` maps), and loops a
-direct `keys` or `values` call over its argument, binding `ArrayKeyAt` as the value for `keys`.
-`lower_array_literal` (`crates/nvs-ir/src/lower/expr.rs`) takes the one-`ArrayNew` path with
-`forms::constant_keys`. `static::m()` is a direct `Call` where `ResolvedCall::overridden` is false
-(`expr.rs`, `late_bound` in the static call lowering). Four of the five `direct-paths` tests exist
-and passed by name; `a_static_call_nothing_overrides_is_direct` covers the method half only. Each
-row's cases passed with `bun nv suite tests/conformance/ --no-cheaper-forms-too --case …`, and so did
-the 15 cases that use `static::m()`. The narrower matches are under § *Standing decisions*.
-Sessions used: stage 1, one; stage 2, two; stage 3, one. The sweep's `env-secret-proofs` red is
-stale: its log does not exist, and `git log -S` names the `strings-in-place` retire.
+Stages 1, 2 and 3 are done. Stage 3's last row landed: `mark_overridden_methods`
+(`crates/nvs-types/src/signatures.rs`) also fills `ClassSignature::redeclared_constants`, read
+through `SignatureTable::is_constant_redeclared`, and `ExprInfo::ClassConstLate` carries it as
+`redeclared`. Where it is false and the table is on, the lowering (`crates/nvs-ir/src/lower/expr.rs`,
+the `ClassConstLate` arm) emits the value through `emit_const_arg`, with an enum position taken
+from the declared type. `rule:statements/static-is-a-member-modifier` says so. The five
+`direct-paths` tests passed by name, and the 32 conformance cases that read `static::NAME` passed
+with `--no-cheaper-forms-too`. Sessions used: stage 1, one; stage 2, two; stage 3, two. The sweep's
+`env-secret-proofs` red is stale: its log does not exist, and `git log -S` names the
+`strings-in-place` retire.
 
 ### Next
 
-Stage 3's last row, `static::NAME`: the checker records `ExprInfo::ClassConstLate`
-(`crates/nvs-types/src/expr/members.rs:234`, defined at `crates/nvs-types/src/expr_table.rs:1120`)
-and the lowering reads it at `crates/nvs-ir/src/lower/expr.rs:484`. Add beside it whether any class
-in the program declares `NAME` again (filled the way `mark_overridden_methods`,
-`crates/nvs-types/src/signatures.rs:1134`, fills `overridden_methods`), and the declaring class's
-value, so the lowering emits the constant through `emit_const_arg` as the `ExprInfo::ClassConst` arm
-above it does. Then extend `a_static_call_nothing_overrides_is_direct` with a `static::NAME`
-that nothing redeclares and one that `Child` redeclares, run the five `direct-paths` tests once, and
-set stage 3 done. Stage 4 follows. Stages 6, 7, 8 and 10 can start as side goals at any time.
+Stage 4. Its gate holds: `crates/nvs-ir/src/effects.rs` exists. First item: record a candidate for
+each callback row at the call lowering (`crates/nvs-ir/src/lower/expr.rs`, beside
+`crate::forms::filter_contains` near line 5212), with the site's span, the row, the callback's
+function and the fast member's operands. Then a `forms.rs` pass after `effects.rs` and before
+`crates/nvs-ir/src/ownership.rs` picks one of the three outcomes from the callback's summary. Find
+where the pipeline runs `effects` and `ownership` first (`bun nv peek --locate` on each pass's
+entry). Stages 6, 7, 8 and 10 can start as side goals at any time.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
-or a `static::m()` call, if any does. The three ladders under `benches/scaling/arrays/forms-` stay
-red until stages 4 and 6, and no sweep runs them before stage 4's check.
+or a `static::m()` call or a `static::NAME` read nothing redeclares, if any does. The three ladders
+under `benches/scaling/arrays/forms-` stay red until stages 4 and 6, and no sweep runs them before
+stage 4's check.
 
 ### Backlog
 
