@@ -1,0 +1,44 @@
+--TEST--
+A session read inside `Core\Html::later` and `Core\Task::afterResponse` compiles, because a read sends no header. Inside `later` it returns the value the main script saved; work after the response has no request, so its read throws `LogicError` -- `rule:core-classes/html-later`, `rule:concurrency/deferred-work-cannot-write-the-response`
+--SKIPIF--
+<?nvs
+// The record crosses the store `[cache.shared]` names, and a tree without one
+// skips. The store is checked directly, because the session throws where no
+// request arrived.
+try {
+    Core\Cache::shared()->get("whether-a-session-case-has-a-store-to-cross");
+} catch (Throwable $nowhere) {
+    echo "skip - ", $nowhere->message, "\n";
+}
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// The main script saves a value. A part of the page filled later reads it.
+// Work after the response runs without the request, so its read throws.
+Core\Session::setShortLived("cart", 3);
+echo Core\Html::later(fn(): void => {
+    echo "later reads ", Core\Session::get("cart") as int, "\n";
+});
+Core\Task::afterResponse(fn(): void => {
+    try {
+        var $cart = Core\Session::get("cart");
+        echo "after the response reads ", $cart as int, "\n";
+    } catch (LogicError $e) {
+        echo "after the response, the read compiles and throws LogicError\n";
+    }
+});
+--FILE nvs.toml--
+# One shared store, as the other session cases use. `redis` is
+# `tests/db/compose.yaml`'s service.
+[capabilities.cache]
+shared = true
+
+[session]
+backend = "shared"
+
+[cache.shared]
+url = "redis://127.0.0.1:16379"
+--EXPECT--
+later reads 3
+after the response, the read compiles and throws LogicError

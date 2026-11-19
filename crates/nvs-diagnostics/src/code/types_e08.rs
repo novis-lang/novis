@@ -695,7 +695,7 @@ codes! {
          argument must be an enum. Write an enum such as `Core\\Audience` or `App\\Role`.",
     );
     /// A call that changes the response head — a status, a header, a redirect,
-    /// a cookie, a body method or `Core\Session::regenerate` — written inside
+    /// a cookie, a body method or any `Core\Session` write — written inside
     /// the callable passed to `Core\Html::later`. `rule:core-classes/html-later`
     /// makes the same call throw `LogicError` at run time, and this is its
     /// compile-time half, where the checker sees the anonymous function written in place.
@@ -820,8 +820,8 @@ codes! {
          `Novis\\Image\\Image::info` and not `Novis\\Image\\Codec::info`.",
     );
     /// A call that writes the response — a status, a header, a redirect, a
-    /// cookie, a body method, `Core\Response::slotted` or
-    /// `Core\Session::regenerate` — written inside the callable passed to
+    /// cookie, a body method, `Core\Response::slotted` or any `Core\Session`
+    /// write — written inside the callable passed to
     /// `Core\Task::afterResponse`. The same call throws `LogicError` at run
     /// time (`rule:concurrency/deferred-work-cannot-write-the-response`), and
     /// this is its compile-time half, where the checker sees the anonymous

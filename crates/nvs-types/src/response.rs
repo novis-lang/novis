@@ -194,13 +194,28 @@ impl BodyWriters {
 /// `slotted`, whose `Ctx::make_slotted` throws in a slot because the main
 /// script is over. Each throws `LogicError` inside a slot at run time; this is
 /// the half of `rule:core-classes/html-later`'s refusal the checker can see.
-const HEAD_MEMBERS: [(&str, &str); 6] = [
+///
+/// Every `Core\Session` write is here, not only the ones that send a cookie.
+/// A write to a session that already has a cookie needs no header, but it
+/// throws at run time all the same, because a write that worked only for a
+/// signed-in visitor would pass on a development machine and fail for a new
+/// visitor in production. `get` and `getSecret` stay allowed: a read never
+/// sends a header.
+const HEAD_MEMBERS: [(&str, &str); 14] = [
     ("Response", "setStatus"),
     ("Response", "slotted"),
     ("Response", "setHeader"),
     ("Response", "redirect"),
     ("Response", "addCookie"),
     ("Session", "regenerate"),
+    ("Session", "setShortLived"),
+    ("Session", "setLongLived"),
+    ("Session", "setShortLivedSecret"),
+    ("Session", "setLongLivedSecret"),
+    ("Session", "remove"),
+    ("Session", "clearShortLived"),
+    ("Session", "clearLongLived"),
+    ("Session", "clearAll"),
 ];
 
 /// Whether `qname::member` is `Core\Html::later`, whose argument list is
@@ -251,16 +266,23 @@ pub(crate) fn reject_response_change(qname: &QName, member: &str, span: Span, en
     {
         return;
     }
+    // A session write sends no header to a session that already has its cookie, so the
+    // message names what it changes, and the run-time error is the same for every visitor.
+    let changes = if class == "Session" {
+        "the session"
+    } else {
+        "the response"
+    };
     if env.body_writers.in_after_response {
         env.diags.report(
             Diagnostic::error(
                 code::E_DEFERRED_WRITES_THE_RESPONSE,
                 format!(
-                    "`Core\\{class}::{member}` changes the response, and a callable passed to \
+                    "`Core\\{class}::{member}` changes {changes}, and a callable passed to \
                      `Core\\Task::afterResponse` runs after the response was sent"
                 ),
             )
-            .with_primary(span, "this call changes the response")
+            .with_primary(span, format!("this call changes {changes}"))
             .with_help("make this call in the main script, before `Core\\Task::afterResponse`"),
         );
         return;
@@ -269,11 +291,11 @@ pub(crate) fn reject_response_change(qname: &QName, member: &str, span: Span, en
         Diagnostic::error(
             code::E_LATER_CHANGES_THE_RESPONSE_HEAD,
             format!(
-                "`Core\\{class}::{member}` changes the response, and a callable passed to \
+                "`Core\\{class}::{member}` changes {changes}, and a callable passed to \
                  `Core\\Html::later` cannot do that"
             ),
         )
-        .with_primary(span, "this call changes the response")
+        .with_primary(span, format!("this call changes {changes}"))
         .with_help("make this call in the main script, before or after `Core\\Html::later`"),
     );
 }

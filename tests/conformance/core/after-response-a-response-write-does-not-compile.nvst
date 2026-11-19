@@ -1,5 +1,5 @@
 --TEST--
-An anonymous function written in a `Core\Task::afterResponse` call cannot change the response -- a status, a header, a redirect, a cookie, a body method, `slotted` or a session regeneration is a compile error there, in a nested anonymous function too, while an `echo` compiles -- `rule:concurrency/deferred-work-cannot-write-the-response`
+An anonymous function written in a `Core\Task::afterResponse` call cannot change the response -- a status, a header, a redirect, a cookie, a body method, `slotted` or any session write is a compile error there, in a nested anonymous function too, while an `echo` compiles -- `rule:concurrency/deferred-work-cannot-write-the-response`
 --FILE--
 <?nvs
 // This work runs after the response was sent. Each call below changes the
@@ -12,6 +12,20 @@ Core\Task::afterResponse(fn(): void => {
     Core\Response::text("body");
     Core\Response::slotted();
     Core\Session::regenerate();
+});
+
+// Every session write is a compile error here, for a visitor with a session too.
+Core\Task::afterResponse(fn(): void => {
+    array<secret bytes> $ring = [Core\Crypto::generateKey()];
+    secret string $token = "sk-live-7";
+    Core\Session::setShortLived("cart", 3);
+    Core\Session::setLongLived("theme", "dark");
+    Core\Session::setShortLivedSecret("refresh", $token, $ring);
+    Core\Session::setLongLivedSecret("device", $token, $ring);
+    Core\Session::remove("cart");
+    Core\Session::clearShortLived();
+    Core\Session::clearLongLived();
+    Core\Session::clearAll();
 });
 
 // An anonymous function inside the work runs after the response too.
@@ -45,11 +59,35 @@ error[E0857]: `Core\Response::text` changes the response, and a callable passed 
 error[E0857]: `Core\Response::slotted` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
    --> case.nvs:10:5
 %A
-error[E0857]: `Core\Session::regenerate` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+error[E0857]: `Core\Session::regenerate` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
    --> case.nvs:11:5
 %A
-error[E0857]: `Core\Response::json` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
-   --> case.nvs:16:34
+error[E0857]: `Core\Session::setShortLived` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:18:5
 %A
-error: aborting due to 8 errors
+error[E0857]: `Core\Session::setLongLived` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:19:5
+%A
+error[E0857]: `Core\Session::setShortLivedSecret` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:20:5
+%A
+error[E0857]: `Core\Session::setLongLivedSecret` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:21:5
+%A
+error[E0857]: `Core\Session::remove` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:22:5
+%A
+error[E0857]: `Core\Session::clearShortLived` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:23:5
+%A
+error[E0857]: `Core\Session::clearLongLived` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:24:5
+%A
+error[E0857]: `Core\Session::clearAll` changes the session, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:25:5
+%A
+error[E0857]: `Core\Response::json` changes the response, and a callable passed to `Core\Task::afterResponse` runs after the response was sent
+   --> case.nvs:30:34
+%A
+error: aborting due to 16 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

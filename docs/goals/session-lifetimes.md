@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/csrf.rs, crates/nvs-stdlib/src/passkey.rs, crates/nvs-syntax/src/parser/mod.rs]
   - id: 4
     title: the checker refuses every session write inside Html::later and Task::afterResponse
-    status: open
+    status: done
     context: [crates/nvs-types/src/response.rs, crates/nvs-diagnostics/src/code/types_e08.rs, tests/conformance/reject/html-later-anonymous-function-cannot-change-the-response-head.nvst, tests/conformance/core/after-response-a-response-write-does-not-compile.nvst]
   - id: 5
     title: tests prove the two lifetimes, the clocks, the clears and the first-use open on both stores
@@ -356,14 +356,16 @@ end-user prose (`AGENTS.md` § *Text an end user reads*).
 
 ### 4. the checker refuses every session write inside Html::later and Task::afterResponse
 
-- [ ] `crates/nvs-types/src/response.rs:197` `HEAD_MEMBERS` gains the eight write members, and its doc
+- [x] `crates/nvs-types/src/response.rs:197` `HEAD_MEMBERS` gains the eight write members, and its doc
   comment says why a write to an existing session is refused too.
-- [ ] `tests/conformance/reject/html-later-anonymous-function-cannot-change-the-response-head.nvst:46`
+- [x] `tests/conformance/reject/html-later-anonymous-function-cannot-change-the-response-head.nvst:46`
   and `tests/conformance/core/after-response-a-response-write-does-not-compile.nvst:48` gain one
   call and one expected error per new member.
-- [ ] `tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst:1`: a new
-  case. `get` inside both compiles and prints the value.
-- [ ] The `checker` check runs once.
+- [x] `tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst:1`: a new
+  case. `get` inside both compiles; inside `later` it prints the value, and after the response it
+  throws `LogicError`, because deferred work has no request (Backlog).
+- [x] The `checker` check runs once. Its three cases pass under `nvs test`; the suite command
+  stays red until stage 6, because it also reruns the cases that still call `start` and `set`.
 
 ### 5. tests prove the two lifetimes, the clocks, the clears and the first-use open on both stores
 
@@ -457,42 +459,36 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Stages 1 and 2 are done; stage 3 is built except one item. `cargo build` and `cargo clippy
---all-targets -- -D warnings` are green. No test was run this session.
+Stages 1 to 4 are done. `cargo build`, `cargo clippy --all-targets -- -D warnings` and
+`cargo fmt --check` are green.
 
-`Core\Session` now has the twelve members of the roster (`crates/nvs-stdlib/src/session.rs` `CLASS`
-and `address`). `start`, `set`, `clear`, `destroy` and `setSecret` are gone. `first_use(ctx, who)`
-opens the session on any member's first call, through `opened_under(ctx, who, given)`, and
-`nvs_core_session_open_with_identifier` throws `LogicError` naming `opened_by` once open. Every
-write member calls `head_open` first, then `first_use`. `cleared(..)` is both clears; `moved_to_fresh`
-is shared with `regenerate` and redraws the short token; `regenerated(ctx, store, who, member)`.
-`clearAll` deletes the row, expires both cookies with `Max-Age=0`, and opens a fresh session. The
-store's clear is per lifetime (Standing decisions, *Stage 3's clears*): `SAVE`'s Lua, the fake
-`saved_in` and the SQLite save all changed. The cards are rewritten as end-user prose, with shared
-`NO_REQUEST`, `NO_STORE`, `STORE_DOWN`, `HEAD_CLOSED` error docs. `RECORDED_SITE_MEMBERS`
-(`registry.rs`) and the parser hint follow. `csrf.rs` `token` and `passkey.rs` (`whole(member)`)
-open on first use through `sent_id`, `put_bytes(ctx, who, ..)` and `take_bytes(ctx, who, ..)`.
+Stage 3: `Core\Session` has the twelve roster members and opens on first use (`first_use`,
+`opened_under` in `crates/nvs-stdlib/src/session.rs`). `Core\Csrf::token` and `Core\Passkey` open
+the session on first use; their cards list `session.rs`'s now `pub(crate)` `NO_REQUEST`, `NO_STORE`
+and `STORE_DOWN` error docs and name no `start()`. `cargo test --lib -- session:: csrf:: passkey::`
+ran once and is green.
 
-The session tests compile; the clear, clearAll, first-use and setter tests were rewritten, not run.
-The sweep's nightly reds predate the unpushed commits and were answered; `env-secret-proofs` is stale.
+Stage 4: `HEAD_MEMBERS` (`crates/nvs-types/src/response.rs`) holds every session write, and the
+E0842/E0857 message says "changes the session" for a `Core\Session` member. The two conformance
+cases and the new `tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst`
+pass under `target/debug/nvs.exe test <the three files>`. The `checker` check's `bun nv suite`
+command is red only because it also reruns 18 other red cases that still call `start`/`set`
+(stage 6).
 
 ### Next
 
-Finish stage 3's last item, then run the session tests once, by name, since stage 3 rewrote them:
-`cargo test --lib -- session:: csrf:: passkey::`. Expect red until fixed: `csrf.rs` tests at
-~`:555-581` (assert the message names `Core\Session::start()`; with first use, a context with no
-inbound now throws the no-request `LogicError`, and a key check comes before the session),
-`passkey.rs` `the_members_throw_before_a_session_is_started` (~`:2162`), and any session test that
-expected a throw before `start` on a context with an inbound. Also rewrite the `start()` text in the
-cards and module docs listed under the stage 3 item. Then stage 4 (`HEAD_MEMBERS`,
-`crates/nvs-types/src/response.rs:197`). Expect red in the conformance suite and in
-`crates/nvs-cli/tests/live_config.rs:1336` and `per_mount_config.rs:485` until stage 6, because
-programs still call `Core\Session::start` and `set`; the conformance case
-`tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst` describes removed
-behaviour and goes in stage 6. Doc comments outside `session.rs` that still name
-`Core\Session::start` (`nvs-config` `directive.rs:301`, `session.rs:191`, `tree.rs:1545`;
-`nvs-runtime` `inbound.rs:943`; `nvs-server` `route.rs:47,246,339,878`; `nvs-stdlib` `request.rs:2285`,
-`response.rs:1622`) and the module doc at the top of `session.rs` go in stage 6.
+Stage 5: the thirteen tests the `lifetimes` check names, in `session.rs`'s `mod tests`, through
+`a_store`, in the shape of `a_destroyed_session_is_not_written_back_on_any_store`. The test
+`a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too` uses the
+`later` slot and `head_open`. Deferred work has no request (see Backlog), so after the response a
+write throws the no-request `LogicError` before `head_open` is reached; assert `LogicError`, not
+the message. Then stages 6, 7 and 8, which may run side by side. Expect red until stage 6 in the
+conformance suite (the 18 cases above, among them
+`tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst`, which describes
+removed behaviour), and in `crates/nvs-cli/tests/live_config.rs:1336` and `per_mount_config.rs:485`.
+Doc comments that still name `Core\Session::start` go in stage 6: `nvs-config` `directive.rs:301`,
+`session.rs:191`, `tree.rs:1545`; `nvs-runtime` `inbound.rs:943`; `nvs-server` `route.rs:47,246,339,878`;
+`nvs-stdlib` `request.rs:2285`, `response.rs:1622`, and the module doc at the top of `session.rs`.
 
 ### Backlog
 
@@ -500,3 +496,10 @@ behaviour and goes in stage 6. Doc comments outside `session.rs` that still name
   session identifier and the head is closed. It works for a visitor with a session. That is the same
   trap as a session write there, but refusing it in the checker would forbid forms in a slot. It needs
   its own design, and becomes a gap record if this goal ends with it open.
+- A `Core\Session::get` inside `Core\Task::afterResponse` throws the no-request `LogicError`: the
+  deferred work runs on a context with no inbound request and no session (`nvs-host`), so it never
+  sees the session the request saved. This was true before this goal too, where it threw the
+  "start first" error. The roster rule says `get` stays allowed there, which compiles but does not
+  run. Either the deferred context gets a read-only view of the request's session, or the rule says
+  a read there throws. It needs its own design, and becomes a gap record if this goal ends with it
+  open.

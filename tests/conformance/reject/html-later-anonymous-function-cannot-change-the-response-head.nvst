@@ -1,5 +1,5 @@
 --TEST--
-An anonymous function written in a `Core\Html::later` call cannot change the response head -- a status, a header, a redirect, a cookie, a body method or a session regeneration is a compile error there, in a nested anonymous function too, while the same calls in the main script and an `echo` in the anonymous function compile -- `rule:core-classes/html-later`
+An anonymous function written in a `Core\Html::later` call cannot change the response head -- a status, a header, a redirect, a cookie, a body method or any session write is a compile error there, in a nested anonymous function too, while the same calls in the main script and an `echo` in the anonymous function compile -- `rule:core-classes/html-later`
 --FILE--
 <?nvs
 // A `later` callable fills one part of the page. At run time each of these
@@ -13,6 +13,20 @@ var $slot = Core\Html::later(fn(): void => {
     Core\Response::addCookie("sid", "abc");
     Core\Response::text("body");
     Core\Session::regenerate();
+});
+
+// Every session write is a compile error here, for a visitor with a session too.
+var $session = Core\Html::later(fn(): void => {
+    array<secret bytes> $ring = [Core\Crypto::generateKey()];
+    secret string $token = "sk-live-7";
+    Core\Session::setShortLived("cart", 3);
+    Core\Session::setLongLived("theme", "dark");
+    Core\Session::setShortLivedSecret("refresh", $token, $ring);
+    Core\Session::setLongLivedSecret("device", $token, $ring);
+    Core\Session::remove("cart");
+    Core\Session::clearShortLived();
+    Core\Session::clearLongLived();
+    Core\Session::clearAll();
 });
 
 // An anonymous function nested in a `later` one runs in the same slot.
@@ -43,11 +57,35 @@ error[E0842]: `Core\Response::addCookie` changes the response, and a callable pa
 error[E0842]: `Core\Response::text` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:11:5
 %A
-error[E0842]: `Core\Session::regenerate` changes the response, and a callable passed to `Core\Html::later` cannot do that
+error[E0842]: `Core\Session::regenerate` changes the session, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:12:5
 %A
-error[E0842]: `Core\Response::json` changes the response, and a callable passed to `Core\Html::later` cannot do that
-   --> case.nvs:17:34
+error[E0842]: `Core\Session::setShortLived` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:19:5
 %A
-error: aborting due to 7 errors
+error[E0842]: `Core\Session::setLongLived` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:20:5
+%A
+error[E0842]: `Core\Session::setShortLivedSecret` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:21:5
+%A
+error[E0842]: `Core\Session::setLongLivedSecret` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:22:5
+%A
+error[E0842]: `Core\Session::remove` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:23:5
+%A
+error[E0842]: `Core\Session::clearShortLived` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:24:5
+%A
+error[E0842]: `Core\Session::clearLongLived` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:25:5
+%A
+error[E0842]: `Core\Session::clearAll` changes the session, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:26:5
+%A
+error[E0842]: `Core\Response::json` changes the response, and a callable passed to `Core\Html::later` cannot do that
+   --> case.nvs:31:34
+%A
+error: aborting due to 15 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
