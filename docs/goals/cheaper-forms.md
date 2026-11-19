@@ -601,14 +601,23 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
 under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/examples/`,
 `benches/` and `website/snippets/` once the codes land and lists every file that now warns.
 
-- [ ] The form warning in `crates/nvs-diagnostics/src/code/warnings.rs`, after the last code, with its
+- [x] The form warning in `crates/nvs-diagnostics/src/code/warnings.rs`, after the last code, with its
   card in end-user prose. Its message names the member to use. Its `Suggestion` is the fast form's
   text, marked `alternative`. `nvs check` prints it, and `crates/nvs-lsp/src/actions.rs` translates it
   as it does every other suggestion.
+  - [x] `W1034` `W_CHEAPER_FORM` and its card.
+  - [x] `nvs_ir::forms::warnings` over `Program::forms`, with the alternative fix.
+  - [x] `nvs check` (`crates/nvs-cli/src/main.rs`) and `copy_warnings` in `crates/nvs-lsp/src/document.rs`.
+  - [x] `a_form_warning_carries_its_fast_form_as_an_alternative`, run once, green.
 - [ ] The repeated-read warning, for the cache, `queryParameter` and file rows, matched in the
   lowering under the exact shape in § *Standing decisions*. One code and one card. The session row is
   measured first, once, under `nvs serve` with a 16 KiB session record: two `Core\Session::get` calls
   against one. Under 2x it is not built, and its number goes to the rule's Declined list.
+  - [x] `W1035` `W_REPEATED_READ` and its card.
+  - [x] `crates/nvs-ir/src/rereads.rs`: the three rows, `find` in `lower_program_as`, `warnings`, wired
+    into `nvs check` and the editor.
+  - [x] `a_second_read_of_the_same_value_warns_only_in_straight_code`, run once, green.
+  - [ ] The session row measured under `nvs serve` with a 16 KiB record, and built or declined.
 - [ ] Every file the `reader` subagent lists is rewritten to the fast form, or keeps its form where
   the example is about that form. Its `.out` file does not change.
 - [ ] The two tests the `warnings` check names and the two `.lspt` cases. Run once.
@@ -694,30 +703,39 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1, 2, 3 and 4 are done. Stage 4's last item landed: a `run` ladder takes
-`// scaling: rounds N` (`Ladder::rounds` in `tools/nv/cmd/scaling.ts`). `ladderOne` then builds a
-`roundsPlan` and judges it with `judgePerOp`, which `rampPerOp` shares, so the input a ladder builds
-once cancels out. The two `expect constant` ladders under `benches/scaling/arrays/forms-` take the
-line, and `bun nv scaling --check arrays/forms-` found all three flat. The map ladder, which stage
-6's last item names, is already flat under the per-round judgment. Sessions used: stage 1, one;
-stage 2, two; stage 3, two; stage 4, three (the third for its tooling item, as a standing decision
-allows). The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S`
-names only a retired goal's commits.
+Stages 1 to 4 are done. Stage 5 has its two codes. `W1034` (`W_CHEAPER_FORM`) is raised by
+`nvs_ir::forms::warnings` from `Program::forms`: its span is the written form, its message names the
+member, and its one fix is the fast text as an `alternative`. `W1035` (`W_REPEATED_READ`) is raised
+by `nvs_ir::rereads::warnings` from `Program::rereads`, which `rereads::find` fills on the written
+tree in `lower_program_as`, whether or not the table is on, because it compiles nothing. Its rows
+are the cache, `queryParameter` and file rows; the session row is not built. Its shape is narrower
+than the standing decision: any property access, `clone`, `yield`, `await`, a by-reference write
+and a `Core` member that takes a callable between the two calls also stop it. Both reach `nvs
+check` (`crates/nvs-cli/src/main.rs`) and the editor (`copy_warnings` in
+`crates/nvs-lsp/src/document.rs`). Both named tests ran once, green. Sessions used: stage 5, one.
+The sweep's `env-secret-proofs` red is stale: its log does not exist, and `git log -S` names only a
+retired goal's commits.
 
 ### Next
 
-Stage 5. Its gate holds: `crates/nvs-lsp/Cargo.toml` links `nvs-ir`. The form warning takes
-`W1034`, after `W_COPY_FAILURE_AFTER_CHANGE` (`crates/nvs-diagnostics/src/code/warnings.rs:348`),
-raised from `Program::forms`'s `forms::Recorded` list the way `nvs_ir::copies::warnings` raises
-`W1033`. Follow that path into `nvs check` and the language server. Then the repeated-read warning
-and its session measurement, under the stage's split. Stages 6, 7, 8 and 10 can start as side
-goals at any time.
+Stage 5's rest, in this order. First the session row's measurement: under `nvs serve`, a handler
+that writes a 16 KiB session record and then reads one key with one `Core\Session::get` call, and
+one with two, timed over many requests. At 2x or more, add a `Session` row to `rereads::Row`
+(`crates/nvs-ir/src/rereads.rs`, a static call with one literal key, and `Core\Session` writing
+members such as `set` blocking it); under 2x, put the figure in the rule's Declined list and drop
+`Core\Session::get` from the rule's W1035 paragraph. Then the stage's split: one writing subagent
+writes the two `.lspt` cases (shape: `tests/lsp/diagnostics/a-failure-after-the-change-warns-and-its-fix-moves-it.lspt`;
+the session case needs the session row, so if it is declined, the case and the `warnings-editor`
+check move to another row, such as a cache key, and the goal's check is edited to name it). A
+`reader` subagent runs `nvs check` over `docs/examples/`, `benches/` and `website/snippets/` and lists
+every `W1034` and `W1035`. Stages 6, 7, 8 and 10 can start as side goals at any time.
 
 Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints a
 literal with all-literal keys, a `foreach` with an unread key, a `keys`, `values` or `range` loop,
 a `static::m()` call or a `static::NAME` read nothing redeclares, a `first`, `firstKey`, `isEmpty`
 or count of a filter, or a `sort`, `diff` or `intersect` with a one-expression comparator, if any
-does.
+does. Also any case that pins `nvs check`'s or the editor's warnings for a file that now has a
+`W1034` or `W1035`.
 
 ### Backlog
 
