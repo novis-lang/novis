@@ -964,8 +964,9 @@ pub fn without_cheaper_forms<R>(lower: impl FnOnce() -> R) -> R {
 }
 
 /// Whether this thread lowers with the cheaper forms on: false only inside
-/// [`without_cheaper_forms`]. No row reads it yet; each stage that applies a
-/// row asks it at the row's site.
+/// [`without_cheaper_forms`]. Each row's site asks it before it applies the
+/// row: a `Core` call (`Lowering::lower_core_call`) and a null test
+/// (`Lowering::lower_null_tested_match`).
 pub(crate) fn cheaper_forms_on() -> bool {
     !CHEAPER_FORMS_OFF.with(std::cell::Cell::get)
 }

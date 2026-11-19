@@ -589,6 +589,9 @@ impl<'a> Lowering<'a> {
         } else {
             lhs
         };
+        if let Some(found) = self.lower_null_tested_match(operand, op == BinaryOp::Eq, env, cur) {
+            return found;
+        }
         let (v, ty) = self.lower_expr(operand, None, env, cur);
         // A representation that is not `Ty::Tagged` cannot hold
         // `null` at all, so the answer is a constant — the same

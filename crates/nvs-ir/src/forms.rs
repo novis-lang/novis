@@ -27,8 +27,17 @@
 //! the form returns, so `bun nv suite tests/conformance/ --no-cheaper-forms-too`
 //! compares every row both ways.
 //!
-//! **What it spends:** nothing yet. No row is applied by this module's table
-//! alone; each stage that applies a row reads it at the row's site.
+//! The matchers below the table are what a row's site asks: each takes the
+//! written tree and the checker's resolved calls, and gives the fast form or
+//! `None`. The site applies one only while `crate::lower::cheaper_forms_on` holds.
+//!
+//! **What it spends:** while compiling, one match of each `Core` call and null
+//! test lowered against the rows whose stage applies it. At run time, nothing.
+
+use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
+use nvs_types::expr_table::{ExprInfo, ExprTypeTable};
+
+use crate::ty::Ty;
 
 /// Where a row's conformance cases live, under the repository root.
 pub const CASES_DIR: &str = "tests/conformance/forms";
@@ -388,3 +397,96 @@ pub const ROWS: &[Row] = &[
         stage: 4,
     },
 ];
+
+/// A call the lowering compiles as another `Core` member of the same class,
+/// over arguments the program wrote: the fast form of a stage-2 row.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CoreForm<'a> {
+    /// The fast member's name, on the written call's class.
+    pub method: &'static str,
+    /// The written arguments the fast member is called with.
+    pub args: &'a CallArgs,
+    /// How many lowered arguments the fast member takes, where it takes fewer
+    /// than the written member: the rest are the written member's defaults.
+    pub arity: Option<usize>,
+    /// The fast member's result type, where it is not the written member's.
+    pub returns: Option<Ty>,
+}
+
+/// The written arguments of `expr` when it is a static call of `class`'s
+/// `method`, resolved by the checker.
+fn core_call<'a>(
+    expr: &'a Expr,
+    exprs: &ExprTypeTable,
+    class: &str,
+    method: &str,
+) -> Option<&'a CallArgs> {
+    let ExprKind::StaticCall { args, .. } = &expr.kind else {
+        return None;
+    };
+    let Some(ExprInfo::Call(call)) = exprs.lookup(expr.span) else {
+        return None;
+    };
+    (call.method == method && call.class.to_string() == class).then_some(args)
+}
+
+/// The written arguments when there are `n` of them and every one is
+/// positional and plain.
+fn positional(args: &CallArgs, n: usize) -> Option<&[Arg]> {
+    let CallArgs::List(list) = args else {
+        return None;
+    };
+    (list.len() == n
+        && list
+            .iter()
+            .all(|arg| arg.name.is_none() && !arg.spread && !arg.inout))
+    .then_some(list.as_slice())
+}
+
+/// Rows `count-of-keys-or-values` and `first-of-keys-or-values`: `expr` is
+/// `Core\Arr::count` or `Core\Arr::first` of `keys(a)` or `values(a)`, and the
+/// fast form is `count(a)`, `firstKey(a)` or `first(a)`.
+pub(crate) fn over_keys_or_values<'a>(
+    expr: &'a Expr,
+    exprs: &ExprTypeTable,
+) -> Option<CoreForm<'a>> {
+    const ARR: &str = r"Core\Arr";
+    let (outer, args) = ["count", "first"]
+        .into_iter()
+        .find_map(|method| core_call(expr, exprs, ARR, method).map(|args| (method, args)))?;
+    let [inner] = positional(args, 1)? else {
+        return None;
+    };
+    let (inner_method, inner_args) = ["keys", "values"].into_iter().find_map(|method| {
+        core_call(&inner.value, exprs, ARR, method).map(|args| (method, args))
+    })?;
+    positional(inner_args, 1)?;
+    let method = match (outer, inner_method) {
+        ("first", "keys") => "firstKey",
+        ("first", _) => "first",
+        _ => "count",
+    };
+    Some(CoreForm {
+        method,
+        args: inner_args,
+        arity: None,
+        returns: None,
+    })
+}
+
+/// Row `match-null-test`: `operand` is `Core\Regex::match(s, p)` with no
+/// `from` option, and its only use is the null test around it. The fast form
+/// is `Core\Regex::matches(s, p)`, whose `true` is the test's `!= null`.
+pub(crate) fn null_tested_match<'a>(
+    operand: &'a Expr,
+    exprs: &ExprTypeTable,
+) -> Option<CoreForm<'a>> {
+    let args = core_call(operand, exprs, r"Core\Regex", "match")?;
+    positional(args, 2)?;
+    Some(CoreForm {
+        method: "matches",
+        args,
+        arity: Some(2),
+        returns: Some(Ty::Bool),
+    })
+}

@@ -5209,89 +5209,12 @@ impl<'a> Lowering<'a> {
                 }
                 return self.lower_format_pieces(&pieces, list, env, cur);
             }
-            let sig = ArgSig::of_helper(call);
-            let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
-            // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all`
-            // is the member this is here for: its result is an object of the
-            // class its argument's field names name, and the tags that class
-            // promises have to admit what each field's callable *answers*
-            // rather than the callable itself — see
-            // `Lowering::record_core_result_shape`.
-            self.record_core_result_shape(call.return_ty);
-            let checked_types = self.checked_types;
-            // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
-            // handed what its call site wrote as a type argument, as arguments
-            // 0 to 2 — that roster owns the ABI and
-            // `Lowering::written_type_constants` emits it.
-            let written_class =
-                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
-                    .then(|| self.written_type_constants(*cur, call));
-            // A member on `nvs_stdlib::registry::SOURCE_MEMBERS` is handed
-            // where it was called, as argument 0 — `Lowering::producer_source`
-            // owns the position.
-            let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)
-                .then(|| self.producer_source(*cur));
-            // `nvs_stdlib::registry::CALL_SITE_MEMBERS`' trailing constant,
-            // which that roster owns — the same ABI a static member gets as an
-            // instance one, so a member joining the roster needs nothing
-            // decided about which of the two paths reached it.
-            let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
-                .then(|| self.call_site(*cur, expr.span));
-            // `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' trailing id, which
-            // that roster owns, emitted the way the instance path emits it.
-            let query_site =
-                nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
-                    .then(|| self.query_site_constant(*cur, expr.span));
-            // `nvs_stdlib::registry::PREPARED_MEMBERS`' leading constant, which
-            // that roster owns — `Core\Regex::compile("…")` is the shape it is
-            // here for, and `Lowering::prepared_constant` owns the lookup.
-            let prepared = nvs_types::core_takes_prepared(&call.class.to_string(), &call.method)
-                .then(|| self.prepared_constant(*cur, expr.span));
-            let mark = self.temporaries_mark();
-            // `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`' leading `string`,
-            // staged after the mark — `Lowering::written_enum_constant` owns it.
-            let written_enum =
-                nvs_types::core_takes_written_enum(&call.class.to_string(), &call.method)
-                    .then(|| self.written_enum_constant(*cur, call));
-            let lowered =
-                self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            // `nvs_stdlib::registry::PATH_GRAPH_MEMBERS`' trailing string —
-            // `Lowering::path_graph_constant` owns it.
-            let path_graph =
-                nvs_types::core_takes_path_graph(&call.class.to_string(), &call.method)
-                    .then(|| self.path_graph_constant(*cur, call.path_graph.as_deref()));
-            let leading: Vec<ValueId> = prepared
-                .into_iter()
-                .chain(source)
-                .chain(written_class.into_iter().flatten())
-                .chain(written_enum)
-                .collect();
-            // The first declared parameter's slot, after every prepared
-            // argument. `crate::ownership` reads it.
-            let subject = (!lowered.values.is_empty())
-                .then(|| u32::try_from(leading.len()).expect("an argument count fits u32"));
-            let arg_values = leading
-                .into_iter()
-                .chain(lowered.values)
-                .chain(path_graph)
-                .chain(site)
-                .chain(query_site)
-                .collect::<Vec<_>>();
-            let result = self.emit_fallible(
-                *cur,
-                return_ty,
-                InstKind::CoreCall {
-                    symbol,
-                    args: arg_values,
-                    subject,
-                },
-                env,
-            );
-            // A `Core` member borrows, so a freshly built argument —
-            // an anonymous function, a nested `Core` call's own result — has
-            // no other owner and would leak without this.
-            self.release_temporaries_since(mark, *cur);
-            return result;
+            let form = if cheaper_forms_on() {
+                crate::forms::over_keys_or_values(expr, self.exprs)
+            } else {
+                None
+            };
+            return self.lower_core_call(call, symbol, args, form, expr.span, env, cur);
         }
         // A loaded extension's method is its export's trampoline, which borrows its arguments
         // as a `Core` member does. See `InstKind::ExtensionCall`.
@@ -5416,6 +5339,162 @@ impl<'a> Lowering<'a> {
         self.forget_transferred_since(mark);
         let result = self.emit_fallible(*cur, return_ty, kind, env);
         self.flush_ref_writebacks(staged_refs, env, cur);
+        result
+    }
+
+    /// Row `match-null-test` of `crate::forms`: the null test of a
+    /// `Core\Regex::match` call with no `from` option is `matches`, negated
+    /// where the test is for `null`. `None` where the row does not hold or the
+    /// table is off, and the test is lowered as written.
+    pub(crate) fn lower_null_tested_match(
+        &mut self,
+        operand: &Expr,
+        is_null: bool,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> Option<(ValueId, Ty)> {
+        if !cheaper_forms_on() {
+            return None;
+        }
+        let form = crate::forms::null_tested_match(operand, self.exprs)?;
+        let Some(ExprInfo::Call(call)) = self.exprs.lookup(operand.span) else {
+            return None;
+        };
+        let symbol = nvs_types::core_symbol_of(&call.class, &call.method)?;
+        let (found, _) = self.lower_core_call(call, symbol, form.args, Some(form), operand.span, env, cur);
+        if !is_null {
+            return Some((found, Ty::Bool));
+        }
+        Some(self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::UnOp {
+                op: UnOp::Not,
+                operand: found,
+            },
+        ))
+    }
+
+    /// A `Core` member's call: its arguments borrowed, the prepared and
+    /// trailing constants its rosters name, and one `InstKind::CoreCall`.
+    ///
+    /// `form` is a row of `crate::forms` the site matched: the call is then
+    /// the fast member of the same class over the arguments the form names,
+    /// and the rosters are read for that member.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lower_core_call(
+        &mut self,
+        call: &ResolvedCall,
+        symbol: &'static str,
+        args: &CallArgs,
+        form: Option<crate::forms::CoreForm<'_>>,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (method, symbol, args) = match form {
+            Some(form) => (
+                form.method,
+                nvs_types::core_symbol_of(&call.class, form.method).unwrap_or_else(|| {
+                    panic!(
+                        "nvs-ir: the fast form `{}::{}` names no `Core` member —                          crate::forms names only members of the written call's class",
+                        call.class, form.method
+                    )
+                }),
+                form.args,
+            ),
+            None => (call.method.as_str(), symbol, args),
+        };
+        let class = call.class.to_string();
+        let sig = ArgSig::of_helper(call);
+        let return_ty = form
+            .and_then(|form| form.returns)
+            .unwrap_or_else(|| erase_checked_ty(call.return_ty, self.checked_types));
+        // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all`
+        // is the member this is here for: its result is an object of the
+        // class its argument's field names name, and the tags that class
+        // promises have to admit what each field's callable *answers*
+        // rather than the callable itself — see
+        // `Lowering::record_core_result_shape`.
+        self.record_core_result_shape(call.return_ty);
+        let checked_types = self.checked_types;
+        // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
+        // handed what its call site wrote as a type argument, as arguments
+        // 0 to 2 — that roster owns the ABI and
+        // `Lowering::written_type_constants` emits it.
+        let written_class =
+            nvs_types::core_takes_written_class(&class, method)
+                .then(|| self.written_type_constants(*cur, call));
+        // A member on `nvs_stdlib::registry::SOURCE_MEMBERS` is handed
+        // where it was called, as argument 0 — `Lowering::producer_source`
+        // owns the position.
+        let source = nvs_types::core_takes_source(&class, method)
+            .then(|| self.producer_source(*cur));
+        // `nvs_stdlib::registry::CALL_SITE_MEMBERS`' trailing constant,
+        // which that roster owns — the same ABI a static member gets as an
+        // instance one, so a member joining the roster needs nothing
+        // decided about which of the two paths reached it.
+        let site = nvs_types::core_takes_call_site(&class, method)
+            .then(|| self.call_site(*cur, span));
+        // `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' trailing id, which
+        // that roster owns, emitted the way the instance path emits it.
+        let query_site =
+            nvs_types::core_takes_query_site(&class, method)
+                .then(|| self.query_site_constant(*cur, span));
+        // `nvs_stdlib::registry::PREPARED_MEMBERS`' leading constant, which
+        // that roster owns — `Core\Regex::compile("…")` is the shape it is
+        // here for, and `Lowering::prepared_constant` owns the lookup.
+        let prepared = nvs_types::core_takes_prepared(&class, method)
+            .then(|| self.prepared_constant(*cur, span));
+        let mark = self.temporaries_mark();
+        // `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`' leading `string`,
+        // staged after the mark — `Lowering::written_enum_constant` owns it.
+        let written_enum =
+            nvs_types::core_takes_written_enum(&class, method)
+                .then(|| self.written_enum_constant(*cur, call));
+        let mut lowered =
+            self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
+        // The written member's own trailing defaults, which the fast member
+        // does not take. Each is a constant, so nothing is released.
+        if let Some(arity) = form.and_then(|form| form.arity) {
+            lowered.values.truncate(arity);
+        }
+        // `nvs_stdlib::registry::PATH_GRAPH_MEMBERS`' trailing string —
+        // `Lowering::path_graph_constant` owns it.
+        let path_graph =
+            nvs_types::core_takes_path_graph(&class, method)
+                .then(|| self.path_graph_constant(*cur, call.path_graph.as_deref()));
+        let leading: Vec<ValueId> = prepared
+            .into_iter()
+            .chain(source)
+            .chain(written_class.into_iter().flatten())
+            .chain(written_enum)
+            .collect();
+        // The first declared parameter's slot, after every prepared
+        // argument. `crate::ownership` reads it.
+        let subject = (!lowered.values.is_empty())
+            .then(|| u32::try_from(leading.len()).expect("an argument count fits u32"));
+        let arg_values = leading
+            .into_iter()
+            .chain(lowered.values)
+            .chain(path_graph)
+            .chain(site)
+            .chain(query_site)
+            .collect::<Vec<_>>();
+        let result = self.emit_fallible(
+            *cur,
+            return_ty,
+            InstKind::CoreCall {
+                symbol,
+                args: arg_values,
+                subject,
+            },
+            env,
+        );
+        // A `Core` member borrows, so a freshly built argument —
+        // an anonymous function, a nested `Core` call's own result — has
+        // no other owner and would leak without this.
+        self.release_temporaries_since(mark, *cur);
         result
     }
 
@@ -7211,6 +7290,12 @@ impl<'a> Lowering<'a> {
                 expr.span
             ),
         };
+        if let TestOperand::Type(tested) = against
+            && matches!(tested.kind, TypeKind::Atom(TypeAtom::Null))
+            && let Some(found) = self.lower_null_tested_match(inner, true, env, cur)
+        {
+            return found;
+        }
         let (value, subject) = self.lower_expr(inner, None, env, cur);
         let result = match plan {
             TypeTestPlan::Settled(answer) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(answer)),

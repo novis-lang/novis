@@ -6789,3 +6789,75 @@ fn every_form_row_has_its_cases() {
         stray.join("\n  "),
     );
 }
+
+/// The symbol of every `Core` call `src` lowers to, with the table of cheaper
+/// forms on and then off, in the order the functions and their blocks list them.
+fn core_calls_both_ways(src: &str) -> (Vec<&'static str>, Vec<&'static str>) {
+    fn symbols(program: &crate::ir::Program) -> Vec<&'static str> {
+        program
+            .functions
+            .iter()
+            .flat_map(|f| f.blocks.iter())
+            .flat_map(|block| block.insts.iter())
+            .filter_map(|inst| match inst.kind {
+                InstKind::CoreCall { symbol, .. } => Some(symbol),
+                _ => None,
+            })
+            .collect()
+    }
+    let on = symbols(&lower_whole_file_with_src(src).0);
+    let off = crate::lower::without_cheaper_forms(|| symbols(&lower_whole_file_with_src(src).0));
+    (on, off)
+}
+
+/// How many times `symbol` is among `calls`.
+fn count_of(calls: &[&str], symbol: &str) -> usize {
+    calls.iter().filter(|call| **call == symbol).count()
+}
+
+/// Row `match-null-test`: `== null`, `!= null` and `is null` of a `match`
+/// call each compile as `matches`, and the call with a `from` option stays a
+/// `match`. With the table off, all four are `match`.
+#[test]
+fn a_null_test_of_a_match_compiles_as_matches() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(string $s, string $p): void {\n    \
+               echo Core\\Regex::match($s, $p) == null ? 1 : 0;\n    \
+               echo Core\\Regex::match($s, $p) != null ? 1 : 0;\n    \
+               echo Core\\Regex::match($s, $p) is null ? 1 : 0;\n    \
+               echo Core\\Regex::match($s, $p, {from: 2}) == null ? 1 : 0;\n  }\n}\n";
+    let (on, off) = core_calls_both_ways(src);
+    assert_eq!(count_of(&on, "nvs_core_regex_matches"), 3, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_regex_match"), 1, "{on:?}");
+    assert_eq!(count_of(&off, "nvs_core_regex_matches"), 0, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_regex_match"), 4, "{off:?}");
+}
+
+/// Rows `count-of-keys-or-values` and `first-of-keys-or-values`: no `keys` or
+/// `values` array is built. `count` reads the array itself, `first` of the keys
+/// is `firstKey`, and `first` of the values is `first`.
+#[test]
+fn a_count_or_first_of_keys_or_values_reads_the_array_itself() {
+    let src = "<?nvs\nfinal class T {\n  public static function m(array<int> $a): void {\n    \
+               echo Core\\Arr::count(Core\\Arr::keys($a));\n    \
+               echo Core\\Arr::count(Core\\Arr::values($a));\n    \
+               echo Core\\Arr::first(Core\\Arr::keys($a)) ?? \"\";\n    \
+               echo Core\\Arr::first(Core\\Arr::values($a)) ?? 0;\n  }\n}\n";
+    let (on, off) = core_calls_both_ways(src);
+    assert_eq!(
+        on,
+        [
+            "nvs_core_arr_count",
+            "nvs_core_arr_count",
+            "nvs_core_arr_first_key",
+            "nvs_core_arr_first",
+        ],
+    );
+    assert_eq!(count_of(&off, "nvs_core_arr_keys"), 2, "{off:?}");
+    // A `values` whose subject is sole is its owning variant.
+    let values = off
+        .iter()
+        .filter(|call| call.starts_with("nvs_core_arr_values"))
+        .count();
+    assert_eq!(values, 2, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_first_key"), 0, "{off:?}");
+}
