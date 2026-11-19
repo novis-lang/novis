@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/types/bytes.md]
   - id: 4
     title: every Core\Str and Core\Bytes member changes only what its result changes
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/bytes.rs, crates/nvs-stdlib/tests/in_place.rs]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -157,6 +157,17 @@ pass could not move `$s` in. Now `InstKind::consumes` is `ConcatPart::leads_with
 hands the leading piece over as for an all-string join, and codegen calls `nvs_str_append_parts` with
 it as the target. **What it spends:** nothing. A shared leading piece is copied once, as before.
 
+**A rewriting member plans in `check` and writes in place only where no walk runs (my call, stage
+4).** `str.rs`'s `Rewritten` is the plan, and `rewritten` the `apply`. `check` reads whether the
+subject is sole with `room_behind(0)`, after it retains any argument whose bytes it would write. On a
+sole subject, an ASCII `lower`/`upper`/`fold`/`reverse` (no `\r\n`), and a `replaceRange` or
+`upperFirst`/`lowerFirst` whose new bytes are no longer than the old, go through `NvsStr::rewrite`
+and allocate nothing. Every other rewrite, `replace` and `replaceAll` included, builds its result in
+`check` and `apply` copies it into the subject with `NvsStr::replace_with` when it fits. `replace`
+is not done in place, because its search polls the request's deadline through a `Walk`, which can
+throw, and `apply` cannot. **What it spends:** on a sole subject, one copy of a built result. On a
+shared subject, nothing beyond the build it did before.
+
 **Lanes.** Stage 2 touches `crates/nvs-stdlib/src/granularity.rs` and `str.rs`'s `window` alone. Stage 3
 touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at any time, even before
 `in-place-everywhere`. Stage 4 needs `in-place-everywhere` reached and stages 2 and 3 done.
@@ -214,16 +225,16 @@ touches `crates/nvs-runtime/src/string.rs` alone. Both can run as side goals at 
 - [x] The cutting members: `slice` (`str.rs:3277`), `at`, `before` (`:3775`), `after` (`:3794`), `trim`
   (`:2596`), `trimStart` (`:2622`), `trimEnd` (`:2632`), `Core\Bytes::slice` (`bytes.rs:938`).
 - [x] The extending members: `padEnd` (`:3970`), `padStart`, `repeat`, `Core\Bytes::repeat`.
-- [ ] The rewriting members: `replaceRange` (`:3361`), `replace` (`:3101`), `replaceAll` (`:3176`),
+- [x] The rewriting members: `replaceRange` (`:3361`), `replace` (`:3101`), `replaceAll` (`:3176`),
   `lower` (`:4288`), `upper` (`:4312`), `upperFirst` (`:4327`), `lowerFirst` (`:4336`), `fold`
   (`:4365`), `normalize` (`:4398`), `reverse` (`:3876`), `wrap` (`:3902`).
-- [ ] `crates/nvs-stdlib/tests/in_place.rs`: `every_string_member_has_a_row_here` reads every owning
+- [x] `crates/nvs-stdlib/tests/in_place.rs`: `every_string_member_has_a_row_here` reads every owning
   `Core\Str` and `Core\Bytes` row and fails naming one with no row in the test's table.
   `every_string_member_keeps_what_it_does_not_change` checks each row on a sole subject. Run once.
   - [x] `TEXT_ROWS` names all 24 owning members, and `every_string_member_has_a_row_here` passes.
   - [x] The cutting rows pass `every_string_member_keeps_what_it_does_not_change`.
   - [x] The extending rows pass it.
-  - [ ] The rewriting rows pass it.
+  - [x] The rewriting rows pass it.
 - [x] `bun nv scaling --check strings/in-place-` once. Every ladder grows linearly.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -240,8 +251,14 @@ The goal came from a conversation with the person, who asked for the same depth 
 that arrays got, for nothing a developer has to remember, and for every replacement in place. Every
 other choice in § *Standing decisions* is the authoring session's call.
 
-Stages 1, 2 and 3 are done. In stage 4 the cutting members (`3543cf1dea`) and the extending members
-(`bc6704ff15`) are done, and the `ladders` check is green: all nine ladders are linear.
+Stages 1 to 4 are done. Stage 4: the cutting members (`3543cf1dea`), the extending members
+(`bc6704ff15`) and the rewriting members (this session) are done. The `ladders` check is green: all
+nine ladders are linear. `cargo test --test in_place -- every_string_member` ran once and passes.
+
+- **Rewriting** (this session): `str.rs` has `Rewritten` (`:4319`), `sole` (`:4359`) and
+  `rewritten` (`:4369`), the shared `apply` of all 11 members. `map_first` (`:4827`) and
+  `case_mapped` (`:4863`) return a plan. See § *Standing decisions*. The module docs of `str.rs` and
+  `bytes.rs` now say which members own their subject.
 
 - **Extending** (`bc6704ff15`): `crates/nvs-runtime/src/string.rs` has `Room` (`:687`), `room_for`,
   `Run` (`:732`), `NvsStr::prepend_run` (`:1454`), `extend` (`:1531`) and `repeated` (`:1608`), and
@@ -250,37 +267,26 @@ Stages 1, 2 and 3 are done. In stage 4 the cutting members (`3543cf1dea`) and th
   (`:4066`) is the `apply`. See § *Standing decisions*.
 - **Interpolation** (`668d5f1c4e`): the two interpolation ladders grew, because a join with a number
   hole consumed nothing. A join led by a string now appends onto it (§ *Standing decisions*).
-- `cargo test --test in_place -- every_string_member` ran once: it fails naming only the 11
-  rewriting members, each "built a new string from a sole subject".
-
-The sweep's `env-secret-proofs` red is stale (no log; `git log -S` finds only retire and handoff
-commits).
+The sweep's `env-secret-proofs` red is stale: it has no log, and `git log -S` finds only goal and
+handoff commits.
 
 ### Next
 
-The rewriting members in `str.rs`, the last item of stage 4. Each is an `nvs_helper!` owning form
-whose `apply` ignores its subject today; `check` must return a plan and `apply` change the subject.
+Stage 5, the gate. Start `looper verify` with `run_in_background`, end the turn, and fix every
+failure it names in one pass. Then the goal-end gates of AGENTS.md § *In the loop*: `bun nv verify
+--doc`, `bun nv owners --closes strings-in-place`, `bun nv ci --check`. Every `Core\Str` member's perf
+record is stale, because `str.rs` changed: record them as the playbook's *perf: stale* bullet says,
+after every doc edit in `str.rs`.
 
-- **In place with `NvsStr::rewrite`** (`string.rs:1673`) where the result is never longer than the
-  input up to each point: ASCII `lower`/`upper`/`fold`/`upperFirst`/`lowerFirst` (byte case swap),
-  `reverse` (ASCII swap; graphemes reversed into a scratch otherwise), `replace`/`replaceAll` with a
-  replacement no longer than the search, and `replaceRange` where the replacement is no longer than
-  the range. Plan a small enum like `Extended` (`str.rs:4066`): `Built(Value)` for the rest, and a
-  rewrite variant whose `apply` falls back to building when `rewrite` answers `false`.
-- **Otherwise** build into a scratch and `NvsStr::replace_with` (`:1706`), which keeps the allocation
-  when it fits. The test's subjects have `room: 0`, so `replaceRange` shrinking `"abcdef"` to
-  `"aXdef"`, and `wrap`, `normalize` and the case members at the same length, must stay in place.
-  `case_mapped` (`:4693`) is the shared builder of the case members.
-- A `replace` with a callback runs it in `check`, before anything changes.
-- Then run `cargo test --test in_place -- every_string_member` once.
-- `str.rs`'s module doc still says every member borrows its subject, and § *A result is written once*
-  names `produced` as the copying path and says `repeat`/`padStart`/`padEnd` allocate exactly once.
-  Rewrite both once the members are done.
+Possibly red at the gate:
 
-Expect `every-member` red until the rewriting members land. Possibly red at the gate:
-`crates/nvs-stdlib/tests/allocation_policy.rs` (pad and repeat on a sole subject now allocate an
-append's doubling, or nothing), and IR or codegen tests that print a `concat` led by a string with a
-number piece, which now has no `release` of its leading piece after it.
+- `crates/nvs-stdlib/tests/allocation_policy.rs`: pad and repeat on a sole subject now allocate an
+  append's doubling or nothing, and the rewriting members on a sole subject allocate nothing or keep
+  the subject's allocation.
+- IR or codegen tests that print a `concat` led by a string with a number piece, which now has no
+  `release` of its leading piece after it.
+- A test that expects `normalize` of ASCII, or `replace` with an empty search, to return a new
+  string. They now return the subject itself.
 
 ### Backlog
 

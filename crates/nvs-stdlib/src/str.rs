@@ -1,8 +1,13 @@
 //! `Core\Str`, over `nvs_runtime`'s reference-counted `NvsStr`.
 //!
-//! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather than
-//! consuming it — see [`crate`]'s own docs for why that falls out of being a
-//! helper rather than being a rule this module states.
+//! Every member here is pure (`rule:core-api/shape-rules` R3). A member whose
+//! subject and result are both a `string` owns its subject
+//! (`rule:types/a-replaced-value-is-changed-in-place`): its `check` reads the
+//! arguments and throws, and its `apply` changes a sole subject in its own
+//! allocation. A cutting member moves the subject's ends ([`kept`]), an
+//! extending one writes into its room ([`extended`]), and a rewriting one
+//! writes over it or copies its built result into it ([`rewritten`]). Every
+//! other member borrows its subject.
 //!
 //! # `string` is valid UTF-8, so this module never validates
 //!
@@ -27,17 +32,21 @@
 //!
 //! A member that builds its result **writes it straight into the allocation it
 //! is answered from**, through [`built`] and `nvs_runtime`'s `NvsStr::build`.
-//! The spelling it replaces — accumulate into a `String`, hand that to
-//! [`produced`] — allocates twice and copies every byte twice, because
-//! [`produced`] can only copy the text it is given. [`produced`] stays for the
-//! members whose result is already sitting in a borrowed slice of the subject,
-//! where that copy is the only one there is.
+//! Accumulating into a `String` and copying it with [`produced`] allocates
+//! twice and copies every byte twice. [`produced`] stays for a result that is
+//! already a borrowed slice of an argument, where that copy is the only one.
 //!
-//! `repeat`, `padStart`/`padEnd` and `reverse` know their length exactly and so
-//! allocate exactly once, which `tests/allocation_policy.rs` holds them to.
-//! `replace` starts the writer at its subject's length and lets it grow by the
-//! same doubling the `String` did, so a guess that is wrong costs what it
-//! always cost and never the final copy.
+//! An owning member on a sole subject builds less. A cut, a pad, a repeat, an
+//! ASCII case change, an ASCII `reverse`, and a `replaceRange` or
+//! `upperFirst`/`lowerFirst` whose new bytes are no longer than the old ones
+//! allocate nothing. Any other rewrite builds its result once and copies it
+//! into the subject's allocation when it fits: one copy of the result, and the
+//! subject's allocation is kept. On a shared subject, `repeat`,
+//! `padStart`/`padEnd` and `reverse` know their length exactly and allocate
+//! exactly once, which `tests/allocation_policy.rs` holds them to. `replace`
+//! starts the writer at its subject's length and lets it grow by the same
+//! doubling the `String` did, so a guess that is wrong costs what it always
+//! cost and never the final copy.
 //!
 //! **Buying an exact length with a second pass is a loss, and was measured as
 //! one** — twice, which is why it is written down rather than left to be
@@ -1834,10 +1843,7 @@ pub(crate) fn built_walked(
     capacity: usize,
     write: impl FnOnce(&mut StrWriter<'_>) -> Result<(), Fault>,
 ) -> HelperResult {
-    let mut outcome = Ok(());
-    let text = NvsStr::build(capacity, |out| outcome = write(out));
-    outcome?;
-    Ok(Value::str(text))
+    scratch_walked(capacity, write).map(Value::str)
 }
 
 /// [`built`], for a member whose capacity is a **count off its own call site**
@@ -3098,7 +3104,7 @@ nvs_runtime::nvs_helper! {
     /// * **An empty `$search` replaces nothing**, rather than inserting the
     ///   replacement between every character or looping forever. PHP returns
     ///   the subject unchanged too.
-    fn nvs_core_str_replace(ctx, args: [5]) -> Value, owns NvsStr {
+    fn nvs_core_str_replace(ctx, args: [5]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "replace", "the subject")?;
         let search = text(&args[1], "replace", "the search string")?;
         let replacement = text(&args[2], "replace", "the replacement")?;
@@ -3106,7 +3112,7 @@ nvs_runtime::nvs_helper! {
         let limit = unsigned(&args[4], "replace", "the `limit` option")?;
 
         if search.is_empty() || limit == 0 {
-            return produced(subject);
+            return Ok(Rewritten::Unchanged);
         }
         // The subject's own length is the capacity the accumulation starts
         // with, exactly as the `String` this replaced started with — but the
@@ -3116,7 +3122,7 @@ nvs_runtime::nvs_helper! {
         // a second `find_from` pass over the subject costs more than the copy
         // it saves.
         let walk = &mut Walk::new(ctx, r"Core\Str::replace");
-        built_walked(subject.len(), |out| {
+        scratch_walked(subject.len(), |out| {
             let mut rest = subject;
             let mut done = 0u64;
             while done < limit {
@@ -3131,8 +3137,9 @@ nvs_runtime::nvs_helper! {
             out.push_str(rest);
             Ok(())
         })
-    } apply(result, _subject) {
-        result
+        .map(Rewritten::Built)
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -3173,7 +3180,7 @@ nvs_runtime::nvs_helper! {
     /// in every use this library has, and an Aho-Corasick automaton would
     /// spend more building itself than it saves. Revisit against a measured
     /// call site, not against this comment.
-    fn nvs_core_str_replace_all(ctx, args: [3]) -> Value, owns NvsStr {
+    fn nvs_core_str_replace_all(ctx, args: [3]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "replaceAll", "the subject")?;
         // Unreachable from source: parameter 1 is `array<string>` in `CLASS`
         // above, so a non-container table is `E0401: expected array<string>,
@@ -3214,7 +3221,7 @@ nvs_runtime::nvs_helper! {
             }
         }
         if table.is_empty() {
-            return produced(subject);
+            return Ok(Rewritten::Unchanged);
         }
 
         // Written straight into the result through `built`, whose writer asks
@@ -3226,7 +3233,7 @@ nvs_runtime::nvs_helper! {
         // as many steps as its needle has bytes, so a long subject or a long
         // needle polls the request's deadline.
         let walk = &mut Walk::new(ctx, r"Core\Str::replaceAll");
-        built_walked(subject.len(), |out| {
+        scratch_walked(subject.len(), |out| {
             let mut at = 0usize;
             let mut kept_from = 0usize;
             while at < subject.len() {
@@ -3261,8 +3268,9 @@ nvs_runtime::nvs_helper! {
             out.push_str(&subject[kept_from..]);
             Ok(())
         })
-    } apply(result, _subject) {
-        result
+        .map(Rewritten::Built)
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -3358,21 +3366,38 @@ nvs_runtime::nvs_helper! {
     /// An empty window is an insertion at that position, which is how a
     /// `$length` of `0` — or a negative one that reaches back past the offset —
     /// reads. PHP's answer too.
-    fn nvs_core_str_replace_range(_ctx, args: [4]) -> Value, owns NvsStr {
+    fn nvs_core_str_replace_range(_ctx, args: [4]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "replaceRange", "the subject")?;
         let replacement = text(&args[3], "replaceRange", "the replacement")?;
         let (start, end) = window(&args[0], subject, &args[1], &args[2], "replaceRange")?;
-
-        // Written once, straight into the result: the capacity is exact, and
-        // both parts are already in memory, so the result is never larger
-        // than the two arguments together.
-        built(start + replacement.len() + (subject.len() - end), |out| {
-            out.push_str(&subject[..start]);
-            out.push_str(replacement);
-            out.push_str(&subject[end..]);
-        })
-    } apply(result, _subject) {
-        result
+        // A replacement no longer than its window is written over a sole
+        // subject. It is retained first, so a replacement that is the subject
+        // makes the subject shared.
+        if replacement.len() <= end - start {
+            let held = <NvsStr as nvs_runtime::OwnedSubject>::share(&args[3]).ok_or_else(|| {
+                Fault::fatal("Core\\Str::replaceRange: the replacement is not a string".to_owned())
+            })?;
+            if sole(&args[0]) {
+                return Ok(Rewritten::Splice {
+                    start,
+                    end,
+                    with: Spliced::Held(held),
+                });
+            }
+        }
+        // Written once: the capacity is exact, and both parts are already in
+        // memory, so the result is never larger than the two arguments
+        // together.
+        Ok(Rewritten::Built(NvsStr::build(
+            start + replacement.len() + (subject.len() - end),
+            |out| {
+                out.push_str(&subject[..start]);
+                out.push_str(replacement);
+                out.push_str(&subject[end..]);
+            },
+        )))
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -3873,15 +3898,20 @@ nvs_runtime::nvs_helper! {
     /// character of the subject, outside the memory limit. A reversal is the
     /// same bytes in a different order, so the length is the subject's and
     /// [`built`] writes them once.
-    fn nvs_core_str_reverse(_ctx, args: [1]) -> Value, owns NvsStr {
+    fn nvs_core_str_reverse(_ctx, args: [1]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "reverse", "the subject")?;
-        built(subject.len(), |out| {
+        // Every ASCII character but a `\r` before a `\n` is one cluster of
+        // one byte, so such a subject reverses byte by byte.
+        if sole(&args[0]) && subject.is_ascii() && !subject.contains("\r\n") {
+            return Ok(Rewritten::AsciiReverse);
+        }
+        Ok(Rewritten::Built(NvsStr::build(subject.len(), |out| {
             for piece in crate::granularity::DEFAULT.pieces(subject).rev() {
                 out.push_str(piece);
             }
-        })
-    } apply(result, _subject) {
-        result
+        })))
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -3899,7 +3929,7 @@ nvs_runtime::nvs_helper! {
     ///   character *and* after it, which does not terminate. PHP raises
     ///   `ValueError` for the same pair; a zero width without cutting is fine
     ///   and breaks at every space.
-    fn nvs_core_str_wrap(_ctx, args: [4]) -> Value, owns NvsStr {
+    fn nvs_core_str_wrap(_ctx, args: [4]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "wrap", "the subject")?;
         let width = count(&args[1], "wrap", "the width")?;
         let break_with = text(&args[2], "wrap", "the `breakWith` option")?;
@@ -3918,11 +3948,11 @@ nvs_runtime::nvs_helper! {
         // The result is at least the subject, and the writer asks the memory
         // limit before each growth past that: a width of 1 with a long
         // `breakWith` makes a result many times the subject's length.
-        built(subject.len(), |out| {
+        Ok(Rewritten::Built(NvsStr::build(subject.len(), |out| {
             wrapped(subject, width, break_with, cut, |piece| out.push_str(piece));
-        })
-    } apply(result, _subject) {
-        result
+        })))
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -4276,6 +4306,127 @@ fn same_kind(value: &Value, built: NvsStr) -> Value {
     }
 }
 
+/// What a rewriting member does with its owned subject, decided in its
+/// `check` so every throw comes before the subject is touched.
+///
+/// A sole subject is changed in its own allocation. Where the result is never
+/// longer than the subject up to each byte and no walk can stop part-way, the
+/// bytes are written over in place ([`NvsStr::rewrite`]). Otherwise the result
+/// is built first and copied into the subject's allocation when it fits
+/// ([`NvsStr::replace_with`]). That costs one copy of the result and keeps the
+/// subject's allocation. A shared subject gets the built result and is not
+/// changed.
+pub(crate) enum Rewritten {
+    /// The subject is the result as it is.
+    Unchanged,
+    /// The result, built in a string the request's memory limit counted.
+    Built(NvsStr),
+    /// The result, built in a `String` that asked the memory limit as it grew.
+    Collected(String),
+    /// An ASCII subject with every letter raised (`upper`) or lowered.
+    AsciiCase { upper: bool },
+    /// An ASCII subject's bytes in reverse order.
+    AsciiReverse,
+    /// The bytes `start..end` replaced with `with`, which is no longer than
+    /// them.
+    Splice {
+        start: usize,
+        end: usize,
+        with: Spliced,
+    },
+}
+
+/// The bytes a [`Rewritten::Splice`] writes.
+pub(crate) enum Spliced {
+    /// A few bytes made by the member, such as one character's case mapping.
+    Inline { bytes: [u8; 12], used: usize },
+    /// An argument, retained before the subject's owners were counted, so an
+    /// argument that is the subject makes the subject shared.
+    Held(NvsStr),
+}
+
+impl Spliced {
+    fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Inline { bytes, used } => &bytes[..*used],
+            Self::Held(held) => held.as_bytes(),
+        }
+    }
+}
+
+/// Whether `value`'s string has one owner, so a change in place is invisible
+/// to everyone else. An immortal literal never has.
+fn sole(value: &Value) -> bool {
+    matches!(value.room_behind(0), Some(Room::Fits))
+}
+
+/// The result a [`Rewritten`] plan gives over the owned subject.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a case mapping or reversal of ASCII, a splice of a `string` at character \
+              boundaries, and every built result are UTF-8"
+)]
+fn rewritten(plan: Rewritten, subject: NvsStr) -> Value {
+    let in_place = match plan {
+        Rewritten::Unchanged => return Value::str(subject),
+        Rewritten::Built(built) => {
+            return Value::str(if subject.is_sole() && built.len() <= subject.capacity() {
+                subject.replace_with(built.as_bytes())
+            } else {
+                built
+            });
+        }
+        Rewritten::Collected(collected) => {
+            return Value::str(subject.replace_with(collected.as_bytes()));
+        }
+        other => other,
+    };
+    // `check` planned a change in place only for a sole subject, and nothing
+    // runs between the two. A copy keeps this correct if that ever changes.
+    let mut subject = if subject.is_sole() {
+        subject
+    } else {
+        NvsStr::new(subject.as_bytes())
+    };
+    let ran = subject.rewrite(|live| match in_place {
+        Rewritten::AsciiCase { upper: true } => {
+            live.make_ascii_uppercase();
+            live.len()
+        }
+        Rewritten::AsciiCase { upper: false } => {
+            live.make_ascii_lowercase();
+            live.len()
+        }
+        Rewritten::AsciiReverse => {
+            live.reverse();
+            live.len()
+        }
+        Rewritten::Splice { start, end, with } => {
+            let with = with.bytes();
+            let to = start + with.len();
+            live[start..to].copy_from_slice(with);
+            live.copy_within(end.., to);
+            live.len() - (end - to)
+        }
+        Rewritten::Unchanged | Rewritten::Built(_) | Rewritten::Collected(_) => live.len(),
+    });
+    debug_assert!(ran, "a sole subject is rewritten in place");
+    Value::str(subject)
+}
+
+/// [`NvsStr::build`], for a writer that can stop part-way, such as one that
+/// polls the request's deadline. When `write` returns an error, the string it
+/// wrote is freed and the result is that error.
+fn scratch_walked(
+    capacity: usize,
+    write: impl FnOnce(&mut StrWriter<'_>) -> Result<(), Fault>,
+) -> Result<NvsStr, Fault> {
+    let mut outcome = Ok(());
+    let text = NvsStr::build(capacity, |out| outcome = write(out));
+    outcome?;
+    Ok(text)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Str::lower(string $s): string` — replacing PHP's `strtolower` and
     /// `mb_strtolower`. Unicode's full lowercase mapping; see this module's
@@ -4285,8 +4436,11 @@ nvs_runtime::nvs_helper! {
     /// written through [`case_mapped`] so the memory limit sees every byte:
     /// `İ`, two bytes, becomes three. Only `Σ` depends on its neighbours, and
     /// [`word_final_sigma`] decides it.
-    fn nvs_core_str_lower(_ctx, args: [1]) -> Value, owns NvsStr {
+    fn nvs_core_str_lower(_ctx, args: [1]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "lower", "the subject")?;
+        if sole(&args[0]) && subject.is_ascii() {
+            return Ok(Rewritten::AsciiCase { upper: false });
+        }
         case_mapped(
             subject,
             subject.char_indices().flat_map(|(at, c)| {
@@ -4298,8 +4452,8 @@ nvs_runtime::nvs_helper! {
                 c.to_lowercase()
             }),
         )
-    } apply(result, _subject) {
-        result
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -4309,11 +4463,14 @@ nvs_runtime::nvs_helper! {
     ///
     /// Written through [`case_mapped`]: Unicode's uppercase mapping can triple
     /// a text (`ΐ`, two bytes, becomes three characters and six bytes).
-    fn nvs_core_str_upper(_ctx, args: [1]) -> Value, owns NvsStr {
+    fn nvs_core_str_upper(_ctx, args: [1]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "upper", "the subject")?;
+        if sole(&args[0]) && subject.is_ascii() {
+            return Ok(Rewritten::AsciiCase { upper: true });
+        }
         case_mapped(subject, subject.chars().flat_map(char::to_uppercase))
-    } apply(result, _subject) {
-        result
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -4324,19 +4481,19 @@ nvs_runtime::nvs_helper! {
     /// what separates this from title casing (`ucwords`, which `Core\Str`
     /// leaves out entirely because word segmentation is
     /// locale-dependent).
-    fn nvs_core_str_upper_first(_ctx, args: [1]) -> Value, owns NvsStr {
-        map_first(text(&args[0], "upperFirst", "the subject")?, true)
-    } apply(result, _subject) {
-        result
+    fn nvs_core_str_upper_first(_ctx, args: [1]) -> Rewritten, owns NvsStr {
+        Ok(map_first(&args[0], text(&args[0], "upperFirst", "the subject")?, true))
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
-    fn nvs_core_str_lower_first(_ctx, args: [1]) -> Value, owns NvsStr {
-        map_first(text(&args[0], "lowerFirst", "the subject")?, false)
-    } apply(result, _subject) {
-        result
+    fn nvs_core_str_lower_first(_ctx, args: [1]) -> Rewritten, owns NvsStr {
+        Ok(map_first(&args[0], text(&args[0], "lowerFirst", "the subject")?, false))
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -4362,12 +4519,16 @@ nvs_runtime::nvs_helper! {
     ///
     /// Written through [`case_mapped`], since folding expands too (`ΐ` becomes
     /// three characters).
-    fn nvs_core_str_fold(_ctx, args: [1]) -> Value, owns NvsStr {
+    fn nvs_core_str_fold(_ctx, args: [1]) -> Rewritten, owns NvsStr {
         use caseless::Caseless as _;
         let subject = text(&args[0], "fold", "the subject")?;
+        // Folding an ASCII letter gives its lower case.
+        if sole(&args[0]) && subject.is_ascii() {
+            return Ok(Rewritten::AsciiCase { upper: false });
+        }
         case_mapped(subject, subject.chars().default_case_fold())
-    } apply(result, _subject) {
-        result
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -4395,23 +4556,23 @@ nvs_runtime::nvs_helper! {
     /// or a compatibility decomposition, so all four forms are the identity
     /// there, and the check costs a scan where the general path costs a
     /// `String`.
-    fn nvs_core_str_normalize(_ctx, args: [2]) -> Value, owns NvsStr {
+    fn nvs_core_str_normalize(_ctx, args: [2]) -> Rewritten, owns NvsStr {
         let subject = text(&args[0], "normalize", "the subject")?;
         // The form is read before the fast path rather than after it, so a
         // value that is no case is a fatal for every subject and not only for
         // the ones that reach the table.
         let form = normal_form_of(&args[1])?;
         if subject.is_ascii() {
-            return produced(subject);
+            return Ok(Rewritten::Unchanged);
         }
-        produced(&match form {
+        Ok(Rewritten::Collected(match form {
             NormalForm::Nfc => normalized(subject.nfc(), subject.len())?,
             NormalForm::Nfd => normalized(subject.nfd(), subject.len())?,
             NormalForm::Nfkc => normalized(subject.nfkc(), subject.len())?,
             NormalForm::Nfkd => normalized(subject.nfkd(), subject.len())?,
-        })
-    } apply(result, _subject) {
-        result
+        }))
+    } apply(plan, subject) {
+        rewritten(plan, subject)
     }
 }
 
@@ -4663,10 +4824,10 @@ nvs_runtime::nvs_helper! {
 /// give. The mapping is at most three characters, so it is written into a
 /// twelve-byte buffer first and the result is then one allocation of its exact
 /// length.
-fn map_first(subject: &str, upper: bool) -> HelperResult {
+fn map_first(value: &Value, subject: &str, upper: bool) -> Rewritten {
     let mut chars = subject.chars();
     let Some(first) = chars.next() else {
-        return produced("");
+        return Rewritten::Unchanged;
     };
     let rest = chars.as_str();
     let mut head = [0u8; 12];
@@ -4677,10 +4838,19 @@ fn map_first(subject: &str, upper: bool) -> HelperResult {
     } else {
         first.to_lowercase().for_each(&mut write);
     }
-    built(used + rest.len(), |out| {
+    // A mapping no longer than the character it maps is written over a sole
+    // subject, and the rest moves only when it is shorter.
+    if used <= first.len_utf8() && sole(value) {
+        return Rewritten::Splice {
+            start: 0,
+            end: first.len_utf8(),
+            with: Spliced::Inline { bytes: head, used },
+        };
+    }
+    Rewritten::Built(NvsStr::build(used + rest.len(), |out| {
         out.push(&head[..used]);
         out.push_str(rest);
-    })
+    }))
 }
 
 /// `mapped` written straight into the result, starting at the subject's
@@ -4690,8 +4860,8 @@ fn map_first(subject: &str, upper: bool) -> HelperResult {
 /// memory limit before each growth, so no buffer the limit never saw is built
 /// first. Characters are gathered in a small run on the stack and pushed a run
 /// at a time.
-fn case_mapped(subject: &str, mapped: impl Iterator<Item = char>) -> HelperResult {
-    built(subject.len(), |out| {
+fn case_mapped(subject: &str, mapped: impl Iterator<Item = char>) -> Result<Rewritten, Fault> {
+    Ok(Rewritten::Built(NvsStr::build(subject.len(), |out| {
         let mut run = [0u8; 256];
         let mut used = 0;
         for c in mapped {
@@ -4702,7 +4872,7 @@ fn case_mapped(subject: &str, mapped: impl Iterator<Item = char>) -> HelperResul
             used += c.encode_utf8(&mut run[used..]).len();
         }
         out.push(&run[..used]);
-    })
+    })))
 }
 
 /// Whether the `Σ` at byte `at` of `subject` lowers to `ς` — Unicode's

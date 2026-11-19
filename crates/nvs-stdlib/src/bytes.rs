@@ -1,8 +1,8 @@
 //! `Core\Bytes`, over `nvs_runtime`'s `Bytes`-tagged `NvsStr`.
 //!
-//! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather than
-//! consuming it, exactly as [`crate::str`] does — see [`crate`]'s own docs for
-//! why that falls out of being a helper.
+//! Every member here is pure (`rule:core-api/shape-rules` R3). `slice` and
+//! `repeat` own their subject and change a sole one in its own allocation, as
+//! [`crate::str`]'s owning members do. Every other member borrows its subject.
 //!
 //! # What is registered here so far
 //!
