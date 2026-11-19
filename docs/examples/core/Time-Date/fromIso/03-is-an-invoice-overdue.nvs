@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to check whether an invoice is overdue, from the date a web service returned.
+
+class Invoice
+{
+    // An invoice must be paid within 30 days of the day it was sent.
+    // `compareTo` returns 1 when the first date is later than the second.
+    public static function isOverdue(string $sent, Core\Time\Date $today): bool
+    {
+        var $due = Core\Time\Date::fromIso($sent)->plus(30, Core\Unit::Day);
+        return $today->compareTo($due) == 1;
+    }
+}
+
+// The first invoice was due on 2024-06-30. The second is due on 2024-07-20.
+var $today = Core\Time\Date::at(2024, 7, 10);
+echo Invoice::isOverdue('2024-05-31', $today) ? 'overdue' : 'not due yet', "\n";
+echo Invoice::isOverdue('2024-06-20', $today) ? 'overdue' : 'not due yet', "\n";

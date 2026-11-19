@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when a text is not a valid date in the form `YYYY-MM-DD`.
+
+// The second text has no `-` between the parts. The third has a day that does not exist.
+// Both throw a `ParseError`, and its message says which part is wrong.
+array<string> $inputs = ['2024-03-01', '20240301', '2024-02-30'];
+foreach ($inputs as string $text) {
+    try {
+        echo Core\Time\Date::fromIso($text)->format('yyyy-MM-dd'), "\n";
+    } catch (ParseError $error) {
+        echo $error->message, "\n";
+    }
+}

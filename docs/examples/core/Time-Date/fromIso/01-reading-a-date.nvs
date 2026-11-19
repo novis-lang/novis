@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a date that is written as text in the form `YYYY-MM-DD`.
+
+// `fromIso` returns a `Core\Time\Date`. This prints 2024-03-01.
+var $start = Core\Time\Date::fromIso('2024-03-01');
+echo $start->format('yyyy-MM-dd'), "\n";
+
+// The date has its parts as numbers. 2024 is a leap year, so 1 March is day 61.
+echo $start->year(), ' ', $start->month(), ' ', $start->dayOfYear(), "\n";
+
+// The same date built with `at` is equal, so `compareTo` returns 0.
+echo $start->compareTo(Core\Time\Date::at(2024, 3, 1)), "\n";

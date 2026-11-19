@@ -1,0 +1,22 @@
+<?nvs
+// Reads a date written as text, as a program does with a date it gets from a form or a web service.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<string> $texts = ['2024-03-01', '1999-12-31', '2000-02-29'];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the text is picked by last round's total
+            $total = $total + 1 + Core\Time\Date::fromIso($texts[$total % 3])->dayOfYear() as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
