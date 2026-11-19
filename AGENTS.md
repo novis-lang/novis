@@ -75,8 +75,8 @@ Each is here because not knowing it exists is the entire cost. The file named af
   ([commands.md](docs/agent/commands.md) § *Verifying*).
 - **The full gate runs once per chain, not once per goal.** `looper.toml` sets `[loop] gate =
   "chain"`: the chain's last goal and every fifth goal take it, and the pack names which one you are
-  in. That goal's gate stage runs the full gate over every goal since the last one, and every failure it
-  names is fixed in one pass before it runs again. Every other goal's gate stage only closes it, with
+  in. That goal's gate stage runs the full gate once over every goal since the last one. Only when it
+  is red, every failure it names is fixed in one pass and it runs again. Every other goal's gate stage only closes it, with
   the build, clippy and the tests it wrote, by name. Its `DONE` runs its own checks, and it joins the
   chain's `ungated:` list.
 - **The full gate is `bun nv affected --run`.** It runs `bun nv verify` over what changed since the
@@ -384,7 +384,8 @@ Every session runs the same steps, in this order, and **stops**:
    stage. In every other stage a build is the only check. No test and no verify runs there, except a
    test the session wrote, run once by name, and a run an item requires. A slice whose change breaks
    an existing test updates that test as it goes. The gate stage runs `looper verify` over the whole
-   goal, fixes every failure in one pass, and runs it once more. With `[loop] gate = "chain"`, only the
+   goal once. Only when it is red, the session fixes every failure in one pass and runs it once more.
+   With `[loop] gate = "chain"`, only the
    goal the pack names as the full gate does that, and every other goal's gate stage closes it with a
    build and its own tests.
 4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the

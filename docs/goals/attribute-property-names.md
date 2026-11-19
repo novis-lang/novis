@@ -206,8 +206,7 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 ### 5. the goal is verified once, and every failure is fixed
 
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run that check once more, and it is green.
+- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
