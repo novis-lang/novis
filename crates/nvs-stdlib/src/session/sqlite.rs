@@ -86,7 +86,7 @@ const SCHEMA: &[&str] = &[
 /// How often one core deletes the expired rows.
 ///
 /// A minute, because [`load`] already treats an expired row as absent: the sweep only bounds the
-/// file's size, and a minute of expired rows is nothing beside `[session] ttl`'s two hours.
+/// file's size, and a minute of expired rows is nothing beside `[session] short_lived`'s two hours.
 const SWEEP_EVERY: Duration = Duration::from_secs(60);
 
 /// How many prepared statements one connection keeps: the fourteen this module runs.

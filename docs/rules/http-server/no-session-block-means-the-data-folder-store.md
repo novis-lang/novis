@@ -9,7 +9,7 @@ meets it. `shared` stays the store for several machines.
 A process with no usable data folder, one that could not be created or failed
 `rule:config/ownership-is-the-trust-boundary`'s check, has no default store. There `start` throws a
 `RuntimeError` naming `[session] backend = "shared"`, and every other member throws until `start`
-has run (`rule:core-classes/session-is-started-explicitly`).
+has run (`rule:core-classes/a-session-opens-on-its-first-use`).
 
 The file is Novis's own: the operator chose the folder, the name is fixed, and no program-supplied
 path reaches it. So no capability is asked, as none is for the compiled-code cache beside it. Each

@@ -210,8 +210,11 @@ pub const SERVER_CONNECTION_MAX_LIFETIME: Duration = Duration::from_secs(DAY);
 /// `[server.connection] send_timeout`.
 pub const SERVER_CONNECTION_SEND_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// `[session] ttl`.
-pub const SESSION_TTL: Duration = Duration::from_secs(2 * HOUR);
+/// `[session] short_lived`.
+pub const SESSION_SHORT_LIVED: Duration = Duration::from_secs(2 * HOUR);
+/// `[session] long_lived`. **What it spends:** a record with a long-lived value is kept this long
+/// after its last write or refresh, so the store holds one row per browser that kept a value in it.
+pub const SESSION_LONG_LIVED: Duration = Duration::from_secs(180 * DAY);
 /// `[session] cookie`.
 pub const SESSION_COOKIE: &str = "nvsid";
 
@@ -567,7 +570,8 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("server.connection.idle_timeout", Value::Time(SERVER_CONNECTION_IDLE_TIMEOUT)),
     row!("server.connection.max_lifetime", Value::Time(SERVER_CONNECTION_MAX_LIFETIME)),
     row!("server.connection.send_timeout", Value::Time(SERVER_CONNECTION_SEND_TIMEOUT)),
-    row!("session.ttl", Value::Time(SESSION_TTL)),
+    row!("session.short_lived", Value::Time(SESSION_SHORT_LIVED)),
+    row!("session.long_lived", Value::Time(SESSION_LONG_LIVED)),
     row!("session.cookie", Value::Text(SESSION_COOKIE)),
     row!("db.pool.max", Scope::Unaddressed, Value::Count(DB_POOL_MAX as u64)),
     row!("db.pool.idle", Scope::Unaddressed, Value::Count(DB_POOL_IDLE as u64)),

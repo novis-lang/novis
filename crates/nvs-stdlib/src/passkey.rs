@@ -22,7 +22,7 @@
 //! account. An atomic take would be a store round trip that buys nothing. A challenge older than
 //! [`TIMEOUT_SECONDS`] is refused; that is the `timeout` the options tell the browser, so a ceremony
 //! the browser has abandoned cannot be completed later. The session is
-//! `rule:core-classes/session-is-started-explicitly`'s, so a member called before
+//! `rule:core-classes/a-session-opens-on-its-first-use`'s, so a member called before
 //! `Core\Session::start` throws naming it, as every `Core\Session` member does.
 //!
 //! **What this spends:** [`SAVED_LEN`] octets in the session record per ceremony in flight, which

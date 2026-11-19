@@ -1725,26 +1725,55 @@ The cost is one extra join at each call site that genuinely wanted a single file
 
 <a id="core-api-session-roster"></a>
 
-## The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it
+## The session roster is twelve static members, every write states its lifetime, and the first call opens the session
 
 `rule:core-api/session-roster`
 
-The session surface is `start` plus the members that work on the record it loaded — read, write, remove,
-clear, regenerate, destroy, and the sealed pair [`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed)
-adds. `start` is the only one that talks to the store: it is where a presented identifier is checked and
-the record is loaded, and the rest operate on the record already in hand.
+The session surface is twelve static members, and every write states the lifetime of what it writes
+([`http-server/a-session-value-is-short-lived-or-long-lived`](http-server.md#http-server-a-session-value-is-short-lived-or-long-lived)):
 
-**A member called before `start` throws, naming the member that opens one.** That single rule is what a
-per-request "this request uses sessions" declaration was buying — the fact is a line in the source — and it
-is worth nothing if the first read can silently start one. One rule for all of them means they agree
-rather than each growing a refusal of its own — the sealed pair answers it before it looks at a key ring
-— and the throw is catchable at the root, so a program that cannot use sessions can say so.
+| Member | What it does |
+|---|---|
+| `setShortLived($key, $value)` | Saves a value with the short lifetime |
+| `setLongLived($key, $value)` | Saves a value with the long lifetime |
+| `get($key)` | Reads a value of either lifetime |
+| `remove($key)` | Deletes one value of either lifetime |
+| `clearShortLived()` | Deletes every short-lived value, and moves the session to a new identifier |
+| `clearLongLived()` | Deletes every long-lived value, and moves the session to a new identifier |
+| `clearAll()` | Deletes the session, and expires both cookies |
+| `regenerate()` | Moves the session to a new identifier and keeps every value |
+| `setShortLivedSecret($key, $value, $keys)` | Saves a sealed secret with the short lifetime |
+| `setLongLivedSecret($key, $value, $keys)` | Saves a sealed secret with the long lifetime |
+| `getSecret($key, $keys)` | Opens a sealed secret of either lifetime |
+| `openWithIdentifier($id)` | Opens the session under an identifier the program read itself |
 
-`regenerate` moves the stored session to a new identifier in one step, so the old identifier stops working
-at once and a key another request wrote survives the move. It takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
-and only one of those is correct.
+**There is no plain `set`.** A write that does not say how long it lives would pick one lifetime for
+the program, and the wrong one is either a login that survives a browser restart or a consent choice
+lost with the browser. All values share one set of keys, and the last write of a key sets its
+lifetime, a sealed secret's too.
 
-<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
+**The first call of any member opens the session** ([`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use)).
+There is no `start`; `openWithIdentifier` is the one member that opens a session explicitly, and it
+throws once the session is open. The sealed members follow the same open before they look at a key
+ring ([`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed)).
+
+`regenerate` moves the stored session to a new identifier in one step, so the old identifier stops
+working at once and a key another request wrote survives the move. It takes no argument: a flag to keep
+the old entry would choose between a fixation window and a lost session, and only one of those is
+correct. `clearShortLived` and `clearLongLived` move the session the same way, so each clear is also a
+fixation defence.
+
+**Every member that writes throws where the head is closed**, inside `Core\Html::later` and
+`Core\Task::afterResponse`, and the checker refuses the call where it is written there
+([`concurrency/deferred-work-cannot-write-the-response`](concurrency.md#concurrency-deferred-work-cannot-write-the-response)). `get` and `getSecret` stay allowed.
+
+**Declined:**
+- **`start`, `set`, `clear`, `destroy` and `setSecret` kept as aliases.** Novis is pre-alpha, and two
+  ways to write one thing is a surface every reader learns twice.
+- **A plain `set` with a default lifetime.** Every write states its lifetime, so a reader of the code
+  never has to look up which one a default picked.
+
+<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`http-server/a-session-value-is-short-lived-or-long-lived`](http-server.md#http-server-a-session-value-is-short-lived-or-long-lived).</sub>
 
 <a id="core-api-reference-card"></a>
 

@@ -1659,7 +1659,7 @@ pub struct Ctx {
     ///
     /// `rule:core-api/session-roster` makes every other member of that class throw while this is `None`,
     /// which is the whole of what
-    /// `rule:core-classes/session-is-started-explicitly` buys:
+    /// `rule:core-classes/a-session-opens-on-its-first-use` buys:
     /// "this request uses sessions" is a line in the source, and it is worth
     /// nothing if the first `get` can silently start one.
     session: Option<Session>,

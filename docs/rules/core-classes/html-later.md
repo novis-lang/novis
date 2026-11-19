@@ -41,8 +41,11 @@ nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
 `later`; on a slotted route, where the head is already out, every unfilled slot shows `error` and the
 response ends. A task that throws or passes its own `deadline` shows `error` too, and the page keeps the
 status the main script set. **A `later` callable cannot change the response head**: a status, a header,
-a redirect, a body method, a cookie or a session regeneration inside one throws `LogicError`, and is a
-compile error where the checker sees it. Reading the request and the session is allowed. Outside an
+a redirect, a body method, a cookie or a session write inside one throws `LogicError`, and is a
+compile error where the checker sees it. A session write is every `Core\Session` member but `get` and
+`getSecret`, and it throws for every visitor
+(`rule:concurrency/deferred-work-cannot-write-the-response`). Reading the request and the session is
+allowed. Outside an
 HTML response, or outside an HTTP request, `later` runs `fn` in place and returns its output, so a
 component still works there.
 

@@ -680,8 +680,12 @@
 # process on this machine reads. `shared` saves sessions in `[cache.shared]`, for several machines.
 # `memory` is not allowed and is `E0626`: the memory cache is kept inside one server process.
 #backend = "shared"                   # example
-# How long an untouched record survives, written onto the entry so the store expires it.
-#ttl = "2h"                           # default
+# How long a short-lived value, such as a login, is kept after the session was last used. It also
+# ends when the browser closes.
+#short_lived = "2h"                   # default
+# NOT IMPLEMENTED until goal session-lifetimes stage 2. How long a long-lived value, such as a
+# consent choice, is kept after the session was last used. It survives the browser closing.
+#long_lived = "180d"                  # default
 # The cookie name the identifier rides under. The cookie's attributes are not here —
 # `[http.cookies]` already fixes them for every cookie this server writes, and a second spelling
 # would be a way to weaken them.

@@ -1068,7 +1068,7 @@ talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-ros
   stay valid until its own expiry, and the record's size limit would be a cookie header's.
   `Core\SignedCookie` remains for an application that wants exactly this.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary).</sub>
 
 <a id="http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot"></a>
 
@@ -1078,9 +1078,10 @@ talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-ros
 
 ```toml
 [session]
-backend = "shared"      # or "db", the default; there is no third value
-ttl     = "2h"          # how long an untouched record survives; the store enforces it
-cookie  = "nvsid"       # the name the identifier rides under
+backend     = "shared"  # or "db", the default; there is no third value
+short_lived = "2h"      # the short clock; the store enforces it
+long_lived  = "180d"    # the long clock; the store enforces it
+cookie      = "nvsid"   # the name the identifier rides under
 ```
 
 `shared` is the coherent tier reached at `[cache.shared] url`
@@ -1133,7 +1134,7 @@ meets it. `shared` stays the store for several machines.
 A process with no usable data folder, one that could not be created or failed
 [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)'s check, has no default store. There `start` throws a
 `RuntimeError` naming `[session] backend = "shared"`, and every other member throws until `start`
-has run ([`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly)).
+has run ([`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use)).
 
 The file is Novis's own: the operator chose the folder, the name is fixed, and no program-supplied
 path reaches it. So no capability is asked, as none is for the compiled-code cache beside it. Each
@@ -1174,7 +1175,7 @@ rows name no application, and no Novis release wrote them.
   would stop sharing a session, and `[[app]]` already names an application.
 - **A `[session] scope` key.** It would be a second way to name what an `[[app]]` block names.
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use).</sub>
 
 <a id="http-server-a-session-is-loaded-once-and-written-back-per-key"></a>
 
@@ -1256,24 +1257,43 @@ A cancelled task is the one end that sends nothing, because the send parks.
 
 <a id="http-server-session-expiry-belongs-to-the-store"></a>
 
-## `[session] ttl` is written onto the record, an expired record is absent at once, and the SQLite store sweeps by time, never by chance
+## A session record has a short clock and a long clock, a read refreshes one only past half its time, and the SQLite store sweeps by time, never by chance
 
 `rule:http-server/session-expiry-belongs-to-the-store`
 
-`[session] ttl` is written onto the entry: `PEXPIRE` on the session's hash on the shared tier,
+A session record has two clocks, and the store keeps both
+([`http-server/a-session-value-is-short-lived-or-long-lived`](http-server.md#http-server-a-session-value-is-short-lived-or-long-lived)). **The short clock** runs for
+`[session] short_lived`, two hours by default, and a short-lived value is visible only while it runs.
+**The long clock** runs for `[session] long_lived`, 180 days by default. The record expires when the
+long clock ends, or when the short clock ends where the record has no long-lived value.
+
+The record's expiry is written onto the entry: `PEXPIRE` on the session's hash on the shared tier,
 which `RENAMENX` keeps, and an `expires_at` column on the session's head row in the `db` store's
-SQLite file. An expired session is absent at once, so `load` already
-answers it and `start` already issues a fresh id
-([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)). On the SQLite file `load` reads only
-a row whose `expires_at` is still ahead, so correctness never waits for a sweep. `save` refreshes
-the expiry, so `ttl` bounds how long an *untouched* record survives.
+SQLite file. The short clock is a field of the record, `x` on the hash and `short_expires_at` on the
+head row, as epoch milliseconds. An expired record is absent at once, so `load` already answers it and
+the first use opens a fresh session ([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)). On
+the SQLite file `load` reads only a row whose `expires_at` is still ahead, so correctness never waits
+for a sweep.
+
+**A write-back refreshes both clocks.** **A read refreshes a clock when less than half of its time is
+left**, and then the session counts as changed, so the end of the request writes it back. A signed-in
+user who only reads stays signed in while they keep reading. The half rule costs at most one write per
+clock per half-lifetime of an active session, and a request that reads a fresh session still makes one
+round trip and no write. A refresh that needs a cookie and cannot send its header, because the first
+use was inside `Core\Html::later` or after the response, is skipped, and a later request does it.
 
 The SQLite file deletes its expired rows with one indexed `DELETE … WHERE expires_at <= now`, run
 by a write at most once a minute per core. That sweep bounds the file at O(live sessions) rather
 than O(sessions ever issued). It is driven by time, never by a chance per request, and it is one
-statement on the blocking pool beside the write that ran it.
+statement on the blocking pool beside the write that ran it. A record with a long-lived value is live
+for `long_lived`, so the file holds one row per browser that kept a value within that time: it grows
+with visitors, and the long clock bounds it.
 
 **Declined:**
+- **A refresh on writes only.** A user who only reads would be signed out two hours after their last
+  write, however active they are.
+- **A refresh on every read.** Every request of a session would write, and a read-only request would
+  make two round trips where one does.
 - **A probabilistic collection, as PHP's `session.gc_probability`.** Which request pays for it is
   chance, and on a quiet site the expired rows stay for days. A sweep by time costs every core the
   same small delete once a minute.
@@ -1284,33 +1304,111 @@ statement on the blocking pool beside the write that ran it.
 
 <sub>See also [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
 
+<a id="http-server-a-session-value-is-short-lived-or-long-lived"></a>
+
+## A session value is short-lived or long-lived, a second cookie ends the short-lived ones with the browser, and each clear moves the session
+
+`rule:http-server/a-session-value-is-short-lived-or-long-lived`
+
+**Every session value has one of two lifetimes, and the member that writes it names which.** A
+short-lived value, written by `setShortLived` or `setShortLivedSecret`, is the login kind: it ends
+when the browser ends its session or the short clock runs out. A long-lived value, written by
+`setLongLived` or `setLongLivedSecret`, is the preference kind, such as a consent choice or a cart: it
+survives the browser closing and lives for `[session] long_lived`
+([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)). Both live in one record under one identifier
+and share one set of keys. The last write of a key sets its lifetime, and `get`, `getSecret` and
+`remove` read or delete a key of either lifetime.
+
+**Two cookies keep the two lifetimes apart.** One identifier serves both kinds, so a cookie that
+survives the browser closing would carry the login across a restart too. So the short-lived values are
+bound to a second cookie:
+
+- The identifier cookie, `[session] cookie`, has `Max-Age = long_lived` while the record has a
+  long-lived value, and no `Max-Age` otherwise. It is sent again with a new `Max-Age` when the long
+  clock is refreshed.
+- The short cookie, named `[session] cookie` followed by `-short`, carries a 128-bit token from the same
+  CSPRNG as the identifier. It never has `Max-Age`, so the browser deletes it when its session ends. It
+  is drawn at the first short-lived write in a session with no valid token, and drawn again by
+  `regenerate` and `clearShortLived`.
+- The record keeps the token. At load, the short-lived values are visible only when the presented
+  token matches, compared in constant time. A mismatch or a missing token makes them absent, and the
+  session counts as changed, so the write-back deletes them. That is one write per browser restart.
+- A session opened by `openWithIdentifier` has no browser, so its short-lived values are bound to the
+  identifier alone and no token is checked.
+
+Both cookies take every other attribute from `[http.cookies]`
+([`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax)).
+
+**The clears.** Every clear sends a cookie, so all three throw where the head is closed, as
+`regenerate` does.
+
+- `clearShortLived` deletes the short-lived values, moves the session to a new identifier with the
+  store's `move`, and draws a new short token. It is the logout, and a consent choice survives it.
+- `clearLongLived` deletes the long-lived values and moves the session to a new identifier.
+- `clearAll` deletes the record, sends both cookies with `Max-Age=0`, and leaves the request a fresh,
+  empty session with no identifier. A later write in the same request draws a new identifier, as on a
+  first visit.
+
+Across requests [`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key) holds: a write-back
+never brings back a session another request cleared.
+
+**The store layout.** On the shared store each key's hash field is `s:<key>` for a short-lived value and
+`l:<key>` for a long-lived one, and the write-back script deletes the other prefix's field when it writes
+a key. The fields `t` (the short token) and `x` (the short clock) sit beside `m`. On the `db` store
+`nvs_session_entries` has a `long` column, and `nvs_session_heads` has `short_token` and
+`short_expires_at`. Every operation stays one command or one transaction. There is no size limit of its
+own: the record's bound is the reply ceiling the per-key rule states.
+
+Cost: per request, one round trip at the first use, as with one lifetime. A second cookie of 22
+characters on the requests of a session with short-lived values, and one constant-time compare at load.
+One write per browser restart. On the store, a record with a long-lived value is kept for `long_lived`.
+
+**Declined:**
+- **Two stores behind two classes.** Two concepts for one mechanism, with two identifiers, two loads
+  and two write-backs per request.
+- **One cookie.** A login would survive a browser restart whenever the session also held a long-lived
+  value.
+- **A long clock that starts only when the browser presents the cookie again.** It keeps cookieless
+  bots out of the store, but a visitor who saw one page loses their consent choice.
+- **Converting sessions written with one lifetime.** Novis is pre-alpha, and such a session expires
+  within its two hours.
+
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key), [`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed).</sub>
+
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 
-## A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`
+## A user's own secret lives in their session, sealed under a key ring through `setShortLivedSecret`, `setLongLivedSecret` and `getSecret`
 
 `rule:http-server/a-session-holds-a-secret-only-sealed`
 
 A user's own secret — the access and refresh token a web application holds on their behalf — lives in their
-session, through `Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys)`
-and `Core\Session::getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. Static like
+session, through `Core\Session::setShortLivedSecret(string $key, secret string $value, array<secret bytes> $keys)`,
+`Core\Session::setLongLivedSecret` with the same parameters, and
+`Core\Session::getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. Static like
 every member of that class ([`core-api/session-roster`](core-api.md#core-api-session-roster)): the session is the request's, not an object
 a program holds. The construction is the
 cache's ([`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed)) under the session door's own domain byte, so a
 value sealed for a cache never opens as a session value and the reverse.
 
 It is the session and not a cache tier because a cache may evict at any time and a user would be logged out
-by a footprint decision. There is no `ttl`: a session value lives as long as its session
-([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)), and the sealed plaintext carries no expiry of its
-own.
+by a footprint decision. There is no `ttl`: a sealed value has the lifetime of the member that wrote it
+([`http-server/a-session-value-is-short-lived-or-long-lived`](http-server.md#http-server-a-session-value-is-short-lived-or-long-lived)), and the sealed plaintext carries no
+expiry of its own. The last write of a key sets its lifetime, a sealed one's too.
+
+**A long-lived secret opens with the identifier cookie alone.** It survives the browser closing, so
+whoever holds the identifier cookie on that device after a restart reads it, with no short cookie and
+no login. A secret that belongs to a login, such as an access token, is written with
+`setShortLivedSecret`, which ends with the browser session and with `clearShortLived`.
+`setLongLivedSecret` is for a secret the device keeps whoever uses it, and its card says so.
 
 **The additional data is the domain byte ‖ the app ‖ the key, and not the session id**, because
-`regenerate` issues a new id over the same record and a value bound to the old id would stop opening at
-exactly the moment a login hardens. Moving a ciphertext between two sessions takes write access to the
-store, which already means owning every session in it.
+`regenerate` and each clear issue a new id over the same record and a value bound to the old id would
+stop opening at exactly the moment a login hardens. Moving a ciphertext between two sessions takes
+write access to the store, which already means owning every session in it.
 
-`get` answers `null` for a sealed value and `set` still refuses a `secret`, so the sealed pair is the only
-door here too; a sealed value that does not open under the ring is absent rather than an error. The record
-crosses the store as the byte carrier it already is
+`get` answers `null` for a sealed value and `setShortLived` and `setLongLived` refuse a `secret`, so the
+sealed members are the only door here too; a sealed value that does not open under the ring is absent
+rather than an error. The record crosses the store as the byte carrier it already is
 ([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)), so no `secret` reaches the store and
 [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary) is unchanged.
 

@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "core-classes/script-args",
-    "core-classes/session-is-started-explicitly",
+    "core-classes/a-session-opens-on-its-first-use",
     "statements/no-host-populated-variables"
   ],
   "guardedBy": [

@@ -14,7 +14,7 @@
 //! there is none, which reaches the store only once something is written to it. The other six
 //! operate on the session `start` left on the request ([`nvs_runtime::Session`]), and each of them
 //! throws until `start` has run — the whole benefit
-//! `rule:core-classes/session-is-started-explicitly` was buying, and worth nothing if
+//! `rule:core-classes/a-session-opens-on-its-first-use` was buying, and worth nothing if
 //! the first `get` can silently start one.
 //!
 //! **The write-back of `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` is on disk
@@ -701,8 +701,8 @@ pub(crate) enum Saved {
 /// `[session] backend` — `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`'s store, as `nvs_config::session::Backend` spells it.
 const BACKEND: &str = "session.backend";
 
-/// `[session] ttl` — how long an untouched record survives.
-const TTL: &str = "session.ttl";
+/// `[session] short_lived` — how long a short-lived value survives its last write or refresh.
+const SHORT_LIVED: &str = "session.short_lived";
 
 /// `[session] cookie` — the name the identifier rides under.
 const COOKIE: &str = "session.cookie";
@@ -716,7 +716,7 @@ const COOKIE: &str = "session.cookie";
 /// number trades is how long a stolen id stays useful against how often an idle user is signed out,
 /// and two hours is the ordinary answer to that pair. It is deliberately not "until the browser
 /// closes": a session with no server-side expiry is one an attacker's copy never loses either.
-const DEFAULT_TTL: Duration = nvs_config::defaults::SESSION_TTL;
+const DEFAULT_SHORT_LIVED: Duration = nvs_config::defaults::SESSION_SHORT_LIVED;
 
 /// The cookie name a deployment that configured none inherits.
 ///
@@ -910,17 +910,17 @@ fn on_file<T>(member: &str, answer: std::io::Result<T>) -> Result<T, Fault> {
     answer.map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{NAME}::{member}: {why}")))
 }
 
-/// `[session] ttl`, or [`DEFAULT_TTL`].
+/// `[session] short_lived`, or [`DEFAULT_SHORT_LIVED`].
 ///
 /// A directive that will not parse, or that parses to zero, is the shipped lifetime rather than a
 /// refusal — [`crate::cache`]'s `timeout_of` reasoning: `nvs.toml` is validated where it is loaded,
 /// and a zero here would be a session expiring the instant it is written.
 pub(crate) fn ttl(ctx: &Ctx) -> Duration {
-    configured(ctx, TTL)
+    configured(ctx, SHORT_LIVED)
         .and_then(|text| duration::parse(&text).ok())
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
         .filter(|lifetime| !lifetime.is_zero())
-        .unwrap_or(DEFAULT_TTL)
+        .unwrap_or(DEFAULT_SHORT_LIVED)
 }
 
 /// `[session] cookie`, or [`DEFAULT_COOKIE`].
@@ -1153,12 +1153,12 @@ nvs_runtime::nvs_helper! {
     /// row and sends no cookie for one; [`write_back`] draws the identifier and sends the cookie
     /// on the first write that leaves the record non-empty, and the end-of-request write-back
     /// creates the row. So the store holds sessions somebody wrote, and a flood of cookieless
-    /// requests that only read leaves nothing behind (`rule:core-classes/session-is-started-explicitly`).
+    /// requests that only read leaves nothing behind (`rule:core-classes/a-session-opens-on-its-first-use`).
     /// `regenerate` on such a session does nothing, and `destroy` reaches no store.
     ///
     /// **The cookie is written only for an identifier this request issued.** A request that
     /// presented one the store knew already has it, and a session cookie carries no `Max-Age` to
-    /// refresh — the record's lifetime is `[session] ttl`, on the store, which is the only side
+    /// refresh — the record's lifetime is `[session] short_lived`, on the store, which is the only side
     /// that can expire it. Every other attribute is `[http.cookies]`'s, through the same
     /// [`crate::response::Cookie`] `Core\Response::addCookie` renders, so the policy has one home
     /// and the line has one spelling.
@@ -1274,7 +1274,7 @@ fn issue_cookie(ctx: &mut Ctx, who: &str, id: &str) -> Result<(), Fault> {
         value: id,
         path: &policy.path,
         // A session cookie: no `Domain`, which is the narrower of that attribute's two meanings,
-        // and no `Max-Age`, because the record's lifetime is `[session] ttl` on the store and a
+        // and no `Max-Age`, because the record's lifetime is `[session] short_lived` on the store and a
         // cookie that outlived it would present an identifier the store answers absent for.
         domain: None,
         max_age: None,
@@ -1492,7 +1492,7 @@ fn write(ctx: &mut Ctx, member: &str, key: &[u8], value: Option<Vec<u8>>) -> Res
 ///
 /// **Only a drawn identifier marks the record changed**, even while it is empty, so the write-back
 /// creates a row under it and the next request's `start` finds it. What it spends is one row per
-/// new visitor who is shown a token, which `[session] ttl` expires. A session that already has an
+/// new visitor who is shown a token, which `[session] short_lived` expires. A session that already has an
 /// identifier is left as it was: the token is sealed over the id on each call and never stored, so
 /// a page that renders a token for a loaded session sends no store write.
 ///
@@ -2057,7 +2057,7 @@ mod tests {
     use nvs_runtime::{Ctx, NvsStr, Value};
 
     use super::{
-        Changes, DEFAULT_TTL, Entries, KEY_FIELD, PREFIX, SEAL_DOMAIN, Saved, Store, backend,
+        Changes, DEFAULT_SHORT_LIVED, Entries, KEY_FIELD, PREFIX, SEAL_DOMAIN, Saved, Store, backend,
         cookie, counted, destroy, encoded, fetched, field_of, forgot, issue, issued, key_of, load,
         mint, opened, opened_from, read, read_bytes, regenerated, saved, sealed_into, sealed_key,
         sent_to, sqlite, ttl, write,
@@ -2444,7 +2444,7 @@ mod tests {
                 ID,
                 &written,
                 counted(&written),
-                DEFAULT_TTL
+                DEFAULT_SHORT_LIVED
             )
             .expect("the session reaches the configured store")
         );
@@ -2491,7 +2491,7 @@ mod tests {
                     ID,
                     &written,
                     counted(&written),
-                    DEFAULT_TTL
+                    DEFAULT_SHORT_LIVED
                 )
                 .expect("the session is written")
             );
@@ -2724,7 +2724,7 @@ mod tests {
                     ID,
                     &written,
                     counted(&written),
-                    DEFAULT_TTL
+                    DEFAULT_SHORT_LIVED
                 )
                 .expect("the session is written")
             );
@@ -2839,7 +2839,7 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-destroyed-stays", *backend);
             assert!(
-                issued(&store, NO_APP, "a case", ID, &Entries::new(), DEFAULT_TTL)
+                issued(&store, NO_APP, "a case", ID, &Entries::new(), DEFAULT_SHORT_LIVED)
                     .expect("the row is issued")
             );
             let entries = fetched(&store, NO_APP, "a case", ID)
@@ -2878,7 +2878,7 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-regenerate-gone", *backend);
             assert!(
-                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_TTL)
+                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_SHORT_LIVED)
                     .expect("the row is issued")
             );
             ctx.open_session(loaded(record()));
@@ -2938,7 +2938,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let (store, kept) = a_store(&mut ctx, case, backend);
         assert!(
-            issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_TTL)
+            issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_SHORT_LIVED)
                 .expect("the row is issued")
         );
         (store, kept)
@@ -3214,7 +3214,7 @@ mod tests {
             return;
         };
         let size = super::counted(&record());
-        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
         assert!(destroy(&mut open, &app, ID).expect("destroyed"));
 
         let value = int_bytes(3);
@@ -3223,7 +3223,7 @@ mod tests {
             ..Changes::default()
         };
         assert_eq!(
-            super::save(&mut open, &app, ID, &changes, DEFAULT_TTL).expect("the store answers"),
+            super::save(&mut open, &app, ID, &changes, DEFAULT_SHORT_LIVED).expect("the store answers"),
             Saved::Gone
         );
         assert_eq!(real_hash(&mut open, &app), None, "and nothing was written");
@@ -3239,14 +3239,14 @@ mod tests {
             return;
         };
         let size = super::counted(&record());
-        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
 
         let changes = Changes {
             removed: vec![b"user".as_slice(), b"csrf".as_slice()],
             ..Changes::default()
         };
         assert_eq!(
-            super::save(&mut open, &app, ID, &changes, DEFAULT_TTL).expect("the store answers"),
+            super::save(&mut open, &app, ID, &changes, DEFAULT_SHORT_LIVED).expect("the store answers"),
             Saved::Done
         );
         assert_eq!(
@@ -3272,7 +3272,7 @@ mod tests {
             return;
         };
         let size = super::counted(&record());
-        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+        assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
         let before = real_hash(&mut open, &app);
 
         let field = field_of(b"cart");
@@ -3322,7 +3322,7 @@ mod tests {
                 return;
             };
             let size = super::counted(&record());
-            assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_TTL).expect("issued"));
+            assert!(issue(&mut open, &app, ID, &record(), size, DEFAULT_SHORT_LIVED).expect("issued"));
 
             let value = int_bytes(3);
             let changes = Changes {
@@ -3331,7 +3331,7 @@ mod tests {
                 changed: vec![(b"cart".as_slice(), value.as_slice())],
             };
             let save = |open: &mut Connection| {
-                super::save(open, &app, ID, &changes, DEFAULT_TTL).expect("the store answers")
+                super::save(open, &app, ID, &changes, DEFAULT_SHORT_LIVED).expect("the store answers")
             };
             assert_eq!(save(&mut open), Saved::Done);
             let once = real_hash(&mut open, &app);
@@ -3498,14 +3498,14 @@ mod tests {
                 ..Changes::default()
             };
             assert_eq!(
-                saved(&store, shop_app, "a case", ID, &taking, DEFAULT_TTL)
+                saved(&store, shop_app, "a case", ID, &taking, DEFAULT_SHORT_LIVED)
                     .expect("the store answers"),
                 Saved::Gone,
                 "{word}: and cannot write over the first application's row"
             );
             let its_own = Entries::from([(b"user".to_vec(), b"its own".to_vec())]);
             assert!(
-                issued(&store, shop_app, "a case", ID, &its_own, DEFAULT_TTL)
+                issued(&store, shop_app, "a case", ID, &its_own, DEFAULT_SHORT_LIVED)
                     .expect("the store answers"),
                 "{word}: its own session under that id is a row of its own"
             );
@@ -3539,7 +3539,7 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-only-create", *backend);
             assert_eq!(
-                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_TTL)
+                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_SHORT_LIVED)
                     .expect("the store answers"),
                 Saved::Gone,
                 "{word}: a save of an absent id writes nothing"
@@ -3547,13 +3547,13 @@ mod tests {
             assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
 
             assert!(
-                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_TTL)
+                issued(&store, NO_APP, "a case", ID, &record(), DEFAULT_SHORT_LIVED)
                     .expect("the store answers"),
                 "{word}: an issue of an absent id inserts the row"
             );
             let another = Entries::from([(b"user".to_vec(), b"another".to_vec())]);
             assert!(
-                !issued(&store, NO_APP, "a case", ID, &another, DEFAULT_TTL)
+                !issued(&store, NO_APP, "a case", ID, &another, DEFAULT_SHORT_LIVED)
                     .expect("the store answers"),
                 "{word}: an issue of a held id fails"
             );
@@ -3565,7 +3565,7 @@ mod tests {
 
             kept.lapse(ID);
             assert_eq!(
-                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_TTL)
+                saved(&store, NO_APP, "a case", ID, &changes, DEFAULT_SHORT_LIVED)
                     .expect("the store answers"),
                 Saved::Gone,
                 "{word}: a save of an expired row writes nothing"
@@ -4245,7 +4245,7 @@ mod tests {
     #[test]
     fn the_block_decides_the_store_and_absence_selects_the_data_folder_file() {
         let mut ctx = Ctx::buffered();
-        assert_eq!(ttl(&ctx), DEFAULT_TTL);
+        assert_eq!(ttl(&ctx), DEFAULT_SHORT_LIVED);
         assert_eq!(cookie(&ctx), "nvsid");
         assert_eq!(
             backend(&ctx, "start").expect("no block is the default store"),
@@ -4269,7 +4269,7 @@ mod tests {
         );
 
         ctx.set_config(crate::tests::granting(
-            "[session]\nbackend = \"shared\"\nttl = \"30m\"\ncookie = \"sid\"\n",
+            "[session]\nbackend = \"shared\"\nshort_lived = \"30m\"\ncookie = \"sid\"\n",
         ));
         assert_eq!(
             backend(&ctx, "start").expect("a store the roster admits"),

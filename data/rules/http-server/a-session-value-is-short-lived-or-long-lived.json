@@ -1,0 +1,14 @@
+{
+  "title": "A session value is short-lived or long-lived, a second cookie ends the short-lived ones with the browser, and each clear moves the session",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/session-roster",
+    "core-classes/a-session-opens-on-its-first-use",
+    "http-server/session-expiry-belongs-to-the-store",
+    "http-server/a-session-is-loaded-once-and-written-back-per-key",
+    "http-server/a-session-holds-a-secret-only-sealed"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/session.rs"
+  ]
+}

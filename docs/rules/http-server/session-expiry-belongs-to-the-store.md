@@ -1,17 +1,36 @@
-`[session] ttl` is written onto the entry: `PEXPIRE` on the session's hash on the shared tier,
+A session record has two clocks, and the store keeps both
+(`rule:http-server/a-session-value-is-short-lived-or-long-lived`). **The short clock** runs for
+`[session] short_lived`, two hours by default, and a short-lived value is visible only while it runs.
+**The long clock** runs for `[session] long_lived`, 180 days by default. The record expires when the
+long clock ends, or when the short clock ends where the record has no long-lived value.
+
+The record's expiry is written onto the entry: `PEXPIRE` on the session's hash on the shared tier,
 which `RENAMENX` keeps, and an `expires_at` column on the session's head row in the `db` store's
-SQLite file. An expired session is absent at once, so `load` already
-answers it and `start` already issues a fresh id
-(`rule:http-server/a-session-store-answers-five-operations`). On the SQLite file `load` reads only
-a row whose `expires_at` is still ahead, so correctness never waits for a sweep. `save` refreshes
-the expiry, so `ttl` bounds how long an *untouched* record survives.
+SQLite file. The short clock is a field of the record, `x` on the hash and `short_expires_at` on the
+head row, as epoch milliseconds. An expired record is absent at once, so `load` already answers it and
+the first use opens a fresh session (`rule:http-server/a-session-store-answers-five-operations`). On
+the SQLite file `load` reads only a row whose `expires_at` is still ahead, so correctness never waits
+for a sweep.
+
+**A write-back refreshes both clocks.** **A read refreshes a clock when less than half of its time is
+left**, and then the session counts as changed, so the end of the request writes it back. A signed-in
+user who only reads stays signed in while they keep reading. The half rule costs at most one write per
+clock per half-lifetime of an active session, and a request that reads a fresh session still makes one
+round trip and no write. A refresh that needs a cookie and cannot send its header, because the first
+use was inside `Core\Html::later` or after the response, is skipped, and a later request does it.
 
 The SQLite file deletes its expired rows with one indexed `DELETE … WHERE expires_at <= now`, run
 by a write at most once a minute per core. That sweep bounds the file at O(live sessions) rather
 than O(sessions ever issued). It is driven by time, never by a chance per request, and it is one
-statement on the blocking pool beside the write that ran it.
+statement on the blocking pool beside the write that ran it. A record with a long-lived value is live
+for `long_lived`, so the file holds one row per browser that kept a value within that time: it grows
+with visitors, and the long clock bounds it.
 
 **Declined:**
+- **A refresh on writes only.** A user who only reads would be signed out two hours after their last
+  write, however active they are.
+- **A refresh on every read.** Every request of a session would write, and a read-only request would
+  make two round trips where one does.
 - **A probabilistic collection, as PHP's `session.gc_probability`.** Which request pays for it is
   chance, and on a quiet site the expired rows stay for days. A sweep by time costs every core the
   same small delete once a minute.

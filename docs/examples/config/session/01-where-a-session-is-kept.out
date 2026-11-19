@@ -1,5 +1,6 @@
 records live in: (nothing written — a program that wants a session says so)
-untouched for:   2h
+short-lived for: 2h
+long-lived for:  180d
 cookie name:     nvsid
 keep mine in memory:        refused
 keep mine for a year:       refused

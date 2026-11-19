@@ -23,7 +23,7 @@ credential whose algorithm is neither ES256 nor Ed25519 is refused at registrati
 does not increase, when either value is not zero, throws.
 
 **The challenge is single-use.** It comes from the system random source and is saved in the started
-session (`rule:core-classes/session-is-started-explicitly`). Verification takes it out of the session
+session (`rule:core-classes/a-session-opens-on-its-first-use`). Verification takes it out of the session
 before it checks anything, so a second verification of one challenge, a replayed response, throws.
 The origin and relying-party id are the values the application passes, never anything the browser sent.
 

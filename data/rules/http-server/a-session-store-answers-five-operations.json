@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "core-api/session-roster",
-    "core-classes/session-is-started-explicitly",
+    "core-classes/a-session-opens-on-its-first-use",
     "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
     "http-server/session-expiry-belongs-to-the-store",
     "concurrency/a-cached-value-is-copied-across-the-boundary"

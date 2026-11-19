@@ -2,12 +2,12 @@
 looper: 1
 title: a session keeps short-lived and long-lived values and opens itself on first use
 summary: "Reached when Core\\Session has setShortLived, setLongLived, clearShortLived, clearLongLived and clearAll in place of set, clear and destroy, opens itself on the first call with start removed, keeps short-lived values only while the browser keeps its session cookie and the short clock runs, keeps long-lived values for [session] long_lived, the checker refuses every session write inside Html::later and Task::afterResponse, and the rules, examples, pages and every .nvs file say so."
-context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-runtime/src/ctx/wiring.rs, docs/rules/core-api/session-roster.md, docs/rules/core-classes/session-is-started-explicitly.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md]
+context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-runtime/src/ctx/wiring.rs, docs/rules/core-api/session-roster.md, docs/rules/core-classes/a-session-opens-on-its-first-use.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md]
 stages:
   - id: 1
     title: the rules say what a session with two lifetimes is
-    status: open
-    context: [docs/rules/core-classes/session-is-started-explicitly.md, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md, docs/rules/http-server/a-session-holds-a-secret-only-sealed.md, docs/rules/core-classes/html-later.md, docs/rules/concurrency/deferred-work-cannot-write-the-response.md, crates/nvs-config/src/tree.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/default.toml]
+    status: done
+    context: [docs/rules/core-classes/a-session-opens-on-its-first-use.md, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md, docs/rules/http-server/a-session-holds-a-secret-only-sealed.md, docs/rules/core-classes/html-later.md, docs/rules/concurrency/deferred-work-cannot-write-the-response.md, crates/nvs-config/src/tree.rs, crates/nvs-config/src/defaults.rs, crates/nvs-config/src/default.toml]
   - id: 2
     title: both stores keep each value with its lifetime, and the two clocks and the short cookie work
     status: open
@@ -124,7 +124,7 @@ Logout clears the short-lived values and keeps the theme.
 
 The session also stops needing `Core\Session::start`. Every program that uses a session must call it
 first today, and forgetting it is a `RuntimeError` at the first call. Starting costs nothing until a
-value is written (`rule:core-classes/session-is-started-explicitly`), so the first call can open the
+value is written (the rule `a-session-opens-on-its-first-use` replaces), so the first call can open the
 session itself at the same cost.
 
 Both changes are the person's design. Every choice below marked *my call* is the authoring session's,
@@ -238,7 +238,7 @@ costs its bytes for `long_lived`, so the store holds one row per browser that ke
 `long_lived`. That grows with visitors, not with requests, and the long clock bounds it.
 
 **The rules (my call).**
-- `docs/rules/core-classes/session-is-started-explicitly.md` is renamed
+- `docs/rules/core-classes/a-session-opens-on-its-first-use.md` is renamed
   `a-session-opens-on-its-first-use.md` and rewritten. Its Declined list drops "A session that starts
   on the first `Core\Session` access" and gains **An explicit `start`**: a program that forgets it
   throws, and the explicit line bought nothing that the first-use open does not keep.
@@ -275,21 +275,21 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** writes every rule this goal changes, as § *Standing decisions* says, and renames the
 configuration key. Nothing a session does changes yet.
 
-- [ ] Gate: `docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md` exists and
+- [x] Gate: `docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md` exists and
   `session-per-key` is gone from the chain.
-- [ ] `docs/rules/core-classes/session-is-started-explicitly.md:1`: renamed
+- [x] `docs/rules/core-classes/a-session-opens-on-its-first-use.md:1`: renamed
   `a-session-opens-on-its-first-use.md` with its `data/rules/core-classes/` JSON, and rewritten.
   Every citation of the old id follows (`git grep session-is-started-explicitly`; about twenty lines,
   listed in the explore report of 2026-11-19: `docs/rules/http-server.md`, `security.md`,
   `core-classes.md`, `config.md`, `concurrency.md`, `docs/ground-rules.md:772`).
-- [ ] `docs/rules/core-api/session-roster.md:1` rewritten with the surface table.
-- [ ] `docs/rules/http-server/session-expiry-belongs-to-the-store.md:1` rewritten for the two clocks.
-- [ ] `docs/rules/http-server/a-session-value-is-short-lived-or-long-lived.md:1`: the new fragment
+- [x] `docs/rules/core-api/session-roster.md:1` rewritten with the surface table.
+- [x] `docs/rules/http-server/session-expiry-belongs-to-the-store.md:1` rewritten for the two clocks.
+- [x] `docs/rules/http-server/a-session-value-is-short-lived-or-long-lived.md:1`: the new fragment
   and its JSON.
-- [ ] `docs/rules/http-server/a-session-holds-a-secret-only-sealed.md:1`,
+- [x] `docs/rules/http-server/a-session-holds-a-secret-only-sealed.md:1`,
   `docs/rules/core-classes/html-later.md:1` and
   `docs/rules/concurrency/deferred-work-cannot-write-the-response.md:3` updated.
-- [ ] `crates/nvs-config/src/tree.rs:1557` `ttl` becomes `short_lived`, and `long_lived` is added.
+- [x] `crates/nvs-config/src/tree.rs:1557` `ttl` becomes `short_lived`, and `long_lived` is added.
   `crates/nvs-config/src/defaults.rs:213` and `:570` and `crates/nvs-config/src/default.toml:683`
   follow. Then `bun nv rules --render`, and `bun nv rules --check` is green.
 
@@ -433,19 +433,35 @@ then runs `bun nv proofs --record-perf` once for the `Session` benches.
 
 ### State
 
-Written on 2026-11-19 from a design conversation with the person. Nothing is built yet. The person
-decided: one session with two lifetimes, chosen in the method name; the twelve member names in the
-surface table except `openWithIdentifier`, including a long-lived secret; the first-use open with `start`
-removed; and the checker refusing session writes inside `Html::later` and `Task::afterResponse`.
-Every other choice in § *Standing decisions* is the authoring session's call, and stands until the
-person picks another.
+Stage 1 is done. The rules say what a session with two lifetimes is:
+`docs/rules/core-classes/a-session-opens-on-its-first-use.md` (renamed, every citation follows),
+`core-api/session-roster.md`, `http-server/session-expiry-belongs-to-the-store.md`, the new
+`http-server/a-session-value-is-short-lived-or-long-lived.md`, the sealed-secret rule, `html-later.md`
+and `deferred-work-cannot-write-the-response.md`. `[session] ttl` is `[session] short_lived`, and
+`[session] long_lived` (default `180d`, `nvs_config::defaults::SESSION_LONG_LIVED`) exists. Only
+`Core\Config::get` reads `long_lived` so far, and `default.toml` says it is not implemented until
+stage 2. `bun nv rules --check` and `bun nv directives --check` are green.
+
+The sweep's nightly reds are on `adc7487822`, before the 108 unpushed commits. Supply chain is fixed by
+`eb5c02e983`, the Miri UB at `string.rs:1817` by `4c82a2409a`, and the debug-viewer shots are re-shot
+locally. The `browser` red was one empty `innerText` after a load: `Page.go` in
+`tools/nv/test/registry-browser.test.ts` now also waits for the body to have text. `env-secret-proofs`
+is a retired goal's check, and is stale.
+
+The rules describe stages 2 to 4 ahead of the code. One rule still names the old members:
+`docs/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.md` (`start`, `set`, `clear`,
+`destroy`). Stage 3 rewrites it with the members.
 
 ### Next
 
-Waits on `session-per-key`. Then stage 1 from its first item: the gate, then
-`docs/rules/core-classes/session-is-started-explicitly.md:1` and its rename. The `checker` case
-`tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst` and every test
-the `lifetimes` check names do not exist yet, and fail until stages 4 and 5 write them.
+Stage 2 from its first item: `crates/nvs-runtime/src/ctx/wiring.rs` `Session` (re-anchor with
+`bun nv peek --locate Session`). In `crates/nvs-stdlib/src/session.rs`, the key constant is
+`SHORT_LIVED` and `DEFAULT_SHORT_LIVED`, and the reader is still `fn ttl`. Stage 2 adds the long clock
+beside it and removes the `NOT IMPLEMENTED` note above `#long_lived` in
+`crates/nvs-config/src/default.toml`. The `checker` case
+`tests/conformance/core/session-a-read-inside-later-or-after-response-compiles.nvst` and every test the
+`lifetimes` check names do not exist yet, and fail until stages 4 and 5 write them. No test is
+expected to go red from stage 1.
 
 ### Backlog
 

@@ -1534,7 +1534,7 @@ pub struct CacheShared {
 }
 
 /// `[session]` — where a `Core\Session` record lives, what it is called on the way back, and how
-/// long an untouched one survives (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`).
+/// long its short-lived and long-lived values survive (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`).
 ///
 /// Every key here is `System`/`Boot` per `crate::directive`'s `session` row: where a
 /// fleet's sessions live is a deployment decision, and moving it while requests are in flight would
@@ -1551,10 +1551,16 @@ pub struct Session {
     /// `crate::session::Backend` is the roster and
     /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` is the reason.
     pub backend: Option<String>,
-    /// How long an untouched record survives, written onto the entry so the store expires it.
-    /// Omitted, the two hours `nvs_stdlib::session` ships, which is that module's to state because
-    /// it is the one thing that writes the expiry.
-    pub ttl: Option<String>,
+    /// The short clock: how long a short-lived value stays visible after the session was last
+    /// written or refreshed (`rule:http-server/session-expiry-belongs-to-the-store`). Omitted, the
+    /// two hours `crate::defaults::SESSION_SHORT_LIVED` ships.
+    pub short_lived: Option<String>,
+    /// The long clock: how long a long-lived value, and the record that has one, survives after the
+    /// session was last written or refreshed
+    /// (`rule:http-server/a-session-value-is-short-lived-or-long-lived`). Omitted, the 180 days
+    /// `crate::defaults::SESSION_LONG_LIVED` ships. `Core\Config::get` reads it, and the session
+    /// store reads it from goal `session-lifetimes` stage 2.
+    pub long_lived: Option<String>,
     /// The cookie name the identifier rides under. Omitted, `nvs_stdlib::session`'s default; the
     /// cookie's *attributes* are not here, because `rule:http-server/cookies-are-secure-httponly-and-lax` already fixes them for every cookie
     /// this server writes and a second spelling would be a way to weaken them.

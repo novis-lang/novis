@@ -4,7 +4,7 @@
   "seeAlso": [
     "security/protocol-roster",
     "security/protocol-admission-test",
-    "core-classes/session-is-started-explicitly",
+    "core-classes/a-session-opens-on-its-first-use",
     "packaging/somebody-elses-specification-is-a-crate",
     "packaging/a-registry-account-is-a-passkey"
   ],

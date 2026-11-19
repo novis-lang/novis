@@ -1,5 +1,5 @@
 --TEST--
-Each `Core\Passkey` member that saves or takes a challenge throws a `RuntimeError` naming `Core\Session::start()` before the session is started, `credentialId` needs no session, and a credential built with `of` returns its four values — `rule:core-classes/passkey-verifies-a-webauthn-ceremony` and `rule:core-classes/session-is-started-explicitly`
+Each `Core\Passkey` member that saves or takes a challenge throws a `RuntimeError` naming `Core\Session::start()` before the session is started, `credentialId` needs no session, and a credential built with `of` returns its four values — `rule:core-classes/passkey-verifies-a-webauthn-ceremony` and `rule:core-classes/a-session-opens-on-its-first-use`
 --GET--
 under=a-request
 --FILE--

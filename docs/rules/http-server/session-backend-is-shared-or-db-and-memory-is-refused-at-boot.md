@@ -1,8 +1,9 @@
 ```toml
 [session]
-backend = "shared"      # or "db", the default; there is no third value
-ttl     = "2h"          # how long an untouched record survives; the store enforces it
-cookie  = "nvsid"       # the name the identifier rides under
+backend     = "shared"  # or "db", the default; there is no third value
+short_lived = "2h"      # the short clock; the store enforces it
+long_lived  = "180d"    # the long clock; the store enforces it
+cookie      = "nvsid"   # the name the identifier rides under
 ```
 
 `shared` is the coherent tier reached at `[cache.shared] url`

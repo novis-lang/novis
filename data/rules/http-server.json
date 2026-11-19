@@ -46,6 +46,7 @@
     "http-server/no-session-block-means-the-data-folder-store",
     "http-server/a-session-is-loaded-once-and-written-back-per-key",
     "http-server/session-expiry-belongs-to-the-store",
+    "http-server/a-session-value-is-short-lived-or-long-lived",
     "http-server/a-session-holds-a-secret-only-sealed",
     "http-server/an-upload-is-received-only-through-files",
     "http-server/a-part-is-a-file-iff-it-carries-a-filename",

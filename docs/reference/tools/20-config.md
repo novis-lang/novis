@@ -606,7 +606,7 @@ echo 'unknown: ', Config::set('no.such.key', '1') ? 'ok' : 'refused', "\n";
 Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
-    if ($name == 'limits.memory' || $name == 'log.level' || $name == 'session.ttl') {
+    if ($name == 'limits.memory' || $name == 'log.level' || $name == 'session.short_lived') {
         echo $name, ' = ', $value, "\n";
     }
 }
@@ -621,7 +621,7 @@ file_cache_dir: refused
 unknown: refused
 limits.memory = 256M
 log.level = debug
-session.ttl = 2h
+session.short_lived = 2h
 restored: 128M
 ```
 

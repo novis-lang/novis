@@ -25,7 +25,7 @@ supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-
 Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
 point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="core-classes-env-context"></a>
 
@@ -780,8 +780,11 @@ nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
 `later`; on a slotted route, where the head is already out, every unfilled slot shows `error` and the
 response ends. A task that throws or passes its own `deadline` shows `error` too, and the page keeps the
 status the main script set. **A `later` callable cannot change the response head**: a status, a header,
-a redirect, a body method, a cookie or a session regeneration inside one throws `LogicError`, and is a
-compile error where the checker sees it. Reading the request and the session is allowed. Outside an
+a redirect, a body method, a cookie or a session write inside one throws `LogicError`, and is a
+compile error where the checker sees it. A session write is every `Core\Session` member but `get` and
+`getSecret`, and it throws for every visitor
+([`concurrency/deferred-work-cannot-write-the-response`](concurrency.md#concurrency-deferred-work-cannot-write-the-response)). Reading the request and the session is
+allowed. Outside an
 HTML response, or outside an HTTP request, `later` runs `fn` in place and returns its output, so a
 component still works there.
 
@@ -3603,43 +3606,48 @@ application's primary database, and that cost is the reason `[queue] connection`
 
 <sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities).</sub>
 
-<a id="core-classes-session-is-started-explicitly"></a>
+<a id="core-classes-a-session-opens-on-its-first-use"></a>
 
-## A session is opened by calling `Core\Session::start`, and there is no ambient session array
+## A session opens on the first call of a `Core\Session` member, and there is no `start` and no ambient session array
 
-`rule:core-classes/session-is-started-explicitly`
+`rule:core-classes/a-session-opens-on-its-first-use`
 
-There is no ambient session array and no implicit session start. A script calls `Core\Session::start`
-— or an equivalent resuming a presented identifier — before reading or writing session state, so
-"this request uses sessions" is a line in the source rather than a fact discoverable only by grepping
-for a superglobal. A member called before `start` throws naming itself, and the refusal is catchable
-at the root like any other.
+There is no ambient session array and no `start`. **The first call of any `Core\Session` member in a
+request opens the session**: it reads the identifier the client presented and loads the record once,
+and every later call in that request works on the record already in hand. A program that never calls
+a member reaches no store and sends no cookie, so a request that does not use sessions pays nothing.
 
-The shape is fixed here: a class, an explicit start, no ambient array. The mechanics are a feature of
-their own — the store is the shared cache tier or the database, the memory tier is refused at boot
-because a session held by one process is not a session, there is no lock, and expiry is the store's
-own rather than a sweeper's.
+A program answering no request has no session. Its first call throws `LogicError` naming the member
+([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)), and the throw is catchable at the root like any
+other.
 
-What this costs is one line per request that uses sessions. What it buys is that a request that does
-not use them pays nothing, which the ambient version could never promise.
+**`openWithIdentifier($id)` is the one explicit open.** It opens the session under an identifier the
+program read itself, such as a header, and no cookie is read or sent for it. It must be the request's
+first `Core\Session` call: once the session is open, it throws `LogicError` naming the member that
+opened it. A presented identifier the store did not issue is never used
+([`security/a-session-id-the-store-did-not-issue-is-rejected`](security.md#security-a-session-id-the-store-did-not-issue-is-rejected)).
 
-**Starting is not storing.** A `start` for a visitor with no session opens an empty one with no
-identifier: no row is written and no cookie is sent. The first write that leaves something in it
-draws the identifier and sends the cookie, and the end of the request writes the row. So the store
-grows with sessions somebody wrote, never with requests served, and a flood of cookieless requests
-that only read leaves nothing behind. `regenerate` on such a session does nothing, because no client
-holds an identifier for it, and `destroy` has no row to delete.
+**Opening is not storing.** A first call for a visitor with no session opens an empty one with no
+identifier: no row is written and no cookie is sent. The first write that leaves something in it draws
+the identifier and sends the cookie, and the end of the request writes the row. So the store grows with
+sessions somebody wrote, never with requests served, and a flood of cookieless requests that only read
+leaves nothing behind. `regenerate` on such a session does nothing, because no client holds an
+identifier for it, and `clearShortLived` and `clearLongLived` have no row to change.
 
 **A CSRF token counts as a write.** `Core\Csrf::token` binds its token to the identifier the response
 sends, so on a session with none it draws one and sends the cookie, and it marks the session changed
-even while the record is empty, so the end of the request writes the row and the next request's
-`start` finds it. It spends one row per visitor who is shown a token, and `[session] ttl` expires it.
+even while the record is empty, so the end of the request writes the row and the next request finds
+it. It spends one row per visitor who is shown a token, and `[session] short_lived` expires it.
 
 **Declined:**
-- **A session that starts on the first `Core\Session` access.** A read that starts a session is a side
-  effect at a distance, the kind of hidden step the explicit `start` exists to remove.
+- **An explicit `start`.** A program that forgets it throws at its first read, and the explicit line
+  bought nothing the first-use open does not keep: a request that calls no member still reaches no
+  store, and a new visitor still gets no row and no cookie until a value is written.
+- **An ambient session array.** It is a host-populated variable
+  ([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)), and it would load the session for every request
+  whether or not the program reads it.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-session-value-is-short-lived-or-long-lived`](http-server.md#http-server-a-session-value-is-short-lived-or-long-lived).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 
@@ -3890,7 +3898,7 @@ credential whose algorithm is neither ES256 nor Ed25519 is refused at registrati
 does not increase, when either value is not zero, throws.
 
 **The challenge is single-use.** It comes from the system random source and is saved in the started
-session ([`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly)). Verification takes it out of the session
+session ([`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use)). Verification takes it out of the session
 before it checks anything, so a second verification of one challenge, a replayed response, throws.
 The origin and relying-party id are the values the application passes, never anything the browser sent.
 
@@ -3915,7 +3923,7 @@ in with it ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging
 - **A challenge the application creates and passes back in.** Nothing could then stop one challenge
   from verifying twice.
 
-<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate), [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey).</sub>
+<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`core-classes/a-session-opens-on-its-first-use`](core-classes.md#core-classes-a-session-opens-on-its-first-use), [`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate), [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey).</sub>
 
 <a id="core-classes-web-push-sends-an-encrypted-message"></a>
 

@@ -45,7 +45,7 @@
 //! session written, so the write-back creates its row. A token for a session
 //! that already has a row writes nothing, because the token is sealed over the
 //! id on each call and never stored. It needs `Core\Session::start`
-//! first, because `rule:core-classes/session-is-started-explicitly` declines a
+//! first, because `rule:core-classes/a-session-opens-on-its-first-use` declines a
 //! hidden start, and it reads the key with [`nvs_config::http::csrf_key`], the
 //! door's own reader, so no program decodes base64.
 //!

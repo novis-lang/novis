@@ -1,10 +1,12 @@
 {
-  "title": "The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it",
+  "title": "The session roster is twelve static members, every write states its lifetime, and the first call opens the session",
   "status": "shipped",
   "seeAlso": [
     "core-api/failure-throws",
     "core-api/reserved-namespace",
-    "statements/no-host-populated-variables"
+    "statements/no-host-populated-variables",
+    "core-classes/a-session-opens-on-its-first-use",
+    "http-server/a-session-value-is-short-lived-or-long-lived"
   ],
   "guardedBy": [
     "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",

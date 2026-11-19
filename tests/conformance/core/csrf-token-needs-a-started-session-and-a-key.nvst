@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csrf::token` before `Core\Session::start` throws a `RuntimeError` naming `start`, and after it with no `[http] csrf_key` throws one naming that key — `rule:core-classes/session-is-started-explicitly`
+`Core\Csrf::token` before `Core\Session::start` throws a `RuntimeError` naming `start`, and after it with no `[http] csrf_key` throws one naming that key — `rule:core-classes/a-session-opens-on-its-first-use`
 --GET--
 under=a-request
 --FILE--

@@ -1,11 +1,18 @@
 The response is on the wire before deferred work runs, so **the deferred callable may not touch it**. Every
-`Core` member that sets a status, a header, a cookie or a body, `Core\Response::slotted` and
-`Core\Session::regenerate` is refused in it: a compile error, `E0857`, where the call is written inside
-the anonymous function passed to `Core\Task::afterResponse` or one nested in it, and a `LogicError` at run
-time otherwise — a callable held in a variable, a method it calls, and every task the work starts.
-`Core\Request`, `Core\Server` and `Core\Session` stay readable — it is still the same tree, and the
+`Core` member that sets a status, a header, a cookie or a body, `Core\Response::slotted` and every
+`Core\Session` member that writes — `setShortLived`, `setLongLived`, `setShortLivedSecret`,
+`setLongLivedSecret`, `remove`, `clearShortLived`, `clearLongLived`, `clearAll` and `regenerate` — is
+refused in it: a compile error, `E0857`, where the call is written inside the anonymous function passed
+to `Core\Task::afterResponse` or one nested in it, and a `LogicError` at run time otherwise — a callable
+held in a variable, a method it calls, and every task the work starts. `Core\Request` and `Core\Server`
+stay readable, and so do `Core\Session::get` and `getSecret` — it is still the same tree, and the
 request's own values are still there to read. `echo` in deferred work is the work's own output and is not
 a response write.
+
+**A session write is refused for every visitor, not only a new one.** A write may draw an identifier,
+a short token or a cookie refresh, and each of those is a header. A rule that threw only where a header
+was needed would pass on a signed-in development machine and throw in production for the first new
+visitor. So every session write checks that the head is open before it changes anything.
 
 The compile-time reach is lexical, the same as `Core\Html::later`'s closed head
 (`rule:core-classes/html-later`), because which bodies a callable reaches is a whole-program question and

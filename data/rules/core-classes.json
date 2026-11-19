@@ -73,7 +73,7 @@
     "core-classes/ldap-value-types",
     "core-classes/ldap-error",
     "core-classes/queue-storage-is-a-table",
-    "core-classes/session-is-started-explicitly",
+    "core-classes/a-session-opens-on-its-first-use",
     "core-classes/ratelimit-two-members",
     "core-classes/ratelimit-gcra",
     "core-classes/ratelimit-unreachable-store-throws",

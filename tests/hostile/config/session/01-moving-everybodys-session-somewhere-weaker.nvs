@@ -74,9 +74,9 @@ array<string> $lifetimes = [
     Core\Str::repeat('9', 100000) . 'h',
 ];
 foreach ($lifetimes as string $lifetime) {
-    Core\Config::set('session.ttl', $lifetime);
-    Core\Config::set('app.0.session.ttl', $lifetime);
-    Core\Config::restore('session.ttl');
+    Core\Config::set('session.short_lived', $lifetime);
+    Core\Config::set('app.0.session.short_lived', $lifetime);
+    Core\Config::restore('session.short_lived');
 }
 
 // 4. Writes all three keys 200,000 times and reads the store back each time.
@@ -86,7 +86,7 @@ string $standing = Core\Config::get('session.backend') ?? '(nothing written)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('session.backend', 'memory');
-    Core\Config::set('session.ttl', '8760h');
+    Core\Config::set('session.short_lived', '8760h');
     Core\Config::set('session.cookie', "nvs_session\r\nSet-Cookie: admin=1");
     Core\Config::restore('session.backend');
     if ((Core\Config::get('session.backend') ?? '(nothing written)') != $standing) {
@@ -107,5 +107,5 @@ while ($j < 20000) {
 echo 'changes: ', $changes, "\n";
 echo 'records built: ', Core\Arr::count($records), "\n";
 echo 'backend: ', Core\Config::get('session.backend') ?? '(nothing written)', "\n";
-echo 'ttl:     ', Core\Config::get('session.ttl') ?? '(no value)', "\n";
+echo 'short_lived: ', Core\Config::get('session.short_lived') ?? '(no value)', "\n";
 echo 'cookie:  ', Core\Config::get('session.cookie') ?? '(no value)', "\n";

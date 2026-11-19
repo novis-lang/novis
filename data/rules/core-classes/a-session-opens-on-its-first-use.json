@@ -1,10 +1,10 @@
 {
-  "title": "A session is opened by calling `Core\\Session::start`, and there is no ambient session array",
+  "title": "A session opens on the first call of a `Core\\Session` member, and there is no `start` and no ambient session array",
   "status": "shipped",
   "seeAlso": [
     "statements/no-host-populated-variables",
-    "core-classes/cli-arguments",
-    "core-classes/script-args"
+    "core-api/session-roster",
+    "http-server/a-session-value-is-short-lived-or-long-lived"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/session.rs",
