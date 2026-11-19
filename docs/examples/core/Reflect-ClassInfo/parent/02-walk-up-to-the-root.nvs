@@ -1,0 +1,23 @@
+<?nvs
+// Walks from a class up through every class it extends, and prints each name.
+
+abstract class Animal
+{
+}
+
+class Bird extends Animal
+{
+}
+
+class Parrot extends Bird
+{
+}
+
+// Each round describes the next parent class with `forClass`.
+// The loop stops when `parent()` returns `null`. This prints Parrot, Bird and Animal.
+?Core\Reflect\ClassInfo $level = Core\Reflect::forObject(new Parrot());
+while ($level != null) {
+    echo $level->name(), "\n";
+    ?string $parent = $level->parent();
+    $level = $parent == null ? null : Core\Reflect::forClass($parent);
+}

@@ -1,0 +1,24 @@
+<?nvs
+// Shows the name `parent()` returns for a class, and the `null` it returns when there is no parent.
+namespace Shop;
+
+class Product
+{
+}
+
+class Book extends Product
+{
+}
+
+interface Priced
+{
+}
+
+// `Book` extends `Product`, so this prints "Shop\Product".
+echo Core\Reflect::forObject(new Book())->parent() ?? 'none', "\n";
+
+// `Product` extends no class, so `parent()` returns `null`. This prints "none".
+echo Core\Reflect::forObject(new Product())->parent() ?? 'none', "\n";
+
+// An interface has no parent class. This prints "none" too.
+echo Core\Reflect::forClass('Shop\\Priced')?->parent() ?? 'none', "\n";

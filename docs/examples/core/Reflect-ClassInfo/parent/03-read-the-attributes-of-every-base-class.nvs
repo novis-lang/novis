@@ -1,0 +1,35 @@
+<?nvs
+// Prints the columns of a database table from a class and from every class it extends.
+
+type Column = { name: string };
+
+abstract class Record
+{
+    #[Column(name: 'id')]
+    public int $id = 0;
+}
+
+class Document extends Record
+{
+    #[Column(name: 'title')]
+    public string $title = '';
+}
+
+class Invoice extends Document
+{
+    #[Column(name: 'total')]
+    public int $total = 0;
+}
+
+// This loop reads the attributes of one class, then moves to its parent class.
+// `Invoice` comes first, so this prints `total`, `title` and `id`.
+?Core\Reflect\ClassInfo $level = Core\Reflect::forObject(new Invoice());
+while ($level != null) {
+    foreach ($level->attributes() as Core\Reflect\AttributeInfo $attribute) {
+        if ($attribute->name() == 'Column') {
+            echo $attribute->field('name') as string, "\n";
+        }
+    }
+    ?string $parent = $level->parent();
+    $level = $parent == null ? null : Core\Reflect::forClass($parent);
+}

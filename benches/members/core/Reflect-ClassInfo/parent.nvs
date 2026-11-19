@@ -1,0 +1,49 @@
+<?nvs
+// Reads the name of the class a class extends, as a framework does when it walks the base classes of a model.
+// bench: iterations 2048
+// bench: calls 1
+// bench: allocations 1
+// bench: complexity constant
+
+class Model
+{
+}
+
+class Post extends Model
+{
+}
+
+class Comment extends Model
+{
+}
+
+class Draft extends Post
+{
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Reflect\ClassInfo> $infos = [
+            Core\Reflect::forObject(new Post()),
+            Core\Reflect::forObject(new Comment()),
+            Core\Reflect::forObject(new Draft()),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The class read depends on last round's total, so no round can be skipped.
+            Core\Reflect\ClassInfo $info = $infos[($total % 3) as int];
+            if ($info->parent() == 'Post') {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

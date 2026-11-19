@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a program walks up from a subclass to its parent class with `parent`.
+// It then tries to read a private property and call a private method of that parent.
+// Every read and every call should throw an error, and the private method should not run.
+
+class Account
+{
+    private string $password = 'p4ss';
+
+    private function reset(): string
+    {
+        echo "reset ran\n";
+        return $this->password;
+    }
+}
+
+class Guest extends Account
+{
+}
+
+interface Named
+{
+}
+
+class Level0
+{
+    private string $secret = 'root';
+}
+
+class Level1 extends Level0 {}
+class Level2 extends Level1 {}
+class Level3 extends Level2 {}
+class Level4 extends Level3 {}
+class Level5 extends Level4 {}
+class Level6 extends Level5 {}
+class Level7 extends Level6 {}
+class Level8 extends Level7 {}
+class Level9 extends Level8 {}
+
+Guest $guest = new Guest();
+var $info = Core\Reflect::forObject($guest);
+
+// 1. The walk from `Guest` reaches `Account`, and `Account` has no parent.
+?string $parentName = $info->parent();
+echo $parentName ?? 'null', "\n";
+var $parentInfo = Core\Reflect::forClass($parentName ?? '');
+echo $parentInfo?->name() ?? 'null', "\n";
+echo $parentInfo?->parent() ?? 'null', "\n";
+
+// 2. The `ClassInfo` of `Account` reads the private property of an `Account` object and of `$guest`.
+array<mixed> $targets = [new Account(), $guest];
+foreach ($targets as mixed $target) {
+    try {
+        var $password = $parentInfo?->get($target, 'password');
+        echo "read\n";
+    } catch (Throwable $error) {
+        echo "refused\n";
+    }
+}
+
+// 3. The `ClassInfo` of `Account` calls the private method on both objects.
+foreach ($targets as mixed $target) {
+    try {
+        var $result = $parentInfo?->call($target, 'reset', []);
+        echo "called\n";
+    } catch (Throwable $error) {
+        echo "refused\n";
+    }
+}
+
+// 4. A class with no parent and an interface both give `null`.
+echo Core\Reflect::forClass('Level0')?->parent() ?? 'null', "\n";
+echo Core\Reflect::forClass('Named')?->parent() ?? 'null', "\n";
+
+// 5. A loop walks a chain of ten classes up to `Level0`, then reads its private property.
+?Core\Reflect\ClassInfo $step = Core\Reflect::forObject(new Level9());
+uint $depth = 0;
+string $root = '';
+while ($step != null) {
+    $root = $step->name();
+    ?string $next = $step->parent();
+    $step = $next == null ? null : Core\Reflect::forClass($next);
+    $depth = $depth + 1;
+}
+echo $depth, ' ', $root, "\n";
+try {
+    var $secret = Core\Reflect::forClass($root)?->get(new Level0(), 'secret');
+    echo "read\n";
+} catch (Throwable $error) {
+    echo "refused\n";
+}
+
+// 6. `parent` is called 100000 times. Each name it returns should be freed.
+uint $length = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $length = $length + Core\Str::length($info->parent() ?? '');
+    $i = $i + 1;
+}
+echo $length, "\n";
