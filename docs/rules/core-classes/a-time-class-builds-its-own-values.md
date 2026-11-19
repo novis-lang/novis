@@ -63,7 +63,11 @@ compiled unit and freed with it, and nothing per use; `Zone::of` costs an object
 than a CLDR pattern. `DateTime::fromIso('…', 'UTC')` spends one `DateTime` and nothing else.
 `DateTime::at` from computed parts spends a `Date` and a `TimeOfDay` before the `DateTime`: two small
 objects per call more than the single eight-argument constructor it replaces, spent to buy one
-constructor per class with no positional seven-field signature.
+constructor per class with no positional seven-field signature. Measured (`data/perf/members.md`),
+`DateTime::at` over a built `Date` and `TimeOfDay` is 5 allocations and 267 bytes per call, beside
+the old `Core\Time::at` row's 4 and 210. `Date::at` adds one allocation and 80 bytes, and
+`TimeOfDay::at` one and 96. A call built from computed parts is then about 7 allocations and 443
+bytes. `DateTime::fromIso` is 4 allocations and 218 bytes.
 
 A member that moved here from `Core\Time` is a compile error naming its new place
 (`rule:core-api/a-moved-name-says-where-it-went`), with no alias keeping the old name

@@ -2429,8 +2429,8 @@ const DATETIME_AT_DOC: MethodDoc = MethodDoc {
     short: "Builds a date and time in `$zone` from a `Date` and a `TimeOfDay`. It is the \
             reverse of `date()`, `timeOfDay()` and `zone()`. If the zone skips the time, such \
             as 02:30 on the morning the clocks go forward, the result moves forward past the \
-            gap. Each call builds one `DateTime`. Building the `Date` and the `TimeOfDay` first \
-            adds two small objects.",
+            gap. Each call builds one `DateTime`. Building the `Date` and the `TimeOfDay` in \
+            the same call adds two small objects, about 180 bytes together.",
     params: &[
         ParamDoc {
             name: "date",

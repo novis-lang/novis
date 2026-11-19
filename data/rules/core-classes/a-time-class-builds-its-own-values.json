@@ -1,6 +1,6 @@
 {
   "title": "Each `Core\\Time` value class builds its own values, each has a checked `fromIso`, and `Core\\Time` is the clock",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/one-paradigm-per-operation",
     "core-api/verb-lexicon",
@@ -13,7 +13,8 @@
     "crates/nvs-stdlib/src/time.rs",
     "tests/conformance/core/time-each-class-builds-its-own-values.nvst",
     "tests/conformance/core/time-from-iso-reads-one-format-on-every-class.nvst",
-    "tests/conformance/reject/a-malformed-iso-literal-is-a-compile-error.nvst"
-  ],
-  "goal": "time-constructors"
+    "tests/conformance/reject/a-malformed-iso-literal-is-a-compile-error.nvst",
+    "tests/conformance/core/time-a-written-zone-is-checked-and-shared.nvst",
+    "tests/conformance/reject/an-unknown-written-zone-does-not-compile.nvst"
+  ]
 }
