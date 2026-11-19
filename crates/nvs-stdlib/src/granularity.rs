@@ -918,7 +918,10 @@ mod tests {
 
     /// A long text with wide units everywhere, and one that is all one-byte.
     fn long_texts() -> [String; 2] {
-        ["e\u{301}\u{1f44b}\u{1f3fd}".repeat(5_000), "ab".repeat(50_000)]
+        [
+            "e\u{301}\u{1f44b}\u{1f3fd}".repeat(5_000),
+            "ab".repeat(50_000),
+        ]
     }
 
     /// A position from the start, on a text nothing has counted, walks to the
@@ -934,14 +937,9 @@ mod tests {
             assert_eq!(unit.byte_of_signed_index_of(&value, &subject, 3), third);
             assert_eq!(unit.at_of(&value, &subject, 3), unit.at(&subject, 3));
             assert_eq!(unit.index_of_byte_of(&value, &subject, third), 3);
-            let (start, end) = crate::str::window(
-                &value,
-                &subject,
-                &Value::int(2),
-                &Value::int(4),
-                "slice",
-            )
-            .expect("an int offset and length");
+            let (start, end) =
+                crate::str::window(&value, &subject, &Value::int(2), &Value::int(4), "slice")
+                    .expect("an int offset and length");
             assert_eq!(start, unit.byte_of_index(&subject, 2));
             assert_eq!(end, unit.byte_of_index(&subject, 6));
             assert_eq!(
@@ -968,14 +966,9 @@ mod tests {
                 unit.byte_of_index(&subject, total - 3)
             );
             assert_eq!(unit.at_of(&value, &subject, -1), Some(&subject[last..]));
-            let (start, end) = crate::str::window(
-                &value,
-                &subject,
-                &Value::int(-4),
-                &Value::int(-1),
-                "slice",
-            )
-            .expect("an int offset and length");
+            let (start, end) =
+                crate::str::window(&value, &subject, &Value::int(-4), &Value::int(-1), "slice")
+                    .expect("an int offset and length");
             assert_eq!(start, unit.byte_of_index(&subject, total - 4));
             assert_eq!(end, last);
             assert_eq!(
@@ -995,7 +988,11 @@ mod tests {
         fn counted(unit: Unit, subject: &str, offset: i64, length: Option<i64>) -> (usize, usize) {
             let total = i64::try_from(unit.length(subject)).unwrap_or(i64::MAX);
             let at = |index: i64| {
-                let index = if index < 0 { (total + index).max(0) } else { index };
+                let index = if index < 0 {
+                    (total + index).max(0)
+                } else {
+                    index
+                };
                 unit.byte_of_index(subject, usize::try_from(index).unwrap_or(usize::MAX))
             };
             let start = at(offset);
