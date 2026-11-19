@@ -30,7 +30,7 @@ stages:
     context: [docs/examples/core/Time, tests/hostile/core/Time, benches/members/core/Time]
   - id: 7
     title: the three fromIso members and the written zone have their proofs, and the reference and website say what each class builds
-    status: open
+    status: done
     context: [docs/reference/core/Time.md, docs/reference/core/Time-DateTime.md, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -368,25 +368,25 @@ runs `nvs check --fix`, then rewrites the `at` calls.
 **Split:** three writing subagents side by side, one per new member, each writing its `about.md`, three
 examples, one bench and one attack. The session writes the reference pages meanwhile.
 
-- [ ] `Core\Time\Date::fromIso`: `docs/examples/core/Time-Date/fromIso/about.md:1`, three examples, a
+- [x] `Core\Time\Date::fromIso`: `docs/examples/core/Time-Date/fromIso/about.md:1`, three examples, a
   bench, an attack. Its tests are stage 2's two cases.
-- [ ] `Core\Time\TimeOfDay::fromIso`: the same under `Time-TimeOfDay/fromIso/`.
-- [ ] `Core\Time\DateTime::fromIso`: the same under `Time-DateTime/fromIso/`. One example shows a date
+- [x] `Core\Time\TimeOfDay::fromIso`: the same under `Time-TimeOfDay/fromIso/`.
+- [x] `Core\Time\DateTime::fromIso`: the same under `Time-DateTime/fromIso/`. One example shows a date
   alone as the start of the day, and the attack writes offsets and far years.
-- [ ] The written zone: `docs/examples/core/Time-Zone/of/about.md` says a fixed zone is written as text
+- [x] The written zone: `docs/examples/core/Time-Zone/of/about.md` says a fixed zone is written as text
   and `Zone::of` is for text read at run time. One example there writes `'Europe/Berlin'` at
-  `DateTime::fromIso`. `tests/hostile/core/Time-Zone/of/02-zone-names-that-only-look-real.nvs:1`: an attack
+  `DateTime::fromIso`. `tests/hostile/core/Time-Zone/of/03-zone-names-that-only-look-real.nvs:1`: an attack
   whose written names are misspelled, padded or past the offset range. None of them compiles.
-- [ ] `docs/reference/core/Time.md:1`: `Core\Time` is the clock; its code block uses only `now`,
+- [x] `docs/reference/core/Time.md:1`: `Core\Time` is the clock; its code block uses only `now`,
   `monotonic` and `sleep`, and a sentence points to each class's constructors.
   `docs/reference/core/Time-DateTime.md:1`, `Time-Instant.md:1`, `Time-Date.md:1` and
   `Time-TimeOfDay.md:1` show their own constructors, `fromIso` first.
-- [ ] `website/src/data/questions.json` uses the new names, and `bun nv render --website` writes
+- [x] `website/src/data/questions.json` uses the new names, and `bun nv render --website` writes
   `core.json` and `llms-full.txt` again.
-- [ ] `bun nv proofs --record-perf --group 'Core\Time\DateTime'`, and the same for `Date`, `TimeOfDay` and
+- [x] `bun nv proofs --record-perf --group 'Core\Time\DateTime'`, and the same for `Date`, `TimeOfDay` and
   `Instant`. `DateTime::at`'s card and the rule state its allocations and bytes beside the old
   `Core\Time::at` row's 4 and 210.
-- [ ] `bun nv proofs --comments` passes on every new file, and `bun nv owners --closes time-constructors`
+- [x] `bun nv proofs --comments` passes on every new file, and `bun nv owners --closes time-constructors`
   names no gap.
 
 ### 8. the goal is verified once, and every failure is fixed
@@ -398,38 +398,34 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### State
 
-Stages 1 to 6 are done. No file under `docs/examples/`, `tests/hostile/` or `benches/members/` calls an
-old name. The `at`, `parse`, `fromIso` and `fromEpoch` proofs live under `core/Time-DateTime/` and
-`core/Time-Instant/` in all three trees, and `atStartOfDay`'s are deleted (`fce32b0f24`, `1c8d7cb275`,
-`9a3bd337fe`). The pure renames and deletions of the examples and attacks landed inside `9478fd2f66`,
-the Miri fix's commit, because two subagents had staged them when it was made. A no-cache
-`bun nv proofs --run` over the 69 touched example features gave 200 examples and 66 attacks ok, and each
-of the four moved ids reports its about, three examples, attack and bench.
+Stages 1 to 7 are done. Each of the three new `fromIso` members has its about, three examples, a bench
+and an attack (`Time-Date/fromIso`, `Time-TimeOfDay/fromIso`, `Time-DateTime/fromIso` in all three
+trees), and the ISO form test in `time.rs` carries the `covers:` markers of `Date::fromIso` and
+`TimeOfDay::fromIso`. `Zone::of`'s about and first example write a zone as text, and
+`tests/hostile/core/Time-Zone/of/03-zone-names-that-only-look-real.nvs` writes ten names that do not
+compile (`02-` was taken, so the item's path moved to `03-`). The six `docs/reference/core/Time*.md`
+cards show only the new names, and `bun nv reference --only Time` holds 7 of 7. `questions.json`
+moves the four old `Core\Time` pages to their classes, drops `atStartOfDay`'s, adds the three
+`fromIso` pages, and each is stamped. `core.json` and `llms-full.txt` are rendered again.
 
-Two proofs changed past the rename. `docs/examples/core/Time-Zone/of/02-a-misspelled-name.nvs` reads
-its name from a variable, because a written unknown zone does not compile. `tests/hostile/core/Queue/purge/`
-step 5 writes `9999-12-30T22:00:00Z`, the last instant there is: its old text was past it, so it now
-does not compile, and before it threw before the purge ran.
+The 92 members `time.rs` declares were recorded on a release binary, and `bun nv proofs --gate --limit 0`
+owes nothing over 1,623 features. `DateTime::at` is 5 allocations and 267 bytes per call, beside the
+old `Core\Time::at`'s 4 and 210; the rule and the card say so. A card string edit in `time.rs` did not
+make the records stale again. The rule record is `shipped`, and `bun nv owners --closes
+time-constructors` names no gap.
 
-The nightly's other failures were fixed after its sha (`eb5c02e983`, `656f5b2f2d`, `1c75c4ef0e`,
-`4c82a2409a`), but two `granularity` tests timed out under Miri; `9478fd2f66` shrinks them, unrun there.
+The nightly the sweep named (`44510687786`) ran at `adc7487822`, before the fixes the last handoff
+lists, so it needed nothing new.
 
-The old names left in the tree are on purpose or stage 7's: the move table and its tests
-(`crates/nvs-stdlib/src/moved.rs`, `crates/nvs-types/src/moved.rs`, `crates/nvs-cli/tests/check_flags.rs:418`,
-`tests/conformance/lang/a-moved-core-member-says-where-it-went.nvst`), the rules that name the move,
-the reference cards under `docs/reference/core/Time*.md`, `website/src/data/` and `data/perf/`.
-
-**Expected red:** the perf records of every time member are stale (`time.rs` changed), so the proofs
-gate is red until stage 7's `--record-perf` runs on a release binary. The three new `fromIso` members
-owe their proofs until stage 7.
+**Expected red:** none known. `data/perf/members.md` was not rewritten by `bun nv render`; if the
+ledger check reads it as stale, the renderer that writes it is the fix.
 
 ### Next
 
-Stage 7, following its **Split:** line: three writing subagents, one per new `fromIso` member
-(`docs/examples/core/Time-Date/fromIso/`, `Time-TimeOfDay/fromIso/`, `Time-DateTime/fromIso/`), while
-the session rewrites `docs/reference/core/Time.md:1` and its four class cards, which still show
-`Core\Time::at`, `parse`, `fromIso`, `fromEpoch` and `atStartOfDay`. A subagent stages only its own
-files, and the session commits each slice with `git commit <paths>`, so no commit takes another
-slice's staged files. Record perf last, after every edit to `time.rs`, as the playbook says.
+Stage 8 closes the goal. This goal is not the chain's full gate, so it runs `cargo build`, `cargo clippy
+--all-targets -- -D warnings` and the goal's four acceptance checks by name (`looper check --name
+constructors`, `zones`, `zone-completion`, `moved`), then the goal-end gates of AGENTS.md § *In the
+loop*: move any decision only this file holds into the rule or `time.rs`'s module doc, delete this file,
+and write `DONE`.
 
 ### Backlog
