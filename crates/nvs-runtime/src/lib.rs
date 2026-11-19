@@ -361,9 +361,9 @@ pub use peer::{
 };
 pub use string::{
     CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,
-    NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, Room, Run, StrHeader, StrPart, StrWriter, immortal_header_bytes,
-    nvs_str_append, nvs_str_append_parts, nvs_str_concat, nvs_str_concat_n, nvs_str_concat_parts,
-    nvs_str_eq, nvs_str_new, nvs_str_release, nvs_str_retain,
+    NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, Room, Run, StrHeader, StrPart, StrWriter,
+    immortal_header_bytes, nvs_str_append, nvs_str_append_parts, nvs_str_concat, nvs_str_concat_n,
+    nvs_str_concat_parts, nvs_str_eq, nvs_str_new, nvs_str_release, nvs_str_retain,
 };
 pub use throwable::{
     BACKTRACE_SLOT, CONSTRAINT_SLOT, DRIVER_CODE_SLOT, ENTRY_SCRIPT_FRAME, FINISH_MARKER_NAME,

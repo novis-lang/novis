@@ -3374,9 +3374,8 @@ nvs_runtime::nvs_helper! {
         // subject. It is retained first, so a replacement that is the subject
         // makes the subject shared.
         if replacement.len() <= end - start {
-            let held = <NvsStr as nvs_runtime::OwnedSubject>::share(&args[3]).ok_or_else(|| {
-                Fault::fatal("Core\\Str::replaceRange: the replacement is not a string".to_owned())
-            })?;
+            let held = <NvsStr as nvs_runtime::OwnedSubject>::share(&args[3])
+                .expect("`text` read the replacement as a string above");
             if sole(&args[0]) {
                 return Ok(Rewritten::Splice {
                     start,

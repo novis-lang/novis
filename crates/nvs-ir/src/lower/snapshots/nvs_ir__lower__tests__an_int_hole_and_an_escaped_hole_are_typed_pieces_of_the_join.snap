@@ -12,13 +12,11 @@ fn m(object, int, string) -> object {
     v3 = const.str "n="  ; string
     v4 = const.str ", s="  ; string
     v5 = concat v3, int v1, v4, v2  ; string
-    release v3
     release v4
     ; stmt s1 @5:5-5:38
     v6 = const.str "<b>"  ; string
     v7 = const.str "</b>"  ; string
     v8 = concat v6, html v2, v7, int v1, html v5  ; string
-    release v6
     release v7
     v9 = core.call nvs_core_html_markup(v8) ! bb2  ; object
     release v8

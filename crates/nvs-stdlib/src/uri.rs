@@ -2334,11 +2334,23 @@ pub(crate) struct OverMemory;
 impl OverMemory {
     /// The `FATAL` the parse ends with where no context is at hand to word the
     /// request's own. `rule:errors/on-limit` makes a memory breach a `FATAL`.
+    ///
+    /// The message is joined at its exact length, because it is made past the
+    /// ceiling: `format!` reserves about twice its literal text, and that
+    /// spare room would pass the limit by more than the report.
+    ///
+    /// No case can reach this: a case runs under no memory limit small enough,
+    /// so `a_name_nested_past_the_memory_limit_stops_inside_one_parse` asserts it.
     fn fault(owner: &str, member: &str) -> Fault {
-        Fault::fatal(format!(
-            "{owner}::{member}: the parameters' names open more arrays than the request's memory \
-             limit allows"
-        ))
+        Fault::fatal(
+            [
+                owner,
+                "::",
+                member,
+                ": the parameters' names open more arrays than the request's memory limit allows",
+            ]
+            .concat(),
+        )
     }
 }
 
