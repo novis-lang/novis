@@ -86,7 +86,8 @@
 // 9. **Every-session sweep.** With `[loop] sweep = "every"`, a session that did not claim `DONE` is
 //    followed by the `before_sweep` hooks and acceptance, each check run only on its `every`. Its red
 //    checks go to `.loop/last-sweep.md`. The sweep never retires a goal, and only a hook changes the
-//    verdict. A `DONE` claim runs every check whatever its `every`.
+//    verdict. A `DONE` claim runs every check whatever its `every`, and writes its red checks to the
+//    same file in either mode, so no line an earlier sweep left there outlives the next claim.
 //
 // Between turns the caller may read `looper.toml` again with `Driver.reload`, lay a `set` control's
 // `Settings` over the sessions ahead with `Driver.set`, run acceptance outside a session with
@@ -1010,7 +1011,7 @@ export class Driver {
       const full = fullGate(this.cfg.loop, chain, slug);
       const acc = await acceptance(this.root, goal, chain.floor, this.checkLogs, this.units(), this.project(), this.progress, undefined, full);
       this.addCheckRuns(acc.verdicts);
-      if (this.cfg.loop.sweep === "every") lastSweep(this.root, acc.verdicts);
+      lastSweep(this.root, acc.verdicts);
       why = notReached(this.root, this.cfg, goal, acc);
       if (why.length === 0 && goal.front.stages.length > 0) {
         let said: string;

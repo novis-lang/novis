@@ -50,10 +50,6 @@ session the bullets it ranks highest for the live goal, and names how many more 
   --check` were green, and the retire was refused. After a layout change, run `nvs run` on each
   attack that makes millions of small values. Shrinking its input is refused as loosening a test.
   See `tests/hostile/core/Str/chunk/`.
-- **A sweep red whose log file does not exist names a check no goal defines any more.** Three
-  sessions searched the tree for `env-secret-proofs`, which a retired goal's sweep left behind. Run
-  `git log -S '<name>' --oneline` once: when the newest hit is a goal's retire commit, the red is
-  stale, and the handoff says so. See `.looper/loops/main/checks/`.
 - **A suite that is red only through `bun nv` and green from the shell has `LLVM Profile Error`
   lines in each case's stderr.** The covws `nvs` writes its counters into a shared discard pool, and
   a profile an older build left there fails to merge. Every case that expects an error then fails,

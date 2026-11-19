@@ -64,7 +64,7 @@
     "tools/looper/src/loop/claude.ts": "18bebbda21434f91b49c229d11345e9620e5a2d543689359daa3a37f74a5ed70",
     "tools/looper/src/loop/controls.ts": "f568636711e3c3e768e3a2a5effdda0d56fc2dae015766a24cb1eff25b9bbd5c",
     "tools/looper/src/loop/decisions.ts": "5a73a6156371a8104662e0719980b572970b68732ba4b3bf100b1f733587d467",
-    "tools/looper/src/loop/driver.ts": "1a82dd777a0a00f0dccff4f0c0acaa15d7fedb8414d2b0808930d36db8b636d4",
+    "tools/looper/src/loop/driver.ts": "1def67b44ab3043cda20a51b299238e3eebb55d6e45524c0a5300c2310c7011c",
     "tools/looper/src/loop/hooks.ts": "715310ee91a0c13bfa56707371e9cb6e69c5443e6fb5648a95c9fddd79bdee1e",
     "tools/looper/src/loop/landing.ts": "a87b27a8b14d877488be46bb8f4133bc14f05d3efd66846fbbee63c804256dd9",
     "tools/looper/src/loop/lanes.ts": "6eff565f9988138e98db8cc35bb4a6e7fb80a22e9bfd0f71a283e0cfc6cb8746",
