@@ -461,9 +461,9 @@ their `.out` files, which must print what they print today. The session writes t
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
+- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [ ] Run that check once more, and it is green.
 - [ ] The newcomer review the `website-follows-changes` rule names, over every page, card and diagnostic
   this goal changed, each finding fixed and each page stamped. The `site-review` check run once.
 

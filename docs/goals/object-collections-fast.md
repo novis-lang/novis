@@ -433,9 +433,9 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
+- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
 - [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [ ] Run that check once more, and it is green.
 
 ## Handoff
 
