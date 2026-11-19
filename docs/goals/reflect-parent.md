@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/layout.rs, crates/nvs-ir/src/ir.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-codegen/src/lib.rs]
   - id: 2
     title: the reference card, the examples, the attack and the bench say what parent does
-    status: open
+    status: done
     context: [docs/examples/core/Reflect-ClassInfo/attributes/about.md, docs/agent/prose.md]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -142,16 +142,16 @@ returns it.
 **Split:** one writing subagent writes the attack and the bench while the session writes `about.md` and
 the examples. Their files are disjoint, and no one builds until both end.
 
-- [ ] `docs/examples/core/Reflect-ClassInfo/parent/about.md:1`: what `parent` returns, and the walk that
+- [x] `docs/examples/core/Reflect-ClassInfo/parent/about.md:1`: what `parent` returns, and the walk that
   reads a base class's attributes.
-- [ ] `docs/examples/core/Reflect-ClassInfo/parent/01-print-the-parent-of-a-class.nvs:1`, `02-walk-up-to-the-root.nvs`
+- [x] `docs/examples/core/Reflect-ClassInfo/parent/01-print-the-parent-of-a-class.nvs:1`, `02-walk-up-to-the-root.nvs`
   and `03-read-the-attributes-of-every-base-class.nvs`, each with its `.out`.
-- [ ] `tests/hostile/core/Reflect-ClassInfo/parent/01-a-walk-that-tries-to-reach-a-private-member-of-a-parent.nvs:1`:
+- [x] `tests/hostile/core/Reflect-ClassInfo/parent/01-a-walk-that-tries-to-reach-a-private-member-of-a-parent.nvs:1`:
   a walk up the chain reaches the parent's description and tries to read its `private` property. The
   read fails as it does without reflection (`rule:security/reflection-enforces-visibility`).
-- [ ] `benches/members/core/Reflect-ClassInfo/parent.nvs:1`, modelled on
+- [x] `benches/members/core/Reflect-ClassInfo/parent.nvs:1`, modelled on
   `benches/members/core/Reflect-ClassInfo/name.nvs`.
-- [ ] The `proofs` check is green, and `bun nv proofs --comments` passes on the new files.
+- [x] The `proofs` check is green, and `bun nv proofs --comments` passes on the new files.
 
 ### 3. the goal is verified once, and every failure is fixed
 
@@ -162,30 +162,26 @@ the examples. Their files are disjoint, and no one builds until both end.
 
 ### State
 
-Stage 1 is done, and its `case` and `rust` checks are green. `ClassLayout::parent`
-(`crates/nvs-types/src/layout.rs`, filled beside `no_instances`) reaches `ClassDesc::parent`
-(`crates/nvs-runtime/src/object.rs`) through `nvs_ir::ir::Class::parent` and codegen's
-`set_parent` call. `nvs_core_reflect_class_info_parent` (`crates/nvs-stdlib/src/reflect.rs`) reads it
-at call time, and its symbol is in the address table beside `attributes`'. The rule has its paragraph
-and Declined list, and is rendered. The IR `Class` has nine construction sites, not five, and every
-one but the layout's sets `None`.
+Stages 1 and 2 are done. `bun nv proofs --id 'Core\Reflect\ClassInfo::parent'` prints `complete.`,
+and `bun nv proofs --comments` passes on the five new files. The examples are under
+`docs/examples/core/Reflect-ClassInfo/parent/`, the attack is
+`tests/hostile/core/Reflect-ClassInfo/parent/01-a-walk-that-tries-to-reach-a-private-member-of-a-parent.nvs`
+(six steps, exit 0, no `// hostile:` line), and the bench
+`benches/members/core/Reflect-ClassInfo/parent.nvs` declares `calls 1` and `allocations 1`: one
+string per `parent()` call. All 40 `Core\Reflect` perf records were measured again on a release
+binary built after the last edit to `crates/nvs-stdlib/src/reflect.rs`, so do not edit that file
+again, doc comments included, or they go stale.
 
-The sweep's `env-secret-proofs` red is stale: `.loop/last-sweep.md` was written by cheaper-forms' last
-sweep, before its retire, and no check by that name exists in the tree. The sweep after this session
-overwrites it.
+The sweep's `env-secret-proofs` red is stale: `git log -S` names cheaper-forms' retire as its last
+hit, and no check by that name exists in the tree.
 
 ### Next
 
-Stage 2, as its **Split:** line says: run `bun nv proofs --id 'Core\Reflect\ClassInfo::parent'` first,
-then write `docs/examples/core/Reflect-ClassInfo/parent/` (`about.md` and three examples with their
-`.out`), while a writing subagent writes the attack under
-`tests/hostile/core/Reflect-ClassInfo/parent/` and the bench at
-`benches/members/core/Reflect-ClassInfo/parent.nvs`. The new member has no perf record yet, and the
-edit to `crates/nvs-stdlib/src/reflect.rs` makes every `Core\Reflect` member's perf record stale
-(playbook: *A goal that changes a `Core` member's source file*); record them after the last edit to
-that file. `website/public/llms-full.txt` and `data/perf/members.*` list the `ClassInfo` members and
-expect to go red at the gate until they are regenerated. `cargo fmt --check` names 18 places in
-files this goal did not write, from earlier goals, and the full gate's `bun nv ci --check` will name
-them.
+Stage 3 closes the goal with a build, clippy and this goal's own checks (`case`, `rust`, `proofs`),
+unless the pack names this goal as the full gate. 147 perf records outside `Core\Reflect`
+(`Core\Str`, `Core\Json`, `Core\IO` and more) are stale from earlier goals' edits, and the full
+gate's `bun nv ci --check` will name them. `website/public/llms-full.txt` lists the `ClassInfo`
+members and may go red until it is regenerated. `cargo fmt --check` names 18 places from earlier
+goals.
 
 ### Backlog
