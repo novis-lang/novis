@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/session.rs, docs/rules/http-server/a-session-is-
 stages:
   - id: 1
     title: the rules say a session is written back per key, and the shared tier's client reads a hash
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cache/redis.rs, data/rules/http-server/a-session-is-loaded-once-and-written-back-per-key.json, docs/rules/core-api/session-roster.md, docs/rules/http-server/session-expiry-belongs-to-the-store.md]
   - id: 2
     title: the session is kept and written back per key on both stores
@@ -130,6 +130,15 @@ not exist and writes nothing. Then it works out the new total from `m` and each 
 `clear`, `HDEL` of every `k:` field; `HDEL` of the removed keys; `HSET` of the changed keys and `m`;
 `PEXPIRE`. It returns `1`. Each step reads the hash as it is now, so a second run gives the same hash.
 
+**What the ceiling counts (stage 1's call, from security and request isolation).** `HGETALL`'s reply
+is bounded twice in `redis.rs`: `REPLY_CEILING` over all its bytes, and `STRING_ELEMENT_CEILING`,
+65 536 elements, which is 32 768 fields. So `m` counts, for each `k:` field, the field name's bytes,
+the value's bytes and 32 bytes of RESP framing, and the script compares that to the ceiling argument
+`session.rs` passes (`REPLY_CEILING` less 64 KiB). The script also refuses a write-back that leaves
+more than 32 767 `k:` fields (`HLEN` less one for `m`). A request past either bound gets the same
+`-1`, and `send_at_end` reports the size. Counting only `HSTRLEN` would let many small keys pass the
+script and still fail every later `HGETALL`, which wedges the session as before.
+
 **The ceiling (my call).** `HGETALL` reads one reply, and `REPLY_CEILING` (`redis.rs:102`, 8 MiB)
 bounds it. Today a request that writes a bigger record wedges its session until it expires, because
 every later `start` fails to read it. With writes per key, two requests could reach the ceiling
@@ -220,14 +229,14 @@ and the reply shape stage 2 needs. Nothing a session does changes yet.
   `docs/rules/core-api/session-roster.md:12` says `regenerate` moves the session.
   `docs/ground-rules.md:980` and `:983` take the new titles. Then `bun nv rules --render`, and
   `bun nv rules --check` is green.
-- [ ] `crates/nvs-stdlib/src/cache/redis.rs:659` `Reply` gains an array of bulk strings, read at `:725`
+- [x] `crates/nvs-stdlib/src/cache/redis.rs:659` `Reply` gains an array of bulk strings, read at `:725`
   `one`. The client gains `hash_all` (`HGETALL`, `Idempotent`, returns `None` for an empty array) and
   `rename_if_absent` (`RENAMENX`, `OnlyIfUnsent`). `RENAMENX` answers `0` for a taken new key, and the
   error `ERR no such key` for a gone old one, which is read as *gone*, not as a failure. `eval`
   (`:414`) takes the `Replay` from its caller, so the write-back script can be `Idempotent`. The
   limiter (`crate::ratelimit`) and the lease (`:440`) keep `OnlyIfUnsent`. The module doc's list of
   commands (`:33-55`) is rewritten to match.
-- [ ] `crates/nvs-stdlib/src/cache/redis.rs:994`: the two fake-store tests the `wire` check names,
+- [x] `crates/nvs-stdlib/src/cache/redis.rs:994`: the two fake-store tests the `wire` check names,
   beside `a_put_and_a_get_are_one_set_and_one_get_on_one_connection`, and the check run once.
 
 ### 2. the session is kept and written back per key on both stores
@@ -314,15 +323,28 @@ line here is text an end user reads, held to `AGENTS.md` § *Text an end user re
 
 ### State
 
-Written on 2026-11-17 from a design conversation with the person. Nothing is built yet. The person
-decided the write-back per key, no API change, and no conversion of existing sessions. Every other
-choice in § *Standing decisions* is the authoring session's call under the priority ordering, and
-stands until the person picks another.
+Stage 1 is done. Both rules are renamed, rewritten and rendered, and every citation follows
+(`53675ef01a`). The rules already describe the per-key store, which stage 2 builds. The Rust doc
+comments in `session.rs`, `wiring.rs` and `sqlite.rs` cite the new ids and still describe the
+whole-record code. Stage 2 rewrites them with the code.
+
+`redis.rs` reads an array of bulk strings (`Reply::Strings`, bounded by the new
+`STRING_ELEMENT_CEILING`), and has `hash_all` (`HGETALL`), `rename_if_absent` (`RENAMENX`, returning
+`Renamed::{Done, Taken, Gone}`), the `Field` alias and a public `Replay` that `eval` now takes from its
+caller. The limiter and the lease pass `OnlyIfUnsent`. `hash_all`, `rename_if_absent`, `Renamed` and
+`Reply::Strings` carry `#[cfg_attr(not(test), expect(dead_code, …))]` until `session.rs` calls them.
+The `wire` check is green. One standing decision is new: *What the ceiling counts*.
+
+The sweep's reds were stale again. `env-secret-proofs` has no log, and `git log -S` lands on a retire
+commit. Nightly run 44510687786 ran on `adc7487822`, before `4c82a2409a` (miri) and `eb5c02e983`
+(supply chain). Nothing has been pushed since, so no newer CI run exists.
 
 ### Next
 
-Stage 1 from its first item: the two rule fragments, their renames and citations, then
-`crates/nvs-stdlib/src/cache/redis.rs:659` `Reply` and the two new commands. The `wire` tests do not
-exist yet, and are expected to fail until the stage writes them.
+Stage 2 from its first item, `crates/nvs-runtime/src/ctx/wiring.rs:47` `Session`. When
+`session.rs` calls `hash_all` and `rename_if_absent`, remove their four `expect(dead_code)`
+attributes in `redis.rs`, or the build warns that each expectation is unfulfilled. The write-back
+script counts what *What the ceiling counts* says. Every existing session test in `session.rs` and
+`sqlite.rs` is expected to go red until the stage's subagent changes the fake store `serving`.
 
 ### Backlog
