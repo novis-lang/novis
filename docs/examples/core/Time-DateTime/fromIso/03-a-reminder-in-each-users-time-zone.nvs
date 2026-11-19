@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read one local time in the time zone each user has saved.
+
+// Each user wants a reminder at 08:00 on their own clock.
+// `Core\Time\Zone::of` reads the zone name, because the names are only known when the program runs.
+array<string> $zones = ['Europe/Berlin', 'America/New_York', 'Asia/Tokyo'];
+foreach ($zones as string $name) {
+    var $reminder = Core\Time\DateTime::fromIso('2024-06-01T08:00', Core\Time\Zone::of($name));
+
+    // `toInstant` gives the moment in UTC, so the three reminders are sent at different times.
+    echo $name, ': ', $reminder->toInstant()->toIso(), "\n";
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read a local date and time, and a date alone, in a time zone.
+
+// The meeting is at 09:30 in Berlin. In June, Berlin is two hours ahead of UTC.
+// This prints 2024-06-01 09:30 +02:00.
+var $meeting = Core\Time\DateTime::fromIso('2024-06-01 09:30', 'Europe/Berlin');
+echo $meeting->format('yyyy-MM-dd HH:mm XXX'), "\n";
+
+// A date alone is the start of that day. This prints 2024-06-01 00:00 +02:00.
+var $day = Core\Time\DateTime::fromIso('2024-06-01', 'Europe/Berlin');
+echo $day->format('yyyy-MM-dd HH:mm XXX'), "\n";
