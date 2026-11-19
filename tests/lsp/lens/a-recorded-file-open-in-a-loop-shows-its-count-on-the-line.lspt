@@ -1,0 +1,25 @@
+--TEST--
+a file read inside a loop shows one lens on its line that counts every open of the newest recorded request and says one file repeated, and a record of another text of the file gives no lens, `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`
+--FILE--
+<?nvs
+array<string> $paths = ['data/a.txt', 'data/a.txt', 'data/b.txt', 'data/a.txt'];
+foreach ($paths as string $path) {
+    Core\IO::readText($path);
+}
+Core\IO::readText('data/c.txt');
+--FILE debug/index.sql--
+CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT);
+CREATE TABLE events (trace TEXT NOT NULL, kind TEXT NOT NULL, start_us INTEGER NOT NULL, end_us INTEGER NOT NULL, sql TEXT, target TEXT, site_file TEXT, site_line INTEGER, site_hash TEXT);
+INSERT INTO requests VALUES (1, '0123456789abcdef0123456789abcdef', '0123456789abcdef');
+INSERT INTO requests VALUES (2, 'fedcba9876543210fedcba9876543210', 'fedcba9876543210');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'file', 0, 5000, NULL, 'data/a.txt', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'file', 0, 7000, NULL, 'data/a.txt', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'file', 0, 200, NULL, 'data/a.txt', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'file', 0, 300, NULL, 'data/a.txt', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'file', 0, 400, NULL, 'data/b.txt', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'file', 0, 1500, NULL, 'data/a.txt', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'file', 0, 600, NULL, 'data/c.txt', 'case.nvs', 6, 'a hash of another text of the file');
+--REQUEST--
+codeLens
+--EXPECT--
+4:5 4 file opens, 2.4 ms in total, slowest 1.5 ms, one file repeated 3 times

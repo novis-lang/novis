@@ -4094,6 +4094,53 @@ pub fn takes_query_site(class: &str, method: &str) -> bool {
     QUERY_SITE_OWNERS.contains(&class) && QUERY_SITE_MEMBERS.contains(&method)
 }
 
+/// The members besides [`QUERY_SITE_MEMBERS`] whose calls a recorded request names by line
+/// (`rule:observability/a-query-span-names-its-call-site`): an outbound HTTP call, a cache read or
+/// write, a session read or write, and a member that opens a file.
+///
+/// The editor's lens reads this roster with [`records_site`] to find the calls it may show
+/// figures on (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`). Each is a
+/// fixed argument list, as [`QUERY_SITE_MEMBERS`]' are, so a trailing site id has a position.
+///
+/// **What it spends:** nothing at run time. The editor tests one more short list per call.
+pub const RECORDED_SITE_MEMBERS: &[(&str, &str)] = &[
+    (crate::http::CLIENT_NAME, "get"),
+    (crate::http::CLIENT_NAME, "post"),
+    (crate::http::CLIENT_NAME, "put"),
+    (crate::http::CLIENT_NAME, "patch"),
+    (crate::http::CLIENT_NAME, "delete"),
+    (crate::http::CLIENT_NAME, "head"),
+    (crate::http::CLIENT_NAME, "request"),
+    (crate::http::CLIENT_NAME, "stream"),
+    (crate::cache::STORE_NAME, "get"),
+    (crate::cache::STORE_NAME, "getSecret"),
+    (crate::cache::STORE_NAME, "put"),
+    (crate::cache::STORE_NAME, "putSecret"),
+    (crate::cache::STORE_NAME, "forget"),
+    (crate::session::NAME, "get"),
+    (crate::session::NAME, "getSecret"),
+    (crate::session::NAME, "set"),
+    (crate::session::NAME, "setSecret"),
+    (crate::session::NAME, "remove"),
+    (crate::io::NAME, "open"),
+    (crate::io::NAME, "read"),
+    (crate::io::NAME, "readText"),
+    (crate::io::NAME, "readBytes"),
+    (crate::io::NAME, "lines"),
+    (crate::io::NAME, "write"),
+    (crate::io::NAME, "append"),
+];
+
+/// Whether a call of `class::method` is a site a recorded request names by line: a
+/// [`takes_query_site`] member or one of [`RECORDED_SITE_MEMBERS`].
+#[must_use]
+pub fn records_site(class: &str, method: &str) -> bool {
+    takes_query_site(class, method)
+        || RECORDED_SITE_MEMBERS
+            .iter()
+            .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of members whose result a program must use, each with
 /// the help line its diagnostic prints. A call to one written as a statement
 /// of its own does not compile (`E_RESULT_NOT_USED`), and

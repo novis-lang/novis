@@ -1,0 +1,27 @@
+--TEST--
+an outbound HTTP call of a recorded request shows its count and time on the line of its call, a request that called one host and path many times says it repeated, and an event of another kind on the same line is not counted with it, `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`
+--FILE--
+<?nvs
+Core\Http\Client::get('https://example.com/status');
+foreach (['https://example.com/items', 'https://example.com/items', 'https://example.com/prices'] as string $url) {
+    Core\Http\Client::get($url);
+}
+Core\Http\Client::head('https://example.com/health');
+--FILE debug/index.sql--
+CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT);
+CREATE TABLE events (trace TEXT NOT NULL, kind TEXT NOT NULL, start_us INTEGER NOT NULL, end_us INTEGER NOT NULL, sql TEXT, target TEXT, site_file TEXT, site_line INTEGER, site_hash TEXT);
+INSERT INTO requests VALUES (1, '0123456789abcdef0123456789abcdef', '0123456789abcdef');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 3000, NULL, 'example.com/status', 'case.nvs', 2, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 1000, NULL, 'example.com/items', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 1000, NULL, 'example.com/items', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 1000, NULL, 'example.com/items', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 1000, NULL, 'example.com/items', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 2500, NULL, 'example.com/items', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'http', 0, 800, NULL, 'example.com/prices', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'call', 0, 50000, NULL, 'example.com/items', 'case.nvs', 4, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, target, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'call', 0, 900, NULL, 'example.com/health', 'case.nvs', 6, '{{hash}}');
+--REQUEST--
+codeLens
+--EXPECT--
+2:1 1 HTTP call, 3.0 ms
+4:5 6 HTTP calls, 7.3 ms in total, slowest 2.5 ms, one host and path repeated 5 times

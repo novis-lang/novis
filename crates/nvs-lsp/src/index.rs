@@ -359,8 +359,8 @@ pub(crate) struct Indexed {
     /// taken as a callable value, by its symbol, and a call by name that the
     /// checker did not resolve to one method, as `::` and the name.
     pub(crate) unfollowed: Vec<String>,
-    /// Every `Core\Db` call that sends a statement, as the start and end of
-    /// the call expression, in source order: the sites the query lens reads
+    /// Every call a recorded request can name by line (`nvs_types::core_records_site`), as the
+    /// start and end of the call expression, in source order: the sites the recorded lens reads
     /// (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`).
     pub(crate) queries: Vec<(BytePos, BytePos)>,
     /// The kind of the one type this file declares, when the file has the
@@ -1437,9 +1437,8 @@ impl SymbolIndex {
             .map_or(&[], |indexed| indexed.occurrences.as_slice())
     }
 
-    /// Every `Core\Db` call `path` writes that sends a statement, as the start
-    /// and end of the call, in source order, or nothing for a file the index
-    /// does not hold.
+    /// Every call `path` writes that a recorded request can name by line, as the start and end of
+    /// the call, in source order, or nothing for a file the index does not hold.
     #[must_use]
     pub fn queries_in(&self, path: &Path) -> &[(BytePos, BytePos)] {
         self.files
@@ -2323,10 +2322,10 @@ fn occurrences<'a>(
                 }),
             );
             let info = analysed.exprs.lookup(node.span);
-            // The test the lowering applies before it passes a call its query
-            // site id, so a lens sits on exactly the calls a span can name.
+            // Every call a recorded request can name by line: a statement, an
+            // HTTP call, a cache or session read or write, or a file open.
             if let Some(ExprInfo::Call(call)) = info
-                && nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
+                && nvs_types::core_records_site(&call.class.to_string(), &call.method)
             {
                 queries.push((node.span.start, node.span.end));
             }

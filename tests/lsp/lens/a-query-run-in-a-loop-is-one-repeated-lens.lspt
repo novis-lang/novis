@@ -10,17 +10,17 @@ foreach ([1, 2, 3] as int $id) {
 $db->execute('delete from customer', []);
 --FILE debug/index.sql--
 CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT);
-CREATE TABLE events (trace TEXT NOT NULL, kind TEXT NOT NULL, start_us INTEGER NOT NULL, end_us INTEGER NOT NULL, sql TEXT, site_file TEXT, site_line INTEGER, site_hash TEXT);
+CREATE TABLE events (trace TEXT NOT NULL, kind TEXT NOT NULL, start_us INTEGER NOT NULL, end_us INTEGER NOT NULL, sql TEXT, target TEXT, site_file TEXT, site_line INTEGER, site_hash TEXT);
 INSERT INTO requests VALUES (1, '0123456789abcdef0123456789abcdef', '0123456789abcdef');
 INSERT INTO requests VALUES (2, 'fedcba9876543210fedcba9876543210', 'fedcba9876543210');
-INSERT INTO events VALUES ('0123456789abcdef0123456789abcdef', 'query', 0, 5000, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}');
-INSERT INTO events VALUES ('0123456789abcdef0123456789abcdef', 'query', 0, 7000, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'query', 0, 5000, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) VALUES ('0123456789abcdef0123456789abcdef', 'query', 0, 7000, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}');
 WITH RECURSIVE run(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM run WHERE i < 1000)
-INSERT INTO events SELECT 'fedcba9876543210fedcba9876543210', 'query', i * 1000, i * 1000 + CASE WHEN i = 500 THEN 2400 ELSE 100 END, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}' FROM run;
-INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 300, 'create table customer (id integer primary key, name text not null)', 'case.nvs', 3, 'a hash of another text of the file');
-INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 300, 'delete from customer', 'case.nvs', 7, '{{hash}}');
-INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 1200, 'delete from orders', 'case.nvs', 7, '{{hash}}');
-INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 900, 'delete from customer', 'other.nvs', 3, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) SELECT 'fedcba9876543210fedcba9876543210', 'query', i * 1000, i * 1000 + CASE WHEN i = 500 THEN 2400 ELSE 100 END, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}' FROM run;
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 300, 'create table customer (id integer primary key, name text not null)', 'case.nvs', 3, 'a hash of another text of the file');
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 300, 'delete from customer', 'case.nvs', 7, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 1200, 'delete from orders', 'case.nvs', 7, '{{hash}}');
+INSERT INTO events (trace, kind, start_us, end_us, sql, site_file, site_line, site_hash) VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 900, 'delete from customer', 'other.nvs', 3, '{{hash}}');
 --REQUEST--
 codeLens
 --EXPECT--

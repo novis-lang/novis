@@ -537,6 +537,16 @@ pub struct Event {
     /// A `query` event's own fields, when its driver passed them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query: Option<Query>,
+    /// What an `http`, `cache`, `session` or `file` event was of: the host and path, the key or
+    /// the file path, which the editor's lens counts repeats of. Never a value the call sent or
+    /// read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// The call of an `http`, `cache`, `session` or `file` event, when the compiler numbered it
+    /// and the host gave the context the program's site table. A `query` event's is its
+    /// [`Query::site`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site: Option<QuerySite>,
 }
 
 impl Event {
@@ -551,6 +561,8 @@ impl Event {
             end_us: micros(event.end),
             status: event.status,
             query: None,
+            target: None,
+            site: None,
         }
     }
 }
@@ -1595,6 +1607,8 @@ mod tests {
                         .to_owned(),
                 }),
             }),
+            target: None,
+            site: None,
         });
         let dump = Record::Dump(Dump {
             file: "src/Shop/Orders.nvs".to_owned(),

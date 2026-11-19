@@ -44,7 +44,7 @@
 //!
 //! **What it spends:** SQLite's page cache in the service process. On disk, at most `index_max`
 //! of pages in use; a page freed by a deletion is reused, so the file stays near its largest size.
-//! The `events_site` index, which the editor's query lens looks a call site up on
+//! The `events_site` index, which the editor's recorded lens looks a call site up on
 //! (`nvs_lsp::recorded`), is one entry per event inside that cap. The `copies_site` index, which
 //! looks up the copies recorded requests made at one copy site, is one entry per site a recorded
 //! request copied at, inside the same cap.
@@ -54,7 +54,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 8;
+pub(crate) const SCHEMA: i64 = 9;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -147,6 +147,7 @@ CREATE TABLE events (
     driver TEXT,
     sql TEXT,
     rows INTEGER,
+    target TEXT,
     site_file TEXT,
     site_line INTEGER,
     site_hash TEXT

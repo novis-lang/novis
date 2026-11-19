@@ -1,4 +1,5 @@
-//! What the newest recorded request ran at each `Core\Db` call of a document
+//! What the newest recorded request ran at each call of a document that a recorded request names
+//! by line: a `Core\Db` statement, an HTTP call, a cache or session read or write, or a file open
 //! (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`), and what it copied on
 //! each line where the compiler kept a copy (`rule:types/a-replaced-value-is-changed-in-place`).
 //!
@@ -15,11 +16,14 @@
 //! [`canonical_key`] after a relative name is joined to the workspace root, the way a coverage
 //! report's file is ([`crate::reports`]).
 //!
-//! **The figures are three sums and one count per site.** SQLite counts the newest request's
-//! statements at the site, totals and takes the slowest of their times, and counts the most
-//! frequent statement text, so a loop of many iterations is one row of numbers here. The newest
-//! request is the one with the highest `requests.id`, and its figures count every `query` event of
-//! its trace at the site, so two recorded requests that share one trace id are counted together.
+//! **The figures are three sums and one count per site, of one kind.** The site's kind is the
+//! kind of the newest request's events there: `query`, `http`, `cache`, `session` or `file`, and
+//! the lens names it. SQLite counts that request's events of the kind at the site, totals and
+//! takes the slowest of their times, and counts the most frequent statement text, or for any
+//! other kind the most frequent `target` (the host and path, the key or the file path), so a loop
+//! of many iterations is one row of numbers here. The newest request is the one with the highest
+//! `requests.id`, and its figures count every event of the kind in its trace at the site, so two
+//! recorded requests that share one trace id are counted together.
 //!
 //! **The site's line is where its call expression starts.** A call written as `$db` on one line
 //! and `->query(...)` on the next has the receiver's line, and its lens sits there.
@@ -45,17 +49,21 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 /// What the newest recorded request that reached one site ran there.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ran {
+    /// The kind of the events at the site, as the index spells it: `query`, `http`, `cache`,
+    /// `session` or `file`.
+    pub kind: String,
     /// The request's trace id, which names it in the viewer.
     pub trace: String,
     /// The request's span id, where the record has one.
     pub span: Option<String>,
-    /// How many statements ran at the site.
+    /// How many events of the kind ran at the site.
     pub count: u64,
     /// Their time together, in microseconds.
     pub total_us: u64,
     /// The longest one, in microseconds.
     pub slowest_us: u64,
-    /// How many times the most frequent statement text ran there.
+    /// How many times the most frequent statement text, host and path, key or file path ran
+    /// there.
     pub repeated: u64,
 }
 
@@ -108,31 +116,42 @@ pub fn at_site(
     let line = i64::try_from(line).ok()?;
     let mut newest = db
         .prepare_cached(
-            "SELECT e.site_file, r.trace, r.span FROM events e JOIN requests r ON r.trace = e.trace \
-             WHERE e.kind = 'query' AND e.site_hash = ?1 AND e.site_line = ?2 \
-             GROUP BY e.site_file, r.id ORDER BY r.id DESC",
+            "SELECT e.site_file, r.trace, r.span, e.kind FROM events e \
+             JOIN requests r ON r.trace = e.trace \
+             WHERE e.site_hash = ?1 AND e.site_line = ?2 AND e.kind IN (?3, ?4, ?5, ?6, ?7) \
+             GROUP BY e.site_file, e.kind, r.id ORDER BY r.id DESC",
         )
         .ok()?;
-    let mut rows = newest.query(params![hash, line]).ok()?;
-    let (written, trace, span) = loop {
+    let [query, http, cache, session, file_kind] = KINDS;
+    let mut rows = newest
+        .query(params![hash, line, query, http, cache, session, file_kind])
+        .ok()?;
+    let (written, trace, span, kind) = loop {
         let row = rows.next().ok()??;
         let written: String = row.get(0).ok()?;
         if name_key(root, &written) == key {
-            break (written, row.get::<_, String>(1).ok()?, row.get(2).ok()?);
+            break (
+                written,
+                row.get::<_, String>(1).ok()?,
+                row.get(2).ok()?,
+                row.get::<_, String>(3).ok()?,
+            );
         }
     };
+    // A query repeats its statement text, and every other kind its `target`: the host and
+    // path, the key or the file path.
     let mut figures = db
         .prepare_cached(
             "SELECT COUNT(*), COALESCE(SUM(end_us - start_us), 0), COALESCE(MAX(end_us - start_us), 0), \
              (SELECT COALESCE(MAX(n), 0) FROM (SELECT COUNT(*) AS n FROM events \
-              WHERE trace = ?1 AND kind = 'query' AND site_hash = ?2 AND site_line = ?3 \
-              AND site_file = ?4 GROUP BY sql)) \
-             FROM events WHERE trace = ?1 AND kind = 'query' AND site_hash = ?2 AND site_line = ?3 \
+              WHERE trace = ?1 AND kind = ?5 AND site_hash = ?2 AND site_line = ?3 \
+              AND site_file = ?4 GROUP BY COALESCE(sql, target))) \
+             FROM events WHERE trace = ?1 AND kind = ?5 AND site_hash = ?2 AND site_line = ?3 \
              AND site_file = ?4",
         )
         .ok()?;
     let (count, total_us, slowest_us, repeated) = figures
-        .query_row(params![trace, hash, line, written], |row| {
+        .query_row(params![trace, hash, line, written, kind], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, i64>(1)?,
@@ -144,6 +163,7 @@ pub fn at_site(
         .ok()??;
     let whole = |value: i64| u64::try_from(value).unwrap_or(0);
     (count > 0).then(|| Ran {
+        kind,
         trace,
         span,
         count: whole(count),
@@ -252,22 +272,38 @@ fn name_key(root: Option<&Path>, written: &str) -> PathBuf {
     }
 }
 
-/// The lens's title: the count, the total and the slowest time, and how often one statement
-/// repeated when it ran more than once.
+/// The kinds of event a site records, as the index spells them: a statement, an outbound HTTP
+/// call, a cache read or write, a session read or write, and a file open.
+const KINDS: [&str; 5] = ["query", "http", "cache", "session", "file"];
+
+/// The words a lens uses for `kind`: one event, more than one, and what repeats.
+fn words(kind: &str) -> (&'static str, &'static str, &'static str) {
+    match kind {
+        "http" => ("HTTP call", "HTTP calls", "one host and path"),
+        "cache" => ("cache call", "cache calls", "one key"),
+        "session" => ("session call", "session calls", "one key"),
+        "file" => ("file open", "file opens", "one file"),
+        _ => ("query", "queries", "one statement"),
+    }
+}
+
+/// The lens's title: the count of the kind, the total and the slowest time, and how often one
+/// statement, host and path, key or file repeated when it ran more than once.
 #[must_use]
 pub fn title(ran: &Ran) -> String {
+    let (one, many, repeat) = words(&ran.kind);
     let mut title = if ran.count == 1 {
-        format!("1 query, {}", duration(ran.total_us))
+        format!("1 {one}, {}", duration(ran.total_us))
     } else {
         format!(
-            "{} queries, {} in total, slowest {}",
+            "{} {many}, {} in total, slowest {}",
             ran.count,
             duration(ran.total_us),
             duration(ran.slowest_us)
         )
     };
     if ran.repeated > 1 {
-        title.push_str(&format!(", one statement repeated {} times", ran.repeated));
+        title.push_str(&format!(", {repeat} repeated {} times", ran.repeated));
     }
     title
 }
