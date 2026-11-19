@@ -44,10 +44,11 @@
 //! its cookie for a session nobody has written yet, and marks only that
 //! session written, so the write-back creates its row. A token for a session
 //! that already has a row writes nothing, because the token is sealed over the
-//! id on each call and never stored. It needs `Core\Session::start`
-//! first, because `rule:core-classes/a-session-opens-on-its-first-use` declines a
-//! hidden start, and it reads the key with [`nvs_config::http::csrf_key`], the
-//! door's own reader, so no program decodes base64.
+//! id on each call and never stored. It opens the session on its first use, as
+//! every `Core\Session` member does
+//! (`rule:core-classes/a-session-opens-on-its-first-use`), after it has read the
+//! key with [`nvs_config::http::csrf_key`], the door's own reader, so no program
+//! decodes base64 and a missing key reaches no store.
 //!
 //! [`issue`] stays for a program that binds to something else: an account
 //! identifier plus a form name is a legitimate narrower binding, and a check it
@@ -192,17 +193,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 const TOKEN_DOC: MethodDoc = MethodDoc {
     short: "Returns a CSRF token for the visitor's session. Put it in a form field named \
             `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. The server \
-            checks it on the next request. Call `Core\\Session::start()` first. If the visitor \
-            has no session yet, this call creates one and sends its cookie.",
+            checks it on the next request. If the visitor has no session yet, this call creates \
+            one and sends its cookie.",
     params: &[],
     ret: "A different string on every call. Each one is valid for the whole session. It uses \
           only `A-Za-z0-9-_`, so a form field, a header and a URL carry it unchanged.",
     errors: &[
+        crate::session::NO_REQUEST,
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The request has not called `Core\\Session::start()`, or `[http] csrf_key` is \
-                   not set.",
+            desc: "`[http] csrf_key` is not set.",
         },
+        crate::session::NO_STORE,
+        crate::session::STORE_DOWN,
         ErrorDoc {
             error: "LogicError",
             desc: "The call runs inside a function passed to `Core\\Task::afterResponse`, after \
@@ -465,7 +468,7 @@ mod tests {
         ctx
     }
 
-    /// The session `Core\Session::start` opens for a visitor who sent no cookie:
+    /// The session the first use opens for a visitor who sent no cookie:
     /// no identifier and an empty record.
     fn fresh_session(ctx: &mut nvs_runtime::Ctx) {
         ctx.open_session(nvs_runtime::Session::empty(|_| {}));
@@ -489,7 +492,7 @@ mod tests {
 
     /// The door's two calls over a second request: the session is the value of
     /// the `nvsid` cookie, read with `Inbound::cookie` as the door and
-    /// `Core\Session::start` both read it, and the token is verified against it.
+    /// the session's first use both read it, and the token is verified against it.
     fn door_accepts(key: &[u8], cookie: &str, token: &str) -> bool {
         let mut inbound = nvs_runtime::Inbound::new("POST", "/", "");
         inbound.push_header("cookie", cookie.as_bytes());
@@ -546,17 +549,19 @@ mod tests {
         );
     }
 
-    /// `Core\Csrf::token` throws before anything changes: before
-    /// `Core\Session::start` it names `start`, and with no `[http] csrf_key` it
-    /// names that key. Neither draws an identifier or sends a cookie.
+    /// `Core\Csrf::token` throws before anything changes: in a program
+    /// answering no request it throws the no-request `LogicError`, and with no
+    /// `[http] csrf_key` it names that key, before it opens a session. Neither
+    /// draws an identifier or sends a cookie.
     // covers: Core\Csrf::token
     #[test]
-    fn a_token_needs_a_started_session_and_a_configured_key() {
-        let mut unstarted = keyed_ctx(&[7_u8; KEY_LEN]);
-        let refused = token_of(&mut unstarted).expect_err("no session was started");
-        assert!(refused.contains(r"`Core\Session::start()`"), "{refused}");
+    fn a_token_needs_a_request_and_a_configured_key() {
+        let mut no_request = keyed_ctx(&[7_u8; KEY_LEN]);
+        let refused = token_of(&mut no_request).expect_err("no request arrived");
+        assert!(refused.contains("there is no request here"), "{refused}");
         assert!(refused.starts_with(r"Core\Csrf::token()"), "{refused}");
-        assert!(unstarted.take_headers().is_empty());
+        assert!(no_request.take_headers().is_empty());
+        assert!(no_request.session().is_none(), "no session was opened");
 
         let mut unkeyed = nvs_runtime::Ctx::buffered();
         unkeyed.set_config(crate::tests::granting("[http]\n"));
@@ -567,15 +572,16 @@ mod tests {
         let open = unkeyed.session().expect("the session stays open");
         assert!(
             open.id.is_empty() && !open.dirty,
-            "the session is as `start` left it"
+            "the session is as its open left it"
         );
 
         let mut neither = nvs_runtime::Ctx::buffered();
         let refused = token_of(&mut neither).expect_err("neither is there");
         assert!(
-            refused.contains(r"`Core\Session::start()`"),
-            "the missing `start` is named first: {refused}"
+            refused.contains("`[http] csrf_key`"),
+            "the missing key is named first, so no store is reached: {refused}"
         );
+        assert!(neither.session().is_none(), "no session was opened");
     }
 
     /// Drops the one reference this frame owns, exactly as a member's caller

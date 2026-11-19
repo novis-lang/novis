@@ -324,24 +324,26 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// The error every method of the class lists for a program that is not answering a request.
-const NO_REQUEST: ErrorDoc = ErrorDoc {
+/// The error every method of the class lists for a program that is not answering a request, and
+/// every `Core` member that opens the session lists too (`Core\Csrf::token`, `Core\Passkey`).
+pub(crate) const NO_REQUEST: ErrorDoc = ErrorDoc {
     error: "LogicError",
     desc: "The program is not handling a request. A command-line program, a job and a test have \
            no session.",
 };
 
 /// The error every method lists for a store it cannot open or reach at the first call.
-const NO_STORE: ErrorDoc = ErrorDoc {
+pub(crate) const NO_STORE: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
-    desc: "This is the first call in the request, and the store cannot be opened. The server has \
+    desc: "The session store cannot be opened. This happens only at the first call in the request \
+           that uses the session. The server has \
            no data folder for the default store. With `[session] backend = \"shared\"`, \
            `[cache.shared] url` is not set, or the program does not have the `cache.shared` \
            capability.",
 };
 
 /// The error every method lists for a store that does not answer.
-const STORE_DOWN: ErrorDoc = ErrorDoc {
+pub(crate) const STORE_DOWN: ErrorDoc = ErrorDoc {
     error: "IOError",
     desc: "The store cannot be reached. The user may still have a session there, so do not treat \
            them as signed out.",
@@ -1087,10 +1089,8 @@ fn saved(
 ) -> Result<Saved, Fault> {
     match store {
         Store::Shared => on_shared(NAME, member, |open| save(open, app, id, changes)),
-        Store::File(path) => {
-            on_file(member, sqlite::save(path, app, id, changes))
-                .map(|done| if done { Saved::Done } else { Saved::Gone })
-        }
+        Store::File(path) => on_file(member, sqlite::save(path, app, id, changes))
+            .map(|done| if done { Saved::Done } else { Saved::Gone }),
     }
 }
 
@@ -1162,7 +1162,9 @@ fn lifetime(ctx: &Ctx, key: &str, default: Duration) -> i64 {
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
         .filter(|lifetime| !lifetime.is_zero())
         .unwrap_or(default);
-    i64::try_from(lifetime.as_millis()).unwrap_or(i64::MAX).max(1)
+    i64::try_from(lifetime.as_millis())
+        .unwrap_or(i64::MAX)
+        .max(1)
 }
 
 /// Whether a clock that ends at `until` has less than half of its `lifetime` left at `now`:
@@ -1623,8 +1625,7 @@ fn opened_record(
             session.dirty = true;
         }
     }
-    if (visible || session.long.is_empty())
-        && past_half(record.short_until, short_lived(ctx), now)
+    if (visible || session.long.is_empty()) && past_half(record.short_until, short_lived(ctx), now)
     {
         session.dirty = true;
     }
@@ -1985,7 +1986,8 @@ fn write(
     let had_long = !session.long.is_empty();
     let has_long = long || session.long.iter().any(|held| held.as_slice() != key);
     if !drawn && !session.by_hand {
-        let refresh = has_long && (!had_long || (long && past_half(session.long_until, long_lived, now)));
+        let refresh =
+            has_long && (!had_long || (long && past_half(session.long_until, long_lived, now)));
         let ended = had_long && !has_long;
         if (refresh || ended) && head_is_open(ctx) {
             let id = session.id.clone();
@@ -2075,7 +2077,13 @@ pub(crate) fn put_bytes(
     crate::response::head_open(ctx, who)?;
     first_use(ctx, who)?;
     let value = encoded(Value::bytes(NvsStr::new(value)), "setShortLived")?;
-    write(ctx, "setShortLived", key.as_bytes(), Some(value), Lifetime::Short)
+    write(
+        ctx,
+        "setShortLived",
+        key.as_bytes(),
+        Some(value),
+        Lifetime::Short,
+    )
 }
 
 /// The `bytes` saved under `key` in this request's session, taken out of it: [`put_bytes`]'s other
@@ -2750,7 +2758,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
             (nvs_core_session_open_with_identifier as *const ()).cast()
         }
         "nvs_core_session_get" => (nvs_core_session_get as *const ()).cast(),
-        "nvs_core_session_set_short_lived" => (nvs_core_session_set_short_lived as *const ()).cast(),
+        "nvs_core_session_set_short_lived" => {
+            (nvs_core_session_set_short_lived as *const ()).cast()
+        }
         "nvs_core_session_set_long_lived" => (nvs_core_session_set_long_lived as *const ()).cast(),
         "nvs_core_session_remove" => (nvs_core_session_remove as *const ()).cast(),
         "nvs_core_session_clear_short_lived" => {
@@ -2786,10 +2796,10 @@ mod tests {
     use nvs_runtime::{Ctx, NvsStr, Value};
 
     use super::{
-        Changes, Clocks, Entries, Lifetime, LongKeys, PREFIX, SEAL_DOMAIN, SHORT_FIELD, Saved, Store,
-        Whole, backend, cookie, counted, destroy, encoded, fetched, field_of, forgot, issue, issued,
-        key_of, load, mint, opened, opened_from, read, read_bytes, regenerated, saved, sealed_into,
-        sealed_key, sent_to, short_lived, sqlite, write,
+        Changes, Clocks, Entries, Lifetime, LongKeys, PREFIX, SEAL_DOMAIN, SHORT_FIELD, Saved,
+        Store, Whole, backend, cookie, counted, destroy, encoded, fetched, field_of, forgot, issue,
+        issued, key_of, load, mint, opened, opened_from, read, read_bytes, regenerated, saved,
+        sealed_into, sealed_key, sent_to, short_lived, sqlite, write,
     };
     use crate::cache::redis::Connection;
     use crate::cache::tests::memory_held;
@@ -2887,7 +2897,8 @@ mod tests {
     /// `value` written under `key` as `Core\Session::set` writes it. Consumes one reference.
     fn put(ctx: &mut Ctx, key: &[u8], value: Value) {
         let value = encoded(value, "set").expect("the value encodes");
-        write(ctx, "set", key, Some(value), Lifetime::Short).expect("a started session takes the value");
+        write(ctx, "set", key, Some(value), Lifetime::Short)
+            .expect("a started session takes the value");
     }
 
     /// The integer the session holds under `key`, read as `Core\Session::get` reads it.
@@ -3241,7 +3252,7 @@ mod tests {
         let written = record();
         assert!(
             issue(&mut open, NO_APP, ID, &whole(&written), counted(&written))
-            .expect("the session reaches the configured store")
+                .expect("the session reaches the configured store")
         );
 
         assert_eq!(
@@ -3281,7 +3292,7 @@ mod tests {
             let written = record();
             assert!(
                 issue(&mut open, NO_APP, ID, &whole(&written), counted(&written))
-                .expect("the session is written")
+                    .expect("the session is written")
             );
         });
         wrote.join().expect("the first core");
@@ -3384,7 +3395,10 @@ mod tests {
             .expect("a value this unit cannot decode is still clearable");
 
         let cleared = ctx.session().expect("the session is still open");
-        assert_ne!(cleared.id, ID, "clearing moves the session to a new identifier");
+        assert_ne!(
+            cleared.id, ID,
+            "clearing moves the session to a new identifier"
+        );
         assert_eq!(
             cleared.entries,
             Entries::from([(b"consent".to_vec(), int_bytes(1))]),
@@ -3398,11 +3412,14 @@ mod tests {
             cleared.cleared_short && !cleared.cleared_long,
             "the write-back deletes every short-lived key in the store, and no long-lived one"
         );
-        assert!(cleared.dirty, "a cleared session is a change the store must hear about");
         assert!(
-            ctx.take_headers()
-                .iter()
-                .any(|header| header.value.starts_with(&format!("nvsid={};", cleared_id(&ctx)))),
+            cleared.dirty,
+            "a cleared session is a change the store must hear about"
+        );
+        assert!(
+            ctx.take_headers().iter().any(|header| header
+                .value
+                .starts_with(&format!("nvsid={};", cleared_id(&ctx)))),
             "the response sends the new identifier"
         );
 
@@ -3505,7 +3522,7 @@ mod tests {
             let written = record();
             assert!(
                 issue(&mut open, NO_APP, ID, &whole(&written), counted(&written))
-                .expect("the session is written")
+                    .expect("the session is written")
             );
             let before = keys_of(load(&mut open, NO_APP, ID).expect("the store answers"));
             let first = destroy(&mut open, NO_APP, ID).expect("the record is forgotten");
@@ -3621,8 +3638,9 @@ mod tests {
                 issued(&store, NO_APP, "a case", ID, &whole(&Entries::new()))
                     .expect("the row is issued")
             );
-            let entries = keys_of(fetched(&store, NO_APP, "a case", ID).expect("the store answers"))
-            .expect("the row the case issued");
+            let entries =
+                keys_of(fetched(&store, NO_APP, "a case", ID).expect("the store answers"))
+                    .expect("the row the case issued");
             CASE_STORE.with_borrow_mut(|slot| *slot = Some(store.clone()));
             ctx.open_session(nvs_runtime::Session {
                 write_back: to_the_case_store,
@@ -3656,8 +3674,7 @@ mod tests {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-regenerate-gone", *backend);
             assert!(
-                issued(&store, NO_APP, "a case", ID, &whole(&record()))
-                    .expect("the row is issued")
+                issued(&store, NO_APP, "a case", ID, &whole(&record())).expect("the row is issued")
             );
             ctx.open_session(loaded(record()));
             assert!(
@@ -3665,9 +3682,10 @@ mod tests {
                 "{word}: the row was there to destroy"
             );
 
-            regenerated(&mut ctx, &store, r"Core\Session::regenerate", "regenerate").unwrap_or_else(|why| {
-                panic!("{word}: a session that is gone does not throw: {why:?}")
-            });
+            regenerated(&mut ctx, &store, r"Core\Session::regenerate", "regenerate")
+                .unwrap_or_else(|why| {
+                    panic!("{word}: a session that is gone does not throw: {why:?}")
+                });
             assert_eq!(kept.rows(), 0, "{word}: no row moved to a new identifier");
             let left = ctx.session().expect("the request keeps a session");
             assert!(left.id.is_empty(), "{word}: the session has no identifier");
@@ -3715,8 +3733,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let (store, kept) = a_store(&mut ctx, case, backend);
         assert!(
-            issued(&store, NO_APP, "a case", ID, &whole(&record()))
-                .expect("the row is issued")
+            issued(&store, NO_APP, "a case", ID, &whole(&record())).expect("the row is issued")
         );
         (store, kept)
     }
@@ -3833,8 +3850,14 @@ mod tests {
             let mut other = a_request(&store);
             put(&mut other, b"late", Value::int(9));
             let consent = int_bytes(2);
-            write(&mut other, "setLongLived", b"consent", Some(consent.clone()), Lifetime::Long)
-                .expect("a long-lived value is written");
+            write(
+                &mut other,
+                "setLongLived",
+                b"consent",
+                Some(consent.clone()),
+                Lifetime::Long,
+            )
+            .expect("a long-lived value is written");
             ended(other, &store);
 
             let open = clearing.session_mut().expect("the session is open");
@@ -3890,8 +3913,13 @@ mod tests {
             put(&mut other, b"role", Value::int(7));
             ended(other, &store);
 
-            regenerated(&mut regenerating, &store, r"Core\Session::regenerate", "regenerate")
-                .unwrap_or_else(|why| panic!("{word}: the session moves: {why:?}"));
+            regenerated(
+                &mut regenerating,
+                &store,
+                r"Core\Session::regenerate",
+                "regenerate",
+            )
+            .unwrap_or_else(|why| panic!("{word}: the session moves: {why:?}"));
             put(&mut regenerating, b"cart", Value::int(3));
             let fresh = regenerating.session().expect("a session").id.clone();
             assert_ne!(fresh, ID, "{word}: the identifier is new");
@@ -4206,8 +4234,12 @@ mod tests {
                 let key = Value::text("cart");
                 let value = Value::text("17");
                 let site = Value::int(0);
-                nvs_runtime::call(super::nvs_core_session_set_short_lived, &mut ctx, &[key, value, site])
-                    .expect("the value is saved");
+                nvs_runtime::call(
+                    super::nvs_core_session_set_short_lived,
+                    &mut ctx,
+                    &[key, value, site],
+                )
+                .expect("the value is saved");
                 dropped(key);
                 dropped(value);
             }
@@ -4307,8 +4339,7 @@ mod tests {
                 ..Changes::default()
             };
             assert_eq!(
-                saved(&store, shop_app, "a case", ID, &taking)
-                    .expect("the store answers"),
+                saved(&store, shop_app, "a case", ID, &taking).expect("the store answers"),
                 Saved::Gone,
                 "{word}: and cannot write over the first application's row"
             );
@@ -4325,7 +4356,10 @@ mod tests {
                 again.set_config(Arc::clone(config.snapshot()));
             }
             assert_eq!(
-                keys_of(fetched(&store, crate::cache::application(&again), "start", ID).expect("the store answers")),
+                keys_of(
+                    fetched(&store, crate::cache::application(&again), "start", ID)
+                        .expect("the store answers")
+                ),
                 Some(record()),
                 "{word}: the first application still loads its record"
             );
@@ -4341,29 +4375,26 @@ mod tests {
     fn only_issue_inserts_a_session_row() {
         let changes = Changes {
             changed: vec![(b"user".as_slice(), b"late".as_slice(), false)],
-                clocks: clocks(),
+            clocks: clocks(),
             ..Changes::default()
         };
         for (word, backend) in BACKENDS {
             let mut ctx = Ctx::buffered();
             let (store, kept) = a_store(&mut ctx, "session-only-create", *backend);
             assert_eq!(
-                saved(&store, NO_APP, "a case", ID, &changes)
-                    .expect("the store answers"),
+                saved(&store, NO_APP, "a case", ID, &changes).expect("the store answers"),
                 Saved::Gone,
                 "{word}: a save of an absent id writes nothing"
             );
             assert_eq!(kept.rows(), 0, "{word}: and the store holds no row");
 
             assert!(
-                issued(&store, NO_APP, "a case", ID, &whole(&record()))
-                    .expect("the store answers"),
+                issued(&store, NO_APP, "a case", ID, &whole(&record())).expect("the store answers"),
                 "{word}: an issue of an absent id inserts the row"
             );
             let another = Entries::from([(b"user".to_vec(), b"another".to_vec())]);
             assert!(
-                !issued(&store, NO_APP, "a case", ID, &whole(&another))
-                    .expect("the store answers"),
+                !issued(&store, NO_APP, "a case", ID, &whole(&another)).expect("the store answers"),
                 "{word}: an issue of a held id fails"
             );
             assert_eq!(
@@ -4374,8 +4405,7 @@ mod tests {
 
             kept.lapse(ID);
             assert_eq!(
-                saved(&store, NO_APP, "a case", ID, &changes)
-                    .expect("the store answers"),
+                saved(&store, NO_APP, "a case", ID, &changes).expect("the store answers"),
                 Saved::Gone,
                 "{word}: a save of an expired row writes nothing"
             );
@@ -4449,7 +4479,8 @@ mod tests {
             assert!(
                 headers
                     .iter()
-                    .any(|header| header.value.starts_with(name) && header.value.contains("Max-Age=0")),
+                    .any(|header| header.value.starts_with(name)
+                        && header.value.contains("Max-Age=0")),
                 "{headers:?} expires {name}"
             );
         }
@@ -4587,12 +4618,24 @@ mod tests {
         );
 
         let late = [Value::text(FORGED)];
-        let answer =
-            nvs_runtime::call(super::nvs_core_session_open_with_identifier, &mut ctx, &late);
+        let answer = nvs_runtime::call(
+            super::nvs_core_session_open_with_identifier,
+            &mut ctx,
+            &late,
+        );
         late.into_iter().for_each(dropped);
-        assert!(answer.is_err(), "`openWithIdentifier` after the first use throws");
-        let thrown = format!("{:?}", ctx.take_pending());
-        assert!(thrown.contains(WHO), "{thrown} names the member that opened the session");
+        assert!(
+            answer.is_err(),
+            "`openWithIdentifier` after the first use throws"
+        );
+        let thrown = ctx
+            .take_pending()
+            .expect("the throw is pending")
+            .into_owned();
+        assert!(
+            thrown.contains(WHO),
+            "{thrown} names the member that opened the session"
+        );
         assert_eq!(
             ctx.session().expect("and the first session stays open").id,
             HELD
@@ -4602,8 +4645,11 @@ mod tests {
         fresh.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
         fresh.set_config(config);
         let forged = [Value::text(FORGED)];
-        let answer =
-            nvs_runtime::call(super::nvs_core_session_open_with_identifier, &mut fresh, &forged);
+        let answer = nvs_runtime::call(
+            super::nvs_core_session_open_with_identifier,
+            &mut fresh,
+            &forged,
+        );
         forged.into_iter().for_each(dropped);
         answer.expect("an identifier the store does not hold opens a fresh session");
         let issued = fresh.session().expect("the request has a session");

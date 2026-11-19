@@ -239,7 +239,10 @@ pub(crate) fn load(path: &Path, app: &[u8], id: &str) -> io::Result<Option<Recor
             let long = matches!(row.next(), Some(SqliteValue::Int(1)));
             if !live {
                 live = true;
-                record.token = row.next().and_then(blob).and_then(|token| String::from_utf8(token).ok());
+                record.token = row
+                    .next()
+                    .and_then(blob)
+                    .and_then(|token| String::from_utf8(token).ok());
                 record.short_until = integer(row.next());
                 record.long_until = integer(row.next());
             }
@@ -350,7 +353,9 @@ fn entry_of(app: &[u8], id: &str, key: &[u8], value: &[u8], long: bool) -> Vec<S
 
 /// A short token as a parameter: its text, or `NULL`.
 fn token_of(token: Option<&str>) -> SqliteValue {
-    token.map_or(SqliteValue::Null, |token| SqliteValue::Text(token.to_owned()))
+    token.map_or(SqliteValue::Null, |token| {
+        SqliteValue::Text(token.to_owned())
+    })
 }
 
 /// The upsert of one entry, which [`issue`] and [`save`] share. A key written with the other
@@ -703,9 +708,7 @@ mod tests {
         const ID: &str = "PmA5tKz1QvR3sYbNqLwXe2";
         let (_dir, path) = store("session-two-requests");
         let start = entries(&[(b"cart", b"empty")]);
-        assert!(
-            issued(&path, ID, &start, Duration::from_secs(60))
-        );
+        assert!(issued(&path, ID, &start, Duration::from_secs(60)));
 
         let (loaded, first_loaded) = mpsc::channel();
         let (go_on, second_done) = mpsc::channel::<()>();
@@ -719,7 +722,7 @@ mod tests {
                     .expect("the second request finishes while the first is still open");
                 assert!(
                     save(&path, APP, ID, &setting(b"cart", b"three books"))
-                    .expect("the first saves")
+                        .expect("the first saves")
                 );
                 seen
             })
@@ -733,8 +736,7 @@ mod tests {
             thread::spawn(move || {
                 let seen = keys_under(&path, ID);
                 assert!(
-                    save(&path, APP, ID, &setting(b"userId", b"17"))
-                    .expect("the second saves")
+                    save(&path, APP, ID, &setting(b"userId", b"17")).expect("the second saves")
                 );
                 seen
             })
@@ -768,9 +770,7 @@ mod tests {
         const ID: &str = "QvR3sYbNqLwXe2PmA5tKz1";
         let (_dir, path) = store("session-another-process");
         let written = entries(&[(b"user", b"17")]);
-        assert!(
-            issued(&path, ID, &written, Duration::from_secs(60))
-        );
+        assert!(issued(&path, ID, &written, Duration::from_secs(60)));
         closed();
 
         let read = {
@@ -804,10 +804,7 @@ mod tests {
         let deleted = with(&path, |held| sweep(&held.conn, now)).expect("the sweep");
         assert_eq!(deleted, 1);
         assert_eq!(rows(&path), 1);
-        assert_eq!(
-            keys_under(&path, LIVE),
-            Some(live)
-        );
+        assert_eq!(keys_under(&path, LIVE), Some(live));
         closed();
     }
 }

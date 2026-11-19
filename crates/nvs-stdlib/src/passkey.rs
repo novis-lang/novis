@@ -9,7 +9,7 @@
 //! # The challenge is the one thing kept, and it is kept in the session
 //!
 //! [`nvs_core_passkey_register_options`] draws [`CHALLENGE_LEN`] octets through
-//! [`crate::random::draw`] and saves them in the started session under [`REGISTER_KEY`], behind
+//! [`crate::random::draw`] and saves them in the session under [`REGISTER_KEY`], behind
 //! the second they were issued at; [`nvs_core_passkey_sign_in_options`] does the same under
 //! [`SIGN_IN_KEY`], so a registration and a sign-in in flight in one session do not take each
 //! other's challenge. [`nvs_core_passkey_verify_registration`] and
@@ -21,9 +21,10 @@
 //! of the second check already holds the session cookie and the signed response, which is the
 //! account. An atomic take would be a store round trip that buys nothing. A challenge older than
 //! [`TIMEOUT_SECONDS`] is refused; that is the `timeout` the options tell the browser, so a ceremony
-//! the browser has abandoned cannot be completed later. The session is
-//! `rule:core-classes/a-session-opens-on-its-first-use`'s, so a member called before
-//! `Core\Session::start` throws naming it, as every `Core\Session` member does.
+//! the browser has abandoned cannot be completed later. The challenge is a short-lived value, and
+//! every member opens the session on its first use, as every `Core\Session` member does
+//! (`rule:core-classes/a-session-opens-on-its-first-use`), so a program answering no request
+//! throws the no-request `LogicError`.
 //!
 //! **What this spends:** [`SAVED_LEN`] octets in the session record per ceremony in flight, which
 //! is one per visitor and per ceremony kind, until it is checked.
@@ -346,11 +347,18 @@ const CARD: ClassDoc = ClassDoc {
             `navigator.credentials` with the options.",
 };
 
+/// The error both options members list for a call where the challenge cannot be saved.
+const CHALLENGE_NOT_SAVED: ErrorDoc = ErrorDoc {
+    error: "LogicError",
+    desc: "The call is inside `Core\\Html::later` or `Core\\Task::afterResponse`. The response \
+           headers are already sent there, so the challenge cannot be saved in the session.",
+};
+
 /// `Core\Passkey::registerOptions`'s reference card — `rule:core-api/reference-card`.
 const REGISTER_OPTIONS_DOC: MethodDoc = MethodDoc {
     short: "Returns the options for `navigator.credentials.create()` as JSON. The options contain \
-            a new random challenge. The challenge is saved in the session, so call \
-            `Core\\Session::start()` first.",
+            a new random challenge. The challenge is saved in the session as a short-lived \
+            value.",
     params: &[
         ParamDoc {
             name: "rpId",
@@ -386,10 +394,10 @@ const REGISTER_OPTIONS_DOC: MethodDoc = MethodDoc {
           `PublicKeyCredential.parseCreationOptionsFromJSON()`, and pass the result to \
           `navigator.credentials.create()`.",
     errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "The request has not started a session.",
-        },
+        crate::session::NO_REQUEST,
+        crate::session::NO_STORE,
+        crate::session::STORE_DOWN,
+        CHALLENGE_NOT_SAVED,
         ErrorDoc {
             error: "LogicError",
             desc: "`$rpId` is empty, or `$userId` is empty or longer than 64 bytes.",
@@ -422,20 +430,23 @@ const VERIFY_REGISTRATION_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The new passkey, with its id, its public key, its algorithm and its sign counter.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The request has not started a session, no registration is waiting, or the \
-               challenge is older than five minutes. It is also thrown when a check fails. The \
+    errors: &[
+        crate::session::NO_REQUEST,
+        crate::session::NO_STORE,
+        crate::session::STORE_DOWN,
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "No registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The \
                checks are the challenge, the origin, the domain, the user verification and the \
                key algorithm. An answer longer than 64 KB also throws.",
-    }],
+        },
+    ],
 };
 
 /// `Core\Passkey::signInOptions`'s reference card — `rule:core-api/reference-card`.
 const SIGN_IN_OPTIONS_DOC: MethodDoc = MethodDoc {
     short: "Returns the options for `navigator.credentials.get()` as JSON. The options contain a \
-            new random challenge. The challenge is saved in the session, so call \
-            `Core\\Session::start()` first.",
+            new random challenge. The challenge is saved in the session as a short-lived value.",
     params: &[
         ParamDoc {
             name: "rpId",
@@ -454,10 +465,10 @@ const SIGN_IN_OPTIONS_DOC: MethodDoc = MethodDoc {
           `PublicKeyCredential.parseRequestOptionsFromJSON()`, and pass the result to \
           `navigator.credentials.get()`.",
     errors: &[
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "The request has not started a session.",
-        },
+        crate::session::NO_REQUEST,
+        crate::session::NO_STORE,
+        crate::session::STORE_DOWN,
+        CHALLENGE_NOT_SAVED,
         ErrorDoc {
             error: "LogicError",
             desc: "`$rpId` is empty.",
@@ -512,13 +523,17 @@ const VERIFY_SIGN_IN_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The passkey with its new sign counter.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The request has not started a session, no sign-in is waiting, or the challenge \
-               is older than five minutes. It is also thrown when a check fails. The checks are \
+    errors: &[
+        crate::session::NO_REQUEST,
+        crate::session::NO_STORE,
+        crate::session::STORE_DOWN,
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "No sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are \
                the passkey id, the challenge, the origin, the domain, the user verification, the \
                signature and the sign counter. An answer longer than 64 KB also throws.",
-    }],
+        },
+    ],
 };
 
 /// `Core\Passkey\Credential`'s class card — `rule:core-api/reference-card`.
@@ -2155,11 +2170,12 @@ mod tests {
     }
 
     #[test]
-    fn the_members_throw_before_a_session_is_started() {
+    fn the_members_throw_where_no_request_arrived() {
         let mut ctx = Ctx::buffered();
         let args = [Value::text("{}"), Value::text(RP_ID), Value::text(ORIGIN)];
         assert!(nvs_runtime::call(nvs_core_passkey_verify_registration, &mut ctx, &args).is_err());
-        assert!(thrown(&mut ctx).contains("Core\\Session::start()"));
+        assert!(thrown(&mut ctx).contains("there is no request here"));
+        assert!(ctx.session().is_none(), "no session was opened");
         for value in args {
             released(value);
         }

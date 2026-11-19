@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/session/sqlite.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-stdlib/src/cache/redis.rs]
   - id: 3
     title: the new members replace the old ones, and the session opens on its first use
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/csrf.rs, crates/nvs-stdlib/src/passkey.rs, crates/nvs-syntax/src/parser/mod.rs]
   - id: 4
     title: the checker refuses every session write inside Html::later and Task::afterResponse
@@ -344,11 +344,11 @@ end-user prose (`AGENTS.md` § *Text an end user reads*).
 - [x] The cards: `START_DOC` (`:301`) becomes `OPEN_WITH_IDENTIFIER_DOC`, and `SET_DOC` (`:362`),
   `CLEAR_DOC` (`:431`), `DESTROY_DOC` (`:468`) and `SET_SECRET_DOC` (`:490`) become the new members'
   cards. No card names `start()` again.
-- [ ] `crates/nvs-stdlib/src/csrf.rs:203` and `:386-392` open the session on first use, and the
+- [x] `crates/nvs-stdlib/src/csrf.rs:203` and `:386-392` open the session on first use, and the
   "has not called `start`" text goes. `crates/nvs-stdlib/src/passkey.rs:353`, `:438`, `:747` and the
   test at `:2168` follow. `put_bytes` (`session.rs:1308`) writes a short-lived value.
   - [x] `token`, `put_bytes`, `take_bytes` and passkey's challenge open on first use
-  - [ ] the card text (`csrf.rs` `TOKEN_DOC` ~`:195`/`:203`, `passkey.rs` ~`:353`/`:438`), the
+  - [x] the card text (`csrf.rs` `TOKEN_DOC` ~`:195`/`:203`, `passkey.rs` ~`:353`/`:438`), the
     module docs (`csrf.rs:47`, `passkey.rs:26`) and the tests (`csrf.rs` ~`:555-581`,
     `passkey.rs` `the_members_throw_before_a_session_is_started` ~`:2162`) still name `start()`
 - [x] `crates/nvs-syntax/src/parser/mod.rs:1050` names a member that exists.
