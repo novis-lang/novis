@@ -62,7 +62,10 @@
 //! # Each class answers its own fields
 //!
 //! A `Date` answers `year`, `month`, `day`, `weekday`, `dayOfYear` and `isLeapYear`
-//! from its three slots, so no caller reads a field by parsing `format`'s output. Each
+//! from its three slots. A `DateTime` answers `year`, `month`, `day`, `hour`, `minute`,
+//! `second` and `nanos` from the civil time in its own zone, and a `TimeOfDay` answers
+//! `hour`, `minute`, `second` and `nanos` from its four slots. So no caller reads a field
+//! by parsing `format`'s output. Each
 //! reader has the name and type of the `with` option for the same field — `year` is
 //! `int`, every other field `uint` — so `$d->with({ month: $d->month() + 1 })` is one
 //! vocabulary. A reader allocates nothing. The way between the classes is a member
@@ -1789,6 +1792,69 @@ pub const DATETIME: CoreClass = CoreClass {
             symbol: "nvs_core_time_datetime_is_leap_year",
             doc: Some(&DATETIME_IS_LEAP_YEAR_DOC),
         },
+        CoreMethod {
+            name: "year",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_time_datetime_year",
+            doc: Some(&DATETIME_YEAR_DOC),
+        },
+        CoreMethod {
+            name: "month",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_datetime_month",
+            doc: Some(&DATETIME_MONTH_DOC),
+        },
+        CoreMethod {
+            name: "day",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_datetime_day",
+            doc: Some(&DATETIME_DAY_DOC),
+        },
+        CoreMethod {
+            name: "hour",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_datetime_hour",
+            doc: Some(&DATETIME_HOUR_DOC),
+        },
+        CoreMethod {
+            name: "minute",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_datetime_minute",
+            doc: Some(&DATETIME_MINUTE_DOC),
+        },
+        CoreMethod {
+            name: "second",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_datetime_second",
+            doc: Some(&DATETIME_SECOND_DOC),
+        },
+        CoreMethod {
+            name: "nanos",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_datetime_nanos",
+            doc: Some(&DATETIME_NANOS_DOC),
+        },
     ],
     slots: &["seconds", "nanos", "zone"],
     constants: &[],
@@ -2101,6 +2167,62 @@ const DATETIME_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Time\DateTime::year`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the year, as the clock in the value's own time zone shows it.",
+    params: &[],
+    ret: "The year, from `-9999` to `9999`. The year before `1` is `0`.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::month`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_MONTH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the month as a number, in the value's own time zone.",
+    params: &[],
+    ret: "The month, from `1` for January to `12` for December.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::day`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_DAY_DOC: MethodDoc = MethodDoc {
+    short: "Returns the day of the month, in the value's own time zone.",
+    params: &[],
+    ret: "The day, from `1` to the last day of the month.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::hour`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_HOUR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the hour, as the clock in the value's own time zone shows it.",
+    params: &[],
+    ret: "The hour, from `0` to `23`.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::minute`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_MINUTE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the minute, as the clock in the value's own time zone shows it.",
+    params: &[],
+    ret: "The minute, from `0` to `59`.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::second`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_SECOND_DOC: MethodDoc = MethodDoc {
+    short: "Returns the second, as the clock in the value's own time zone shows it.",
+    params: &[],
+    ret: "The second, from `0` to `59`.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::nanos`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_NANOS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the part of the second after the whole seconds, in nanoseconds.",
+    params: &[],
+    ret: "The nanoseconds, from `0` to `999999999`. `500000000` is half a second.",
+    errors: &[],
+};
+
 /// [`DATETIME`]'s slots, by index — the first two are [`INSTANT`]'s, in the
 /// same order, so [`zoned_of`] can read either layout the same way.
 const DATETIME_SECONDS_SLOT: usize = 0;
@@ -2141,6 +2263,13 @@ fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_datetime_is_leap_year" => {
             (nvs_core_time_datetime_is_leap_year as *const ()).cast()
         }
+        "nvs_core_time_datetime_year" => (nvs_core_time_datetime_year as *const ()).cast(),
+        "nvs_core_time_datetime_month" => (nvs_core_time_datetime_month as *const ()).cast(),
+        "nvs_core_time_datetime_day" => (nvs_core_time_datetime_day as *const ()).cast(),
+        "nvs_core_time_datetime_hour" => (nvs_core_time_datetime_hour as *const ()).cast(),
+        "nvs_core_time_datetime_minute" => (nvs_core_time_datetime_minute as *const ()).cast(),
+        "nvs_core_time_datetime_second" => (nvs_core_time_datetime_second as *const ()).cast(),
+        "nvs_core_time_datetime_nanos" => (nvs_core_time_datetime_nanos as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -3022,6 +3151,42 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             symbol: "nvs_core_time_of_day_compare_to",
             doc: Some(&TIME_OF_DAY_COMPARE_TO_DOC),
         },
+        CoreMethod {
+            name: "hour",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_of_day_hour",
+            doc: Some(&TIME_OF_DAY_HOUR_DOC),
+        },
+        CoreMethod {
+            name: "minute",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_of_day_minute",
+            doc: Some(&TIME_OF_DAY_MINUTE_DOC),
+        },
+        CoreMethod {
+            name: "second",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_of_day_second",
+            doc: Some(&TIME_OF_DAY_SECOND_DOC),
+        },
+        CoreMethod {
+            name: "nanos",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_time_of_day_nanos",
+            doc: Some(&TIME_OF_DAY_NANOS_DOC),
+        },
     ],
     slots: &["hour", "minute", "second", "nanos"],
     constants: &[],
@@ -3199,6 +3364,38 @@ const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Time\TimeOfDay::hour`'s reference card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_HOUR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the hour of this time.",
+    params: &[],
+    ret: "The hour, from `0` to `23`.",
+    errors: &[],
+};
+
+/// `Core\Time\TimeOfDay::minute`'s reference card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_MINUTE_DOC: MethodDoc = MethodDoc {
+    short: "Returns the minute of this time.",
+    params: &[],
+    ret: "The minute, from `0` to `59`.",
+    errors: &[],
+};
+
+/// `Core\Time\TimeOfDay::second`'s reference card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_SECOND_DOC: MethodDoc = MethodDoc {
+    short: "Returns the second of this time.",
+    params: &[],
+    ret: "The second, from `0` to `59`.",
+    errors: &[],
+};
+
+/// `Core\Time\TimeOfDay::nanos`'s reference card — `rule:core-api/reference-card`.
+const TIME_OF_DAY_NANOS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the part of the second after the whole seconds, in nanoseconds.",
+    params: &[],
+    ret: "The nanoseconds, from `0` to `999999999`. `500000000` is half a second.",
+    errors: &[],
+};
+
 /// [`TIME_OF_DAY`]'s slots, by index.
 const CLOCK_HOUR_SLOT: usize = 0;
 /// See [`CLOCK_HOUR_SLOT`].
@@ -3217,6 +3414,10 @@ fn time_of_day_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_of_day_minus" => (nvs_core_time_of_day_minus as *const ()).cast(),
         "nvs_core_time_of_day_with" => (nvs_core_time_of_day_with as *const ()).cast(),
         "nvs_core_time_of_day_compare_to" => (nvs_core_time_of_day_compare_to as *const ()).cast(),
+        "nvs_core_time_of_day_hour" => (nvs_core_time_of_day_hour as *const ()).cast(),
+        "nvs_core_time_of_day_minute" => (nvs_core_time_of_day_minute as *const ()).cast(),
+        "nvs_core_time_of_day_second" => (nvs_core_time_of_day_second as *const ()).cast(),
+        "nvs_core_time_of_day_nanos" => (nvs_core_time_of_day_nanos as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -4716,6 +4917,58 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `$d->year(): int` — the civil year in the value's own zone, `with`'s
+    /// `year` type. Each reader below derives the zoned time [`zoned_of`]
+    /// builds and allocates nothing.
+    fn nvs_core_time_datetime_year(_ctx, args: [1]) {
+        Ok(Value::int(i64::from(zoned_of(args, 0, "year")?.year())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->month(): uint` — `1` to `12` in the value's own zone.
+    fn nvs_core_time_datetime_month(_ctx, args: [1]) {
+        Ok(Value::uint(zoned_of(args, 0, "month")?.month().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->day(): uint` — the day of the month in the value's own zone.
+    fn nvs_core_time_datetime_day(_ctx, args: [1]) {
+        Ok(Value::uint(zoned_of(args, 0, "day")?.day().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->hour(): uint` — `0` to `23` on the value's own wall clock.
+    fn nvs_core_time_datetime_hour(_ctx, args: [1]) {
+        Ok(Value::uint(zoned_of(args, 0, "hour")?.hour().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->minute(): uint` — `0` to `59` on the value's own wall clock.
+    fn nvs_core_time_datetime_minute(_ctx, args: [1]) {
+        Ok(Value::uint(zoned_of(args, 0, "minute")?.minute().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->second(): uint` — `0` to `59`; `jiff` carries no leap second.
+    fn nvs_core_time_datetime_second(_ctx, args: [1]) {
+        Ok(Value::uint(zoned_of(args, 0, "second")?.second().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->nanos(): uint` — the subsecond part, which no zone offset moves.
+    fn nvs_core_time_datetime_nanos(_ctx, args: [1]) {
+        let at = zoned_of(args, 0, "nanos")?;
+        Ok(Value::uint(at.subsec_nanosecond().unsigned_abs().into()))
+    }
+}
+
 /// The `uint`-or-`null` in argument slot `at` — an `rule:core-api/shape-rules` R2 option whose
 /// omitted spelling is [`Const::Null`], for a member that has no in-range
 /// sentinel to use instead.
@@ -5386,6 +5639,36 @@ nvs_runtime::nvs_helper! {
             std::cmp::Ordering::Equal => 0,
             std::cmp::Ordering::Greater => 1,
         }))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$t->hour(): uint` — the reading's hour slot, `with`'s `hour` type.
+    /// The four readers allocate nothing.
+    fn nvs_core_time_of_day_hour(_ctx, args: [1]) {
+        Ok(Value::uint(clock_of(args, 0, "hour")?.hour().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$t->minute(): uint` — the reading's minute slot.
+    fn nvs_core_time_of_day_minute(_ctx, args: [1]) {
+        Ok(Value::uint(clock_of(args, 0, "minute")?.minute().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$t->second(): uint` — the reading's second slot.
+    fn nvs_core_time_of_day_second(_ctx, args: [1]) {
+        Ok(Value::uint(clock_of(args, 0, "second")?.second().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$t->nanos(): uint` — the reading's subsecond slot.
+    fn nvs_core_time_of_day_nanos(_ctx, args: [1]) {
+        let at = clock_of(args, 0, "nanos")?;
+        Ok(Value::uint(at.subsec_nanosecond().unsigned_abs().into()))
     }
 }
 
@@ -7855,6 +8138,53 @@ mod tests {
         }
     }
 
+    /// The seven field readers called on `at`, year first and `nanos` last.
+    fn datetime_fields(at: &Zoned) -> (Option<i64>, [Option<u64>; 6]) {
+        let year = datetime_view(nvs_core_time_datetime_year, at, |v| v.as_int());
+        let rest = [
+            nvs_core_time_datetime_month as nvs_runtime::NvsFn,
+            nvs_core_time_datetime_day,
+            nvs_core_time_datetime_hour,
+            nvs_core_time_datetime_minute,
+            nvs_core_time_datetime_second,
+            nvs_core_time_datetime_nanos,
+        ]
+        .map(|member| datetime_view(member, at, |v| v.as_uint()));
+        (year, rest)
+    }
+
+    /// The seven readers are the civil time where the value is: one instant
+    /// is New Year's Day in Kiritimati and still New Year's Eve in Pago Pago,
+    /// on either side of the date line, and the last and first civil
+    /// nanoseconds of the range read as themselves.
+    // covers: Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanos
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
+    #[test]
+    fn datetime_fields_are_read_in_the_values_own_zone() {
+        let instant = "2024-12-31T23:30:15.123456789Z"
+            .parse::<Timestamp>()
+            .expect("a valid instant");
+        let in_zone = |zone: &str| instant.to_zoned(TimeZone::get(zone).expect("a known zone"));
+        let [_, _, last, first] = zone_view_samples();
+        for (at, year, rest) in [
+            (
+                in_zone("Pacific/Kiritimati"),
+                2025,
+                [1, 1, 13, 30, 15, 123_456_789],
+            ),
+            (
+                in_zone("Pacific/Pago_Pago"),
+                2024,
+                [12, 31, 12, 30, 15, 123_456_789],
+            ),
+            (in_zone("UTC"), 2024, [12, 31, 23, 30, 15, 123_456_789]),
+            (last, 9999, [12, 31, 23, 59, 59, 999_999_999]),
+            (first, -9999, [1, 1, 0, 0, 0, 0]),
+        ] {
+            assert_eq!(datetime_fields(&at), (Some(year), rest.map(Some)), "{at}");
+        }
+    }
+
     /// `format` called on the `DateTime` `at` with `pattern` and the call
     /// site's prepared word `word`. It answers the rendered text, or the
     /// sentence it threw.
@@ -8354,6 +8684,39 @@ mod tests {
         match clock_of(&[value], 0, "test") {
             Ok(clock) => clock,
             Err(_) => panic!("the member answers a `TimeOfDay`"),
+        }
+    }
+
+    /// `hour`, `minute`, `second` and `nanos` are the four slots the reading
+    /// was built from, at both ends of the day and with a nanosecond part.
+    // covers: Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanos
+    #[test]
+    fn time_of_day_fields_are_its_four_slots() {
+        for parts in [
+            (0, 0, 0, 0),
+            (23, 59, 59, 999_999_999),
+            (9, 5, 7, 500_000_001),
+            (12, 0, 0, 1),
+        ] {
+            let at = civil::time(parts.0, parts.1, parts.2, parts.3);
+            let read = [
+                nvs_core_time_of_day_hour as nvs_runtime::NvsFn,
+                nvs_core_time_of_day_minute,
+                nvs_core_time_of_day_second,
+                nvs_core_time_of_day_nanos,
+            ]
+            .map(|member| {
+                clock_called(member, vec![clock_built(at)], |v| v.as_uint())
+                    .expect("a reader refuses no `TimeOfDay`")
+            });
+            let want = [
+                i64::from(parts.0),
+                i64::from(parts.1),
+                i64::from(parts.2),
+                i64::from(parts.3),
+            ]
+            .map(|part| u64::try_from(part).ok());
+            assert_eq!(read, want, "{at}");
         }
     }
 
