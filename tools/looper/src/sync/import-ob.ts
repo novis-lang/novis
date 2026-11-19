@@ -133,7 +133,7 @@ export function readOb(root: string): Import {
     goals.push(goal(slug, g, handoff, notes));
   }
   return {
-    chain: { looper: FORMAT, chain: goals.map((g) => g.slug), floor: [] },
+    chain: { looper: FORMAT, chain: goals.map((g) => g.slug), floor: [], ungated: [] },
     goals,
     playbook: undefined,
     bullet_files: [],

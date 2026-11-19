@@ -21,6 +21,7 @@ import { expand as expandGlob, isGlob } from "./glob.ts";
 import {
   type Chain,
   type Check,
+  fullGate,
   type Goal,
   gateStage,
   liveGoal,
@@ -271,6 +272,7 @@ export function loadPack(root: string, cfg: Config, full: boolean, stage: number
   const stages = full ? (text("Stages") ?? "") : live === undefined ? null : stageSection(goal, live.id);
   const gate = gateStage(goal);
   const atGate = live !== undefined && live === gate;
+  const gating: Gating = { full: fullGate(cfg.loop, chain, slug), chained: cfg.loop.gate === "chain", ungated: chain.ungated, every: cfg.loop.gate_every };
   const stageContext = full ? front.stages.flatMap((s) => s.context ?? []) : (live?.context ?? []);
   const playbook = loadPlaybook(root, cfg);
   const traps =
@@ -287,13 +289,13 @@ export function loadPack(root: string, cfg: Config, full: boolean, stage: number
       stage: live === undefined ? null : { id: live.id, title: live.title },
       full,
       stages,
-      check: live === undefined || gate === undefined ? null : checkLineOf(atGate, gate.id),
+      check: live === undefined || gate === undefined ? null : checkLineOf(atGate, gate.id, gating),
       context: expand(root, [...front.context, ...stageContext]).map((path) => ({ path, head: headOf(root, path) })),
       acceptance: front.checks.map(checkLine),
       floor: chain.floor.length,
       traps,
       extra: [...extra],
-      done: doneSteps(file, cfg.project.scratch, atGate),
+      done: doneSteps(file, cfg.project.scratch, !atGate || !gating.full ? null : gating.chained ? "everything since the last full gate" : "the whole goal"),
     },
   };
 }
@@ -407,21 +409,43 @@ function trapsOf(playbook: Playbook, marks: Anchor[], bound: number, cfg: Config
   return out.length === 0 ? "(empty)" : out.join("\n");
 }
 
+/** Whether the live goal ends with the full gate (`fullGate`), and what the pack says about it. */
+interface Gating {
+  full: boolean;
+  /** Whether `[loop] gate` is `"chain"`. */
+  chained: boolean;
+  /** The chain's `ungated`: the goals retired since the last full gate. */
+  ungated: string[];
+  /** `[loop] gate_every`. */
+  every: number;
+}
+
 /** The line that says how the live stage is checked: `atGate` when it is the gate stage `gateId`. */
-function checkLineOf(atGate: boolean, gateId: number): string {
-  return atGate
-    ? `This is the goal's gate stage: run \`${TOOL} verify\` over the whole goal.`
-    : `This stage checks with a build alone; stage ${gateId} verifies the goal.`;
+function checkLineOf(atGate: boolean, gateId: number, g: Gating): string {
+  if (!atGate) {
+    return g.full
+      ? `This stage checks with a build alone; stage ${gateId} verifies the goal.`
+      : `This stage checks with a build alone; stage ${gateId} closes the goal, and the full gate runs at a later goal.`;
+  }
+  if (!g.chained) return `This is the goal's gate stage: run \`${TOOL} verify\` over the whole goal.`;
+  if (g.full) {
+    const since = g.ungated.length === 0 ? "" : `, so it covers ${g.ungated.join(", ")} as well`;
+    return `This is the goal's gate stage, and the full gate: run \`${TOOL} verify\`. It runs everything since the last full gate${since}. Its DONE runs the floor and the \`after_gate\` hooks.`;
+  }
+  const left = g.every > 0 ? `after ${g.every - g.ungated.length - 1} more goal(s), or at the chain's last goal` : "at the chain's last goal";
+  return `This is the goal's gate stage, and it closes the goal without the full gate: \`${TOOL} verify\` does not run. Check with a build and the tests this goal wrote, by name. Its DONE runs the goal's own checks. The full gate runs ${left}.`;
 }
 
 /**
  * The steps that finish a session on the goal file `file`, with the commit message in the project's
- * scratch directory `scratch`. `atGate` says the live stage is the goal's gate stage.
+ * scratch directory `scratch`. `verifies` is null unless the live stage is the gate stage of a goal
+ * that ends with the full gate, and then says what the verify covers.
  */
-function doneSteps(file: string, scratch: string, atGate: boolean): string {
+function doneSteps(file: string, scratch: string, verifies: string | null): string {
+  const atGate = verifies !== null;
   return [
     atGate
-      ? `1. \`${TOOL} verify\` over the whole goal; fix every failure it names in one pass, then run it once more.`
+      ? `1. \`${TOOL} verify\` over ${verifies}; fix every failure it names in one pass, then run it once more.`
       : "1. A build alone checks the work. No test and no verify runs, except a test you wrote, run once by name, and a run an item names.",
     `2. Overwrite ## Handoff in ${file} (### State, ### Next with anchors, ### Backlog), naming the tests you expect to go red; tick finished items; set a stage's status to done in the front matter when its items are done and its checks pass.`,
     "3. A playbook bullet if a trap cost you time.",

@@ -319,9 +319,9 @@ export function notReached(root: string, cfg: Config, goal: Goal, acc: Acceptanc
  *
  * A retirement that fails, such as a commit a `commit-msg` hook refused, is put back. The goal file and
  * the README get their bytes from before, and both are unstaged, so the goal stays live and the tree
- * holds no half of a retirement.
+ * holds no half of a retirement. `gated` says whether the goal passed the full gate (`retireGoal`).
  */
-export function retire(root: string, cfg: Config, slug: string): string {
+export function retire(root: string, cfg: Config, slug: string, gated = true): string {
   const harvest = cfg.project.harvest;
   if (harvest !== null && !harvested(root, cfg, slug)) throw new Refused(`${slug} has no harvest in ${harvest.file}`);
   const goalsDir = join(root, cfg.project.goals_dir);
@@ -329,7 +329,7 @@ export function retire(root: string, cfg: Config, slug: string): string {
   const kept = [goalPath(goalsDir, slug), join(goalsDir, README)].map((p) => ({ path: p, bytes: readBytes(p) }));
   let said: string;
   try {
-    said = retireGoal(goalsDir, slug, cfg.project.carry_to_floor);
+    said = retireGoal(goalsDir, slug, cfg.project.carry_to_floor, gated);
   } catch (e) {
     putBack(kept);
     throw e;

@@ -115,6 +115,8 @@ export interface Budget {
 
 export type Sweep = "done" | "every";
 
+export type GateAt = "goal" | "chain";
+
 export interface LoopSettings {
   max_stalls: number;
   max_retries: number;
@@ -126,6 +128,14 @@ export interface LoopSettings {
   /** The GiB free on the worktree's volume below which no session starts. 0 turns the gate off. */
   min_free_gb: number;
   sweep: Sweep;
+  /**
+   * Where the full gate runs. `"goal"`: every goal's gate stage verifies the whole goal, and its DONE
+   * runs the floor and the `after_gate` hooks. `"chain"`: only the goal `fullGate` names does that, and
+   * every other goal closes on its own checks.
+   */
+  gate: GateAt;
+  /** With `gate = "chain"`, the most goals one full gate covers. 0 leaves the gate to the chain's last goal. */
+  gate_every: number;
   /** The worktrees side loops take turns in, at least 1. */
   lanes: number;
 }
@@ -166,6 +176,8 @@ export interface Hooks {
   after_session: Hook[];
   before_sweep: Hook[];
   after_retire: Hook[];
+  /** After `after_retire`, once a goal that passed the full gate is retired: every goal with `[loop] gate = "goal"`. */
+  after_gate: Hook[];
 }
 
 export type OnFail = "pause" | "warn";
@@ -357,11 +369,13 @@ export function defaultConfig(): Config {
       spin_limit: 20,
       min_free_gb: 10,
       sweep: "done",
+      gate: "goal",
+      gate_every: 5,
       lanes: 2,
     },
     verify: { run: [], step: [] },
     checks: { timeout: 600, env: {}, floor_tests: "run", hide_windows: true },
-    hooks: { before_run: [], before_session: [], after_session: [], before_sweep: [], after_retire: [] },
+    hooks: { before_run: [], before_session: [], after_session: [], before_sweep: [], after_retire: [], after_gate: [] },
     guard: { deny: [] },
     gates: { links: [], layout: [], prose: [], guard: [], json: [] },
     links: { paths: ["*.md"] },
@@ -630,6 +644,8 @@ const loopSettings = table<LoopSettings>(
     spin_limit: u32,
     min_free_gb: u64,
     sweep: variants<Sweep>(["done", "every"]),
+    gate: variants<GateAt>(["goal", "chain"]),
+    gate_every: u32,
     lanes: u32,
   },
   () => defaultConfig().loop,
@@ -670,6 +686,7 @@ const hooks = table<Hooks>(
     after_session: list(hook),
     before_sweep: list(hook),
     after_retire: list(hook),
+    after_gate: list(hook),
   },
   () => defaultConfig().hooks,
 );

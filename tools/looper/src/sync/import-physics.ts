@@ -105,7 +105,7 @@ export function readPhysics(root: string): Import {
   const notes: string[] = [];
   const goals = file.goals.map((g) => goal(g, notes));
   return {
-    chain: { looper: FORMAT, chain: goals.map((g) => g.slug), floor: [] },
+    chain: { looper: FORMAT, chain: goals.map((g) => g.slug), floor: [], ungated: [] },
     goals,
     playbook: undefined,
     bullet_files: [],

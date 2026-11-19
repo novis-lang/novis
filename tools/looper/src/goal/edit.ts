@@ -355,9 +355,10 @@ export function removeGoal(goalsDir: string, slug: string): string {
  * Retires a reached goal: its checks move into the floor, it leaves the chain, and its file is deleted.
  * A moved check drops its `stage`, gains `from: <slug>`, and is renamed `<slug>-<id>` when the floor
  * already holds its id. With `carry`, every check moves except one marked `floor: false`. Without it,
- * only a check marked `floor: true` moves. It refuses as `removeGoal` does.
+ * only a check marked `floor: true` moves. It refuses as `removeGoal` does. A goal on the chain empties
+ * `ungated` with `gated`, as it passed the full gate, and is added to `ungated` without it.
  */
-export function retireGoal(goalsDir: string, slug: string, carry: boolean): string {
+export function retireGoal(goalsDir: string, slug: string, carry: boolean, gated = true): string {
   const goal = load(goalsDir, slug);
   refuseUncommitted(goalsDir, slug);
   const chain = loadChain(goalsDir);
@@ -367,6 +368,8 @@ export function retireGoal(goalsDir: string, slug: string, carry: boolean): stri
     ids.add(id);
     chain.floor.push({ ...check, id, stage: undefined, from: slug });
   }
+  // A side goal's gate covers its own branch alone, so it leaves `ungated` as it is.
+  if (chain.chain.includes(slug)) chain.ungated = gated ? [] : [...chain.ungated.filter((s) => s !== slug), slug];
   chain.chain = chain.chain.filter((s) => s !== slug);
   // The floor gains the checks before the file goes, so no step loses them.
   writeReadme(goalsDir, chain);

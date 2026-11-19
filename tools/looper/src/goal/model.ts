@@ -138,6 +138,11 @@ export interface Chain {
   looper: number;
   chain: string[];
   floor: Check[];
+  /**
+   * The goals retired since the last full gate, oldest first. With `[loop] gate = "chain"`, a goal that
+   * closes without the full gate is added here, and the full gate empties it. It is empty otherwise.
+   */
+  ungated: string[];
 }
 
 export function emptyCheck(): Check {
@@ -169,7 +174,7 @@ export function emptyCheck(): Check {
 }
 
 export function emptyChain(): Chain {
-  return { looper: FORMAT, chain: [], floor: [] };
+  return { looper: FORMAT, chain: [], floor: [], ungated: [] };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -303,7 +308,7 @@ const goalFront = table<GoalFront>(
   }),
 );
 
-const chainFront = table<Chain>("Chain", { looper: u32, chain: texts, floor: list(check) }, emptyChain);
+const chainFront = table<Chain>("Chain", { looper: u32, chain: texts, floor: list(check), ungated: texts }, emptyChain);
 
 // ---------------------------------------------------------------------------------------------------
 // Reading a file
@@ -457,6 +462,26 @@ export function neverReached(g: Goal): boolean {
 export function gateStage(g: Goal): Stage | undefined {
   const last = g.front.stages.at(-1);
   return last?.gate === true ? last : undefined;
+}
+
+/** Where the full gate runs: `[loop] gate` and `[loop] gate_every`. */
+export interface GatePlace {
+  gate: "goal" | "chain";
+  gate_every: number;
+}
+
+/**
+ * Whether the goal `slug` ends with the full gate: the project's verify over everything since the last
+ * full gate, then the floor and the `after_gate` hooks. With `gate = "goal"` every goal does. With
+ * `"chain"`, a goal does when it is the last on the chain, when it is not on the chain (a side goal), or
+ * when it would be the `gate_every`th goal since the last full gate. Every other goal only closes: its
+ * own checks run, and it joins `ungated`.
+ */
+export function fullGate(place: GatePlace, chain: Chain, slug: string): boolean {
+  if (place.gate === "goal") return true;
+  const at = chain.chain.indexOf(slug);
+  if (at < 0 || at === chain.chain.length - 1) return true;
+  return place.gate_every > 0 && chain.ungated.filter((s) => s !== slug).length + 1 >= place.gate_every;
 }
 
 /**

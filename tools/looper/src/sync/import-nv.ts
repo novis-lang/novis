@@ -262,7 +262,7 @@ export function readNv(root: string, cfg: Config): Import {
 
   const [playbookText, bulletFiles] = playbook(root, cfg, notes);
   return {
-    chain: { looper: FORMAT, chain: chainOrder, floor: [] },
+    chain: { looper: FORMAT, chain: chainOrder, floor: [], ungated: [] },
     goals,
     playbook: playbookText,
     bullet_files: bulletFiles,

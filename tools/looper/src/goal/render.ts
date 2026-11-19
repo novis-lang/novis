@@ -189,6 +189,7 @@ export function chainFrontNode(c: Chain): Node {
     ["looper", raw(String(c.looper))],
     ["chain", strsNode(c.chain)],
     ["floor", { list: c.floor.map(checkNode) }],
+    ["ungated", c.ungated.length === 0 ? undefined : strsNode(c.ungated)],
   ]);
 }
 

@@ -260,7 +260,7 @@ export function readSand(root: string): Import {
   const floorChecks = floor.checks.flatMap((c) => checkOf(c, "the floor", notes) ?? []).map((c) => ({ ...c, stage: undefined }));
   notes.push("the playbook is already in looper's shape: check its path against `[project] playbook`");
   return {
-    chain: { looper: FORMAT, chain: chainOrder, floor: floorChecks },
+    chain: { looper: FORMAT, chain: chainOrder, floor: floorChecks, ungated: [] },
     goals,
     playbook: undefined,
     bullet_files: [],

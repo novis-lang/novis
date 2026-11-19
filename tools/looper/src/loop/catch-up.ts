@@ -169,7 +169,7 @@ function chainAt(root: string, path: string, stage: number): Chain {
   try {
     text = git(root, ["show", `:${stage}:${path}`]);
   } catch {
-    return { looper: 1, chain: [], floor: [] };
+    return { looper: 1, chain: [], floor: [], ungated: [] };
   }
   return parseChain(path, text);
 }
@@ -220,7 +220,7 @@ async function renderGenerated(m: Merging, files: string[], readme: string, into
  * The chain of a goals README both sides changed: `theirs`, the main branch's, with the side branch's
  * own changes since `base` laid over it. A slug or floor check `ours` dropped is dropped, and one it
  * added is added. An added check whose id the floor holds is renamed `<from>-<id>`, as a retirement
- * names it, so no side's check is lost.
+ * names it, so no side's check is lost. `ungated` is main's, as a side goal's retirement leaves it alone.
  */
 export function mergedChain(base: Chain, ours: Chain, theirs: Chain): Chain {
   const has = (list: Check[], c: Check) => list.some((x) => Bun.deepEquals(x, c));

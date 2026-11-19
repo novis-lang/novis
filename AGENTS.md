@@ -377,7 +377,9 @@ Every session runs the same steps, in this order, and **stops**:
    stage. In every other stage a build is the only check. No test and no verify runs there, except a
    test the session wrote, run once by name, and a run an item requires. A slice whose change breaks
    an existing test updates that test as it goes. The gate stage runs `looper verify` over the whole
-   goal, fixes every failure in one pass, and runs it once more.
+   goal, fixes every failure in one pass, and runs it once more. With `[loop] gate = "chain"`, only the
+   goal the pack names as the full gate does that, and every other goal's gate stage closes it with a
+   build and its own tests.
 4. **Write the handoff once for the whole group.** Overwrite the live goal's `## Handoff` with where the
    work stands and the next group with its anchors. Name the tests you expect to go red. Tick what you
    finished. Add a playbook bullet if a trap cost you time.

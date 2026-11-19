@@ -51,13 +51,14 @@
 //    that claims `DONE` while no decision for the user stands (`standing` in `decisions.ts`) runs the
 //    `before_sweep` hooks, and holds when one that pauses the loop fails.
 //    Then it runs acceptance, adds its results to the run's check history, and asks `notReached`
-//    (decision 0014). Every other session is judged by its status line and its commits alone; it checks
+//    (decision 0014). The floor runs only when the goal takes the full gate (`fullGate`). Every other session is judged by its status line and its commits alone; it checks
 //    its own work with verify, and step 9 may sweep it after the verdict.
 // 8. **Decide.**
 //    - reached: retire the goal and reset the run's per-goal counts (`advanced`), and the next turn takes
 //      the next goal on the chain. Once the retirement commit has landed, the `after_retire` hooks run
-//      with `LOOPER_GOAL` naming the retired goal and no `LOOPER_STAGE`. One that pauses the loop holds
-//      it before the next goal, and the goal stays retired;
+//      with `LOOPER_GOAL` naming the retired goal and no `LOOPER_STAGE`, then the `after_gate` hooks
+//      when the goal took the full gate. One that pauses the loop holds it before the next goal, and
+//      the goal stays retired;
 //    - reached on a side loop: retire it the same way in its own branch, run the `after_retire` hooks,
 //      and catch up (`Driver.catchUp`). A hook that pauses the loop holds it first, and a resume goes on
 //      to the catch-up. A side loop never takes another goal;
@@ -115,7 +116,7 @@ import { join, resolve } from "node:path";
 import { dir as claimDir, release } from "../claims/claims.ts";
 import { goalVars, extra as packExtra } from "../cli/orient.ts";
 import { type Config, defaultConfig, loadConfig, type Prompts as Named } from "../goal/config.ts";
-import { type Check, type Goal, goalPath, liveGoal, loadChain, loadGoal, Refused, SIDE_GOAL_VAR } from "../goal/model.ts";
+import { type Check, fullGate, type Goal, goalPath, liveGoal, loadChain, loadGoal, Refused, SIDE_GOAL_VAR } from "../goal/model.ts";
 import { pack } from "../goal/orient.ts";
 import { writeState } from "../store/state.ts";
 import { acceptance, named, type Progress, type Project, runReported, unreported, type Units, type Verdict } from "../verify/accept.ts";
@@ -645,11 +646,17 @@ export class Driver {
     return ran.paused;
   }
 
-  /** Runs the `after_retire` hooks with `LOOPER_GOAL` naming the retired `slug`, and no `LOOPER_STAGE` or `LOOPER_EXTRA`. */
-  private async afterRetire(slug: string): Promise<string | null> {
+  /**
+   * Runs the `after_retire` hooks with `LOOPER_GOAL` naming the retired `slug`, and no `LOOPER_STAGE` or
+   * `LOOPER_EXTRA`, then the `after_gate` hooks when the goal passed the full gate (`gated`). A hook that
+   * pauses the loop skips the ones after it.
+   */
+  private async afterRetire(slug: string, gated: boolean): Promise<string | null> {
     const project = this.project();
     project.vars = { ...project.vars, LOOPER_GOAL: slug, LOOPER_STAGE: undefined, LOOPER_EXTRA: undefined };
-    return this.hooksWith("after_retire", project);
+    const paused = await this.hooksWith("after_retire", project);
+    if (paused !== null || !gated) return paused;
+    return this.hooksWith("after_gate", project);
   }
 
   /** Adds `verdicts` to the run's check history, dropping the oldest past `CHECKS_MAX`. */
@@ -1000,20 +1007,21 @@ export class Driver {
     if (status.startsWith("DONE") && waits === null) {
       const paused = await this.hooks("before_sweep");
       if (paused !== null) return this.hold(setupHold(paused));
-      const acc = await acceptance(this.root, goal, chain.floor, this.checkLogs, this.units(), this.project(), this.progress);
+      const full = fullGate(this.cfg.loop, chain, slug);
+      const acc = await acceptance(this.root, goal, chain.floor, this.checkLogs, this.units(), this.project(), this.progress, undefined, full);
       this.addCheckRuns(acc.verdicts);
       if (this.cfg.loop.sweep === "every") lastSweep(this.root, acc.verdicts);
       why = notReached(this.root, this.cfg, goal, acc);
       if (why.length === 0 && goal.front.stages.length > 0) {
         let said: string;
         try {
-          said = retire(this.root, this.cfg, slug);
+          said = retire(this.root, this.cfg, slug, full);
         } catch (e) {
           return this.hold(`retire-error: ${slug} is reached, but retiring it failed: ${(e as Error).message}`);
         }
         this.state = reset(this.state, "");
         if (this.side !== null) this.state.catchingUp = slug;
-        const failed = await this.afterRetire(slug);
+        const failed = await this.afterRetire(slug, full);
         if (failed !== null) return this.hold(setupHold(`${slug} is retired, but ${failed}`));
         if (this.side !== null) return this.catchUp(slug);
         return { kind: "advanced", slug, said };

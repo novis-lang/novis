@@ -145,7 +145,8 @@ export function unreported(_: Report[]): void {}
 /**
  * Runs the floor and the goal's checks in their order, from the project root `root`, keeping the units
  * of command checks as `units` says, and reporting the run to `progress`. A check named in `counted`
- * does not run: its verdict is the result it maps to, with no log.
+ * does not run: its verdict is the result it maps to, with no log. Without `withFloor`, as a goal that
+ * closes without the full gate is judged, the floor does not run, and its units stay in the store.
  */
 export async function acceptance(
   root: string,
@@ -156,10 +157,12 @@ export async function acceptance(
   project: Project,
   progress: Progress,
   counted: ReadonlyMap<string, boolean> = new Map(),
+  withFloor = true,
 ): Promise<Acceptance> {
   if (project.checks.floor_tests === "listed") floor = floor.map((c) => (listable(c) ? listing(c) : c));
   const ids = [...floor, ...goal.front.checks].filter((c) => rests(c) !== "whole").map((c) => unitId(c.id));
   if (ids.length > 0 || existsSync(units.store)) Store.open(units.store).retain("check:", ids);
+  if (!withFloor) floor = [];
   const open = goal.front.stages.find((s) => s.status !== "done")?.id;
   const due = (c: Check) => open === undefined || c.stage === undefined || c.stage <= open;
   const reach = (c: Check) => c.reach === true;
