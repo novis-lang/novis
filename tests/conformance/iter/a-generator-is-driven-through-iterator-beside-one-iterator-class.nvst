@@ -1,0 +1,47 @@
+--TEST--
+A program whose one class of its own implements `Iterator<int>` still drives a generator through `Iterator<int>` with the generator's own `advance` and `current`, because the runtime makes cursors no class list of the program shows — `rule:iteration/two-interfaces`
+--FILE--
+<?nvs
+// The only class in the program that implements `Iterator<int>`.
+class Countdown implements Iterator<int>
+{
+    private int $at = 3;
+
+    public function advance(): bool
+    {
+        $this->at = $this->at - 1;
+        return $this->at >= 0;
+    }
+
+    public function current(): int
+    {
+        return $this->at;
+    }
+}
+
+class Pages
+{
+    public static function numbers(): Iterator<int>
+    {
+        yield 10;
+        yield 20;
+    }
+}
+
+// A generator, held in a variable of type `Iterator<int>`.
+Iterator<int> $generator = Pages::numbers();
+while ($generator->advance()) {
+    echo $generator->current(), "\n";
+}
+
+// The class's own cursor, through the same type.
+Iterator<int> $countdown = new Countdown();
+while ($countdown->advance()) {
+    echo $countdown->current(), "\n";
+}
+--EXPECT--
+10
+20
+2
+1
+0

@@ -1173,10 +1173,18 @@ pub fn build_signatures(
 /// and each of its ancestors: one body stays one body, and a second body or a
 /// declaration with none makes it `None`. An enum has no entry in the graph,
 /// and needs none: it extends nothing and implements nothing.
+///
+/// **A native class or interface gets no entry**, so a call through it stays
+/// virtual. The program's classes are not all of its instances: the runtime
+/// makes a generator's cursor and a `Core` collection's cursor as `Iterator`,
+/// a `Core` value as `Stringable` or `Comparable`, and every error a helper
+/// throws as one of the error classes. A program with one class of its own
+/// implementing `Iterator` would otherwise call that class's `advance` with a
+/// generator as `$this`.
 fn mark_sole_bodies(table: &mut SignatureTable, graph: &ClassGraph) {
     let mut found: Vec<(QName, String, Option<QName>)> = Vec::new();
     for (qname, _) in table.iter() {
-        if !graph.get(qname).is_some_and(|links| links.concrete) {
+        if !graph.get(qname).is_some_and(|links| links.concrete) || is_native(qname, table) {
             continue;
         }
         let mut ancestors: Vec<&QName> = Vec::new();
@@ -1194,7 +1202,7 @@ fn mark_sole_bodies(table: &mut SignatureTable, graph: &ClassGraph) {
             let body = resolve_method_ref(qname, name, table, graph)
                 .filter(|(_, sig)| sig.has_body)
                 .map(|(owner, _)| owner.clone());
-            for ancestor in &ancestors {
+            for ancestor in ancestors.iter().filter(|a| !is_native(a, table)) {
                 found.push(((*ancestor).clone(), name.clone(), body.clone()));
             }
         }
@@ -1212,6 +1220,17 @@ fn mark_sole_bodies(table: &mut SignatureTable, graph: &ClassGraph) {
             }
         }
     }
+}
+
+/// Whether `qname` is a declaration the program does not own: a `Core` class,
+/// a reserved interface such as `Iterator`, an error class, or an extension's
+/// class. The runtime makes instances of these, so no class list of the
+/// program's covers them ([`mark_sole_bodies`]).
+fn is_native(qname: &QName, table: &SignatureTable) -> bool {
+    qname.is_core()
+        || qname.is_reserved_global_interface()
+        || qname.is_reserved_global_class()
+        || table.get(qname).is_some_and(|sig| sig.extension)
 }
 
 /// The property a method's whole body returns, when that body is exactly

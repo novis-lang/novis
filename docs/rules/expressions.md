@@ -253,6 +253,13 @@ for the whole program is the one answer that is right without a second walk. The
 the reference the body's `return` would have taken, because its consumer treats a call as a fresh
 value.
 
+**A native class or interface is never `C`**: a `Core` or extension class, an error class, or a
+reserved interface such as `Iterator`. The program's classes are not all of their instances: a
+generator's cursor and a `Core` collection's cursor are `Iterator`s, and a helper throws error
+objects. So a call through a native static class stays virtual even where the
+program declares one body of its own. Without that, a program with one `Iterator` class called that
+class's `advance` with a generator as `$this`.
+
 **The rows that need the callback proven** are emitted as written, with a candidate recorded: the
 site, the row and the callback's function. A pass after `crates/nvs-ir/src/effects.rs` reads the
 callback's summary and takes one of the three outcomes:
