@@ -1661,6 +1661,10 @@ pub struct Ctx {
     /// (`rule:core-classes/a-session-opens-on-its-first-use`), so a request that
     /// calls none reaches no store.
     session: Option<Session>,
+    /// The request's session while its `Core\Html::later` slots run — see
+    /// [`LentSession`]. Set on the request's context for the length of the
+    /// slots, and copied into every child it starts then.
+    lent_session: Option<std::rc::Rc<LentSession>>,
     /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// socket, on the connection isolate the upgrade opened and on nothing else
     /// — [`crate::peer`] is the home of the seam and of why it is a trait

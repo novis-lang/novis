@@ -483,6 +483,8 @@ impl Ctx {
         // A slot and after-response work are children started once the main
         // script is over, so `Core\Response::slotted()` throws in them too.
         child.main_ended = self.main_ended;
+        // A slot reads the request's session, and so does a task it starts.
+        child.lent_session = self.lent_session.clone();
         // A task reads the same objects as its request, so it sees the same
         // `initProperty` calls in flight and waits for one another task runs.
         // Its own calls are its own (`late_init`'s module doc).

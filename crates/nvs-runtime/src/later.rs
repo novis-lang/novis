@@ -282,7 +282,10 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
             Box::new(move |child: &mut Ctx| fill(child, callable, deadline, &error)) as Job
         })
         .collect();
+    // Each slot reads the request's session from the lent cell.
+    ctx.lend_session();
     let outcome = crate::host::with_current(|host| host.run_group(ctx, jobs, Bounds::default()));
+    ctx.reclaim_session();
     let filled = match outcome {
         Some(Outcome::Completed(answers)) => Some(answers),
         Some(Outcome::Fatal(message)) => {
@@ -433,7 +436,10 @@ fn deliver(ctx: &mut Ctx, mut body: Vec<u8>, cell: &BodySlot, scripts: Scripts) 
             }) as Job
         })
         .collect();
+    // Each slot reads the request's session from the lent cell.
+    ctx.lend_session();
     let outcome = crate::host::with_current(|host| host.run_group(ctx, jobs, Bounds::default()));
+    ctx.reclaim_session();
     let failed = match outcome {
         Some(Outcome::Fatal(message)) => {
             ctx.set_pending_fatal(message);

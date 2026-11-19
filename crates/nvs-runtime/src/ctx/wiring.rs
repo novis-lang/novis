@@ -27,6 +27,29 @@
 
 use super::*;
 
+/// The request's session as its `Core\Html::later` slots reach it
+/// (`rule:core-classes/html-later`).
+///
+/// A slot runs on a child context, which has no session and no request of its
+/// own. While the slots run, the request moves its session into this cell and
+/// every slot reads it there. Where the main script never opened the session,
+/// the first slot to use it opens it from [`Self::head`], into the same cell,
+/// so the slots load it once between them. The request takes the cell's
+/// session back when the slots end, so the write-back at its end sees it.
+///
+/// A slot only reads: every member that writes throws where the head is
+/// closed, so the cell is never written after it is filled.
+///
+/// What it spends: one cell and one shared reference to the request head, per
+/// in-flight request with slots, for the length of its slots.
+#[derive(Debug)]
+pub(crate) struct LentSession {
+    /// The session, once it is open.
+    open: std::cell::OnceCell<Session>,
+    /// The request's head, to read the session cookies from.
+    head: Inbound,
+}
+
 /// The session one request has open — what a request holds between its first
 /// `Core\Session` call and the write-back at its end, kept per key as
 /// `rule:http-server/a-session-is-loaded-once-and-written-back-per-key` says.
@@ -43,7 +66,11 @@ use super::*;
 /// the keys the request set or removed and of the long-lived keys, and one
 /// short token, per **in-flight** request that started a session, freed with
 /// the request — never O(sessions served).
-#[derive(Debug)]
+///
+/// `Clone` for one case only: [`Ctx::reclaim_session`] copies a lent session
+/// back where a child's context still holds the cell, which the group runner
+/// makes rare.
+#[derive(Clone, Debug)]
 pub struct Session {
     /// The identifier the store issued, as it rides in the cookie.
     ///
@@ -376,6 +403,7 @@ impl Ctx {
             open_connections: Vec::new(),
             temporary_dirs: Vec::new(),
             session: None,
+            lent_session: None,
             peer: None,
             deliveries: None,
             late_inits: Vec::new(),
@@ -402,28 +430,91 @@ impl Ctx {
 
     /// Open `session` on this request, replacing whatever it had open.
     ///
-    /// Open `session` on this request, replacing whatever it had open.
-    ///
     /// Replacing rather than refusing, because `rule:core-api/session-roster`'s
     /// `clearAll` and a `regenerate` that finds its session gone both leave the
     /// request a fresh session this way. The refusal of a second open belongs
     /// to `openWithIdentifier`, the one member that opens explicitly.
+    ///
+    /// **In a `Core\Html::later` slot it fills the lent cell**, so every slot
+    /// and the request read the one session the first slot opened. A slot that
+    /// opened it while a sibling was parked on the same load keeps the first
+    /// one, which is the same record.
     pub fn open_session(&mut self, session: Session) {
+        if self.session.is_none()
+            && let Some(lent) = &self.lent_session
+        {
+            // A sibling that finished its load first already filled it, with
+            // the same record, so this copy is dropped.
+            let _ = lent.open.set(session);
+            return;
+        }
         self.session = Some(session);
     }
 
     /// The session this request opened, or `None` before the first
     /// `Core\Session` call, which opens it
-    /// (`rule:core-classes/a-session-opens-on-its-first-use`).
+    /// (`rule:core-classes/a-session-opens-on-its-first-use`). In a
+    /// `Core\Html::later` slot it is the request's session, lent to the slot.
     #[must_use]
     pub fn session(&self) -> Option<&Session> {
-        self.session.as_ref()
+        self.session
+            .as_ref()
+            .or_else(|| self.lent_session.as_ref().and_then(|lent| lent.open.get()))
     }
 
     /// The same, to write: the members that change a value reach the record
     /// and its dirty flag through this, and nothing else may.
+    ///
+    /// `None` in a `Core\Html::later` slot, whose session is lent read-only:
+    /// every member that writes checks that the head is open first, and throws
+    /// there before it gets here.
     pub fn session_mut(&mut self) -> Option<&mut Session> {
         self.session.as_mut()
+    }
+
+    /// The request a session is opened from: this context's own, or in a
+    /// `Core\Html::later` slot the head of the request the slot belongs to.
+    ///
+    /// Only the session's open reads it. `Core\Request` reads
+    /// [`Self::inbound`], which a slot does not have.
+    #[must_use]
+    pub fn session_inbound(&self) -> Option<&Inbound> {
+        self.inbound()
+            .or_else(|| self.lent_session.as_ref().map(|lent| &lent.head))
+    }
+
+    /// Lends this request's session to the `Core\Html::later` slots about to
+    /// run, open or not: [`Self::child`] copies the cell into each slot. Pair
+    /// it with [`Self::reclaim_session`] once the slots have ended.
+    ///
+    /// A request with no inbound lends nothing, so a slot of a program
+    /// answering no request still throws at its first session call.
+    pub fn lend_session(&mut self) {
+        let Some(head) = self.inbound().map(Inbound::head_alone) else {
+            return;
+        };
+        let open = std::cell::OnceCell::new();
+        if let Some(session) = self.session.take() {
+            let _ = open.set(session);
+        }
+        self.lent_session = Some(std::rc::Rc::new(LentSession { open, head }));
+    }
+
+    /// Takes back what [`Self::lend_session`] lent: the request's session,
+    /// or the one a slot opened, so the write-back at the end sees it.
+    pub fn reclaim_session(&mut self) {
+        let Some(lent) = self.lent_session.take() else {
+            return;
+        };
+        let open = match std::rc::Rc::try_unwrap(lent) {
+            Ok(lent) => lent.open.into_inner(),
+            // A slot's context not dropped yet still holds the cell. Its task
+            // has ended, so nothing reads the copy again.
+            Err(shared) => shared.open.get().cloned(),
+        };
+        if let Some(session) = open {
+            self.session = Some(session);
+        }
     }
 
     /// Close the session this request had open, leaving it with none, so the

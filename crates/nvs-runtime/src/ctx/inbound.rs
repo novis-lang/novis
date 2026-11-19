@@ -929,6 +929,18 @@ impl Inbound {
         head.push(name.as_bytes());
         head.push(value);
     }
+    /// A carrier with this request's line, headers and scheme, and nothing
+    /// else: no body, no peer address, no route.
+    ///
+    /// It is what a `Core\Html::later` slot opens the request's session from
+    /// ([`Ctx::lend_session`]), which reads the cookies alone. The head is
+    /// shared, so the copy costs one reference count and one small struct.
+    #[must_use]
+    pub fn head_alone(&self) -> Self {
+        let mut copy = Self::with_head(Rc::clone(&self.head));
+        copy.scheme = self.scheme;
+        copy
+    }
     /// Every header field line, in arrival order, as `(name, value)`.
     ///
     /// One entry per line and not per name: a reader that wants the two folded

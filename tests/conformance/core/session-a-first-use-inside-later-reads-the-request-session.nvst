@@ -1,0 +1,84 @@
+--TEST--
+A `Core\Html::later` slot reads the request's session, also where the main script never used it: the slot opens it from the request's cookie, and a first visit reads `null`. `Core\Csrf::token` for a new visitor throws there, because it would send a cookie -- `rule:core-classes/html-later`, `rule:core-classes/a-session-opens-on-its-first-use`
+--FILE nvs.toml--
+[http]
+csrf_key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
+--FILE--
+<?nvs
+class Pages {
+    #[Core\Route(path: "/save", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void {
+        Core\Session::setShortLived("cart", 7);
+        echo "saved";
+    }
+
+    // The main script does not use the session. Only the slot reads it.
+    #[Core\Route(path: "/read", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function read(): void {
+        echo Core\Html::later(fn(): void => {
+            var $cart = Core\Session::get("cart");
+            echo $cart == null ? "null" : $cart as string;
+        });
+    }
+
+    // The main script saves first, so the slot reads the open session.
+    #[Core\Route(path: "/opened", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function opened(): void {
+        Core\Session::setShortLived("cart", 3);
+        echo Core\Html::later(fn(): void => {
+            echo Core\Session::get("cart") as string;
+        });
+    }
+
+    #[Core\Route(path: "/token", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function token(): void {
+        echo Core\Html::later(fn(): void => {
+            try {
+                echo Core\Csrf::token();
+            } catch (LogicError $e) {
+                echo "LogicError";
+            }
+        });
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // A first visit has no session, so the slot reads `null`.
+    echo "a first visit reads ", Core\Test::request(Core\Http\Method::Get, "/read")->body(), "\n";
+
+    // The same visitor comes back with the cookie `/save` set. The slot opens the session.
+    var $saved = Core\Test::request(Core\Http\Method::Get, "/save");
+    array<string> $mine = ["cookie" => "nvsid=" . ($saved->cookies()["nvsid"] ?? "") . "; nvsid-short=" . ($saved->cookies()["nvsid-short"] ?? "")];
+    var $back = Core\Test::request(Core\Http\Method::Get, "/read", {headers: $mine});
+    echo "a returning visitor reads ", $back->body(), "\n";
+
+    echo "after the main script saves, the slot reads ", Core\Test::request(Core\Http\Method::Get, "/opened")->body(), "\n";
+
+    // A token for a new visitor needs a new cookie, and a slot cannot send one.
+    echo "a new visitor's token in a slot throws ", Core\Test::request(Core\Http\Method::Get, "/token")->body(), "\n";
+}
+--EXPECT--
+a first visit reads null
+a returning visitor reads 7
+after the main script saves, the slot reads 3
+a new visitor's token in a slot throws LogicError
