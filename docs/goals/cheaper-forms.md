@@ -42,7 +42,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-types/src/signatures.rs, crates/nvs-ir/src/lower/tests.rs]
   - id: 10
     title: a split with a limit, a search that ignores case and a JSON validity test read only what their result needs
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/src/json.rs]
   - id: 11
     title: "the goal is verified once, and every failure is fixed"
@@ -498,6 +498,29 @@ a member on `forms::QUIET_CORE`'s list whose reference card lists no errors is n
 (`forms::throws_nothing`). Every member has a card, and the card lists every error the member
 throws. A wrong card is a wrong proof, and the differential suite is what finds it.
 
+**A split with a limit owns its subject, as built in stage 10 (my call).** Stopping the count at
+the limit is invisible to the ladder's counts: the remainder was copied on every call, so the bytes
+grew with the line before and after. `Core\Str::split` is now an owning member
+(`nvs_core_str_split`, `check` then `apply`), the one whose result is another kind than its subject.
+With a positive `limit`, `apply` appends the remainder as the subject with its start moved
+(`NvsStr::keep`), so a sole line gives its allocation to that piece and `{ limit: 2 }` copies only
+the key. The ladder peels one key a round off the line and keeps the remainder as the next line.
+Keeping `split` borrowed and the ladder linear was declined: it would pin nothing the fix changed.
+**What it spends:** a remainder keeps the whole line's allocation alive, key bytes included.
+
+**A search that ignores case has a plain-ASCII path, as built in stage 10 (my call).** A string
+carries no fact that its text is ASCII: its grapheme count equals its length only for ASCII, and is
+often not known. So a needle of 1 to 64 ASCII bytes takes `ascii_find` or `ascii_rfind`, which fold
+each byte as they read it, with a Knuth–Morris–Pratt table of at most 64 bytes on the stack. At the
+first byte outside ASCII the table search runs from where a match could still hold that byte. A
+longer needle keeps the table search.
+
+**`isValid` builds nothing, as built in stage 10 (my call).** `json::validate` is a loop over the
+reader's events with a key set for each open object, so a repeated key and an integer outside `int`
+stay invalid. It measured 0.97 ms a call on a 109 KB document against 2.25 ms before (2.3x). A
+document `decode` cannot build under the memory limit is now `true` when its keys fit: validity is
+a property of the text, and an object whose keys do not fit still stops the request.
+
 **How a call is named direct, as built in stage 9 (my call).** The fact is per receiver class,
 `ClassSignature::sole_bodies`: only an instantiable class can be a receiver's run-time class, so each
 one resolves every method name with `resolve_method_ref`, the walk the run-time dispatch takes, and
@@ -767,18 +790,18 @@ under `tests/lsp/actions/`.
 **Split:** one writing subagent writes the ladder, copying the shape of
 `benches/scaling/strings/at.nvs`.
 
-- [ ] `benches/scaling/strings/forms-a-key-split-off-a-long-line.nvs`
+- [x] `benches/scaling/strings/forms-a-key-split-off-a-long-line.nvs`
   (`Core\Str::split($line, '=', { limit: 2 })`, the ladder's size is the line's length,
   `// scaling: expect constant`).
-- [ ] `crates/nvs-stdlib/src/str.rs:2176`: the count of pieces stops at a positive `limit`. The memory
+- [x] `crates/nvs-stdlib/src/str.rs:2176`: the count of pieces stops at a positive `limit`. The memory
   check before the build still asks for what will be built.
-- [ ] `str.rs:2831`: the plain-ASCII path of a search that ignores case. The item first reads how a
+- [x] `str.rs:2831`: the plain-ASCII path of a search that ignores case. The item first reads how a
   string knows its text is plain ASCII, and uses that. Without such a fact it tests the needle once
   and the subject as it scans, and falls back at the first byte outside ASCII.
-- [ ] `crates/nvs-stdlib/src/json.rs:141`: `isValid` runs the reader with nothing built. Measure it once
+- [x] `crates/nvs-stdlib/src/json.rs:141`: `isValid` runs the reader with nothing built. Measure it once
   against the figure in § *Why*. Under 2x it is reverted, and its number goes to the rule's Declined
   list.
-- [ ] The three tests the `members` check names, and `bun nv scaling --check strings/forms-`. Run once.
+- [x] The three tests the `members` check names, and `bun nv scaling --check strings/forms-`. Run once.
 
 ### 11. the goal is verified once, and every failure is fixed
 
@@ -789,23 +812,24 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Stages 1 to 9 are done. Stage 9 took one session. `nvs_types::signatures::mark_sole_bodies` fills
-`ClassSignature::sole_bodies`: each instantiable class resolves every method name its ancestors
-declare, and the owner of the body is merged into the class and each ancestor. The instance call
-arm (`crates/nvs-types/src/expr/calls.rs` `direct_body`) reads it for the receiver's static class
-and sets `ResolvedCall::direct`, and `reads_property` where the one body is `return $this->p;`
-(`ClassSignature::property_getters`, from `returned_property`). `lower_method_call` calls `direct`'s
-label, and lowers `reads_property` through `Lowering::lower_class_property_read`, the tail of
-`lower_property_access` moved into its own method. Build and clippy are green, and the three
-`named-calls` tests pass. The sweep's `env-secret-proofs` red is stale: no goal defines it.
+Stages 1 to 10 are done. Stage 10 took one session. `Core\Str::split` stops counting at a positive
+limit and owns its subject (`split_pieces`, then `apply` appends the remainder through `kept`). A
+search that ignores case takes `ascii_find` or `ascii_rfind` for an ASCII needle of up to 64 bytes.
+`Core\Json::isValid` runs `json::validate` and builds nothing, at 2.3x. Build and clippy are green,
+the three `members` tests pass, and `bun nv scaling --check strings/forms-` is flat. The stage 8
+rule fragment had not been rendered into `docs/rules/ide.md`, and now is. The sweep's
+`env-secret-proofs` red is stale: no goal defines it.
 
 ### Next
 
-Stage 10 (`crates/nvs-stdlib/src/str.rs` `split` with a limit and the case-folding search,
-`json.rs` `isValid`), then stage 11, which closes the goal. `looper check --name <id>` runs one goal
-check.
+Stage 11 closes the goal: a build and this goal's own checks, or `looper verify` if the pack names
+it the full gate. `looper check --name <id>` runs one goal check.
 
-Tests expected red: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints an
+Tests expected red: any test that pins `Core\Str::split`'s entry as borrowed (it is now in the
+owning table, so `tests/allocation_policy.rs` or an IR snapshot may show `nvs_core_str_split_owned`),
+any perf record for `Core\Str::split`, `indexOf`, `lastIndexOf`, `contains` or `Core\Json::isValid`
+(each is stale after this stage), and any case that expects `isValid` to stop the request on a list
+too large to decode. Also: an insta snapshot under `crates/nvs-ir/src/lower/snapshots/` that prints an
 instance call through a class whose method is overridden only in a sibling, an interface call with
 one implementor, or a call of a `return $this->p;` method: each is now a `Call` or a `FieldGet`.
 Any test that pins `CallVirtual` for those shapes. Also any test that pins
