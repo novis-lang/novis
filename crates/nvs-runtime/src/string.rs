@@ -490,6 +490,16 @@ impl<const N: usize> SharedString<N> {
             payload,
         }
     }
+
+    /// The pointer a handle on this string carries.
+    ///
+    /// It is taken from the whole string, not from `&self.header`. A pointer
+    /// taken from the header may read the header alone, and every payload read
+    /// goes past it to [`PAYLOAD_OFFSET`]. `#[repr(C)]` puts the header at
+    /// offset 0, so the cast keeps the address and widens what may be read.
+    fn header_ptr(&'static self) -> NonNull<StrHeader> {
+        NonNull::from(self).cast()
+    }
 }
 
 /// How many one-byte strings [`ASCII_IMMORTAL`] has: one for every ASCII byte.
@@ -998,7 +1008,7 @@ impl NvsStr {
     #[must_use]
     pub fn empty_immortal() -> Self {
         Self {
-            ptr: NonNull::from(&EMPTY_IMMORTAL.header),
+            ptr: EMPTY_IMMORTAL.header_ptr(),
         }
     }
 
@@ -1013,7 +1023,7 @@ impl NvsStr {
         let [byte] = bytes else { return None };
         let shared = ASCII_IMMORTAL.get(usize::from(*byte))?;
         Some(Self {
-            ptr: NonNull::from(&shared.header),
+            ptr: shared.header_ptr(),
         })
     }
 
