@@ -20,8 +20,9 @@
 //!   the same plain variable as the path. Each call asks the file system, and
 //!   `Core\IO::stat` asks once, so any two of the four pair.
 //!
-//! A session read is not a row. It is measured first under `nvs serve`, and
-//! it is built only where a second read costs 2x or more.
+//! A session read is not a row. Under `nvs serve` with a 16 KiB record, a
+//! second `Core\Session::get` of one key cost the request 1.0x, so the rule
+//! declines it.
 //!
 //! The match is conservative, and where it is unsure it says nothing. The
 //! first call runs whenever its statement does: it is not on the right of

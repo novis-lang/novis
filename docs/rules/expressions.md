@@ -262,10 +262,41 @@ callback's summary and takes one of the three outcomes:
 `FATAL` is not an error edge. For the comparator rows, `E` is the same expression over each parameter
 and reads no other parameter.
 
-**Two warnings, both raised by the compiler once.** A form the compiler could not choose is raised by
-the table's pass from its own decision, never from a second analysis, so the editor and `nvs check`
-cannot disagree. The same value read twice warns where two calls of one reading member in one
-function do the same work again: `Core\Session::get` of one key, `get` on a cache store of one key,
+The pass, `crates/nvs-ir/src/forms.rs` `run`, runs before `crates/nvs-ir/src/ownership.rs`. It
+follows every body the callback calls by name, and a body it cannot name is an effect. Printing, a
+`Core` member outside `Str`, `Math`, `Arr` and `Regex`, a member that draws a random value, and a
+helper call not on its quiet list are effects too, because a summary covers only properties. A
+safepoint's error edge is not one: the entry poll's stack check throws on the first call or on none,
+since the member calls the callback at one depth, and a time limit is not an outcome a program can
+count on. A `count` compared with `0` is lowered as `isEmpty` of the same filter, negated where it
+tests for some entry, so the three `any` shapes are one candidate. A proven candidate turns the
+filter's instruction into the fast member, where the callback is still alive, and the outer member's
+into a relabelling of it or its negation. A candidate that can fail is kept in `Program::forms`, with
+its fast form as the program would write it.
+
+A `Core` call in a callback is no error edge when its member is on that quiet list and its reference
+card lists no errors ([`core-api/reference-card`](core-api.md#core-api-reference-card)): every member has a card, and the card names
+every error the member throws. Its own edge is the memory ceiling and a stop, which no program
+observes.
+
+A comparator row takes a narrow `E`, read from the source text: `E($y)` is `E($x)` with the variable
+renamed, both parameters have the same written type, and there is no `by` option. `E` is a static or
+`Core` call whose arguments are variables or literals, or a conversion of a variable, and it gives
+`int`, `uint` or `string`. For those, `<=>` orders as the member's own comparison does and gives `0`
+exactly where the set members find two values the same. A `float` stays as written, because `NaN` and
+`-0.0` compare differently in the two. The lowering lowers `fn($x) => E($x)` as a function of its own
+class, with the comparator's captures as its fields. A proven candidate makes the comparator's object
+an object of that class and passes it as `by`, and the descending row turns the default `order` into
+`Desc`. So the call makes the same one object in both forms. **What it spends:** while compiling, one
+more function for each comparator row. At run time, nothing.
+
+**Two warnings, both raised by the compiler once.** A form the compiler could not choose is `W1034`,
+raised by `nvs_ir::forms::warnings` from the table's pass's own decision, never from a second
+analysis, so the editor and `nvs check` cannot disagree. Its span is the written form, its message
+names the member to use, and its one fix is the fast form's text as an `alternative`. The same
+value read twice is `W1035`, found on the written tree by `nvs_ir::rereads::find` and raised by its
+`warnings`, and a `Core` call between the two that takes a callable stops it as a Novis call does. The same value read twice warns where two calls of one reading member in one
+function do the same work again: `get` on a cache store of one key,
 two or more `queryParameter` calls on one `Core\Uri`, and two or more of `Core\IO::isFile`, `isDir`,
 `size` and `modifiedAt` on one path. It carries no fix, because the fix needs a variable name. The
 shape is exact: the same receiver variable and the same literal key or path variable, neither assigned
@@ -314,6 +345,9 @@ cache, session and file call; with it off, the flag test a query site already ma
   `Core\Str::isEmpty`, and `Core\Html::escape` inside a template hole as the plain hole.** Measured:
   1 ms against 1 ms for 500 calls on 42 KB, 1 ms against 1 ms for 20,000 strings, and 218 ms against
   151 ms for 1M holes (1.4x). None reaches 2x.
+- **A `W1035` row for `Core\Session::get`.** Measured under `nvs serve` with a 16 KiB record and a
+  Redis store: a request with two reads of one key took 946 µs against 945 µs with one (1.0x), and
+  the same as with none. Decoding the record is lost beside the request and the store's round trip.
 - **A warning for a caught conversion.** Every case it would name is one the compiler proves, so it
   is compiled silently.
 - **A warning for a by-value loop that writes the entry it is on.** It is a silent change of

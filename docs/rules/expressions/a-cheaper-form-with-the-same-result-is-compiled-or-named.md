@@ -99,7 +99,7 @@ analysis, so the editor and `nvs check` cannot disagree. Its span is the written
 names the member to use, and its one fix is the fast form's text as an `alternative`. The same
 value read twice is `W1035`, found on the written tree by `nvs_ir::rereads::find` and raised by its
 `warnings`, and a `Core` call between the two that takes a callable stops it as a Novis call does. The same value read twice warns where two calls of one reading member in one
-function do the same work again: `Core\Session::get` of one key, `get` on a cache store of one key,
+function do the same work again: `get` on a cache store of one key,
 two or more `queryParameter` calls on one `Core\Uri`, and two or more of `Core\IO::isFile`, `isDir`,
 `size` and `modifiedAt` on one path. It carries no fix, because the fix needs a variable name. The
 shape is exact: the same receiver variable and the same literal key or path variable, neither assigned
@@ -148,6 +148,9 @@ cache, session and file call; with it off, the flag test a query site already ma
   `Core\Str::isEmpty`, and `Core\Html::escape` inside a template hole as the plain hole.** Measured:
   1 ms against 1 ms for 500 calls on 42 KB, 1 ms against 1 ms for 20,000 strings, and 218 ms against
   151 ms for 1M holes (1.4x). None reaches 2x.
+- **A `W1035` row for `Core\Session::get`.** Measured under `nvs serve` with a 16 KiB record and a
+  Redis store: a request with two reads of one key took 946 µs against 945 µs with one (1.0x), and
+  the same as with none. Decoding the record is lost beside the request and the store's round trip.
 - **A warning for a caught conversion.** Every case it would name is one the compiler proves, so it
   is compiled silently.
 - **A warning for a by-value loop that writes the entry it is on.** It is a silent change of

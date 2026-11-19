@@ -107,12 +107,12 @@ checks:
       - a_second_read_of_the_same_value_warns_only_in_straight_code
   - id: warnings-editor
     stage: 5
-    name: "the editor warns at a first of a filter and offers find, and warns at a second read of one session value"
-    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/diagnostics/a-first-of-a-filter-warns-and-offers-find.lspt, --case, tests/lsp/diagnostics/a-second-read-of-one-session-value-warns.lspt]
+    name: "the editor warns at a first of a filter and offers find, and warns at a second read of one cache key"
+    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/diagnostics/a-first-of-a-filter-warns-and-offers-find.lspt, --case, tests/lsp/diagnostics/a-second-read-of-one-cache-key-warns.lspt]
     timeout: 1800
     tests:
       - tests/lsp/diagnostics/a-first-of-a-filter-warns-and-offers-find.lspt
-      - tests/lsp/diagnostics/a-second-read-of-one-session-value-warns.lspt
+      - tests/lsp/diagnostics/a-second-read-of-one-cache-key-warns.lspt
   - id: proven-callbacks
     stage: 6
     name: "a callback the checker proved runs without the check of each call, a callback over a mixed subject keeps it, and a debug build still checks and traps a mismatch"
@@ -311,8 +311,7 @@ free `W1xxx` number when it lands, with a card in end-user prose.
   declined (`rule:expressions/misread-grouping-warns`).
 - **The same value read twice.** Two calls of one reading member in one function, where the second
   one does the first one's work again. It carries no fix, because the fix needs a variable name. The
-  rows are `Core\Session::get` (`crates/nvs-stdlib/src/session.rs:1357`, which decodes the record on
-  every call), `get` on a cache store (which copies the whole value on every call,
+  rows are `get` on a cache store (which copies the whole value on every call,
   `rule:concurrency/a-cached-value-is-copied-across-the-boundary`), two or more
   `queryParameter` calls on one `Core\Uri` (`crates/nvs-stdlib/src/uri.rs:2844`, which parses the whole
   query on every call, where `Core\Uri::parseQuery` parses once), and two or more of `Core\IO::isFile`,
@@ -321,8 +320,9 @@ free `W1xxx` number when it lands, with a card in end-user prose.
   neither assigned between the two calls, the second call reached only through the first, and between
   them no call to a Novis function, no callable call and no member of the same class that writes. The
   cache, `queryParameter` and file rows are measured in § *Why*: each read costs enough that the
-  second one doubles it or worse. The session row cannot be measured outside a request, so stage 5
-  measures it and builds it only at 2x or more, as § *Limits* says.
+  second one doubles it or worse. The session row was measured in stage 5 under `nvs serve` with a
+  16 KiB record: two `Core\Session::get` calls of one key cost the request 1.0x of one, so it is in the
+  rule's Declined list and is not built.
 
 **Three members read only what their result needs (my call).** These are fixes inside the member,
 with no row in the table, because nothing about the call changes:
@@ -609,7 +609,7 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
   - [x] `nvs_ir::forms::warnings` over `Program::forms`, with the alternative fix.
   - [x] `nvs check` (`crates/nvs-cli/src/main.rs`) and `copy_warnings` in `crates/nvs-lsp/src/document.rs`.
   - [x] `a_form_warning_carries_its_fast_form_as_an_alternative`, run once, green.
-- [ ] The repeated-read warning, for the cache, `queryParameter` and file rows, matched in the
+- [x] The repeated-read warning, for the cache, `queryParameter` and file rows, matched in the
   lowering under the exact shape in § *Standing decisions*. One code and one card. The session row is
   measured first, once, under `nvs serve` with a 16 KiB session record: two `Core\Session::get` calls
   against one. Under 2x it is not built, and its number goes to the rule's Declined list.
@@ -617,10 +617,12 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
   - [x] `crates/nvs-ir/src/rereads.rs`: the three rows, `find` in `lower_program_as`, `warnings`, wired
     into `nvs check` and the editor.
   - [x] `a_second_read_of_the_same_value_warns_only_in_straight_code`, run once, green.
-  - [ ] The session row measured under `nvs serve` with a 16 KiB record, and built or declined.
+  - [x] The session row measured under `nvs serve` with a 16 KiB record, and built or declined:
+    946 µs against 945 µs, 1.0x, declined.
 - [ ] Every file the `reader` subagent lists is rewritten to the fast form, or keeps its form where
   the example is about that form. Its `.out` file does not change.
-- [ ] The two tests the `warnings` check names and the two `.lspt` cases. Run once.
+- [ ] The two tests the `warnings` check names and the two `.lspt` cases (a first of a filter, and a
+  second read of one cache key). Run once.
 
 ### 6. a callback the checker proved is called without the check of each call
 
