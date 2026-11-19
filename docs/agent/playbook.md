@@ -335,7 +335,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
 - **A "comments only" change still makes a feature's perf figure stale when it touches a string.**
   The figure's hash drops comments but keeps every string literal of the implementing file, and a
   reference chapter is hashed whole. A sweep that rewrites a message or a panic text there turns
-  the proofs gate and the page stamp red at the goal end's push. In the same commit, run
+  the proofs gate and the page stamp red at the full gate's push. In the same commit, run
   `bun nv proofs --record-perf --group <class>` for each class the gate names, and
   `bun nv site --stamp <page>` once the page still agrees (`tools/nv/proofs/collect.ts`).
   `until: gone tools/nv/proofs/collect.ts:without comments, layout, test code`

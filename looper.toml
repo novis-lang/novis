@@ -23,6 +23,11 @@ traps = 8                 # the most playbook bullets the pack prints, nearest t
 [loop]
 min_free_gb = 10          # `nv disk`'s MIN_FREE_GB
 sweep = "done"           # a goal is verified once, at its end, so its checks run only on a DONE claim
+# The full gate (verify over every goal since the last one, the floor, `after_gate`) runs at the chain's
+# last goal or at every fifth goal. Every other goal closes on a build, its own tests and its own checks.
+# A red one goal caused is found up to four goals later, and one CI run covers up to five goals.
+gate = "chain"
+gate_every = 5
 
 [verify]
 run = [["bun", "nv", "verify"]]
@@ -92,20 +97,21 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # `tools/nv/lib/site-roadmap.ts`: once a goal is retired, it drops the goal from the public roadmap and
 # commits that, because the retirement commits only the goals directory. A failure pauses the loop,
 # because the roadmap check stays red until it is fixed.
-# `tools/nv/cmd/relink.ts`: then it rebuilds `target/release/nvs`, the binary the user's editor and
-# terminal run, so every goal end leaves it current. It is attached, so the next session's timing checks
-# never share the machine with a release build. A failed build only warns. The timeout covers a cold
-# release build with thin LTO.
-# `tools/nv/cmd/vsix.ts`: last, it rebuilds `editors/vscode/nvs.vsix`, the file the user installs the
+after_retire = [{ run = ["bun", "nv", "site", "--roadmap", "--retired"], timeout = 120, on_fail = "pause" }]
+# The three below run once per full gate, after `after_retire`.
+# `tools/nv/cmd/relink.ts`: it rebuilds `target/release/nvs`, the binary the user's editor and terminal
+# run, so every full gate leaves it current; `bun nv relink --build` rebuilds it by hand in between. It
+# is attached, so the next session's timing checks never share the machine with a release build. A
+# failed build only warns. The timeout covers a cold release build with thin LTO.
+# `tools/nv/cmd/vsix.ts`: then it rebuilds `editors/vscode/nvs.vsix`, the file the user installs the
 # extension from, when the extension's tree changed since the last build, and builds nothing otherwise.
 # A failed build only warns. The timeout covers an `npm ci` into an empty `node_modules/` and a package.
 # `tools/nv/cmd/ci.ts`: last, it merges in the commits only `origin` has, runs the pre-push checks and
 # pushes `main`, and the push starts the CI runs `bun nv ci --watch` reports on. A refused or failed
-# push pauses the loop, because nothing after it pushes `main`: every later goal end would fail the
+# push pauses the loop, because nothing after it pushes `main`: every later full gate would fail the
 # same way while the commits pile up unpushed. It writes why to `.agent-tmp/ci/refused-push.txt`. It
 # runs last so a pause skips no other hook. The timeout covers a cold `cargo build`, the checks, a fetch and a push.
-after_retire = [
-  { run = ["bun", "nv", "site", "--roadmap", "--retired"], timeout = 120, on_fail = "pause" },
+after_gate = [
   { run = ["bun", "nv", "relink", "--build", "--hook"], timeout = 3600, on_fail = "warn" },
   { run = ["bun", "nv", "vsix", "--hook"], timeout = 1200, on_fail = "warn" },
   { run = ["bun", "nv", "ci", "--push"], timeout = 2400, on_fail = "pause" },

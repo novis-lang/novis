@@ -3,7 +3,7 @@ looper: 1
 chain: [cheaper-forms, reflect-parent, session-per-key, session-lifetimes, website-follows-changes, object-collections-fast, keyed-iteration, revocable-objects, aimed-mutation, attribute-property-names]
 floor:
   - id: ci-check
-    name: "every check the goal end's push runs is green"
+    name: "every check the full gate's push runs is green"
     run: [bun, nv, ci, --check]
     timeout: 1800
     reach: true

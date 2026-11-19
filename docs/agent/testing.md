@@ -2,7 +2,9 @@
 
 A test proves a behaviour, and a run proves only what a change can affect.
 
-- **A goal is verified once, in its last stage, through `bun nv affected --run`.** Never run a wider
+- **A goal is verified once, in its last stage, through `bun nv affected --run`.** Only the goal that
+  takes the full gate runs it, over every goal since the last one, and every other goal's last stage
+  closes on a build and its own tests (AGENTS.md § *The rules only this project has*). Never run a wider
   command. Verify runs each step and each test only when a change reaches what it reads. A loop session
   runs `looper verify`, which runs `bun nv verify`. Every other stage checks with a build, and runs only
   a test it wrote, once and by name, or a run one of its items names (AGENTS.md § *The rules only this
@@ -46,7 +48,7 @@ rule below is a failure CI found that the dev machine could not.
   fraction of the old count: `LIMIT + 1`, one chunk plus a byte, a small configured limit. One size
   serves Miri and native runs unless the native run needs more. `rule:testing/a-test-is-sized-to-the-boundary-it-checks`
   says how each kind of boundary is crossed, and why a size short of it is worse than one past it.
-- **Before a goal is claimed done, `bun nv ci --check` is green.** It is the checks the goal end's push
+- **Before a full gate is claimed done, `bun nv ci --check` is green.** It is the checks the full gate's push
   runs: rustfmt, the lint tables, the rules, the rendered files and the website, the license file,
   the advisories, the rustdoc links, and the feature proofs on a binary built from the tree. They take
   about two minutes,

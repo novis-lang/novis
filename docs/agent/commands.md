@@ -313,9 +313,12 @@ and its hooks are not tool calls, so the guard never sees them. To look into one
 Verification is most of a session's tool-execution time, and a change to code every test passes through
 selects nearly the whole tree. So a stage that is not the gate stage runs no verify: its checks are
 `cargo build` and `cargo clippy --all-targets -- -D warnings`, a test it wrote, once and by name, and a
-run one of its items names as its requirement. The gate stage, the goal's last, runs the full gate.
-Every failure it names is fixed in one pass, and `--fast -p <crate>` reruns just the crate being fixed
-before the full run goes again.
+run one of its items names as its requirement. The gate stage, the goal's last, runs the full gate
+only in the goal that takes it, and the pack says which one that is (AGENTS.md § *The rules only this
+project has*). That run covers every goal since the last full gate, because the selection runs what
+changed since the store's last green tree. Every failure it names is fixed in one pass, and
+`--fast -p <crate>` reruns just the crate being fixed before the full run goes again. Any other goal's
+gate stage closes it with the checks of a stage that is not the gate stage.
 
 **And the gate stage's last run need not be spent in series.** Start it with `run_in_background`, write the wrap
 file — which is prose you already know and cannot fail — and end your turn. The verify's report starts
@@ -345,8 +348,8 @@ output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
 
-**`cargo doc` is not one of those steps.** It is `--doc`, run alone, when a goal ends. A goal in progress
-may carry broken doc links; the session that writes `DONE` runs `--doc` first and fixes them
+**`cargo doc` is not one of those steps.** It is `--doc`, run alone, at a full gate. A goal in progress
+may carry broken doc links; the session that writes a full gate's `DONE` runs `--doc` first and fixes them
 (AGENTS.md § *In the loop*).
 
 `fmt` is first, and it **formats rather than checks**: a `--check` that fails is always fixed with
@@ -425,7 +428,7 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 the test binaries a change reaches and every `.nvst` case, and looper's sweep after each session runs
 the live goal's acceptance checks, each as often as its `every` says. Nothing is dropped: an atom the
 change reached that a run did not start is `owed` in the store, and stays selected until a run of it is
-green. What no check covers is floor debt, and `bun nv debt` pays all of it once per goal, as the floor
+green. What no check covers is floor debt, and `bun nv debt` pays all of it once per full gate, as the floor
 check `floor-debt` that looper judges last (`tools/nv/cmd/debt.ts`): every owed atom but the benches,
 and every red proof program and leg, oldest first. The benches wait for a release, where `bun nv benches --owed` pays them, because the
 release gate's `proofs` job is red on a stale perf record. Between two sessions only `bun nv sweep` runs, looper's `after_session` hook
@@ -440,8 +443,8 @@ symptom is not a fix.
 **Every sweep names every red check, not the first.** `bun nv affected --run` runs past a red check,
 so one red check never keeps the others from being judged, and its `NOT GREEN:` line is followed by one
 `also red:` line per other red check. A build that fails still stops it, since nothing behind a build
-can run. The goal-end gates, `nv verify --doc` and `bun nv owners --closes`, are the session's to run
-before it reports DONE (AGENTS.md § *In the loop*).
+can run. The goal-end gates, `bun nv owners --closes` and at a full gate `nv verify --doc`, are the
+session's to run before it reports DONE (AGENTS.md § *In the loop*).
 
 
 **What a check is made of is decided by what the check is, and every doubt widens.**
@@ -629,8 +632,8 @@ blocks back in the order you asked for them.
 ```sh
 bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
-bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
-bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
+bun nv ci --push                                      # looper's after_gate: pre-push checks, pushes main, cancels the runs it replaces
+bun nv ci --check                                     # the pre-push checks alone, before a full gate is claimed done
 bun nv ci --watch | --status | --rerun                # waits for a failed job, lists them, reruns them
 bun nv ci --green                                     # 0 when origin/main has the built commit and its CI and Website push runs ended green, 1 when not, 2 when gh or git fails
 bun nv ci --dispatch full|dry-run                     # starts a full ci.yml run, or a dry-run Release, on main
@@ -657,7 +660,7 @@ what was red into `.loop/last-sweep.md`, below the lines looper's own sweep wrot
 `--stage` win over `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next
 stage. looper runs four on its own: `looper.toml` wires `bun nv side --prepare --hook` as
 `[hooks] before_run`, `bun nv sweep` as `[hooks] after_session` and `bun nv ci --push` as `[hooks]
-after_retire`, whose comments there say why each
+after_gate`, whose comments there say why each
 timeout and `on_fail` are what they are, and `docs/goals/README.md`'s floor runs the commands its checks
 name, `bun nv ci --check` as `ci-check` and `bun nv debt` as `floor-debt` among them. A person runs the rest. Each command's `--help` and module doc own its flags.
 
@@ -667,8 +670,8 @@ looper makes its lane, the worktree `.agent-tmp/worktrees/lane-<n>` on branch `s
 keeps that worktree. Once its goal is reached and its file deleted, the loop lands its branch: it
 merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. It never pushes.
 
-**`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs
-`bun nv relink --build --hook` at every goal end, which rebuilds `target/release/nvs` in the root and
+**`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_gate` hook runs
+`bun nv relink --build --hook` at every full gate, which rebuilds `target/release/nvs` in the root and
 builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Then comes `bun nv vsix --hook`, which
 rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
 side-lane rule (`tools/nv/cmd/vsix.ts`). Last comes `bun nv ci --push`. It first merges in the commits

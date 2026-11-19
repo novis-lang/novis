@@ -70,13 +70,18 @@ Each is here because not knowing it exists is the entire cost. The file named af
   runs one command, and its exit status is the last one's*).
 - **A goal is verified once, in its last stage.** Every other stage checks with `cargo build` and
   `cargo clippy --all-targets -- -D warnings` alone. A test you wrote may run once, by name, and a run
-  a stage's item names as its requirement runs too; nothing else does. The gate stage runs the full
-  gate, and every failure it names is fixed in one pass before it runs again.
-  `bun nv verify --fast -p <crate>` is for that fix pass, to rerun one crate's tests
+  a stage's item names as its requirement runs too; nothing else does.
+  `bun nv verify --fast -p <crate>` is for the fix pass, to rerun one crate's tests
   ([commands.md](docs/agent/commands.md) § *Verifying*).
-- **The goal's gate is `bun nv affected --run`.** It runs `bun nv verify` over what the change
-  reaches, then the acceptance checks it reaches that are not green yet. In the loop, `looper verify`
-  runs `bun nv verify` and joins a run already going ([commands.md](docs/agent/commands.md)
+- **The full gate runs once per chain, not once per goal.** `looper.toml` sets `[loop] gate =
+  "chain"`: the chain's last goal and every fifth goal take it, and the pack names which one you are
+  in. That goal's gate stage runs the full gate over every goal since the last one, and every failure it
+  names is fixed in one pass before it runs again. Every other goal's gate stage only closes it, with
+  the build, clippy and the tests it wrote, by name. Its `DONE` runs its own checks, and it joins the
+  chain's `ungated:` list.
+- **The full gate is `bun nv affected --run`.** It runs `bun nv verify` over what changed since the
+  last green run, then the acceptance checks it reaches that are not green yet. In the loop, `looper
+  verify` runs `bun nv verify` and joins a run already going ([commands.md](docs/agent/commands.md)
   § *Verifying*).
 - **The guards refuse a shell habit a tool covers, and each refusal names the call to make instead.**
   A `>` redirect into the tree, a whole read of a big file, `cargo test -p`, `sleep` and a run wider
@@ -248,26 +253,28 @@ What a loop session owes on top of the block's § *Session workflow*:
   never a write, a file you are about to edit, a design question, whether a check passed, or the wrap.
   Its prompt is the question, the place to look and the answer's shape (`file.rs:NN` and one line each,
   no excerpts), never the project, because it reads its own copy of this file.
-- **In the gate stage, start `looper verify` with `run_in_background` before you write the handoff,
+- **In a full gate's stage, start `looper verify` with `run_in_background` before you write the handoff,
   then end your turn to wait.** Its report starts your next turn, and nothing polls. It joins the tree's verify run if
   another session started one, so never wait for or kill another session's verify.
 - **A design call never stops the loop, however large.** The user takes the session's recommendation,
   so the session picks the option the priority ordering favours and builds on it, as the block's step
   6 says. A change to the `Core` API, a new checker mechanism, a scheduler run-order change and a fix
   that breaks callers are all design calls.
-- **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
-  fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner,
-  then `bun nv ci --check`, each red fixed. It runs in about two minutes the checks the goal end's push
-  runs, which are half of what CI finds: rustfmt, the proofs gate and the website on a binary built from
-  the tree, the license file and the rest. It is also the floor check `ci-check`, so a goal is not
-  reached while one of them is red, and a session that skips it leaves the red to the next session.
-  A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
-  module doc, and turn each check that proves more than a suite does into a test.
-- **Every goal end rebuilds the local release binary, `target/release/nvs`.** looper's `after_retire`
-  hook runs `bun nv relink --build --hook` once the goal is retired. A goal ended outside the loop runs
+- **Before `DONE`, the goal-end gates.** Every goal runs `bun nv owners --closes <slug>` and closes
+  every gap it names or gives it another owner. A reached goal's file is deleted, so first move each
+  decision only its prose holds to a rule or a module doc, and turn each check that proves more than a
+  suite does into a test.
+- **Before a full gate's `DONE`, two more.** `bun nv verify --doc` and every broken doc link it names
+  fixed, then `bun nv ci --check`, each red fixed. It runs in about two minutes the checks the full
+  gate's push runs, which are half of what CI finds: rustfmt, the proofs gate and the website on a
+  binary built from the tree, the license file and the rest. It is also the floor check `ci-check`, so
+  a full gate is not passed while one of them is red.
+- **Every full gate rebuilds the local release binary, `target/release/nvs`.** looper's `after_gate`
+  hook runs `bun nv relink --build --hook` once the goal is retired. Between two full gates it is
+  stale, and `bun nv relink --build` rebuilds it by hand. A goal ended outside the loop runs
   `bun nv relink --build` once its file is deleted.
-- **Every goal end that changed the VS Code extension rebuilds its `.vsix`, `editors/vscode/nvs.vsix`.**
-  looper's `after_retire` hook runs `bun nv vsix --hook` last, and it builds only when
+- **Every full gate that changed the VS Code extension rebuilds its `.vsix`, `editors/vscode/nvs.vsix`.**
+  looper's `after_gate` hook runs `bun nv vsix --hook` after the relink, and it builds only when
   `editors/vscode/` changed since the last build. A goal ended outside the loop runs `bun nv vsix`.
 - **A repair fixes the cause, not the symptom.** The loop's tooling under `tools/` is in scope, and so
   is a check that is itself wrong; renaming a test, removing a check or loosening a bound until it

@@ -2,23 +2,23 @@
 // extension changed since the last one was built.
 //
 //     bun nv vsix           build it when the extension's tree differs from the one it was last built from
-//     bun nv vsix --hook    the same, as looper's `after_retire` hook
+//     bun nv vsix --hook    the same, as looper's `after_gate` hook
 //
-// **Every goal end that changed the extension rebuilds the `.vsix`.** The user installs the extension
+// **Every full gate that changed the extension rebuilds the `.vsix`.** The user installs the extension
 // from that file, and nothing else keeps it current: verify compiles the extension into `out/` and never
-// packages it, and CI's copy is an artifact of a run. So looper's `after_retire` hook runs `--hook` after
+// packages it, and CI's copy is an artifact of a run. So looper's `after_gate` hook runs `--hook` after
 // `bun nv relink --build --hook` and before `bun nv ci --push`, and a goal ended outside the loop runs `bun nv vsix` once its file is
 // deleted.
 //
 // "Changed" is the git tree `HEAD` holds at `editors/vscode`, compared with the tree the last build
 // recorded in `target/nvs.vsix.tree`. So a change made in a side loop's lane reaches the root's `.vsix`
-// at the first goal end after it lands, and a goal that did not touch the extension builds nothing.
+// at the first full gate after it lands, and a gate that did not touch the extension builds nothing.
 // Uncommitted extension changes never make a build due, since they are another session's work in
-// progress; a build that runs while they exist records no tree, so the next goal end builds again from
+// progress; a build that runs while they exist records no tree, so the next full gate builds again from
 // what was committed. The stamp is under `target/`, which the `.vsix` never packs and `bun nv disk`
 // may delete; a missing stamp costs one build. In a side loop's lane (`LOOPER_LOOP_KIND` is `side`) the
 // hook builds nothing, for the reason `tools/nv/cmd/relink.ts` gives. What it spends: an `npm ci` when
-// `node_modules/` is missing and one bundle and package, under a minute, at a goal end that changed the
+// `node_modules/` is missing and one bundle and package, under a minute, at a full gate that changed the
 // extension, and no memory a request holds.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -60,7 +60,7 @@ export async function run(args: string[], env: Record<string, string | undefined
     return 2;
   }
   if (args.includes("--hook") && env.LOOPER_LOOP_KIND === "side") {
-    console.log("nv vsix: a side loop's lane builds no .vsix; the root's is rebuilt at the next goal end after this goal lands");
+    console.log("nv vsix: a side loop's lane builds no .vsix; the root's is rebuilt at the next full gate after this goal lands");
     return 0;
   }
   if (!existsSync(join(EXTENSION, "package.json"))) {

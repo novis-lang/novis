@@ -646,8 +646,10 @@ work out again. How a goal is written in full is [loop-authoring.md](loop-author
   That covers a new dependency, a port, a command's shape and where a test's fixtures come from. A goal
   never says "goes to the user": the session decides by the priority ordering and records why.
 - **A goal is verified once, at its end.** Its last stage is the gate stage (`gate: true`), which
-  `looper goal new` writes: it runs `bun nv affected --run` over the whole goal, fixes every failure in
-  one pass, and runs it once more. Every other stage checks with a build. An item asks for a test or
+  `looper goal new` writes. In the goal that takes the full gate, it runs `bun nv affected --run` over
+  every goal since the last full gate, fixes every failure in one pass, and runs it once more. In every
+  other goal it only closes the goal with a build and its own tests. The pack says which one a goal is,
+  so a gate stage's items never name a verify run. Every other stage checks with a build. An item asks for a test or
   verify run of its own only where the stage cannot be finished without seeing it pass, and then the
   item names the exact command. A slice whose change breaks an existing test updates it as it goes.
 

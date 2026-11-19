@@ -1,5 +1,5 @@
 // `bun nv ci`: pushes `main` and watches GitHub's CI on it, for the session that drives CI and
-// looper's `after_retire` hook.
+// looper's `after_gate` hook.
 //
 //     bun nv ci --push                  # run the pre-push checks, then push main, which starts its CI
 //                                       # and Website runs

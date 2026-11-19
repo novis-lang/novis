@@ -5,15 +5,16 @@
 //     bun nv relink                 delete every moved-aside copy nobody runs any longer
 //     bun nv relink --free          move the release binary aside first, so the next build can link
 //     bun nv relink --build         build the release binary, moving a held one aside
-//     bun nv relink --build --hook  the same, as looper's `after_retire` hook
+//     bun nv relink --build --hook  the same, as looper's `after_gate` hook
 //
-// **Every goal end rebuilds the release binary.** The user's editor and terminal run
+// **Every full gate rebuilds the release binary.** The user's editor and terminal run
 // `target/release/nvs`, and nothing else keeps it current: a debug build never touches it, and the
-// acceptance sweep builds it only for a check that measures it. So looper's `after_retire` hook runs
-// `--build --hook` once the retirement commit has landed. In a side loop's lane (`LOOPER_LOOP_KIND` is
-// `side`) the hook builds nothing, since the lane's `target/` is not the one anybody runs; its goal
-// reaches the root's binary at the next goal end after it lands. What it spends: one release build per
-// goal, minutes of the loop's time between two goals, and no memory a request holds.
+// acceptance sweep builds it only for a check that measures it. So looper's `after_gate` hook runs
+// `--build --hook` once the retirement commit of a goal that took the full gate has landed. Between two
+// full gates the binary is stale, and `--build` rebuilds it by hand. In a side loop's lane
+// (`LOOPER_LOOP_KIND` is `side`) the hook builds nothing, since the lane's `target/` is not the one
+// anybody runs; its goal reaches the root's binary at the next full gate after it lands. What it spends:
+// one release build per full gate, minutes of the loop's time, and no memory a request holds.
 
 import { existsSync } from "node:fs";
 import { free, linked, RELEASE_ARGV, releaseCli, sweep } from "../lib/relink.ts";
@@ -61,7 +62,7 @@ export async function run(args: string[], env: Record<string, string | undefined
 /** Builds `exe` through `linked`. `kind` is the loop's `LOOPER_LOOP_KIND` under `--hook`, and `null` by hand. */
 async function build(exe: string, kind: string | null): Promise<number> {
   if (kind === "side") {
-    console.log("nv relink: a side loop's lane builds no release binary; the root's is rebuilt at the next goal end after this goal lands");
+    console.log("nv relink: a side loop's lane builds no release binary; the root's is rebuilt at the next full gate after this goal lands");
     return 0;
   }
   const command = RELEASE_ARGV.join(" ");
