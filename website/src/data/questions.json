@@ -15164,39 +15164,6 @@
       "How do I handle time in a web request?"
     ]
   },
-  "/reference/core/time/at/": {
-    "feature": "Core\\Time::at",
-    "hash": "a13040cb7a1d5ed6",
-    "questions": [
-      "How do I create a date and time from year, month and day?",
-      "Build a specific date and time in a time zone",
-      "Make a moment at 9:00 on a given day in Berlin",
-      "What happens when I create 30 February?",
-      "Set up a meeting time from separate number fields"
-    ]
-  },
-  "/reference/core/time/fromepoch/": {
-    "feature": "Core\\Time::fromEpoch",
-    "hash": "d6de026534c620ed",
-    "questions": [
-      "How do I convert a Unix timestamp to a time?",
-      "Turn seconds since 1970 into a moment",
-      "Read a timestamp stored as a number in a database",
-      "Use a negative timestamp for a time before 1970",
-      "Check whether a token with an expiry timestamp has expired"
-    ]
-  },
-  "/reference/core/time/fromiso/": {
-    "feature": "Core\\Time::fromIso",
-    "hash": "55d6795a1b3700d7",
-    "questions": [
-      "How do I read an ISO 8601 timestamp?",
-      "Convert text like 2024-03-01T12:00:00Z into a time",
-      "Read a time with a UTC offset from a JSON API",
-      "Parse an RFC 3339 date string",
-      "Why does a timestamp without an offset throw an error?"
-    ]
-  },
   "/reference/core/time/monotonic/": {
     "feature": "Core\\Time::monotonic",
     "hash": "7518792349eaebd3",
@@ -15217,17 +15184,6 @@
       "Read the system clock",
       "Check whether a login session is older than 30 minutes",
       "Use a fixed current time in a test"
-    ]
-  },
-  "/reference/core/time/parse/": {
-    "feature": "Core\\Time::parse",
-    "hash": "a22d089729a5cbf4",
-    "questions": [
-      "How do I read a date from text in a custom format?",
-      "Convert a string like 31.12.2024 into a date and time",
-      "Read a date written in European order",
-      "Parse a time from a log file and convert it to UTC",
-      "What happens when the text does not match the date format?"
     ]
   },
   "/reference/core/time/sleep/": {
@@ -15261,16 +15217,6 @@
       "Validate that a day exists in that month",
       "Make a date for a birthday or a holiday",
       "What happens when a date like 31 April is invalid?"
-    ]
-  },
-  "/reference/core/time-date/atstartofday/": {
-    "feature": "Core\\Time\\Date::atStartOfDay",
-    "hash": "498627741c0eff20",
-    "questions": [
-      "How do I get midnight of a date in a time zone?",
-      "Turn a date into a date and time at the start of the day",
-      "What if midnight does not exist because of summer time?",
-      "Start of a calendar day in a given city"
     ]
   },
   "/reference/core/time-date/compareto/": {
@@ -15313,6 +15259,17 @@
       "Display a date with the month name and the weekday",
       "Convert a date to a string in a custom layout",
       "Why does an hour in a date pattern throw an error?"
+    ]
+  },
+  "/reference/core/time-date/fromiso/": {
+    "feature": "Core\\Time\\Date::fromIso",
+    "hash": "ddf50f81c2ed56d2",
+    "questions": [
+      "How do I create a date from text like 2024-03-01?",
+      "Read a date from a form field or a URL",
+      "Check whether a date written as text exists",
+      "What happens when the text is 2024-02-30?",
+      "Read a birthday stored as YYYY-MM-DD"
     ]
   },
   "/reference/core/time-date/isleapyear/": {
@@ -15399,6 +15356,17 @@
       "Convert a moment into a local date and time"
     ]
   },
+  "/reference/core/time-datetime/at/": {
+    "feature": "Core\\Time\\DateTime::at",
+    "hash": "e0b6e9c0aa7609f8",
+    "questions": [
+      "How do I create a date and time from a date, a time of day and a zone?",
+      "Build a specific date and time in a time zone",
+      "Combine a date and a time from separate form fields",
+      "What happens when the time does not exist because of summer time?",
+      "Get midnight of a date in a time zone"
+    ]
+  },
   "/reference/core/time-datetime/date/": {
     "feature": "Core\\Time\\DateTime::date",
     "hash": "c701bfd9c2b8db52",
@@ -15462,6 +15430,17 @@
       "Show the weekday and month name with the time",
       "Display the time zone name or UTC offset in a date string",
       "Convert a date and time to a string for a page"
+    ]
+  },
+  "/reference/core/time-datetime/fromiso/": {
+    "feature": "Core\\Time\\DateTime::fromIso",
+    "hash": "79d07d18367ccbd7",
+    "questions": [
+      "How do I create a date and time from text in a time zone?",
+      "Turn 2024-03-01 09:30 into a date and time in Berlin",
+      "Get the start of a day from a date written as text",
+      "Why does a text with Z or +01:00 throw an error?",
+      "Read a local meeting time from a calendar form"
     ]
   },
   "/reference/core/time-datetime/hour/": {
@@ -15535,6 +15514,17 @@
       "Schedule a weekly report for next Monday at 06:00",
       "Move forward to the next given day of the week",
       "What if today is already the weekday I want?"
+    ]
+  },
+  "/reference/core/time-datetime/parse/": {
+    "feature": "Core\\Time\\DateTime::parse",
+    "hash": "32cfe54895c802c0",
+    "questions": [
+      "How do I read a date from text in a custom format?",
+      "Convert a string like 31.12.2024 into a date and time",
+      "Read a date written in European order",
+      "Parse a time from a log file and convert it to UTC",
+      "What happens when the text does not match the date format?"
     ]
   },
   "/reference/core/time-datetime/plus/": {
@@ -15880,6 +15870,28 @@
       "Check if a moment is before or after another one"
     ]
   },
+  "/reference/core/time-instant/fromepoch/": {
+    "feature": "Core\\Time\\Instant::fromEpoch",
+    "hash": "db02826d963f42fa",
+    "questions": [
+      "How do I convert a Unix timestamp to a time?",
+      "Turn seconds since 1970 into a moment",
+      "Read a timestamp stored as a number in a database",
+      "Use a negative timestamp for a time before 1970",
+      "Check whether a token with an expiry timestamp has expired"
+    ]
+  },
+  "/reference/core/time-instant/fromiso/": {
+    "feature": "Core\\Time\\Instant::fromIso",
+    "hash": "3770c7d61a9d84df",
+    "questions": [
+      "How do I read an ISO 8601 timestamp?",
+      "Convert text like 2024-03-01T12:00:00Z into a time",
+      "Read a time with a UTC offset from a JSON API",
+      "Parse an RFC 3339 date string",
+      "Why does a timestamp without an offset throw an error?"
+    ]
+  },
   "/reference/core/time-instant/in/": {
     "feature": "Core\\Time\\Instant::in",
     "hash": "99fb22f35fc2ecac",
@@ -15998,6 +16010,16 @@
       "Show a time of day as HH:mm",
       "Print a time with AM or PM",
       "Display a time of day in 12-hour format"
+    ]
+  },
+  "/reference/core/time-timeofday/fromiso/": {
+    "feature": "Core\\Time\\TimeOfDay::fromIso",
+    "hash": "494461522c8b20fc",
+    "questions": [
+      "How do I create a time of day from text like 09:30?",
+      "Read opening hours from a settings file",
+      "Read a time with seconds and a fraction of a second",
+      "What happens when the text is 24:00 or 25:00?"
     ]
   },
   "/reference/core/time-timeofday/hour/": {

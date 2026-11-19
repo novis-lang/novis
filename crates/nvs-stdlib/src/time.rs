@@ -7027,6 +7027,8 @@ mod tests {
 
     /// Each class reads its one form and nothing else, and every refusal says
     /// which part is wrong. The checker reads a literal with the same function.
+    // covers: Core\Time\Date::fromIso
+    // covers: Core\Time\TimeOfDay::fromIso
     #[test]
     fn validate_iso_reads_one_extended_form_per_class() {
         for (form, text) in [

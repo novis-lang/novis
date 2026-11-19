@@ -48931,7 +48931,7 @@
     {
       "id": "Time",
       "name": "Core\\Time",
-      "summary": "Reads the clock and builds dates and times. `now` returns the current `Instant`. `at` builds a `DateTime` from a year, a month, a day and a zone, and `fromIso` reads a timestamp such as `2024-03-01T12:00:00Z`. `sleep` waits for a `Duration`.",
+      "summary": "Reads the clock and waits. `now` returns the current `Instant`, `monotonic` measures how long something takes, and `sleep` waits for a `Duration`. Each value class builds its own values, such as `Date::fromIso('2024-03-01')`.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -49005,282 +49005,20 @@
           "slug": "sleep",
           "url": "/reference/core/time/sleep/",
           "examples": "core/Time/sleep"
-        },
-        {
-          "id": "Time.fromEpoch",
-          "name": "fromEpoch",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "fromEpoch(int $seconds, { nanos?: uint }): Core\\Time\\Instant",
-          "params": [
-            {
-              "kind": "param",
-              "name": "seconds",
-              "type": "int",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "nanos",
-              "type": "uint"
-            }
-          ],
-          "returnType": "Core\\Time\\Instant",
-          "doc": {
-            "shortHtml": "Builds the instant at a Unix timestamp. The <code>nanos</code> option is added after the second, so <code>-1</code> with <code>{ nanos: 1 }</code> is one nanosecond after <code>-1</code>.",
-            "params": [
-              {
-                "name": "seconds",
-                "descHtml": "Whole seconds since <code>1970-01-01T00:00:00Z</code>; negative before it."
-              },
-              {
-                "name": "nanos",
-                "descHtml": "Nanoseconds to add on top of the second, below <code>1000000000</code>; the default is <code>0</code>."
-              }
-            ],
-            "returnHtml": "The <code>Instant</code>.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "<code>nanos</code> is not below <code>1000000000</code>, or <code>$seconds</code> is outside <code>-377705023201..=253402207200</code>. That is the time from <code>-9999-01-02T01:59:59Z</code> to <code>9999-12-30T22:00:00Z</code>."
-              }
-            ]
-          },
-          "slug": "fromepoch",
-          "url": "/reference/core/time/fromepoch/",
-          "examples": "core/Time/fromEpoch"
-        },
-        {
-          "id": "Time.fromIso",
-          "name": "fromIso",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "fromIso(string $text): Core\\Time\\Instant",
-          "params": [
-            {
-              "kind": "param",
-              "name": "text",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Core\\Time\\Instant",
-          "doc": {
-            "shortHtml": "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as <code>2024-03-01T12:00:00Z</code> or <code>2024-03-01T13:00:00+01:00</code>. For a date and time with no offset, use <code>Time::parse</code> with a zone. For a relative time, use a method such as <code>plus</code> or <code>next</code>.",
-            "params": [
-              {
-                "name": "text",
-                "descHtml": "The timestamp text, with a date, a time and a <code>Z</code> or <code>±HH:MM</code> offset."
-              }
-            ],
-            "returnHtml": "The <code>Instant</code> the text names.",
-            "errors": [
-              {
-                "error": "ParseError",
-                "descHtml": "<code>$text</code> is not such a timestamp. The error names the part of the text where reading stopped. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
-              }
-            ]
-          },
-          "slug": "fromiso",
-          "url": "/reference/core/time/fromiso/",
-          "examples": "core/Time/fromIso"
-        },
-        {
-          "id": "Time.parse",
-          "name": "parse",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "parse(string $text, string $format, Core\\Time\\Zone $zone): Core\\Time\\DateTime",
-          "params": [
-            {
-              "kind": "param",
-              "name": "text",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "format",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "zone",
-              "type": "Core\\Time\\Zone",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Core\\Time\\DateTime",
-          "doc": {
-            "shortHtml": "Reads a date and time with a CLDR pattern and places it in <code>$zone</code>. A <code>$format</code> written directly in the code is checked when the program compiles. A malformed one is error <code>E0769</code>. A field the pattern does not contain is set to the start of its range.",
-            "params": [
-              {
-                "name": "text",
-                "descHtml": "The text to read. The result does not keep a qualifier of the text, such as <code>tainted</code>."
-              },
-              {
-                "name": "format",
-                "descHtml": "A CLDR pattern with date and time letters only, such as <code>yyyy-MM-dd HH:mm</code>. <code>$zone</code> gives the zone. A pattern is a small language, so a <code>tainted</code> pattern is not allowed."
-              },
-              {
-                "name": "zone",
-                "descHtml": "The zone the date and time are read in. If the zone skips the time, the result moves forward past the gap."
-              }
-            ],
-            "returnHtml": "The <code>DateTime</code> in <code>$zone</code>.",
-            "errors": [
-              {
-                "error": "LogicError",
-                "descHtml": "<code>$format</code> is not valid. It has a pattern letter that is not supported or a quote that is not closed. It is also thrown when <code>$format</code> has a zone or offset letter, because <code>$zone</code> already gives the zone. For a <code>$format</code> written directly in the code, only an invalid pattern is error <code>E0769</code>. A zone or offset letter is a valid pattern that only this method does not allow. So it throws this error however <code>$format</code> was written."
-              },
-              {
-                "error": "ParseError",
-                "descHtml": "<code>$text</code> does not match <code>$format</code>. Fixed text differs, a number has no digits, there is extra text at the end, or the parts together are not a real date and time. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
-              }
-            ]
-          },
-          "slug": "parse",
-          "url": "/reference/core/time/parse/",
-          "examples": "core/Time/parse"
-        },
-        {
-          "id": "Time.at",
-          "name": "at",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "at(int $year, uint $month, uint $day, Core\\Time\\Zone $zone, { hour?: uint, minute?: uint, second?: uint, nanos?: uint }): Core\\Time\\DateTime",
-          "params": [
-            {
-              "kind": "param",
-              "name": "year",
-              "type": "int",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "month",
-              "type": "uint",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "day",
-              "type": "uint",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            },
-            {
-              "kind": "param",
-              "name": "zone",
-              "type": "Core\\Time\\Zone",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [
-            {
-              "name": "hour",
-              "type": "uint"
-            },
-            {
-              "name": "minute",
-              "type": "uint"
-            },
-            {
-              "name": "second",
-              "type": "uint"
-            },
-            {
-              "name": "nanos",
-              "type": "uint"
-            }
-          ],
-          "returnType": "Core\\Time\\DateTime",
-          "doc": {
-            "shortHtml": "Builds a date and time in <code>$zone</code> from its fields. The clock fields default to midnight. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap.",
-            "params": [
-              {
-                "name": "year",
-                "descHtml": "The year, within <code>-9999..=9999</code>. The time as a whole must also lie between <code>-9999-01-02T01:59:59Z</code> and <code>9999-12-30T22:00:00Z</code>."
-              },
-              {
-                "name": "month",
-                "descHtml": "The month, <code>1</code> to <code>12</code>."
-              },
-              {
-                "name": "day",
-                "descHtml": "The day of the month, which must exist in that month."
-              },
-              {
-                "name": "zone",
-                "descHtml": "The zone the fields are read in."
-              },
-              {
-                "name": "hour",
-                "descHtml": "The hour, <code>0</code> to <code>23</code>; the default is <code>0</code>."
-              },
-              {
-                "name": "minute",
-                "descHtml": "The minute, <code>0</code> to <code>59</code>; the default is <code>0</code>."
-              },
-              {
-                "name": "second",
-                "descHtml": "The second, <code>0</code> to <code>59</code>; the default is <code>0</code>."
-              },
-              {
-                "name": "nanos",
-                "descHtml": "The subsecond nanoseconds, below <code>1000000000</code>; the default is <code>0</code>."
-              }
-            ],
-            "returnHtml": "The <code>DateTime</code> in <code>$zone</code>.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "A field is outside its range, or the fields together are not a date that exists, such as <code>30</code> February. Or the time is past either end of the range <code>$year</code> allows."
-              }
-            ]
-          },
-          "slug": "at",
-          "url": "/reference/core/time/at/",
-          "examples": "core/Time/at"
         }
       ],
       "slug": "time",
       "url": "/reference/core/time/",
       "summaryBlocks": [
         {
-          "html": "<p>Reads the clock and builds dates and times. <code>now</code> returns the current <code>Instant</code>. <code>at</code> builds a <code>DateTime</code> from a year, a month, a day and a zone, and <code>fromIso</code> reads a timestamp such as <code>2024-03-01T12:00:00Z</code>. <code>sleep</code> waits for a <code>Duration</code>.</p>\n<p><code>Core\\Time</code> is where a time value starts: <code>now()</code> reads the clock as an <code>Instant</code>, <code>fromIso</code> and <code>fromEpoch</code> build one from a timestamp, and <code>at</code> and <code>parse</code> build a <code>DateTime</code> from civil fields or text. Every value it answers is immutable, and there is no ambient time zone — a <code>DateTime</code> is always built in a <code>Zone</code> the call names, and an <code>Instant</code> becomes a calendar reading only through <code>-&gt;in($zone)</code>. The two arithmetics are told apart by type: an <code>Instant</code> moves by an exact <code>Duration</code> (<code>-&gt;plus(24h)</code>), a <code>DateTime</code> moves by a calendar step (<code>-&gt;plus(1, Core\\Unit::Day)</code>), and across a DST boundary the two land an hour apart. There is no free-form date text: each phrase such as &quot;next Monday&quot; is a typed call, and a run-time offset such as <code>&quot;30d&quot;</code> is <code>Core\\Time\\Duration::parse</code>.</p>"
+          "html": "<p>Reads the clock and waits. <code>now</code> returns the current <code>Instant</code>, <code>monotonic</code> measures how long something takes, and <code>sleep</code> waits for a <code>Duration</code>. Each value class builds its own values, such as <code>Date::fromIso('2024-03-01')</code>.</p>\n<p><code>Core\\Time</code> is the clock. <code>now()</code> returns the current time as an <code>Instant</code>. <code>monotonic()</code> returns a reading that only moves forward, to measure how long code takes. <code>sleep($duration)</code> waits for a <code>Duration</code>, such as <code>50ms</code>.</p>\n<p>Each time class builds its own values. <code>Instant::fromIso</code> and <code>Instant::fromEpoch</code> build an <code>Instant</code>. <code>Date::fromIso</code> and <code>Date::at</code> build a <code>Date</code>, and <code>TimeOfDay::fromIso</code> and <code>TimeOfDay::at</code> build a <code>TimeOfDay</code>. <code>DateTime::fromIso</code>, <code>DateTime::at</code> and <code>DateTime::parse</code> build a <code>DateTime</code> in a zone.</p>\n<p>There is no default time zone. An <code>Instant</code> becomes a date and a time of day only with <code>-&gt;in($zone)</code>. A zone that is fixed in the code is written as text, such as <code>'Europe/Berlin'</code>.</p>"
         },
         {
-          "code": "<?nvs\nvar $utc = Core\\Time\\Zone::UTC;\nvar $meeting = Core\\Time::at(2024, 3, 1, $utc, { hour: 9, minute: 30 });\necho $meeting->format('yyyy-MM-dd HH:mm'), \"\\n\";\n\nvar $parsed = Core\\Time::parse('5 March 2024', 'd MMMM yyyy', $utc);\necho $parsed->format('yyyy-MM-dd HH:mm:ss'), \"\\n\";\n\nvar $stamp = Core\\Time::fromIso('2024-03-01T10:30:00+01:00');\necho $stamp->toIso(), \"\\n\";\necho $stamp->compareTo($meeting->toInstant()) == 0 ? 'same instant' : 'different', \"\\n\";\n\necho Core\\Time::fromEpoch(0)->in($utc)->format('EEEE, d MMMM yyyy'), \"\\n\";\n\nvar $berlin = Core\\Time\\Zone::of('Europe/Berlin');\necho $meeting->toInstant()->in($berlin)->format('HH:mm VV'), \"\\n\";\n\nvar $eve = Core\\Time::at(2024, 3, 30, $berlin, { hour: 12 });\necho $eve->plus(1, Core\\Unit::Day)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $eve->toInstant()->plus(24h)->in($berlin)->format('yyyy-MM-dd HH:mm'), \"\\n\";\n\ntry {\n    Core\\Time::at(2024, 2, 30, $utc);\n} catch (RuntimeError $bad) {\n    echo \"30 February does not exist\\n\";\n}",
+          "code": "<?nvs\nvar $now = Core\\Time::now();\necho $now->toEpochSeconds() > 1704067200 ? 'after 2024' : 'before 2024', \"\\n\";\n\nvar $start = Core\\Time::monotonic();\nCore\\Time::sleep(20ms);\nCore\\Time\\Duration $took = Core\\Time::monotonic()->minus($start);\necho $took->toMilliseconds() >= 20 ? 'waited at least 20ms' : 'too short', \"\\n\";\n\nvar $meeting = Core\\Time\\DateTime::fromIso('2024-03-01 09:30', 'Europe/Berlin');\necho $meeting->toInstant()->toIso(), \"\\n\";",
           "lang": "nvs"
         },
         {
-          "code": "2024-03-01 09:30\n2024-03-05 00:00:00\n2024-03-01T09:30:00Z\nsame instant\nThursday, 1 January 1970\n10:30 Europe/Berlin\n2024-03-31 12:00\n2024-03-31 13:00\n30 February does not exist",
+          "code": "after 2024\nwaited at least 20ms\n2024-03-01T08:30:00Z",
           "lang": "output"
         }
       ],
@@ -49357,6 +49095,45 @@
           "slug": "at",
           "url": "/reference/core/time-date/at/",
           "examples": "core/Time-Date/at"
+        },
+        {
+          "id": "Time.Date.fromIso",
+          "name": "fromIso",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromIso(string $text): Core\\Time\\Date",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Date",
+          "doc": {
+            "shortHtml": "Reads a date in the ISO 8601 form <code>YYYY-MM-DD</code>, such as <code>2024-03-01</code>. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "The date as <code>YYYY-MM-DD</code>. A year before year 1 starts with <code>-</code>."
+              }
+            ],
+            "returnHtml": "The <code>Date</code>.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> is not in this form, such as <code>2024-3-1</code>, or it is not a real date, such as <code>2024-02-30</code>. The error says which part is wrong."
+              }
+            ]
+          },
+          "slug": "fromiso",
+          "url": "/reference/core/time-date/fromiso/",
+          "examples": "core/Time-Date/fromIso"
         },
         {
           "id": "Time.Date.format",
@@ -49698,55 +49475,16 @@
           "slug": "day",
           "url": "/reference/core/time-date/day/",
           "examples": "core/Time-Date/day"
-        },
-        {
-          "id": "Time.Date.atStartOfDay",
-          "name": "atStartOfDay",
-          "static": false,
-          "receiver": "date",
-          "generics": null,
-          "signature": "atStartOfDay(Core\\Time\\Zone $zone): Core\\Time\\DateTime",
-          "params": [
-            {
-              "kind": "param",
-              "name": "zone",
-              "type": "Core\\Time\\Zone",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "Core\\Time\\DateTime",
-          "doc": {
-            "shortHtml": "Returns the first moment of this date in a time zone, as a <code>DateTime</code>. This is usually midnight. In some zones the clocks skip midnight on one day of the year. On that day, the result is the first time that exists, such as <code>01:00</code>.",
-            "params": [
-              {
-                "name": "zone",
-                "descHtml": "The time zone the day starts in."
-              }
-            ],
-            "returnHtml": "A new <code>DateTime</code> on this date in <code>$zone</code>. Use <code>withTime</code> on it to set another time.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The first or the last day of the range, in a zone whose start of that day is outside the range of times Novis supports."
-              }
-            ]
-          },
-          "slug": "atstartofday",
-          "url": "/reference/core/time-date/atstartofday/",
-          "examples": "core/Time-Date/atStartOfDay"
         }
       ],
       "slug": "time-date",
       "url": "/reference/core/time-date/",
       "summaryBlocks": [
         {
-          "html": "<p>A date with no time of day and no zone, such as a birthday or a due date. <code>Core\\Time\\Date::at</code> builds one from a year, a month and a day. <code>plus</code> and <code>minus</code> move it by days, months or years, and <code>format</code> turns it into text.</p>\n<p>A <code>Date</code> is a year, a month and a day. It has no time of day and no zone. <code>Date::at</code> builds one, and <code>-&gt;date()</code> gives the date of a <code>DateTime</code>. To read a date from text, use <code>Core\\Time::parse</code> with a pattern and a zone, and call <code>-&gt;date()</code> on the result. A date that does not exist throws an error when it is built.</p>\n<p><code>year()</code>, <code>month()</code> and <code>day()</code> return the three fields as numbers. <code>weekday()</code> returns a <code>Core\\Time\\Weekday</code> case, <code>dayOfYear()</code> returns the day of the year from <code>1</code>, and <code>isLeapYear()</code> checks the year. <code>atStartOfDay($zone)</code> returns a <code>DateTime</code> at the first moment of the date in that zone. This is usually midnight. Add a time of day to it with <code>withTime</code>.</p>\n<p><code>plus</code> and <code>minus</code> move a date by <code>Core\\Unit::Day</code> or a larger unit. A smaller unit throws an error. Moving by months keeps the day inside the new month, as <code>DateTime::plus</code> does. <code>format</code> takes the date letters of the patterns <code>DateTime::format</code> uses. A time letter or a zone letter does not compile, because a <code>Date</code> has no time and no zone. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two dates.</p>"
+          "html": "<p>A date with no time of day and no zone, such as a birthday or a due date. <code>Core\\Time\\Date::at</code> builds one from a year, a month and a day. <code>plus</code> and <code>minus</code> move it by days, months or years, and <code>format</code> turns it into text.</p>\n<p>A <code>Date</code> is a year, a month and a day. It has no time of day and no zone. <code>Date::fromIso</code> reads a date written as <code>YYYY-MM-DD</code>, such as <code>2024-03-01</code>. <code>Date::at</code> builds one from three numbers, and <code>-&gt;date()</code> gives the date of a <code>DateTime</code>. A date that does not exist throws an error when it is built. A date written as a string literal in <code>Date::fromIso</code> is checked when the program compiles.</p>\n<p><code>year()</code>, <code>month()</code> and <code>day()</code> return the three fields as numbers. <code>weekday()</code> returns a <code>Core\\Time\\Weekday</code> case, <code>dayOfYear()</code> returns the day of the year from <code>1</code>, and <code>isLeapYear()</code> checks the year. <code>DateTime::at($date, TimeOfDay::at(0, 0), $zone)</code> returns the first moment of the date in a zone.</p>\n<p><code>plus</code> and <code>minus</code> move a date by <code>Core\\Unit::Day</code> or a larger unit. A smaller unit throws an error. Moving by months keeps the day inside the new month, as <code>DateTime::plus</code> does. <code>format</code> takes the date letters of the patterns <code>DateTime::format</code> uses. A time letter or a zone letter does not compile, because a <code>Date</code> has no time and no zone. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two dates.</p>"
         },
         {
-          "code": "<?nvs\nvar $d = Core\\Time\\Date::at(2024, 1, 31);\necho $d->format('yyyy-MM-dd'), \"\\n\";\necho $d->format('EEEE, d MMMM'), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Day)->format('EEE d MMM'), \"\\n\";\necho $d->with({ month: 3 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->compareTo(Core\\Time\\Date::at(2024, 2, 1)), \"\\n\";\n\ntry {\n    Core\\Time\\Date::at(2023, 2, 29);\n} catch (RuntimeError $bad) {\n    echo \"2023-02-29 does not exist\\n\";\n}\n\nvar $utc = Core\\Time\\Zone::UTC;\necho Core\\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), \"\\n\";\n\necho $d->year(), ' ', $d->month(), ' ', $d->day(), \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap year' : 'not a leap year', \"\\n\";\necho $d->atStartOfDay(Core\\Time\\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm XXX'), \"\\n\";",
+          "code": "<?nvs\nvar $d = Core\\Time\\Date::fromIso('2024-01-31');\necho $d->format('yyyy-MM-dd'), \"\\n\";\necho $d->format('EEEE, d MMMM'), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Day)->format('EEE d MMM'), \"\\n\";\necho $d->with({ month: 3 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->compareTo(Core\\Time\\Date::at(2024, 2, 1)), \"\\n\";\n\ntry {\n    Core\\Time\\Date::at(2023, 2, 29);\n} catch (RuntimeError $bad) {\n    echo \"2023-02-29 does not exist\\n\";\n}\n\necho Core\\Time\\DateTime::fromIso('2024-03-01 23:00', 'UTC')->date()->format('d/M/yyyy'), \"\\n\";\n\necho $d->year(), ' ', $d->month(), ' ', $d->day(), \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap year' : 'not a leap year', \"\\n\";\nvar $midnight = Core\\Time\\TimeOfDay::at(0, 0);\necho Core\\Time\\DateTime::at($d, $midnight, 'Europe/Berlin')->format('yyyy-MM-dd HH:mm XXX'), \"\\n\";",
           "lang": "nvs"
         },
         {
@@ -49768,12 +49506,193 @@
     {
       "id": "Time.DateTime",
       "name": "Core\\Time\\DateTime",
-      "summary": "A date and a time of day in one time zone, such as the start of a meeting in Berlin. `Core\\Time::at` builds one from its parts, and `in` on an `Instant` gives one for a moment. `date` and `timeOfDay` return its two halves, and `format` turns it into text.",
+      "summary": "A date and a time of day in one time zone, such as the start of a meeting in Berlin. `Core\\Time\\DateTime::at` builds one from its parts, and `in` on an `Instant` gives one for a moment. `date` and `timeOfDay` return its two halves, and `format` turns it into text.",
       "enums": [],
       "types": [],
       "constants": [],
       "properties": [],
       "members": [
+        {
+          "id": "Time.DateTime.at",
+          "name": "at",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "at(Core\\Time\\Date $date, Core\\Time\\TimeOfDay $time, Core\\Time\\Zone $zone): Core\\Time\\DateTime",
+          "params": [
+            {
+              "kind": "param",
+              "name": "date",
+              "type": "Core\\Time\\Date",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "time",
+              "type": "Core\\Time\\TimeOfDay",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "zone",
+              "type": "Core\\Time\\Zone",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\DateTime",
+          "doc": {
+            "shortHtml": "Builds a date and time in <code>$zone</code> from a <code>Date</code> and a <code>TimeOfDay</code>. It is the reverse of <code>date()</code>, <code>timeOfDay()</code> and <code>zone()</code>. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap. Each call builds one <code>DateTime</code>. Building the <code>Date</code> and the <code>TimeOfDay</code> first adds two small objects.",
+            "params": [
+              {
+                "name": "date",
+                "descHtml": "The date, such as <code>Date::at(2024, 3, 1)</code>."
+              },
+              {
+                "name": "time",
+                "descHtml": "The time of day, such as <code>TimeOfDay::at(9, 30)</code>."
+              },
+              {
+                "name": "zone",
+                "descHtml": "The zone the date and the time are read in."
+              }
+            ],
+            "returnHtml": "The <code>DateTime</code> in <code>$zone</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The time is outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>. This can only happen on the first or the last day of the range."
+              }
+            ]
+          },
+          "slug": "at",
+          "url": "/reference/core/time-datetime/at/",
+          "examples": "core/Time-DateTime/at"
+        },
+        {
+          "id": "Time.DateTime.fromIso",
+          "name": "fromIso",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromIso(string $text, Core\\Time\\Zone $zone): Core\\Time\\DateTime",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "zone",
+              "type": "Core\\Time\\Zone",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\DateTime",
+          "doc": {
+            "shortHtml": "Reads a date and time in the ISO 8601 form, such as <code>2024-03-01T09:30</code>, and places it in <code>$zone</code>. A date alone, such as <code>2024-03-01</code>, is the first moment of that day. If the zone skips the time, the result moves forward past the gap. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "<code>YYYY-MM-DD</code>, or a date, <code>T</code> or one space, and a time. The time is <code>HH:MM</code>, <code>HH:MM:SS</code> or <code>HH:MM:SS</code> with one to nine digits after a <code>.</code>."
+              },
+              {
+                "name": "zone",
+                "descHtml": "The zone the date and the time are read in."
+              }
+            ],
+            "returnHtml": "The <code>DateTime</code> in <code>$zone</code>.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> is not in this form, or it is not a real date or time, such as <code>2024-02-30</code>. A text with an offset or a <code>Z</code> also throws this error. Read such a text with <code>Instant::fromIso</code>, then call <code>-&gt;in($zone)</code>. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
+              }
+            ]
+          },
+          "slug": "fromiso",
+          "url": "/reference/core/time-datetime/fromiso/",
+          "examples": "core/Time-DateTime/fromIso"
+        },
+        {
+          "id": "Time.DateTime.parse",
+          "name": "parse",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "parse(string $text, string $format, Core\\Time\\Zone $zone): Core\\Time\\DateTime",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "format",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "zone",
+              "type": "Core\\Time\\Zone",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\DateTime",
+          "doc": {
+            "shortHtml": "Reads a date and time with a CLDR pattern and places it in <code>$zone</code>. A <code>$format</code> written directly in the code is checked when the program compiles. A malformed one is error <code>E0769</code>. A field the pattern does not contain is set to the start of its range.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "The text to read. The result does not keep a qualifier of the text, such as <code>tainted</code>."
+              },
+              {
+                "name": "format",
+                "descHtml": "A CLDR pattern with date and time letters only, such as <code>yyyy-MM-dd HH:mm</code>. <code>$zone</code> gives the zone. A pattern is a small language, so a <code>tainted</code> pattern is not allowed."
+              },
+              {
+                "name": "zone",
+                "descHtml": "The zone the date and time are read in. If the zone skips the time, the result moves forward past the gap."
+              }
+            ],
+            "returnHtml": "The <code>DateTime</code> in <code>$zone</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$format</code> is not valid. It has a pattern letter that is not supported or a quote that is not closed. It is also thrown when <code>$format</code> has a zone or offset letter, because <code>$zone</code> already gives the zone. For a <code>$format</code> written directly in the code, only an invalid pattern is error <code>E0769</code>. A zone or offset letter is a valid pattern that only this method does not allow. So it throws this error however <code>$format</code> was written."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> does not match <code>$format</code>. Fixed text differs, a number has no digits, there is extra text at the end, or the parts together are not a real date and time. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
+              }
+            ]
+          },
+          "slug": "parse",
+          "url": "/reference/core/time-datetime/parse/",
+          "examples": "core/Time-DateTime/parse"
+        },
         {
           "id": "Time.DateTime.format",
           "name": "format",
@@ -50501,30 +50420,18 @@
       "url": "/reference/core/time-datetime/",
       "summaryBlocks": [
         {
-          "html": "<p>A date and a time of day in one time zone, such as the start of a meeting in Berlin. <code>Core\\Time::at</code> builds one from its parts, and <code>in</code> on an <code>Instant</code> gives one for a moment. <code>date</code> and <code>timeOfDay</code> return its two halves, and <code>format</code> turns it into text.</p>\n<p>A <code>DateTime</code> is a civil reading — year, month, day, hour, minute, second, nanosecond — in one <code>Zone</code>, built by <code>Core\\Time::at</code> or <code>Core\\Time::parse</code> or read off an <code>Instant</code> with <code>-&gt;in($zone)</code>. It is immutable: every member answers a new value. Its arithmetic is calendar arithmetic: <code>plus(1, Core\\Unit::Month)</code> keeps the day-of-month clamped to the new month's length, <code>plus(1, Core\\Unit::Day)</code> across a DST boundary is a 23- or 25-hour day, and <code>difference</code> counts whole units in the receiver's zone.</p>\n<p><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanos()</code> return the fields as numbers. Each one reads the clock in the value's own zone. <code>year()</code> returns an <code>int</code>, and the others return a <code>uint</code>. These are the same names and types that <code>with</code> takes.</p>\n<p><code>format</code> takes a <strong>CLDR pattern</strong>. <code>Core\\Time::parse</code> reads the same patterns, and <code>Date::format</code> and <code>TimeOfDay::format</code> use them for their own fields. A pattern written directly in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern computed at run time throws a <code>LogicError</code> instead. Month and weekday names are always in English.</p>\n<table><thead><tr><th>Letter</th><th>Field</th><th>Counts</th></tr></thead><tbody><tr><td><code>G</code></td><td>era</td><td><code>G</code>–<code>GGG</code> <code>AD</code> or <code>BC</code>, <code>GGGG</code> <code>Anno Domini</code>, <code>GGGGG</code> <code>A</code></td></tr><tr><td><code>y</code> / <code>U</code></td><td>year, such as <code>-0043</code> before year 1</td><td><code>yy</code> two digits; any other count zero-pads to it</td></tr><tr><td><code>u</code> / <code>r</code></td><td>year</td><td>zero-pads to the count; <code>parse</code> also reads a <code>-</code> with these</td></tr><tr><td><code>Y</code></td><td>the year the <code>w</code> week belongs to</td><td>as <code>y</code></td></tr><tr><td><code>Q</code> / <code>q</code></td><td>quarter</td><td><code>Q</code>/<code>QQ</code> numeric, <code>QQQ</code> <code>Q1</code>, <code>QQQQ</code> <code>1st quarter</code>, <code>QQQQQ</code> <code>1</code></td></tr><tr><td><code>M</code> / <code>L</code></td><td>month</td><td><code>M</code>/<code>MM</code> numeric, <code>MMM</code> <code>Mar</code>, <code>MMMM</code> <code>March</code>, <code>MMMMM</code> <code>M</code></td></tr><tr><td><code>w</code></td><td>week of the year</td><td>ISO 8601 weeks: a week starts on Monday</td></tr><tr><td><code>W</code></td><td>week of the month</td><td>the same rule; <code>0</code> for a short first week</td></tr><tr><td><code>d</code></td><td>day of month</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>D</code></td><td>day of year</td><td>numeric</td></tr><tr><td><code>F</code></td><td>which of that weekday in the month</td><td><code>1</code> for the first Friday of the month</td></tr><tr><td><code>g</code></td><td>modified Julian day</td><td>numeric</td></tr><tr><td><code>E</code></td><td>weekday</td><td><code>E</code>–<code>EEE</code> <code>Tue</code>, <code>EEEE</code> <code>Tuesday</code>, <code>EEEEE</code> <code>T</code>, <code>EEEEEE</code> <code>Tu</code></td></tr><tr><td><code>e</code> / <code>c</code></td><td>weekday</td><td><code>e</code>/<code>ee</code>/<code>c</code> the number, Monday <code>1</code>; three or more letters as <code>E</code></td></tr><tr><td><code>a</code></td><td>AM/PM</td><td>any count</td></tr><tr><td><code>b</code></td><td>AM/PM, or <code>noon</code> and <code>midnight</code> at those times</td><td>1–4 the name, 5 short</td></tr><tr><td><code>B</code></td><td>part of the day, such as <code>in the morning</code></td><td>1–4 the name, 5 short</td></tr><tr><td><code>h</code> / <code>H</code> / <code>K</code> / <code>k</code></td><td>hour 1–12 / 0–23 / 0–11 / 1–24</td><td>numeric</td></tr><tr><td><code>m</code></td><td>minute</td><td>numeric</td></tr><tr><td><code>s</code></td><td>second</td><td>numeric</td></tr><tr><td><code>S</code></td><td>fractional second</td><td>one digit per count, truncated</td></tr><tr><td><code>A</code></td><td>milliseconds since the start of the day</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>X</code></td><td>offset, <code>Z</code> at zero</td><td><code>X</code> <code>+01</code>, <code>XX</code> <code>+0100</code>, <code>XXX</code> <code>+01:00</code></td></tr><tr><td><code>x</code></td><td>offset, never <code>Z</code></td><td>the same three counts</td></tr><tr><td><code>Z</code></td><td>offset</td><td><code>Z</code>–<code>ZZZ</code> <code>+0100</code>, <code>ZZZZ</code> <code>GMT+01:00</code>, <code>ZZZZZ</code> as <code>XXX</code></td></tr><tr><td><code>O</code></td><td>offset after <code>GMT</code></td><td><code>O</code> <code>GMT+1</code>, <code>OOOO</code> <code>GMT+01:00</code></td></tr><tr><td><code>z</code></td><td>offset after <code>GMT</code></td><td><code>z</code>–<code>zzz</code> <code>GMT+1</code>, <code>zzzz</code> <code>GMT+01:00</code></td></tr><tr><td><code>v</code></td><td>offset after <code>GMT</code></td><td><code>v</code> <code>GMT+1</code>, <code>vvvv</code> <code>GMT+01:00</code></td></tr><tr><td><code>VV</code></td><td>the zone's IANA identifier</td><td><code>VV</code> only</td></tr></tbody></table>\n<p>Text between <code>'…'</code> is printed as it is, and <code>''</code> is one apostrophe. These letters do not compile: <code>C</code>, <code>f</code>, <code>i</code>, <code>I</code>, <code>j</code>, <code>J</code>, <code>l</code>, <code>n</code>, <code>N</code>, <code>o</code>, <code>p</code>, <code>P</code>, <code>R</code>, <code>t</code> and <code>T</code>.</p>"
+          "html": "<p>A date and a time of day in one time zone, such as the start of a meeting in Berlin. <code>Core\\Time\\DateTime::at</code> builds one from its parts, and <code>in</code> on an <code>Instant</code> gives one for a moment. <code>date</code> and <code>timeOfDay</code> return its two halves, and <code>format</code> turns it into text.</p>\n<p>A <code>DateTime</code> is a date and a time of day in one <code>Zone</code>. <code>DateTime::fromIso</code> reads a text such as <code>2024-03-01 09:30</code> in the zone you give it. A date alone, such as <code>2024-03-01</code>, is the start of that day. <code>DateTime::at($date, $time, $zone)</code> builds one from a <code>Date</code> and a <code>TimeOfDay</code>. <code>DateTime::parse</code> reads text in a pattern of your choice. <code>-&gt;in($zone)</code> gives the <code>DateTime</code> of an <code>Instant</code>.</p>\n<p>A zone that is fixed in the code is written as text, such as <code>'Europe/Berlin'</code>. It is checked when the program compiles. A zone name that arrives while the program runs needs <code>Core\\Time\\Zone::of</code>.</p>\n<p>A <code>DateTime</code> never changes: every method returns a new value. Its arithmetic follows the calendar. <code>plus(1, Core\\Unit::Month)</code> keeps the day inside the new month. <code>plus(1, Core\\Unit::Day)</code> across a daylight saving change is 23 or 25 hours. <code>difference</code> counts whole units in the zone of the value it is called on.</p>\n<p><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanos()</code> return the fields as numbers. Each one reads the clock in the value's own zone. <code>year()</code> returns an <code>int</code>, and the others return a <code>uint</code>. These are the same names and types that <code>with</code> takes.</p>\n<p><code>format</code> takes a <strong>CLDR pattern</strong>. <code>DateTime::parse</code> reads the same patterns, and <code>Date::format</code> and <code>TimeOfDay::format</code> use them for their own fields. A pattern written in the code is checked when the program compiles, so a letter outside the table below is a compile error. A pattern computed at run time throws a <code>LogicError</code>. Month and weekday names are always in English.</p>\n<table><thead><tr><th>Letter</th><th>Field</th><th>Counts</th></tr></thead><tbody><tr><td><code>G</code></td><td>era</td><td><code>G</code>–<code>GGG</code> <code>AD</code> or <code>BC</code>, <code>GGGG</code> <code>Anno Domini</code>, <code>GGGGG</code> <code>A</code></td></tr><tr><td><code>y</code> / <code>U</code></td><td>year, such as <code>-0043</code> before year 1</td><td><code>yy</code> two digits; any other count zero-pads to it</td></tr><tr><td><code>u</code> / <code>r</code></td><td>year</td><td>zero-pads to the count; <code>parse</code> also reads a <code>-</code> with these</td></tr><tr><td><code>Y</code></td><td>the year the <code>w</code> week belongs to</td><td>as <code>y</code></td></tr><tr><td><code>Q</code> / <code>q</code></td><td>quarter</td><td><code>Q</code>/<code>QQ</code> numeric, <code>QQQ</code> <code>Q1</code>, <code>QQQQ</code> <code>1st quarter</code>, <code>QQQQQ</code> <code>1</code></td></tr><tr><td><code>M</code> / <code>L</code></td><td>month</td><td><code>M</code>/<code>MM</code> numeric, <code>MMM</code> <code>Mar</code>, <code>MMMM</code> <code>March</code>, <code>MMMMM</code> <code>M</code></td></tr><tr><td><code>w</code></td><td>week of the year</td><td>ISO 8601 weeks: a week starts on Monday</td></tr><tr><td><code>W</code></td><td>week of the month</td><td>the same rule; <code>0</code> for a short first week</td></tr><tr><td><code>d</code></td><td>day of month</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>D</code></td><td>day of year</td><td>numeric</td></tr><tr><td><code>F</code></td><td>which of that weekday in the month</td><td><code>1</code> for the first Friday of the month</td></tr><tr><td><code>g</code></td><td>modified Julian day</td><td>numeric</td></tr><tr><td><code>E</code></td><td>weekday</td><td><code>E</code>–<code>EEE</code> <code>Tue</code>, <code>EEEE</code> <code>Tuesday</code>, <code>EEEEE</code> <code>T</code>, <code>EEEEEE</code> <code>Tu</code></td></tr><tr><td><code>e</code> / <code>c</code></td><td>weekday</td><td><code>e</code>/<code>ee</code>/<code>c</code> the number, Monday <code>1</code>; three or more letters as <code>E</code></td></tr><tr><td><code>a</code></td><td>AM/PM</td><td>any count</td></tr><tr><td><code>b</code></td><td>AM/PM, or <code>noon</code> and <code>midnight</code> at those times</td><td>1–4 the name, 5 short</td></tr><tr><td><code>B</code></td><td>part of the day, such as <code>in the morning</code></td><td>1–4 the name, 5 short</td></tr><tr><td><code>h</code> / <code>H</code> / <code>K</code> / <code>k</code></td><td>hour 1–12 / 0–23 / 0–11 / 1–24</td><td>numeric</td></tr><tr><td><code>m</code></td><td>minute</td><td>numeric</td></tr><tr><td><code>s</code></td><td>second</td><td>numeric</td></tr><tr><td><code>S</code></td><td>fractional second</td><td>one digit per count, truncated</td></tr><tr><td><code>A</code></td><td>milliseconds since the start of the day</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>X</code></td><td>offset, <code>Z</code> at zero</td><td><code>X</code> <code>+01</code>, <code>XX</code> <code>+0100</code>, <code>XXX</code> <code>+01:00</code></td></tr><tr><td><code>x</code></td><td>offset, never <code>Z</code></td><td>the same three counts</td></tr><tr><td><code>Z</code></td><td>offset</td><td><code>Z</code>–<code>ZZZ</code> <code>+0100</code>, <code>ZZZZ</code> <code>GMT+01:00</code>, <code>ZZZZZ</code> as <code>XXX</code></td></tr><tr><td><code>O</code></td><td>offset after <code>GMT</code></td><td><code>O</code> <code>GMT+1</code>, <code>OOOO</code> <code>GMT+01:00</code></td></tr><tr><td><code>z</code></td><td>offset after <code>GMT</code></td><td><code>z</code>–<code>zzz</code> <code>GMT+1</code>, <code>zzzz</code> <code>GMT+01:00</code></td></tr><tr><td><code>v</code></td><td>offset after <code>GMT</code></td><td><code>v</code> <code>GMT+1</code>, <code>vvvv</code> <code>GMT+01:00</code></td></tr><tr><td><code>VV</code></td><td>the zone's IANA identifier</td><td><code>VV</code> only</td></tr></tbody></table>\n<p>Text between <code>'…'</code> is printed as it is, and <code>''</code> is one apostrophe. These letters do not compile: <code>C</code>, <code>f</code>, <code>i</code>, <code>I</code>, <code>j</code>, <code>J</code>, <code>l</code>, <code>n</code>, <code>N</code>, <code>o</code>, <code>p</code>, <code>P</code>, <code>R</code>, <code>t</code> and <code>T</code>.</p>"
         },
         {
-          "code": "<?nvs\nvar $utc = Core\\Time\\Zone::UTC;\nvar $d = Core\\Time::at(2024, 1, 31, $utc, { hour: 9, minute: 30 });\necho $d->format('yyyy-MM-dd HH:mm:ss'), \"\\n\";\necho $d->format(\"EEEE, d MMMM yyyy 'at' h:mm a\"), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Week)->format('yyyy-MM-dd'), \"\\n\";\necho $d->next(Core\\Time\\Weekday::Monday)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->startOf(Core\\Unit::Day)->format('HH:mm'), ' ',\n    $d->endOf(Core\\Unit::Month)->format('dd HH:mm:ss.SSS'), \"\\n\";\n\necho $d->difference(Core\\Time::at(2026, 8, 30, $utc), Core\\Unit::Year), \"\\n\";\necho $d->weekday() == Core\\Time\\Weekday::Wednesday ? 'midweek' : 'other', \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', \"\\n\";\necho $d->toInstant()->toIso(), \"\\n\";",
+          "code": "<?nvs\nvar $d = Core\\Time\\DateTime::fromIso('2024-01-31 09:30', 'UTC');\necho $d->format('yyyy-MM-dd HH:mm:ss'), \"\\n\";\necho $d->format(\"EEEE, d MMMM yyyy 'at' h:mm a\"), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Week)->format('yyyy-MM-dd'), \"\\n\";\necho $d->next(Core\\Time\\Weekday::Monday)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->startOf(Core\\Unit::Day)->format('HH:mm'), ' ',\n    $d->endOf(Core\\Unit::Month)->format('dd HH:mm:ss.SSS'), \"\\n\";\n\necho $d->difference(Core\\Time\\DateTime::fromIso('2026-08-30', 'UTC'), Core\\Unit::Year), \"\\n\";\necho $d->weekday() == Core\\Time\\Weekday::Wednesday ? 'midweek' : 'other', \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', \"\\n\";\necho $d->toInstant()->toIso(), \"\\n\";\n\nvar $eve = Core\\Time\\DateTime::at(Core\\Time\\Date::at(2024, 3, 30), Core\\Time\\TimeOfDay::at(12, 0), 'Europe/Berlin');\necho $eve->plus(1, Core\\Unit::Day)->format('yyyy-MM-dd HH:mm XXX'), \"\\n\";\necho Core\\Time\\DateTime::parse('5 March 2024', 'd MMMM yyyy', 'UTC')->format('yyyy-MM-dd HH:mm'), \"\\n\";",
           "lang": "nvs"
         },
         {
-          "code": "2024-01-31 09:30:00\nWednesday, 31 January 2024 at 9:30 AM\n2024-02-29\n2024-01-24\n2024-02-05 09:30\n2024-03-01\n00:00 31 23:59:59.999\n2\nmidweek\n31 leap\n2024-01-31T09:30:00Z",
+          "code": "2024-01-31 09:30:00\nWednesday, 31 January 2024 at 9:30 AM\n2024-02-29\n2024-01-24\n2024-02-05 09:30\n2024-03-01\n00:00 31 23:59:59.999\n2\nmidweek\n31 leap\n2024-01-31T09:30:00Z\n2024-03-31 12:00 +02:00\n2024-03-05 00:00",
           "lang": "output"
         }
       ],
       "returnedBy": [
-        {
-          "name": "Core\\Time::parse",
-          "url": "/reference/core/time/parse/"
-        },
-        {
-          "name": "Core\\Time::at",
-          "url": "/reference/core/time/at/"
-        },
-        {
-          "name": "Core\\Time\\Date::atStartOfDay",
-          "url": "/reference/core/time-date/atstartofday/"
-        },
         {
           "name": "Core\\Time\\Instant::in",
           "url": "/reference/core/time-instant/in/"
@@ -51191,12 +51098,99 @@
     {
       "id": "Time.Instant",
       "name": "Core\\Time\\Instant",
-      "summary": "One exact point in time, the same everywhere in the world. It has no time zone and no calendar. `Core\\Time::now`, `Core\\Time::fromEpoch` and `Core\\Time::fromIso` return one. `plus`, `minus` and `since` do exact arithmetic with a `Duration`, and `in` shows the instant on a zone's calendar.",
+      "summary": "One exact point in time, the same everywhere in the world. It has no time zone and no calendar. `Core\\Time::now`, `Core\\Time\\Instant::fromEpoch` and `Core\\Time\\Instant::fromIso` return one. `plus`, `minus` and `since` do exact arithmetic with a `Duration`, and `in` shows the instant on a zone's calendar.",
       "enums": [],
       "types": [],
       "constants": [],
       "properties": [],
       "members": [
+        {
+          "id": "Time.Instant.fromEpoch",
+          "name": "fromEpoch",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromEpoch(int $seconds, { nanos?: uint }): Core\\Time\\Instant",
+          "params": [
+            {
+              "kind": "param",
+              "name": "seconds",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "nanos",
+              "type": "uint"
+            }
+          ],
+          "returnType": "Core\\Time\\Instant",
+          "doc": {
+            "shortHtml": "Builds the instant at a Unix timestamp. The <code>nanos</code> option is added after the second, so <code>-1</code> with <code>{ nanos: 1 }</code> is one nanosecond after <code>-1</code>.",
+            "params": [
+              {
+                "name": "seconds",
+                "descHtml": "Whole seconds since <code>1970-01-01T00:00:00Z</code>; negative before it."
+              },
+              {
+                "name": "nanos",
+                "descHtml": "Nanoseconds to add on top of the second, below <code>1000000000</code>; the default is <code>0</code>."
+              }
+            ],
+            "returnHtml": "The <code>Instant</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "<code>nanos</code> is not below <code>1000000000</code>, or <code>$seconds</code> is outside <code>-377705023201..=253402207200</code>. That is the time from <code>-9999-01-02T01:59:59Z</code> to <code>9999-12-30T22:00:00Z</code>."
+              }
+            ]
+          },
+          "slug": "fromepoch",
+          "url": "/reference/core/time-instant/fromepoch/",
+          "examples": "core/Time-Instant/fromEpoch"
+        },
+        {
+          "id": "Time.Instant.fromIso",
+          "name": "fromIso",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromIso(string $text): Core\\Time\\Instant",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Instant",
+          "doc": {
+            "shortHtml": "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as <code>2024-03-01T12:00:00Z</code> or <code>2024-03-01T13:00:00+01:00</code>. For a date and time with no offset, use <code>DateTime::fromIso</code> with a zone. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "The timestamp text, with a date, <code>T</code> or one space, a time and a <code>Z</code> or <code>±HH:MM</code> offset."
+              }
+            ],
+            "returnHtml": "The <code>Instant</code> the text names.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> is not such a timestamp. The error names the part of the text where reading stopped. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
+              }
+            ]
+          },
+          "slug": "fromiso",
+          "url": "/reference/core/time-instant/fromiso/",
+          "examples": "core/Time-Instant/fromIso"
+        },
         {
           "id": "Time.Instant.in",
           "name": "in",
@@ -51457,10 +51451,10 @@
       "url": "/reference/core/time-instant/",
       "summaryBlocks": [
         {
-          "html": "<p>One exact point in time, the same everywhere in the world. It has no time zone and no calendar. <code>Core\\Time::now</code>, <code>Core\\Time::fromEpoch</code> and <code>Core\\Time::fromIso</code> return one. <code>plus</code>, <code>minus</code> and <code>since</code> do exact arithmetic with a <code>Duration</code>, and <code>in</code> shows the instant on a zone's calendar.</p>\n<p>An <code>Instant</code> is a point on the timeline with no calendar attached: it has an epoch count and an RFC 3339 rendering in UTC, and nothing else until <code>-&gt;in($zone)</code> places it on a calendar. It moves only by an exact <code>Duration</code> — <code>plus(36h)</code> is thirty-six hours whatever a zone's clocks did in between — and <code>since</code> measures the exact gap between two instants; a step in days or months is taken on the <code>DateTime</code> that <code>-&gt;in($zone)</code> answers. Two instants are ordered with <code>compareTo</code>; the <code>&lt;</code>, <code>&gt;</code> and <code>&lt;=&gt;</code> operators do not compile on an <code>Instant</code>.</p>"
+          "html": "<p>One exact point in time, the same everywhere in the world. It has no time zone and no calendar. <code>Core\\Time::now</code>, <code>Core\\Time\\Instant::fromEpoch</code> and <code>Core\\Time\\Instant::fromIso</code> return one. <code>plus</code>, <code>minus</code> and <code>since</code> do exact arithmetic with a <code>Duration</code>, and <code>in</code> shows the instant on a zone's calendar.</p>\n<p>An <code>Instant</code> is a point on the timeline. It has no calendar and no zone. <code>Instant::fromIso</code> reads an RFC 3339 timestamp such as <code>2024-03-01T12:00:00Z</code>. <code>Instant::fromEpoch</code> builds one from seconds since 1 January 1970. <code>Core\\Time::now()</code> returns the current instant.</p>\n<p>An <code>Instant</code> has an epoch count and a text form in UTC. <code>-&gt;in($zone)</code> gives its date and time of day in a zone, as a <code>DateTime</code>. It moves only by an exact <code>Duration</code>: <code>plus(36h)</code> is always thirty-six hours. <code>since</code> returns the exact time between two instants. A step in days or months is taken on the <code>DateTime</code> that <code>-&gt;in($zone)</code> returns. <code>compareTo</code> orders two instants. The <code>&lt;</code>, <code>&gt;</code> and <code>&lt;=&gt;</code> operators do not compile on an <code>Instant</code>.</p>"
         },
         {
-          "code": "<?nvs\nvar $start = Core\\Time::fromIso('2024-03-01T12:00:00Z');\necho $start->toIso(), \"\\n\";\necho $start->toEpochSeconds(), \"\\n\";\necho $start->toEpochMillis(), \"\\n\";\n\nvar $end = $start->plus(36h);\necho $end->toIso(), \"\\n\";\necho $end->since($start), \"\\n\";\necho $start->minus(30m)->toIso(), \"\\n\";\necho $start->compareTo($end), \"\\n\";\n\necho $start->in(Core\\Time\\Zone::of('Asia/Tokyo'))->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho Core\\Time::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), \"\\n\";",
+          "code": "<?nvs\nvar $start = Core\\Time\\Instant::fromIso('2024-03-01T12:00:00Z');\necho $start->toIso(), \"\\n\";\necho $start->toEpochSeconds(), \"\\n\";\necho $start->toEpochMillis(), \"\\n\";\n\nvar $end = $start->plus(36h);\necho $end->toIso(), \"\\n\";\necho $end->since($start), \"\\n\";\necho $start->minus(30m)->toIso(), \"\\n\";\necho $start->compareTo($end), \"\\n\";\n\necho $start->in('Asia/Tokyo')->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho Core\\Time\\Instant::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), \"\\n\";",
           "lang": "nvs"
         },
         {
@@ -51492,14 +51486,6 @@
         {
           "name": "Core\\Time::now",
           "url": "/reference/core/time/now/"
-        },
-        {
-          "name": "Core\\Time::fromEpoch",
-          "url": "/reference/core/time/fromepoch/"
-        },
-        {
-          "name": "Core\\Time::fromIso",
-          "url": "/reference/core/time/fromiso/"
         },
         {
           "name": "Core\\Time\\DateTime::toInstant",
@@ -51583,6 +51569,45 @@
           "slug": "at",
           "url": "/reference/core/time-timeofday/at/",
           "examples": "core/Time-TimeOfDay/at"
+        },
+        {
+          "id": "Time.TimeOfDay.fromIso",
+          "name": "fromIso",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromIso(string $text): Core\\Time\\TimeOfDay",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\TimeOfDay",
+          "doc": {
+            "shortHtml": "Reads a time of day in the ISO 8601 form, such as <code>09:30</code> or <code>09:30:15.5</code>. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "<code>HH:MM</code>, <code>HH:MM:SS</code>, or <code>HH:MM:SS</code> with one to nine digits after a <code>.</code>."
+              }
+            ],
+            "returnHtml": "The <code>TimeOfDay</code>.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> is not in this form, or a field is outside its range, such as <code>24:00</code>. The error says which part is wrong."
+              }
+            ]
+          },
+          "slug": "fromiso",
+          "url": "/reference/core/time-timeofday/fromiso/",
+          "examples": "core/Time-TimeOfDay/fromIso"
         },
         {
           "id": "Time.TimeOfDay.format",
@@ -51902,10 +51927,10 @@
       "url": "/reference/core/time-timeofday/",
       "summaryBlocks": [
         {
-          "html": "<p>A time on a clock, such as 10:30, with no date and no time zone. <code>TimeOfDay::at</code> makes one, and <code>DateTime::timeOfDay</code> returns the time of a <code>DateTime</code>. <code>plus</code> and <code>minus</code> move it and wrap around at midnight. <code>with</code> changes single fields, and <code>format</code> returns it as text.</p>\n<p>A <code>TimeOfDay</code> is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by <code>TimeOfDay::at</code> or read off a <code>DateTime</code> with <code>-&gt;timeOfDay()</code>. It steps by <code>Core\\Unit::Hour</code> and smaller and wraps within the day, so <code>23:30</code> plus an hour is <code>00:30</code>; <code>Core\\Unit::Day</code> and larger are refused, because a carry has no date to go to. <code>format</code> takes the time letters of the CLDR grammar <code>DateTime::format</code> uses, and a date or zone letter is refused. <code>DateTime::withTime</code> puts a reading back onto a date. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two readings.</p>\n<p><code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanos()</code> return the four fields as numbers. Each returns a <code>uint</code>, with the same name as the field <code>with</code> takes.</p>"
+          "html": "<p>A time on a clock, such as 10:30, with no date and no time zone. <code>TimeOfDay::at</code> makes one, and <code>DateTime::timeOfDay</code> returns the time of a <code>DateTime</code>. <code>plus</code> and <code>minus</code> move it and wrap around at midnight. <code>with</code> changes single fields, and <code>format</code> returns it as text.</p>\n<p>A <code>TimeOfDay</code> is a clock reading: hour, minute, second and nanosecond. It has no date and no zone. <code>TimeOfDay::fromIso</code> reads a time written as <code>HH:MM</code>, <code>HH:MM:SS</code> or <code>HH:MM:SS.f</code>, such as <code>09:30</code>. <code>TimeOfDay::at</code> builds one from numbers, and <code>-&gt;timeOfDay()</code> gives the time of a <code>DateTime</code>. A time written as a string literal in <code>TimeOfDay::fromIso</code> is checked when the program compiles.</p>\n<p><code>plus</code> and <code>minus</code> step by <code>Core\\Unit::Hour</code> or a smaller unit, and wrap within the day: <code>23:30</code> plus one hour is <code>00:30</code>. <code>Core\\Unit::Day</code> and larger units throw an error, because there is no date to change. <code>format</code> takes the time letters of the patterns <code>DateTime::format</code> uses. A date letter or a zone letter does not compile. <code>DateTime::withTime</code> puts a time onto a date. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two times.</p>\n<p><code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanos()</code> return the four fields as numbers. Each returns a <code>uint</code>, with the same name as the field <code>with</code> takes.</p>"
         },
         {
-          "code": "<?nvs\nvar $t = Core\\Time\\TimeOfDay::at(23, 30);\necho $t->format('HH:mm:ss'), \"\\n\";\necho $t->format('h:mm a'), \"\\n\";\n\necho $t->plus(1, Core\\Unit::Hour)->format('HH:mm'), \"\\n\";\necho $t->minus(45, Core\\Unit::Minute)->format('HH:mm'), \"\\n\";\necho $t->with({ second: 45 })->format('HH:mm:ss'), \"\\n\";\necho $t->compareTo(Core\\Time\\TimeOfDay::at(9, 0)), \"\\n\";\n\nvar $utc = Core\\Time\\Zone::UTC;\nvar $d = Core\\Time::at(2024, 3, 1, $utc, { hour: 9 });\necho $d->withTime($t)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->timeOfDay()->format('HH:mm'), \"\\n\";",
+          "code": "<?nvs\nvar $t = Core\\Time\\TimeOfDay::fromIso('23:30');\necho $t->format('HH:mm:ss'), \"\\n\";\necho $t->format('h:mm a'), \"\\n\";\n\necho $t->plus(1, Core\\Unit::Hour)->format('HH:mm'), \"\\n\";\necho $t->minus(45, Core\\Unit::Minute)->format('HH:mm'), \"\\n\";\necho $t->with({ second: 45 })->format('HH:mm:ss'), \"\\n\";\necho $t->compareTo(Core\\Time\\TimeOfDay::at(9, 0)), \"\\n\";\n\nvar $d = Core\\Time\\DateTime::fromIso('2024-03-01 09:00', 'UTC');\necho $d->withTime($t)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->timeOfDay()->format('HH:mm'), \"\\n\";",
           "lang": "nvs"
         },
         {
@@ -52072,10 +52097,10 @@
       "url": "/reference/core/time-zone/",
       "summaryBlocks": [
         {
-          "html": "<p>A time zone, such as <code>Europe/Berlin</code> or a fixed offset like <code>+02:00</code>. Every conversion between an <code>Instant</code> and a <code>DateTime</code> needs one, and there is no default zone. <code>Zone::of</code> finds a zone by its name, <code>Zone::fixed</code> makes one from an offset, and <code>offsetAt</code> returns the offset at one instant.</p>\n<p>A <code>Zone</code> is what turns an <code>Instant</code> into a calendar reading and back: <code>Zone::of</code> looks up an IANA identifier such as <code>Europe/Berlin</code> in the bundled database and throws on one it does not have, <code>Zone::fixed</code> is a constant offset with no DST rules, and <code>Zone::UTC</code> is the one constant. There is no ambient zone: <code>Zone::system()</code> answers the host's zone as an ordinary value the program then passes on, and no call sets a default zone for the program. A zone with DST has no single offset, so <code>offsetAt</code> asks for the instant.</p>"
+          "html": "<p>A time zone, such as <code>Europe/Berlin</code> or a fixed offset like <code>+02:00</code>. Every conversion between an <code>Instant</code> and a <code>DateTime</code> needs one, and there is no default zone. <code>Zone::of</code> finds a zone by its name, <code>Zone::fixed</code> makes one from an offset, and <code>offsetAt</code> returns the offset at one instant.</p>\n<p>A <code>Zone</code> turns an <code>Instant</code> into a date and a time of day, and back. A zone that is fixed in the code is written as text where a <code>Zone</code> is expected: <code>$instant-&gt;in('Europe/Berlin')</code>. The name is checked when the program compiles, and the zone is built once. <code>UTC</code> and an offset such as <code>'+05:30'</code> are written the same way.</p>\n<p><code>Zone::of($name)</code> looks up a name that arrives while the program runs, such as a user's setting. It throws an error for a name the time zone database does not have. <code>Zone::fixed</code> is a constant offset with no daylight saving rules. There is no default zone: <code>Zone::system()</code> returns the zone of the host, and the program passes it on. A zone with daylight saving time has no single offset, so <code>offsetAt</code> needs the instant.</p>"
         },
         {
-          "code": "<?nvs\nvar $berlin = Core\\Time\\Zone::of('Europe/Berlin');\nvar $jan = Core\\Time::fromIso('2024-01-15T12:00:00Z');\nvar $jul = Core\\Time::fromIso('2024-07-15T12:00:00Z');\necho $berlin->offsetAt($jan), \"\\n\";\necho $berlin->offsetAt($jul), \"\\n\";\necho $jul->in($berlin)->format('HH:mm xxx VV'), \"\\n\";\n\nvar $india = Core\\Time\\Zone::fixed(5h30m);\necho $jul->in($india)->format('HH:mm xxx'), \"\\n\";\necho Core\\Time\\Zone::UTC->offsetAt($jul)->toSeconds(), \"\\n\";\n\necho Core\\Time::at(2024, 7, 15, $berlin, { hour: 14 })->toInstant()->toIso(), \"\\n\";\n\ntry {\n    Core\\Time\\Zone::of('Mars/Olympus');\n} catch (RuntimeError $unknown) {\n    echo \"not in the database\\n\";\n}",
+          "code": "<?nvs\nvar $berlin = Core\\Time\\Zone::of('Europe/Berlin');\nvar $jan = Core\\Time\\Instant::fromIso('2024-01-15T12:00:00Z');\nvar $jul = Core\\Time\\Instant::fromIso('2024-07-15T12:00:00Z');\necho $berlin->offsetAt($jan), \"\\n\";\necho $berlin->offsetAt($jul), \"\\n\";\necho $jul->in('Europe/Berlin')->format('HH:mm xxx VV'), \"\\n\";\n\nvar $india = Core\\Time\\Zone::fixed(5h30m);\necho $jul->in($india)->format('HH:mm xxx'), \"\\n\";\necho Core\\Time\\Zone::UTC->offsetAt($jul)->toSeconds(), \"\\n\";\n\necho Core\\Time\\DateTime::fromIso('2024-07-15 14:00', $berlin)->toInstant()->toIso(), \"\\n\";\n\nstring $saved = 'Mars/Olympus';\ntry {\n    Core\\Time\\Zone::of($saved);\n} catch (RuntimeError $unknown) {\n    echo \"not in the database\\n\";\n}",
           "lang": "nvs"
         },
         {

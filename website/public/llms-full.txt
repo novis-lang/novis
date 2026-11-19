@@ -75,7 +75,7 @@ Conventions the whole file uses:
 | [`Core\Process`](#core-core-process) |  |
 | [`Core\Process\Result`](#core-core-process-result) |  |
 | [`Core\Process\Handle`](#core-core-process-handle) |  |
-| [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
+| [`Core\Time`](#core-core-time) | the clock — the current `Instant`, a monotonic reading to time code, and `sleep` |
 | [`Core\Time\Instant`](#core-core-time-instant) | an absolute point on the timeline, to the nanosecond, with no zone |
 | [`Core\Time\DateTime`](#core-core-time-datetime) | a civil date and time in a zone — calendar arithmetic and CLDR formatting |
 | [`Core\Time\Date`](#core-core-time-date) | a calendar date with no time and no zone |
@@ -37371,55 +37371,37 @@ Stops the program at once, whatever it is doing. If the program has already ende
 <a id="core-core-time"></a>
 ### `Core\Time`
 
-Keywords: time, current time, now, clock, timestamp, from timestamp, epoch, date, datetime, create a date, parse a date, date format, ISO 8601, sleep, immutable, now, monotonic, sleep, fromEpoch, fromIso, parse, at
+Keywords: time, current time, now, clock, timestamp, monotonic, elapsed time, measure time, sleep, wait, pause, now, monotonic, sleep
 
-`Core\Time` is where a time value starts: `now()` reads the clock as an `Instant`, `fromIso` and
-`fromEpoch` build one from a timestamp, and `at` and `parse` build a `DateTime` from civil fields or
-text. Every value it answers is immutable, and there is no ambient time zone — a `DateTime` is always
-built in a `Zone` the call names, and an `Instant` becomes a calendar reading only through
-`->in($zone)`. The two arithmetics are told apart by type: an `Instant` moves by an exact `Duration`
-(`->plus(24h)`), a `DateTime` moves by a calendar step (`->plus(1, Core\Unit::Day)`), and across a
-DST boundary the two land an hour apart. There is no free-form date text: each phrase such as
-"next Monday" is a typed call, and a run-time offset such as `"30d"` is `Core\Time\Duration::parse`.
+`Core\Time` is the clock. `now()` returns the current time as an `Instant`. `monotonic()` returns a
+reading that only moves forward, to measure how long code takes. `sleep($duration)` waits for a
+`Duration`, such as `50ms`.
+
+Each time class builds its own values. `Instant::fromIso` and `Instant::fromEpoch` build an
+`Instant`. `Date::fromIso` and `Date::at` build a `Date`, and `TimeOfDay::fromIso` and
+`TimeOfDay::at` build a `TimeOfDay`. `DateTime::fromIso`, `DateTime::at` and `DateTime::parse` build a
+`DateTime` in a zone.
+
+There is no default time zone. An `Instant` becomes a date and a time of day only with
+`->in($zone)`. A zone that is fixed in the code is written as text, such as `'Europe/Berlin'`.
 
 ```nvs
 <?nvs
-var $utc = Core\Time\Zone::UTC;
-var $meeting = Core\Time::at(2024, 3, 1, $utc, { hour: 9, minute: 30 });
-echo $meeting->format('yyyy-MM-dd HH:mm'), "\n";
+var $now = Core\Time::now();
+echo $now->toEpochSeconds() > 1704067200 ? 'after 2024' : 'before 2024', "\n";
 
-var $parsed = Core\Time::parse('5 March 2024', 'd MMMM yyyy', $utc);
-echo $parsed->format('yyyy-MM-dd HH:mm:ss'), "\n";
+var $start = Core\Time::monotonic();
+Core\Time::sleep(20ms);
+Core\Time\Duration $took = Core\Time::monotonic()->minus($start);
+echo $took->toMilliseconds() >= 20 ? 'waited at least 20ms' : 'too short', "\n";
 
-var $stamp = Core\Time::fromIso('2024-03-01T10:30:00+01:00');
-echo $stamp->toIso(), "\n";
-echo $stamp->compareTo($meeting->toInstant()) == 0 ? 'same instant' : 'different', "\n";
-
-echo Core\Time::fromEpoch(0)->in($utc)->format('EEEE, d MMMM yyyy'), "\n";
-
-var $berlin = Core\Time\Zone::of('Europe/Berlin');
-echo $meeting->toInstant()->in($berlin)->format('HH:mm VV'), "\n";
-
-var $eve = Core\Time::at(2024, 3, 30, $berlin, { hour: 12 });
-echo $eve->plus(1, Core\Unit::Day)->format('yyyy-MM-dd HH:mm'), "\n";
-echo $eve->toInstant()->plus(24h)->in($berlin)->format('yyyy-MM-dd HH:mm'), "\n";
-
-try {
-    Core\Time::at(2024, 2, 30, $utc);
-} catch (RuntimeError $bad) {
-    echo "30 February does not exist\n";
-}
+var $meeting = Core\Time\DateTime::fromIso('2024-03-01 09:30', 'Europe/Berlin');
+echo $meeting->toInstant()->toIso(), "\n";
 ```
 ```output
-2024-03-01 09:30
-2024-03-05 00:00:00
-2024-03-01T09:30:00Z
-same instant
-Thursday, 1 January 1970
-10:30 Europe/Berlin
-2024-03-31 12:00
-2024-03-31 13:00
-30 February does not exist
+after 2024
+waited at least 20ms
+2024-03-01T08:30:00Z
 ```
 
 | Member | Signature |
@@ -37427,10 +37409,6 @@ Thursday, 1 January 1970
 | [`Core\Time::now`](#core-core-time-now) | `now(): Core\Time\Instant` |
 | [`Core\Time::monotonic`](#core-core-time-monotonic) | `monotonic(): Core\Time\Duration` |
 | [`Core\Time::sleep`](#core-core-time-sleep) | `sleep(Core\Time\Duration $d): void` |
-| [`Core\Time::fromEpoch`](#core-core-time-fromepoch) | `fromEpoch(int $seconds, { nanos?: uint }): Core\Time\Instant` |
-| [`Core\Time::fromIso`](#core-core-time-fromiso) | `fromIso(string $text): Core\Time\Instant` |
-| [`Core\Time::parse`](#core-core-time-parse) | `parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime` |
-| [`Core\Time::at`](#core-core-time-at) | `at(int $year, uint $month, uint $day, Core\Time\Zone $zone, { hour?: uint, minute?: uint, second?: uint, nanos?: uint }): Core\Time\DateTime` |
 
 <a id="core-core-time-now"></a>
 #### `Core\Time::now`
@@ -37469,99 +37447,24 @@ Waits for `$d`. Only this task waits, so other work on the same core keeps runni
 
 **Returns** `void` — Nothing.
 
-<a id="core-core-time-fromepoch"></a>
-#### `Core\Time::fromEpoch`
-
-```nvs skip
-Core\Time::fromEpoch(int $seconds, { nanos?: uint }): Core\Time\Instant
-```
-
-Builds the instant at a Unix timestamp. The `nanos` option is added after the second, so `-1` with `{ nanos: 1 }` is one nanosecond after `-1`.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$seconds` | `int` | Whole seconds since `1970-01-01T00:00:00Z`; negative before it. |
-| `{ nanos: … }` | `uint` (default `0`) | Nanoseconds to add on top of the second, below `1000000000`; the default is `0`. |
-
-**Returns** `Core\Time\Instant` — The `Instant`.
-
-**Throws** `RuntimeError` — `nanos` is not below `1000000000`, or `$seconds` is outside `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to `9999-12-30T22:00:00Z`.
-
-<a id="core-core-time-fromiso"></a>
-#### `Core\Time::fromIso`
-
-```nvs skip
-Core\Time::fromIso(string $text): Core\Time\Instant
-```
-
-Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no offset, use `Time::parse` with a zone. For a relative time, use a method such as `plus` or `next`.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$text` | `string` (neutral) | The timestamp text, with a date, a time and a `Z` or `±HH:MM` offset. |
-
-**Returns** `Core\Time\Instant` — The `Instant` the text names.
-
-**Throws** `ParseError` — `$text` is not such a timestamp. The error names the part of the text where reading stopped. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
-
-<a id="core-core-time-parse"></a>
-#### `Core\Time::parse`
-
-```nvs skip
-Core\Time::parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime
-```
-
-Reads a date and time with a CLDR pattern and places it in `$zone`. A `$format` written directly in the code is checked when the program compiles. A malformed one is error `E0769`. A field the pattern does not contain is set to the start of its range.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$text` | `string` (neutral) | The text to read. The result does not keep a qualifier of the text, such as `tainted`. |
-| `$format` | `string` (sink) | A CLDR pattern with date and time letters only, such as `yyyy-MM-dd HH:mm`. `$zone` gives the zone. A pattern is a small language, so a `tainted` pattern is not allowed. |
-| `$zone` | `Core\Time\Zone` | The zone the date and time are read in. If the zone skips the time, the result moves forward past the gap. |
-
-**Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
-
-**Throws** `LogicError` — `$format` is not valid. It has a pattern letter that is not supported or a quote that is not closed. It is also thrown when `$format` has a zone or offset letter, because `$zone` already gives the zone. For a `$format` written directly in the code, only an invalid pattern is error `E0769`. A zone or offset letter is a valid pattern that only this method does not allow. So it throws this error however `$format` was written.; `ParseError` — `$text` does not match `$format`. Fixed text differs, a number has no digits, there is extra text at the end, or the parts together are not a real date and time. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
-
-<a id="core-core-time-at"></a>
-#### `Core\Time::at`
-
-```nvs skip
-Core\Time::at(int $year, uint $month, uint $day, Core\Time\Zone $zone, { hour?: uint, minute?: uint, second?: uint, nanos?: uint }): Core\Time\DateTime
-```
-
-Builds a date and time in `$zone` from its fields. The clock fields default to midnight. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$year` | `int` | The year, within `-9999..=9999`. The time as a whole must also lie between `-9999-01-02T01:59:59Z` and `9999-12-30T22:00:00Z`. |
-| `$month` | `uint` | The month, `1` to `12`. |
-| `$day` | `uint` | The day of the month, which must exist in that month. |
-| `$zone` | `Core\Time\Zone` | The zone the fields are read in. |
-| `{ hour: … }` | `uint` (default `0`) | The hour, `0` to `23`; the default is `0`. |
-| `{ minute: … }` | `uint` (default `0`) | The minute, `0` to `59`; the default is `0`. |
-| `{ second: … }` | `uint` (default `0`) | The second, `0` to `59`; the default is `0`. |
-| `{ nanos: … }` | `uint` (default `0`) | The subsecond nanoseconds, below `1000000000`; the default is `0`. |
-
-**Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
-
-**Throws** `RuntimeError` — A field is outside its range, or the fields together are not a date that exists, such as `30` February. Or the time is past either end of the range `$year` allows.
-
 <a id="core-core-time-instant"></a>
 ### `Core\Time\Instant`
 
-Keywords: instant, timestamp, epoch, Unix time, milliseconds, timeline, UTC, RFC 3339, ISO 8601, time difference, add hours, in, toEpochSeconds, toEpochMillis, toEpochMicros, plus, minus, since, compareTo, toIso
+Keywords: instant, timestamp, epoch, Unix time, milliseconds, timeline, UTC, RFC 3339, ISO 8601, from timestamp, parse a timestamp, time difference, add hours, fromEpoch, fromIso, in, toEpochSeconds, toEpochMillis, toEpochMicros, plus, minus, since, compareTo, toIso
 
-An `Instant` is a point on the timeline with no calendar attached: it has an epoch count and an
-RFC 3339 rendering in UTC, and nothing else until `->in($zone)` places it on a calendar. It moves
-only by an exact `Duration` — `plus(36h)` is thirty-six hours whatever a zone's clocks did in between —
-and `since` measures the exact gap between two instants; a step in days or months is taken on the
-`DateTime` that `->in($zone)` answers. Two instants are ordered with `compareTo`; the `<`, `>` and
-`<=>` operators do not compile on an `Instant`.
+An `Instant` is a point on the timeline. It has no calendar and no zone. `Instant::fromIso` reads an
+RFC 3339 timestamp such as `2024-03-01T12:00:00Z`. `Instant::fromEpoch` builds one from seconds
+since 1 January 1970. `Core\Time::now()` returns the current instant.
+
+An `Instant` has an epoch count and a text form in UTC. `->in($zone)` gives its date and time of day
+in a zone, as a `DateTime`. It moves only by an exact `Duration`: `plus(36h)` is always thirty-six
+hours. `since` returns the exact time between two instants. A step in days or months is taken on the
+`DateTime` that `->in($zone)` returns. `compareTo` orders two instants. The `<`, `>` and `<=>`
+operators do not compile on an `Instant`.
 
 ```nvs
 <?nvs
-var $start = Core\Time::fromIso('2024-03-01T12:00:00Z');
+var $start = Core\Time\Instant::fromIso('2024-03-01T12:00:00Z');
 echo $start->toIso(), "\n";
 echo $start->toEpochSeconds(), "\n";
 echo $start->toEpochMillis(), "\n";
@@ -37572,8 +37475,8 @@ echo $end->since($start), "\n";
 echo $start->minus(30m)->toIso(), "\n";
 echo $start->compareTo($end), "\n";
 
-echo $start->in(Core\Time\Zone::of('Asia/Tokyo'))->format('yyyy-MM-dd HH:mm'), "\n";
-echo Core\Time::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
+echo $start->in('Asia/Tokyo')->format('yyyy-MM-dd HH:mm'), "\n";
+echo Core\Time\Instant::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
 ```
 ```output
 2024-03-01T12:00:00Z
@@ -37589,6 +37492,8 @@ echo Core\Time::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
 
 | Member | Signature |
 |---|---|
+| [`Core\Time\Instant::fromEpoch`](#core-core-time-instant-fromepoch) | `fromEpoch(int $seconds, { nanos?: uint }): Core\Time\Instant` |
+| [`Core\Time\Instant::fromIso`](#core-core-time-instant-fromiso) | `fromIso(string $text): Core\Time\Instant` |
 | [`Core\Time\Instant->in`](#core-core-time-instant-in) | `in(Core\Time\Zone $zone): Core\Time\DateTime` |
 | [`Core\Time\Instant->toEpochSeconds`](#core-core-time-instant-toepochseconds) | `toEpochSeconds(): int` |
 | [`Core\Time\Instant->toEpochMillis`](#core-core-time-instant-toepochmillis) | `toEpochMillis(): int` |
@@ -37598,6 +37503,41 @@ echo Core\Time::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
 | [`Core\Time\Instant->since`](#core-core-time-instant-since) | `since(Core\Time\Instant $earlier): Core\Time\Duration` |
 | [`Core\Time\Instant->compareTo`](#core-core-time-instant-compareto) | `compareTo(Core\Time\Instant $other): int` |
 | [`Core\Time\Instant->toIso`](#core-core-time-instant-toiso) | `toIso(): string` |
+
+<a id="core-core-time-instant-fromepoch"></a>
+#### `Core\Time\Instant::fromEpoch`
+
+```nvs skip
+Core\Time\Instant::fromEpoch(int $seconds, { nanos?: uint }): Core\Time\Instant
+```
+
+Builds the instant at a Unix timestamp. The `nanos` option is added after the second, so `-1` with `{ nanos: 1 }` is one nanosecond after `-1`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$seconds` | `int` | Whole seconds since `1970-01-01T00:00:00Z`; negative before it. |
+| `{ nanos: … }` | `uint` (default `0`) | Nanoseconds to add on top of the second, below `1000000000`; the default is `0`. |
+
+**Returns** `Core\Time\Instant` — The `Instant`.
+
+**Throws** `RuntimeError` — `nanos` is not below `1000000000`, or `$seconds` is outside `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to `9999-12-30T22:00:00Z`.
+
+<a id="core-core-time-instant-fromiso"></a>
+#### `Core\Time\Instant::fromIso`
+
+```nvs skip
+Core\Time\Instant::fromIso(string $text): Core\Time\Instant
+```
+
+Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no offset, use `DateTime::fromIso` with a zone. A `$text` written directly in the code is checked when the program compiles.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The timestamp text, with a date, `T` or one space, a time and a `Z` or `±HH:MM` offset. |
+
+**Returns** `Core\Time\Instant` — The `Instant` the text names.
+
+**Throws** `ParseError` — `$text` is not such a timestamp. The error names the part of the text where reading stopped. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-instant-in"></a>
 #### `Core\Time\Instant->in`
@@ -37727,23 +37667,30 @@ Returns the instant as RFC 3339 text in UTC. This is the date format that JSON a
 <a id="core-core-time-datetime"></a>
 ### `Core\Time\DateTime`
 
-Keywords: date, time, datetime, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear, year, month, day, hour, minute, second, nanos
+Keywords: date, time, datetime, create a date, parse a date, ISO 8601, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, at, fromIso, parse, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear, year, month, day, hour, minute, second, nanos
 
-A `DateTime` is a civil reading — year, month, day, hour, minute, second, nanosecond — in one `Zone`,
-built by `Core\Time::at` or `Core\Time::parse` or read off an `Instant` with `->in($zone)`. It is
-immutable: every member answers a new value. Its arithmetic is calendar arithmetic: `plus(1,
-Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
-across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
-zone.
+A `DateTime` is a date and a time of day in one `Zone`. `DateTime::fromIso` reads a text such as
+`2024-03-01 09:30` in the zone you give it. A date alone, such as `2024-03-01`, is the start of
+that day. `DateTime::at($date, $time, $zone)` builds one from a `Date` and a `TimeOfDay`.
+`DateTime::parse` reads text in a pattern of your choice. `->in($zone)` gives the `DateTime` of an
+`Instant`.
+
+A zone that is fixed in the code is written as text, such as `'Europe/Berlin'`. It is checked when
+the program compiles. A zone name that arrives while the program runs needs `Core\Time\Zone::of`.
+
+A `DateTime` never changes: every method returns a new value. Its arithmetic follows the calendar.
+`plus(1, Core\Unit::Month)` keeps the day inside the new month. `plus(1, Core\Unit::Day)` across a
+daylight saving change is 23 or 25 hours. `difference` counts whole units in the zone of the value
+it is called on.
 
 `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanos()` return the fields as
 numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
 return a `uint`. These are the same names and types that `with` takes.
 
-`format` takes a **CLDR pattern**. `Core\Time::parse` reads the same patterns, and `Date::format`
-and `TimeOfDay::format` use them for their own fields. A pattern written directly
-in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
-computed at run time throws a `LogicError` instead. Month and weekday names are always in English.
+`format` takes a **CLDR pattern**. `DateTime::parse` reads the same patterns, and `Date::format`
+and `TimeOfDay::format` use them for their own fields. A pattern written in the code is
+checked when the program compiles, so a letter outside the table below is a compile error. A pattern
+computed at run time throws a `LogicError`. Month and weekday names are always in English.
 
 | Letter | Field | Counts |
 |---|---|---|
@@ -37782,8 +37729,7 @@ Text between `'…'` is printed as it is, and `''` is one apostrophe. These lett
 
 ```nvs
 <?nvs
-var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 1, 31, $utc, { hour: 9, minute: 30 });
+var $d = Core\Time\DateTime::fromIso('2024-01-31 09:30', 'UTC');
 echo $d->format('yyyy-MM-dd HH:mm:ss'), "\n";
 echo $d->format("EEEE, d MMMM yyyy 'at' h:mm a"), "\n";
 
@@ -37794,10 +37740,14 @@ echo $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), "\n";
 echo $d->startOf(Core\Unit::Day)->format('HH:mm'), ' ',
     $d->endOf(Core\Unit::Month)->format('dd HH:mm:ss.SSS'), "\n";
 
-echo $d->difference(Core\Time::at(2026, 8, 30, $utc), Core\Unit::Year), "\n";
+echo $d->difference(Core\Time\DateTime::fromIso('2026-08-30', 'UTC'), Core\Unit::Year), "\n";
 echo $d->weekday() == Core\Time\Weekday::Wednesday ? 'midweek' : 'other', "\n";
 echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', "\n";
 echo $d->toInstant()->toIso(), "\n";
+
+var $eve = Core\Time\DateTime::at(Core\Time\Date::at(2024, 3, 30), Core\Time\TimeOfDay::at(12, 0), 'Europe/Berlin');
+echo $eve->plus(1, Core\Unit::Day)->format('yyyy-MM-dd HH:mm XXX'), "\n";
+echo Core\Time\DateTime::parse('5 March 2024', 'd MMMM yyyy', 'UTC')->format('yyyy-MM-dd HH:mm'), "\n";
 ```
 ```output
 2024-01-31 09:30:00
@@ -37811,10 +37761,15 @@ Wednesday, 31 January 2024 at 9:30 AM
 midweek
 31 leap
 2024-01-31T09:30:00Z
+2024-03-31 12:00 +02:00
+2024-03-05 00:00
 ```
 
 | Member | Signature |
 |---|---|
+| [`Core\Time\DateTime::at`](#core-core-time-datetime-at) | `at(Core\Time\Date $date, Core\Time\TimeOfDay $time, Core\Time\Zone $zone): Core\Time\DateTime` |
+| [`Core\Time\DateTime::fromIso`](#core-core-time-datetime-fromiso) | `fromIso(string $text, Core\Time\Zone $zone): Core\Time\DateTime` |
+| [`Core\Time\DateTime::parse`](#core-core-time-datetime-parse) | `parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime` |
 | [`Core\Time\DateTime->format`](#core-core-time-datetime-format) | `format(string $pattern): string` |
 | [`Core\Time\DateTime->plus`](#core-core-time-datetime-plus) | `plus(int $count, Core\Unit $unit): Core\Time\DateTime` |
 | [`Core\Time\DateTime->minus`](#core-core-time-datetime-minus) | `minus(int $count, Core\Unit $unit): Core\Time\DateTime` |
@@ -37839,6 +37794,62 @@ midweek
 | [`Core\Time\DateTime->minute`](#core-core-time-datetime-minute) | `minute(): uint` |
 | [`Core\Time\DateTime->second`](#core-core-time-datetime-second) | `second(): uint` |
 | [`Core\Time\DateTime->nanos`](#core-core-time-datetime-nanos) | `nanos(): uint` |
+
+<a id="core-core-time-datetime-at"></a>
+#### `Core\Time\DateTime::at`
+
+```nvs skip
+Core\Time\DateTime::at(Core\Time\Date $date, Core\Time\TimeOfDay $time, Core\Time\Zone $zone): Core\Time\DateTime
+```
+
+Builds a date and time in `$zone` from a `Date` and a `TimeOfDay`. It is the reverse of `date()`, `timeOfDay()` and `zone()`. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap. Each call builds one `DateTime`. Building the `Date` and the `TimeOfDay` first adds two small objects.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$date` | `Core\Time\Date` | The date, such as `Date::at(2024, 3, 1)`. |
+| `$time` | `Core\Time\TimeOfDay` | The time of day, such as `TimeOfDay::at(9, 30)`. |
+| `$zone` | `Core\Time\Zone` | The zone the date and the time are read in. |
+
+**Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
+
+**Throws** `RuntimeError` — The time is outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`. This can only happen on the first or the last day of the range.
+
+<a id="core-core-time-datetime-fromiso"></a>
+#### `Core\Time\DateTime::fromIso`
+
+```nvs skip
+Core\Time\DateTime::fromIso(string $text, Core\Time\Zone $zone): Core\Time\DateTime
+```
+
+Reads a date and time in the ISO 8601 form, such as `2024-03-01T09:30`, and places it in `$zone`. A date alone, such as `2024-03-01`, is the first moment of that day. If the zone skips the time, the result moves forward past the gap. A `$text` written directly in the code is checked when the program compiles.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | `YYYY-MM-DD`, or a date, `T` or one space, and a time. The time is `HH:MM`, `HH:MM:SS` or `HH:MM:SS` with one to nine digits after a `.`. |
+| `$zone` | `Core\Time\Zone` | The zone the date and the time are read in. |
+
+**Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
+
+**Throws** `ParseError` — `$text` is not in this form, or it is not a real date or time, such as `2024-02-30`. A text with an offset or a `Z` also throws this error. Read such a text with `Instant::fromIso`, then call `->in($zone)`. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
+
+<a id="core-core-time-datetime-parse"></a>
+#### `Core\Time\DateTime::parse`
+
+```nvs skip
+Core\Time\DateTime::parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime
+```
+
+Reads a date and time with a CLDR pattern and places it in `$zone`. A `$format` written directly in the code is checked when the program compiles. A malformed one is error `E0769`. A field the pattern does not contain is set to the start of its range.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The text to read. The result does not keep a qualifier of the text, such as `tainted`. |
+| `$format` | `string` (sink) | A CLDR pattern with date and time letters only, such as `yyyy-MM-dd HH:mm`. `$zone` gives the zone. A pattern is a small language, so a `tainted` pattern is not allowed. |
+| `$zone` | `Core\Time\Zone` | The zone the date and time are read in. If the zone skips the time, the result moves forward past the gap. |
+
+**Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
+
+**Throws** `LogicError` — `$format` is not valid. It has a pattern letter that is not supported or a quote that is not closed. It is also thrown when `$format` has a zone or offset letter, because `$zone` already gives the zone. For a `$format` written directly in the code, only an invalid pattern is error `E0769`. A zone or offset letter is a valid pattern that only this method does not allow. So it throws this error however `$format` was written.; `ParseError` — `$text` does not match `$format`. Fixed text differs, a number has no digits, there is extra text at the end, or the parts together are not a real date and time. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-datetime-format"></a>
 #### `Core\Time\DateTime->format`
@@ -38176,17 +38187,17 @@ Returns the part of the second after the whole seconds, in nanoseconds.
 <a id="core-core-time-date"></a>
 ### `Core\Time\Date`
 
-Keywords: date, calendar date, day-month-year, zone-free, valid date, days in month, leap year, at, format, plus, minus, with, compareTo, weekday, dayOfYear, isLeapYear, year, month, day, atStartOfDay
+Keywords: date, calendar date, day-month-year, zone-free, parse a date, ISO 8601, valid date, days in month, leap year, at, fromIso, format, plus, minus, with, compareTo, weekday, dayOfYear, isLeapYear, year, month, day
 
-A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::at` builds one, and
-`->date()` gives the date of a `DateTime`. To read a date from text, use `Core\Time::parse` with a
-pattern and a zone, and call `->date()` on the result. A date that does not exist throws an error
-when it is built.
+A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::fromIso` reads a
+date written as `YYYY-MM-DD`, such as `2024-03-01`. `Date::at` builds one from three numbers, and
+`->date()` gives the date of a `DateTime`. A date that does not exist throws an error when it is
+built. A date written as a string literal in `Date::fromIso` is checked when the program compiles.
 
 `year()`, `month()` and `day()` return the three fields as numbers. `weekday()` returns a
 `Core\Time\Weekday` case, `dayOfYear()` returns the day of the year from `1`, and
-`isLeapYear()` checks the year. `atStartOfDay($zone)` returns a `DateTime` at the first moment of
-the date in that zone. This is usually midnight. Add a time of day to it with `withTime`.
+`isLeapYear()` checks the year. `DateTime::at($date, TimeOfDay::at(0, 0), $zone)` returns the first
+moment of the date in a zone.
 
 `plus` and `minus` move a date by `Core\Unit::Day` or a larger unit. A smaller unit throws an
 error. Moving by months keeps the day inside the new month, as `DateTime::plus` does. `format`
@@ -38196,7 +38207,7 @@ order two dates.
 
 ```nvs
 <?nvs
-var $d = Core\Time\Date::at(2024, 1, 31);
+var $d = Core\Time\Date::fromIso('2024-01-31');
 echo $d->format('yyyy-MM-dd'), "\n";
 echo $d->format('EEEE, d MMMM'), "\n";
 
@@ -38211,12 +38222,12 @@ try {
     echo "2023-02-29 does not exist\n";
 }
 
-var $utc = Core\Time\Zone::UTC;
-echo Core\Time::at(2024, 3, 1, $utc, { hour: 23 })->date()->format('d/M/yyyy'), "\n";
+echo Core\Time\DateTime::fromIso('2024-03-01 23:00', 'UTC')->date()->format('d/M/yyyy'), "\n";
 
 echo $d->year(), ' ', $d->month(), ' ', $d->day(), "\n";
 echo $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap year' : 'not a leap year', "\n";
-echo $d->atStartOfDay(Core\Time\Zone::of('Europe/Berlin'))->format('yyyy-MM-dd HH:mm XXX'), "\n";
+var $midnight = Core\Time\TimeOfDay::at(0, 0);
+echo Core\Time\DateTime::at($d, $midnight, 'Europe/Berlin')->format('yyyy-MM-dd HH:mm XXX'), "\n";
 ```
 ```output
 2024-01-31
@@ -38235,6 +38246,7 @@ Tue 30 Jan
 | Member | Signature |
 |---|---|
 | [`Core\Time\Date::at`](#core-core-time-date-at) | `at(int $y, uint $m, uint $d): Core\Time\Date` |
+| [`Core\Time\Date::fromIso`](#core-core-time-date-fromiso) | `fromIso(string $text): Core\Time\Date` |
 | [`Core\Time\Date->format`](#core-core-time-date-format) | `format(string $pattern): string` |
 | [`Core\Time\Date->plus`](#core-core-time-date-plus) | `plus(int $count, Core\Unit $unit): Core\Time\Date` |
 | [`Core\Time\Date->minus`](#core-core-time-date-minus) | `minus(int $count, Core\Unit $unit): Core\Time\Date` |
@@ -38246,7 +38258,6 @@ Tue 30 Jan
 | [`Core\Time\Date->year`](#core-core-time-date-year) | `year(): int` |
 | [`Core\Time\Date->month`](#core-core-time-date-month) | `month(): uint` |
 | [`Core\Time\Date->day`](#core-core-time-date-day) | `day(): uint` |
-| [`Core\Time\Date->atStartOfDay`](#core-core-time-date-atstartofday) | `atStartOfDay(Core\Time\Zone $zone): Core\Time\DateTime` |
 
 <a id="core-core-time-date-at"></a>
 #### `Core\Time\Date::at`
@@ -38266,6 +38277,23 @@ Builds a date with no zone from its three fields. A date that does not exist, su
 **Returns** `Core\Time\Date` — The `Date`.
 
 **Throws** `RuntimeError` — A field is outside its range, or the three together are not a date that exists.
+
+<a id="core-core-time-date-fromiso"></a>
+#### `Core\Time\Date::fromIso`
+
+```nvs skip
+Core\Time\Date::fromIso(string $text): Core\Time\Date
+```
+
+Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` written directly in the code is checked when the program compiles.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The date as `YYYY-MM-DD`. A year before year 1 starts with `-`. |
+
+**Returns** `Core\Time\Date` — The `Date`.
+
+**Throws** `ParseError` — `$text` is not in this form, such as `2024-3-1`, or it is not a real date, such as `2024-02-30`. The error says which part is wrong.
 
 <a id="core-core-time-date-format"></a>
 #### `Core\Time\Date->format`
@@ -38420,41 +38448,28 @@ Returns the day of the month of this date.
 
 **Returns** `uint` — The day, from `1` to the last day of the month.
 
-<a id="core-core-time-date-atstartofday"></a>
-#### `Core\Time\Date->atStartOfDay`
-
-```nvs skip
-$date->atStartOfDay(Core\Time\Zone $zone): Core\Time\DateTime
-```
-
-Returns the first moment of this date in a time zone, as a `DateTime`. This is usually midnight. In some zones the clocks skip midnight on one day of the year. On that day, the result is the first time that exists, such as `01:00`.
-
-| Parameter | Type | Meaning |
-|---|---|---|
-| `$zone` | `Core\Time\Zone` | The time zone the day starts in. |
-
-**Returns** `Core\Time\DateTime` — A new `DateTime` on this date in `$zone`. Use `withTime` on it to set another time.
-
-**Throws** `RuntimeError` — The first or the last day of the range, in a zone whose start of that day is outside the range of times Novis supports.
-
 <a id="core-core-time-timeofday"></a>
 ### `Core\Time\TimeOfDay`
 
-Keywords: wall clock, time of day, time without a date, clock reading, hour, minute, second, at, format, plus, minus, with, compareTo, hour, minute, second, nanos
+Keywords: wall clock, time of day, time without a date, clock reading, parse a time, ISO 8601, hour, minute, second, at, fromIso, format, plus, minus, with, compareTo, hour, minute, second, nanos
 
-A `TimeOfDay` is a clock reading — hour, minute, second, nanosecond — with no date and no zone, built by
-`TimeOfDay::at` or read off a `DateTime` with `->timeOfDay()`. It steps by `Core\Unit::Hour` and
-smaller and wraps within the day, so `23:30` plus an hour is `00:30`; `Core\Unit::Day` and larger are
-refused, because a carry has no date to go to. `format` takes the time letters of the CLDR grammar
-`DateTime::format` uses, and a date or zone letter is refused. `DateTime::withTime` puts a reading
-back onto a date. `<`, `>`, `<=`, `>=` and `compareTo` order two readings.
+A `TimeOfDay` is a clock reading: hour, minute, second and nanosecond. It has no date and no zone.
+`TimeOfDay::fromIso` reads a time written as `HH:MM`, `HH:MM:SS` or `HH:MM:SS.f`, such as `09:30`.
+`TimeOfDay::at` builds one from numbers, and `->timeOfDay()` gives the time of a `DateTime`. A time
+written as a string literal in `TimeOfDay::fromIso` is checked when the program compiles.
+
+`plus` and `minus` step by `Core\Unit::Hour` or a smaller unit, and wrap within the day: `23:30`
+plus one hour is `00:30`. `Core\Unit::Day` and larger units throw an error, because there is no date
+to change. `format` takes the time letters of the patterns `DateTime::format` uses. A date letter or
+a zone letter does not compile. `DateTime::withTime` puts a time onto a date. `<`, `>`, `<=`, `>=`
+and `compareTo` order two times.
 
 `hour()`, `minute()`, `second()` and `nanos()` return the four fields as numbers. Each returns a
 `uint`, with the same name as the field `with` takes.
 
 ```nvs
 <?nvs
-var $t = Core\Time\TimeOfDay::at(23, 30);
+var $t = Core\Time\TimeOfDay::fromIso('23:30');
 echo $t->format('HH:mm:ss'), "\n";
 echo $t->format('h:mm a'), "\n";
 
@@ -38463,8 +38478,7 @@ echo $t->minus(45, Core\Unit::Minute)->format('HH:mm'), "\n";
 echo $t->with({ second: 45 })->format('HH:mm:ss'), "\n";
 echo $t->compareTo(Core\Time\TimeOfDay::at(9, 0)), "\n";
 
-var $utc = Core\Time\Zone::UTC;
-var $d = Core\Time::at(2024, 3, 1, $utc, { hour: 9 });
+var $d = Core\Time\DateTime::fromIso('2024-03-01 09:00', 'UTC');
 echo $d->withTime($t)->format('yyyy-MM-dd HH:mm'), "\n";
 echo $d->timeOfDay()->format('HH:mm'), "\n";
 ```
@@ -38482,6 +38496,7 @@ echo $d->timeOfDay()->format('HH:mm'), "\n";
 | Member | Signature |
 |---|---|
 | [`Core\Time\TimeOfDay::at`](#core-core-time-timeofday-at) | `at(uint $hour, uint $minute, { second?: uint, nanos?: uint }): Core\Time\TimeOfDay` |
+| [`Core\Time\TimeOfDay::fromIso`](#core-core-time-timeofday-fromiso) | `fromIso(string $text): Core\Time\TimeOfDay` |
 | [`Core\Time\TimeOfDay->format`](#core-core-time-timeofday-format) | `format(string $pattern): string` |
 | [`Core\Time\TimeOfDay->plus`](#core-core-time-timeofday-plus) | `plus(int $count, Core\Unit $unit): Core\Time\TimeOfDay` |
 | [`Core\Time\TimeOfDay->minus`](#core-core-time-timeofday-minus) | `minus(int $count, Core\Unit $unit): Core\Time\TimeOfDay` |
@@ -38511,6 +38526,23 @@ Makes a time of day from an hour and a minute. The seconds and the nanoseconds a
 **Returns** `Core\Time\TimeOfDay` — The new `TimeOfDay`.
 
 **Throws** `RuntimeError` — A field is outside its range, for example an hour of `24`.
+
+<a id="core-core-time-timeofday-fromiso"></a>
+#### `Core\Time\TimeOfDay::fromIso`
+
+```nvs skip
+Core\Time\TimeOfDay::fromIso(string $text): Core\Time\TimeOfDay
+```
+
+Reads a time of day in the ISO 8601 form, such as `09:30` or `09:30:15.5`. A `$text` written directly in the code is checked when the program compiles.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | `HH:MM`, `HH:MM:SS`, or `HH:MM:SS` with one to nine digits after a `.`. |
+
+**Returns** `Core\Time\TimeOfDay` — The `TimeOfDay`.
+
+**Throws** `ParseError` — `$text` is not in this form, or a field is outside its range, such as `24:00`. The error says which part is wrong.
 
 <a id="core-core-time-timeofday-format"></a>
 #### `Core\Time\TimeOfDay->format`
@@ -39007,30 +39039,35 @@ Writes the receiver as text in the same syntax as a duration in the code, such a
 
 Keywords: timezone, time zone, IANA, tz database, Europe/Berlin, UTC, offset, UTC offset, DST, daylight saving time, convert time zone, system time zone, of, fixed, system, offsetAt
 
-A `Zone` is what turns an `Instant` into a calendar reading and back: `Zone::of` looks up an IANA
-identifier such as `Europe/Berlin` in the bundled database and throws on one it does not have,
-`Zone::fixed` is a constant offset with no DST rules, and `Zone::UTC` is the one constant. There is
-no ambient zone: `Zone::system()` answers the host's zone as an ordinary value the program then
-passes on, and no call sets a default zone for the program. A zone with DST has no single
-offset, so `offsetAt` asks for the instant.
+A `Zone` turns an `Instant` into a date and a time of day, and back. A zone that is fixed in the code
+is written as text where a `Zone` is expected: `$instant->in('Europe/Berlin')`. The name is checked
+when the program compiles, and the zone is built once. `UTC` and an offset such as `'+05:30'` are
+written the same way.
+
+`Zone::of($name)` looks up a name that arrives while the program runs, such as a user's setting. It
+throws an error for a name the time zone database does not have. `Zone::fixed` is a constant offset
+with no daylight saving rules. There is no default zone: `Zone::system()` returns the zone of the
+host, and the program passes it on. A zone with daylight saving time has no single offset, so
+`offsetAt` needs the instant.
 
 ```nvs
 <?nvs
 var $berlin = Core\Time\Zone::of('Europe/Berlin');
-var $jan = Core\Time::fromIso('2024-01-15T12:00:00Z');
-var $jul = Core\Time::fromIso('2024-07-15T12:00:00Z');
+var $jan = Core\Time\Instant::fromIso('2024-01-15T12:00:00Z');
+var $jul = Core\Time\Instant::fromIso('2024-07-15T12:00:00Z');
 echo $berlin->offsetAt($jan), "\n";
 echo $berlin->offsetAt($jul), "\n";
-echo $jul->in($berlin)->format('HH:mm xxx VV'), "\n";
+echo $jul->in('Europe/Berlin')->format('HH:mm xxx VV'), "\n";
 
 var $india = Core\Time\Zone::fixed(5h30m);
 echo $jul->in($india)->format('HH:mm xxx'), "\n";
 echo Core\Time\Zone::UTC->offsetAt($jul)->toSeconds(), "\n";
 
-echo Core\Time::at(2024, 7, 15, $berlin, { hour: 14 })->toInstant()->toIso(), "\n";
+echo Core\Time\DateTime::fromIso('2024-07-15 14:00', $berlin)->toInstant()->toIso(), "\n";
 
+string $saved = 'Mars/Olympus';
 try {
-    Core\Time\Zone::of('Mars/Olympus');
+    Core\Time\Zone::of($saved);
 } catch (RuntimeError $unknown) {
     echo "not in the database\n";
 }
