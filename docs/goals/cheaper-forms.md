@@ -6,7 +6,7 @@ context: [docs/rules/types/a-replaced-value-is-changed-in-place.md, docs/rules/i
 stages:
   - id: 1
     title: the rule, the table, the off switch and a case for every row
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, tools/nv/cmd/suite.ts, benches/scaling/README.md, benches/scaling/arrays/sort.nvs]
   - id: 2
     title: a call form that needs no proof compiles as its fast form
@@ -378,6 +378,16 @@ difference in output. It is a test tool, not a setting: no `nvs.toml` key, no he
 literal lowered, and one candidate record for each callback form. At run time, nothing: every row
 removes work. A program holds no more memory for a request or a task.
 
+**A `run` ladder measures its work apart from its setup (my call, stage 1).** `bun nv scaling`
+judges a `run` ladder by the whole run's counts, so the two `expect constant` ladders count the linear
+input they build, and would stay red after their fix. Stage 4 gives a `run` ladder
+`// scaling: rounds N` in `tools/nv/cmd/scaling.ts`: the tool runs the work half and all of `N`
+times and judges the difference, as `rampPerOp` already does for a member bench's `.scale.nvs`, so
+setup cancels out. The two constant ladders then take the line. Moving them to member benches was
+declined: the size a ladder grows is what they test. Marking them `proposal` was declined: it would
+hide the red the fix must turn green. The difference ladder's quadratic shows in the clock alone,
+because `Core\Arr::contains` is no counted call, so its red needs callgrind in WSL.
+
 **Limits: what stops this goal.**
 
 - Counts decide, never the clock. A row is checked by the instruction the lowering emits, and a
@@ -405,22 +415,22 @@ in three batches, one per folder under `tests/conformance/forms/`: `calls/`, `lo
 The batches are disjoint files and run side by side. One more writing subagent writes the three
 ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
 
-- [ ] `docs/rules/expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named.md:1`: the rule,
+- [x] `docs/rules/expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named.md:1`: the rule,
   with the three outcomes, both tables, the warnings, what is not a warning, the cost lines and the
   Declined list. One line in `docs/ground-rules.md`. `bun nv rules --render`, then `bun nv rules --check`
   is green.
-- [ ] `crates/nvs-ir/src/forms.rs:1`: the table as data, one row per line of the two tables in
+- [x] `crates/nvs-ir/src/forms.rs:1`: the table as data, one row per line of the two tables in
   § *Standing decisions*, each with its id, its outcome set and the proof it needs. No row is applied
   yet.
-- [ ] `--no-cheaper-forms` on `run`, `test` and `serve` in `crates/nvs-cli/src/main.rs`, hidden, reaching
+- [x] `--no-cheaper-forms` on `run`, `test` and `serve` in `crates/nvs-cli/src/main.rs`, hidden, reaching
   the IR's options beside `--no-in-place` where that exists. `tools/nv/cmd/suite.ts` gains
   `--no-cheaper-forms-too`.
-- [ ] `crates/nvs-ir/src/lower/tests.rs`: `every_form_row_has_its_cases` reads the table and fails
+- [x] `crates/nvs-ir/src/lower/tests.rs`: `every_form_row_has_its_cases` reads the table and fails
   naming each missing case. A row with no proof owes one case where it holds and one for each
   condition in its "Holds when" cell that fails. A callback row owes three: proven, can fail, has an
   effect. A case is named `<row id>-<outcome>.nvst` and prints what the form returns.
-- [ ] The cases, through the subagents.
-- [ ] Three ladders under `benches/scaling/arrays/`:
+- [x] The cases, through the subagents.
+- [x] Three ladders under `benches/scaling/arrays/`:
   `forms-a-difference-written-as-filter-and-contains.nvs` (`// scaling: expect linear`),
   `forms-a-first-match-written-as-first-of-filter.nvs` (the first entry matches,
   `// scaling: expect constant`) and `forms-a-map-over-rows-does-not-read-each-row.nvs` (100 rows, the
@@ -474,6 +484,9 @@ ladders, copying the shape of `benches/scaling/arrays/sort.nvs`.
   kept in a list beside the unit's copy table, with its span and the fast form as text.
 - [ ] The four tests the `callback-forms` check names. Run once.
 - [ ] `bun nv suite tests/conformance/ --no-cheaper-forms-too` once, green.
+- [ ] `tools/nv/cmd/scaling.ts`: `// scaling: rounds N` on a `run` ladder judges the difference of half
+  and all of `N` rounds, as § *Standing decisions* says, with a test in `tools/nv/test/`. The two
+  `expect constant` ladders under `benches/scaling/arrays/forms-` take it.
 - [ ] `bun nv scaling --check arrays/forms-` once: the first two ladders grow as their files say.
 
 ### 5. a form only an edit can change is a warning with its fix, in nvs check and in the editor
@@ -507,7 +520,8 @@ under `tests/lsp/diagnostics/`. A `reader` subagent runs `nvs check` over `docs/
 - [ ] `crates/nvs-runtime/src/callable.rs:253`: `call_callable` takes the mark as `TagCheck::Proven` and
   skips both checks. In a debug build it runs them and aborts on a mismatch.
 - [ ] The three tests the `proven-callbacks` check names. Run once.
-- [ ] `bun nv scaling --check arrays/forms-a-map-over-rows` once: constant in the row width.
+- [ ] `bun nv scaling --check arrays/forms-a-map-over-rows` once: constant in the row width. It needs
+  `// scaling: rounds N` from stage 4; a stage 6 that runs first builds that item itself.
 
 ### 7. a recorded request shows its HTTP, cache, session and file calls by line
 
@@ -577,28 +591,33 @@ under `tests/lsp/actions/`.
 
 ### State
 
-Written on 2026-11-17 from a review the person asked for: where can the compiler tell a user that
-another way to write the same thing is faster. Their calls: the compiler fixes what it can prove with
-no hint, a warning with its fix appears only where an edit is needed, and the list in the review is
-the scope. Every other choice in § *Standing decisions* is the authoring session's call under the
-priority ordering, and stands until the person picks another.
+Stage 1 is done, in one session. The rule is
+`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named` (status `designed`, owned
+by this goal). `crates/nvs-ir/src/forms.rs` holds the eighteen rows as `ROWS`, each with a
+`Proof::Static` list of `Condition`s or `Proof::Callback`, a `Folder` and the `stage` that applies it;
+`Row::cases` gives each case's file and expected `Outcome`. No row is applied: the lowering does not
+read the table yet. `--no-cheaper-forms` reaches `nvs_ir::lower::without_cheaper_forms` through
+`crates/nvs-cli/src/in_place.rs`, which now holds both differential switches, and
+`cheaper_forms_on()` in `crates/nvs-ir/src/lower/mod.rs` is what each row's site asks.
+`bun nv suite --no-cheaper-forms-too` runs it. The 55 cases under `tests/conformance/forms/` pass, and
+`every_form_row_has_its_cases` is green.
 
-Three things the review first listed as warnings are not warnings here, each decided while writing
-this file. The caught conversion is compiled silently, because every case the warning would name is
-one the compiler can prove. A by-value loop that writes the entry it is on went to
-`in-place-everywhere` as a silent change. `Core\IO::append` in a loop is shown from a recorded
-request, because one opened handle behaves differently when the file is replaced.
+The clause "the catch variable is unread" cannot fail alone, so its two cases also fail "the catch
+body is `$v = null;`". A failed `as int` and `Core\Uuid::parse` throw `RuntimeError`.
 
-Every row and every member fix here was timed on the release binary on 2026-11-17, and § *Why* holds
-the figures. Three forms measured no gain and were left out. Two things could not be timed before
-they exist and carry their own 2x test: the session row of the repeated-read warning, and
-`Core\Json::isValid` without a built value.
-
-Sessions used per stage: none yet. Nothing is built.
+The ladders are red, as planned; stage 4 adds `// scaling: rounds N` (§ *Standing decisions*).
+Sessions used: stage 1, one. The sweep's `env-secret-proofs` red is stale: no goal defines it.
 
 ### Next
 
-Stage 1 from its first item. Stages 6, 7, 8 and 10 can start as side goals at any time.
+Stage 2 from its first item: `crates/nvs-ir/src/lower/expr.rs:5160`, where a `CoreCall` is emitted,
+asks `crate::forms` and `cheaper_forms_on()`. Each row's site matches the rows with `stage: 2` in
+`forms.rs`, and each of the four `call-forms` tests asserts the instruction with the table on and
+inside `without_cheaper_forms`. Stages 6, 7, 8 and 10 can start as side goals at any time; stage 6's
+ladder needs stage 4's `rounds` item, or builds it.
+
+Tests expected red: none. The three ladders under `benches/scaling/arrays/forms-` stay red until
+stages 4 and 6, and no sweep runs them before stage 4's check.
 
 ### Backlog
 
