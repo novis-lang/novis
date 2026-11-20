@@ -25,7 +25,7 @@
 //!   against.
 
 use nvs_hir::QName;
-use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PARSES};
+use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, KEYED_ITERABLE, PARSES};
 use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME, Qual};
 use std::sync::OnceLock;
 
@@ -303,7 +303,13 @@ fn seed_class(
         // `crate::expr::iteration` substitutes the receiver's arguments into.
         if let Some(elem) = nvs_stdlib::registry::iterable_element(class.name) {
             let elem = lower(elem, interner);
-            table.seed_implements(qname, QName::parse(ITERABLE), vec![elem]);
+            table.seed_implements(qname.clone(), QName::parse(ITERABLE), vec![elem]);
+        }
+        // `rule:iteration/keyed-interfaces`: the classes a loop with a key
+        // binding walks, at the key and value the row names.
+        if let Some((key, value)) = nvs_stdlib::registry::keyed_iterable_entry(class.name) {
+            let (key, value) = (lower(key, interner), lower(value, interner));
+            table.seed_implements(qname, QName::parse(KEYED_ITERABLE), vec![key, value]);
         }
     }
 }
@@ -2797,6 +2803,17 @@ mod tests {
         .expect("a map is iterable");
         assert_eq!(interface.to_string(), ITERABLE);
         assert_eq!(element, interner.type_var("K"));
+
+        // `rule:iteration/keyed-interfaces`: the map reaches the keyed pair too.
+        let (interface, key, value) = crate::signatures::resolve_keyed_iteration(
+            &QName::parse(r"Core\ObjectMap"),
+            &table,
+            &graph,
+        )
+        .expect("a map is keyed");
+        assert_eq!(interface.to_string(), KEYED_ITERABLE);
+        assert_eq!(key, interner.type_var("K"));
+        assert_eq!(value, interner.type_var("V"));
 
         let (_, element) = crate::signatures::resolve_iteration_element(
             &QName::parse(r"Core\Heap"),

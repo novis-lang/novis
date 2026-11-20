@@ -3,8 +3,9 @@
 //!
 //! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place all eight — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
-//! `PropertyGuard`, `LateInit`, `Iterable<T>` and `Iterator<T>` — become member
+//! place all ten — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+//! `PropertyGuard`, `LateInit`, `Iterable<T>`, `Iterator<T>`,
+//! `KeyedIterable<K, V>` and `KeyedIterator<K, V>` — become member
 //! signatures, in exactly the
 //! [`ClassSignature`](crate::signatures::ClassSignature) shape
 //! [`crate::error_lib`] gives the exception tree and [`crate::core_lib`]
@@ -64,8 +65,8 @@
 
 use nvs_hir::QName;
 use nvs_hir::interfaces::{
-    COMPARABLE, ITERABLE, ITERATOR, LATE_INIT, PARSES, PROPERTY_GUARD, PROPERTY_OBSERVER,
-    STRINGABLE,
+    COMPARABLE, ITERABLE, ITERATOR, KEYED_ITERABLE, KEYED_ITERATOR, LATE_INIT, PARSES,
+    PROPERTY_GUARD, PROPERTY_OBSERVER, STRINGABLE,
 };
 use rustc_hash::FxHashMap;
 
@@ -230,6 +231,53 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             .into_iter()
             .collect(),
     );
+
+    // `rule:iteration/keyed-interfaces`'s pair. The cursor shares `advance` and
+    // `current` with `Iterator<T>`, so one class may implement both when `T`
+    // is `V`, and adds `key()`.
+    let (cursor_key, cursor_value) = key_value_vars(KEYED_ITERATOR, interner);
+    table.seed_class(
+        QName::parse(KEYED_ITERATOR),
+        FxHashMap::default(),
+        [
+            ("advance".to_owned(), bodiless(&[], Vec::new(), bool_ty)),
+            ("key".to_owned(), bodiless(&[], Vec::new(), cursor_key)),
+            (
+                "current".to_owned(),
+                bodiless(&[], Vec::new(), cursor_value),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    let (keyed_key, keyed_value) = key_value_vars(KEYED_ITERABLE, interner);
+    let keyed_cursor =
+        interner.generic_class(QName::parse(KEYED_ITERATOR), vec![keyed_key, keyed_value]);
+    table.seed_class(
+        QName::parse(KEYED_ITERABLE),
+        FxHashMap::default(),
+        [(
+            "iterateKeyed".to_owned(),
+            bodiless(&[], Vec::new(), keyed_cursor),
+        )]
+        .into_iter()
+        .collect(),
+    );
+}
+
+/// The interned type variables standing for `interface`'s key and value
+/// parameters, in that order: [`elem_var`]'s twin for the keyed pair.
+///
+/// Panics if the roster gives it anything other than exactly two, for
+/// [`elem_var`]'s reason.
+fn key_value_vars(interface: &str, interner: &mut TypeInterner) -> (TypeId, TypeId) {
+    let params = nvs_hir::interfaces::type_params(interface)
+        .unwrap_or_else(|| panic!("`{interface}` is not on the reserved-interface roster"));
+    let [key, value] = params else {
+        panic!("`{interface}` should declare exactly two type parameters, got {params:?}")
+    };
+    (interner.type_var(*key), interner.type_var(*value))
 }
 
 /// The interned type variable standing for `interface`'s sole type parameter.
@@ -347,6 +395,28 @@ mod tests {
         let (_, current) =
             resolve_method(&QName::parse(ITERATOR), "current", &table, &graph).expect("current");
         assert!(current.is_generic(&interner));
+    }
+
+    #[test]
+    fn the_keyed_cursor_declares_its_three_members() {
+        let (table, interner) = seeded();
+        let graph = ClassGraph::default();
+        let cursor = QName::parse(KEYED_ITERATOR);
+        let (_, advance) = resolve_method(&cursor, "advance", &table, &graph).expect("advance");
+        assert_eq!(interner.describe(advance.return_ty), "bool");
+        let (_, key) = resolve_method(&cursor, "key", &table, &graph).expect("key");
+        assert_eq!(interner.describe(key.return_ty), "K");
+        let (_, current) = resolve_method(&cursor, "current", &table, &graph).expect("current");
+        assert_eq!(interner.describe(current.return_ty), "V");
+
+        let (_, keyed) = resolve_method(
+            &QName::parse(KEYED_ITERABLE),
+            "iterateKeyed",
+            &table,
+            &graph,
+        )
+        .expect("iterateKeyed");
+        assert_eq!(interner.describe(keyed.return_ty), "KeyedIterator<K, V>");
     }
 
     #[test]

@@ -1652,12 +1652,13 @@ pub(crate) fn check_stmt(
                 }
                 _ => check_expr(subject, None, live, scope, ctx, env),
             };
-            let source = crate::expr::foreach_source(subject_ty, subject.span, env);
+            let source = crate::expr::foreach_source(subject_ty, subject.span, key.is_some(), env);
             let mark = live.mark();
             if let Some(k) = key {
                 // `rule:security/taint-propagation`: a key that can come from
-                // outside the program is `tainted string`.
-                let given = crate::expr::foreach_key_ty(subject_ty, env);
+                // outside the program is `tainted string`. Over the keyed pair
+                // the key is the source's `K` (`rule:iteration/keyed-interfaces`).
+                let given = crate::expr::foreach_key_ty(&source, subject_ty, env);
                 let ty = foreach_binding_ty(k, given, ctx, env);
                 crate::expr::check_foreach_key(&source, given, ty, k, env);
                 let name = strip_sigil(span_text(env.src, k.name)).to_owned();

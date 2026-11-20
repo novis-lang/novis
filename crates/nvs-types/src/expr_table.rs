@@ -1454,7 +1454,7 @@ pub enum ExprInfo {
     },
 }
 
-/// Which of `rule:iteration/foreach-subjects`'s three subject shapes a `foreach` is walking, and
+/// Which of `rule:iteration/foreach-subjects`'s subject shapes a `foreach` is walking, and
 /// therefore which loop `nvs-ir` emits.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ForeachDrive {
@@ -1468,6 +1468,14 @@ pub enum ForeachDrive {
     /// An `Iterator<T>`: driven directly, `advance()` then `current()`, with
     /// no `iterate()` call at all.
     Cursor,
+    /// A `KeyedIterable<K, V>` (`rule:iteration/keyed-interfaces`):
+    /// `iterateKeyed()` is called once and the keyed cursor it returns is
+    /// driven, `advance()` then `key()` and `current()`. Wins over
+    /// [`Self::KeyedCursor`] when a class reaches both, for
+    /// [`Self::Iterable`]'s reason.
+    KeyedIterable,
+    /// A `KeyedIterator<K, V>`: driven directly, with no `iterateKeyed()` call.
+    KeyedCursor,
 }
 
 /// What [`crate::intrinsics`]'s fold prepared at one call site, and where the

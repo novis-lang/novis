@@ -115,6 +115,20 @@ pub(crate) enum ForeachSource {
         /// already.
         via_iterable: bool,
     },
+    /// A `KeyedIterable<K, V>` or `KeyedIterator<K, V>`
+    /// (`rule:iteration/keyed-interfaces`), written as such or reached through
+    /// a class that implements one. A loop with a key binding drives it when
+    /// the subject reaches it, and a loop with a value binding alone drives it
+    /// only when the subject reaches no `Iterable`/`Iterator`.
+    Keyed {
+        /// The key type `key()` gives.
+        key: TypeId,
+        /// The value type `current()` gives.
+        value: TypeId,
+        /// Whether the subject reaches `KeyedIterable<K, V>`, so `foreach`
+        /// calls `iterateKeyed()` once before driving.
+        via_iterable: bool,
+    },
     /// A subject that is diagnosed: none of the three shapes, `mixed` or
     /// `iterable` included. Check nothing further and let the written
     /// binding types stand, so one mistake produces one diagnostic.
@@ -126,7 +140,9 @@ impl ForeachSource {
     /// subject that carries none.
     pub(crate) fn value_ty(self) -> Option<TypeId> {
         match self {
-            Self::Array { value } | Self::Cursor { value, .. } => Some(value),
+            Self::Array { value } | Self::Cursor { value, .. } | Self::Keyed { value, .. } => {
+                Some(value)
+            }
             Self::Unchecked => None,
         }
     }
@@ -141,23 +157,41 @@ impl ForeachSource {
             } else {
                 ForeachDrive::Cursor
             }),
+            Self::Keyed { via_iterable, .. } => Some(if via_iterable {
+                ForeachDrive::KeyedIterable
+            } else {
+                ForeachDrive::KeyedCursor
+            }),
             Self::Unchecked => None,
         }
     }
 }
 
-/// Classifies a `foreach` subject, diagnosing one that is none of `rule:iteration/foreach-subjects`'s three shapes.
-pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) -> ForeachSource {
-    let source = classify_foreach_source(subject_ty, span, env);
+/// Classifies a `foreach` subject, diagnosing one that is none of
+/// `rule:iteration/foreach-subjects`'s shapes. `binds_key` is whether the loop
+/// writes a key binding, which decides the interface a subject that reaches
+/// both pairs is driven through.
+pub(crate) fn foreach_source(
+    subject_ty: TypeId,
+    span: Span,
+    binds_key: bool,
+    env: &mut Env<'_>,
+) -> ForeachSource {
+    let source = classify_foreach_source(subject_ty, span, binds_key, env);
     if let Some(drive) = source.drive() {
         env.exprs.record_foreach(span, drive);
     }
     source
 }
 
+/// `rule:iteration/keyed-interfaces`'s drive choice. A loop with a key binding
+/// drives the keyed pair when the subject reaches it. A loop with a value
+/// binding alone drives `Iterable`/`Iterator` when the subject reaches either,
+/// so the old form keeps its meaning, and the keyed pair otherwise.
 pub(crate) fn classify_foreach_source(
     subject_ty: TypeId,
     span: Span,
+    binds_key: bool,
     env: &mut Env<'_>,
 ) -> ForeachSource {
     match env.interner.get(subject_ty).clone() {
@@ -172,19 +206,54 @@ pub(crate) fn classify_foreach_source(
         // (`rule:types/one-mistake-reports-once`).
         Ty::Error => ForeachSource::Unchecked,
         Ty::Class(qname, args) => {
-            if qname.is_reserved_global_interface()
-                && let Some(&value) = args.first()
-            {
-                return ForeachSource::Cursor {
-                    value,
-                    via_iterable: qname.short_name() == nvs_hir::interfaces::ITERABLE,
-                };
+            if qname.is_reserved_global_interface() {
+                let short = qname.short_name();
+                match args[..] {
+                    [value]
+                        if short == nvs_hir::interfaces::ITERABLE
+                            || short == nvs_hir::interfaces::ITERATOR =>
+                    {
+                        return ForeachSource::Cursor {
+                            value,
+                            via_iterable: short == nvs_hir::interfaces::ITERABLE,
+                        };
+                    }
+                    [key, value]
+                        if short == nvs_hir::interfaces::KEYED_ITERABLE
+                            || short == nvs_hir::interfaces::KEYED_ITERATOR =>
+                    {
+                        return ForeachSource::Keyed {
+                            key,
+                            value,
+                            via_iterable: short == nvs_hir::interfaces::KEYED_ITERABLE,
+                        };
+                    }
+                    _ => {}
+                }
             }
-            match crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph) {
-                Some((interface, value)) => ForeachSource::Cursor {
-                    value: with_subject_args(&qname, &args, value, env),
-                    via_iterable: interface.short_name() == nvs_hir::interfaces::ITERABLE,
-                },
+            let values =
+                crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph)
+                    .map(|(interface, value)| ForeachSource::Cursor {
+                        value: with_subject_args(&qname, &args, value, env),
+                        via_iterable: interface.short_name() == nvs_hir::interfaces::ITERABLE,
+                    });
+            let keyed = crate::signatures::resolve_keyed_iteration(
+                &qname,
+                env.signatures,
+                env.graph,
+            )
+            .map(|(interface, key, value)| ForeachSource::Keyed {
+                key: with_subject_args(&qname, &args, key, env),
+                value: with_subject_args(&qname, &args, value, env),
+                via_iterable: interface.short_name() == nvs_hir::interfaces::KEYED_ITERABLE,
+            });
+            let chosen = if binds_key {
+                keyed.or(values)
+            } else {
+                values.or(keyed)
+            };
+            match chosen {
+                Some(source) => source,
                 None => {
                     report_not_iterable(subject_ty, span, env);
                     ForeachSource::Unchecked
@@ -215,7 +284,10 @@ pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<
             format!("`foreach` cannot iterate a `{got}`"),
         )
         .with_primary(span, format!("this is `{got}`"))
-        .with_help("`foreach` works on an `array<T>`, an `Iterable<T>` or an `Iterator<T>`"),
+        .with_help(
+            "`foreach` works on an `array<T>`, an `Iterable<T>`, an `Iterator<T>`, a \
+             `KeyedIterable<K, V>` or a `KeyedIterator<K, V>`",
+        ),
     );
 }
 
@@ -305,7 +377,9 @@ pub(crate) fn check_foreach_inout(
         // Already diagnosed, or a `mixed` subject that carries no element
         // type to be exact about — one mistake, one diagnostic.
         ForeachSource::Unchecked => return,
-        ForeachSource::Cursor { .. } => {
+        // `rule:iteration/keyed-interfaces`: a keyed cursor has no element
+        // storage either, and the program writes with `$map->set($key, ...)`.
+        ForeachSource::Cursor { .. } | ForeachSource::Keyed { .. } => {
             env.diags.report(
                 Diagnostic::error(
                     code::E_FOREACH_INOUT_SUBJECT,
@@ -358,11 +432,20 @@ pub(crate) fn check_foreach_inout(
     }
 }
 
-/// The type a `foreach` over `subject_ty` gives its key binding: `tainted
+/// The type a `foreach` over `subject_ty` gives its key binding. Over the
+/// keyed pair it is the source's `K`, qualifier included
+/// (`rule:iteration/keyed-interfaces`). Over anything else it is `tainted
 /// string` where [`super::quals::keys_from_outside`] says the keys can come
 /// from outside the program, and `string` everywhere else. A `var` key takes
 /// it, and a written key is checked against it by [`check_foreach_key`].
-pub(crate) fn foreach_key_ty(subject_ty: TypeId, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn foreach_key_ty(
+    source: &ForeachSource,
+    subject_ty: TypeId,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if let ForeachSource::Keyed { key, .. } = *source {
+        return key;
+    }
     if super::quals::keys_from_outside(subject_ty, env.interner) {
         env.interner.tainted_string()
     } else {
@@ -416,6 +499,10 @@ pub(crate) fn check_foreach_key(
     if matches!(source, ForeachSource::Unchecked) {
         return;
     }
+    if let ForeachSource::Keyed { key, .. } = *source {
+        check_keyed_key(key, declared, binding, env);
+        return;
+    }
     let string = env.interner.string();
     if declared == string && given != string {
         report_untainted_outside_key(declared, binding.span, env);
@@ -431,10 +518,12 @@ pub(crate) fn check_foreach_key(
                 .with_primary(binding.span, "no key exists here")
                 .with_help(
                     "an iterator has values but no keys. Remove the `$k =>`, or loop over an \
-                     `array<T>`",
+                     `array<T>` or a `KeyedIterable<K, V>`",
                 ),
             );
         }
+        // Answered above, before the plain-`string` check.
+        ForeachSource::Keyed { .. } => {}
         ForeachSource::Array { .. } => {
             if matches!(binding.ty, ForeachBindingTy::Omitted) {
                 return;
@@ -460,6 +549,25 @@ pub(crate) fn check_foreach_key(
         // `mixed`, or a subject already diagnosed as something else — one
         // mistake, one diagnostic.
         ForeachSource::Unchecked => {}
+    }
+}
+
+/// [`check_foreach_key`] over the keyed pair (`rule:iteration/keyed-interfaces`).
+/// A written key type is checked as a value binding is: assignable from `K`,
+/// so a wider type such as `object` is accepted. A plain `string` over a
+/// `tainted string` key is the refusal an outside array key gets, and any other
+/// mismatch is the ordinary one. A `var` key is `K` by construction, and an
+/// omitted type was already reported by the parser.
+fn check_keyed_key(key: TypeId, declared: TypeId, binding: &ForeachBinding, env: &mut Env<'_>) {
+    if matches!(binding.ty, ForeachBindingTy::Omitted)
+        || is_assignable(key, declared, env.interner, env.graph, env.signatures)
+    {
+        return;
+    }
+    if declared == env.interner.string() && key == env.interner.tainted_string() {
+        report_untainted_outside_key(declared, binding.span, env);
+    } else {
+        report_mismatch(binding.span, declared, key, env);
     }
 }
 

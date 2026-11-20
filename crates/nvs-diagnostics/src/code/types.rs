@@ -365,9 +365,10 @@ codes! {
     /// reaching neither interface lands here, which is what keeps `foreach`
     /// from being another implicit-dispatch site.
     pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443").card(
-        "`foreach` can loop over an `array`, an `Iterable` or an `Iterator`, and this value is \
-         none of them. Loop over an array, or make the class implement `Iterable` or `Iterator`. \
-         Convert a `mixed` value first: write `$value as array<mixed>`.",
+        "`foreach` can loop over an array, an `Iterable`, an `Iterator`, a `KeyedIterable` or a \
+         `KeyedIterator`, and this value is none of them. Loop over an array, or make the class \
+         implement one of these interfaces. Convert a `mixed` value first: write \
+         `$value as array<mixed>`.",
     );
     /// A `foreach ($x as $k => $v)` key binding over an `Iterable`/`Iterator`
     /// subject. `rule:iteration/two-interfaces` gives a cursor exactly `advance()` and
@@ -375,7 +376,8 @@ codes! {
     /// be a second thing `foreach` means.
     pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444").card(
         "A `foreach` over an `Iterable` or an `Iterator` has no keys, so `$k =>` is not allowed. \
-         Write `foreach ($items as string $v)`, or loop over an array.",
+         Write `foreach ($items as string $v)`. To get keys, loop over an array or a \
+         `KeyedIterable`.",
     );
     /// A `yield` in a body that is not a generator's own — at file scope, or
     /// inside an anonymous function (`rule:types/anonymous-function`). `rule:iteration/generators` confines `yield` lexically to

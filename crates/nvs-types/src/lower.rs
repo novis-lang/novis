@@ -971,8 +971,9 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "type arguments written here")
         .with_help(
-            "only `Iterable<T>`, `Iterator<T>` and the `Core` collections `ObjectMap`, \
-             `ObjectSet` and `Heap` take type arguments. Remove the type arguments",
+            "only `Iterable<T>`, `Iterator<T>`, `KeyedIterable<K, V>`, `KeyedIterator<K, V>` \
+             and the `Core` collections `ObjectMap`, `ObjectSet` and `Heap` take type \
+             arguments. Remove the type arguments",
         ),
     );
 }

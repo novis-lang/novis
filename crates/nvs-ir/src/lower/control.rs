@@ -900,6 +900,14 @@ impl<'a> Lowering<'a> {
                 subject.span
             )
         });
+        assert!(
+            !matches!(
+                drive,
+                ForeachDrive::KeyedIterable | ForeachDrive::KeyedCursor
+            ),
+            "nvs-ir: a `foreach` over a `KeyedIterable`/`KeyedIterator` subject reached \
+             lowering, and the keyed loop is not lowered yet (`rule:iteration/keyed-interfaces`)"
+        );
         if drive != ForeachDrive::Array {
             assert!(
                 !value_inout,

@@ -880,8 +880,15 @@ pub(crate) fn walk_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
     let Ty::Class(qname, args) = env.interner.get(ty).clone() else {
         return None;
     };
+    // Only the value pair is a walk here: a `Core` member reads a walk through
+    // `iterate()` and `current()`, which the keyed pair does not answer
+    // (`rule:iteration/keyed-interfaces`).
     if qname.is_reserved_global_interface() {
-        return args.first().copied();
+        let short = qname.short_name();
+        return (short == nvs_hir::interfaces::ITERABLE
+            || short == nvs_hir::interfaces::ITERATOR)
+            .then(|| args.first().copied())
+            .flatten();
     }
     let (_, element) =
         crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph)?;

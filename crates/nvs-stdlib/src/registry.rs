@@ -4409,6 +4409,33 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     ),
 ];
 
+/// Every `Core` class a `foreach` with a key binding can walk, and the key and
+/// value its `KeyedIterable<K, V>` is fixed at (`rule:iteration/keyed-interfaces`).
+/// `nvs_types::core_lib` seeds one `ClassSignature::implements` entry per row,
+/// beside the class's [`ITERABLES`] row.
+///
+/// `Core\ObjectMap` is the one row: a set, a heap and a channel have no value
+/// apart from their element. Each entry is one of the class's own type
+/// variables, which `nvs_types::expr::iteration` substitutes the receiver's
+/// arguments into, as it does for [`ITERABLES`].
+///
+/// The runtime half is the class's `iterateKeyed` dispatch row, which
+/// `every_keyed_iterable_class_answers_the_keyed_protocol` keeps in step with
+/// this table once the keyed loop runs.
+pub const KEYED_ITERABLES: &[(&str, &CoreTy, &CoreTy)] =
+    &[(r"Core\ObjectMap", &CoreTy::Var("K"), &CoreTy::Var("V"))];
+
+/// The key and value types `class`'s `KeyedIterable<K, V>` is fixed at, or
+/// `None` when it is not one of [`KEYED_ITERABLES`].
+#[must_use]
+pub fn keyed_iterable_entry(class: &str) -> Option<(&'static CoreTy, &'static CoreTy)> {
+    nvs_footprint::class(class);
+    KEYED_ITERABLES
+        .iter()
+        .find(|(name, _, _)| *name == class)
+        .map(|(_, key, value)| (*key, *value))
+}
+
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
 /// not one of [`ITERABLES`].
 #[must_use]

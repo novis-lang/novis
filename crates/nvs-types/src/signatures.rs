@@ -2701,6 +2701,40 @@ pub fn resolve_iteration_element(
         .map(|(interface, elem)| (interface.clone(), elem))
 }
 
+/// What a `foreach` with a key binding over an instance of `qname` gives its
+/// key and its value, and which of `rule:iteration/keyed-interfaces`'s two
+/// interfaces says so — `None` when `qname` reaches neither.
+///
+/// [`resolve_iteration_element`]'s twin for the keyed pair, with the same
+/// walk and the same choice: `KeyedIterable` wins over `KeyedIterator` when a
+/// class reaches both, because a fresh cursor is the safer of the two.
+#[must_use]
+pub fn resolve_keyed_iteration(
+    qname: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Option<(QName, TypeId, TypeId)> {
+    let mut cursor: Option<(&QName, TypeId, TypeId)> = None;
+    let iterable = nvs_hir::find_in_ancestors(qname, graph, |class| {
+        for (interface, args) in &table.get(class)?.implements {
+            let [key, value] = args[..] else { continue };
+            if !interface.is_reserved_global_interface() {
+                continue;
+            }
+            if interface.short_name() == nvs_hir::interfaces::KEYED_ITERABLE {
+                return Some((interface, key, value));
+            }
+            if interface.short_name() == nvs_hir::interfaces::KEYED_ITERATOR {
+                cursor.get_or_insert((interface, key, value));
+            }
+        }
+        None
+    });
+    iterable
+        .or(cursor)
+        .map(|(interface, key, value)| (interface.clone(), key, value))
+}
+
 /// The concrete type arguments `qname` fixed for `target` — `Some(vec![])`
 /// when it reaches `target` at no arguments at all, `None` when it does not
 /// reach it.

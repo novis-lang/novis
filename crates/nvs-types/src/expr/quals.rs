@@ -242,6 +242,14 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
             {
                 carries_tainted(*elem, interner)
             }
+            // `rule:iteration/keyed-interfaces`'s pair carries it through its
+            // key or its value.
+            ([only], [key, value])
+                if only == nvs_hir::interfaces::KEYED_ITERABLE
+                    || only == nvs_hir::interfaces::KEYED_ITERATOR =>
+            {
+                carries_tainted(*key, interner) || carries_tainted(*value, interner)
+            }
             _ if qname.is_core()
                 && nvs_stdlib::registry::holds_cells_of_its_source(&qname.to_string()) =>
             {

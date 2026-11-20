@@ -89,6 +89,15 @@ pub const ADVANCE: &str = "advance";
 /// (`rule:iteration/two-interfaces`).
 pub const CURRENT: &str = "current";
 
+/// `KeyedIterable<K, V>`'s sole member (`rule:iteration/keyed-interfaces`) — a
+/// fresh cursor over the same key and value pairs. Must agree with
+/// `nvs_types::iter_lib`'s seeded spelling.
+pub const ITERATE_KEYED: &str = "iterateKeyed";
+
+/// `KeyedIterator<K, V>`'s "the key of the entry [`ADVANCE`] just moved to"
+/// member (`rule:iteration/keyed-interfaces`).
+pub const KEY: &str = "key";
+
 /// Reads `sequence` — an `array<T>`, an `Iterable<T>` or an `Iterator<T>` —
 /// into at most `limit` elements, in order, each an **owned** reference the
 /// caller must store or release.

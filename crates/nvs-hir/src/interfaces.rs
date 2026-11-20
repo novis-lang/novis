@@ -36,7 +36,8 @@
 /// `Stringable`
 /// (`rule:classes/stringable`) and `Parses` take none; `Iterable` and
 /// `Iterator` (`rule:iteration/two-interfaces`) each
-/// take one. `PropertyObserver`
+/// take one, and `KeyedIterable` and `KeyedIterator`
+/// (`rule:iteration/keyed-interfaces`) each take two. `PropertyObserver`
 /// (`rule:classes/property-observer`), `PropertyGuard` and `LateInit`
 /// (`rule:classes/late-init-initializes-on-the-first-read`) take none
 /// either: each is a contract an ordinary class implements, not a `Core` domain
@@ -51,6 +52,8 @@ pub const RESERVED: &[(&str, &[&str])] = &[
     ("LateInit", &[]),
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
+    ("KeyedIterable", &["K", "V"]),
+    ("KeyedIterator", &["K", "V"]),
 ];
 
 /// `rule:classes/comparable`'s `Comparable` — the one interface `<`, `>`, `<=`, `>=` and `<=>`
@@ -103,6 +106,14 @@ pub const ITERABLE: &str = "Iterable";
 /// `rule:iteration/two-interfaces`'s `Iterator<T>` — the single-pass cursor itself.
 pub const ITERATOR: &str = "Iterator";
 
+/// `rule:iteration/keyed-interfaces`'s `KeyedIterable<K, V>` — a thing that can
+/// produce a fresh cursor over key and value pairs, through `iterateKeyed()`.
+pub const KEYED_ITERABLE: &str = "KeyedIterable";
+
+/// `rule:iteration/keyed-interfaces`'s `KeyedIterator<K, V>` — the single-pass
+/// cursor over key and value pairs: `advance()`, `key()` and `current()`.
+pub const KEYED_ITERATOR: &str = "KeyedIterator";
+
 /// Whether `name` is one of [`RESERVED`]'s entries.
 #[must_use]
 pub fn is_reserved_interface(name: &str) -> bool {
@@ -134,6 +145,12 @@ mod tests {
     fn the_two_iteration_interfaces_take_one_type_parameter_each() {
         assert_eq!(type_params(ITERABLE), Some(&["T"][..]));
         assert_eq!(type_params(ITERATOR), Some(&["T"][..]));
+    }
+
+    #[test]
+    fn the_two_keyed_interfaces_take_a_key_and_a_value_parameter_each() {
+        assert_eq!(type_params(KEYED_ITERABLE), Some(&["K", "V"][..]));
+        assert_eq!(type_params(KEYED_ITERATOR), Some(&["K", "V"][..]));
     }
 
     #[test]
