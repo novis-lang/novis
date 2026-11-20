@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs, docs/rules/testing/report-formats.md]
   - id: 5
     title: judged survivors are read from mutants.toml, glue makes no mutant, and survivors are grouped by function
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-cli/tests/test_command.rs]
   - id: 6
     title: a mutation run compiles the program once, with every mutant behind one switch
@@ -347,6 +347,23 @@ stored entries of the tests it did not run, while the program still has them. Un
 `--since` narrows mutants only and every test runs. `<file>:<line>` needs the file to exist, and
 only one path may name a line. All of it is in `crates/nvs-cli/src/runner/reach.rs`.
 
+**`mutants.toml`, as built (my call).** An entry's key is checked against every mutant of the
+program, not only those an aimed run kept, so `--mutate=<target>` and `--since` warn about nothing
+they left out; `mutation::list` gives every key beside the kept mutants. The file allows only
+`[[judged]]` with `mutant`, `reason` and `equivalent`; an unknown key and a key judged twice are
+errors, like a malformed file, because a typo in `equivalent` would silently change the score. It is
+read under `--mutate` only, before any test runs. The human report's judged line is
+`judged: N survived (in mutants.toml, so they are not listed below)`. Each grouped line is
+`<file>:<line>  <change>[ (+N more on this line)]  mutant = "<key>"`, the key TOML-escaped so the
+line pastes as is. A duplicate of an unjudged survivor is listed with it and names the first
+mutant's key. The JSON record of a judged survivor has `judged: true`, `reason` and `equivalent`.
+
+**Glue, as built (my call).** `mutate::in_call` wraps the four call arms of `lower_expr`
+(`New`, `MethodCall`, `StaticCall`, `Call`): each sets the glue flag for its own lowering, so the
+nearest enclosing call decides. `StaticCall` is glue when the checker resolved it to `Core\Log`;
+`New` is glue when `lower_throw` named it with `mutate::throwing`. `within` turns glue off for a
+function's body. With no plan the glue test is never evaluated.
+
 **Declined (my call, written into the rules' Declined lists).**
 - *Regular expressions or globs in `--filter`.* A substring, tags and shards already select every
   set a suite has needed, and each syntax is one more thing to learn.
@@ -469,18 +486,18 @@ Test selection waits for stage 3.
 
 **Does:** the file of judgments, the glue sites, and the report's grouping.
 
-- [ ] `crates/nvs-cli/src/runner/mutation.rs`: read `mutants.toml` from the program's folder with
+- [x] `crates/nvs-cli/src/runner/mutation.rs`: read `mutants.toml` from the program's folder with
   the `toml` crate the workspace already uses, check each entry's `reason`, mark judged survivors,
   and warn for entries that match no mutant. A malformed file exits with status 2.
-- [ ] `crates/nvs-ir/src/lower/mutate.rs:330` `mutation_site`: a site whose nearest enclosing call
+- [x] `crates/nvs-ir/src/lower/mutate.rs:330` `mutation_site`: a site whose nearest enclosing call
   is a `Core\Log` method, or the argument list of a `throw new` constructor, makes no mutant. The
   lowering tracks this the way `in_test_code` is tracked (`:187`). `a_log_call_and_an_exception_message_make_no_mutant`
   beside `:600`, and the `judged-unit` check run once.
-- [ ] `crates/nvs-cli/src/runner/mutation.rs:273` `report`: survivors grouped by function, most
+- [x] `crates/nvs-cli/src/runner/mutation.rs:273` `report`: survivors grouped by function, most
   survivors first, one line per source line with `(+N more on this line)`, and each line ends with
   the key to paste into `mutants.toml`. The judged count is printed beside the other counts.
-- [ ] `docs/rules/testing/mutation-testing.md`: `mutants.toml`, glue and the grouping.
-- [ ] The four `judged` tests in `crates/nvs-cli/tests/test_command.rs`, and the check run once.
+- [x] `docs/rules/testing/mutation-testing.md`: `mutants.toml`, glue and the grouping.
+- [x] The four `judged` tests in `crates/nvs-cli/tests/test_command.rs`, and the check run once.
 
 ### 6. a mutation run compiles the program once, with every mutant behind one switch
 
@@ -540,16 +557,20 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### State
 
-Stages 1 to 4 are done, and the checks `aim`, `aim-ir`, `since-mutate`, `since-select`,
-`at-line`, `equivalent` and `equivalent-codegen` are green, each run once.
+Stages 1 to 5 are done, and the checks `aim`, `aim-ir`, `since-mutate`, `since-select`,
+`at-line`, `equivalent`, `equivalent-codegen`, `judged` and `judged-unit` are green, each run once.
 
-Stage 4: `nvs_codegen::function_code_hash(program, name)` compiles one function into a throwaway
-`ObjectModule` (`UnitBuilder::declare_all`, then `compile_function` with every base 0) and hashes
-its bytes, relocations by name and data objects (`emit::Literals::record`). Line numbers are in the
-code as backtrace data, so a function moved to another line hashes differently; a mutant never moves
-one. `lower_mutant` returns `Mutated { program, changed }`, `changed` being the IR function the
-change landed in. `mutation::Code::judge` (`mutation.rs:391`) holds the unchanged program and the
-hashes. `Verdict` gained `Equivalent` and `Duplicate`, `Scored` gained `same_as`.
+Stage 5 (04e37561f7, 7669378afe): glue in `crates/nvs-ir/src/lower/mutate.rs` (`in_call`,
+`throwing`, `is_thrown`, `Lowering::is_glue_call`; the `Plan` gained `in_glue` and `thrown`), wired
+into `lower_expr`'s four call arms and `lower_throw`. `mutation::Judgments` (`mutation.rs:150`)
+reads and applies `mutants.toml`; `list` now returns `(kept, every key)`; `Scored` gained
+`judged`; `report` calls `survivors` for the grouping. `runner.rs` reads the file once under
+`--mutate`, before the suite, through the shared `program_folder` closure that `--since` also uses.
+The example `01-a-test-that-misses-the-boundary.out` was re-blessed for the grouped lines.
+
+Stage 4: `nvs_codegen::function_code_hash(program, name)` hashes one function compiled alone.
+`lower_mutant` returns `Mutated { program, changed }`; `mutation::Code::judge` holds the
+unchanged program and the hashes.
 
 Earlier stages: `Mutant.function`, `#[NoMutate]` (`E0880`), `Aim::resolve`, JSON version 5;
 `since::changed` in `runner/since.rs`; the reached map and `<file>:<line>` in `runner/reach.rs`
@@ -561,13 +582,21 @@ eb5c02e983 (wasmtime 50.0.2), 4c82a2409a (Miri, immortal string pointer), 656f5b
 
 ### Next
 
-Stage 5: `mutants.toml`, glue and grouping. Start at `crates/nvs-ir/src/lower/mutate.rs:367`
-`mutation_site` and the `in_test_code` flag (`:214`) for the glue sites, with the unit test beside
-`a_survey_names_the_function_each_mutant_is_in` (`:674`). Then `crates/nvs-cli/src/runner/mutation.rs:546`
-`report` for the grouping and the judged count, and `score` (`:290`) for reading `mutants.toml`.
-A `duplicate` shows its first mutant's outcome in the grouping (`Scored::same_as`).
+Stage 6: mutant schemata, one compile per run. Start at `crates/nvs-ir/src/lower/mutate.rs:175`
+`lower_mutant` and the `Mode` enum below it, then `mutation_site`'s `Mode::Apply` arm, where a
+`Schema` arm lowers both forms behind the active-number test. Then
+`crates/nvs-cli/src/runner/mutation.rs:409` `score`, whose per-mutant `lower_mutant` and
+`cache::unit_for` become one compile; `Code::judge` still needs the changed function's IR per
+mutant (decision *Equivalent and duplicate mutants*). The glue flag must hold under a schema
+lowering too: `in_call` and `within` work for any plan, so nothing there should change.
+
+Stage 7 also owes: `docs/reference/tools/10-cli.md:389` still shows the old `survived  file:line`
+line and says `schemaVersion` is `4`; it now reads `survived in <function> (<n>):` then the grouped
+lines, and version 5 with `mutants.toml`.
 
 Tests expected red until the gate: the CLI reference's flag check, if one exists, may now name
-`--since`; stage 7 writes it. No `changes.json` entry yet: it comes with the goal's last stages.
+`--since`; stage 7 writes it. `bun nv site --check stale` may name the `nvs-test-mutate` example
+page, whose `.out` changed; stage 7 rereads and stamps it. No `changes.json` entry yet: it comes
+with the goal's last stages.
 
 ### Backlog
