@@ -282,6 +282,7 @@ productions![
     "ArrayLiteral",
     "Assign",
     "Attribute",
+    "AttributeDecl",
     "AutoloadDecl",
     "Await",
     "Binary",
