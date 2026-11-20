@@ -1,0 +1,18 @@
+--TEST--
+a `revoke()` call resolves to the member `Revocable` declares, so it answers that member's line and card, `rule:classes/revocable-objects`
+--FILE--
+<?nvs
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post('Hello');
+$post->rev<|>oke();
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Revocable::revoke(): void
+```
+
+Revokes this object and removes it from every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap`. After that, a property read or a method call throws `RevokedObjectError`. A second call does nothing.

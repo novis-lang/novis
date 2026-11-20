@@ -76,6 +76,30 @@ use rustc_hash::FxHashMap;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
+/// The reference card of `Revocable` (`member` is `None`) or of one of its
+/// two members, and `None` for any other member.
+///
+/// The cards sit beside the seeding below, as `rule:core-api/reference-card`
+/// keeps a card beside its declaration. `Revocable` has no registry row, so
+/// this is the one home of what a hover shows for it (`nvs_lsp::hover`).
+#[must_use]
+pub fn revocable_card(member: Option<&str>) -> Option<&'static str> {
+    match member {
+        None => Some(
+            "An object that can be revoked. After `revoke()`, the object is removed from every \
+             `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap`, and any other use of it throws \
+             `RevokedObjectError`.",
+        ),
+        Some("revoke") => Some(
+            "Revokes this object and removes it from every `Core\\ObjectMap`, `Core\\ObjectSet` \
+             and `Core\\Heap`. After that, a property read or a method call throws \
+             `RevokedObjectError`. A second call does nothing.",
+        ),
+        Some("isRevoked") => Some("Returns `true` if `revoke()` was called on this object."),
+        Some(_) => None,
+    }
+}
+
 /// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
 /// `PropertyGuard`, `LateInit`, `Revocable`, `Iterable<T>` and `Iterator<T>` to
 /// `table`.
@@ -211,7 +235,8 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     );
 
     let bool_ty = interner.bool_ty();
-    // `rule:classes/revocable-objects`' two members. Each has a body, so an
+    // `rule:classes/revocable-objects`' two members, whose cards are
+    // [`revocable_card`]'s. Each has a body, so an
     // implementor owes nothing for it. The runtime runs both, and
     // `crate::conformance::reject_revocable_redeclaration` stops a class from
     // declaring either again.

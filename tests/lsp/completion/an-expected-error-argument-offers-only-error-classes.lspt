@@ -22,6 +22,7 @@ LogicError class
 OutOfStock class
 ParseError class
 RecursionError class
+RevokedObjectError class
 RuntimeError class
 Throwable class
 TimeoutError class

@@ -1,0 +1,15 @@
+--TEST--
+`Revocable` is declared by the compiler and has no registry row, so its name in an `implements` clause answers the card that sits beside its seeding, `rule:classes/revocable-objects`
+--FILE--
+<?nvs
+class Post implements Revo<|>cable {
+    public function constructor(public string $title) {}
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+interface Revocable
+```
+
+An object that can be revoked. After `revoke()`, the object is removed from every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap`, and any other use of it throws `RevokedObjectError`.

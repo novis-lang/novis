@@ -1,0 +1,15 @@
+--TEST--
+a class with a parent that writes `implements Revocable` reports E1001 on the interface's name, and the message names the parent class, `rule:classes/revocable-objects`
+--FILE--
+<?nvs
+namespace Blog;
+
+use Revocable;
+
+class Storable {}
+
+class Post extends Storable implements Revocable {}
+--REQUEST--
+diagnostics
+--EXPECT--
+8:40-8:49 error E1001 `Blog\Post` cannot implement `Revocable`, because its parent class `Blog\Storable` does not.

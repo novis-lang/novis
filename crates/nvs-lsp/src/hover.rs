@@ -941,10 +941,16 @@ fn name_around(text: &str, node: Span, offset: BytePos) -> Option<(&str, BytePos
 fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let call = match target {
         Target::Method(call) => call,
-        Target::Type(class) => return core_type_hover(&class.to_string()),
+        Target::Type(class) => {
+            return core_type_hover(&class.to_string()).or_else(|| revocable(class, None));
+        }
         Target::Constant { class, name } => return core_member_hover(&class.to_string(), name),
         Target::Property { .. } | Target::TypeAlias { .. } => return None,
     };
+    if let Some(card) = revocable(&call.class, Some(&call.method)) {
+        let line = signature(&call.class.to_string(), call, &analysed.interner).0;
+        return Some(format!("```nvs\n{line}\n```{card}"));
+    }
     let member = registry_row(call)?;
     nvs_footprint::card(&call.class.to_string());
     let mut value = format!(
@@ -955,6 +961,24 @@ fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
         value.push_str(&reference_card(member, doc));
     }
     Some(value)
+}
+
+/// The card of the compiler's `Revocable` interface (`member` is `None`) or of
+/// its `revoke` or `isRevoked`, under two newlines, and `None` for every other
+/// class or member.
+///
+/// `Revocable` is declared by the compiler and has no registry row, so its
+/// cards are `nvs_types::iter_lib::revocable_card`'s. A method's declaration
+/// line is [`signature`]'s and is written by the caller.
+fn revocable(class: &QName, member: Option<&str>) -> Option<String> {
+    if class.to_string() != nvs_hir::interfaces::REVOCABLE {
+        return None;
+    }
+    let card = nvs_types::iter_lib::revocable_card(member)?;
+    Some(match member {
+        None => format!("```nvs\ninterface Revocable\n```\n\n{card}"),
+        Some(_) => format!("\n\n{card}"),
+    })
 }
 
 /// An extension member's signature and help text, read from its class's

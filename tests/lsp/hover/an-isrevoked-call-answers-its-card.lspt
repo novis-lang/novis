@@ -1,0 +1,19 @@
+--TEST--
+an `isRevoked()` call resolves to the member `Revocable` declares, so it answers that member's line and card, `rule:classes/revocable-objects`
+--FILE--
+<?nvs
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post('Hello');
+$post->revoke();
+echo $post->isRev<|>oked() ? 'yes' : 'no', "\n";
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Revocable::isRevoked(): bool
+```
+
+Returns `true` if `revoke()` was called on this object.
