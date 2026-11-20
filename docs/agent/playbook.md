@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`site --check changes` counts a feature as moved only through tests that carry `// covers:
+  <feature>`.** A new `.nvst` case for `Core\Html::later` had no marker, so its `changes.json`
+  entry was refused as "has not moved". Add the marker under `<?nvs` in the case, not a
+  `highlight`. See `tools/nv/lib/texts.ts` `behaviour`.
 - **A new `#` heading in a reference chapter adds a feature to the roster, and that feature owes
   every proof.** `# nvs test --since` in `docs/reference/tools/10-cli.md` made
   `tools:cli/nvs-test-since`, and `site --check changes` and `--check stale` went red. Write a
