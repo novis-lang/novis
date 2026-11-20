@@ -81,6 +81,7 @@ import {
   FOUR_PEER_BASELINE,
   folderDigest,
   type Measured,
+  DEFAULT_REPS,
   REPS_BOUNDS,
   REPS_TRIED,
   type RepsSample,
@@ -1262,6 +1263,38 @@ describe("the record shape", () => {
     const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map([["cores", new Map([["nvs", built]])], ["crash", new Map([["nvs", built]])]]), null, null, passes);
     expect(rows.rows.cores!.passes).toEqual({ nvs: { "1": [result(1), result(2)], "4": [result(3)] } });
     expect(rows.rows.crash!.passes).toBeUndefined();
+  });
+});
+
+describe("the record", () => {
+  const record = JSON.parse(readFileSync(join(COMPARE_DIR, "..", "compare.json"), "utf8"));
+
+  test("the record holds every peer in every case and every row", () => {
+    const ids = PEERS.map((p) => p.id);
+    expect(Object.keys(record.peers)).toEqual(ids);
+    for (const c of CASES) {
+      expect(Object.keys(record.cases[c.id].peers)).toEqual(ids);
+      for (const id of ids) expect(record.cases[c.id].passes[id]).toHaveLength(record.reps);
+    }
+    for (const s of SCENARIOS) expect(Object.keys(record.scenarios.rows[s.id].peers)).toEqual(ids);
+  });
+
+  test("the record: three of five passes give the same figures and order within the bounds, or the default stays five", () => {
+    expect(record.reps).toBe(5);
+    expect(DEFAULT_REPS).toBe(repsHold(repsSamplesOf(record)).holds ? REPS_TRIED : 5);
+  });
+
+  test("the routine seven-peer plan brings up fewer stacks than the four-peer baseline", () => {
+    const load = { reps: DEFAULT_REPS, requests: 20_000, smoke: false };
+    // A routine recording comes after a new commit: Novis's image has changed, and every other key is the recorded one.
+    const keyOf = (s: Scenario, p: Peer): RowKey => {
+      const was: RowKey = record.scenarios.rows[s.id].measured[p.id].key;
+      return p.perCommit === true ? { ...was, image: "a new commit" } : was;
+    };
+    const reused = reusedOf(record, SCENARIOS, PEERS, keyOf);
+    expect(reused.size).toBeGreaterThan(0);
+    const routine = totalsOf([...planOf(PEERS, CASES, [], load, null), ...planOf(PEERS, [], SCENARIOS, load, reused)]);
+    expect(routine.total.stacks).toBeLessThan(FOUR_PEER_BASELINE.total.stacks);
   });
 });
 
