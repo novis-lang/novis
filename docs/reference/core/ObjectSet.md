@@ -12,6 +12,9 @@ the set had when it began. `union`, `intersect` and `diff` answer a new set and 
 types that new set as a bare `Core\ObjectSet`, so it can be counted, asked `has` and walked as `mixed`
 (`foreach ($both as mixed $m)` and then `$m as Tag`), but a `foreach … as Tag $t` over it is refused.
 
+An object whose class implements `Revocable` leaves the set when the program calls `revoke()` on it.
+`count()` is then correct, and a running `foreach` skips the object.
+
 ```nvs
 <?nvs
 class Tag

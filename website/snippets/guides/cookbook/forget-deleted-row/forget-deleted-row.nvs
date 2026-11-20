@@ -1,0 +1,54 @@
+<?nvs
+// This program keeps each loaded post in memory, and forgets a post when it is deleted.
+final class Post implements Revocable
+{
+    public function constructor(public int $id, public string $title)
+    {}
+}
+
+final class Posts
+{
+    private Core\ObjectMap<int, Post> $loaded;
+
+    public function constructor()
+    {
+        $this->loaded = new Core\ObjectMap<int, Post>();
+    }
+
+    // Returns the post with this id. Only the first call for an id loads it.
+    public function find(int $id): Post
+    {
+        var $saved = $this->loaded->get($id);
+        if ($saved is Post) {
+            echo "from memory\n";
+            return $saved;
+        }
+        echo "loaded\n";
+        // A real program would read the row from a database here.
+        var $post = new Post($id, "Post {$id}");
+        $this->loaded->set($id, $post);
+        return $post;
+    }
+
+    // Deletes the post. `revoke()` also removes it from `$loaded`.
+    public function delete(Post $post): void
+    {
+        // A real program would delete the row here.
+        $post->revoke();
+    }
+}
+
+var $posts = new Posts();
+
+// The first call prints `loaded`. The second call prints `from memory`.
+var $first = $posts->find(7);
+var $second = $posts->find(7);
+echo $first == $second ? "the same object\n" : "two objects\n";
+
+// After `delete`, the post is not in memory. The next call prints `loaded` again.
+$posts->delete($first);
+var $third = $posts->find(7);
+echo $third->title, "\n";
+
+// The deleted post cannot be used. This prints `true`.
+echo $first->isRevoked() ? "true\n" : "false\n";

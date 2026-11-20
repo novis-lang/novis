@@ -3524,6 +3524,9 @@
   "docs/examples/lang/classes/propertyobserver/about.md": {
     "lang:classes/propertyobserver": "f0d934f68a6b7ca4"
   },
+  "docs/examples/lang/classes/revocable-objects/about.md": {
+    "lang:classes/revocable-objects": "1e62cead68588e08"
+  },
   "docs/examples/lang/classes/stringable/about.md": {
     "lang:classes/stringable": "3ccc9a5c650887ad"
   },
@@ -4828,6 +4831,9 @@
   },
   "docs/examples/types/Response-SameSite/about.md": {
     "Core\\Response::SameSite": "a0813f3ae36b08bd"
+  },
+  "docs/examples/types/RevokedObjectError/about.md": {
+    "RevokedObjectError": "814529f160ebc544"
   },
   "docs/examples/types/RoundMode/about.md": {
     "Core\\RoundMode": "3ae75800d0af20b6"
@@ -9080,6 +9086,12 @@
   "help:RecursionError": {
     "RecursionError": "ae0c181e7809b0b7"
   },
+  "help:Revocable": {
+    "Revocable": "6e340b9cffb37a98"
+  },
+  "help:RevokedObjectError": {
+    "RevokedObjectError": "a120abd93a0b307e"
+  },
   "help:RuntimeError": {
     "RuntimeError": "0573a2edff77b88a"
   },
@@ -9426,6 +9438,10 @@
     "lang:types/property-paths": "58d9e9a84454d344",
     "lang:types/strings-with-holes": "643089d2047c6f64"
   },
+  "syntax/classes/revocable-objects.mdx": {
+    "lang:classes/revocable-objects": "fe5db2610851b3c5",
+    "Revocable": "44b7232aa92c83f2"
+  },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
     "lang:classes/comparable": "08d16989d331d7a5",
@@ -9514,6 +9530,7 @@
     "LogicError": "e44581a03ca5df2c",
     "ParseError": "709c85b8a4956739",
     "RecursionError": "9b6a469ed19f5f2c",
+    "RevokedObjectError": "3131cb409373b176",
     "RuntimeError": "c477ca7075f9b543",
     "Throwable": "e249ac2070c9ebdd",
     "TimeoutError": "f007bc89dbf9ea07"

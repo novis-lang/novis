@@ -26,11 +26,11 @@ stages:
     context: [crates/nvs-lsp/src/hover.rs, tests/lsp/hover/a-core-class-name-answers-its-card.lspt, crates/nvs-types/src/iter_lib.rs, docs/reference/tools/40-editor.md]
   - id: 6
     title: the feature's proofs
-    status: open
+    status: done
     context: [docs/reference/lang/50-classes.md, docs/examples/lang/classes/stringable/about.md, docs/examples/types/DeprecatedError/about.md, benches/members/README.md, tests/hostile/README.md, docs/agent/prose.md]
   - id: 7
     title: the website explains revocable objects and lists the change
-    status: open
+    status: done
     context: [website/src/content/docs/syntax/classes/standard-interfaces.mdx, website/src/content/docs/syntax/errors/error-types.mdx, website/src/content/docs/guides/cookbook/cache-value.mdx, website/src/data/changes.json, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -140,12 +140,12 @@ checks:
       - tests/lsp/hover/an-isrevoked-call-answers-its-card.lspt
       - tests/lsp/diagnostics/revocable-below-the-root-names-the-root-class.lspt
   - id: feature-proofs
-    stage: 6
+    stage: 8
     name: "revocable objects owe no proof"
     run: [bun, nv, proofs, --id, "lang:classes/revocable-objects"]
     timeout: 900
   - id: error-proofs
-    stage: 6
+    stage: 8
     name: "RevokedObjectError owes no proof"
     run: [bun, nv, proofs, --id, RevokedObjectError]
     timeout: 900
@@ -662,25 +662,26 @@ message and the neutral names of § *Why*. The session writes the reference sect
 **Does:** every page a user reads says what changed. Every page follows AGENTS.md § *Text an end
 user reads*.
 
-- [ ] `website/src/content/docs/syntax/classes/revocable-objects.mdx:1`: the page *Revocable
-  objects*, with `covers: ['lang:classes/revocable-objects', 'RevokedObjectError']` and a
-  `FeatureSection` of the examples folder. Its sidebar entry goes after *Stringable, Comparable and
-  Parses* in `website/astro.config.ts:705`.
-- [ ] `website/src/content/docs/syntax/errors/error-types.mdx:28`: a row for `RevokedObjectError`
+- [x] `website/src/content/docs/syntax/classes/revocable-objects.mdx:1`: the page *Revocable
+  objects*, with `covers: ['Revocable', 'lang:classes/revocable-objects']` and a `FeatureSection` of
+  the examples folder. `RevokedObjectError` is covered by `error-types.mdx`, and the page links
+  there: the site builds no `/reference/types/` page for an error class. Its sidebar entry is after
+  *Stringable, Comparable and Parses* in `website/astro.config.ts:706`.
+- [x] `website/src/content/docs/syntax/errors/error-types.mdx:28`: a row for `RevokedObjectError`
   (`LogicError`, "a use of an object after `revoke()` was called on it"), and the name in `covers`.
-- [ ] `docs/reference/core/ObjectMap.md:1`, `ObjectSet.md:1` and `Heap.md:1`: each introduction says in
-  one or two sentences that a revoked object leaves the collection, and links the new page. The map's
-  example keys an identity map by `"{$className}#{$id}"`.
-- [ ] `website/src/content/docs/guides/cookbook/remove-deleted-row.mdx:1`: the recipe *Remove a
-  deleted row everywhere*, built on the identity map, with its snippet
-  `website/snippets/guides/cookbook/remove-deleted-row/remove-deleted-row.nvs` and `.out`. Its sidebar
-  entry is beside *Cache a slow result* (`website/astro.config.ts:510`), and its line goes in
-  `website/src/content/docs/guides/cookbook/index.mdx:21`.
-- [ ] `website/src/data/changes.json:1`: one `new` entry for revocable objects
-  and `RevokedObjectError`, in the shape `website-follows-changes` set.
-- [ ] `bun nv site --stale` lists the pages this goal made stale. Each is read, corrected and stamped
-  with `bun nv site --stamp`.
-- [ ] The `site-changes` check run once.
+- [x] `docs/reference/core/ObjectMap.md:1`, `ObjectSet.md:1` and `Heap.md:1`: each introduction says in
+  two sentences that a revoked object leaves the collection. No link: no file under
+  `docs/reference/core/` links a site page, and its text is also the `nvs agent show` card. The map's
+  example stays as it is; the recipe shows the identity map.
+- [x] `website/src/content/docs/guides/cookbook/forget-deleted-row.mdx:1`: the recipe *Forget a
+  deleted row*, an `ObjectMap<int, Post>` of loaded rows, with its snippet
+  `website/snippets/guides/cookbook/forget-deleted-row/forget-deleted-row.nvs` and `.out`. Its
+  sidebar entry is after *Cache a slow result*, and its line is in the cookbook's `index.mdx`.
+- [x] `website/src/data/changes.json`: one `new` entry, with `highlight`, for
+  `lang:classes/revocable-objects`, `Revocable` and `RevokedObjectError`.
+- [x] `bun nv site --stale` listed six keys: the two pages, both `about.md` files and two help cards.
+  Each was reread against `nvs agent show classes#revocable-objects` and stamped.
+- [x] The `site-changes` check run once: ok. `site --check structure`, `snippets` and `stale` are ok.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -697,7 +698,12 @@ user reads*.
 
 ### State
 
-Stages 1 to 6 are built and checked.
+Stages 1 to 7 are built and checked.
+- Stage 7: the page `syntax/classes/revocable-objects.mdx`, the `error-types.mdx` row, the three
+  `docs/reference/core/` introductions, the cookbook recipe *Forget a deleted row* with its snippet,
+  and the `changes.json` entry. `site --check changes`, `stale`, `structure` and `snippets` are ok.
+- The checks `feature-proofs` and `error-proofs` moved to stage 8 in the front matter, as decision
+  26 says, so stage 6 is `done`.
 - The chapter heading `# Revocable objects` is in `docs/examples/lang/classes/chapter.md`, after
   `Parses`. Its `about.md` and `details.md` render into `docs/reference/lang/50-classes.md`.
 - Three examples, one `RevokedObjectError` example, two attacks and the bench with its `.scale` and
@@ -709,25 +715,26 @@ Stages 1 to 6 are built and checked.
   test and the attacks.
 - Both proof ids owe only `reviewed`, and the lang id also `perf: stale`. Decision 26 moves both
   to stage 8.
-- The attack covers a reflective call and write after `revoke()`, so that backlog item is closed.
-- The nightly CI failures of run 44510687786 (commit `adc7487822`) were all fixed by later commits
-  (`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`, each a descendant of it). Nothing to do
-  unless the next nightly is red again.
+- Nightly run 44510687786 ran on `adc7487822`, and later commits fix each of its failures.
 - `bun nv rules --check` names one finding in `docs/goals/attribute-property-names.md:112`, a rule that
   goal will create. It was there before this goal's stage 6.
 
 ### Next
 
-Stage 7, the website. Its gate: `docs/goals/website-follows-changes.md` does not exist.
-1. `website/src/content/docs/syntax/classes/revocable-objects.mdx`, after *Stringable, Comparable
-   and Parses* in `website/astro.config.ts` (re-find the anchor with `grep`).
-2. The `error-types.mdx` row, the three `docs/reference/core/{ObjectMap,ObjectSet,Heap}.md`
-   introductions, the cookbook recipe with its snippet, and the `changes.json` entry.
-3. `bun nv site --stale`, then the `site-changes` check once.
+Stage 8, the gate stage. Whether it is a full gate or a close is what the pack names.
+1. The newcomer review (`docs/agent/prose.md` § *A newcomer reads it*): `bun nv site --review` lists
+   the texts, `reader` subagents read the batches, every finding is fixed, then `--review --stamp`.
+   The `site-review` check runs once.
+2. Then the perf record from the release binary (`bun nv relink --build`, then `bun nv proofs
+   --record-perf --nvs target/release/nvs.exe --only lang:classes/revocable-objects`), and
+   `feature-proofs` and `error-proofs` run once.
+3. The stage's check, then `bun nv owners --closes revocable-objects`, and the goal file's decisions
+   that only its prose holds move to the rules before the file is deleted.
 4. Carried: `Core\Debug::dump` of a heap shows a third property, `$revoked => int(0)`. No case pins a
-   heap dump. The pages should not show one.
+   heap dump, and no page shows one.
 
-Expected red: none known.
+Expected red: none known. A full build of the website (`site --check` with every part) was not run
+this session.
 
 ### Backlog
 

@@ -14,6 +14,10 @@ A `foreach` loop walks the map in the order the keys were added. With a key vari
 the loop gives the keys. A `foreach` does not copy the map. If the body changes the map, the loop still
 walks the entries the map had when it began. So the body may `remove` the entry it is on.
 
+An object whose class implements `Revocable` leaves the map when the program calls `revoke()` on it.
+The map removes every entry that has the object as its key or as its value. `count()` is then
+correct, and a running `foreach` skips the removed entries.
+
 ```nvs
 <?nvs
 class Tag

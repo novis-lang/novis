@@ -11,6 +11,9 @@ order. A max-heap is therefore the min-heap with its comparator reversed, not an
 `pop` throw on an empty heap — ask `isEmpty` first — and a `foreach` over a heap yields its elements in
 `pop` order without removing any of them.
 
+An object whose class implements `Revocable` leaves the heap when the program calls `revoke()` on it.
+`count()` drops by one at once, and `pop` and `peek` never return the object.
+
 ```nvs
 <?nvs
 class Job implements Comparable

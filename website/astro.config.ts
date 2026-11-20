@@ -511,6 +511,11 @@ export default defineConfig({
                   attrs: { 'data-subtext': 'Compute a value once and reuse it' },
                 },
                 {
+                  label: 'Forget a deleted row',
+                  link: '/guides/cookbook/forget-deleted-row/',
+                  attrs: { 'data-subtext': 'Remove a deleted row from memory at once' },
+                },
+                {
                   label: 'Schedule a job',
                   link: '/guides/cookbook/schedule-job/',
                   attrs: { 'data-subtext': 'Run a program at a fixed time' },
@@ -703,6 +708,7 @@ export default defineConfig({
                 { label: 'Covariant parameters and properties', link: '/syntax/classes/covariant/' },
                 { label: 'Interfaces', link: '/syntax/classes/interfaces/' },
                 { label: 'Stringable, Comparable and Parses', link: '/syntax/classes/standard-interfaces/' },
+                { label: 'Revocable objects', link: '/syntax/classes/revocable-objects/' },
                 { label: 'Property hooks', link: '/syntax/classes/property-hooks/' },
                 { label: 'Working with objects', link: '/syntax/classes/objects/' },
                 { label: 'Anonymous objects and shapes', link: '/syntax/classes/anonymous-objects/' },
