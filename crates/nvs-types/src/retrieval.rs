@@ -451,7 +451,9 @@ pub(crate) fn static_binding(
     }
     list.first()
         .and_then(|arg| target_declaration(&arg.value, ctx, env))
-        .map_or(keep, |(class, _)| crate::lower::AttributeStatic::Class(class))
+        .map_or(keep, |(class, _)| {
+            crate::lower::AttributeStatic::Class(class)
+        })
 }
 
 /// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s `$target` spelling, read syntactically: the class it names
@@ -515,7 +517,8 @@ pub(crate) fn sites_for<'a>(
     let class = if method == "constructor" {
         class
     } else {
-        resolve_method_ref(class, method, env.signatures, env.graph).map_or(class, |(owner, _)| owner)
+        resolve_method_ref(class, method, env.signatures, env.graph)
+            .map_or(class, |(owner, _)| owner)
     };
     let Some(entry) = env.attributes.classes.get(class) else {
         return Vec::new();
