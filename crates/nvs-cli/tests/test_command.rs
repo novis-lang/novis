@@ -390,6 +390,193 @@ fn nvs_test_mutate_reverses_an_equality_unless_it_narrows_a_nullable() {
     );
 }
 
+/// The entry of a program in three files: `Cart` under `shop/`, `Post` under
+/// `blog/`, and the tests beside them.
+const AIMED_ENTRY: &str = r#"<?nvs
+use Core\Test;
+
+require 'shop/cart.nvs';
+require 'blog/post.nvs';
+
+final class AimTest {
+    #[Test]
+    public function cart(): void {
+        Test::assertSame(Cart::total(2, 3), 5);
+        Test::assertTrue(Cart::big(10));
+    }
+
+    #[Test]
+    public function post(): void {
+        Test::assertSame(Post::words(4), 5);
+    }
+}
+"#;
+
+const AIMED_CART: &str = r#"<?nvs
+final class Cart {
+    public static function total(int $a, int $b): int {
+        return $a + $b;
+    }
+
+    public static function big(int $n): bool {
+        return $n > 5;
+    }
+}
+"#;
+
+const AIMED_POST: &str = r#"<?nvs
+final class Post {
+    public static function words(int $n): int {
+        return $n + 1;
+    }
+}
+"#;
+
+/// Writes the aimed program into a new scratch folder.
+fn aimed(case: &str, cart: &str, post: &str) -> PathBuf {
+    let dir = scratch(case);
+    fs::create_dir_all(dir.join("shop")).unwrap();
+    fs::create_dir_all(dir.join("blog")).unwrap();
+    fs::write(dir.join("aim_test.nvs"), AIMED_ENTRY).unwrap();
+    fs::write(dir.join("shop").join("cart.nvs"), cart).unwrap();
+    fs::write(dir.join("blog").join("post.nvs"), post).unwrap();
+    dir
+}
+
+/// Each mutant of a `--mutate --format json` run as `(file, function, key)`.
+fn mutant_rows(dir: &Path, mutate: &str) -> Vec<(String, String, String)> {
+    let out = test_in(dir, &["aim_test.nvs", mutate, "--format", "json"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .map(|m| {
+            let text = |key: &str| m[key].as_str().unwrap_or_default().to_owned();
+            (text("file"), text("function"), text("key"))
+        })
+        .collect()
+}
+
+/// `--mutate=<folder>` changes only the files in that folder, and each
+/// mutant names its function and its key.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_aimed_at_a_folder_mutates_only_its_files() {
+    let dir = aimed("mutate-aim-folder", AIMED_CART, AIMED_POST);
+    let rows = mutant_rows(&dir, "--mutate=shop");
+    assert!(!rows.is_empty(), "the folder has mutants");
+    assert!(
+        rows.iter()
+            .all(|(file, function, _)| file.ends_with("cart.nvs") && function.starts_with("Cart::")),
+        "only the folder's file is changed: {rows:?}"
+    );
+    assert!(
+        rows.iter()
+            .any(|(_, _, key)| key == "Cart::total#1: `+` to `-`"),
+        "a key is the function, a count and the change: {rows:?}"
+    );
+    let all = mutant_rows(&dir, "--mutate");
+    assert!(
+        all.iter().any(|(file, ..)| file.ends_with("post.nvs")),
+        "`--mutate` alone changes every file: {all:?}"
+    );
+}
+
+/// `--mutate=Class::method` changes that method alone, `--mutate=Class`
+/// every method of the class, and two targets are separated by a comma.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_aimed_at_a_method_mutates_only_its_body() {
+    let dir = aimed("mutate-aim-method", AIMED_CART, AIMED_POST);
+    let rows = mutant_rows(&dir, "--mutate=Cart::total");
+    let functions: Vec<&str> = rows.iter().map(|(_, f, _)| f.as_str()).collect();
+    assert!(
+        !functions.is_empty() && functions.iter().all(|f| *f == "Cart::total"),
+        "only `Cart::total` is changed: {rows:?}"
+    );
+    let rows = mutant_rows(&dir, "--mutate=Cart::total,Post");
+    let mut functions: Vec<&str> = rows.iter().map(|(_, f, _)| f.as_str()).collect();
+    functions.sort_unstable();
+    functions.dedup();
+    assert_eq!(
+        functions,
+        ["Cart::total", "Post::words"],
+        "a method and a class: {rows:?}"
+    );
+}
+
+/// `#[NoMutate]` on a method or a class keeps its code unchanged, and one
+/// with no reason does not compile.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_skips_a_class_or_method_with_no_mutate() {
+    let cart = AIMED_CART.replace(
+        "final class Cart {\n    public static function total",
+        "use Core\\Test\\NoMutate;\n\nfinal class Cart {\n    public static function total",
+    );
+    let cart = cart.replace(
+        "    public static function big",
+        "    #[NoMutate(because: \"only a size check\")]\n    public static function big",
+    );
+    let post = AIMED_POST.replace(
+        "final class Post",
+        "use Core\\Test\\NoMutate;\n\n#[NoMutate(because: \"generated code\")]\nfinal class Post",
+    );
+    let dir = aimed("mutate-no-mutate", &cart, &post);
+    let rows = mutant_rows(&dir, "--mutate");
+    assert!(
+        !rows.is_empty() && rows.iter().all(|(_, f, _)| f == "Cart::total"),
+        "only the method with no `#[NoMutate]` is changed: {rows:?}"
+    );
+
+    let bare = AIMED_POST.replace(
+        "final class Post",
+        "use Core\\Test\\NoMutate;\n\n#[NoMutate]\nfinal class Post",
+    );
+    let dir = aimed("mutate-no-mutate-bare", AIMED_CART, &bare);
+    let out = test_in(&dir, &["aim_test.nvs", "--mutate"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_ne!(out.status.code(), Some(0), "{stderr}");
+    assert!(
+        stderr.contains("E0880") && stderr.contains("no `because`"),
+        "a `#[NoMutate]` needs a reason: {stderr}"
+    );
+}
+
+/// A target that names no folder, file, class or method stops the run with
+/// exit code 2, before any test runs.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_aimed_at_nothing_that_exists_exits_with_an_error() {
+    let dir = aimed("mutate-aim-nothing", AIMED_CART, AIMED_POST);
+    for target in [
+        "--mutate=Nowhere",
+        "--mutate=Cart::nothing",
+        "--mutate=Cart::total,Carts",
+    ] {
+        let out = test_in(&dir, &["aim_test.nvs", target]);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{target}: {stdout}{stderr}");
+        assert!(
+            stderr.contains("matches no folder, file, class or method"),
+            "{target}: {stderr}"
+        );
+        assert!(
+            !stdout.contains("AimTest"),
+            "{target}: no test runs: {stdout}"
+        );
+    }
+}
+
 /// `nvs test --mutate` runs the tests, then each mutant: the human report
 /// names the survivor and its change, a survivor does not fail the run, and
 /// the JSON document's `mutants` records say how many tests ran each one. A
@@ -420,7 +607,7 @@ fn nvs_test_mutate_reports_each_mutant_and_fails_only_on_a_failing_test() {
     let json = test_in(&dir, &["stock_test.nvs", "--mutate", "--format", "json"]);
     let document: serde_json::Value = serde_json::from_slice(&json.stdout)
         .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
-    assert_eq!(document["schemaVersion"], 4);
+    assert_eq!(document["schemaVersion"], 5);
     let mutants = document["mutants"].as_array().expect("a `mutants` array");
     assert_eq!(mutants.len(), 2, "{mutants:?}");
     assert!(

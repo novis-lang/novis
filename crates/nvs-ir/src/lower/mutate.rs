@@ -36,17 +36,24 @@
 //! a `match` subject or an `==` operand: the checker reads a loop on `true` as
 //! one that does not end, and a `match (true)` arm as a condition.
 //!
-//! # Test code is never mutated
+//! # Test code and `#[NoMutate]` code are never mutated
 //!
 //! A method `rule:testing/tests-never-reach-a-build` names as test code is
 //! lowered with the survey turned off, and so is every anonymous function and
-//! generator lowered inside it.
+//! generator lowered inside it. A method or a class with `#[NoMutate]` is
+//! lowered the same way.
+//!
+//! # Every mutant names its function
+//!
+//! [`within`] sets the label of the method being lowered, and every site in
+//! it, an anonymous function's and a generator's included, records that
+//! label. A user finds a mutant by the method name they wrote.
 //!
 //! # What it spends
 //!
 //! Nothing for a lowering with no plan: each site reads one thread-local and
-//! returns. A survey holds one [`Mutant`] per site. An armed lowering clones
-//! the one expression it changes.
+//! returns. A survey holds one [`Mutant`] per site, its function label
+//! included. An armed lowering clones the one expression it changes.
 
 use std::cell::RefCell;
 
@@ -71,10 +78,15 @@ pub enum Operator {
     BranchNegated,
 }
 
-/// One mutant: where it is, which operator made it, and the text before and
-/// after.
+/// One mutant: where it is, the function it is in, which operator made it,
+/// and the text before and after.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Mutant {
+    /// The label of the method or property hook the site is lowered in, as
+    /// the lowering names it (`Shop\Cart::total`). A site in an anonymous
+    /// function or a generator body has the label of the method it is written
+    /// in, and a site in a file's own statements has the file's script label.
+    pub function: String,
     /// The changed expression's span. With [`Self::operator`] it is the key.
     pub span: Span,
     /// The file the site is written in.
@@ -182,9 +194,11 @@ enum Mode {
 
 struct Plan {
     mode: Mode,
-    /// Set while a test-code method is lowered: no site there is listed or
-    /// changed.
+    /// Set while a test-code or `#[NoMutate]` method is lowered: no site there
+    /// is listed or changed.
     in_test_code: bool,
+    /// The label of the function being lowered, which each listed mutant names.
+    function: String,
     /// The `true` and `false` literals [`Lowering::shield_literal`] named.
     shielded: Vec<Span>,
 }
@@ -202,6 +216,7 @@ impl Armed {
             *plan.borrow_mut() = Some(Plan {
                 mode,
                 in_test_code: false,
+                function: String::new(),
                 shielded: Vec::new(),
             });
         });
@@ -221,19 +236,25 @@ impl Drop for Armed {
     }
 }
 
-/// Runs `lower` with sites inside it treated as test code when `test_code`
-/// is set. A lowering with no plan runs `lower` and nothing else.
-pub(crate) fn within<T>(test_code: bool, lower: impl FnOnce() -> T) -> T {
+/// Runs `lower` as the lowering of the function labelled `function`, with no
+/// mutant made inside it when `unmutated` is set: test code, and a method or
+/// class with `#[NoMutate]`. A lowering with no plan runs `lower` and nothing
+/// else, so it pays no allocation for the label.
+pub(crate) fn within<T>(function: &str, unmutated: bool, lower: impl FnOnce() -> T) -> T {
     let before = PLAN.with(|plan| {
-        plan.borrow_mut()
-            .as_mut()
-            .map(|plan| std::mem::replace(&mut plan.in_test_code, test_code))
+        plan.borrow_mut().as_mut().map(|plan| {
+            (
+                std::mem::replace(&mut plan.in_test_code, unmutated),
+                std::mem::replace(&mut plan.function, function.to_owned()),
+            )
+        })
     });
     let out = lower();
-    if let Some(before) = before {
+    if let Some((test_code, function)) = before {
         PLAN.with(|plan| {
             if let Some(plan) = plan.borrow_mut().as_mut() {
-                plan.in_test_code = before;
+                plan.in_test_code = test_code;
+                plan.function = function;
             }
         });
     }
@@ -346,6 +367,7 @@ impl Lowering<'_> {
             match &mut plan.mode {
                 Mode::Survey(found) => {
                     found.push(Mutant {
+                        function: plan.function.clone(),
                         span,
                         file: span.file,
                         line: self.src.line_col(span.start).0 + 1,
@@ -625,6 +647,59 @@ final class PriceTest {
         for (mutant, program) in found.iter().zip(&each) {
             assert_ne!(*program, plain, "{mutant:?} changed nothing");
         }
+    }
+
+    /// Every mutant names the method it is written in, a site in an anonymous
+    /// function or a generator body included, and a method or class with
+    /// `#[NoMutate]` makes none.
+    #[test]
+    fn a_survey_names_the_function_each_mutant_is_in() {
+        let (found, _, _) = lowered(
+            "<?nvs
+use Core\\Test\\NoMutate;
+
+final class Cart {
+    public function total(int $a, int $b): int {
+        var $add = fn(int $x): int => $x + $b;
+        return $add($a) - 1;
+    }
+
+    public function items(int $n): Iterator<int> {
+        while ($n > 0) {
+            yield $n;
+            $n = $n - 1;
+        }
+    }
+
+    #[NoMutate(because: \"only formats a line\")]
+    public function label(int $n): int {
+        return $n + 1;
+    }
+}
+
+#[NoMutate(because: \"generated code\")]
+final class Codec {
+    public function size(int $n): int {
+        return $n * 2 + 1;
+    }
+}
+",
+        );
+        let mut rows: Vec<(String, usize, &'static str)> = found
+            .iter()
+            .map(|m| (m.function.clone(), m.line, m.from))
+            .collect();
+        rows.sort();
+        assert_eq!(
+            rows,
+            vec![
+                ("Cart::items".to_owned(), 11, ">"),
+                ("Cart::items".to_owned(), 11, "condition"),
+                ("Cart::items".to_owned(), 13, "-"),
+                ("Cart::total".to_owned(), 6, "+"),
+                ("Cart::total".to_owned(), 7, "-"),
+            ],
+        );
     }
 
     /// A condition the checker narrows a type on keeps its direction, and a

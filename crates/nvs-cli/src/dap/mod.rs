@@ -773,7 +773,7 @@ fn test(
             rerun_failed: false,
             shuffle: None,
             record_failed: None,
-            mutate: false,
+            mutate: None,
             profile: None,
             debug: Some(debugger.clone()),
         },

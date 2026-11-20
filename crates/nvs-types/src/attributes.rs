@@ -348,6 +348,8 @@ fn check_recognized(
             crate::testing::check_payload(&attr.fields, ctx, env);
         } else if recognized(crate::derive::BENCH) {
             crate::testing::check_bench_payload(&attr.fields, ctx, env);
+        } else if recognized(crate::derive::NO_MUTATE) {
+            crate::testing::check_no_mutate_payload(attr, ctx, env);
         } else if recognized(crate::derive::PROPERTY) {
             crate::property::check_payload(&attr.fields, ctx, env);
         } else if recognized(crate::derive::COMMAND) {

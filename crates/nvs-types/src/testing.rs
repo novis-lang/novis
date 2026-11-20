@@ -258,6 +258,10 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
 pub(crate) const BENCH_OPTIONS: &[(&str, OptionTy)] =
     &[("skip", OptionTy::Str), ("because", OptionTy::Str)];
 
+/// `rule:testing/mutation-testing`'s option shape for `#[NoMutate]`: one `because`, which
+/// [`check_no_mutate_payload`] requires.
+pub(crate) const NO_MUTATE_OPTIONS: &[(&str, OptionTy)] = &[("because", OptionTy::Str)];
+
 /// One `#[Test]` method of one class — `rule:testing/test-attribute`'s table, one row at a
 /// time.
 #[derive(Clone, Debug)]
@@ -372,6 +376,7 @@ struct RawRow {
 /// join the recorded tables once every class is checked
 /// ([`crate::test_inherit::merge`]).
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    record_no_mutate(decl, class, ctx, env);
     let mut cases: Vec<TestCase> = Vec::new();
     let mut case_rows: Vec<Vec<RawRow>> = Vec::new();
     let mut fixtures: Vec<Fixture> = Vec::new();
@@ -1286,6 +1291,45 @@ pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut
     crate::attributes::check_roster("Test", OPTIONS, fields, ctx, env);
     check_retries_state_a_reason(fields, env);
     check_option_values(fields, env);
+}
+
+/// `rule:testing/mutation-testing`'s `#[NoMutate]`, recorded for the class when the class carries
+/// it and for each method that carries it, under the labels the lowering names them by.
+fn record_no_mutate(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if attribute_named(&decl.attributes, crate::derive::NO_MUTATE, ctx, env).is_some() {
+        env.exprs.record_no_mutate(class.to_string());
+    }
+    for member in &decl.members {
+        let ClassMemberKind::Method(m) = &member.kind else {
+            continue;
+        };
+        if attribute_named(&m.attributes, crate::derive::NO_MUTATE, ctx, env).is_some() {
+            let label = format!("{class}::{}", span_text(env.src, m.name));
+            env.exprs.record_no_mutate(label);
+        }
+    }
+}
+
+/// One `#[NoMutate]` payload: its roster is [`NO_MUTATE_OPTIONS`], its `because:` must be
+/// written, and it is held to what [`check_option_values`] holds a test's reason to.
+pub(crate) fn check_no_mutate_payload(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    crate::attributes::check_roster("NoMutate", NO_MUTATE_OPTIONS, &attr.fields, ctx, env);
+    check_option_values(&attr.fields, env);
+    if attr
+        .fields
+        .iter()
+        .any(|field| span_text(env.src, field.name) == "because")
+    {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TEST_OPTION_VALUE,
+            "`#[NoMutate]` is given with no `because`",
+        )
+        .with_primary(attr.span, "no reason is given")
+        .with_help("write the reason: `#[NoMutate(because: \"only formats a log line\")]`"),
+    );
 }
 
 /// One `#[Bench]` payload, checked against [`BENCH_OPTIONS`], its reasons held to what

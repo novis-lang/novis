@@ -11,6 +11,24 @@
 //! read, so no test that reads the change is left out. A change no statement
 //! holds, such as a property's default, is not reached.
 //!
+//! # Every mutant has a key
+//!
+//! A mutant's key is `{function}#{n}: {change}`, such as
+//! ``Shop\Cart::total#2: `<` to `<=` ``: its function's label, then which of
+//! that function's mutants with the same change it is, counted from 1 in
+//! source order. An edit outside the function leaves the key alone, so a
+//! report and a person can name one mutant across runs. [`list`] numbers
+//! every mutant of the program before [`Aim`] keeps any, so aiming a run never
+//! changes a key.
+//!
+//! # A run is aimed
+//!
+//! `--mutate=<target>` keeps the mutants in a folder or file, in a class's
+//! methods, or in one method ([`Aim`]). A target is judged once the program is
+//! checked, before any test runs, and one that names nothing in the program is
+//! an error. `#[NoMutate]` code makes no mutant at all: the lowering's survey
+//! leaves it out.
+//!
 //! # One mutant at a time
 //!
 //! Each mutant is lowered and compiled whole, with no artifact cache: the
@@ -69,6 +87,10 @@ pub(super) struct Scored {
     /// The file, named as a coverage report names it.
     pub(super) file: String,
     pub(super) line: usize,
+    /// [`Mutant::function`].
+    pub(super) function: String,
+    /// The mutant's key ([`Listed::key`]).
+    pub(super) key: String,
     /// [`Mutant::change`].
     pub(super) change: String,
     pub(super) verdict: Verdict,
@@ -91,17 +113,128 @@ pub(super) struct Runs<'a> {
     pub(super) select: &'a Selection,
 }
 
-/// Every mutant of `checked`, in the order its sites are lowered.
-pub(super) fn list(checked: &crate::Checked) -> Vec<Mutant> {
+/// One listed mutant and its key.
+pub(super) struct Listed {
+    pub(super) mutant: Mutant,
+    /// `{function}#{n}: {change}`: see the module doc.
+    pub(super) key: String,
+}
+
+/// Every mutant of `checked` that `aim` keeps, in the order its sites are
+/// lowered, each with its key.
+pub(super) fn list(checked: &crate::Checked, aim: &Aim) -> Vec<Listed> {
     let files = checked.program_files();
-    nvs_ir::lower::mutants(
+    let mutants = nvs_ir::lower::mutants(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
         &files,
         &checked.exprs,
         &checked.interner,
         &checked.enums,
         &checked.layouts,
-    )
+    );
+    let keys = keys(&mutants);
+    mutants
+        .into_iter()
+        .zip(keys)
+        .filter(|(mutant, _)| aim.keeps(checked, mutant))
+        .map(|(mutant, key)| Listed { mutant, key })
+        .collect()
+}
+
+/// Each mutant's key, in `mutants`' order. The count runs over the mutants of
+/// one function with one change, ordered by where each is written.
+fn keys(mutants: &[Mutant]) -> Vec<String> {
+    let mut order: Vec<usize> = (0..mutants.len()).collect();
+    order.sort_by_key(|&at| {
+        let m = &mutants[at];
+        (m.span.file, m.span.start, m.span.end)
+    });
+    let mut seen: BTreeMap<(&str, String), usize> = BTreeMap::new();
+    let mut keys = vec![String::new(); mutants.len()];
+    for at in order {
+        let mutant = &mutants[at];
+        let change = mutant.change();
+        let n = seen
+            .entry((mutant.function.as_str(), change.clone()))
+            .or_default();
+        *n += 1;
+        keys[at] = format!("{}#{n}: {change}", mutant.function);
+    }
+    keys
+}
+
+/// What `--mutate=<target>` keeps. With no target, every mutant.
+#[derive(Default)]
+pub(super) struct Aim {
+    /// Folders and files, canonical.
+    paths: Vec<std::path::PathBuf>,
+    /// Class and method labels, with no leading `\`.
+    names: Vec<String>,
+}
+
+impl Aim {
+    /// Reads each target as a folder or file relative to the current folder
+    /// when one exists there, and otherwise as a class or a `Class::method`
+    /// label. `Err` names the first target that matches nothing in `checked`.
+    pub(super) fn resolve(checked: &crate::Checked, targets: &[String]) -> Result<Self, String> {
+        let mut aim = Self::default();
+        let files: Vec<std::path::PathBuf> = checked
+            .program_files()
+            .iter()
+            .filter_map(|file| file.src.path())
+            .filter_map(|path| std::fs::canonicalize(path).ok())
+            .collect();
+        for target in targets {
+            let target = target.trim();
+            if let Ok(path) = std::fs::canonicalize(target) {
+                if !files.iter().any(|file| file.starts_with(&path)) {
+                    return Err(format!(
+                        "`--mutate={target}` names a path with no file of this program in it"
+                    ));
+                }
+                aim.paths.push(path);
+                continue;
+            }
+            let name = target.trim_start_matches('\\');
+            let declared = !name.is_empty()
+                && checked.exprs.method_labels().any(|label| {
+                    label == name
+                        || label
+                            .strip_prefix(name)
+                            .is_some_and(|rest| rest.starts_with("::"))
+                });
+            if !declared {
+                return Err(format!(
+                    "`--mutate={target}` matches no folder, file, class or method of this program"
+                ));
+            }
+            aim.names.push(name.to_owned());
+        }
+        Ok(aim)
+    }
+
+    /// Whether `mutant` is kept: no target was given, its file is under a
+    /// path target, or its function is a named method or in a named class.
+    fn keeps(&self, checked: &crate::Checked, mutant: &Mutant) -> bool {
+        if self.paths.is_empty() && self.names.is_empty() {
+            return true;
+        }
+        let in_names = self.names.iter().any(|name| {
+            mutant.function == *name
+                || mutant
+                    .function
+                    .strip_prefix(name.as_str())
+                    .is_some_and(|rest| rest.starts_with("::"))
+        });
+        in_names
+            || (!self.paths.is_empty()
+                && checked
+                    .map
+                    .get(mutant.file)
+                    .and_then(|file| file.path())
+                    .and_then(|path| std::fs::canonicalize(path).ok())
+                    .is_some_and(|file| self.paths.iter().any(|path| file.starts_with(path))))
+    }
 }
 
 /// Runs each of `mutants` against the tests of `baseline` that reached it.
@@ -111,7 +244,7 @@ pub(super) fn list(checked: &crate::Checked) -> Vec<Mutant> {
 /// mutant keeps its operands' and its result's types.
 pub(super) fn score(
     checked: &Rc<crate::Checked>,
-    mutants: &[Mutant],
+    mutants: &[Listed],
     baseline: &[Case],
     stmts: &[Span],
     runs: &Runs<'_>,
@@ -121,7 +254,7 @@ pub(super) fn score(
     let files = checked.program_files();
     let digest = crate::cache::test_program_digest(&files);
     let mut scored = Vec::with_capacity(mutants.len());
-    for mutant in mutants {
+    for Listed { mutant, key } in mutants {
         let tests: BTreeSet<String> = innermost(stmts, mutant.span)
             .and_then(|stmt| covering.get(&stmt))
             .map(|cases| {
@@ -160,6 +293,8 @@ pub(super) fn score(
         scored.push(Scored {
             file,
             line: mutant.line,
+            function: mutant.function.clone(),
+            key: key.clone(),
             change: mutant.change(),
             verdict,
             tests: reached,
@@ -302,7 +437,7 @@ pub(super) fn report(scored: &[Scored]) -> String {
 mod tests {
     use std::rc::Rc;
 
-    use super::{Runs, Scored, Verdict, list, score};
+    use super::{Aim, Runs, Scored, Verdict, list, score};
     use crate::runner::{Format, Selection, Shape, compile, json_document, run_suite_in_a_task};
 
     /// The fixture's coverage run and every mutant's verdict.
@@ -352,10 +487,10 @@ mod tests {
                 .all(|case| case.outcome.verdict() == "passed"),
             "every test passes before any change is made"
         );
-        let listed = list(&checked);
+        let listed = list(&checked, &Aim::default());
         // Every mutant compiles, the unreached ones included, which `score` never compiles.
         let files = checked.program_files();
-        for mutant in &listed {
+        for super::Listed { mutant, .. } in &listed {
             let program = nvs_ir::lower::lower_mutant(
                 nvs_ir::lower::ENTRY_SCRIPT_LABEL,
                 &files,
@@ -431,13 +566,15 @@ mod tests {
         );
     }
 
-    /// `rule:testing/report-formats`: version 4's `mutants` array reads back as the records written.
+    /// `rule:testing/report-formats`: version 5's `mutants` array reads back as the records written.
     #[test]
     fn the_json_mutants_array_round_trips() {
         let scored = vec![
             Scored {
                 file: "src/Shop.nvs".to_owned(),
                 line: 12,
+                function: r"Shop\Cart::total".to_owned(),
+                key: r"Shop\Cart::total#1: `<` to `<=`".to_owned(),
                 change: "`<` to `<=`".to_owned(),
                 verdict: Verdict::Survived,
                 tests: 2,
@@ -445,6 +582,8 @@ mod tests {
             Scored {
                 file: "src/Shop.nvs".to_owned(),
                 line: 20,
+                function: r"Shop\Cart::empty".to_owned(),
+                key: r"Shop\Cart::empty#1: `true` to `false`".to_owned(),
                 change: "`true` to `false`".to_owned(),
                 verdict: Verdict::TimedOut,
                 tests: 1,
@@ -459,26 +598,30 @@ mod tests {
         );
         let read: serde_json::Value =
             serde_json::from_str(&document).expect("the report is a JSON document");
-        assert_eq!(read["schemaVersion"], 4);
+        assert_eq!(read["schemaVersion"], 5);
         let mutants = read["mutants"].as_array().expect("`mutants` is an array");
-        let back: Vec<(String, u64, String, String, u64)> = mutants
+        let back: Vec<(String, u64, String, String, String, String, u64)> = mutants
             .iter()
             .map(|record| {
                 (
                     record["file"].as_str().unwrap_or_default().to_owned(),
                     record["line"].as_u64().unwrap_or_default(),
+                    record["function"].as_str().unwrap_or_default().to_owned(),
+                    record["key"].as_str().unwrap_or_default().to_owned(),
                     record["change"].as_str().unwrap_or_default().to_owned(),
                     record["outcome"].as_str().unwrap_or_default().to_owned(),
                     record["tests"].as_u64().unwrap_or_default(),
                 )
             })
             .collect();
-        let written: Vec<(String, u64, String, String, u64)> = scored
+        let written: Vec<(String, u64, String, String, String, String, u64)> = scored
             .iter()
             .map(|mutant| {
                 (
                     mutant.file.clone(),
                     mutant.line as u64,
+                    mutant.function.clone(),
+                    mutant.key.clone(),
                     mutant.change.clone(),
                     mutant.verdict.name().to_owned(),
                     mutant.tests as u64,

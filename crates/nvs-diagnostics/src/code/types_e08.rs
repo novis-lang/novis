@@ -1052,8 +1052,9 @@ codes! {
     /// second retries nothing.
     pub const E_TEST_OPTION_VALUE: Code = Code::new("E0880").card(
         "A `skip:` or `because:` in `#[Test]` must give a reason, so it cannot be empty. \
-         `retries:` is how many more times a failed test runs, so it must be 1 or more. Write a \
-         reason, or a number of 1 or more.",
+         `#[NoMutate]` must have a `because:` that is not empty. `retries:` is how many more \
+         times a failed test runs, so it must be 1 or more. Write a reason, or a number of 1 or \
+         more.",
     );
     /// A property or a method reached through a union of classes that the
     /// classes do not all share: one class lacks it, two give it different

@@ -1704,6 +1704,7 @@ pub struct ExprTypeTable {
     properties: FxHashMap<String, Vec<crate::property::PropertyCase>>,
     test_hooks: FxHashMap<String, crate::test_hooks::TestHooks>,
     test_code: FxHashSet<String>,
+    no_mutate: FxHashSet<String>,
     test_lineages: Vec<(String, Vec<String>)>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
@@ -1899,6 +1900,7 @@ impl ExprTypeTable {
             properties,
             test_hooks,
             test_code,
+            no_mutate,
             test_lineages,
             inline_snapshots,
             property_defaults,
@@ -1965,6 +1967,7 @@ impl ExprTypeTable {
         self.properties.extend(properties);
         self.test_hooks.extend(test_hooks);
         self.test_code.extend(test_code);
+        self.no_mutate.extend(no_mutate);
         self.test_lineages.extend(test_lineages);
         self.inline_snapshots.extend(inline_snapshots);
         self.property_defaults.extend(property_defaults);
@@ -2057,6 +2060,7 @@ impl ExprTypeTable {
         section("properties", sorted(&self.properties));
         section("test_hooks", sorted(&self.test_hooks));
         section("test_code", sorted(&self.test_code));
+        section("no_mutate", sorted(&self.no_mutate));
         section("test_lineages", sorted(&self.test_lineages));
         section("inline_snapshots", sorted(&self.inline_snapshots));
         section("property_defaults", sorted(&self.property_defaults));
@@ -2513,6 +2517,11 @@ impl ExprTypeTable {
         self.methods.get(&span).map(String::as_str)
     }
 
+    /// Every method label [`Self::method_label`] answers for, in no order.
+    pub fn method_labels(&self) -> impl Iterator<Item = &str> {
+        self.methods.values().map(String::as_str)
+    }
+
     /// Records the call whose `E0405` has its primary label at `span`.
     pub(crate) fn record_unresolved_call(&mut self, span: Span, call: UnresolvedCall) {
         self.unresolved_calls.insert(span, call);
@@ -2733,6 +2742,25 @@ impl ExprTypeTable {
     #[must_use]
     pub fn is_test_code(&self, label: &str) -> bool {
         self.test_code.contains(label)
+    }
+
+    /// Records that the class or method labelled `label` carries
+    /// `rule:testing/mutation-testing`'s `#[NoMutate]`.
+    pub(crate) fn record_no_mutate(&mut self, label: String) {
+        self.no_mutate.insert(label);
+    }
+
+    /// Whether the method or property hook labelled `label` makes no mutant:
+    /// it, or the class its label starts with, carries `#[NoMutate]`.
+    #[must_use]
+    pub fn is_no_mutate(&self, label: &str) -> bool {
+        if self.no_mutate.is_empty() {
+            return false;
+        }
+        self.no_mutate.contains(label)
+            || label
+                .match_indices("::")
+                .any(|(at, _)| self.no_mutate.contains(&label[..at]))
     }
 
     /// Records that the class labelled `label` inherits a marked method from

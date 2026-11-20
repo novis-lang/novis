@@ -80,6 +80,7 @@ pub const ATTRIBUTES: &[&str] = [
     DB_FIELD,
     TEST,
     BENCH,
+    NO_MUTATE,
     FIXTURE,
     TEST_WITH,
     PROPERTY,
@@ -150,6 +151,7 @@ impl Site {
 pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
     Some(match name {
         DERIVE | KEEP_KEY_ORDER | DB_DERIVE | API_SCHEME => &[Site::Class],
+        NO_MUTATE => &[Site::Class, Site::Method],
         FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
         TEST | BENCH | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS
         | AFTER_EACH_TEST | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
@@ -376,6 +378,17 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         short: "Says that this method is a benchmark. `nvs test --bench` runs it once and prints \
                 how many statements, calls, allocations, bytes and garbage collections it used.",
         site: "a method",
+    },
+    AttributeDoc {
+        name: NO_MUTATE,
+        fields: &[AttributeField {
+            name: "because",
+            ty: "string",
+            required: true,
+        }],
+        short: "Says that `nvs test --mutate` does not change the code of this class or method. \
+                `because:` gives the reason, and it cannot be empty.",
+        site: "a class or a method",
     },
     AttributeDoc {
         name: FIXTURE,
@@ -783,6 +796,11 @@ pub const AFTER_EACH_TEST: &str = r"Core\Test\AfterEachTest";
 /// and for that entry's reason. [`crate::testing`] collects it as a [`crate::testing::TestCase`]
 /// with `bench` set, so a bench takes fixtures, hooks and inheritance exactly as a test does.
 pub const BENCH: &str = r"Core\Test\Bench";
+
+/// `#[NoMutate(because: string)]` — `rule:testing/mutation-testing`'s marker, on a class or a
+/// method: a site in its code makes no mutant. [`crate::testing`] records it, and it changes
+/// nothing outside `nvs test --mutate`.
+pub const NO_MUTATE: &str = r"Core\Test\NoMutate";
 
 /// `#[Command(name: string, about?: string)]` — `rule:tooling/commands-are-compiled`'s marker, on a
 /// `static` method. It is the same class the entry point `Core\Command::run`

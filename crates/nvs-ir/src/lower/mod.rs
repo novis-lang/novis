@@ -1139,12 +1139,23 @@ fn lower_program_as(
                                     .as_ref()
                                     .expect("just checked this declaration has one");
                                 // `rule:testing/mutation-testing`: no mutant is
-                                // made inside test code. See `mutate::within`.
-                                let test_code = exprs.is_test_code(label);
+                                // made inside test code or `#[NoMutate]` code,
+                                // and each one names this method. See
+                                // `mutate::within`.
+                                let unmutated =
+                                    exprs.is_test_code(label) || exprs.is_no_mutate(label);
                                 if nvs_syntax::ast::is_generator_body(body) {
-                                    let (mut fns, classes) = mutate::within(test_code, || {
-                                        lower_generator(label, m, src, exprs, checked_types, enums)
-                                    });
+                                    let (mut fns, classes) =
+                                        mutate::within(label, unmutated, || {
+                                            lower_generator(
+                                                label,
+                                                m,
+                                                src,
+                                                exprs,
+                                                checked_types,
+                                                enums,
+                                            )
+                                        });
                                     // The factory is the function a call reaches.
                                     if let Some(factory) = fns.iter_mut().find(|f| f.name == label)
                                     {
@@ -1154,7 +1165,7 @@ fn lower_program_as(
                                     synthesized.extend(classes);
                                     continue;
                                 }
-                                let mut lowered = mutate::within(test_code, || {
+                                let mut lowered = mutate::within(label, unmutated, || {
                                     lower_method(label, m, src, exprs, checked_types, enums)
                                 });
                                 lowered.function.param_checks = method_param_checks(m, &scope);
@@ -1176,15 +1187,18 @@ fn lower_program_as(
                                     let Some(label) = exprs.method_label(hook.span) else {
                                         continue;
                                     };
-                                    let lowered = lower_property_hook(
-                                        label,
-                                        p,
-                                        hook,
-                                        src,
-                                        exprs,
-                                        checked_types,
-                                        enums,
-                                    );
+                                    let lowered =
+                                        mutate::within(label, exprs.is_no_mutate(label), || {
+                                            lower_property_hook(
+                                                label,
+                                                p,
+                                                hook,
+                                                src,
+                                                exprs,
+                                                checked_types,
+                                                enums,
+                                            )
+                                        });
                                     out.push(lowered.function);
                                     out.extend(lowered.anon_fns);
                                     synthesized.extend(lowered.classes);
@@ -1235,15 +1249,17 @@ fn lower_program_as(
         } else {
             (file_script_label(file.src.id()), ScriptRole::Required)
         };
-        let lowered = lower_script(
-            &name,
-            file.stmts,
-            file.src,
-            exprs,
-            checked_types,
-            enums,
-            role,
-        );
+        let lowered = mutate::within(&name, false, || {
+            lower_script(
+                &name,
+                file.stmts,
+                file.src,
+                exprs,
+                checked_types,
+                enums,
+                role,
+            )
+        });
         functions.push(lowered.function);
         functions.extend(lowered.anon_fns);
         synthesized.extend(lowered.classes);

@@ -318,9 +318,23 @@ pub(crate) struct Args {
     /// killed, survived, timed out or not reached. The score is the share
     /// of reached changes that the tests noticed. Test code is never
     /// changed. A survived change does not make the run fail.
+    ///
+    /// `--mutate` alone changes the whole program. `--mutate=<target>`
+    /// changes only the code you name. A target is a folder or a file,
+    /// such as `--mutate=src/Shop`, a class, such as `--mutate=Shop\Cart`, or
+    /// a method, such as `--mutate=Shop\Cart::total`. Separate two targets
+    /// with a comma. A target that matches nothing stops the run with exit
+    /// code 2. Code in a class or method with `#[NoMutate]` is never changed.
     // `rule:testing/mutation-testing`.
-    #[arg(long, conflicts_with_all = ["list", "update", "watch"])]
-    mutate: bool,
+    #[arg(
+        long,
+        value_name = "TARGET",
+        num_args = 0..=1,
+        require_equals = true,
+        value_delimiter = ',',
+        conflicts_with_all = ["list", "update", "watch"]
+    )]
+    mutate: Option<Vec<String>>,
     /// Run the benchmarks instead of the tests.
     ///
     /// A benchmark is a method with `#[Bench]`. Each one runs once, and the
@@ -445,7 +459,7 @@ impl Args {
                     .shuffle
                     .map(|seed| seed.unwrap_or_else(|| rand::rng().random::<u64>())),
                 record_failed: None,
-                mutate: self.mutate,
+                mutate: self.mutate.clone(),
                 profile: self.profile.map(|format| (format, self.profile_out)),
                 debug: None,
             },
@@ -812,6 +826,8 @@ pub(crate) fn run(
         profile,
         debug,
     } = flags;
+    let mutate_targets = mutate;
+    let mutate = mutate_targets.is_some();
     if mutate && format == Format::Junit {
         // `rule:testing/mutation-testing`: JUnit has an element for a test and none for a mutant.
         eprintln!(
@@ -939,6 +955,18 @@ pub(crate) fn run(
         true => snapshot_sites(&checked),
         false => Vec::new(),
     };
+    // `rule:testing/mutation-testing`'s aim, judged before any test runs, so a
+    // target that names nothing costs no suite.
+    let aim = match mutate_targets.as_deref() {
+        Some(targets) => match mutation::Aim::resolve(&checked, targets) {
+            Ok(aim) => aim,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        },
+        None => mutation::Aim::default(),
+    };
     let checked = Rc::new(checked);
     let started = Instant::now();
     let (suite, mut ctx) = match run_suite_in_a_task(
@@ -1056,7 +1084,7 @@ pub(crate) fn run(
             Some(Vec::new())
         }
         (true, true) => {
-            let listed = mutation::list(&checked);
+            let listed = mutation::list(&checked, &aim);
             let note = match listed.len() {
                 1 => "\n  1 mutant: it runs the tests that reach its line".to_owned(),
                 n => format!("\n  {n} mutants: each one runs the tests that reach its line"),
@@ -1661,8 +1689,9 @@ pub(crate) struct Flags {
     /// nothing.
     pub(crate) record_failed: Option<PathBuf>,
     /// `--mutate` (`rule:testing/mutation-testing`): after the run, each mutant runs the tests
-    /// that reach it ([`mutation`]).
-    pub(crate) mutate: bool,
+    /// that reach it ([`mutation`]). `Some` under the flag, with the targets `--mutate=<target>`
+    /// named, and none for the whole program.
+    pub(crate) mutate: Option<Vec<String>>,
     /// `--profile` and `--profile-out` ([`crate::profile`]).
     pub(crate) profile: Option<(crate::profile::Format, Option<PathBuf>)>,
     /// The session of `nvs dap`'s `test` launch: the suite compiles under the debug switch, and
@@ -4613,6 +4642,10 @@ fn report(
 /// (`rule:testing/mutation-testing`): one `{file, line, change, outcome,
 /// tests}` record per mutant, after `tests`. A record's `tests` is how many
 /// tests reached the mutant's line.
+///
+/// **Version 5 is what `--mutate` writes**: version 4 with `function` and `key`
+/// on each mutant record, the label of the function the mutant is in and
+/// [`mutation::Listed::key`].
 fn json_document(
     cases: &[Case],
     counts: Counts,
@@ -4621,7 +4654,7 @@ fn json_document(
     mutants: Option<&[mutation::Scored]>,
 ) -> String {
     let version = match (mutants.is_some(), sites.is_some()) {
-        (true, _) => 4,
+        (true, _) => 5,
         (false, true) => 3,
         (false, false) => 2,
     };
@@ -4717,7 +4750,11 @@ fn json_document(
             out.push_str(if at == 0 { "\n    {" } else { ",\n    {" });
             out.push_str("\"file\": ");
             json_string(&mutant.file, &mut out);
-            out.push_str(&format!(", \"line\": {}, \"change\": ", mutant.line));
+            out.push_str(&format!(", \"line\": {}, \"function\": ", mutant.line));
+            json_string(&mutant.function, &mut out);
+            out.push_str(", \"key\": ");
+            json_string(&mutant.key, &mut out);
+            out.push_str(", \"change\": ");
             json_string(&mutant.change, &mut out);
             out.push_str(", \"outcome\": ");
             json_string(mutant.verdict.name(), &mut out);
@@ -6485,7 +6522,7 @@ mod tests {
                     rerun_failed: false,
                     shuffle: None,
                     record_failed: None,
-                    mutate: false,
+                    mutate: None,
                     profile: Some((format, Some(out.clone()))),
                     debug: None,
                 },
@@ -6699,7 +6736,7 @@ mod tests {
                 rerun_failed: false,
                 shuffle: None,
                 record_failed: None,
-                mutate: false,
+                mutate: None,
                 profile: None,
                 debug: None,
             },
@@ -6729,7 +6766,7 @@ mod tests {
                 rerun_failed: false,
                 shuffle: None,
                 record_failed: None,
-                mutate: false,
+                mutate: None,
                 profile: None,
                 debug: None,
             },

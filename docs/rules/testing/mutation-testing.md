@@ -11,11 +11,37 @@ mutant runs against those rather than against the whole suite. On two thousand t
 hundred mutants that is the difference between minutes and most of a day.
 
 **A mutant is one changed site in the lowered program.** Parse and check run once; lowering takes the
-checked tree and a mutant key, makes exactly one change at the site the key names, and codegen
-compiles the whole program from that. A key is the site's file, line and change, so a report names a
-mutant the way a reader finds it. No mutant is made from test code
-(`rule:testing/tests-never-reach-a-build`'s marker methods, and every body written inside one), so a
-mutant changes the program under test and never the test that judges it.
+checked tree and one mutant, makes exactly one change at its site, and codegen compiles the whole
+program from that. No mutant is made from test code (`rule:testing/tests-never-reach-a-build`'s
+marker methods, and every body written inside one), so a mutant changes the program under test and
+never the test that judges it.
+
+**Every mutant names its function and has a key.** The function is the label of the method or
+property hook the site is written in, `Shop\Cart::total`. A site in an anonymous function or a
+generator body names the method it is written in, so a user finds it by the name they wrote. The key
+is `{function}#{n}: {change}`, such as ``Shop\Cart::total#2: `<` to `<=` ``, where `n` counts that
+function's mutants with the same change, in source order, from 1. An edit outside the function does
+not change a key, and the line number is not part of it. A rename of the function does. Keys are
+numbered over the whole program before a run is aimed, so aiming never changes one.
+
+**A run is aimed.** `--mutate` alone mutates the whole program. `--mutate=<target>` takes one or more
+comma-separated targets, and the `=` is required, so a path after `--mutate` is never read as one:
+
+| Target | Mutates |
+|---|---|
+| a folder or a file, relative to the current folder | every site in the program's files under it |
+| `Shop\Cart` | every site in that class's methods |
+| `Shop\Cart::total` | every site in that method |
+
+A target that exists as a path is a path. A target is judged once the program is checked, before any
+test runs, and one that matches no file, class or method of the program exits with status 2 and names
+it. The filter is applied to the survey, so an aimed run compiles only the mutants it keeps.
+
+**`#[NoMutate(because: "…")]` keeps code out.** It is a `Core\Test` attribute on a class or a method.
+`because:` is required and may not be empty, as `skip:` may not (`E0880`). A site under it makes no
+mutant, the way test code makes none. It has no effect outside `--mutate`, and a normal build pays
+nothing for it. There is no opposite attribute: `--mutate=<target>` aims a run without editing the
+code, and one attribute is simpler than two.
 
 The first operator set is six swaps, each keeping its operands' and its result's types, so every
 mutant lowers and compiles with no second check:
@@ -64,18 +90,19 @@ Each mutant has one of four outcomes:
 
 The score is killed plus timed out over every mutant but the unreached ones. The human report prints
 the four counts and the score after the run's summary, then each survived mutant with its file, line
-and change. `--format json` writes `schemaVersion: 4` (`rule:testing/report-formats`): version 3's
-document, plus a `mutants` array with one record per mutant, `{file, line, change, outcome, tests}`,
-in the order the program lowers its sites. `tests` is how many tests reached the mutant's line, which
+and change. `--format json` writes `schemaVersion: 5` (`rule:testing/report-formats`): version 3's
+document, plus a `mutants` array with one record per mutant, `{file, line, function, key, change,
+outcome, tests}`, in the order the program lowers its sites. `tests` is how many tests reached the mutant's line, which
 is what the covering-test filter decides and what the bench of a mutation run counts. A JUnit document has no place for a mutant, so `--mutate` with
 `--format junit` exits with an error. The exit status is the coverage run's: a survived mutant does not
 fail the run.
 
 **What it costs:** nothing for a run without `--mutate`, and nothing on the request path. A mutation
 run pays one coverage run, then one lowering and codegen of the whole program per mutant, plus the
-tests that reach the mutant's line. A mutant compiles with no artifact cache, since its key would be
-the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in flight,
-and the run keeps one record per mutant for the report.
+tests that reach the mutant's line. A mutant compiles with no artifact cache, since its cache key
+would be the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in
+flight, and the run keeps one record per mutant for the report, its function label and key included.
+A compile records one label per `#[NoMutate]` class or method.
 
 Since the mutants grow with the program and each compiles all of it, a run's compile time grows with
 the square of the program's size; that is the price of the whole-program recompile, and a team runs
@@ -94,5 +121,8 @@ program under test, and its ramp fails when the test runs per mutant grow with t
   the whole-program one, for a cost the per-mutant test run already outweighs.
 - *Running several mutants at once.* Each would hold a compiled unit and its tests' isolates, and
   `--jobs` already fills the cores with one mutant's tests.
+- *A key with the line number in it.* An edit above the function would change every key below it.
+- *`#[Mutate]` as an opt-in.* `--mutate=<target>` aims a run without editing the code.
+- *Globs in a target.* A folder, a class and a method name every set a run has needed.
 - *A per-test limit from each test's own coverage-run time.* It is closer for a fast test, and it
   needs a table carried into every test's run; one bound for the run is one number.

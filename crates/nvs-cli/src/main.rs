@@ -2996,10 +2996,11 @@ fn run_test(
         fail_fast,
         rerun_failed,
         shuffle,
-        mutate,
+        ref mutate,
         ref profile,
         ..
     } = flags;
+    let mutate = mutate.is_some();
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs` file or a directory holding `.nvs` files
     // (`rule:testing/a-directory-of-programs-is-one-test-program`), a
