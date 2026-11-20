@@ -700,24 +700,21 @@ user reads*.
 
 Every stage is done. `looper verify`, `bun nv verify --doc` and `bun nv ci --check` are green, and
 `owners --closes` names no gap. The goal is reached.
-- The last session reviewed and stamped the three trimmed `about.md` files and restamped their two
+- The refused DONE: `floor-debt` had one red atom, the `core-collections-are-iterable` attack. Its
+  step 5 no longer reached the memory limit, because a loop start allocates no copy. Commit
+  `0593be295b` makes each nested loop add a member to the set, so each loop keeps a copy and the
+  step ends at the FATAL again. The proof runs green, its review is stamped, and `ci --check` is green.
+- The session before reviewed reviewed and stamped the three trimmed `about.md` files and restamped their two
   pages. It wrote the search questions of six owed pages and restamped seven stale ones. It recorded
   146 stale perf records, and added a roadmap theme for `code-warm-index`.
 - `lang:iteration/core-collections-are-iterable` had grown from 7 to 10 allocations a round. Each
   cursor allocated an empty `pairs` array. Commit `5fd64fc181` keeps `null` there, and it is 7 again.
-- Nightly run 44510687786's failures are each fixed by a later commit. The Miri timeouts of push run
-  44623108825 are fixed by `9478fd2f66`.
-- The newcomer review of all 22 texts is fixed and stamped. `Revocable` has its own `about.md`, one
-  example and three covering cases. `bun nv proofs --id` says `complete.` for all three ids.
-- The perf record of `lang:classes/revocable-objects` is taken: flat growth, twin 1.04x.
-- `owners --closes` names no gap. Decision 18 is in `docs/rules/classes/revocable-objects.md`, and
-  every other decision is in the two rules or a module doc.
-- `looper verify` is green after three fix passes (commit `f440381309`), and `verify --doc` is green.
-- In `ci --check`, the changes entry, the roadmap themes, the website render and the revocable page
-  stamps are fixed. Three `about.md` files `keyed-iteration` grew past 200 words are trimmed:
-  `what-foreach-walks`, `statements/foreach` and `every-binding-has-a-type`.
 - Nightly run 44510687786's failures are each fixed by a later commit (`eb5c02e983`, `4c82a2409a`,
-  `656f5b2f2d`, `1c75c4ef0e`).
+  `656f5b2f2d`, `1c75c4ef0e`). The Miri timeouts of push run 44623108825 are fixed by `9478fd2f66`.
+- All 22 texts are reviewed and stamped, and `bun nv proofs --id` says `complete.` for all three
+  ids. The revocable perf record is taken: flat growth, twin 1.04x.
+- Decision 18 is in `docs/rules/classes/revocable-objects.md`, and every other decision is in the
+  two rules or a module doc. `looper verify` went green at `f440381309`.
 
 ### Next
 

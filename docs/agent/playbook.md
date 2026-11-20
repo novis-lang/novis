@@ -50,6 +50,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   --check` were green, and the retire was refused. After a layout change, run `nvs run` on each
   attack that makes millions of small values. Shrinking its input is refused as loosening a test.
   See `tests/hostile/core/Str/chunk/`.
+- **A cut in what a loop or a value allocates can stop a hostile proof's `ends-early` step from
+  reaching its FATAL, and only `floor-debt` runs it.** Once a collection loop allocated nothing at its
+  start, 256 nested loops over a set held no copies, and the attack printed its depth. The retire was
+  refused. After an allocation cut, run `nvs run` on the attacks that cover the feature. Make the step
+  force the cost it names, never drop the step. See
+  `tests/hostile/lang/iteration/core-collections-are-iterable/`.
 - **A suite that is red only through `bun nv` and green from the shell has `LLVM Profile Error`
   lines in each case's stderr.** The covws `nvs` writes its counters into a shared discard pool, and
   a profile an older build left there fails to merge. Every case that expects an error then fails,
