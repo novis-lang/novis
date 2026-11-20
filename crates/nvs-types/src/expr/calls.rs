@@ -1310,9 +1310,11 @@ pub(crate) fn infer_new(
 ///
 /// Exactly `string` is `Str` and exactly `int` is `Int`, read after aliases
 /// are resolved: the two types whose every value is a key an array compares
-/// as `==` does (`rule:types/arrays`). Every other type keeps the chain: a
-/// union, a nullable, `mixed`, `uint`, `tainted string`, an array, and every
-/// other class.
+/// as `==` does (`rule:types/arrays`). A type whose every value is an object
+/// is `Object` ([`is_always_an_object`]), because an object is identical only
+/// to itself (`rule:expressions/equality-semantics`). Every other type keeps
+/// the chain: a union, a nullable, `mixed`, `uint`, `tainted string`, an
+/// array and an enum.
 fn keying_of(target_ty: TypeId, env: &Env<'_>) -> nvs_stdlib::registry::Keying {
     use nvs_stdlib::registry::Keying;
     let Ty::Class(qname, args) = env.interner.get(target_ty) else {
@@ -1325,10 +1327,29 @@ fn keying_of(target_ty: TypeId, env: &Env<'_>) -> nvs_stdlib::registry::Keying {
     {
         return Keying::Chain;
     }
-    match args.first().map(|arg| env.interner.get(*arg)) {
-        Some(Ty::String) => Keying::Str,
-        Some(Ty::Int) => Keying::Int,
+    let Some(first) = args.first() else {
+        return Keying::Chain;
+    };
+    match env.interner.get(*first) {
+        Ty::String => Keying::Str,
+        Ty::Int => Keying::Int,
+        _ if is_always_an_object(*first, env) => Keying::Object,
         _ => Keying::Chain,
+    }
+}
+
+/// Whether every value of `ty` is an object at run time, so a collection keyed
+/// by it can store each key by its identity: a class or an interface, `object`,
+/// a shape, a callable, and an intersection of those. An enum, a union (a
+/// nullable included), an `iterable`, a class reference and a type parameter
+/// are not.
+fn is_always_an_object(ty: TypeId, env: &Env<'_>) -> bool {
+    match env.interner.get(ty) {
+        Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableSig { .. } => true,
+        Ty::Intersection(members) => members
+            .iter()
+            .all(|member| is_always_an_object(*member, env)),
+        _ => false,
     }
 }
 

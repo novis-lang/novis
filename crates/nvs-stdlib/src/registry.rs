@@ -3179,6 +3179,16 @@ pub const KEYED_CONSTRUCTORS: &[(&str, Keying, &str)] = &[
         Keying::Int,
         crate::objset::NEW_INT_SYMBOL,
     ),
+    (
+        crate::objmap::NAME,
+        Keying::Object,
+        crate::objmap::NEW_OBJECT_SYMBOL,
+    ),
+    (
+        crate::objset::NAME,
+        Keying::Object,
+        crate::objset::NEW_OBJECT_SYMBOL,
+    ),
 ];
 
 /// The symbol that builds a `class` instance keyed by `keying`, or `None`

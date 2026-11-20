@@ -346,7 +346,7 @@ pub use object::{
     AllowedValues, AttributeDesc, COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable,
     CodecElement, CodecField, CodecTy, ConstantDesc, ConstantValue, Constructor, Door, EnumCases,
     EnumDesc, FIELD_STRIDE, FIELDS_OFFSET, FieldDefault, FreeState, HookRow, MethodRow, NvsObj,
-    OBJ_ALIGN, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, Refusal, ShapeCheck, ShapeCodec,
+    OBJ_ALIGN, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, Refusal, Rekey, ShapeCheck, ShapeCodec,
     SlotCheck, SlotType, construct, construct_found, constructor_of, field_offset,
     immortal_object_bytes, nvs_abstract_method, nvs_class_method, nvs_object_class_name,
     nvs_object_field_get, nvs_object_field_set, nvs_object_is_class, nvs_object_key_get,

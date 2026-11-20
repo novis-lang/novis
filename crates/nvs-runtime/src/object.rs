@@ -790,6 +790,19 @@ pub struct ClassDesc {
     /// [`ClassTable::set_free`]. **Cost:** one word per class, once per
     /// process, and one load and branch per object freed.
     free: Option<FreeState>,
+    /// What re-keys an instance of this class after a graph copy, for a class
+    /// whose array slots are stores keyed by the identity of the objects they
+    /// hold: `Core\ObjectMap` and `Core\ObjectSet`. `None` for every other
+    /// class.
+    ///
+    /// A copy that makes new objects leaves the stores keyed by the old
+    /// objects, so [`crate::graph`]'s live carrier calls it once the copy of
+    /// the instance is complete. A key never leaves its store, so the record
+    /// walk ([`crate::record`]) shows each array slot of such a class by its
+    /// values alone. `nvs_stdlib::instance` writes it through
+    /// [`ClassTable::set_keyed_stores`]. **Cost:** one word per class, once per
+    /// process, and one load and branch per object a live copy makes.
+    keyed_stores: Option<Rekey>,
 }
 
 /// A [`ClassDesc::free`] hook. It is handed the dying object, borrowed at
@@ -797,6 +810,12 @@ pub struct ClassDesc {
 /// tables. It must not retain or release the object, and must not reach
 /// compiled code: it runs inside a release.
 pub type FreeState = fn(&mut Ctx, Value);
+
+/// A [`ClassDesc::keyed_stores`] hook. It is handed the copied object,
+/// borrowed, and rebuilds its stores under the keys of the objects they now
+/// hold. It must not retain or release the object, and must not reach
+/// compiled code.
+pub type Rekey = fn(Value);
 
 /// One row of a [`ClassDesc`]'s method table: a name, the compiled address it
 /// answers with, and the **declared shape** a caller holding only tagged
@@ -1705,6 +1724,13 @@ impl ClassDesc {
     #[must_use]
     pub fn is_responder(&self) -> bool {
         self.is_responder
+    }
+
+    /// The hook that re-keys a copy of an instance of this class, where its
+    /// array slots are identity-keyed stores — see the field.
+    #[must_use]
+    pub fn keyed_stores(&self) -> Option<Rekey> {
+        self.keyed_stores
     }
 
     /// Whether an instance of this class holds a host handle — the bit
@@ -2655,6 +2681,7 @@ impl ClassTable {
             states_slot_types: false,
             bytes_refusal: None,
             free: None,
+            keyed_stores: None,
         }));
         id
     }
@@ -2813,6 +2840,22 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.free = Some(free);
+    }
+
+    /// Marks `id` as a class whose array slots are identity-keyed stores, and
+    /// gives the hook that re-keys a copy of one — see
+    /// [`ClassDesc::keyed_stores`]. A setter on [`ClassTable::set_free`]'s
+    /// terms.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_keyed_stores(&mut self, id: ClassId, rekey: Rekey) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.keyed_stores = Some(rekey);
     }
 
     /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].

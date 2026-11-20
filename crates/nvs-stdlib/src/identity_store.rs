@@ -67,6 +67,41 @@
 //! drops its key store, so a pair costs one entry, not two, and a `string`
 //! key shares the caller's string instead of a 17- to 20-byte chain key.
 //!
+//! # Decision: an object key is its identity
+//!
+//! A key type whose every value is an object (the checker's
+//! `is_always_an_object`: a class, an interface, `object`, a shape, a
+//! callable) is [`Keying::Object`]. An object is identical only to itself
+//! (`rule:expressions/equality-semantics`), never moves, and its identity is
+//! its address, so the store key is [`IdentityKey`]: `@` and the pointer's
+//! sixteen hex digits, written on the stack. The `@` keeps it from reading as
+//! an `int` subscript. `get`, `has`, `set` and `remove` are one lookup with no
+//! identity hash and no chain walk.
+//!
+//! **The collection's reference keeps the key unique.** The store holds the
+//! object while its entry exists, so no other object can take that address
+//! until the entry is removed, and a removal deletes the key. The key never
+//! leaves the store: `keys()`, `values()`, a `foreach` and every error read the
+//! stored values, and the record walk shows a store slot by its values alone
+//! (`nvs_runtime::ClassDesc::keyed_stores`). No address reaches a program.
+//!
+//! **A map keeps two stores,** keys and values, under the identity key, because
+//! the key bytes give no object back. `get` and `has` read the value store
+//! alone. A set keeps one store, each member under its own key.
+//!
+//! **A graph copy re-keys.** A live copy across a boundary may make new objects
+//! of what a collection holds, which leaves the copied stores keyed by the old
+//! addresses. The class's descriptor names a hook the copy calls once the
+//! collection is complete (`nvs_runtime::ClassDesc::keyed_stores`), and it
+//! rebuilds the stores under the new objects' keys ([`rebuild_members`],
+//! [`rebuild_pairs`]). Without it a new object at a freed old address would be
+//! found. The bytes carrier refuses both classes, so it needs nothing.
+//!
+//! **What it spends:** a map's pair costs two entries, as the chain's does,
+//! with a 17-byte key in place of a 17- to 20-byte one. A live copy of an
+//! identity-keyed collection rebuilds its stores once: one array and one
+//! entry per member more, for the length of the copy.
+//!
 //! # Decision: a key whose tag is not the keying's
 //!
 //! An `as` or `is` checks a collection's class and never its type arguments,
@@ -312,6 +347,9 @@ pub enum Keying {
     /// Exactly `int`: the store is keyed by the `int`, normalised as an array
     /// subscript is (`rule:types/arrays`).
     Int,
+    /// A type whose every value is an object: the store is keyed by the
+    /// object's identity, [`IdentityKey`].
+    Object,
 }
 
 impl Keying {
@@ -321,7 +359,14 @@ impl Keying {
             Self::Chain => 0,
             Self::Str => 1,
             Self::Int => 2,
+            Self::Object => 3,
         })
+    }
+
+    /// Whether a map in this keying holds its keys in a store of their own:
+    /// the chain and the identity key, whose key bytes give no key back.
+    pub(crate) const fn keeps_keys(self) -> bool {
+        matches!(self, Self::Chain | Self::Object)
     }
 
     /// The keying a `keying` slot's value names. Anything else is the chain,
@@ -330,6 +375,7 @@ impl Keying {
         match value.as_int() {
             Some(1) => Self::Str,
             Some(2) => Self::Int,
+            Some(3) => Self::Object,
             _ => Self::Chain,
         }
     }
@@ -344,8 +390,35 @@ impl Keying {
             Self::Chain => true,
             Self::Str => key.tag_byte() == Tag::Str as u8,
             Self::Int => key.tag_byte() == Tag::Int as u8,
+            Self::Object => key.tag_byte() == Tag::Object as u8,
         }
     }
+}
+
+/// An object's identity key, written on the stack: `@` and the sixteen hex
+/// digits of its pointer. The `@` keeps the array from reading it as an `int`
+/// subscript. The key is unique while the entry exists, because the store
+/// holds a reference to the object, and it never leaves the store.
+pub(crate) struct IdentityKey([u8; 17]);
+
+impl std::ops::Deref for IdentityKey {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// `object`'s identity key — see [`IdentityKey`].
+fn identity_key(object: Value) -> IdentityKey {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut bytes = [b'@'; 17];
+    let bits = object.bits();
+    for (at, byte) in bytes[1..].iter_mut().enumerate() {
+        let shift = 60 - 4 * at;
+        *byte = HEX[usize::try_from((bits >> shift) & 0xf).unwrap_or_default()];
+    }
+    IdentityKey(bytes)
 }
 
 /// Where a key lives in a store under its collection's keying.
@@ -356,6 +429,8 @@ pub(crate) enum Place {
     Str(Value),
     /// An `int` key.
     Int(i64),
+    /// An object's identity key, written on the stack.
+    Object(IdentityKey),
 }
 
 impl Place {
@@ -364,6 +439,7 @@ impl Place {
     fn with_bytes<R>(&self, read: impl FnOnce(&[u8]) -> R) -> R {
         match self {
             Self::Chain(key) => read(key),
+            Self::Object(key) => read(key),
             Self::Str(key) => read(key.as_str_bytes().unwrap_or_default()),
             Self::Int(index) => {
                 let mut bytes = [0u8; 24];
@@ -395,6 +471,11 @@ pub(crate) fn place(store: &NvsArray, keying: Keying, key: Value) -> (Place, boo
             let index = key.as_int().unwrap_or_default();
             (Place::Int(index), store.get_index(index).is_some())
         }
+        Keying::Object => {
+            let identity = identity_key(key);
+            let present = store.has_key(&identity);
+            (Place::Object(identity), present)
+        }
     }
 }
 
@@ -409,6 +490,7 @@ pub(crate) fn find(store: &NvsArray, keying: Keying, key: Value) -> Option<Value
         Keying::Chain => None,
         Keying::Str => store.get(key.as_str_bytes()?),
         Keying::Int => store.get_index(key.as_int()?),
+        Keying::Object => store.get(&identity_key(key)),
     }
 }
 
@@ -435,6 +517,7 @@ pub(crate) fn put(store: &mut NvsArray, place: &Place, present: bool, value: Val
     };
     match place {
         Place::Chain(chain) => store.set(NvsStr::new(chain), value),
+        Place::Object(identity) => store.set(NvsStr::new(identity), value),
         Place::Str(key) => {
             let Some(ptr) = key.str_ptr() else { return };
             #[expect(
@@ -458,7 +541,9 @@ pub(crate) fn put(store: &mut NvsArray, place: &Place, present: bool, value: Val
 pub(crate) fn remove(store: &mut NvsArray, place: &Place) {
     match place {
         Place::Chain(chain) => vacate(store, chain),
-        Place::Str(_) | Place::Int(_) => place.with_bytes(|bytes| store.unset(bytes)),
+        Place::Str(_) | Place::Int(_) | Place::Object(_) => {
+            place.with_bytes(|bytes| store.unset(bytes));
+        }
     }
 }
 
@@ -466,7 +551,7 @@ pub(crate) fn remove(store: &mut NvsArray, place: &Place) {
 /// `string` for [`Keying::Str`] and an `int` for [`Keying::Int`].
 fn key_value(store: &NvsArray, slot: usize, keying: Keying) -> Option<Value> {
     match keying {
-        Keying::Chain => None,
+        Keying::Chain | Keying::Object => None,
         #[expect(
             clippy::disallowed_methods,
             reason = "a `string` store's every key was written from a `string` \
@@ -502,6 +587,14 @@ pub(crate) fn keys_listed(store: &NvsArray, keying: Keying) -> NvsArray {
 /// member is the value under its own key, so the members are read from the
 /// values.
 pub(crate) fn rechain_members(store: &NvsArray) -> NvsArray {
+    rebuild_members(store, Keying::Chain)
+}
+
+/// A set's store rebuilt under `keying`, which is the chain or the identity
+/// key, in the same order. Each member is the value under its own key, so the
+/// members are read from the values. `keying` admits every member: the chain
+/// admits all, and an identity-keyed store holds only objects.
+pub(crate) fn rebuild_members(store: &NvsArray, keying: Keying) -> NvsArray {
     let mut out = NvsArray::new();
     let mut from = 0usize;
     while let Some(slot) = store.next_slot(from) {
@@ -509,7 +602,10 @@ pub(crate) fn rechain_members(store: &NvsArray) -> NvsArray {
         let Some(member) = store.value_at(slot) else {
             continue;
         };
-        let (chain, _) = locate(&out, member);
+        let (place, present) = place(&out, keying, member);
+        if present {
+            continue;
+        }
         #[expect(
             unsafe_code,
             reason = "the member is owned by the old store, so the copy the new \
@@ -518,9 +614,50 @@ pub(crate) fn rechain_members(store: &NvsArray) -> NvsArray {
         unsafe {
             member.retain();
         }
-        out.set(NvsStr::new(&chain), member);
+        put(&mut out, &place, false, member);
     }
     out
+}
+
+/// A map's two stores, `(keys, values)`, rebuilt under `keying`, which is the
+/// chain or the identity key, in the same order. Each key is read from the key
+/// store and its value from the value store under the same store key.
+pub(crate) fn rebuild_pairs(
+    keys: &NvsArray,
+    values: &NvsArray,
+    keying: Keying,
+) -> (NvsArray, NvsArray) {
+    let mut out_keys = NvsArray::new();
+    let mut out_values = NvsArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = keys.next_slot(from) {
+        from = slot + 1;
+        let Some(key) = keys.value_at(slot) else {
+            continue;
+        };
+        let value = match keys.slot_key(slot) {
+            Some(nvs_runtime::SlotKey::Str(name)) => values.get(name.as_bytes()),
+            Some(nvs_runtime::SlotKey::Index(index)) => values.get_index(index),
+            None => None,
+        };
+        let Some(value) = value else { continue };
+        let (place, present) = place(&out_keys, keying, key);
+        if present {
+            continue;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the key and the value are owned by the old stores, so the \
+                      copies the new stores keep need references of their own"
+        )]
+        unsafe {
+            key.retain();
+            value.retain();
+        }
+        put(&mut out_keys, &place, false, key);
+        put(&mut out_values, &place, false, value);
+    }
+    (out_keys, out_values)
 }
 
 /// A map's direct store rebuilt as the chain's two stores, `(keys, values)`,

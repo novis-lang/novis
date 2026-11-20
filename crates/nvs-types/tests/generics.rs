@@ -324,7 +324,13 @@ fn a_class_named_inside_an_accepted_new_type_argument_list_is_still_resolved() {
 /// argument is one of `types`, in order.
 fn keyings_of(class: &str, rest: &str, types: &[&str]) -> Vec<nvs_types::CoreKeying> {
     use std::fmt::Write as _;
-    let mut src = String::from("<?nvs\ntype Name = string;\n");
+    let mut src = String::from(
+        "<?nvs\ntype Name = string;\n\
+         class Animal {}\n\
+         final class Dog extends Animal {}\n\
+         interface Named {}\n\
+         enum Color: int { Red = 1, Blue = 3 }\n",
+    );
     let news: Vec<String> = types
         .iter()
         .map(|ty| format!("new Core\\{class}<{ty}{rest}>()"))
@@ -375,5 +381,46 @@ fn a_new_object_set_is_keyed_by_its_exact_element_type() {
     assert_eq!(
         keyings_of("Heap", "", &["int"]),
         vec![nvs_types::CoreKeying::Chain]
+    );
+}
+
+/// Key types whose every value is an object, which the collection stores by
+/// identity: a class, a subclass, an interface, `object`, a `Core` class, a
+/// shape and a callable.
+const OBJECT_KEY_TYPES: &[&str] = &[
+    "Animal",
+    "Dog",
+    "Named",
+    "object",
+    "Core\\Html\\Markup",
+    "{name: string}",
+    "callable",
+];
+
+/// Key types that can hold a value that is not an object, which keep the
+/// chain: an enum, a nullable class, a union with a scalar, and `mixed`.
+const NOT_ONLY_OBJECT_KEY_TYPES: &[&str] = &["Color", "?Animal", "Animal|int", "mixed"];
+
+/// `new Core\ObjectMap<K, V>()` and `new Core\ObjectSet<T>()` with a key type
+/// whose every value is an object record the identity keying.
+#[test]
+fn a_new_collection_keyed_by_a_class_is_keyed_by_identity() {
+    let expected = vec![nvs_types::CoreKeying::Object; OBJECT_KEY_TYPES.len()];
+    assert_eq!(keyings_of("ObjectMap", ", int", OBJECT_KEY_TYPES), expected);
+    assert_eq!(keyings_of("ObjectSet", "", OBJECT_KEY_TYPES), expected);
+}
+
+/// A key type that can hold a value that is not an object keeps the chain, in
+/// both collections.
+#[test]
+fn a_collection_keyed_by_a_type_with_a_value_that_is_no_object_keeps_the_chain() {
+    let expected = vec![nvs_types::CoreKeying::Chain; NOT_ONLY_OBJECT_KEY_TYPES.len()];
+    assert_eq!(
+        keyings_of("ObjectMap", ", int", NOT_ONLY_OBJECT_KEY_TYPES),
+        expected
+    );
+    assert_eq!(
+        keyings_of("ObjectSet", "", NOT_ONLY_OBJECT_KEY_TYPES),
+        expected
     );
 }

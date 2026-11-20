@@ -32,6 +32,11 @@
 //! back from the value store. [`crate::identity_store`]'s docs § *A `string`
 //! or `int` key is stored as it is* own that choice.
 //!
+//! A map keyed by a type whose every value is an object keeps both stores,
+//! under each key's identity key in place of the chain key, so the alignment
+//! above holds for it too. `get` and `has` read the value store alone.
+//! [`crate::identity_store`]'s docs § *An object key is its identity* own it.
+//!
 //! # Why the three collections are mutable
 //!
 //! `ObjectMap`, `ObjectSet` and `Heap` are the only mutable `Core` types: a
@@ -62,6 +67,10 @@ pub(crate) const NEW_STRING_SYMBOL: &str = "nvs_core_object_map_new_string";
 
 /// The constructor of a map keyed by exactly `int` ([`store::Keying::Int`]).
 pub(crate) const NEW_INT_SYMBOL: &str = "nvs_core_object_map_new_int";
+
+/// The constructor of a map keyed by a type whose every value is an object
+/// ([`store::Keying::Object`]).
+pub(crate) const NEW_OBJECT_SYMBOL: &str = "nvs_core_object_map_new_object";
 
 /// The symbol behind `Iterable<K>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
@@ -319,6 +328,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         NEW_SYMBOL => (nvs_core_object_map_new as *const ()).cast(),
         NEW_STRING_SYMBOL => (nvs_core_object_map_new_string as *const ()).cast(),
         NEW_INT_SYMBOL => (nvs_core_object_map_new_int as *const ()).cast(),
+        NEW_OBJECT_SYMBOL => (nvs_core_object_map_new_object as *const ()).cast(),
         "nvs_core_object_map_set" => (nvs_core_object_map_set as *const ()).cast(),
         "nvs_core_object_map_get" => (nvs_core_object_map_get as *const ()).cast(),
         "nvs_core_object_map_has" => (nvs_core_object_map_has as *const ()).cast(),
@@ -381,7 +391,12 @@ fn keying_for_write(
     }
     let (keys, values) = {
         let values = store::borrow(receiver, VALUES, &CLASS, member)?;
-        store::rechain_pairs(&values, keying)
+        if keying == store::Keying::Object {
+            let keys = store::borrow(receiver, KEYS, &CLASS, member)?;
+            store::rebuild_pairs(&keys, &values, store::Keying::Chain)
+        } else {
+            store::rechain_pairs(&values, keying)
+        }
     };
     crate::instance::set_slot(receiver, KEYS, Value::array(keys));
     crate::instance::set_slot(receiver, VALUES, Value::array(values));
@@ -390,14 +405,15 @@ fn keying_for_write(
 }
 
 /// Every key of `receiver`, as a fresh list in insertion order: the key store's
-/// values for a chain map, and the value store's own keys for a direct one.
+/// values for a chain or identity-keyed map, and the value store's own keys for
+/// a `string` or `int` one.
 ///
 /// # Errors
 ///
 /// [`store::borrow`]'s, unchanged.
 fn keys_of(receiver: *mut ObjHeader, member: &str) -> Result<NvsArray, Fault> {
     let keying = keying_of(receiver);
-    if keying == store::Keying::Chain {
+    if keying.keeps_keys() {
         let keys = store::borrow(receiver, KEYS, &CLASS, member)?;
         return Ok(store::listed(&keys));
     }
@@ -444,6 +460,36 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `new Core\ObjectMap<K, V>()` for a `K` whose every value is an object —
+    /// a fresh empty map keyed by each key's identity.
+    fn nvs_core_object_map_new_object(_ctx, _args: [0]) {
+        Ok(built(store::Keying::Object))
+    }
+}
+
+/// Rebuilds an identity-keyed map's two stores under its keys' own
+/// identities, after a graph copy made new objects of them. A chain or direct
+/// map is left as it is. The class's descriptor calls this
+/// ([`nvs_runtime::ClassTable::set_rekey`]).
+pub(crate) fn rekey(map: Value) {
+    let Some(receiver) = map.obj_ptr() else {
+        return;
+    };
+    if keying_of(receiver) != store::Keying::Object {
+        return;
+    }
+    let (Ok(keys), Ok(values)) = (
+        store::borrow(receiver, KEYS, &CLASS, "rekey"),
+        store::borrow(receiver, VALUES, &CLASS, "rekey"),
+    ) else {
+        return;
+    };
+    let (keys, values) = store::rebuild_pairs(&keys, &values, store::Keying::Object);
+    crate::instance::set_slot(receiver, KEYS, Value::array(keys));
+    crate::instance::set_slot(receiver, VALUES, Value::array(values));
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::set(K $key, V $value): void` — associates
     /// `$value` with `$key`, replacing whatever `$key` held.
     ///
@@ -455,7 +501,32 @@ nvs_runtime::nvs_helper! {
         let receiver = map_of(args[0], "set")?;
         let (key, value) = (args[1], args[2]);
         let keying = keying_for_write(receiver, key, "set")?;
-        if keying != store::Keying::Chain {
+        if keying == store::Keying::Object {
+            let present = {
+                let values = store::borrow(receiver, VALUES, &CLASS, "set")?;
+                store::place(&values, keying, key).1
+            };
+            for (slot, held) in [(KEYS, key), (VALUES, value)] {
+                if slot == KEYS && present {
+                    continue;
+                }
+                store::edit(receiver, slot, &CLASS, "set", |stored| {
+                    let (place, present) = store::place(stored, keying, key);
+                    #[expect(
+                        unsafe_code,
+                        reason = "the argument is borrowed from the caller's frame, \
+                                  so the copy the store keeps needs a reference of \
+                                  its own"
+                    )]
+                    unsafe {
+                        held.retain();
+                    }
+                    store::put(stored, &place, present, held);
+                })?;
+            }
+            return Ok(Value::null());
+        }
+        if !keying.keeps_keys() {
             store::edit(receiver, VALUES, &CLASS, "set", |values| {
                 let (place, present) = store::place(values, keying, key);
                 #[expect(
@@ -575,11 +646,20 @@ nvs_runtime::nvs_helper! {
         let keying = keying_of(receiver);
         if keying != store::Keying::Chain {
             let key = args[1];
-            if keying.admits(key) {
-                store::edit(receiver, VALUES, &CLASS, "remove", |values| {
-                    let (place, present) = store::place(values, keying, key);
+            let present = {
+                let values = store::borrow(receiver, VALUES, &CLASS, "remove")?;
+                store::contains(&values, keying, key)
+            };
+            if !present {
+                return Ok(Value::null());
+            }
+            // An identity-keyed map removes the key from its key store too.
+            let slots: &[usize] = if keying.keeps_keys() { &[KEYS, VALUES] } else { &[VALUES] };
+            for slot in slots {
+                store::edit(receiver, *slot, &CLASS, "remove", |stored| {
+                    let (place, present) = store::place(stored, keying, key);
                     if present {
-                        store::remove(values, &place);
+                        store::remove(stored, &place);
                     }
                 })?;
             }

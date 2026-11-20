@@ -284,6 +284,9 @@ trait Carrier {
         child: Self::Node,
     );
 
+    /// An object's holder, now that every field of it has been walked.
+    fn close_object(&mut self, _holder: &Self::Node, _class: &ClassDesc) {}
+
     /// Give up a half-built holder, because a node beneath it was refused.
     fn discard(&mut self, node: Self::Node);
 
@@ -451,6 +454,7 @@ fn walk<C: Carrier>(
                     return Err(refused_growth());
                 }
             }
+            carrier.close_object(&holder, class);
             if !adopt {
                 release(value);
             }
@@ -655,6 +659,15 @@ impl Carrier for Live<'_> {
             Some(SlotKey::Index(at)) => borrow_array(*holder).set_index(*at, child),
             Some(SlotKey::Str(name)) => borrow_array(*holder).set(name.clone(), child),
             None => borrow_object(*holder).set_field(index, child),
+        }
+    }
+
+    /// A collection whose stores are keyed by its objects' identity is
+    /// re-keyed here: the copy may have made new objects of what it holds
+    /// ([`ClassDesc::keyed_stores`]).
+    fn close_object(&mut self, holder: &Value, class: &ClassDesc) {
+        if let Some(rekey) = class.keyed_stores() {
+            rekey(*holder);
         }
     }
 

@@ -423,12 +423,56 @@ fn properties_of(
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);
         let node = if desc.field_is_secret(slot) {
             Node::Redacted
+        } else if desc.keyed_stores().is_some() {
+            store_node(object.field(slot), caps, depth + 1, seen)
         } else {
             node_of(object.field(slot), caps, depth + 1, seen)
         };
         properties.push((name, node));
     }
     properties
+}
+
+/// A slot of a class whose array slots are identity-keyed stores
+/// ([`ClassDesc::keyed_stores`]): an array is shown as the list of its values,
+/// because its keys are the store's own and never leave it. Any other value is
+/// shown as it is.
+fn store_node(value: Value, caps: &Caps, depth: usize, seen: &mut Seen) -> Node {
+    let Some(ptr) = value.array_ptr() else {
+        return node_of(value, caps, depth, seen);
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the object holds a live reference to the array for the length \
+                  of this call, and the handle is never dropped"
+    )]
+    let store = std::mem::ManuallyDrop::new(unsafe { crate::NvsArray::from_raw(ptr) });
+    let mut listed = crate::NvsArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = store.next_slot(from) {
+        from = slot + 1;
+        if let Some(entry) = store.value_at(slot) {
+            #[expect(
+                unsafe_code,
+                reason = "the store owns the entry, so the list needs a \
+                          reference of its own, which it releases when it drops"
+            )]
+            unsafe {
+                entry.retain();
+            }
+            listed.append(entry);
+        }
+    }
+    let listed = Value::array(listed);
+    let node = node_of(listed, caps, depth, seen);
+    #[expect(
+        unsafe_code,
+        reason = "the list was made above and is owned by this call alone"
+    )]
+    unsafe {
+        listed.release();
+    }
+    node
 }
 
 /// The properties an object declares beyond its first `first` slots, walked

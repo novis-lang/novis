@@ -1225,6 +1225,19 @@ fn descriptors() -> &'static Descriptors {
                 found.table.set_free(id, *free);
             }
         }
+        // The two collections whose stores may be keyed by object identity:
+        // a graph copy re-keys them, and a record shows their stores' values
+        // only (`nvs_runtime::ClassDesc::keyed_stores`).
+        let keyed: [(&str, nvs_runtime::Rekey); 2] = [
+            (crate::objmap::NAME, crate::objmap::rekey),
+            (crate::objset::NAME, crate::objset::rekey),
+        ];
+        for (name, rekey) in keyed {
+            let ids: Vec<_> = found.ids_named(name).collect();
+            for id in ids {
+                found.table.set_keyed_stores(id, rekey);
+            }
+        }
         // `rule:classes/serialize-is-a-closed-format`: what each slot holds,
         // for every descriptor of the name. A class with no row keeps neither
         // mark, so the bytes carrier refuses it.

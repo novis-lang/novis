@@ -4,8 +4,9 @@
 //! member is an entry under its own key, so `has` is a lookup, `count` is the
 //! store's own count, and nothing here decides anything about identity that
 //! `nvs_runtime::identity` has not already decided. The key is the chain key,
-//! or the member itself for a set of exactly `string` or `int`; the `keying`
-//! slot says which.
+//! the member itself for a set of exactly `string` or `int`, or the member's
+//! identity key for a set of a type whose every value is an object; the
+//! `keying` slot says which.
 
 use nvs_runtime::{Fault, ObjHeader, Value};
 
@@ -25,6 +26,10 @@ pub(crate) const NEW_STRING_SYMBOL: &str = "nvs_core_object_set_new_string";
 
 /// The constructor of a set of exactly `int` ([`store::Keying::Int`]).
 pub(crate) const NEW_INT_SYMBOL: &str = "nvs_core_object_set_new_int";
+
+/// The constructor of a set of a type whose every value is an object
+/// ([`store::Keying::Object`]).
+pub(crate) const NEW_OBJECT_SYMBOL: &str = "nvs_core_object_set_new_object";
 
 /// The symbol behind `Iterable<T>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
@@ -274,6 +279,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         NEW_SYMBOL => (nvs_core_object_set_new as *const ()).cast(),
         NEW_STRING_SYMBOL => (nvs_core_object_set_new_string as *const ()).cast(),
         NEW_INT_SYMBOL => (nvs_core_object_set_new_int as *const ()).cast(),
+        NEW_OBJECT_SYMBOL => (nvs_core_object_set_new_object as *const ()).cast(),
         "nvs_core_object_set_add" => (nvs_core_object_set_add as *const ()).cast(),
         "nvs_core_object_set_has" => (nvs_core_object_set_has as *const ()).cast(),
         "nvs_core_object_set_remove" => (nvs_core_object_set_remove as *const ()).cast(),
@@ -422,6 +428,32 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_object_set_new_int(_ctx, _args: [0]) {
         Ok(built(store::Keying::Int))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `new Core\ObjectSet<T>()` for a `T` whose every value is an object — a
+    /// fresh empty set keyed by each member's identity.
+    fn nvs_core_object_set_new_object(_ctx, _args: [0]) {
+        Ok(built(store::Keying::Object))
+    }
+}
+
+/// Rebuilds an identity-keyed set's store under its members' own identities,
+/// after a graph copy made new objects of them. A chain or direct set is left
+/// as it is. The class's descriptor calls this
+/// ([`nvs_runtime::ClassTable::set_rekey`]).
+pub(crate) fn rekey(set: Value) {
+    let Some(receiver) = set.obj_ptr() else {
+        return;
+    };
+    if keying_of(receiver) != store::Keying::Object {
+        return;
+    }
+    let Ok(entries) = store::borrow(receiver, ENTRIES, &CLASS, "rekey") else {
+        return;
+    };
+    let rebuilt = store::rebuild_members(&entries, store::Keying::Object);
+    crate::instance::set_slot(receiver, ENTRIES, Value::array(rebuilt));
 }
 
 nvs_runtime::nvs_helper! {
