@@ -34,7 +34,7 @@ stages:
     context: [docs/reference/core/Time.md, docs/reference/core/Time-DateTime.md, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: constructors
@@ -391,41 +391,29 @@ examples, one bench and one attack. The session writes the reference pages meanw
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Each of the three new `fromIso` members has its about, three examples, a bench
-and an attack (`Time-Date/fromIso`, `Time-TimeOfDay/fromIso`, `Time-DateTime/fromIso` in all three
-trees), and the ISO form test in `time.rs` carries the `covers:` markers of `Date::fromIso` and
-`TimeOfDay::fromIso`. `Zone::of`'s about and first example write a zone as text, and
-`tests/hostile/core/Time-Zone/of/03-zone-names-that-only-look-real.nvs` writes ten names that do not
-compile (`02-` was taken, so the item's path moved to `03-`). The six `docs/reference/core/Time*.md`
-cards show only the new names, and `bun nv reference --only Time` holds 7 of 7. `questions.json`
-moves the four old `Core\Time` pages to their classes, drops `atStartOfDay`'s, adds the three
-`fromIso` pages, and each is stamped. `core.json` and `llms-full.txt` are rendered again.
+Every stage is done. Stage 8 closed the goal without the full gate: `cargo build` and `cargo clippy
+--all-targets -- -D warnings` are green, and the four acceptance checks pass by name (`constructors`,
+`zones`, `zone-completion`, `moved`). `bun nv owners --closes time-constructors` names no gap. The one
+decision only this file held, that no cache from a zone id to its `TimeZone` lands because the lookup
+is about 2% of a conversion, is now a Declined bullet of
+`rule:core-classes/a-time-class-builds-its-own-values`. The chapter and `ground-rules.md` are rendered
+again, so the rule no longer reads *designed* there.
 
-The 92 members `time.rs` declares were recorded on a release binary, and `bun nv proofs --gate --limit 0`
-owes nothing over 1,623 features. `DateTime::at` is 5 allocations and 267 bytes per call, beside the
-old `Core\Time::at`'s 4 and 210; the rule and the card say so. A card string edit in `time.rs` did not
-make the records stale again. The rule record is `shipped`, and `bun nv owners --closes
-time-constructors` names no gap.
+The nightly the sweep named (`44510687786`) ran at `adc7487822`, before the Miri bound fix
+(`9478fd2f66`) and the rest of this goal, so this stage changed nothing for it.
 
-The nightly the sweep named (`44510687786`) ran at `adc7487822`, before the fixes the last handoff
-lists, so it needed nothing new.
-
-**Expected red:** none known. `data/perf/members.md` was not rewritten by `bun nv render`; if the
-ledger check reads it as stale, the renderer that writes it is the fix.
+**Expected red:** none known. This goal joins the chain's `ungated:` list, and the next full gate runs
+`bun nv affected --run` over it.
 
 ### Next
 
-Stage 8 closes the goal. This goal is not the chain's full gate, so it runs `cargo build`, `cargo clippy
---all-targets -- -D warnings` and the goal's four acceptance checks by name (`looper check --name
-constructors`, `zones`, `zone-completion`, `moved`), then the goal-end gates of AGENTS.md § *In the
-loop*: move any decision only this file holds into the rule or `time.rs`'s module doc, delete this file,
-and write `DONE`.
+Nothing. The driver retires this file on `DONE`.
 
 ### Backlog
