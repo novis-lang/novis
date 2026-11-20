@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/attributes/inert-metadata.md, docs/rules/attributes/structural-retrieval.md, docs/rules/attributes/repeatable.md, docs/rules/types/shape-type.md, docs/rules/types/class-scoped-alias.md]
   - id: 2
     title: the parser reads an attribute declaration and a doc comment on a shape field, and the formatter writes both
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/ty.rs, crates/nvs-syntax/src/parser/mod.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-fmt/src/lib.rs]
   - id: 3
     title: the checker resolves an attribute to its declaration and checks its site, its owner, its count and its payload
@@ -238,6 +238,26 @@ check that only widens keeps its code. The frozen cases name these:
 The eight rewritten rules and `enums/no-class-machinery`'s `E0871` sentence state the designed
 behaviour, so each rewritten record is `designed` under this goal until stage 9 sets it `shipped`.
 
+**The syntax tree (stage 2's calls).**
+
+- `nvs_syntax::ast::ShapeField::doc` is an `Option<DocComment>`, not a bare span. It is taken with
+  `take_doc_comment`, as every other declaration's run is, so the run counts as attached, its tags are
+  checked, and hover reads the same type everywhere.
+- A modifier or an attribute group written before an attribute declaration is `E0133`, the code a
+  `type` alias's decoration gets, and its card now names both. An attribute on a declaration is the
+  declined meta-attribute.
+- A missing `on` still starts the declaration when `{` follows the name, so it is one `E0141` and
+  not a cascade. An unknown site word is left out of `sites`, and the declaration is kept.
+- `nvs_hir::SymbolKind::Attribute` is declared by the resolver at file scope
+  (`crates/nvs-hir/src/resolve.rs:166`), so two declarations of one name are the ordinary duplicate
+  error. `nvs_hir::imports::candidates` leaves it out, since it is not a type. The editor's
+  `DeclKind::Attribute` is `Struct` in the outline, and `nvs/fileKinds` does not list it until stage 7
+  gives the client a word for it.
+- The formatter reads the body as a `ShapeType` node (`crates/nvs-syntax/src/walk.rs` `push_shape`),
+  so a body is laid out exactly as a shape is. `crates/nvs-fmt/src/gap.rs` gives the header's words one
+  space each. A member attribute declaration does not count as a member with a body for the blank-line
+  rule, so two one-line declarations may stand together.
+
 **The goal after this one.** `attribute-property-names` builds on this goal: `static` in an attribute
 declaration's fields names the class the attribute is used on, and no top-level `type` alias changes
 what `static` means.
@@ -276,24 +296,24 @@ the session renders and checks the rules. Their files are disjoint.
 
 **Does:** the syntax. Nothing is checked yet.
 
-- [ ] `crates/nvs-syntax/src/ast.rs:2189`: an `AttributeDecl` beside `TypeAliasDecl`, with its name,
+- [x] `crates/nvs-syntax/src/ast.rs:2189`: an `AttributeDecl` beside `TypeAliasDecl`, with its name,
   `repeatable`, its site words with their spans, its fields as `ShapeField`s and its doc; a
   `StmtKind` arm and a `ClassMemberKind` arm (`:1982`). `ShapeField` (`:276`) gains `doc: Option<Span>`.
-- [ ] `crates/nvs-syntax/src/parser/decl.rs:874`: `at_attribute_decl` beside `at_type_alias`, the
+- [x] `crates/nvs-syntax/src/parser/decl.rs:874`: `at_attribute_decl` beside `at_type_alias`, the
   declaration at namespace level (`:860`) and in a class or interface body (`:1226`). A site word that is
   not one of the nine is one error naming the nine. An empty list is one error.
-- [ ] `crates/nvs-syntax/src/parser/ty.rs:866` `parse_shape_type`: a `///` comment before a field is
+- [x] `crates/nvs-syntax/src/parser/ty.rs:866` `parse_shape_type`: a `///` comment before a field is
   that field's doc, and the attribute body reuses this field list.
-- [ ] `crates/nvs-syntax/src/parser/mod.rs:168` `parse_attribute`: the bare `#[{…}]` is one error that
+- [x] `crates/nvs-syntax/src/parser/mod.rs:168` `parse_attribute`: the bare `#[{…}]` is one error that
   says to declare an attribute, and the group's recovery (`:132`) keeps the declaration after it.
   `E0140`, `E0141` and `E0142` go in `crates/nvs-diagnostics/src/code/parser.rs`, and a parser test in
   `crates/nvs-syntax/src/parser/tests/decl.rs` pins each, since a parse error stops a reject case
   before its checker errors.
-- [ ] `crates/nvs-fmt/src/`: the declaration is formatted as a class body is, one field per line with
+- [x] `crates/nvs-fmt/src/`: the declaration is formatted as a class body is, one field per line with
   its doc above, and the site list on the header line. `bun nv nvs-fmt` stays green on the corpus.
-- [ ] `crates/nvs-hir/src/autoload.rs:1538`: an attribute declaration is a symbol of its own kind, so an
+- [x] `crates/nvs-hir/src/autoload.rs:1538`: an attribute declaration is a symbol of its own kind, so an
   autoloaded file that declares one is found by its name.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
 ### 3. the checker resolves an attribute to its declaration and checks its site, its owner, its count and its payload
 
@@ -424,35 +444,31 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stage 1 is done (`0dfe75fc6a`, `1fe40843c9`). The new rule
-`docs/rules/attributes/an-attribute-is-declared-with-its-sites.md` and the renamed
-`docs/rules/attributes/a-retrieval-matches-the-declaration-it-names.md` (was `structural-retrieval`;
-every citation in the tree moved with it, including Rust comments that still describe the structural
-match until stage 5) are written. Eight rules are rewritten, and all ten records are `designed` under
-this goal. `bun nv rules --check` is green. The codes are in § *Standing decisions* § *The diagnostic
-codes*. Two clarifications were written into the rules from the case writer's questions: a use on the
-owner or its own members is `E1006` in either form, and a retrieval reads only the declaration its
-target resolves to, never a parent class's payloads.
+Stages 1 and 2 are done. The parser reads an attribute declaration at file scope and in a class or
+interface body (`crates/nvs-syntax/src/ast.rs:2225` `AttributeDecl`,
+`crates/nvs-syntax/src/parser/decl.rs:957` `at_attribute_decl`), its body through
+`crates/nvs-syntax/src/parser/ty.rs:881` `parse_shape_fields`, and a `///` doc on every shape field.
+`E0140` to `E0142` are pinned by seven green tests in `crates/nvs-syntax/src/parser/tests/decl.rs`.
+`SymbolKind::Attribute` is declared and autoloaded, and `nvs fmt` writes the declaration. Build,
+clippy and `bun nv nvs-fmt` are green. Stage 2's calls are in § *Standing decisions* § *The syntax
+tree*. The checker still ignores a declaration, so `#[Name]` naming one is unresolved until stage 3.
 
-`docs/rules/enums/no-class-machinery.md:11` now says no program attribute is used on an enum. It stays
-`shipped`, and stage 3 makes it true by retiring `E0871`.
-
-The eleven cases are written and frozen. Their expected lines and columns were computed by script, and
-none has run: each is red until its stage. Expected red: all nine `cases` files and both `retrieval`
-files. `a-reflected-attribute-names-its-declaration.nvst` reaches `AttributeInfo` through
-`Core\Reflect::forObject($o)->attributes()`. The `E1007` case relies on `Core\Deprecated` being an
-attribute declaration that `use Core\Deprecated;` brings into scope (stage 4).
-
-The nightly CI failures the sweep reported were for `5d053fc6e6` and are already fixed on `main`:
-`e5a100b18f` (the XML memory-limit unit test) and `438e9c44af` (the ObjectMap keyed-iterable case).
-Both pass locally.
+**Expected red until stage 6: `#[{…}]` is now `E0140`.** About 55 corpus files fail to parse, under
+`tests/conformance/`, `tests/hostile/`, `docs/examples/`, `benches/members/` and two
+`tests/lsp/` cases. `Grep` for `#\[\{` lists them. The Rust tests that write the bare form go red
+too: `crates/nvs-types/tests/attributes.rs`, `crates/nvs-codegen/tests/probes.rs:220`
+`A_FOLDED_CALL`, and the test sources in `crates/nvs-types/src/` `attributes`, `derive`,
+`match_attribute`, `program` and `retrieval`. The nine `cases` and two `retrieval` cases stay red
+until stages 3 and 5.
 
 ### Next
 
-Stage 2 from its first item: `crates/nvs-syntax/src/ast.rs:2189` `AttributeDecl` and the `doc` on
-`ShapeField` (`:276`), then the parser at `crates/nvs-syntax/src/parser/decl.rs:874` and
-`crates/nvs-syntax/src/parser/ty.rs:866`, the bare-form error at `crates/nvs-syntax/src/parser/mod.rs:168`
-with the parser codes `E0140` to `E0142`, the formatter and the autoload symbol. A build and clippy
-check it. The `cases`, `retrieval`, `editor` and `proofs` checks stay red until their stages.
+Stage 3 from its first item: the table of attribute declarations beside the alias table at
+`crates/nvs-hir/src/aliases.rs:229` (top-level from `StmtKind::AttributeDecl`, owned ones from
+`ClassMemberKind::Attribute` keyed as `QName::member` keys an owned alias), then
+`crates/nvs-types/src/attributes.rs:655` `resolve_shape_alias` and `:709` resolving to a declaration,
+`:242` `check_attribute`'s four checks in order, `:115` `reject_unread` retired for `E1004` at the
+declaration, and `:50` `check_declaration`. Rewrite the Rust tests named above to declarations in the
+same pass. A build and clippy check it, and the `cases` check runs once.
 
 ### Backlog
