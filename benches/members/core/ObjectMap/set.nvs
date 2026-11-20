@@ -1,11 +1,11 @@
 <?nvs
-// Replaces the value stored for an object, as a program does when it counts something per object.
+// Replaces the object stored for a string key, as a program does when it keeps the latest record per name.
 // bench: iterations 256
 // bench: allocations 0
 // bench: calls 1
 // bench: complexity constant
 
-final class Key
+final class Item
 {
     public int $id;
 
@@ -19,20 +19,20 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        array<Key> $keys = [new Key(1), new Key(2), new Key(3)];
-        Core\ObjectMap<Key, uint> $map = new Core\ObjectMap<Key, uint>();
-        $map->set($keys[0], 0);
-        $map->set($keys[1], 0);
-        $map->set($keys[2], 0);
+        array<string> $keys = ['order', 'customer', 'invoice'];
+        array<Item> $values = [new Item(1), new Item(2), new Item(3)];
+        Core\ObjectMap<string, Item> $map = new Core\ObjectMap<string, Item>();
+        $map->set($keys[0], $values[0]);
+        $map->set($keys[1], $values[0]);
+        $map->set($keys[2], $values[0]);
         uint $total = 0;
-        uint $i = 0;
-        while ($i < $rounds) {
-            // chained: which key is written depends on last round's total
-            $map->set($keys[($total % 3) as int], $total);
+        while ($rounds > 0) {
+            // The total from the last round picks the key and the object for this round.
+            $map->set($keys[($total % 3) as int], $values[(($total + $rounds) % 3) as int]);
             $total = $total + 1 + ($total % 7);
-            $i = $i + 1;
+            $rounds = $rounds - 1;
         }
-        return $total + ($map->get($keys[0]) ?? (0 as uint));
+        return $total + (($map->get($keys[0])?->id ?? 0) as uint);
     }
 }
 

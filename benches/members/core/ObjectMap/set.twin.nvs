@@ -1,0 +1,35 @@
+<?nvs
+// Measures the same writes as the `set` bench, into an array that uses the same strings as keys.
+// bench: iterations 256
+
+final class Item
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['order', 'customer', 'invoice'];
+        array<Item> $values = [new Item(1), new Item(2), new Item(3)];
+        array<Item> $items = [];
+        $items[$keys[0]] = $values[0];
+        $items[$keys[1]] = $values[0];
+        $items[$keys[2]] = $values[0];
+        uint $total = 0;
+        while ($rounds > 0) {
+            $items[$keys[($total % 3) as int]] = $values[(($total + $rounds) % 3) as int];
+            $total = $total + 1 + ($total % 7);
+            $rounds = $rounds - 1;
+        }
+        return $total + ((($items[$keys[0]] ?? null)?->id ?? 0) as uint);
+    }
+}
+
+echo Bench::run(256), "\n";

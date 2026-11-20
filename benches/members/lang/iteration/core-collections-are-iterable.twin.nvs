@@ -1,0 +1,51 @@
+<?nvs
+// Measures the same loops as the bench, with arrays in place of the `Core\ObjectMap` and the `Core\ObjectSet`.
+// bench: iterations 256
+
+final class Item
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        array<Item> $byName = [];
+        array<Item> $seen = [];
+        var $costs = new Core\Heap<int>();
+        int $i = 0;
+        while ($i < 8) {
+            Item $item = new Item($i);
+            $byName["item{$i}"] = $item;
+            $seen[] = $item;
+            $costs->push(8 - $i);
+            $i = $i + 1;
+        }
+
+        int $total = 0;
+        int $r = 0;
+        while ($r < $rounds) {
+            foreach ($byName as string $name => Item $item) {
+                $total = $total + $item->id;
+                break;
+            }
+            foreach ($seen as Item $item) {
+                $total = $total + $item->id;
+                break;
+            }
+            foreach ($costs as int $cost) {
+                $total = $total + $cost + ($total % 2);
+            }
+            $r = $r + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

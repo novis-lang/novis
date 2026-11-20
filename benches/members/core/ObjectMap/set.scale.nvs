@@ -1,0 +1,45 @@
+<?nvs
+// Measures `set` on a map with string keys, at growing numbers of keys.
+// It shows that a larger map does not make one write slower.
+// bench: start 12500
+// bench: max 100000
+// bench: rounds 256
+
+final class Item
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size, uint $rounds): uint
+    {
+        int $n = $size as int;
+        array<string> $keys = [];
+        array<Item> $values = [new Item(1), new Item(2), new Item(3)];
+        Core\ObjectMap<string, Item> $map = new Core\ObjectMap<string, Item>();
+        int $k = 0;
+        while ($k < $n) {
+            string $key = "key{$k}";
+            $keys[] = $key;
+            $map->set($key, $values[0]);
+            $k = $k + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round replaces the object of a key that is already in the map.
+            $map->set($keys[($total % $size) as int], $values[(($total + $i) % 3) as int]);
+            $total = $total + 1 + ($total % 7);
+            $i = $i + 1;
+        }
+        return $total + (($map->get($keys[0])?->id ?? 0) as uint);
+    }
+}
+
+echo Bench::run(12500, 256), "\n";

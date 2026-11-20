@@ -1,27 +1,51 @@
 <?nvs
-// Measures `foreach` over a `Core\ObjectSet` and a `Core\Heap`, at growing numbers of values.
-// A heap gives its values in order, so it sorts a copy of them first.
-// bench: start 256
-// bench: max 4096
+// Measures the bench's loops while the `Core\ObjectMap` and the `Core\ObjectSet` grow.
+// The heap keeps eight numbers.
+// bench: start 12500
+// bench: max 100000
+// bench: rounds 64
+
+final class Item
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
 
 class Bench
 {
-    public static function run(uint $size): int
+    public static function run(uint $size, uint $rounds): int
     {
-        var $tags = new Core\ObjectSet<int>();
+        var $byName = new Core\ObjectMap<string, Item>();
+        var $seen = new Core\ObjectSet<Item>();
         var $costs = new Core\Heap<int>();
         int $n = $size as int;
         int $i = 0;
         while ($i < $n) {
-            $tags->add($i);
-            $costs->push($n - $i);
+            Item $item = new Item($i);
+            $byName->set("item{$i}", $item);
+            $seen->add($item);
             $i = $i + 1;
         }
+        $i = 0;
+        while ($i < 8) {
+            $costs->push(8 - $i);
+            $i = $i + 1;
+        }
+
         int $total = 0;
-        int $r = 0;
-        while ($r < 64) {
-            foreach ($tags as int $tag) {
-                $total = $total + $tag;
+        uint $r = 0;
+        while ($r < $rounds) {
+            foreach ($byName as string $name) {
+                $total = $total + ($byName->get($name)?->id ?? 0);
+                break;
+            }
+            foreach ($seen as Item $item) {
+                $total = $total + $item->id;
+                break;
             }
             foreach ($costs as int $cost) {
                 $total = $total + $cost + ($total % 2);
@@ -32,4 +56,4 @@ class Bench
     }
 }
 
-echo Bench::run(256), "\n";
+echo Bench::run(12500, 64), "\n";

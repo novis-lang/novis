@@ -1,10 +1,10 @@
 <?nvs
-// Reads the value stored for an object, as a program does when it looks up a result it saved earlier.
+// Reads the object stored for a string key, as a program does when it looks up a record it loaded earlier.
 // bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
-final class Key
+final class Item
 {
     public int $id;
 
@@ -18,16 +18,17 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        array<Key> $keys = [new Key(1), new Key(2), new Key(3)];
-        Core\ObjectMap<Key, uint> $map = new Core\ObjectMap<Key, uint>();
-        $map->set($keys[0], 1);
-        $map->set($keys[1], 2);
-        $map->set($keys[2], 3);
+        array<string> $keys = ['order', 'customer', 'invoice'];
+        Core\ObjectMap<string, Item> $map = new Core\ObjectMap<string, Item>();
+        $map->set($keys[0], new Item(1));
+        $map->set($keys[1], new Item(4));
+        $map->set($keys[2], new Item(7));
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // chained: which key is read depends on last round's total
-            $total = $total + ($map->get($keys[($total % 3) as int]) ?? (0 as uint));
+            // The total from the last round picks the key for this round.
+            // Each id adds 1 to the remainder, so the rounds read every key in turn.
+            $total = $total + (($map->get($keys[($total % 3) as int])?->id ?? 0) as uint);
             $i = $i + 1;
         }
         return $total;
