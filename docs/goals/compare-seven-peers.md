@@ -14,7 +14,7 @@ stages:
     context: [tools/nv/cmd/bench-docker.ts, website/src/lib/compare.ts]
   - id: 3
     title: Node.js is a peer
-    status: open
+    status: done
     context: [benches/compare/compose.bun.yaml, benches/compare/bun/serve.ts, benches/compare/nginx/http.conf]
   - id: 4
     title: .NET is a peer
@@ -176,6 +176,15 @@ cannot drift. It counts stack bring-ups, image builds, fixed-load seconds and re
 times each phase and keeps the seconds in the record, so the next recording shows where time went.
 Seconds never gate anything.
 
+**A launcher whose worker exits ends the container (stage 3's call).** `node/serve.mjs` exits when any
+cluster worker exits, as `bun/serve.ts` does. Node.js's documentation says a process must exit after
+an uncaught exception, so the `crash` row's throw ends a worker. A primary that forks a replacement
+would hide the crash from the restart count while the worker's other requests were lost, and the
+row would read `built-in`. The container's restart policy is the supervisor, as for every peer. The
+same holds for .NET and Python where a crash ends a process. Node.js's `memory` row is `your-code`
+through `MEMORY_IN_CODE` (`Worker` `resourceLimits`), and its programs stay the plain ones its
+documentation shows, as Bun's do.
+
 **`--peer <id>` narrows a smoke run or a row to one peer,** for checking one new peer cheaply.
 `--record` refuses it, because a record is one run of every peer.
 
@@ -229,15 +238,15 @@ Stage 7 touches only the website and `docs/alternative-pages.md`, and needs stag
 `benches/compare/scenarios/*/server.mjs`, modelled on Bun's `server.ts` files. The session writes the
 compose file, `PEERS` and the settings, then runs the smoke.
 
-- [ ] `benches/compare/compose.node.yaml:1` and `benches/compare/node/serve.mjs:1`: the stack, the image
+- [x] `benches/compare/compose.node.yaml:1` and `benches/compare/node/serve.mjs:1`: the stack, the image
   pin and the cluster launcher. It uses `nginx/http.conf`.
-- [ ] `tools/nv/cmd/bench-compare.ts:126` `PEERS`: the `node` entry. `tools/nv/cmd/bench-compare.ts:1932`
+- [x] `tools/nv/cmd/bench-compare.ts:126` `PEERS`: the `node` entry. `tools/nv/cmd/bench-compare.ts:1932`
   `DIRECT_RUNS`: its direct run. `tools/nv/cmd/bench-compare.ts:506`, `:636`, `:702`, `:817`, `:929`,
   `:1002`: each `Setting` and deploy table that names a peer.
-- [ ] The programs for the 4 cases and every row with per-peer programs.
-- [ ] Requirement: `bun nv bench-compare --smoke --peer node` and `bun nv bench-compare --scenarios
+- [x] The programs for the 4 cases and every row with per-peer programs.
+- [x] Requirement: `bun nv bench-compare --smoke --peer node` and `bun nv bench-compare --scenarios
   --smoke --peer node` are green. Run them in the detached worktree that README § *One record* names.
-- [ ] `tools/nv/test/bench-compare.test.ts:101`: the peer-table test names Node.js.
+- [x] `tools/nv/test/bench-compare.test.ts:101`: the peer-table test names Node.js.
 
 ### 4. .NET is a peer
 
@@ -310,42 +319,45 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1 and 2 are done. `planOf` (`tools/nv/cmd/bench-compare.ts`, `bun nv peek --locate planOf`)
-now has a `build` phase in place of `answers`. Each image a peer builds from this checkout is one
-pass with `builds: 1`, and `buildImages` takes those passes before any stack. `up` in
-`tools/nv/cmd/bench-docker.ts` no longer builds. `bench-proxied` calls the new `upBuilt`, so it
-builds as before. Rep 1 of a case carries `answers`, and the last peer's rep 1 carries `agrees`.
-`main` checks agreement there, before rep 2. The reuse is `RowKey`, `sameKey`, `reusedOf`,
-`rowKeyOf`, `folderDigest`, `toolDigest` and `hostDigest`. `scenarios` builds, reads the image ids,
-and plans without the reused pairs. `buildScenarios` writes each row's `measured` (date, commit and
-key per peer). `--fresh` (only with `--scenarios`) and `--peer ID` (refused with `--record`,
-`--direct` and `--profile`) are parsed in `options`. `plannedReuse` gives `--plan` its estimate with
-no docker. `FOUR_PEER_BASELINE` holds 247 stacks and 203 builds. A fresh four-peer recording now
-plans 231 stacks and 4 builds.
+Stages 1, 2 and 3 are done. Node.js is the fifth peer (commit `993032307d`): `compose.node.yaml`
+pins `node:26.13.1-trixie-slim`, the current LTS on nodejs.org, and `node/serve.mjs` forks one
+`node:cluster` worker per cpu. Every case and served row has a `server.mjs` whose default export is
+a `node:http` request listener. `deploy/deploy.sh` takes the `mjs` extension. Node.js has a fixed
+result in `taint`, `secret`, `session` and `config`. The new table is `MEMORY_IN_CODE`, which the
+`memory` row now passes to `runawayProbe`. `benches/compare/README.md` names Node.js throughout,
+and § *Why these peers* (it was "four peers") says why it is there beside Bun.
 
-The eight `the plan` and `the work a recording does` tests pass, and tsc is clean. No run with
-docker has taken the new paths yet. `benches/compare.json` has no `measured` keys, so the first
-recording runs every row, and later ones keep results.
+Checked with docker in a detached worktree: `--smoke --peer node` and `--scenarios --smoke --peer
+node` are green, and a five-peer `--smoke` reported "5 peers agree" in every case. That run was
+also the first docker run of stage 2's `buildImages` and `agrees` paths, and both worked. Node.js's
+rows: escape, config, csrf, session and headers `your-code`; loop and memory `your-code`; cores
+`your-code` (scaling 3.37); waiting and parallel `built-in`; live-edit `one-setting (node --watch)`;
+taint, secret, crash, flood and the three deploy rows `no`. The deploy and flood rows fail on 502s
+during the restart, the same shape as Bun's record. The peer-table, program, plan, work and
+`--direct` tests pass by name, and tsc is clean.
 
-The nightly failures the sweep named ran on `5d053fc6e6`, which is origin/main, 75 commits behind
-local main. Both failures were fixed locally by `e5a100b18f` and `438e9c44af`. They clear when the next
-full gate pushes.
+The nightly failures the sweep named ran on `5d053fc6e6` again. That is origin/main, 76 commits
+behind local main, and the previous session's commits `e5a100b18f` and `438e9c44af` fix them. They
+clear when the next full gate pushes.
 
 ### Next
 
-Stage 3 from its first item: Node.js. Anchors in `tools/nv/cmd/bench-compare.ts`: `PEERS` `:146`,
-`DIRECT_RUNS` `:2238`, and the per-peer tables `CORES_IN_CODE` `:513`, `WAITING_SETTING` `:533`,
-`LOOP_DEFAULT` `:665`, `MEMORY_DEFAULT` `:669`, `LOOP_IN_CODE` `:680`, `FLOOD_SETTING` `:731`,
-`SESSION_IN_CODE` `:894`, `LIVE_EDIT_SETTING` `:958`, `DEPLOY_WAYS` `:1031`, `DEPLOY_EXT` `:1037`,
-`CONFIG_CHANGES` `:1268`, `PARALLEL_WAY` `:1293` and `PARALLEL_GRANT` `:1296`. The peer-table test is
-`tools/nv/test/bench-compare.test.ts:292`. Bun's programs are the model: `benches/compare/bun/serve.ts`
-and each `benches/compare/{cases,scenarios}/*/server.ts`.
+Stage 4 from its first item: .NET. Node.js's commit `993032307d` is the model for every place a
+peer is named. Anchors in `tools/nv/cmd/bench-compare.ts`: `PEERS` `:146`, `DIRECT_RUNS` `:2267`,
+`CORES_IN_CODE` `:523`, `LOOP_IN_CODE` `:693`, `MEMORY_IN_CODE` `:703`, `LIVE_EDIT_SETTING` `:981`,
+`DEPLOY_WAYS` `:1055`, `DEPLOY_EXT` `:1062`, `CONFIG_CHANGES` `:1293`, `PARALLEL_WAY` `:1318`,
+`TUNABLES` `:1956` (add `dotnet/Dockerfile`), `appImage` `:2008`, and the `fixed` maps of `taint`,
+`secret`, `config` and `session` in `SCENARIOS`. Tests: `tools/nv/test/bench-compare.test.ts:293`
+(the peer table), `:356` (the stacks that mount `/app`), `:383` and `:443` (the program file per
+peer) and `:1002` (`--direct` peers).
 
-- A new peer whose image is pulled sets neither `built` nor `perCommit`. A peer built from the tree,
-  as .NET will be, sets `built: true`, and `appImage` reads its `image:` from the compose file's
-  app service at four-space indent.
-- The smoke requirement runs `--smoke --peer node`. That path is the first docker run of stage 2's
-  code, so a failure there may be stage 2's, in `buildImages` or the `agrees` check with one peer.
-- Expect `the peer table names ...` to go red once `node` is in `PEERS`. Stage 3 updates it.
+- .NET is built from the tree as Go is: `built: true` and `compiled: true`, with every case and row
+  compiled into the image. `DEPLOY_EXT` then needs no entry, and `deployProbe` only restarts it.
+  `appImage` reads the compose file's `image:` at four-space indent.
+- The `crash` row: ASP.NET Core catches an exception in a handler and answers 500, so expect
+  `built-in`, as Go's and Bun's are.
+- Bun's `escape` program escapes nothing on either path. .NET's `/` path uses what a minimal API
+  documents for HTML, and `/direct` the plainest write.
+- Expect the four tests above to go red once `dotnet` is in `PEERS`. Stage 4 updates them.
 
 ### Backlog
