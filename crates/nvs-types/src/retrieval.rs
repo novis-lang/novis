@@ -478,12 +478,22 @@ pub(crate) fn declares_member(class: &QName, method: &str, member: &str, env: &E
 
 /// The attach sites `$target` plus `$member` names, joined where
 /// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s two spellings overlap — see this module's own docs.
+///
+/// A method other than `constructor` is read where it is declared: one `class`
+/// inherits without overriding is its ancestor's declaration, found by the same
+/// walk a call makes. `constructor` reads `class` alone, so a class never
+/// answers with its parent's attributes.
 pub(crate) fn sites_for<'a>(
     env: &Env<'a>,
     class: &QName,
     method: &str,
     member: Option<&str>,
 ) -> Vec<Site<'a>> {
+    let class = if method == "constructor" {
+        class
+    } else {
+        resolve_method_ref(class, method, env.signatures, env.graph).map_or(class, |(owner, _)| owner)
+    };
     let Some(entry) = env.attributes.classes.get(class) else {
         return Vec::new();
     };

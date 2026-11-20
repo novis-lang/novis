@@ -1,0 +1,41 @@
+--TEST--
+A method a subclass inherits without overriding is read where its parent declares it, an override is read alone, and a class with no attribute of its own reads none of its parent's — `rule:attributes/a-retrieval-matches-the-declaration-it-names`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+attribute Tag on class, method, parameter { name: string }
+
+#[Tag(name: "base")]
+class Base {
+    #[Tag(name: "show")]
+    public function show(#[Tag(name: "id")] int $id): void {}
+
+    #[Tag(name: "save")]
+    public function save(): void {}
+}
+
+class Page extends Base {
+    // This override has no attribute, so a retrieval of `Page::save` finds nothing.
+    public function save(): void {}
+}
+
+// `Page` inherits `show`, so `Page::show` is the method `Base` declares.
+var $show = Core\Attributes::get<Tag>(Page::show);
+echo "show: ", $show == null ? "none" : $show->name, "\n";
+
+var $id = Core\Attributes::get<Tag>(Page::show, "id");
+echo "show id: ", $id == null ? "none" : $id->name, "\n";
+
+var $save = Core\Attributes::get<Tag>(Page::save);
+echo "save: ", $save == null ? "none" : $save->name, "\n";
+
+// `Page` itself has no `Tag`. The class `Base` has one, and it is not read here.
+var $page = Core\Attributes::get<Tag>(Page::constructor);
+echo "page: ", $page == null ? "none" : $page->name, "\n";
+--EXPECT--
+show: show
+show id: id
+save: none
+page: none
