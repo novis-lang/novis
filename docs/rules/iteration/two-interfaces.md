@@ -1,4 +1,6 @@
-Iteration has exactly two interfaces, both reserved names the compiler owns:
+Iteration over values has exactly two interfaces, both reserved names the compiler owns. Iteration over
+keys and values has its own pair, `KeyedIterable` and `KeyedIterator`
+(`rule:iteration/keyed-interfaces`).
 
 ```
 interface Iterator<T> {
@@ -18,7 +20,8 @@ sequence ended" from "the next element is `null`", and Novis has nullable types.
 
 Both members are declared without a body, and a class is held to every one of them. A cursor carries
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
-bind a value and not a key (`rule:iteration/foreach-subjects`).
+bind a value and not a key (`rule:iteration/foreach-subjects`). A loop that needs keys walks the keyed
+pair instead.
 
 **Declined:**
 - **A single `next(): ?T`.** It makes `Iterator<?T>` impossible to express, and a sequence that

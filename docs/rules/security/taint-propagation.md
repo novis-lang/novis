@@ -47,7 +47,9 @@ returns a key, or hands one to its callback, follows the same test: `keys`, `fir
 an array from outside answers one with such elements, so the element type covers members not yet
 written too. An array the program fills with tainted values under its own literal keys over-taints,
 which is the safe direction: write `tainted string $k`, and bind or escape the key where it reaches a
-sink. The bound is a map nested in a decoded target: a `postAs<Form>` whose `Form` has an `array<int>`
+sink. A `KeyedIterable<K, V>` key binds its `K` as written, so a `Core\ObjectMap<tainted string, V>`
+key binds `tainted string` and a plain `string` key there is refused the same way
+(`rule:iteration/keyed-interfaces`). The bound is a map nested in a decoded target: a `postAs<Form>` whose `Form` has an `array<int>`
 field is keyed by the peer and has clean elements, so its keys bind as plain `string`. An object's fields are
 read the same way: a shape target of `as` or `is` over a class takes each text field from the field of
 that name, so a field that is `mixed`, `object` or tainted, or one the class does not declare and only

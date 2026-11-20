@@ -91,34 +91,43 @@ held so no later phase reports an undeclared counter on top of it.
 
 <a id="iteration-foreach-subjects"></a>
 
-## `foreach` drives exactly three subjects, and a fourth is refused where it is written
+## `foreach` drives exactly five subjects, and any other is refused where it is written
 
 `rule:iteration/foreach-subjects`
 
-`foreach` accepts three subjects and refuses a fourth where it is written:
+`foreach` accepts five subjects and refuses any other where it is written:
 
 - an **`array<T>`**, iterated directly by the IR with no interface call and no allocation;
 - an **`Iterable<T>`**, whose `iterate()` is called once and whose returned cursor the loop drives;
-- an **`Iterator<T>`**, driven directly.
+- an **`Iterator<T>`**, driven directly;
+- a **`KeyedIterable<K, V>`**, whose `iterateKeyed()` is called once and whose returned keyed cursor the
+  loop drives;
+- a **`KeyedIterator<K, V>`**, driven directly ([`iteration/keyed-interfaces`](iteration.md#iteration-keyed-interfaces)).
 
 Anything else is a compile error at the subject, `mixed` and `iterable` included: neither says which
-of the three loops to run, so the program converts the value where it is written, as
+of the loops to run, so the program converts the value where it is written, as
 `foreach (($m as array<mixed>) as ...)`, and the conversion throws where the value is not an array.
-Only the array form binds a key — a cursor has no key to give ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a
-key binding over one is refused rather than filled with a counter, and an array's key binds as a
-string. Where the keys can come from outside the program — the array's element type carries
-`tainted` or `mixed` — the key binds as `tainted string`, and a key written as a plain `string` there
-is refused ([`security/taint-propagation`](security.md#security-taint-propagation)).
 
-Each of the three gives its value binding the element type `T`, which a written binding type is
-checked against and a `var` binding takes as its own ([`types/var-inference`](types.md#types-var-inference)).
+**The binding form picks the pair** where a subject reaches both: a loop with a key binding drives the
+keyed pair, and a loop with a value binding alone drives `Iterable`/`Iterator`
+([`iteration/keyed-interfaces`](iteration.md#iteration-keyed-interfaces)). So a value-only loop over a `Core\ObjectMap` still gives its keys.
 
-An object becomes iterable by declaring one of the two interfaces at a concrete type
+An array and the keyed pair bind a key. A cursor of the value pair has no key to give
+([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a key binding over one is refused rather than filled with a
+counter. An array's key binds as a string. Where the keys can come from outside the program — the
+array's element type carries `tainted` or `mixed` — the key binds as `tainted string`, and a key
+written as a plain `string` there is refused ([`security/taint-propagation`](security.md#security-taint-propagation)). The keyed pair's key
+binds as its `K`, qualifier included.
+
+Each subject gives its value binding the element type `T`, or `V` for the keyed pair, which a written
+binding type is checked against and a `var` binding takes as its own ([`types/var-inference`](types.md#types-var-inference)).
+
+An object becomes iterable by declaring one of the four interfaces at a concrete type
 ([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)). There is no other way in: no property walk, and no
 interface that turns a subscript or a count into a method call
 ([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/keyed-interfaces`](iteration.md#iteration-keyed-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators).</sub>
 
 <a id="iteration-an-inout-loop-walks-the-array-it-began-with"></a>
 
@@ -163,11 +172,13 @@ loop: O(entries) per loop, and twice the array's bytes while the loop runs. A lo
 
 <a id="iteration-two-interfaces"></a>
 
-## Two interfaces carry every iteration, and a cursor is `advance()` then `current()`
+## Two interfaces carry every iteration over values, and a cursor is `advance()` then `current()`
 
 `rule:iteration/two-interfaces`
 
-Iteration has exactly two interfaces, both reserved names the compiler owns:
+Iteration over values has exactly two interfaces, both reserved names the compiler owns. Iteration over
+keys and values has its own pair, `KeyedIterable` and `KeyedIterator`
+([`iteration/keyed-interfaces`](iteration.md#iteration-keyed-interfaces)).
 
 ```
 interface Iterator<T> {
@@ -187,7 +198,8 @@ sequence ended" from "the next element is `null`", and Novis has nullable types.
 
 Both members are declared without a body, and a class is held to every one of them. A cursor carries
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
-bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
+bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)). A loop that needs keys walks the keyed
+pair instead.
 
 **Declined:**
 - **A single `next(): ?T`.** It makes `Iterator<?T>` impossible to express, and a sequence that
@@ -195,6 +207,82 @@ bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteratio
   prevent.
 
 <sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators).</sub>
+
+<a id="iteration-keyed-interfaces"></a>
+
+## Two keyed interfaces carry a loop over keys and values, and the binding form picks the pair
+
+`rule:iteration/keyed-interfaces`
+
+Iteration over keys and values has two more interfaces, both reserved names the compiler owns beside
+`Iterable` and `Iterator`:
+
+```
+interface KeyedIterator<K, V> {
+    public function advance(): bool;   // move to the next entry; false once exhausted
+    public function key(): K;          // the key of the entry advance() just moved to
+    public function current(): V;      // the value of that entry
+}
+
+interface KeyedIterable<K, V> {
+    public function iterateKeyed(): KeyedIterator<K, V>;
+}
+```
+
+They keep the value pair's nouns ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), and a keyed cursor shares
+`advance` and `current` with `Iterator<T>`. One class may implement both cursors when `T` is `V`; with
+another `T` its `current()` cannot satisfy both, which is the ordinary override mismatch. `key()` and
+`current()` follow [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range): called outside the protocol, each throws the
+same `LogicError`. A user class implements either at concrete types only, as
+`implements KeyedIterable<string, int>` ([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)).
+`Core\ObjectMap<K, V>` is a `KeyedIterable<K, V>` and an `Iterable<K>` at once. `Core\ObjectSet`,
+`Core\Heap` and `Core\Task\Channel` are not keyed: none has a value apart from its element.
+
+**The method is `iterateKeyed`, not `iterate`.** The map implements both pairs, and Novis has no
+overloading, so one class cannot have `iterate(): Iterator<K>` and `iterate(): KeyedIterator<K, V>`.
+
+**The binding form decides which pair a loop drives**, so no existing program changes:
+
+- A loop with a key binding drives the keyed pair when the subject reaches it. `KeyedIterable` wins
+  over `KeyedIterator` when a class reaches both, because a fresh cursor is the safer of the two. A
+  subject that reaches only `Iterable`/`Iterator` is still `E0444`, and an array keeps its own key
+  rules ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
+- A loop with a value binding alone drives `Iterable`/`Iterator` when the subject reaches either, so a
+  map still gives its keys. A subject that reaches only the keyed pair is walked through it and binds
+  `V`, as a value-only loop over an array binds the element.
+
+**The key binding takes `K`.** `var $k` takes the subject's `K` with its qualifier, so a
+`tainted string` key binds `tainted string` ([`types/var-inference`](types.md#types-var-inference)). A written key type is checked
+as a value binding is: it must be assignable from `K`, so a wider type such as `object` is accepted. A
+plain `string` over a `tainted string` key is `E0851`, the refusal an outside array key gets
+([`security/taint-propagation`](security.md#security-taint-propagation)), and any other mismatch is `E0401`. `inout` over the keyed pair is
+`E0490`, as over any cursor: the program writes with `$map->set($key, ...)`.
+
+**The loop sees the map as it was when it began**, as the value-only loop does. An entry the body adds
+is not visited, one it removes is still visited with the value it had, and a `set` on an entry not yet
+reached does not change the value the loop gives. The keyed cursor walks the store the map shares with
+the loop, with no copy, so a body that writes copies the store once (`nvs_stdlib::cursor`'s
+*What it spends*).
+
+**What it spends.** Memory: one cursor object per loop and one reference on the map's store, held for
+the loop and charged to its request, as the value-only loop holds. Speed: the loop grows linearly with
+no allocation per entry. Each entry costs three dispatched calls, `advance`, `key` and `current`, where
+an array loop pays none, and it saves the `get` lookup a program that walks the keys writes. The bench
+of `lang:iteration/keys-and-values-from-a-map` records the measured figures beside an array loop over
+the same entries.
+
+Out of scope, each staying as it is: a keyed `yield` ([`iteration/one-way-only`](iteration.md#iteration-one-way-only)), so a generator is
+still an `Iterator<T>`; and `Core\Arr::from($map)`, which still gives the keys, since its parameter is
+`array|Iterable|Iterator`.
+
+**Declined:**
+- **`Iterable<K, V>` with a second type argument.** A name's arity is one fact on the reserved roster,
+  and the map would have to be `Iterable<K>` and `Iterable<K, V>` at once.
+- **A `key()` member on `Iterator<T>`.** Every cursor and generator would owe a key it does not have,
+  which is the counter [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects) refuses to invent.
+- **`entries()` as the method name.** A user class is likelier to have an `entries` method of its own.
+
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces).</sub>
 
 <a id="iteration-concrete-generic-implements"></a>
 
@@ -240,6 +328,12 @@ replaces.
   keeping implicit subscript dispatch would leave the language inconsistent about the same question.
   It would also make whether `$obj[$k]` gives a `tainted` value depend on an implementation the call
   site cannot see ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)).
+- **A subscript interface.** The same `[]` would write a copy on an array and shared state on an
+  object, and a nested write such as `$obj['x']['y'] = 1` writes into a temporary that is lost (PHP's
+  "Indirect modification of overloaded element").
+- **A read-only subscript interface.** It swaps one surprise for another: `$x[$k] = $v` would not
+  compile on something that reads like an array. A loop over keys and values has its own interfaces
+  instead ([`iteration/keyed-interfaces`](iteration.md#iteration-keyed-interfaces)).
 
 <sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces).</sub>
 

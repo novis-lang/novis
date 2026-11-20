@@ -1,5 +1,5 @@
 {
-  "title": "Two interfaces carry every iteration, and a cursor is `advance()` then `current()`",
+  "title": "Two interfaces carry every iteration over values, and a cursor is `advance()` then `current()`",
   "status": "shipped",
   "seeAlso": [
     "iteration/foreach-subjects",

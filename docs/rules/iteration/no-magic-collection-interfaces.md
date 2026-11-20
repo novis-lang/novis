@@ -18,3 +18,9 @@ replaces.
   keeping implicit subscript dispatch would leave the language inconsistent about the same question.
   It would also make whether `$obj[$k]` gives a `tainted` value depend on an implementation the call
   site cannot see (`rule:security/tainted-qualifier`).
+- **A subscript interface.** The same `[]` would write a copy on an array and shared state on an
+  object, and a nested write such as `$obj['x']['y'] = 1` writes into a temporary that is lost (PHP's
+  "Indirect modification of overloaded element").
+- **A read-only subscript interface.** It swaps one surprise for another: `$x[$k] = $v` would not
+  compile on something that reads like an array. A loop over keys and values has its own interfaces
+  instead (`rule:iteration/keyed-interfaces`).

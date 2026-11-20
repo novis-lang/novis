@@ -1,8 +1,10 @@
 `var` stands in for a written type in two places — a local declaration and a `foreach` binding — and
 the binding takes its type from the expression it is filled from, then keeps it for good. In
 `var $name = expr;` that expression is `expr`. In `foreach ($subject as var $k => var $v)` it is the
-subject: `$v` takes the subject's element type, and `$k` takes `string`, the one type an array's key
-binding may have (`rule:types/arrays`).
+subject: `$v` takes the subject's element type, and `$k` takes the subject's key type. Over an array
+that is `string`, the one type an array's key binding may have (`rule:types/arrays`). Over a
+`KeyedIterable<K, V>` or `KeyedIterator<K, V>` it is `K`, so a loop over a
+`Core\ObjectMap<Tag, int>` binds `Tag` (`rule:iteration/keyed-interfaces`).
 
 The type is computed exactly as it is for any position with no expected type, and it is then fixed on
 the binding like a written one — `rule:types/declaration`'s "no binding's type ever changes" is

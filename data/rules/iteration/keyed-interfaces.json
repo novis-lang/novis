@@ -1,0 +1,14 @@
+{
+  "title": "Two keyed interfaces carry a loop over keys and values, and the binding form picks the pair",
+  "status": "shipped",
+  "seeAlso": [
+    "iteration/two-interfaces",
+    "iteration/foreach-subjects",
+    "iteration/concrete-generic-implements",
+    "iteration/cursor-out-of-range",
+    "iteration/no-magic-collection-interfaces"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/foreach.rs"
+  ]
+}

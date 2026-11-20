@@ -91,8 +91,10 @@ The cost is that PHP source does not run unconverted. PHP has no syntax for the 
 `var` stands in for a written type in two places — a local declaration and a `foreach` binding — and
 the binding takes its type from the expression it is filled from, then keeps it for good. In
 `var $name = expr;` that expression is `expr`. In `foreach ($subject as var $k => var $v)` it is the
-subject: `$v` takes the subject's element type, and `$k` takes `string`, the one type an array's key
-binding may have ([`types/arrays`](types.md#types-arrays)).
+subject: `$v` takes the subject's element type, and `$k` takes the subject's key type. Over an array
+that is `string`, the one type an array's key binding may have ([`types/arrays`](types.md#types-arrays)). Over a
+`KeyedIterable<K, V>` or `KeyedIterator<K, V>` it is `K`, so a loop over a
+`Core\ObjectMap<Tag, int>` binds `Tag` ([`iteration/keyed-interfaces`](iteration.md#iteration-keyed-interfaces)).
 
 The type is computed exactly as it is for any position with no expected type, and it is then fixed on
 the binding like a written one — [`types/declaration`](types.md#types-declaration)'s "no binding's type ever changes" is
@@ -1283,7 +1285,8 @@ concrete type ([`iteration/concrete-generic-implements`](iteration.md#iteration-
 arguments, as a type or at a call, is refused where it is written.
 
 A built-in type takes type arguments only where its grammar writes them: `array<T>`, `string<K>`,
-`class<T>`, `property<T>` and the reserved `Iterable<T>` and `Iterator<T>`. A `<` after any other
+`class<T>`, `property<T>`, the reserved `Iterable<T>` and `Iterator<T>`, and the reserved
+`KeyedIterable<K, V>` and `KeyedIterator<K, V>`. A `<` after any other
 built-in type, such as `int<int>` or `iterable<int>`, is `E0441` at the `<`, and the list is dropped
 so the rest of the signature still parses. After `as`, a `<` is a comparison: `$n as int < 10`
 compares the converted value.

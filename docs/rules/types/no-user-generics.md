@@ -4,7 +4,8 @@ concrete type (`rule:iteration/concrete-generic-implements`). A user-declared na
 arguments, as a type or at a call, is refused where it is written.
 
 A built-in type takes type arguments only where its grammar writes them: `array<T>`, `string<K>`,
-`class<T>`, `property<T>` and the reserved `Iterable<T>` and `Iterator<T>`. A `<` after any other
+`class<T>`, `property<T>`, the reserved `Iterable<T>` and `Iterator<T>`, and the reserved
+`KeyedIterable<K, V>` and `KeyedIterator<K, V>`. A `<` after any other
 built-in type, such as `int<int>` or `iterable<int>`, is `E0441` at the `<`, and the list is dropped
 so the rest of the signature still parses. After `as`, a `<` is a comparison: `$n as int < 10`
 compares the converted value.
