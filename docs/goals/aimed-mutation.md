@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-cli/tests/test_command.rs]
   - id: 6
     title: a mutation run compiles the program once, with every mutant behind one switch
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, docs/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.md, tools/nv/cmd/scaling.ts, benches/scaling/testing/mutate.nvs]
   - id: 7
     title: the CLI reference names every flag of nvs test, and the pages say what this goal added
@@ -378,6 +378,18 @@ nearest enclosing call decides. `StaticCall` is glue when the checker resolved i
 `New` is glue when `lower_throw` named it with `mutate::throwing`. `within` turns glue off for a
 function's body. With no plan the glue test is never evaluated.
 
+**The judge lowers in rounds (my call).** Measured on `mutate-program.nvs`, the per-mutant
+`lower_mutant` and `function_code_hash` (each lowers or declares the whole program) were the whole
+square: with them a run grew 21.7 s at 256 rules in a debug build, without them 1.7 s, and
+`run_one` stayed linear. `mutation::judge` now fixes on at most one mutant per function label in
+each lowering (`nvs_ir::lower::lower_fixed`), round `r` taking each function's `r`-th mutant, and
+hashes every changed function of a round with one set of declarations
+(`nvs_codegen::function_code_hashes`). Rounds are the most mutants one function has, so the cost
+grows with the program once per round. A hash must not depend on what the module declared first, so
+each hashed function restarts its literal numbering and string sharing (`Literals::restart`), and a
+data object's description is hashed with every target by name (`Literals::describe`), never by
+module index. Release: 10.9 s to 1.5 s at 512 rules; the ladder's clock slope is 1.13.
+
 **Declined (my call, written into the rules' Declined lists).**
 - *Regular expressions or globs in `--filter`.* A substring, tags and shards already select every
   set a suite has needed, and each syntax is one more thing to learn.
@@ -534,11 +546,11 @@ mutant number before each suite.
   `nvs_test_mutate_two_mutants_in_one_function_each_change_only_their_own_site` checks that two
   mutants in one function get their own verdicts. The two existing tests in the `once` check must
   stay green unchanged. The check runs once.
-- [ ] `benches/scaling/testing/mutate.nvs`: a second member, `mutate-program.nvs`, whose program
+- [x] `benches/scaling/testing/mutate.nvs`: a second member, `mutate-program.nvs`, whose program
   grows around a fixed suite, `scaling: kind mutate` and `scaling: expect linear`. Today's
   whole-program compile per mutant would make it grow with the square. Record it with the command
   `benches/scaling/README.md` names.
-- [ ] `docs/rules/testing/mutation-testing.md`: *What it costs* rewritten for one compile, with the
+- [x] `docs/rules/testing/mutation-testing.md`: *What it costs* rewritten for one compile, with the
   bench's measured growth, and the Declined list keeps *Recompiling only the mutated function*.
 
 ### 7. the CLI reference names every flag of nvs test, and the pages say what this goal added
@@ -571,54 +583,38 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### State
 
-Stages 1 to 5 are done, and the checks `aim`, `aim-ir`, `since-mutate`, `since-select`,
-`at-line`, `equivalent`, `equivalent-codegen`, `judged` and `judged-unit` are green, each run once.
+Stages 1 to 6 are done. The checks `aim`, `aim-ir`, `since-mutate`, `since-select`, `at-line`,
+`equivalent`, `equivalent-codegen`, `judged`, `judged-unit` and `once` are green, each run once;
+`equivalent`, `equivalent-codegen` and the `once` tests ran again after this session's change.
 
-Stage 6 (c394b68d6b): items 1 to 4 are done and the `once` check is green, run once. See the
-decision *The mutant switch, as built*. `lower_schema` and `Site` in
-`crates/nvs-ir/src/lower/mutate.rs`; `InstKind::MutantOn`; `Program::mutant_switch`;
-`Unit::set_active_mutant` and `publish_mutant_switch` in `crates/nvs-codegen/src/lib.rs`;
-`score` in `crates/nvs-cli/src/runner/mutation.rs` returns `Scoring { scored, compiles, ran }`.
-The two new tests are at the end of `crates/nvs-cli/tests/test_command.rs` (fixture
-`ONE_FUNCTION`). The rule's first paragraph and *What it costs* say one compile, with no measured
-growth yet.
-
-Earlier stages: glue and `mutation::Judgments` (stage 5), `function_code_hash` and `Code::judge`
-(stage 4), `runner/since.rs` and `runner/reach.rs` (stages 2 and 3).
+Stage 6's last two items landed this session. `benches/scaling/testing/mutate-program.nvs` grows the
+program, n price rules with one test class each. It found the run quadratic: the judge lowered and
+declared the whole program per mutant. See the decision *The judge lowers in rounds*:
+`judge` in `crates/nvs-cli/src/runner/mutation.rs`, `lower_fixed` in
+`crates/nvs-ir/src/lower/mutate.rs`, `function_code_hashes` in `crates/nvs-codegen/src/lib.rs`, and
+`Literals::restart`, `hashed_name` and `describe` in `crates/nvs-codegen/src/emit.rs`. New unit test
+`functions_hashed_together_give_the_hashes_each_gives_alone` (codegen, green, run once). The ladder
+is flat, clock slope 1.13, and the rule's *What it costs* records it; its Declined entry
+*Recompiling only the mutated function* stays.
 
 Nightly run 44510687786 (adc7487822): each failure has a later fix (eb5c02e983, 4c82a2409a,
 656f5b2f2d, 1c75c4ef0e). The next nightly confirms Miri and browser.
 
 ### Next
 
-Stage 6's last two items: the bench member and its measured growth in the rule.
+Stage 7: the pages, as its items say. An `Explore` subagent lists every flag
+`crates/nvs-cli/src/runner.rs:150-470` declares, with its help's first line; the session writes
+`docs/reference/tools/10-cli.md:221` (synopsis and one entry per flag, `<file>:<line>` and `--since`
+included) and `:334` (the `--mutate` section: targets, `#[NoMutate]`, `--since`, `equivalent` and
+`duplicate`, `mutants.toml`, the grouping, one compile per run). `:389` still shows the old
+`survived  file:line` line and `schemaVersion` `4`; it is now `survived in <function> (<n>):` with
+the grouped lines, and version 5. Then the two `about.md` paragraphs, the `04-no-mutate-on-a-view`
+example with its `.out`, `bun nv proofs --id` for both features, and `bun nv proofs --comments`.
 
-`benches/scaling/testing/mutate-program.nvs` (`kind mutate`, `expect linear`), modelled on
-`mutate.nvs` beside it. To show the square the old path had, the *mutants* must grow with n: n
-classes `Price{i}`, each with a mutable `cap` and its own one-assert test class, so each mutant
-runs one O(1) test. Run it with `bun nv scaling testing/mutate-program`. Expect it to still grow
-faster than linear, from two per-mutant O(program) costs this session did not remove:
-
-- `Code::judge` (`mutation.rs`, called from `score`) lowers the whole program per reached mutant
-  through `lower_mutant`, to hash one function. A fix: hash the changed function from the schema
-  with the switch fixed, or lower one function alone. Measure first.
-- `run_one` builds a context and a suite per mutant (`run_suite_in_a_task`); if its set-up walks
-  every class, that is O(n) per mutant. Measure which of the two grows before changing either.
-
-Fix what grows, record the growth figure in *What it costs* of
-`docs/rules/testing/mutation-testing.md`, keep its Declined entry *Recompiling only the mutated
-function*, then `bun nv rules --render` and `--check`. Then set stage 6 to done.
-
-Stage 7 also owes: `docs/reference/tools/10-cli.md:389` still shows the old `survived  file:line`
-line and says `schemaVersion` is `4`; it now reads `survived in <function> (<n>):` then the grouped
-lines, and version 5 with `mutants.toml`.
-
-Tests expected red until the gate: the CLI reference's flag check, if one exists, may now name
-`--since`; stage 7 writes it. `bun nv site --check stale` may name the `nvs-test-mutate` example
-page, whose `.out` changed; stage 7 rereads and stamps it. A human `--mutate` run now prints a
-`compiles: 1, …` line, so an example `.out` under `docs/examples/` for `nvs test --mutate`
-(`01-a-test-that-misses-the-boundary.out`) is expected red until it is re-blessed; stage 7 or the
-gate re-blesses it. The checks `equivalent` and `judged` ran before this change and were not rerun. No `changes.json` entry yet: it comes
-with the goal's last stages.
+Tests expected red until the gate: `bun nv site --check stale` may name the `nvs-test-mutate`
+example page, whose `.out` changed; stage 7 rereads and stamps it. A human `--mutate` run prints a
+`compiles: 1, …` line, so `docs/examples/tools/cli/nvs-test-mutate/01-a-test-that-misses-the-boundary.out`
+is expected red until stage 7 or the gate re-blesses it. No `changes.json` entry yet: stage 7 writes
+one for each feature this goal moved.
 
 ### Backlog
