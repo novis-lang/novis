@@ -1034,10 +1034,15 @@ fn lower_generic_interface(
                     "`{qname}` is declared as `{qname}<{names}>`. Write the type arguments in \
                  that order. A `Core` collection does not infer them"
                 )
-            } else {
+            } else if params.len() == 1 {
                 format!(
                     "`{qname}` is declared as `{qname}<{names}>`. The type argument is the type \
                  of each value, and it is always written"
+                )
+            } else {
+                format!(
+                    "`{qname}` is declared as `{qname}<{names}>`. Write every type argument, \
+                 in that order. They are always written"
                 )
             },
         ),

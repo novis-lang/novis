@@ -505,7 +505,7 @@ pub(crate) fn check_foreach_key(
     }
     let string = env.interner.string();
     if declared == string && given != string {
-        report_untainted_outside_key(declared, binding.span, env);
+        report_untainted_outside_key(declared, binding.span, OUTSIDE_ARRAY_KEY_HELP, env);
         return;
     }
     match *source {
@@ -565,15 +565,31 @@ fn check_keyed_key(key: TypeId, declared: TypeId, binding: &ForeachBinding, env:
         return;
     }
     if declared == env.interner.string() && key == env.interner.tainted_string() {
-        report_untainted_outside_key(declared, binding.span, env);
+        report_untainted_outside_key(declared, binding.span, OUTSIDE_KEYED_KEY_HELP, env);
     } else {
         report_mismatch(binding.span, declared, key, env);
     }
 }
 
+/// [`report_untainted_outside_key`]'s help over an array or a `mixed` value.
+const OUTSIDE_ARRAY_KEY_HELP: &str = "The keys of a `mixed` value can come from outside the \
+     program. So can the keys of an array whose values are tainted or `mixed`. Write `tainted \
+     string $key`. Then check or escape the key before you use it in a query, a page or a command.";
+
+/// [`report_untainted_outside_key`]'s help over the keyed pair, whose key type
+/// says `tainted` itself.
+const OUTSIDE_KEYED_KEY_HELP: &str = "The key type of this loop is `tainted string`. Write \
+     `tainted string $key` or `var $key`. Then check or escape the key before you use it in a \
+     query, a page or a command.";
+
 /// [`check_foreach_key`]'s refusal of a plain `string` key whose keys can come
-/// from outside the program.
-fn report_untainted_outside_key(declared: TypeId, span: Span, env: &mut Env<'_>) {
+/// from outside the program, with the help that names where they come from.
+fn report_untainted_outside_key(
+    declared: TypeId,
+    span: Span,
+    help: &'static str,
+    env: &mut Env<'_>,
+) {
     let written = env.interner.describe(declared);
     env.diags.report(
         Diagnostic::error(
@@ -583,11 +599,7 @@ fn report_untainted_outside_key(declared: TypeId, span: Span, env: &mut Env<'_>)
             ),
         )
         .with_primary(span, format!("this is `{written}`"))
-        .with_help(
-            "The keys of a `mixed` value can come from outside the program. So can the keys of an \
-             array whose values are tainted or `mixed`. Write `tainted string $key`. Then check or \
-             escape the key before you use it in a query, a page or a command.",
-        ),
+        .with_help(help),
     );
 }
 
