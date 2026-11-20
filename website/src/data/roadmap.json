@@ -6,7 +6,6 @@
       "title": "Attributes and property names the compiler checks",
       "text": "An attribute is declared with the places where it may be used, and the editor offers only the attributes that fit. A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile.",
       "goals": [
-        "declared-attributes",
         "attribute-property-names"
       ]
     },
