@@ -15,8 +15,10 @@
 //! A changed operator lowers each operator on its own edge of the test, so a
 //! form that can throw runs only when it is chosen.
 //!
-//! [`lower_mutant`] lowers the program with one mutant's change made and no
-//! test. The equivalence check compiles the one function it changes.
+//! [`lower_fixed`] lowers the program with some mutants' changes made and no
+//! test, and [`lower_mutant`] with one. The equivalence check fixes at most
+//! one mutant per function in each lowering, and compiles each function a
+//! change is in.
 //!
 //! Parse and check ran once before every pass; none checks anything again.
 //! The plan reaches the sites through a thread-local set for the length of one
@@ -195,19 +197,49 @@ pub fn lower_mutant(
     layouts: &ClassLayoutTable,
     mutant: &Mutant,
 ) -> Mutated {
-    let (program, mut changed) = lower_armed(
-        (script, files),
+    let (program, mut changed) = lower_fixed(
+        script,
+        files,
         exprs,
         checked_types,
         enums,
         layouts,
         &[mutant],
-        false,
     );
     Mutated {
         program,
         changed: changed.pop().expect("one mutant was armed"),
     }
+}
+
+/// The program, with its test code, lowered with every one of `fixed`'s
+/// changes made and no switch, and the name of the [`crate::ir::Function`]
+/// each change is in, in `fixed`'s order. A caller that fixes at most one
+/// mutant per function reads each changed function as [`lower_mutant`] would
+/// have lowered it alone, from one lowering for all of them.
+///
+/// # Panics
+///
+/// If a mutant matches no site, as [`lower_mutant`] does.
+#[must_use]
+pub fn lower_fixed(
+    script: &str,
+    files: &[nvs_types::ProgramFile<'_>],
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+    layouts: &ClassLayoutTable,
+    fixed: &[&Mutant],
+) -> (crate::ir::Program, Vec<String>) {
+    lower_armed(
+        (script, files),
+        exprs,
+        checked_types,
+        enums,
+        layouts,
+        fixed,
+        false,
+    )
 }
 
 /// The program, with its test code, lowered with every one of `armed` behind
@@ -663,7 +695,10 @@ impl Lowering<'_> {
         let mut original_end = original_block;
         let (ov, oty) = original(self, env, &mut original_end);
         self.seal(original_end, Terminator::Jump(merge));
-        assert_eq!(cty, oty, "nvs-ir: a mutant's two forms have one result type");
+        assert_eq!(
+            cty, oty,
+            "nvs-ir: a mutant's two forms have one result type"
+        );
         let (v, _) = self.emit(
             merge,
             oty,
@@ -695,7 +730,12 @@ impl Lowering<'_> {
 
     /// The literal `b` at `span`, lowered in `cur`: flipped when this is the
     /// armed site, and compared with the switch under a schema.
-    pub(crate) fn lower_bool_literal(&mut self, span: Span, b: bool, cur: BlockId) -> (ValueId, Ty) {
+    pub(crate) fn lower_bool_literal(
+        &mut self,
+        span: Span,
+        b: bool,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
         let shielded = PLAN.with(|plan| {
             plan.borrow()
                 .as_ref()
@@ -711,7 +751,11 @@ impl Lowering<'_> {
         } else {
             self.mutation_site(span, Operator::BooleanLiteral, from, to)
         };
-        let (v, _) = self.emit(cur, Ty::Bool, InstKind::ConstBool(b != (site == Site::Change)));
+        let (v, _) = self.emit(
+            cur,
+            Ty::Bool,
+            InstKind::ConstBool(b != (site == Site::Change)),
+        );
         match site {
             Site::When(k) => (self.flip_when(k, v, cur), Ty::Bool),
             Site::Keep | Site::Change => (v, Ty::Bool),

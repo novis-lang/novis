@@ -1263,7 +1263,9 @@ pub(crate) fn run(
                     if ran > 0 {
                         let note = match ran {
                             1 => format!("  compiles: {compiles}, for the 1 mutant that ran tests"),
-                            n => format!("  compiles: {compiles}, for the {n} mutants that ran tests"),
+                            n => format!(
+                                "  compiles: {compiles}, for the {n} mutants that ran tests"
+                            ),
                         };
                         match format {
                             Format::Human => println!("{note}"),

@@ -187,21 +187,25 @@ covering-test filter decides and what the bench of a mutation run counts. A JUni
 fail the run.
 
 **What it costs:** nothing for a run without `--mutate`, and nothing on the request path. A mutation
-run pays one coverage run, then for each reached mutant one lowering and one compile of its changed
-function. It then lowers and compiles the program once with every mutant whose compile matched no
-earlier code, and runs each one's tests that reach its line. That unit is bigger than the program's by
-one changed form and one load and branch per armed site, and a test under it runs that much slower. It
-also lowers the unchanged program once and keeps it for the run, to hash each original function.
-Memory is O(`--jobs`): one mutant runs at a time, with its tests in
-flight, and the run keeps one record per mutant for the report, its function label and key included.
-A compile records one label per `#[NoMutate]` class or method. `mutants.toml` is held as one key and
+run pays one coverage run, then one compile of each reached mutant's changed function to judge it.
+The judge lowers the program in rounds, each with at most one mutant of every function fixed on, so
+it lowers and declares the program once per round, plus once unchanged, and never once per mutant:
+the rounds are as many as the most mutants one function has. The run then lowers and compiles the
+program once with every mutant whose compile matched no earlier code, and runs each one's tests that
+reach its line. That unit is bigger than the program's by one changed form and one load and branch
+per armed site, and a test under it runs that much slower. Memory is O(`--jobs`): one mutant runs at
+a time, with its tests in flight, and the run keeps one record and one code hash per mutant for the
+report, its function label and key included. One lowered program is held at a time while judging. A
+compile records one label per `#[NoMutate]` class or method. `mutants.toml` is held as one key and
 one reason per entry for the run, and the run keeps every mutant's key to check the entries against.
 
-Since the mutants grow with the program and each compiles all of it, a run's compile time grows with
-the square of the program's size; that is the price of the whole-program recompile, and a team runs
-`--mutate` on a schedule, such as a nightly CI job, not on every save. What the covering-test
-filter decides is measured: `benches/scaling/testing/mutate.nvs` grows the suite around a fixed
-program under test, and its ramp fails when the test runs per mutant grow with the suite.
+A run's time grows linearly with the program. Two ladders measure it.
+`benches/scaling/testing/mutate-program.nvs` grows the program, n price rules with their own mutants
+and a one-test class each, and its clock grows with a slope of 1.13 from 16 to 128 rules. At 512
+rules, 1,536 mutants, a run took 1.5 seconds. With a whole-program lowering and declaration per
+mutant it took 10.9 seconds and grew with the square. `benches/scaling/testing/mutate.nvs` grows the
+suite around a fixed program, and its ramp fails when the test runs per mutant grow with the suite,
+which is what the covering-test filter decides.
 
 **Declined:**
 

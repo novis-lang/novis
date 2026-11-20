@@ -34,9 +34,11 @@
 //!
 //! # A mutant that compiles to known code runs no test
 //!
-//! Before the program is compiled with its mutants, [`Code`] lowers each
-//! reached mutant with its one change made, compiles the one function the
-//! change is in, and hashes it. A hash equal to the program's own
+//! Before the program is compiled with its mutants, [`judge`] lowers each
+//! reached mutant with its change made, compiles the one function the change
+//! is in, and hashes it. The mutants are lowered in rounds of at most one per
+//! function, so the program is lowered once per round and not once per
+//! mutant. A hash equal to the program's own
 //! function is `equivalent`, and one equal to an earlier mutant's in that
 //! function is a `duplicate`. Neither runs a test or counts in the score.
 //!
@@ -66,8 +68,9 @@
 //!
 //! One compiled unit for the run, bigger than the program's by each armed
 //! site's second form and its test, and one suite's tests in flight at a
-//! time, so O(`--jobs`). Judging lowers the program once more per reached
-//! mutant and holds one hash each. Plus one [`Scored`] per mutant until the
+//! time, so O(`--jobs`). Judging lowers the program once per round, plus the
+//! original once, one at a time, and holds one hash per reached mutant. Plus
+//! one [`Scored`] per mutant until the
 //! report is written and one test index per statement and test pair the
 //! coverage run reached.
 
@@ -423,7 +426,7 @@ pub(super) struct Scoring {
 /// Runs each of `mutants` against the tests of `baseline` that reached it.
 /// `stmts` are the coverage run's statement spans, by statement number.
 ///
-/// Every reached mutant is judged first ([`Code`]). Then the ones whose tests
+/// Every reached mutant is judged first ([`judge`]). Then the ones whose tests
 /// run are lowered into one schema ([`nvs_ir::lower::lower_schema`]) and
 /// compiled once, and each runs its tests with its number set as the unit's
 /// active mutant.
@@ -442,10 +445,10 @@ pub(super) fn score(
     let files = checked.program_files();
     let digest = crate::cache::test_program_digest(&files);
     let mut scored = Vec::with_capacity(mutants.len());
-    let mut code = Code::default();
-    // The mutants whose tests run: each one's index in `scored`, and its tests.
-    let mut pending: Vec<(usize, &Mutant, BTreeSet<String>)> = Vec::new();
-    for Listed { mutant, key } in mutants {
+    // The reached mutants: each one's index in `scored`, and its tests.
+    let mut reached_at: Vec<(usize, &Listed, BTreeSet<String>)> = Vec::new();
+    for listed in mutants {
+        let Listed { mutant, key } = listed;
         let tests: BTreeSet<String> = innermost(stmts, mutant.span)
             .and_then(|stmt| covering.get(&stmt))
             .map(|cases| {
@@ -456,58 +459,42 @@ pub(super) fn score(
             })
             .unwrap_or_default();
         let file = crate::coverage::file_name(&checked.map, mutant.file);
-        let mut reached = tests.len();
-        let mut same_as = None;
-        let verdict = if tests.is_empty() {
-            Verdict::NotReached
-        } else {
-            let internal = |error: &dyn std::fmt::Display| {
-                format!(
-                    "internal error: the mutant at {file}:{} ({}) did not compile: {error}",
-                    mutant.line,
-                    mutant.change()
-                )
-            };
-            let mutated = nvs_ir::lower::lower_mutant(
-                nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-                &files,
-                &checked.exprs,
-                &checked.interner,
-                &checked.enums,
-                &checked.layouts,
-                mutant,
-            );
-            match code
-                .judge(checked, &mutated, key)
-                .map_err(|error| internal(&error))?
-            {
-                Judged::Equivalent => {
-                    reached = 0;
-                    Verdict::Equivalent
-                }
-                Judged::Duplicate(first) => {
-                    reached = 0;
-                    same_as = Some(first);
-                    Verdict::Duplicate
-                }
-                Judged::New => {
-                    pending.push((scored.len(), mutant, tests));
-                    // Replaced once the mutant's tests have run.
-                    Verdict::NotReached
-                }
-            }
-        };
+        let count = tests.len();
+        if count > 0 {
+            reached_at.push((scored.len(), listed, tests));
+        }
         scored.push(Scored {
             file,
             line: mutant.line,
             function: mutant.function.clone(),
             key: key.clone(),
             change: mutant.change(),
-            verdict,
-            tests: reached,
-            same_as,
+            // Replaced below for a reached mutant, once it is judged and its
+            // tests have run.
+            verdict: Verdict::NotReached,
+            tests: count,
+            same_as: None,
             judged: None,
         });
+    }
+    let judged = judge(checked, &files, &reached_at).map_err(|error| {
+        format!("internal error: a function a mutant changes did not compile: {error}")
+    })?;
+    // The mutants whose tests run: each one's index in `scored`, and its tests.
+    let mut pending: Vec<(usize, &Mutant, BTreeSet<String>)> = Vec::new();
+    for ((at, listed, tests), judged) in reached_at.into_iter().zip(judged) {
+        match judged {
+            Judged::Equivalent => {
+                scored[at].tests = 0;
+                scored[at].verdict = Verdict::Equivalent;
+            }
+            Judged::Duplicate(first) => {
+                scored[at].tests = 0;
+                scored[at].verdict = Verdict::Duplicate;
+                scored[at].same_as = Some(first);
+            }
+            Judged::New => pending.push((at, &listed.mutant, tests)),
+        }
     }
     let ran = pending.len();
     if pending.is_empty() {
@@ -545,7 +532,7 @@ pub(super) fn score(
     })
 }
 
-/// What [`Code::judge`] found for one mutant.
+/// What [`judge`] found for one mutant.
 enum Judged {
     /// Its changed function compiles to the program's own code.
     Equivalent,
@@ -556,66 +543,105 @@ enum Judged {
     New,
 }
 
-/// The code hashes a run has seen: Trivial Compiler Equivalence.
+/// Judges each of `reached`, in order: Trivial Compiler Equivalence.
 ///
-/// A mutant's changed function is compiled alone
-/// ([`nvs_codegen::function_code_hash`]) and its hash compared with the
+/// Each mutant's changed function is compiled alone
+/// ([`nvs_codegen::function_code_hashes`]), and its hash compared with the
 /// program's own function and with every earlier mutant's in that function.
 ///
-/// What it spends: the program lowered once more without a change, held for
-/// the run, and one hash per original function and per reached mutant.
-#[derive(Default)]
-struct Code {
-    /// The program with no change, lowered on the first reached mutant.
-    original: Option<nvs_ir::Program>,
-    /// Each function's original hash, by its name. `None` when the
-    /// original program has no function by that name.
-    originals: BTreeMap<String, Option<[u8; 32]>>,
-    /// Each changed function's mutant hashes, with the key of the first
-    /// mutant that compiled to each.
-    seen: BTreeMap<String, BTreeMap<[u8; 32], String>>,
-}
-
-impl Code {
-    fn judge(
-        &mut self,
-        checked: &crate::Checked,
-        mutated: &nvs_ir::lower::Mutated,
-        key: &str,
-    ) -> Result<Judged, nvs_codegen::CodegenError> {
-        let Some(hash) = nvs_codegen::function_code_hash(&mutated.program, &mutated.changed)?
-        else {
-            return Ok(Judged::New);
-        };
-        let original = self.original.get_or_insert_with(|| {
-            let files = checked.program_files();
-            nvs_ir::lower::lower_program_with_tests(
-                nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-                &files,
-                &checked.exprs,
-                &checked.interner,
-                &checked.enums,
-                &checked.layouts,
-            )
-        });
-        let before = match self.originals.get(&mutated.changed) {
-            Some(before) => *before,
-            None => {
-                let before = nvs_codegen::function_code_hash(original, &mutated.changed)?;
-                self.originals.insert(mutated.changed.clone(), before);
-                before
-            }
-        };
-        if before == Some(hash) {
-            return Ok(Judged::Equivalent);
-        }
-        let seen = self.seen.entry(mutated.changed.clone()).or_default();
-        if let Some(first) = seen.get(&hash) {
-            return Ok(Judged::Duplicate(first.clone()));
-        }
-        seen.insert(hash, key.to_owned());
-        Ok(Judged::New)
+/// The mutants are lowered in rounds: a round fixes on at most one mutant of
+/// each function, so each changed function reads as if its mutant were the
+/// program's only change, and round `r` takes each function's `r`-th mutant.
+/// The rounds are as many as the most mutants one function has, so the
+/// lowering and the declarations grow with the program once per round, and
+/// never once per mutant.
+///
+/// What it spends: one lowered program at a time, the original's or one
+/// round's, and one hash per original function a mutant changes and per
+/// reached mutant, for the length of the call.
+fn judge(
+    checked: &crate::Checked,
+    files: &[nvs_types::ProgramFile<'_>],
+    reached: &[(usize, &Listed, BTreeSet<String>)],
+) -> Result<Vec<Judged>, nvs_codegen::CodegenError> {
+    if reached.is_empty() {
+        return Ok(Vec::new());
     }
+    // Each mutant's round: how many mutants of its function came before it.
+    let mut rounds: Vec<Vec<usize>> = Vec::new();
+    let mut per_function: BTreeMap<&str, usize> = BTreeMap::new();
+    for (at, (_, listed, _)) in reached.iter().enumerate() {
+        let round = per_function
+            .entry(listed.mutant.function.as_str())
+            .or_default();
+        if rounds.len() <= *round {
+            rounds.push(Vec::new());
+        }
+        rounds[*round].push(at);
+        *round += 1;
+    }
+    // Each mutant's changed function and its hash.
+    let mut changed: Vec<(String, Option<[u8; 32]>)> = vec![(String::new(), None); reached.len()];
+    for round in &rounds {
+        let fixed: Vec<&Mutant> = round.iter().map(|&at| &reached[at].1.mutant).collect();
+        let (program, names) = nvs_ir::lower::lower_fixed(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            files,
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+            &fixed,
+        );
+        let wanted: Vec<&str> = names.iter().map(String::as_str).collect();
+        let hashes = nvs_codegen::function_code_hashes(&program, &wanted)?;
+        for ((&at, name), hash) in round.iter().zip(names).zip(hashes) {
+            changed[at] = (name, hash);
+        }
+    }
+    // The original hash of every function a mutant changes.
+    let original = nvs_ir::lower::lower_program_with_tests(
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+        files,
+        &checked.exprs,
+        &checked.interner,
+        &checked.enums,
+        &checked.layouts,
+    );
+    let names: Vec<&str> = changed
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let originals: BTreeMap<&str, Option<[u8; 32]>> = names
+        .iter()
+        .copied()
+        .zip(nvs_codegen::function_code_hashes(&original, &names)?)
+        .collect();
+    drop(original);
+    // Each changed function's mutant hashes, with the key of the first
+    // mutant that compiled to each.
+    let mut seen: BTreeMap<&str, BTreeMap<[u8; 32], &str>> = BTreeMap::new();
+    let judged = changed
+        .iter()
+        .zip(reached)
+        .map(|((name, hash), (_, listed, _))| {
+            let Some(hash) = *hash else {
+                return Judged::New;
+            };
+            if originals.get(name.as_str()).copied().flatten() == Some(hash) {
+                return Judged::Equivalent;
+            }
+            let seen = seen.entry(name.as_str()).or_default();
+            if let Some(first) = seen.get(&hash) {
+                return Judged::Duplicate((*first).to_owned());
+            }
+            seen.insert(hash, listed.key.as_str());
+            Judged::New
+        })
+        .collect();
+    Ok(judged)
 }
 
 /// Runs `tests` over one mutant's `unit`.
@@ -897,7 +923,8 @@ mod tests {
             }
         }
         // And every mutant compiles behind the switch, all of them in one program.
-        let armed: Vec<&nvs_ir::lower::Mutant> = listed.iter().map(|listed| &listed.mutant).collect();
+        let armed: Vec<&nvs_ir::lower::Mutant> =
+            listed.iter().map(|listed| &listed.mutant).collect();
         let schema = nvs_ir::lower::lower_schema(
             nvs_ir::lower::ENTRY_SCRIPT_LABEL,
             &files,

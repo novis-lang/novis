@@ -161,10 +161,68 @@ fn ctx_word() -> MemFlagsData {
 pub(crate) struct Literals {
     count: usize,
     strings: FxHashMap<Box<[u8]>, DataId>,
-    /// Set only by [`crate::function_code_hash`]: each data object defined,
+    /// Set only by [`crate::function_code_hashes`]: each data object defined,
     /// as its name and its description, in the order they are defined.
     pub(crate) record: Option<Vec<String>>,
+    /// The `count` at the start of the function being hashed. A hashed name
+    /// counts from it, so a function hashes alike wherever it is compiled.
+    base: usize,
 }
+
+impl Literals {
+    /// Starts a function [`crate::function_code_hashes`] hashes: its data
+    /// objects are named from 0, and no string an earlier function defined is
+    /// shared with it, so each one it uses is defined and recorded again.
+    pub(crate) fn restart(&mut self) {
+        self.base = self.count;
+        self.strings.clear();
+    }
+
+    /// `name` as a hash reads it: a literal's number relative to [`Self::base`].
+    pub(crate) fn hashed_name(&self, name: &str) -> String {
+        name.strip_prefix(LITERAL_PREFIX)
+            .and_then(|n| n.parse::<usize>().ok())
+            .and_then(|n| n.checked_sub(self.base))
+            .map_or_else(|| name.to_owned(), |n| format!("{LITERAL_PREFIX}{n}"))
+    }
+
+    /// `desc` as a hash reads it: every target by its name, never by the index
+    /// a module gave it, since that depends on what the module declared first.
+    fn describe(&self, desc: &DataDescription, module: &dyn Module) -> String {
+        let declarations = module.declarations();
+        let target = |target: &cranelift_module::ModuleRelocTarget| match target {
+            cranelift_module::ModuleRelocTarget::User { namespace, index } => {
+                let name = match namespace {
+                    0 => declarations
+                        .get_function_decl(cranelift_module::FuncId::from_u32(*index))
+                        .name
+                        .clone(),
+                    1 => declarations
+                        .get_data_decl(DataId::from_u32(*index))
+                        .name
+                        .clone(),
+                    _ => None,
+                };
+                name.map_or_else(|| format!("{target:?}"), |name| self.hashed_name(&name))
+            }
+            other => format!("{other:?}"),
+        };
+        let functions: Vec<String> = desc.function_decls.values().map(target).collect();
+        let data: Vec<String> = desc.data_decls.values().map(target).collect();
+        format!(
+            "{:?} functions {functions:?} data {data:?} at {:?} {:?} align {:?} section {:?} used {}",
+            desc.init,
+            desc.function_relocs,
+            desc.data_relocs,
+            desc.align,
+            desc.custom_section,
+            desc.used
+        )
+    }
+}
+
+/// The name of every literal data object, before its number.
+const LITERAL_PREFIX: &str = "nvs_bytes_";
 
 /// Everything about the compilation *unit* that emitting one function needs:
 /// the runtime signatures, the unit's own function and class tables, and the
@@ -2221,10 +2279,17 @@ impl Emitter<'_, '_> {
     /// the `DataId` rather than an address — a data object that *contains*
     /// another one names it that way.
     fn define_literal_data(&mut self, desc: &DataDescription) -> Result<DataId, CodegenError> {
-        let name = format!("nvs_bytes_{}", self.literals.count);
+        let name = format!("{LITERAL_PREFIX}{}", self.literals.count);
         self.literals.count += 1;
-        if let Some(record) = self.literals.record.as_mut() {
-            record.push(format!("{name} {desc:?}\n"));
+        if self.literals.record.is_some() {
+            let line = format!(
+                "{} {}\n",
+                self.literals.hashed_name(&name),
+                self.literals.describe(desc, &*self.module)
+            );
+            if let Some(record) = self.literals.record.as_mut() {
+                record.push(line);
+            }
         }
 
         let data = self
@@ -2257,10 +2322,7 @@ impl Emitter<'_, '_> {
         let global = self.module.declare_data_in_func(data, self.b.func);
         clear_colocated(self.b.func, global);
         let word_p = self.b.ins().symbol_value(types::I64, global);
-        let active = self
-            .b
-            .ins()
-            .load(types::I32, ctx_word(), word_p, 0);
+        let active = self.b.ins().load(types::I32, ctx_word(), word_p, 0);
         Ok(self.b.ins().icmp_imm_u(IntCC::Equal, active, i64::from(k)))
     }
 

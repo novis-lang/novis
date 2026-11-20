@@ -1427,19 +1427,51 @@ pub fn clif(program: &Program) -> Result<String, CodegenError> {
 ///
 /// The same cases [`compile`] reports, for the same reasons.
 pub fn function_code_hash(program: &Program, name: &str) -> Result<Option<[u8; 32]>, CodegenError> {
-    let Some(function) = program.functions.iter().find(|f| f.name == name) else {
-        return Ok(None);
-    };
+    Ok(function_code_hashes(program, &[name])?.pop().flatten())
+}
+
+/// [`function_code_hash`] of each of `names`, in order, with the program's
+/// declarations made once for all of them. Each function is hashed as if it
+/// were compiled alone: its data objects are named from 0 and none is shared
+/// with another function, and every target is hashed by its name. So a
+/// function's hash does not depend on which functions were hashed before it.
+///
+/// What it spends: the program's declarations once, one function's compile
+/// at a time, and the data objects of every named function until it returns.
+/// A mutation run hashes every changed function of one lowering with one
+/// call, so its cost grows with the program once per lowering and never once
+/// per mutant.
+///
+/// # Errors
+///
+/// The same cases [`compile`] reports, for the same reasons.
+pub fn function_code_hashes(
+    program: &Program,
+    names: &[&str],
+) -> Result<Vec<Option<[u8; 32]>>, CodegenError> {
+    let mut by_name: FxHashMap<&str, &nvs_ir::ir::Function> = FxHashMap::default();
+    for function in &program.functions {
+        by_name.entry(function.name.as_str()).or_insert(function);
+    }
     let mut unit = UnitBuilder::for_object()?;
     unit.declare_all(program)?;
-    unit.hash = Some(blake3::Hasher::new());
-    unit.literals.record = Some(Vec::new());
-    unit.compile_function(function, 0, 0, 0, 0)?;
-    let mut hasher = unit.hash.take().unwrap_or_default();
-    for data in unit.literals.record.take().unwrap_or_default() {
-        hasher.update(data.as_bytes());
+    let mut hashes = Vec::with_capacity(names.len());
+    for name in names {
+        let Some(function) = by_name.get(name) else {
+            hashes.push(None);
+            continue;
+        };
+        unit.literals.restart();
+        unit.hash = Some(blake3::Hasher::new());
+        unit.literals.record = Some(Vec::new());
+        unit.compile_function(function, 0, 0, 0, 0)?;
+        let mut hasher = unit.hash.take().unwrap_or_default();
+        for data in unit.literals.record.take().unwrap_or_default() {
+            hasher.update(data.as_bytes());
+        }
+        hashes.push(Some(*hasher.finalize().as_bytes()));
     }
-    Ok(Some(*hasher.finalize().as_bytes()))
+    Ok(hashes)
 }
 
 /// Every class descriptor a unit declares, built from the lowered IR and from
@@ -3127,7 +3159,8 @@ impl<M: Backend> UnitBuilder<M> {
                         1 => declarations
                             .get_data_decl(cranelift_module::DataId::from_u32(name.index))
                             .name
-                            .clone(),
+                            .as_deref()
+                            .map(|name| self.literals.hashed_name(name)),
                         _ => None,
                     };
                     declared.unwrap_or_else(|| format!("{name:?}"))
@@ -3813,6 +3846,27 @@ echo Gate::less(1, 2);
         assert_eq!(
             function_code_hash(&first, "Gate::missing").ok().flatten(),
             None
+        );
+    }
+
+    /// Hashed in one call after another function that uses the same string,
+    /// a function gives the hash it gives alone: its literals are named from
+    /// 0 and none is shared with the function before it.
+    #[test]
+    fn functions_hashed_together_give_the_hashes_each_gives_alone() {
+        let moved = gate(
+            "class Before { public static function run(int $n): int { if ($n > 0) { echo \"less\"; } return $n; } } echo Before::run(3); ",
+            "<",
+        );
+        let together = function_code_hashes(&moved, &["Before::run", "Gate::less", "Gate::gone"])
+            .expect("the functions compile");
+        assert_eq!(
+            together,
+            vec![
+                function_code_hash(&moved, "Before::run").expect("the function compiles"),
+                Some(code_hash(&gate("", "<"))),
+                None,
+            ]
         );
     }
 
