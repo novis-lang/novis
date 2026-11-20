@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, copyProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, testFailureLines, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, codeBlocks, codeProblems, copyProblems, DOCS, fenceInfo, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, jsonProblems, inDepthProblems, outputProblems, paragraphs, parseRequest, proseProblems, serveRun, shellCommands, shellProblems, snippetOutputs, snippetRun, snippetShape, stamp, stampBaseline, staleness, featureHash, LOCK, questionSources, syntaxProblems, testFailureLines, TOOL_SECTIONS, tomlProblems, toolsProblems, yamlProblems, type Served, type World } from "../cmd/site.ts";
 import { ROOT } from "../lib/paths.ts";
+import { Hashes, testIndex } from "../lib/texts.ts";
+import { DATA_FILE } from "../renderers/website-core.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -87,6 +89,93 @@ describe("nv site --stale", () => {
     const root = site().root;
     s.put(`${DOCS}/reference/core/str/length.mdx`, "---\ntitle: length\n---\n");
     expect(staleness(world(), root).unlisted).toEqual([]);
+  });
+});
+
+describe("a feature's tests are in its hash", () => {
+  const ABOUT_KEY = "docs/examples/core/Str/length/about.md";
+  const HELP_KEY = "help:Core\\Str::length";
+  const RUST = "crates/nvs-stdlib/src/str.rs";
+  const rust = (first: string, second: string) =>
+    `mod tests {\n    // covers: Core\\Str::length\n    #[test]\n    fn counts() {\n        assert_eq!(${first}, 3);\n    }\n\n    #[test]\n    fn other() {\n        assert_eq!(${second}, 1);\n    }\n}\n`;
+
+  /** The site, with one Rust test and one case covering `length`, every page and text stamped. */
+  function tested(): string {
+    const root = site().root;
+    s.put(RUST, rust("len(\"abc\")", "one()"));
+    s.put("tests/conformance/str/length.nvst", "--TEST--\n// covers: Core\\Str::length\n--FILE--\n<?nvs\necho 1;\n");
+    expect(stamp(world(), ["reference/strings.mdx", "syntax/match.mdx", ABOUT_KEY, HELP_KEY, "help:lang:statements/while"], root)).toEqual(["help:lang:statements/while: no roster feature has this about.md or help card"]);
+    expect(stamp(world(), ["reference/strings.mdx", "syntax/match.mdx", ABOUT_KEY, HELP_KEY], root)).toEqual([]);
+    expect(staleness(world(), root).stale).toEqual([]);
+    expect(staleness(world(), root).texts).toEqual([]);
+    return root;
+  }
+
+  test("a changed test that covers a feature makes its pages, its about.md and its help stale", () => {
+    const root = tested();
+    s.put("tests/conformance/str/length.nvst", "--TEST--\n// covers: Core\\Str::length\n--FILE--\n<?nvs\necho 2;\n");
+    const found = staleness(world(), root);
+    expect(found.stale).toEqual(["reference/strings.mdx: Core\\Str::length (changed since its stamp)"]);
+    expect(found.texts).toEqual([`${ABOUT_KEY}: Core\\Str::length (changed since its stamp)`, `${HELP_KEY}: Core\\Str::length (changed since its stamp)`]);
+    expect(stamp(world(), ["reference/strings.mdx", ABOUT_KEY, HELP_KEY], root)).toEqual([]);
+    expect(staleness(world(), root).texts).toEqual([]);
+  });
+
+  test("a Rust test's text runs from its covers marker to its closing brace", () => {
+    const root = tested();
+    const before = featureHash(root, LENGTH, world().meta);
+    s.put(RUST, rust("len(\"abc\")", "two()"));
+    expect(featureHash(root, LENGTH, world().meta)).toBe(before);
+    expect(testIndex(root).get(LENGTH.id)!.find((t) => t.label.endsWith("::counts"))!.text).toBe(
+      "    // covers: Core\\Str::length\n    #[test]\n    fn counts() {\n        assert_eq!(len(\"abc\"), 3);\n    }",
+    );
+    s.put(RUST, rust("len(\"abcd\")", "two()"));
+    expect(featureHash(root, LENGTH, world().meta)).not.toBe(before);
+  });
+
+  test("a test that only calls a member is not in its hash", () => {
+    const root = tested();
+    const before = featureHash(root, LENGTH, world().meta);
+    s.put("tests/conformance/str/other.nvst", "--TEST--\nanother\n--FILE--\n<?nvs\necho Core\\Str::length(\"ab\");\n");
+    expect(featureHash(root, LENGTH, world().meta)).toBe(before);
+    expect(staleness(world(), root).texts).toEqual([]);
+  });
+
+  test("an about.md is stamped against everything but itself, and a help card against everything but the card", () => {
+    const root = tested();
+    s.put("docs/examples/core/Str/length/about.md", "Counts the characters of a string.\n");
+    expect(staleness(world(), root).texts).toEqual([`${HELP_KEY}: Core\\Str::length (changed since its stamp)`]);
+    expect(staleness(world(), root).stale).toEqual(["reference/strings.mdx: Core\\Str::length (changed since its stamp)"]);
+    stamp(world(), ["reference/strings.mdx", HELP_KEY], root);
+    const changed = world();
+    changed.meta.classes![0]!.members![0]!.doc = { short: "Counts graphemes." };
+    expect(staleness(changed, root).texts).toEqual([`${ABOUT_KEY}: Core\\Str::length (changed since its stamp)`]);
+  });
+
+  test("the baseline stamps every about.md and help card once, restamps a page whose stamp was current, and refuses a second run", () => {
+    const root = site().root;
+    s.put(`${DOCS}/reference/other.mdx`, "---\ntitle: Other\ncovers:\n  - Core\\Str::length\n---\n\nText.\n");
+    stamp(world(), ["reference/strings.mdx", "reference/other.mdx", "syntax/match.mdx"], root);
+    // `other.mdx` goes stale before the tests join the hash, so the baseline leaves it stale.
+    s.put("docs/examples/core/Str/length/01-basic.nvs", "<?nvs\necho 2;\n");
+    // Before the tests join, a page stamp is the text hash.
+    stamp(world(), ["reference/strings.mdx"], root);
+    s.put("tests/conformance/str/length.nvst", "--TEST--\n// covers: Core\\Str::length\n--FILE--\n<?nvs\necho 1;\n");
+    expect(stampBaseline(world(), root)).toEqual({ problems: [], texts: 2, pages: 1 });
+    const found = staleness(world(), root);
+    expect(found.texts).toEqual([]);
+    expect(found.stale).toEqual(["reference/other.mdx: Core\\Str::length (changed since its stamp)"]);
+    expect(stampBaseline(world(), root).problems).toEqual([`${LOCK} already stamps 2 about.md or help card(s); the baseline runs once`]);
+  });
+
+  test("a page's search questions keep the hash without tests", () => {
+    const root = tested();
+    s.put(DATA_FILE, JSON.stringify({ classes: [{ name: "Core\\Str", url: "/reference/core/str/", members: [{ name: "length", url: "/reference/core/str/length/" }] }] }));
+    const hashOf = () => questionSources(world(), root).find((q) => q.feature === LENGTH.id)!.hash;
+    const before = hashOf();
+    expect(before).toBe(new Hashes(root, world().meta, new Map()).text(LENGTH));
+    s.put("tests/conformance/str/length.nvst", "--TEST--\n// covers: Core\\Str::length\n--FILE--\n<?nvs\necho 2;\n");
+    expect(hashOf()).toBe(before);
   });
 });
 

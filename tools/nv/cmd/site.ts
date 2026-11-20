@@ -1,8 +1,10 @@
 // `bun nv site`: the website's stale guard, its checks and its build.
 //
 //     bun nv site --stale                  every broken id, stale page and uncovered feature
-//     bun nv site --stamp PAGE...          record what each page's covered features are now, after the
-//                                          page was reread against them
+//     bun nv site --stamp KEY...           record what each page's covered features are now, after the
+//                                          page was reread against them; a KEY is also an `about.md`'s
+//                                          path or `help:<feature id>`, after that text was reread
+//     bun nv site --stamp --baseline       the first stamps of every `about.md` and help card, once
 //     bun nv site --check [PART...]        run the named parts, or all of them: `site <part>: ok` per
 //                                          part that passes, its problems and exit 1 for one that fails
 //     bun nv site --bless SNIPPET...       write each snippet's `.out`, `.http.out` or `.err` from what the
@@ -238,18 +240,22 @@
 // (`install/hello-world.mdx`).
 //
 // **The lock**, `website/site.lock.json`, records per page a hash of each feature it covers: the
-// feature's card in `nvs meta --json` or its section in its reference chapter, its `about.md`, and every
-// file in its example directory. A language feature has no card: `bun nv render` writes its chapter
-// section from the files in its directory. A covered id the roster no longer has is **broken**. A covered feature
-// whose hash differs from the page's stamp, or that the page never stamped, makes the page **stale**.
+// feature's card in `nvs meta --json` or its section in its reference chapter, its `about.md`, every
+// file in its example directory, and the tests whose `covers:` marker names it (`lib/texts.ts`). A
+// language feature has no card: `bun nv render` writes its chapter section from the files in its
+// directory. A covered id the roster no longer has is **broken**. A covered feature whose hash differs
+// from the page's stamp, or that the page never stamped, makes the page **stale**. The lock also stamps
+// each feature's `about.md`, keyed by its path, and its help card, keyed `help:<id>`, each against
+// everything in the hash but itself, so a changed test makes them stale too
+// (`rule:testing/every-change-reaches-the-website`). `--stamp --baseline` took their first stamps once.
 // A language or type feature no page under `syntax/` covers is **uncovered**. `--stamp` is what clears
-// a stale page, and it is run by whoever reread the page, never to quiet the check.
+// a stale page or text, and it is run by whoever reread it, never to quiet the check.
 //
 // **The questions**, `website/src/data/questions.json`, are four to six search questions per built page,
 // keyed by its URL without the site's base, in the words a visitor types before they know a name.
 // `Banner.astro` writes them into an attribute Pagefind indexes. Each entry is `{ feature, hash,
 // questions }`, and `questionSources` says what each page's feature and hash are now: a Core member or
-// CLI page is its roster id and `featureHash`, a Core class page its card and members' names, a
+// CLI page is its roster id and its text hash, without the tests, a Core class page its card and members' names, a
 // configuration block page every feature it shows, and a handwritten page its key and its file. An
 // entry whose feature or hash moved, or that was never stamped, is **stale**. An entry no built page
 // has is **broken**. A built page with no entry is **owed**, and `--check questions` fails on all
@@ -316,6 +322,7 @@ import { mask, recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
 import { canShoot, recordShot, SHOT, SHOT_OUT, SHOT_PNG, shotFixture, shotPng } from "../lib/shoot.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
+import { card, filesUnder, Hashes, isTextKey, readAt } from "../lib/texts.ts";
 import { styleProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
 import { pruneRetired, roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
@@ -326,7 +333,7 @@ import { ABOUT, EXAMPLES, examplesDir, introFile, memberPath, metaJson, roster, 
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -343,29 +350,6 @@ const DIST = "website/dist";
 
 const SENTENCE_WORDS = 25;
 const PARAGRAPH_SENTENCES = 6;
-
-const readAt = (root: string, path: string) => {
-  try {
-    return readFileSync(join(root, path), "utf8").replace(/\r\n?/g, "\n");
-  } catch {
-    return "";
-  }
-};
-
-/** Every file under a repo-relative directory, repo-relative and sorted. */
-function filesUnder(root: string, dir: string): string[] {
-  const out: string[] = [];
-  const walk = (d: string) => {
-    if (!existsSync(join(root, d))) return;
-    for (const name of readdirSync(join(root, d))) {
-      const p = `${d}/${name}`;
-      if (statSync(join(root, p)).isDirectory()) walk(p);
-      else out.push(p);
-    }
-  };
-  walk(dir);
-  return out.sort(comparePaths);
-}
 
 export interface Page {
   /** The path under `DOCS`. */
@@ -403,69 +387,11 @@ export function pages(root: string = ROOT): Page[] {
     });
 }
 
-/** The section of a reference chapter a language or tool feature is, from its `# ` heading to the next. */
-function section(root: string, anchor: string): string {
-  const at = anchor.lastIndexOf(":");
-  const lines = readAt(root, anchor.slice(0, at)).split("\n");
-  const out: string[] = [];
-  let fence = "";
-  for (const line of lines.slice(Number(anchor.slice(at + 1)) - 1)) {
-    const marker = line.trim().slice(0, 3);
-    if (fence) {
-      if (marker === fence) fence = "";
-    } else if (marker === "```" || marker === "~~~") {
-      fence = marker;
-    } else if (out.length > 0 && line.startsWith("# ")) {
-      break;
-    }
-    out.push(line);
-  }
-  return out.join("\n");
-}
-
-const named = (items: unknown[] | undefined, key: string, name: string) =>
-  (items ?? []).find((x) => (typeof x === "object" && x !== null ? String((x as Record<string, unknown>)[key]) : String(x)) === name);
-
-/** What the binary's help says of a feature: its card in `nvs meta --json`, or its chapter section.
- * A language feature's is empty, because `bun nv render` writes its section from its own files. */
-export function card(root: string, entry: Entry, meta: Meta): string {
-  let found: unknown;
-  switch (entry.kind) {
-    case "member": {
-      const member = entry.id.slice(entry.id.lastIndexOf("::") + 2);
-      found = meta.classes?.find((c) => c.name === entry.group)?.members?.find((m) => m.name === member);
-      break;
-    }
-    case "exception":
-      found = named(meta.exceptions, "name", entry.id);
-      break;
-    case "enum":
-      found = named(meta.enums, "name", entry.id);
-      break;
-    case "interface":
-      found = named(meta.interfaces, "name", entry.id);
-      break;
-    case "directive":
-      found = named(meta.directives, "key", entry.id.slice("directive:".length));
-      break;
-    case "lang":
-      // Its chapter section is generated from the files `featureHash` already hashes.
-      return "";
-    default:
-      return entry.anchor ? section(root, entry.anchor) : "";
-  }
-  return JSON.stringify(found ?? null);
-}
-
-/** The hash a page's stamp records for a feature: its card, its `about.md`, and every other file in its
- * directory, which is its examples, their outputs and a language feature's `details.md`. */
+/** The hash a page's stamp records for a feature: its card, its `about.md`, every other file in its
+ * directory, which is its examples, their outputs and a language feature's `details.md`, and the tests
+ * whose `covers:` marker names it (`lib/texts.ts` `Hashes.page`). */
 export function featureHash(root: string, entry: Entry, meta: Meta): string {
-  const h = createHash("sha256");
-  h.update(card(root, entry, meta));
-  const dir = examplesDir(entry);
-  h.update(`\0${readAt(root, `${dir}/${ABOUT}`)}`);
-  for (const p of filesUnder(root, dir)) if (!p.endsWith(`/${ABOUT}`)) h.update(`\0${p}\0${readAt(root, p)}`);
-  return h.digest("hex").slice(0, 16);
+  return new Hashes(root, meta).page(entry);
 }
 
 export type Lock = Record<string, Record<string, string>>;
@@ -497,6 +423,8 @@ export interface Staleness {
   broken: string[];
   /** `page: id (why)` for a covered feature changed since the page's stamp, or never stamped. */
   stale: string[];
+  /** `key: id (why)` for a feature's `about.md` or help card changed since its stamp, or never stamped. */
+  texts: string[];
   /** Language and type features no Syntax page covers. */
   uncovered: string[];
 }
@@ -506,7 +434,8 @@ const isSyntaxFeature = (e: Entry) => e.kind === "lang" || e.path.startsWith("ty
 export function staleness(world: World, root: string = ROOT): Staleness {
   const byId = new Map(world.entries.map((e) => [e.id, e]));
   const lock = readLock(root);
-  const out: Staleness = { unlisted: [], broken: [], stale: [], uncovered: [] };
+  const hashes = new Hashes(root, world.meta);
+  const out: Staleness = { unlisted: [], broken: [], stale: [], texts: [], uncovered: [] };
   const syntaxCovers = new Set<string>();
   for (const page of pages(root)) {
     if (page.covers === null) {
@@ -521,36 +450,95 @@ export function staleness(world: World, root: string = ROOT): Staleness {
         continue;
       }
       const stamped = lock[page.key]?.[id];
-      const why = stamped === undefined ? "never stamped" : stamped !== featureHash(root, entry, world.meta) ? "changed since its stamp" : "";
+      const why = stamped === undefined ? "never stamped" : stamped !== hashes.page(entry) ? "changed since its stamp" : "";
       if (!why) continue;
       out.stale.push(`${page.key}: ${id} (${why})`);
+    }
+  }
+  for (const entry of world.entries) {
+    for (const text of hashes.textsOf(entry)) {
+      const stamped = lock[text.key]?.[entry.id];
+      const why = stamped === undefined ? "never stamped" : stamped !== text.hash ? "changed since its stamp" : "";
+      if (why) out.texts.push(`${text.key}: ${entry.id} (${why})`);
     }
   }
   out.uncovered = world.entries.filter((e) => isSyntaxFeature(e) && !syntaxCovers.has(e.id)).map((e) => e.id);
   return out;
 }
 
-/** The page key a `--stamp` argument names: a key, or a path under `DOCS` from the repository root. */
-const pageKey = (arg: string) => arg.replaceAll("\\", "/").replace(new RegExp(`^(?:\\./)?${DOCS}/`), "");
+/** The key a `--stamp` argument names: `help:<id>` as it is, an `about.md`'s path from the repository
+ * root, or a page's key or path under `DOCS` from the repository root. */
+const pageKey = (arg: string) =>
+  arg.startsWith("help:") ? arg : arg.replaceAll("\\", "/").replace(/^\.\//, "").replace(new RegExp(`^${DOCS}/`), "");
 
-/** Records the current hash of every feature each named page covers. Returns what stopped it, if anything. */
+/** Records the current hash of every feature each named page covers, and of each named `about.md` and
+ * help card. Returns what stopped it, if anything. */
 export function stamp(world: World, keys: string[], root: string = ROOT): string[] {
   const all = new Map(pages(root).map((p) => [p.key, p]));
   const byId = new Map(world.entries.map((e) => [e.id, e]));
+  const hashes = new Hashes(root, world.meta);
+  const texts = new Map(world.entries.flatMap((e) => hashes.textsOf(e).map((t): [string, [string, string]] => [t.key, [e.id, t.hash]])));
   const lock = readLock(root);
   const problems: string[] = [];
   for (const key of keys.map(pageKey)) {
+    const text = texts.get(key);
+    if (text) {
+      lock[key] = { [text[0]]: text[1] };
+      continue;
+    }
     const page = all.get(key);
-    if (!page) problems.push(`${key}: no handwritten page has this name`);
+    if (isTextKey(key)) problems.push(`${key}: no roster feature has this about.md or help card`);
+    else if (!page) problems.push(`${key}: no handwritten page has this name`);
     else if (page.covers === null) problems.push(`${key}: has no \`covers:\` line`);
     else {
       const missing = page.covers.filter((id) => !byId.has(id));
       if (missing.length) problems.push(`${key}: covers ${missing.join(", ")}, which the roster does not have`);
-      else lock[key] = Object.fromEntries(page.covers.map((id) => [id, featureHash(root, byId.get(id)!, world.meta)]));
+      else lock[key] = Object.fromEntries(page.covers.map((id) => [id, hashes.page(byId.get(id)!)]));
     }
   }
   if (problems.length === 0) writeLock(root, lock);
   return problems;
+}
+
+/** What `--stamp --baseline` did: the texts it stamped and the pages it restamped. */
+export interface Baseline {
+  problems: string[];
+  texts: number;
+  pages: number;
+}
+
+/**
+ * The first stamps, taken once when the tests joined the hash: every `about.md` and help card, and every
+ * page stamp that equals the feature's text hash, which is a stamp that was current before. A page
+ * that was already stale stays stale. It refuses when the lock holds any `about.md` or help key, so it
+ * cannot quiet a later change.
+ */
+export function stampBaseline(world: World, root: string = ROOT): Baseline {
+  const lock = readLock(root);
+  const held = Object.keys(lock).filter(isTextKey);
+  if (held.length) return { problems: [`${LOCK} already stamps ${held.length} about.md or help card(s); the baseline runs once`], texts: 0, pages: 0 };
+  const byId = new Map(world.entries.map((e) => [e.id, e]));
+  const hashes = new Hashes(root, world.meta);
+  const out: Baseline = { problems: [], texts: 0, pages: 0 };
+  for (const entry of world.entries) {
+    for (const text of hashes.textsOf(entry)) {
+      lock[text.key] = { [entry.id]: text.hash };
+      out.texts++;
+    }
+  }
+  for (const [key, stamps] of Object.entries(lock)) {
+    if (isTextKey(key)) continue;
+    for (const [id, stamped] of Object.entries(stamps)) {
+      const entry = byId.get(id);
+      if (!entry || stamped !== hashes.text(entry)) continue;
+      const now = hashes.page(entry);
+      if (now === stamped) continue;
+      stamps[id] = now;
+      out.pages++;
+    }
+  }
+  writeLock(root, lock);
+  return out;
 }
 
 /** Every page's search questions, keyed by the page's URL without the site's base. */
@@ -603,15 +591,17 @@ function writeQuestions(root: string, questions: Questions): void {
 
 /**
  * Every built page whose questions can be stamped, and what each is written from. A Core member page,
- * and a CLI page, is its roster feature and `featureHash`. A Core class page is the class, hashed over
+ * and a CLI page, is its roster feature and its text hash, without the tests. A Core class page is the class, hashed over
  * its card and its members' names. A configuration block page is its first feature, hashed over every
  * feature it shows. A handwritten page is its key under `DOCS`, hashed over the file.
  */
 export function questionSources(world: World, root: string = ROOT): QuestionSource[] {
   const byId = new Map(world.entries.map((e) => [e.id, e]));
+  // The text hash, without the tests: the questions are search phrases, and a test edit leaves them true.
+  const hashes = new Hashes(root, world.meta, new Map());
   const hashOf = (id: string) => {
     const e = byId.get(id);
-    return e ? featureHash(root, e, world.meta) : "";
+    return e ? hashes.text(e) : "";
   };
   const out: QuestionSource[] = [];
   const core = JSON.parse(readAt(root, DATA_FILE) || "{}") as { classes?: { name: string; url: string; members: { name: string; url: string }[] }[] };
@@ -2485,7 +2475,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     } else {
       w ??= await world(nvs);
       const s = staleness(w);
-      problems = [...s.unlisted.map((p) => `${p}: has no \`covers:\` line`), ...s.broken.map((b) => `broken: ${b}`), ...s.stale.map((x) => `stale: ${x}`)];
+      problems = [...s.unlisted.map((p) => `${p}: has no \`covers:\` line`), ...s.broken.map((b) => `broken: ${b}`), ...s.stale.map((x) => `stale: ${x}`), ...s.texts.map((x) => `stale: ${x}`)];
     }
     if (problems.length === 0) console.log(`site ${part}: ok`);
     else {
@@ -2614,23 +2604,34 @@ export async function run(args: string[]): Promise<number> {
       return 1;
     }
     const w = await world(nvs);
+    if (mode === "--stamp" && operands[0] === "--baseline") {
+      if (operands.length > 1) {
+        console.error("nv site: --stamp --baseline takes no pages");
+        return 2;
+      }
+      const b = stampBaseline(w);
+      for (const p of b.problems) console.log(`nv site: ${p}`);
+      if (b.problems.length === 0) console.log(`nv site: stamped ${b.texts} about.md and help card(s), and restamped ${b.pages} page stamp(s) that were current, in ${LOCK}`);
+      return b.problems.length ? 1 : 0;
+    }
     if (mode === "--stamp") {
       if (operands.length === 0) {
-        console.error("nv site: --stamp needs at least one page");
+        console.error("nv site: --stamp needs at least one page, about.md or help:<id>");
         return 2;
       }
       const problems = stamp(w, operands);
       for (const p of problems) console.log(`nv site: ${p}`);
-      if (problems.length === 0) console.log(`nv site: stamped ${operands.length} page(s) in ${LOCK}`);
+      if (problems.length === 0) console.log(`nv site: stamped ${operands.length} key(s) in ${LOCK}`);
       return problems.length ? 1 : 0;
     }
     const s = staleness(w);
     report("pages with no `covers:` line", s.unlisted);
     report("broken: a covered id the roster does not have", s.broken);
     report("stale: reread the page, then `bun nv site --stamp <page>`", s.stale);
+    report("stale: reread the about.md or help card against the feature, then `bun nv site --stamp <key>`", s.texts);
     report("uncovered: a language or type feature no Syntax page covers", s.uncovered);
-    if (!s.unlisted.length && !s.broken.length && !s.stale.length && !s.uncovered.length) console.log("nv site: nothing is stale");
-    return s.unlisted.length || s.broken.length || s.stale.length ? 1 : 0;
+    if (!s.unlisted.length && !s.broken.length && !s.stale.length && !s.texts.length && !s.uncovered.length) console.log("nv site: nothing is stale");
+    return s.unlisted.length || s.broken.length || s.stale.length || s.texts.length ? 1 : 0;
   } catch (e) {
     if (!(e instanceof RosterError)) throw e;
     console.error(`nv site: ${e.message}`);

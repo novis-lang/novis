@@ -17,22 +17,42 @@ const CALL_RE = /(?:Core\\)?([A-Za-z_][A-Za-z0-9_\\]*)::([a-zA-Z_][a-zA-Z0-9_]*)
 
 const names = (text: string) => text.split(",").map((p) => p.trim().replace(/^[`"']+|[`"']+$/g, "")).filter(Boolean);
 
-/** Each feature id a `covers:` marker in `text` names, with the label its test is credited under: the
- * path, and for a Rust file the `#[test] fn` and for a `.nvs` file the `#[Test]` method under the marker. */
-export function markersIn(path: string, text: string): [string, string][] {
+/** One `covers:` marker: the ids it names, the label its test is credited under, where the marker
+ * starts in the text, and where the `fn` or `function` line under it starts, or -1 for a `.nvst` case
+ * or a marker with none within reach. */
+export interface Marker {
+  names: string[];
+  label: string;
+  at: number;
+  fnAt: number;
+}
+
+/** Every `covers:` marker in `text`, in order. `markersIn` and `lib/texts.ts` `testIndex` both read
+ * these, so a feature's tests are the same ones wherever they are counted. */
+export function markersAt(path: string, text: string): Marker[] {
   if (!text.includes("covers:")) return [];
-  const out: [string, string][] = [];
+  const out: Marker[] = [];
   const fnRe = path.endsWith(".rs") ? /\bfn\s+([a-zA-Z_][a-zA-Z0-9_]*)/ : path.endsWith(".nvs") ? /\bfunction\s+([a-zA-Z_][a-zA-Z0-9_]*)/ : null;
   for (const m of text.matchAll(COVERS_RE)) {
     let label = path;
+    let fnAt = -1;
     if (fnRe) {
       const end = m.index! + m[0].length;
       const fn = fnRe.exec(text.slice(end, end + 400));
-      if (fn) label = `${label}::${fn[1]}`;
+      if (fn) {
+        label = `${label}::${fn[1]}`;
+        fnAt = end + fn.index;
+      }
     }
-    for (const name of names(m[1]!)) out.push([name, label]);
+    out.push({ names: names(m[1]!), label, at: m.index!, fnAt });
   }
   return out;
+}
+
+/** Each feature id a `covers:` marker in `text` names, with the label its test is credited under: the
+ * path, and for a Rust file the `#[test] fn` and for a `.nvs` file the `#[Test]` method under the marker. */
+export function markersIn(path: string, text: string): [string, string][] {
+  return markersAt(path, text).flatMap((m) => m.names.map((name): [string, string] => [name, m.label]));
 }
 
 /** Each member a case calls as `Class::member(`, keyed `static:<class tail>::<member>`. Only that
