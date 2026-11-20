@@ -1,13 +1,13 @@
 ---
 looper: 1
-title: "an attribute shape names the properties of the class it is on with property<static>"
-summary: "Reached when a field typed property<static> in a top-level attribute shape takes a written name of a public property of the class the attribute is on, a wrong name does not compile, Core\\Attributes::get and ::all bind static to their target class, the editor completes those names and jumps to them, and the rule, the reference and the feature proofs say so."
-context: [crates/nvs-types/src/attributes.rs, crates/nvs-types/src/retrieval.rs, docs/rules/types/property-key.md, docs/rules/attributes/attach-sites-and-forms.md]
+title: "an attribute declaration names the properties of the class it is on with property<static>"
+summary: "Reached when a field typed property<static> in an attribute declaration takes a written name of a public property of the class the attribute is on, a wrong name does not compile, Core\\Attributes::get and ::all bind static to their target class, the editor completes those names and jumps to them, and the rule, the reference and the feature proofs say so."
+context: [crates/nvs-types/src/attributes.rs, crates/nvs-types/src/retrieval.rs, docs/rules/types/property-key.md, docs/rules/attributes/an-attribute-is-declared-with-its-sites.md]
 stages:
   - id: 1
-    title: the rule is written, and static in a top-level alias binds where the alias is used
+    title: "the rule is written, and static in an attribute declaration's fields binds where the attribute is used"
     status: open
-    context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/members.rs, docs/rules/attributes/structural-retrieval.md, docs/rules/statements/static-is-a-member-modifier.md]
+    context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/members.rs, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 2
     title: a payload names a property with property<static>, and a retrieval binds static to its target
     status: open
@@ -27,8 +27,8 @@ stages:
 checks:
   - id: cases
     stage: 2
-    name: "a written name at property<static> in an attribute payload compiles for a public property of the class the attribute is on and is found by a retrieval, and a wrong name, a private one, a use outside a class and the comma-separated form do not compile"
-    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/class/an-attribute-payload-names-a-property-of-its-class.nvst, --case, tests/conformance/class/a-retrieval-binds-static-to-its-target-class.nvst, --case, tests/conformance/reject/an-attribute-payload-naming-no-property-of-its-class-does-not-compile.nvst, --case, tests/conformance/reject/static-in-an-alias-used-outside-a-class-does-not-compile.nvst]
+    name: "a written name at property<static> in an attribute payload compiles for a public property of the class the attribute is on and is found by a retrieval, and a wrong name, a private one, static in a top-level type alias and the comma-separated form do not compile"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/class/an-attribute-payload-names-a-property-of-its-class.nvst, --case, tests/conformance/class/a-retrieval-binds-static-to-its-target-class.nvst, --case, tests/conformance/reject/an-attribute-payload-naming-no-property-of-its-class-does-not-compile.nvst, --case, tests/conformance/reject/static-in-a-top-level-type-alias-does-not-compile.nvst]
     timeout: 1800
   - id: editor
     stage: 3
@@ -40,17 +40,20 @@ checks:
       - a_name_at_a_property_key_field_of_an_attribute_jumps_to_the_property
 ---
 
-# an attribute shape names the properties of the class it is on with property<static>
+# an attribute declaration names the properties of the class it is on with property<static>
 
 ## Why
 
 An attribute often names properties of the class it is written on: the properties a search looks in,
 the property a relation stores its key in, the fields a form shows. Today such a field is a `string`,
 so a wrong or renamed name compiles and fails only when the program reads it and runs. `property<T>`
-already checks a name against a class, and the editor already offers the names. But an attribute's
-shape is a top-level `type` alias, so it cannot name the class it will be attached to:
-`property<static>` there is `E0303` ("`static` used outside any class"), and even a fixed
-`{field: property<Post>}` does not accept `'author'` in a payload.
+already checks a name against a class, and the editor already offers the names. But an attribute
+cannot name the class it will be attached to: `property<static>` in its fields has no class to bind
+to, and even a fixed `{field: property<Post>}` does not accept `'author'` in a payload.
+
+This goal builds on `declared-attributes`, which makes every attribute an `attribute` declaration.
+Its gate: `docs/rules/attributes/an-attribute-is-declared-with-its-sites.md` exists and the
+`declared-attributes` goal file is deleted.
 
 A user asked for this, with a marker attribute on a `string` field holding a comma-separated list.
 The person chose `property<static>` instead: it reuses the type that already exists, its check, its
@@ -58,20 +61,22 @@ error and its completion, and it costs nothing at run time.
 
 ## Standing decisions
 
-**The syntax (the person's call).** `type Search = { fields: array<property<static>>, exact?: bool };`
-and `#[Search(fields: ['author', 'title'])]`. One name is `property<static>`, and a list is
+**The syntax (the person's call, moved onto declarations).** The person chose `property<static>` in
+the attribute's fields and `#[Search(fields: ['author', 'title'])]` at the use. With
+`declared-attributes` the declaration is `attribute Search on class { fields: array<property<static>>,
+exact?: bool }`, and the use is unchanged. One name is `property<static>`, and a list is
 `array<property<static>>`. `propertyPath<static>` follows the same rule at no extra cost, because it
 shares `property<T>`'s argument handling (`rule:types/property-path`).
 
-**What `static` means in a top-level alias (my call).** `static` in a `type` alias declared outside any
-class names the class at the place the alias is used. The alias is already lowered at each use with
-the user's `Ctx` (`crates/nvs-types/src/attributes.rs:689`), so this is the binding the use site has.
-At an attribute, it is the class whose body the attribute is written in: the class itself for an
-attribute on the class, and the declaring class for one on a property, a method, a constant, a hook or
-a parameter. At an ordinary use inside a class it is that class. At a use outside any class it is
-`E0303` at the use, and the message names the alias. The alias's own declaration no longer reports
-it. `self` and `parent` in a top-level alias keep `E0303` where they are declared: one way to write
-it (`rule:statements/nothing-gets-a-second-name`).
+**What `static` means in an attribute declaration (my call, replacing the top-level-alias plan).**
+`static` in an attribute declaration's fields names the class the attribute is used on: the class
+itself for an attribute on the class, and the declaring class for one on a property, a method or a
+parameter. A declaration whose fields name `static` is lowered at each use with that class; every
+other declaration is still lowered once. `static` in a `type` alias keeps today's rule: outside any
+class it is `E0303` where the alias is declared. So no `type` alias changes meaning, and `static` gets
+a second binding only inside the one declaration kind that is always used on a class member.
+`self` and `parent` in an attribute declaration are `E0303`: one way to write it
+(`rule:statements/nothing-gets-a-second-name`).
 
 **A retrieval binds `static` to its target (my call).** `Core\Attributes::get<Search>(Post::constructor)`
 and `::all` lower their type argument with `static` bound to the class the first argument names
@@ -90,8 +95,8 @@ the attach check and a retrieval read it the same way. The payload stores the na
 is the key's representation.
 
 **Inheritance (my call).** The names are those of the class `static` binds to, its ancestors' public
-properties included, as for every `property<T>`. An attribute is read from its own declaration only
-(`rule:attributes/structural-retrieval`), so a subclass never re-checks a parent's payload.
+properties included, as for every `property<T>`. An attribute is read from the declaration it is
+written on only, so a subclass never re-checks a parent's payload.
 
 **Declined (my call, written into the rule).** The marker attribute on a `string` field with a
 comma-separated list: a second mechanism beside `property<T>`, a small list syntax inside a string, and
@@ -99,12 +104,12 @@ a value the reader splits again at run time. A list the configuration declares, 
 names, is already declined in `rule:types/single-value-types`.
 
 **What it costs.** Nothing at run time: the check is made while compiling, and the payload is the
-same strings. The checker lowers an alias that names `static` once per use, as it does now, and
-records the class's property roster once per class for the editor.
+same strings. The checker lowers a declaration that names `static` once per use, and records the
+class's property roster once per class for the editor.
 
 **Where it is written down.** A new fragment
-`docs/rules/attributes/a-shape-names-its-class-with-static.md`, with its `data/rules/attributes/` JSON,
-cited from `rule:types/property-key` and `rule:attributes/attach-sites-and-forms`. The feature is part
+`docs/rules/attributes/a-declaration-names-its-class-with-static.md`, with its `data/rules/attributes/`
+JSON, cited from `rule:types/property-key` and `rule:attributes/an-attribute-is-declared-with-its-sites`. The feature is part
 of `lang:types/property-keys`, so its proofs are added there.
 
 **Lanes.** Stages 1 and 2 run in order: both change `crates/nvs-types/`. Stage 3 changes
@@ -117,27 +122,26 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 
 ## Stages
 
-### 1. the rule is written, and static in a top-level alias binds where the alias is used
+### 1. the rule is written, and static in an attribute declaration's fields binds where the attribute is used
 
-**Does:** writes the rule, and moves the `static` check of a top-level alias from its declaration to
-each use. Nothing about payloads changes yet.
+**Does:** writes the rule, and lowers a declaration that names `static` at each use with the class the
+attribute is on. Nothing about payloads changes yet. Starts only when the gate in § *Why* holds.
 
-- [ ] `docs/rules/attributes/a-shape-names-its-class-with-static.md:1`: the new rule with its JSON under
-  `data/rules/attributes/`, written from § *Standing decisions*: the syntax, what `static` binds to at an
-  attribute, a retrieval and an ordinary use, the written-name check, inheritance, and the Declined list.
-  `docs/rules/types/property-key.md:1` and `docs/rules/attributes/attach-sites-and-forms.md:24` cite it.
-  Then `bun nv rules --render`, and `bun nv rules --check` is green.
-- [ ] `crates/nvs-types/src/lower.rs:880`: `static` in a `type` alias declared outside any class is not
-  reported where the alias is declared. Find the caller that lowers each alias at its declaration with
-  `bun nv peek --locate`, and skip the report there for `static` alone. At a use outside any class the
-  report names the alias: "`static` in `Search` names the class the alias is used in, and this use is
-  outside any class". The message is end-user text (`docs/agent/prose.md`).
+- [ ] `docs/rules/attributes/a-declaration-names-its-class-with-static.md:1`: the new rule with its JSON
+  under `data/rules/attributes/`, written from § *Standing decisions*: the syntax, what `static` binds to
+  at a use and at a retrieval, the written-name check, inheritance, and the Declined list.
+  `docs/rules/types/property-key.md:1` and `docs/rules/attributes/an-attribute-is-declared-with-its-sites.md:1`
+  cite it. Then `bun nv rules --render`, and `bun nv rules --check` is green.
+- [ ] `crates/nvs-types/src/lower.rs:880`: lowering an attribute declaration's fields does not report
+  `static`. The declaration table `declared-attributes` built marks a declaration whose fields name
+  `static`, and the use check lowers it with the class the attribute is on. A `type` alias keeps its
+  `E0303`.
 - [ ] `crates/nvs-types/src/attributes.rs:242` `check_attribute`: confirm that `ctx.current_class` is the
   declaring class for each attach site `check_declaration` (`:50`) walks, the class itself included. A
   site whose `Ctx` has no class gets one there.
-- [ ] `tests/conformance/reject/static-in-an-alias-used-outside-a-class-does-not-compile.nvst:1`: an alias
-  with `property<static>` declares without an error, is used as a variable's type outside any class, and
-  is `E0303` at that use.
+- [ ] `tests/conformance/reject/static-in-a-top-level-type-alias-does-not-compile.nvst:1`: a top-level
+  `type` alias with `property<static>` is `E0303` where it is declared, beside an attribute declaration
+  with the same field that compiles.
 
 ### 2. a payload names a property with property<static>, and a retrieval binds static to its target
 
@@ -219,10 +223,15 @@ another. Two parts of the same report already landed: a single-value literal in 
 type (`4708c2935a`), and the editor completes a userland attribute's fields and allowed values
 (`ed44125957`), which stage 3 builds on.
 
+Rewritten on 2026-11-20 to build on `declared-attributes`, which runs first: `static` binds inside an
+attribute declaration's fields, and no `type` alias changes meaning. The person's syntax at the use is
+unchanged.
+
 ### Next
 
-Stage 1 from its first item: the rule fragment, then `crates/nvs-types/src/lower.rs:880` and its
-caller for a top-level alias, then the `E0303` reject case. The `cases` and `editor` checks name cases
+Once the gate in § *Why* holds, stage 1 from its first item: the rule fragment, then
+`crates/nvs-types/src/lower.rs:880` and the per-use lowering of a declaration that names `static`,
+then the `E0303` reject case. The `cases` and `editor` checks name cases
 and tests that do not exist yet, and are expected to fail until stages 2 and 3 write them.
 
 ### Backlog
