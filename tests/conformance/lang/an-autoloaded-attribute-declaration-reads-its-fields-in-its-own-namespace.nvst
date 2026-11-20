@@ -1,13 +1,13 @@
 --TEST--
-A shape-typed `type` alias declared in an autoloaded file checks an attribute's payload with its own field names and its own namespace — `rule:attributes/attach-sites-and-forms` and `rule:types/type-alias`
+An attribute declaration in an autoloaded file checks an attribute's payload with its own field names and its own namespace — `rule:attributes/an-attribute-is-declared-with-its-sites` and `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
 // `Blog\Meta` names `Layout` with no prefix, which is `Blog\Layout` in
 // `lib/Meta.nvs`. The attribute on `Blog\Home` and the call below both read
-// the alias from that file.
+// the declaration from that file.
 autoload 'Blog' from './lib';
 
-foreach (Core\Program::implementingWith<Blog\Page, Blog\Meta>("render") as {instance: Blog\Page, attribute: ?Blog\Meta} $row) {
+foreach (Core\Program::implementingWith<Blog\Page, Blog\Meta>("render") as var $row) {
     echo $row->instance->render(), " ", $row->attribute?->path ?? "none", "\n";
     echo $row->attribute?->layout == Blog\Layout::Wide ? "wide" : "other", "\n";
 }
@@ -15,7 +15,7 @@ foreach (Core\Program::implementingWith<Blog\Page, Blog\Meta>("render") as {inst
 <?nvs
 namespace Blog;
 
-type Meta = {path: string, method: Core\Http\Method, layout: Layout};
+attribute Meta on method { path: string, method: Core\Http\Method, layout: Layout }
 --FILE lib/Layout.nvs--
 <?nvs
 namespace Blog;

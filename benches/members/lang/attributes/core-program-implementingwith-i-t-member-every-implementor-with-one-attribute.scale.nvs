@@ -20,7 +20,7 @@ class Bench
         array<string> $lines = [
             '<?nvs',
             '',
-            'type Label = {text: string};',
+            'attribute Label on method { text: string }',
             '',
             'interface Check {',
             '    public function name(): string;',
@@ -32,8 +32,7 @@ class Bench
             '        uint $total = 0;',
             '        uint $i = 0;',
             '        while ($i < $rounds) {',
-            '            array<{instance: Check, attribute: ?Label}> $rows =',
-            '                Core\Program::implementingWith<Check, Label>("name");',
+            '            var $rows = Core\Program::implementingWith<Check, Label>("name");',
             '            $total = $total + Core\Str::length($rows[($total % 3) as int]->instance->name());',
             '            $i = $i + 1;',
             '        }',

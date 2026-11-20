@@ -3,12 +3,14 @@
 // bench: iterations 2048
 // bench: complexity constant
 
+attribute Rule on property { required?: bool, maxLength?: int }
+
 class Signup
 {
-    #[{ required: true }]
+    #[Rule(required: true)]
     public string $email = '';
 
-    #[{ maxLength: 40 }]
+    #[Rule(maxLength: 40)]
     public string $nickname = '';
 }
 

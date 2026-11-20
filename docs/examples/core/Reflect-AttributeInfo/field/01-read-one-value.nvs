@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to read one value from an attribute, by the name of its field.
 
-type RateLimit = { perMinute: int, scope: string };
+attribute RateLimit on class { perMinute: int, scope: string }
 
 #[RateLimit(perMinute: 120, scope: 'user')]
 class SearchController

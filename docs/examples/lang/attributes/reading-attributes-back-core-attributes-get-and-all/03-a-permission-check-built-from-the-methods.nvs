@@ -3,13 +3,11 @@
 // which permission it needs, so adding a method means writing one attribute.
 // There is no second list to keep up to date.
 
-type Requires = { permission: string };
+attribute Requires on method { permission: string }
 
 class Orders
 {
-    // This attribute has one field more than `Requires`. Matching is by shape,
-    // so it still matches.
-    #[{ permission: 'orders.read', audit: true }]
+    #[Requires(permission: 'orders.read')]
     public static function show(): string
     {
         return 'order 1042';
@@ -29,7 +27,9 @@ class Orders
 
 class Access
 {
-    public static function check(string $action, ?Requires $needs, array<string> $granted): string
+    // The parameter type is the fields of `Requires`. A `Requires` attribute
+    // is read back as a value of this type.
+    public static function check(string $action, ?{ permission: string } $needs, array<string> $granted): string
     {
         if ($needs == null) {
             return $action . ': open to everyone';

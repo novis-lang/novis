@@ -1,32 +1,38 @@
-The name in front of the brackets is checked first. A name that nothing declares is `E0303`. A class,
-or a `type` alias for something that is not a shape, such as `type Id = int;`, is `E0726`.
+A declaration is written `attribute Name on <places> { fields }`. The places are `class`, `method`,
+`property` and `parameter`, and the list needs at least one of them. Any other word in the list is
+`E1004`. A field is written `name: T`, or `name?: T` when a use may leave it out.
 
-Your values are then checked against the shape. A missing field or a value of the wrong type is
-`E0401`, and the help line names the missing field. Fields the shape does not have are allowed.
-`#[Name]` with no brackets has no fields, so it is `E0401` for a shape that has any.
+The name after `#[` is checked first. A name that nothing declares is `E0303`. A class, an interface,
+an enum or a `type` alias is `E1005`, because only an attribute declaration may follow `#[`. An
+attribute with no name, such as `#[{ inject: "repo" }]`, is `E0140`.
+
+Then the place is checked. An attribute written where its `on` list does not allow it is `E0874`, and
+the message names the places it allows.
+
+An attribute declared inside a class or an interface is used only on the classes that extend or
+implement it, and on their members. A use anywhere else is `E1006`. That includes the class or
+interface that declares it.
+
+An attribute may be written once on each declaration. Write `repeatable` before `attribute` to allow
+it more than once. A second use without it is `E0763`. Novis keeps every copy of a repeatable
+attribute, in the order you wrote them.
+
+Your values are then checked against the fields. A missing field or a value of the wrong type is
+`E0401`, and the help line names the missing field. Fields the declaration does not have are allowed.
+`#[Name]` with no brackets gives no fields, so it is `E0401` when the declaration has a required field.
 
 Each value needs its field name. `#[Tag(5)]` is a syntax error, and the same field written twice is
 `E0494`.
 
 A value may be a number (also a negative one), a string, `true`, `false` or `null`. It may also be an
-anonymous object, an array, a class constant, an enum case or `Foo::class`. A variable, a call, `new`, arithmetic such as
-`1 + 2` and a string with `{$name}` in it are each `E0725`. A class constant that is `secret` is
-`E0727`.
+anonymous object, an array, a class constant, an enum case or `Foo::class`. A variable, a call, `new`,
+arithmetic such as `1 + 2` and a string with `{$name}` in it are each `E0725`. A class constant that is
+`secret` is `E0727`.
 
-An array in an attribute has the type `array<mixed>`. A field typed `array<mixed>` takes it. A field
-typed `array<int>` or `array<string>` does not, and the attribute is `E0401`.
+An array is checked like any other value. `[1, 2]` fits a field typed `array<int>`, and `['a']` does
+not.
 
-An attribute may also stand in front of an enum case and a property hook. In front of a statement or
-a local variable, it is `E0101`.
-
-You can write an attribute on an enum, an enum case or a class constant, and the program compiles.
-`Core\Attributes` cannot read it back, because only a class, an interface, a method, a property and a
-parameter have a way to name them.
-
-An attribute may have no name, as in `#[{ inject: "repo" }]`. Nothing checks its fields.
+In front of a statement or a local variable, an attribute is `E0101`.
 
 Several attributes can share one bracket, with commas between them: `#[A(n: 1), B(s: "x")]`. This is
 the same as writing each one in its own bracket.
-
-You can write the same attribute any number of times on one declaration. Novis keeps every copy, in
-the order you wrote them.

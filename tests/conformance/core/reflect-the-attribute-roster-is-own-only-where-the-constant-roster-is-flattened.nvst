@@ -12,15 +12,19 @@ A description's attribute roster carries only what its own declaration wrote, wh
 // report a base class's attach site as this class's. This case asks both the
 // same question at once, because either rule read off its own line alone still
 // prints plausibly.
-#[{layer: "base"}]
+attribute Layer on class { layer: string }
+attribute Column on property { column: string }
+attribute Contract on method { contract: bool }
+
+#[Layer(layer: "base")]
 class Base {
     public const int MAX = 5;
 
-    #[{column: "id"}]
+    #[Column(column: "id")]
     public int $id = 0;
 }
 
-#[{layer: "derived"}]
+#[Layer(layer: "derived")]
 class Derived extends Base {}
 
 // The class that declares nothing: an empty roster is the fact, and it is what
@@ -28,7 +32,7 @@ class Derived extends Base {}
 class Bare extends Base {}
 
 interface Tagged {
-    #[{contract: true}]
+    #[Contract(contract: true)]
     public function tag(): string;
 }
 
@@ -44,7 +48,7 @@ echo Core\Arr::count($base->constants()), " ",
      Core\Arr::count($bare->constants()), "\n";
 
 foreach ($derived->attributes() as Core\Reflect\AttributeInfo $one) {
-    echo "derived: ", $one->name() == "" ? "bare" : $one->name(),
+    echo "derived: ", $one->name(),
          " target=[", $one->target(), "] parameter=[", $one->parameter(), "] ",
          Core\Json::encode($one->field("layer")), "\n";
 }
@@ -63,5 +67,5 @@ if ($tagged != null) {
 --EXPECT--
 2 1 0
 1 1 1
-derived: bare target=[] parameter=[] "derived"
+derived: Layer target=[] parameter=[] "derived"
 interface: target=tag true fields=1

@@ -1,23 +1,25 @@
 --TEST--
-`Core\Router\Match::attribute<T>()` with a `T` that is not a shape does not compile: `E0729` — `rule:routing/a-match-reads-an-attribute-as-data`
+`Core\Router\Match::attribute<T>()` with a `T` that is not an attribute declaration does not compile: `E1008` — `rule:routing/a-match-reads-an-attribute-as-data` and `rule:attributes/a-retrieval-matches-the-declaration-it-names`
 --FILE--
 <?nvs
+attribute Limit on method { limit: int }
+
 class Shop {
     #[Core\Route(path: "/shop", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{limit: 10}]
+    #[Limit(limit: 10)]
     public function index(): void {}
 }
 
 ?Core\Router\Match $shop = Core\Router::match(Core\Http\Method::Get, "/shop");
 ?int $limit = $shop?->attribute<int>();
 --EXPECTF-ERROR--
-error[E0729]: `Core\Router\Match::attribute` returns an attribute by its shape, and `int` is not a shape
-   --> case.nvs:10:15
+error[E1008]: a retrieval's type argument must name an attribute declaration, and `int` is not an attribute declaration
+   --> case.nvs:12:33
    |
-10 | ?int $limit = $shop?->attribute<int>();
-   |               ^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
-   = help: write a shape such as `{ seconds: int }`, or a `type` name for one. An attribute matches when it has every field of the shape
+12 | ?int $limit = $shop?->attribute<int>();
+   |                                 ^^^ not an attribute declaration
+   = help: Declare the attribute with `attribute Name on … { … }`, and write its name here. The retrieval finds the payloads written under that declaration.
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

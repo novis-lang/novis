@@ -1,10 +1,10 @@
 --TEST--
-A retrieved attribute payload whose array holds cases of one enum matches a requested `array<ThatEnum>`, on both backings, and an array holding a case of another enum does not — `rule:attributes/retrieval-folds-while-checking` and `rule:enums/representation`
+A retrieved attribute payload whose array holds cases of one enum reads back as an `array<ThatEnum>`, on both backings, and an `array<mixed>` field keeps each case's own enum — `rule:attributes/retrieval-folds-while-checking` and `rule:enums/representation`
 --FILE--
 <?nvs
-// The match is decided while compiling, from the payload as written, where
-// each case still names its enum. A payload with a case of another enum is
-// not an `array<Mode>`, so that retrieval gives `null`.
+// The payload is checked against the declaration's fields while compiling, where
+// each case still names its enum. A case of another enum in an `array<Mode>` field
+// does not compile, so `Loose` declares `array<mixed>` for the mixed list.
 enum Mode: int {
     Off = 0,
     On = 1,
@@ -15,22 +15,23 @@ enum Weight: uint {
     Heavy = 2,
 }
 
-#[{modes: [Mode::Off, Mode::On], weights: [Weight::Light, Weight::Heavy], grid: [[Mode::On], []]}]
+attribute Plan on class { modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>> }
+attribute Loose on class { modes: array<mixed> }
+attribute Heavy on class { modes: array<Weight> }
+
+#[Plan(modes: [Mode::Off, Mode::On], weights: [Weight::Light, Weight::Heavy], grid: [[Mode::On], []])]
 class Job {
 }
 
-#[{modes: [Mode::Off, Weight::Light]}]
+#[Loose(modes: [Mode::Off, Weight::Light])]
 class Mixed {
 }
 
-#[{modes: [Weight::Heavy]}]
+#[Heavy(modes: [Weight::Heavy])]
 class Other {
 }
 
-?{modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>>} $job =
-    Core\Attributes::get<{modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>>}>(
-        Job::constructor
-    );
+var $job = Core\Attributes::get<Plan>(Job::constructor);
 echo "job: ", $job == null ? "null" : "matched", "\n";
 if ($job != null) {
     foreach ($job->modes as Mode $mode) {
@@ -46,16 +47,18 @@ if ($job != null) {
     echo "  grid rows=", Core\Arr::count($job->grid), " first=", $job->grid[0][0] == Mode::On ? "On" : "other", "\n";
 }
 
-// The same payload still matches the wider `array<mixed>`.
-?{modes: array<mixed>} $wide = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor);
-echo "wide: ", $wide == null ? "null" : "matched", "\n";
+// Each element of an `array<mixed>` field is still a case of its own enum.
+var $mixed = Core\Attributes::get<Loose>(Mixed::constructor);
+if ($mixed != null) {
+    foreach ($mixed->modes as mixed $one) {
+        echo "mixed: ", $one is Mode ? "Mode" : ($one is Weight ? "Weight" : "other"), "\n";
+    }
+}
 
-// A case of another enum keeps the array from being an `array<Mode>`.
-?{modes: array<Mode>} $mixed = Core\Attributes::get<{modes: array<Mode>}>(Mixed::constructor);
-echo "mixed: ", $mixed == null ? "null" : "matched", "\n";
-?{modes: array<Mode>} $other = Core\Attributes::get<{modes: array<Mode>}>(Other::constructor);
+// `Other` has no `Plan`, so that retrieval is `null`.
+var $other = Core\Attributes::get<Plan>(Other::constructor);
 echo "other: ", $other == null ? "null" : "matched", "\n";
-?{modes: array<Weight>} $weights = Core\Attributes::get<{modes: array<Weight>}>(Other::constructor);
+var $weights = Core\Attributes::get<Heavy>(Other::constructor);
 echo "other as Weight: ", $weights == null ? "null" : "matched", "\n";
 --EXPECT--
 job: matched
@@ -64,7 +67,7 @@ job: matched
   weight Light is Weight=yes truthy=yes
   weight Heavy is Weight=yes truthy=yes
   grid rows=2 first=On
-wide: matched
-mixed: null
+mixed: Mode
+mixed: Weight
 other: null
 other as Weight: matched

@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to build an SQL `INSERT` statement from the column attributes on the properties of a class.
 
-type Column = { name: string };
+attribute Column on property { name: string }
 
 class Customer
 {

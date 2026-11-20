@@ -1,2 +1,5 @@
-import: Read rows from a file
-export: Write rows to a file
+usage: <command> [arguments]
+
+commands:
+  import  Read rows from a file
+  export  Write rows to a file

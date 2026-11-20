@@ -5,7 +5,7 @@
 
 Two commands with one name are `E0768`. This is true when they are in two classes, and when one method
 has two `#[Core\Command]` lines with the same name. Two lines with different names on one method give
-one command two names, and `Core\Attributes::all` returns both lines.
+one command two names, and `Core\Command::help(null)` lists both.
 
 A method that is not `static` is `E0789`. A return type other than `void` or `uint` is `E0789` too,
 and that includes `int`. `#[Core\Option]` on a parameter of a method with no `#[Core\Command]` is

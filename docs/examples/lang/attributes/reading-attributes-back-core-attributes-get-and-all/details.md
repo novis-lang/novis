@@ -1,7 +1,15 @@
-`get` with two matching attributes is `E0728`. `all` has no such limit.
+`get` on a declaration with two `Tag` attributes is `E0728`. `all` has no such limit.
 
-The type between `<` and `>` must be a shape, written out as `{ label: string }` or as a `type` alias
-for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
+The name between `<` and `>` must be an attribute declaration. An attribute declared inside a class
+or an interface is written with its owner, as in `get<Job::Meta>`. A shape such as `{ label: string }`,
+a `type` alias, a class and `int` are each `E1008`. `get` with no type is `E0442`.
+
+The retrieval finds only attributes written with the name you give. Two declarations with the same
+fields are still two different attributes, and `get` for one never returns the other.
+
+You can also name an attribute that Novis reads itself, such as `Core\Route` or `Core\Command`. The
+result is the fields written in that attribute. A field the attribute does not need may be missing,
+so read it with `??`, as in `$command->about ?? ''`.
 
 Every class has a constructor, even when you do not write one. So `Users::constructor` always
 names the class.
@@ -18,9 +26,6 @@ on the property together.
 A subclass does not get its parent's attributes. `B::constructor` finds nothing when only the
 parent class `A` has the attribute. `B::show` also finds nothing when `show` is declared in `A`,
 even if `B` does not override it. An interface method's attributes are read with `I::m`.
-
-`all<{}>` returns every attribute on the declaration, also the attributes Novis reads itself, such as
-`#[Core\Json\Derive]`.
 
 A class constant, an enum case or `Foo::class` in an attribute is read back as its value. The value
 comes from the place where the attribute is written. In a file with `namespace Shop;`, `K::class` is

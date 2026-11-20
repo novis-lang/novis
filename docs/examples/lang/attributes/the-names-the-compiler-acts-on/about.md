@@ -4,8 +4,8 @@ to one of them the compiler acts on it: it writes a JSON codec for the class, ad
 table, adds a row to the command table, or registers a test.
 
 Novis decides by the declaration a name points to, not by the way the name is written. `#[Core\Command]`
-and an imported `#[Command]` are one attribute. A type of your own called `Command` is a different
-declaration, so it stays ordinary metadata however it is spelled. An import binds one whole name, so
+and an imported `#[Command]` are one attribute. An attribute of your own called `Command` is a different
+declaration, so it stays ordinary metadata however you write it. An import binds one whole name, so
 `use Core\Json;` followed by `#[Json\Derive]` points at nothing and does not compile.
 
 Each name Novis owns has a fixed list of options. An option it does not know, an option of the wrong

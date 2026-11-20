@@ -8,16 +8,18 @@
 // knew only `implementing` would print `rows: 0`.
 autoload 'Blog' from './lib';
 
-foreach (Core\Program::implementingWith<Blog\Page, {path: string}>("render") as {instance: Blog\Page, attribute: ?{path: string}} $row) {
+foreach (Core\Program::implementingWith<Blog\Page, Blog\Page::Path>("render") as var $row) {
     echo $row->instance->render(), " ", $row->attribute?->path ?? "none", "\n";
 }
-echo "rows: ", Core\Arr::count(Core\Program::implementingWith<Blog\Page, {path: string}>("render")), "\n";
+echo "rows: ", Core\Arr::count(Core\Program::implementingWith<Blog\Page, Blog\Page::Path>("render")), "\n";
 --FILE lib/Page.nvs--
 <?nvs
 namespace Blog;
 
 interface Page
 {
+    attribute Path on method { path: string }
+
     public function render(): string;
 }
 --FILE lib/Home.nvs--
@@ -26,7 +28,7 @@ namespace Blog;
 
 class Home implements Page
 {
-    #[{path: "/"}]
+    #[Path(path: "/")]
     public function render(): string
     {
         return "home";

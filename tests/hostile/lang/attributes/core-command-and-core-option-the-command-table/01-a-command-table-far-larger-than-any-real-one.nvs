@@ -4,9 +4,6 @@
 // names and the spellings against each other. The program below should compile
 // and run to its last line.
 
-type Command = { name: string, about: string };
-type Option = { long: string };
-
 // 1. One command carrying 32 options. Every spelling is compared with every
 //    other one, so this tries to make that comparison slow.
 class Crowded
@@ -166,8 +163,8 @@ class Many
     {}
 }
 
-// 4. Reading all of it back 200000 times. The table is built while the program
-//    compiles, so the running program must not keep a copy of any payload.
+// 4. Reading all of it back 200000 times. The table is built when the program
+//    compiles, so the running program should not keep a copy of any value.
 class Attack
 {
     public static function run(uint $rounds): uint
@@ -175,18 +172,18 @@ class Attack
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Command $bulky = Core\Attributes::get<Command>(Bulky::bulky);
+            var $bulky = Core\Attributes::get<Core\Command>(Bulky::bulky);
             if ($bulky != null) {
-                $total = $total + Core\Str::length($bulky->about);
+                $total = $total + Core\Str::length($bulky->about ?? '');
             }
-            ?Option $first = Core\Attributes::get<Option>(Crowded::crowded, 'o01');
-            ?Option $last = Core\Attributes::get<Option>(Crowded::crowded, 'o32');
+            var $first = Core\Attributes::get<Core\Option>(Crowded::crowded, 'o01');
+            var $last = Core\Attributes::get<Core\Option>(Crowded::crowded, 'o32');
             if ($first != null) {
                 if ($last != null) {
-                    $total = $total + Core\Str::length($first->long) + Core\Str::length($last->long);
+                    $total = $total + Core\Str::length($first->long ?? '') + Core\Str::length($last->long ?? '');
                 }
             }
-            array<Command> $rows = Core\Attributes::all<Command>(Many::c24);
+            var $rows = Core\Attributes::all<Core\Command>(Many::c24);
             $total = $total + Core\Arr::count($rows) + $total % 2;
             $i = $i + 1;
         }

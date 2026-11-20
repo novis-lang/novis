@@ -1,17 +1,8 @@
 <?nvs
-// Shows a help screen that builds itself from the command classes. Adding a
+// Shows a help screen that Novis builds from the command classes. Adding a
 // command means writing one class. There is no second list to keep up to date.
-// `Core\Program::implementing` finds every class that implements the interface,
-// sorted by name.
 
-interface Tool
-{
-    public function command(): string;
-}
-
-type Command = { name: string, about: string };
-
-class Migrate implements Tool
+class Migrate
 {
     #[Core\Command(name: 'migrate', about: 'Apply pending migrations')]
     public static function migrate(
@@ -23,14 +14,9 @@ class Migrate implements Tool
         }
         return 1;
     }
-
-    public function command(): string
-    {
-        return 'migrate';
-    }
 }
 
-class Purge implements Tool
+class Purge
 {
     #[Core\Command(name: 'purge', about: 'Delete the expired rows')]
     public static function purge(
@@ -42,14 +28,9 @@ class Purge implements Tool
         }
         return 1;
     }
-
-    public function command(): string
-    {
-        return 'purge';
-    }
 }
 
-class Seed implements Tool
+class Seed
 {
     #[Core\Command(name: 'seed', about: 'Fill the database with test data')]
     public static function seed(
@@ -61,32 +42,8 @@ class Seed implements Tool
         }
         return 1;
     }
-
-    public function command(): string
-    {
-        return 'seed';
-    }
 }
 
-echo 'Usage: app <command> [options]', "\n";
-echo "\n";
-echo 'Commands:', "\n";
-
-foreach (Core\Program::implementing<Tool>() as Tool $tool) {
-    string $name = $tool->command();
-    // Each class says which command it describes, and the description comes
-    // from the attribute rather than from a second string.
-    ?Command $command = null;
-    if ($name == 'migrate') {
-        $command = Core\Attributes::get<Command>(Migrate::migrate);
-    }
-    if ($name == 'purge') {
-        $command = Core\Attributes::get<Command>(Purge::purge);
-    }
-    if ($name == 'seed') {
-        $command = Core\Attributes::get<Command>(Seed::seed);
-    }
-    if ($command != null) {
-        echo '  ', Core\Str::padEnd($command->name, 10), $command->about, "\n";
-    }
-}
+// `Core\Command::help(null)` returns the page that lists every command. Each
+// description comes from the `about:` of its attribute.
+echo Core\Command::help(null);

@@ -1,10 +1,11 @@
 <?nvs
 // Shows how to find every class that extends a base class, with an attribute that says how often it runs.
 
-type Schedule = { every: string };
-
 abstract class Job
 {
+    // Every class that extends `Job` may use this attribute.
+    attribute Schedule on class { every: string }
+
     abstract public function run(): string;
 }
 
@@ -36,6 +37,6 @@ class Manual extends Job
 
 // `Manual` has no `Schedule` attribute, so its `attribute` is `null`.
 // This prints `hour`, `day` and `manual only` at the start of the three lines.
-foreach (Core\Program::implementingWith<Job, Schedule>() as { instance: Job, attribute: ?Schedule } $row) {
+foreach (Core\Program::implementingWith<Job, Job::Schedule>() as var $row) {
     echo $row->attribute?->every ?? 'manual only', ': ', $row->instance->run(), "\n";
 }

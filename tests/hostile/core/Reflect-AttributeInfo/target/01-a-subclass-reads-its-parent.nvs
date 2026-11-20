@@ -2,13 +2,18 @@
 // Attack: a subclass tries to get the attributes written on its parent class and on the methods it inherits.
 // The list for the subclass should only have the attributes written in the subclass itself.
 
-#[{ table: 'users' }]
+attribute Table on class { table: string }
+attribute Column on property { column: string }
+attribute Secret on method { secret: bool }
+attribute Audit on class { audit: bool }
+
+#[Table(table: 'users')]
 class User
 {
-    #[{ column: 'user_name' }]
+    #[Column(column: 'user_name')]
     public string $name = '';
 
-    #[{ secret: true }]
+    #[Secret(secret: true)]
     public function passwordHash(): string
     {
         return '';
@@ -24,7 +29,7 @@ class Admin extends User
     }
 }
 
-#[{ audit: true }]
+#[Audit(audit: true)]
 class Auditor extends User
 {
 }

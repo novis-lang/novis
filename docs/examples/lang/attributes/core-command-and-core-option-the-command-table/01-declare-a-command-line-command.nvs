@@ -20,10 +20,9 @@ class Backup
 
 // You can read the table back with `Core\Attributes::get`. This prints
 // `backup: Copy the database to a file`.
-type Command = { name: string, about: string };
-?Command $command = Core\Attributes::get<Command>(Backup::backup);
+var $command = Core\Attributes::get<Core\Command>(Backup::backup);
 if ($command != null) {
-    echo $command->name, ': ', $command->about, "\n";
+    echo $command->name, ': ', $command->about ?? '', "\n";
 }
 
 // The command is a static method. You can call it yourself.

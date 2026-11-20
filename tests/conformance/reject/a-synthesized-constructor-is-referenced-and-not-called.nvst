@@ -2,7 +2,7 @@
 A reference to a synthesized `constructor` resolves, and a written call to one is refused (`rule:attributes/a-retrieval-matches-the-declaration-it-names`, `rule:classes/definite-property-initialization`)
 --FILE--
 <?nvs
-type Route = {path: string};
+attribute Route on class { path: string }
 
 #[Route(path: "/a")]
 class Plain {}
@@ -11,7 +11,7 @@ class Plain {}
 // than as a missing refusal. `rule:classes/definite-property-initialization` gives every class a constructor,
 // definitely, so `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s class target names it whether or not the body
 // writes one.
-?Route $route = Core\Attributes::get<Route>(Plain::constructor);
+var $route =Core\Attributes::get<Route>(Plain::constructor);
 echo $route != null ? "some" : "none", "\n";
 
 // The exemption is that one spelling and no wider: a written call resolves to

@@ -24,6 +24,8 @@ class Guarded implements Plugin {
     public function name(): string { return "guarded"; }
 }
 
+attribute Order on class { order: int }
+
 interface Single {
     public function name(): string;
 }
@@ -34,7 +36,7 @@ class Lonely implements Single {
 }
 
 echo Core\Arr::count(Core\Program::implementing<Plugin>()), "\n";
-var $rows = Core\Program::implementingWith<Single, {order: int}>();
+var $rows = Core\Program::implementingWith<Single, Order>();
 --EXPECT--
 
 --EXPECTF-ERROR--

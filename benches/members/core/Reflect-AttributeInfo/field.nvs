@@ -3,7 +3,7 @@
 // bench: iterations 1024
 // bench: complexity constant
 
-type Cache = { seconds: int, shared: bool };
+attribute Cache on class { seconds: int, shared: bool }
 
 #[Cache(seconds: 3600, shared: true)]
 class PageController

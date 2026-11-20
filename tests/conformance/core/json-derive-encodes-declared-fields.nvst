@@ -78,9 +78,9 @@ class Ledger {
 echo Json::encode(new Ledger(7, "ada", 42)), "\n";
 echo Json::encode(Json::decodeAs<Ledger>('{"id":8,"owner":"bob","balance":3}')), "\n";
 
-// `rule:core-classes/derive-attribute`: a userland `type Derive = {};` is not the compiler's attribute, no
-// matter how it is spelled — so this class gets nothing and stays unencodable.
-type Derive = {};
+// `rule:core-classes/derive-attribute`: a program's own `attribute Derive` is not the compiler's
+// attribute, though its short name is the same, so this class gets nothing and stays unencodable.
+attribute Derive on class {}
 
 #[Derive]
 class Impostor {

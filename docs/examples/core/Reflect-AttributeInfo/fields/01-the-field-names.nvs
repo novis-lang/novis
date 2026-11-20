@@ -1,7 +1,7 @@
 <?nvs
 // Shows the field names of an attribute, in the order they are written.
 
-type Cache = { seconds: int, shared: bool, key: string };
+attribute Cache on method { seconds: int, shared: bool, key: string }
 
 class ReportController
 {

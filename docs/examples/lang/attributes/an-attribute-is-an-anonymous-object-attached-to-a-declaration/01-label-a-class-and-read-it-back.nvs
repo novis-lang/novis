@@ -1,9 +1,9 @@
 <?nvs
-// Shows how to attach information to a class and read it back. The name in
-// front of the brackets is a `type` alias for a shape, and your values are
-// checked against that shape.
+// Shows how to declare an attribute, attach it to a class and read it back.
 
-type Table = { name: string };
+// `attribute Table on class` declares an attribute that a class may carry.
+// The fields in the braces are the values each use must give.
+attribute Table on class { name: string }
 
 #[Table(name: 'users')]
 class User
@@ -12,8 +12,8 @@ class User
 }
 
 // `Core\Attributes::get` returns the values attached to the class, or `null`
-// when the class carries none. `User::constructor` names the class itself.
-?Table $table = Core\Attributes::get<Table>(User::constructor);
+// when the class has none. `User::constructor` names the class itself.
+var $table = Core\Attributes::get<Table>(User::constructor);
 if ($table != null) {
     // This prints `users`.
     echo $table->name, "\n";
@@ -23,5 +23,5 @@ if ($table != null) {
 class Session
 {}
 
-?Table $none = Core\Attributes::get<Table>(Session::constructor);
+var $none = Core\Attributes::get<Table>(Session::constructor);
 echo $none == null ? "no table name\n" : "a table name\n";

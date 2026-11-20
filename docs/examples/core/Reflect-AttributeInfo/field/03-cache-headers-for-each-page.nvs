@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to build the `Cache-Control` header for each page from a cache attribute on its method.
 
-type Cache = { seconds: int, shared: bool };
+attribute Cache on method { seconds: int, shared: bool }
 
 class PageController
 {

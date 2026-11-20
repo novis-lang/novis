@@ -1,5 +1,5 @@
 --TEST--
-A string, int, `true` or enum-case literal in a named attribute's payload is read at the single-value type its alias names for the field, as an assignment of the same literal reads it, nested shapes and arrays included, and a retrieval of that alias finds it — `rule:types/single-value-types` and `rule:attributes/attach-sites-and-forms`
+A string, int, `true` or enum-case literal in an attribute's payload is read at the single-value type its declaration names for the field, as an assignment of the same literal reads it, nested shapes and arrays included, and a retrieval of that declaration finds it — `rule:types/single-value-types` and `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
 enum Mode {
@@ -7,9 +7,11 @@ enum Mode {
     On,
 }
 
-type Link = { onRemove?: 'keep'|'clear'|'cascade' };
-type Level = { level: 1|2|3, strict: true, mode: Mode::On|Mode::Off };
-type Sort = { order: array<'asc'|'desc'>, page: { size: 10|20|50 } };
+attribute Link on property { onRemove?: 'keep'|'clear'|'cascade' }
+attribute Level on property { level: 1|2|3, strict: true, mode: Mode::On|Mode::Off }
+attribute Sort on property { order: array<'asc'|'desc'>, page: { size: 10|20|50 } }
+
+type LinkValue = { onRemove?: 'keep'|'clear'|'cascade' };
 
 class Post
 {
@@ -25,26 +27,21 @@ class Post
 }
 
 // The same literal assigned to the shape is already read this way.
-Link $direct = { onRemove: 'clear' };
+LinkValue $direct = { onRemove: 'clear' };
 echo "direct: ", $direct->onRemove, "\n";
 
-// Each payload is found by the alias it was written under.
-?Link $link = Core\Attributes::get<Link>(Post::constructor, 'author');
+// Each payload is found by the declaration it was written under.
+var $link = Core\Attributes::get<Link>(Post::constructor, 'author');
 echo "author: ", $link == null ? "null" : $link->onRemove, "\n";
-?Link $none = Core\Attributes::get<Link>(Post::constructor, 'editor');
+var $none = Core\Attributes::get<Link>(Post::constructor, 'editor');
 echo "editor: ", $none == null ? "null" : ($none->onRemove ?? "no value"), "\n";
-?Level $level = Core\Attributes::get<Level>(Post::constructor, 'title');
+var $level = Core\Attributes::get<Level>(Post::constructor, 'title');
 echo "level: ", $level == null ? "null" : $level->level, " ", $level?->mode == Mode::On ? "On" : "other", "\n";
-?Sort $sort = Core\Attributes::get<Sort>(Post::constructor, 'title');
+var $sort = Core\Attributes::get<Sort>(Post::constructor, 'title');
 echo "sort: ", $sort == null ? "null" : Core\Str::join($sort->order, ', ') . " " . $sort->page->size, "\n";
-
-// The payload still matches the wider `string` field.
-?{ onRemove: string } $wide = Core\Attributes::get<{ onRemove: string }>(Post::constructor, 'author');
-echo "wide: ", $wide == null ? "null" : $wide->onRemove, "\n";
 --EXPECT--
 direct: clear
 author: clear
 editor: no value
 level: 2 On
 sort: asc, desc 20
-wide: clear

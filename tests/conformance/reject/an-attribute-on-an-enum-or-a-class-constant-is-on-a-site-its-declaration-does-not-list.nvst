@@ -1,8 +1,8 @@
 --TEST--
-A user attribute on an enum, an enum case or a class constant is `E0871`, and the same attribute on a class, a method and a property compiles
+A program's attribute on an enum, an enum case or a class constant is `E0874`, because a program's declaration cannot list those sites, and the same attribute on a class, a method and a property compiles — `rule:attributes/an-attribute-is-declared-with-its-sites`
 --FILE--
 <?nvs
-type Label = {text: string};
+attribute Label on class, method, property { text: string }
 
 #[Label(text: "suit")]
 enum Suit {
@@ -27,11 +27,14 @@ echo Shop::LIMIT, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0871]: an attribute cannot be written on an enum
+error[E0874]: `Label` is used on an enum, and its declaration allows only `class`, `method` and `property`
+  --> case.nvs:4:3
 %A
-error[E0871]: an attribute cannot be written on an enum case
+error[E0874]: `Label` is used on an enum case, and its declaration allows only `class`, `method` and `property`
+  --> case.nvs:6:7
 %A
-error[E0871]: an attribute cannot be written on a class constant
+error[E0874]: `Label` is used on a class constant, and its declaration allows only `class`, `method` and `property`
+   --> case.nvs:13:7
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -3,10 +3,13 @@
 // bench: iterations 1024
 // bench: complexity constant
 
+attribute Route on method { path: string }
+attribute From on parameter { source: string }
+
 class ArticleController
 {
-    #[{ path: '/articles/{id}' }]
-    public function update(#[{ source: 'path' }] int $id): void
+    #[Route(path: '/articles/{id}')]
+    public function update(#[From(source: 'path')] int $id): void
     {}
 }
 

@@ -7,7 +7,9 @@ enum Status: int {
     case Live = 2;
 }
 
-#[{state: Status::Li<|>ve}]
+attribute Published on class { state: Status }
+
+#[Published(state: Status::Li<|>ve)]
 class Post
 {
     public string $title = "";

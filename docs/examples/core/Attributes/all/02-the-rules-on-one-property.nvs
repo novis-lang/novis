@@ -2,7 +2,7 @@
 // Shows how to read the attributes of a single property. The second argument is
 // the name of the property.
 
-type Rule = { check: string };
+repeatable attribute Rule on property { check: string }
 
 class Signup
 {
@@ -16,9 +16,9 @@ class Signup
 
 // `Signup::constructor` names the class, and `"email"` picks the property
 // out of it. This prints `not-empty, an-email-address`.
-array<Rule> $rules = Core\Attributes::all<Rule>(Signup::constructor, 'email');
+var $rules = Core\Attributes::all<Rule>(Signup::constructor, 'email');
 string $line = '';
-foreach ($rules as Rule $rule) {
+foreach ($rules as var $rule) {
     $line = $line == '' ? $rule->check : $line . ', ' . $rule->check;
 }
 echo $line, "\n";

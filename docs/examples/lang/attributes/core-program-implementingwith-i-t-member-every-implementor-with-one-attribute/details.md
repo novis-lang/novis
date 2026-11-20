@@ -21,15 +21,17 @@ method that a class inherits counts as one it has. Its attributes are not read, 
 `attribute` is `null`. A class that overrides a method has only the attributes on its own version.
 An attribute on the interface's method is not read either.
 
-The attribute matches `T` when it has every field of `T` with the right type. It may have more
-fields. Two attributes that both match on one class are `E0728`, and the message names the class and
-the member. A shape with a field that only one of them has picks that one. A `T` that is not a shape,
-such as `int` or a class, is `E0729`.
+`T` names an attribute declaration. The row's `attribute` is an attribute written with that name.
+Another attribute with the same fields is not found. Two `T` attributes on one member of one class
+are `E0728`, and the message names the class, the member and the count. A `T` that is not an
+attribute declaration is `E1008`. That includes a shape such as `{ text: string }`, `int` and a
+class.
 
-Each row has the type `{ instance: I, attribute: ?T }`. Storing the result in an
-`array<{ instance: I, attribute: T }>` is `E0401`, because `attribute` may be `null`.
+The type of `attribute` is the declaration's fields, and it may be `null`. Write `var $row` in the
+`foreach` to use this type. Storing the result in an array whose `attribute` cannot be `null` is
+`E0401`.
 
-The attributes Novis reads itself can be read this way too. `{ path: string }` reads the path of each
-class's `#[Core\Route]`.
+`T` can also be an attribute that Novis reads itself, such as `Core\Route`. The row's `attribute` is
+then the fields written in that attribute, such as its `path`.
 
 When no class implements `I`, the result is `[]`, whatever `$member` is.

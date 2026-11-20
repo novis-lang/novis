@@ -1,9 +1,9 @@
 --TEST--
-A literal in a named attribute's payload that is not one of the single-value types its alias names for the field is `E0401` at the payload, at the top level, inside an array and inside a nested shape — `rule:types/single-value-types` and `rule:attributes/attach-sites-and-forms`
+A literal in a named attribute's payload that is not one of the single-value types its declaration names for the field is `E0401` at the payload, at the top level, inside an array and inside a nested shape — `rule:types/single-value-types` and `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
-type Link = { onRemove?: 'keep'|'clear'|'cascade' };
-type Sort = { order: array<'asc'|'desc'>, page: { size: 10|20|50 } };
+attribute Link on property { onRemove?: 'keep'|'clear'|'cascade' }
+attribute Sort on property { order: array<'asc'|'desc'>, page: { size: 10|20|50 } }
 
 class Post
 {

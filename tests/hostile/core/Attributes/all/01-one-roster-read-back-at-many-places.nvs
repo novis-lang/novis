@@ -1,31 +1,55 @@
 <?nvs
-// Attack: one class is given 80 attributes, and the whole set is read back at 24
-// places in the program. Novis answers every read while it compiles. Each read
-// returns all 80 values, so the compiled program holds 1920 of them. It should
-// run to its last line and stay inside its memory limit.
+// Attack: one class is given 160 attributes of two kinds, and each kind is read back at 12
+// places in the program. Novis answers every read while it compiles. Each read returns 80
+// values, so the compiled program has 1920 of them. It should run to its last line and
+// stay inside its memory limit.
 
-// 1. 80 attributes on one class. Each payload has two fields, so a read that
-//    names one of them has to compare every payload before it answers.
-#[{ n: 1, tag: 't1' }, { n: 2, tag: 't2' }, { n: 3, tag: 't3' }, { n: 4, tag: 't4' }]
-#[{ n: 5, tag: 't5' }, { n: 6, tag: 't6' }, { n: 7, tag: 't7' }, { n: 8, tag: 't8' }]
-#[{ n: 9, tag: 't9' }, { n: 10, tag: 't10' }, { n: 11, tag: 't11' }, { n: 12, tag: 't12' }]
-#[{ n: 13, tag: 't13' }, { n: 14, tag: 't14' }, { n: 15, tag: 't15' }, { n: 16, tag: 't16' }]
-#[{ n: 17, tag: 't17' }, { n: 18, tag: 't18' }, { n: 19, tag: 't19' }, { n: 20, tag: 't20' }]
-#[{ n: 21, tag: 't21' }, { n: 22, tag: 't22' }, { n: 23, tag: 't23' }, { n: 24, tag: 't24' }]
-#[{ n: 25, tag: 't25' }, { n: 26, tag: 't26' }, { n: 27, tag: 't27' }, { n: 28, tag: 't28' }]
-#[{ n: 29, tag: 't29' }, { n: 30, tag: 't30' }, { n: 31, tag: 't31' }, { n: 32, tag: 't32' }]
-#[{ n: 33, tag: 't33' }, { n: 34, tag: 't34' }, { n: 35, tag: 't35' }, { n: 36, tag: 't36' }]
-#[{ n: 37, tag: 't37' }, { n: 38, tag: 't38' }, { n: 39, tag: 't39' }, { n: 40, tag: 't40' }]
-#[{ n: 41, tag: 't41' }, { n: 42, tag: 't42' }, { n: 43, tag: 't43' }, { n: 44, tag: 't44' }]
-#[{ n: 45, tag: 't45' }, { n: 46, tag: 't46' }, { n: 47, tag: 't47' }, { n: 48, tag: 't48' }]
-#[{ n: 49, tag: 't49' }, { n: 50, tag: 't50' }, { n: 51, tag: 't51' }, { n: 52, tag: 't52' }]
-#[{ n: 53, tag: 't53' }, { n: 54, tag: 't54' }, { n: 55, tag: 't55' }, { n: 56, tag: 't56' }]
-#[{ n: 57, tag: 't57' }, { n: 58, tag: 't58' }, { n: 59, tag: 't59' }, { n: 60, tag: 't60' }]
-#[{ n: 61, tag: 't61' }, { n: 62, tag: 't62' }, { n: 63, tag: 't63' }, { n: 64, tag: 't64' }]
-#[{ n: 65, tag: 't65' }, { n: 66, tag: 't66' }, { n: 67, tag: 't67' }, { n: 68, tag: 't68' }]
-#[{ n: 69, tag: 't69' }, { n: 70, tag: 't70' }, { n: 71, tag: 't71' }, { n: 72, tag: 't72' }]
-#[{ n: 73, tag: 't73' }, { n: 74, tag: 't74' }, { n: 75, tag: 't75' }, { n: 76, tag: 't76' }]
-#[{ n: 77, tag: 't77' }, { n: 78, tag: 't78' }, { n: 79, tag: 't79' }, { n: 80, tag: 't80' }]
+repeatable attribute Tag on class { n: int, tag: string }
+repeatable attribute Twin on class { n: int, tag: string }
+attribute Missing on class { missing: int }
+
+// 1. 80 `Tag` and 80 `Twin` attributes on one class. The two have the same fields,
+//    so a read of one has to check every payload and return only its own 80.
+#[Tag(n: 1, tag: 't1'), Tag(n: 2, tag: 't2'), Tag(n: 3, tag: 't3'), Tag(n: 4, tag: 't4')]
+#[Tag(n: 5, tag: 't5'), Tag(n: 6, tag: 't6'), Tag(n: 7, tag: 't7'), Tag(n: 8, tag: 't8')]
+#[Tag(n: 9, tag: 't9'), Tag(n: 10, tag: 't10'), Tag(n: 11, tag: 't11'), Tag(n: 12, tag: 't12')]
+#[Tag(n: 13, tag: 't13'), Tag(n: 14, tag: 't14'), Tag(n: 15, tag: 't15'), Tag(n: 16, tag: 't16')]
+#[Tag(n: 17, tag: 't17'), Tag(n: 18, tag: 't18'), Tag(n: 19, tag: 't19'), Tag(n: 20, tag: 't20')]
+#[Tag(n: 21, tag: 't21'), Tag(n: 22, tag: 't22'), Tag(n: 23, tag: 't23'), Tag(n: 24, tag: 't24')]
+#[Tag(n: 25, tag: 't25'), Tag(n: 26, tag: 't26'), Tag(n: 27, tag: 't27'), Tag(n: 28, tag: 't28')]
+#[Tag(n: 29, tag: 't29'), Tag(n: 30, tag: 't30'), Tag(n: 31, tag: 't31'), Tag(n: 32, tag: 't32')]
+#[Tag(n: 33, tag: 't33'), Tag(n: 34, tag: 't34'), Tag(n: 35, tag: 't35'), Tag(n: 36, tag: 't36')]
+#[Tag(n: 37, tag: 't37'), Tag(n: 38, tag: 't38'), Tag(n: 39, tag: 't39'), Tag(n: 40, tag: 't40')]
+#[Tag(n: 41, tag: 't41'), Tag(n: 42, tag: 't42'), Tag(n: 43, tag: 't43'), Tag(n: 44, tag: 't44')]
+#[Tag(n: 45, tag: 't45'), Tag(n: 46, tag: 't46'), Tag(n: 47, tag: 't47'), Tag(n: 48, tag: 't48')]
+#[Tag(n: 49, tag: 't49'), Tag(n: 50, tag: 't50'), Tag(n: 51, tag: 't51'), Tag(n: 52, tag: 't52')]
+#[Tag(n: 53, tag: 't53'), Tag(n: 54, tag: 't54'), Tag(n: 55, tag: 't55'), Tag(n: 56, tag: 't56')]
+#[Tag(n: 57, tag: 't57'), Tag(n: 58, tag: 't58'), Tag(n: 59, tag: 't59'), Tag(n: 60, tag: 't60')]
+#[Tag(n: 61, tag: 't61'), Tag(n: 62, tag: 't62'), Tag(n: 63, tag: 't63'), Tag(n: 64, tag: 't64')]
+#[Tag(n: 65, tag: 't65'), Tag(n: 66, tag: 't66'), Tag(n: 67, tag: 't67'), Tag(n: 68, tag: 't68')]
+#[Tag(n: 69, tag: 't69'), Tag(n: 70, tag: 't70'), Tag(n: 71, tag: 't71'), Tag(n: 72, tag: 't72')]
+#[Tag(n: 73, tag: 't73'), Tag(n: 74, tag: 't74'), Tag(n: 75, tag: 't75'), Tag(n: 76, tag: 't76')]
+#[Tag(n: 77, tag: 't77'), Tag(n: 78, tag: 't78'), Tag(n: 79, tag: 't79'), Tag(n: 80, tag: 't80')]
+#[Twin(n: 1, tag: 'w1'), Twin(n: 2, tag: 'w2'), Twin(n: 3, tag: 'w3'), Twin(n: 4, tag: 'w4')]
+#[Twin(n: 5, tag: 'w5'), Twin(n: 6, tag: 'w6'), Twin(n: 7, tag: 'w7'), Twin(n: 8, tag: 'w8')]
+#[Twin(n: 9, tag: 'w9'), Twin(n: 10, tag: 'w10'), Twin(n: 11, tag: 'w11'), Twin(n: 12, tag: 'w12')]
+#[Twin(n: 13, tag: 'w13'), Twin(n: 14, tag: 'w14'), Twin(n: 15, tag: 'w15'), Twin(n: 16, tag: 'w16')]
+#[Twin(n: 17, tag: 'w17'), Twin(n: 18, tag: 'w18'), Twin(n: 19, tag: 'w19'), Twin(n: 20, tag: 'w20')]
+#[Twin(n: 21, tag: 'w21'), Twin(n: 22, tag: 'w22'), Twin(n: 23, tag: 'w23'), Twin(n: 24, tag: 'w24')]
+#[Twin(n: 25, tag: 'w25'), Twin(n: 26, tag: 'w26'), Twin(n: 27, tag: 'w27'), Twin(n: 28, tag: 'w28')]
+#[Twin(n: 29, tag: 'w29'), Twin(n: 30, tag: 'w30'), Twin(n: 31, tag: 'w31'), Twin(n: 32, tag: 'w32')]
+#[Twin(n: 33, tag: 'w33'), Twin(n: 34, tag: 'w34'), Twin(n: 35, tag: 'w35'), Twin(n: 36, tag: 'w36')]
+#[Twin(n: 37, tag: 'w37'), Twin(n: 38, tag: 'w38'), Twin(n: 39, tag: 'w39'), Twin(n: 40, tag: 'w40')]
+#[Twin(n: 41, tag: 'w41'), Twin(n: 42, tag: 'w42'), Twin(n: 43, tag: 'w43'), Twin(n: 44, tag: 'w44')]
+#[Twin(n: 45, tag: 'w45'), Twin(n: 46, tag: 'w46'), Twin(n: 47, tag: 'w47'), Twin(n: 48, tag: 'w48')]
+#[Twin(n: 49, tag: 'w49'), Twin(n: 50, tag: 'w50'), Twin(n: 51, tag: 'w51'), Twin(n: 52, tag: 'w52')]
+#[Twin(n: 53, tag: 'w53'), Twin(n: 54, tag: 'w54'), Twin(n: 55, tag: 'w55'), Twin(n: 56, tag: 'w56')]
+#[Twin(n: 57, tag: 'w57'), Twin(n: 58, tag: 'w58'), Twin(n: 59, tag: 'w59'), Twin(n: 60, tag: 'w60')]
+#[Twin(n: 61, tag: 'w61'), Twin(n: 62, tag: 'w62'), Twin(n: 63, tag: 'w63'), Twin(n: 64, tag: 'w64')]
+#[Twin(n: 65, tag: 'w65'), Twin(n: 66, tag: 'w66'), Twin(n: 67, tag: 'w67'), Twin(n: 68, tag: 'w68')]
+#[Twin(n: 69, tag: 'w69'), Twin(n: 70, tag: 'w70'), Twin(n: 71, tag: 'w71'), Twin(n: 72, tag: 'w72')]
+#[Twin(n: 73, tag: 'w73'), Twin(n: 74, tag: 'w74'), Twin(n: 75, tag: 'w75'), Twin(n: 76, tag: 'w76')]
+#[Twin(n: 77, tag: 'w77'), Twin(n: 78, tag: 'w78'), Twin(n: 79, tag: 'w79'), Twin(n: 80, tag: 'w80')]
 class Crowded
 {}
 
@@ -35,46 +59,45 @@ class Attack
     {
         uint $total = 0;
 
-        // 2. Twelve reads with the empty shape `{}`, which every payload
-        //    satisfies. Each place gets its own copy of all 80 values.
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        // 2. Twelve reads of `Tag`. Each place gets its own copy of the 80 `Tag` values.
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Tag>(Crowded::constructor));
 
-        // 3. Twelve more, naming one field. All 80 payloads are compared at each
-        //    of the twelve places, and all 80 match again.
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        // 3. Twelve reads of `Twin`. All 160 payloads are checked at each of the
+        //    twelve places, and each read returns the 80 `Twin` values only.
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<Twin>(Crowded::constructor));
 
-        // 4. A shape no payload has. All 80 are compared and the answer is an
-        //    empty array, so this adds nothing to the total.
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ missing: int }>(Crowded::constructor));
+        // 4. An attribute the class does not have. All 160 are checked and the
+        //    result is an empty array, so this adds nothing to the total.
+        $total = $total + Core\Arr::count(Core\Attributes::all<Missing>(Crowded::constructor));
 
         return $total;
     }
 }
 
 // 5. Every read above, run 20000 times. That builds 38 million values. A program
-//    that kept a copy of each answer would grow until it reached its memory limit.
+//    that kept a copy of each result would grow until it reached its memory limit.
 class Repeat
 {
     public static function many(uint $rounds): uint

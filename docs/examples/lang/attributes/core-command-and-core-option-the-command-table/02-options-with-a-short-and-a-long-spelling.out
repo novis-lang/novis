@@ -1,4 +1,9 @@
-  -p, --port  The port to listen on
-  -q, --quiet  Print nothing
+usage: serve [--port] [--quiet]
+
+Run the web server
+
+options:
+  -p, --port   uint  The port to listen on
+  -q, --quiet  bool  Print nothing
 listening on 8080
 exit status 0

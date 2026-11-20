@@ -5,7 +5,7 @@
 // bench: calls 3
 // bench: complexity constant
 
-type Route = { path: string };
+attribute Route on method { path: string }
 
 interface Page
 {
@@ -45,7 +45,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            foreach (Core\Program::implementingWith<Page, Route>('render') as { instance: Page, attribute: ?Route } $row) {
+            foreach (Core\Program::implementingWith<Page, Route>('render') as var $row) {
                 // Chained: the length counted this round is added to the total
                 // carried out of the round before.
                 $total = $total + Core\Str::length($row->attribute?->path ?? '') + $total % 2;

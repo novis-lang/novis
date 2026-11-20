@@ -980,10 +980,10 @@ fn a_parameter_typed_string_offers_no_allowed_values() {
     }
 }
 
-/// A shape alias used as an attribute: a set of allowed strings, an array of them, a nested shape
-/// with one, and a plain `string`.
-const LINK: &str = "type Link = { onRemove?: 'keep'|'clear'|\"it's\", order?: array<'asc'|'desc'>, \
-     page?: { size: 'small'|'large' }, note?: string };\n\n";
+/// An attribute a program declares, with fields: a set of allowed strings, an array of them, a
+/// nested shape with one, and a plain `string`.
+const LINK: &str = "attribute Link on class { onRemove?: 'keep'|'clear'|\"it's\", order?: array<'asc'|'desc'>, \
+     page?: { size: 'small'|'large' }, note?: string }\n\n";
 
 /// The list offered at the cursor in `attribute`, written on a class after [`LINK`], with no
 /// completion file, and whether a trigger character there opens it.

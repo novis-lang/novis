@@ -1,13 +1,13 @@
 --TEST--
-An attribute's name may be `Owner::Name`, a shape-typed `type` alias declared in an interface or a class, resolved exactly as the type `Owner::Name` is, and its payload is retrieved by shape like any other — `rule:attributes/attach-sites-and-forms` and `rule:types/class-scoped-alias`
+An attribute declared in an interface may be written `Owner::Name` on the interface's descendants and is retrieved as `Owner::Name` outside them, and an autoloaded attribute declaration is loaded by the attribute that names it — `rule:attributes/an-attribute-is-declared-with-its-sites` and `rule:attributes/a-retrieval-matches-the-declaration-it-names`
 --FILE--
 <?nvs
-// `Page::Meta` is a `type` alias declared inside the interface `Page`.
-// An attribute names it the same way a type does.
+// `Page::Meta` is an attribute declared inside the interface `Page`.
+// `Home` and `News` implement `Page`, so they may use it.
 autoload 'Blog' from './lib';
 
 interface Page {
-    type Meta = {title: string};
+    attribute Meta on method { title: string }
     public function render(): string;
 }
 
@@ -19,32 +19,23 @@ class Home implements Page {
 class News implements Page {
     // `Blog\Section` is declared in `lib/Section.nvs`. Only this attribute
     // names it, so the attribute is what loads that file.
-    #[Blog\Section::Info(heading: "Latest")]
-    #[Page::Meta(title: "News", draft: true)]
+    #[Blog\Section(heading: "Latest")]
+    #[Meta(title: "News", draft: true)]
     public function render(): string { return "news"; }
 }
 
-foreach (Core\Program::implementingWith<Page, Page::Meta>("render") as {instance: Page, attribute: ?Page::Meta} $row) {
+foreach (Core\Program::implementingWith<Page, Page::Meta>("render") as var $row) {
     echo $row->instance->render(), " ", $row->attribute?->title ?? "none", "\n";
 }
-// Retrieval checks the shape, not the name: an inline shape finds the same payloads.
-foreach (Core\Program::implementingWith<Page, {title: string}>("render") as {instance: Page, attribute: ?{title: string}} $titled) {
-    echo $titled->instance->render(), " ", $titled->attribute?->title ?? "none", "\n";
-}
-foreach (Core\Program::implementingWith<Page, {heading: string}>("render") as {instance: Page, attribute: ?{heading: string}} $section) {
+foreach (Core\Program::implementingWith<Page, Blog\Section>("render") as var $section) {
     echo $section->instance->render(), " ", $section->attribute?->heading ?? "none", "\n";
 }
 --FILE lib/Section.nvs--
 <?nvs
 namespace Blog;
 
-final class Section
-{
-    type Info = {heading: string};
-}
+attribute Section on method { heading: string }
 --EXPECT--
-home Home
-news News
 home Home
 news News
 home none

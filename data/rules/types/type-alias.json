@@ -10,7 +10,6 @@
   "guardedBy": [
     "tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst",
     "tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst",
-    "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
     "crates/nvs-hir/src/aliases.rs"
   ]
 }

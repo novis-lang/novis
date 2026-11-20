@@ -2,7 +2,7 @@
 // Shows the two things that are not a method attribute: an empty member name,
 // which reads the attributes on the class itself, and a class carrying none.
 
-type Owner = { team: string };
+attribute Owner on class { team: string }
 
 interface Job
 {
@@ -28,6 +28,6 @@ class Cleanup implements Job
 
 // `Cleanup` has no `#[Owner]`, so its attribute is `null` and `??` supplies
 // the text instead. This prints `cleanup: nobody` and then `invoices: billing`.
-foreach (Core\Program::implementingWith<Job, Owner>('') as { instance: Job, attribute: ?Owner } $row) {
+foreach (Core\Program::implementingWith<Job, Owner>('') as var $row) {
     echo $row->instance->run(), ': ', $row->attribute?->team ?? 'nobody', "\n";
 }

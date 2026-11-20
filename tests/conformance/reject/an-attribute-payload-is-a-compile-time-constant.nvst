@@ -18,21 +18,21 @@ class Limits {
     public const int MAX = 255;
 }
 
-// `rule:attributes/attach-sites-and-forms`: a named attribute's name is a shape-typed `type` alias and
-// nothing else, so every name written below is declared here. What each
-// payload may *hold* is `rule:attributes/payload-is-a-compile-time-constant`
-// and is the same either way.
-type Route = {path: string};
-type Audit = {};
-type Column = {};
-type Cache = {};
-type Autowire = {};
+// Every attribute name written below is declared here. What each payload may
+// *hold* is `rule:attributes/payload-is-a-compile-time-constant`, and is the
+// same for every declaration.
+attribute Route on class { path: string }
+attribute Tag on class { tag: int }
+attribute Audit on class {}
+attribute Column on property {}
+attribute Cache on method {}
+attribute Autowire on parameter {}
 
 // The accepted half first, so a position that stops being accepted fails here
-// rather than as a missing refusal. `rule:attributes/attach-sites-and-forms`'s two attach forms are both
-// here — the named `Name(field: value)` and the bare `{field: value}` — since
-// naming is attach-site sugar and never changes what a payload may hold.
-#[Route(path: "/users", method: "GET"), {tag: 1}]
+// rather than as a missing refusal. Two attributes in one bracket hold the
+// same kinds of value, and an extra field is width subtyping, so it holds
+// them too.
+#[Route(path: "/users", method: "GET"), Tag(tag: 1)]
 #[Audit]
 class Accepted {
     #[Column(

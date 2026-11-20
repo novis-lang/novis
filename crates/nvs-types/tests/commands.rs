@@ -236,11 +236,11 @@ fn an_option_marker_outside_a_command_method_is_refused() {
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // Nominal, like every other name on the closed roster: a userland `Option`
-    // alias is a different attribute and is nothing this refusal has an
-    // opinion about.
+    // Nominal, like every other name on the closed roster: a program's own
+    // `Option` declaration is a different attribute and is nothing this
+    // refusal has an opinion about.
     let diags = check_src(
-        "<?nvs\ntype Option = {};\nclass Deploy {\n  \
+        "<?nvs\nattribute Option on parameter {}\nclass Deploy {\n  \
          public static function deploy(#[Option] string $target): void {}\n}\n",
     );
     assert!(

@@ -1,8 +1,8 @@
 --TEST--
-an attribute's name is the type it resolved to, so it is coloured as a type — carrying `defaultLibrary` for a compiler attribute and nothing for a userland alias — and its payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
+an attribute's name at a use is coloured as a type — carrying `defaultLibrary` for a `Core` attribute and nothing for a program's own declaration — the declaration's own name gets no token, and the payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
-type Tagged = {tag: string};
+attribute Tagged on method { tag: string }
 
 class Blog
 {
@@ -16,7 +16,6 @@ class Blog
 --REQUEST--
 semanticTokens types=type,enum,enumMember,property
 --EXPECT--
-2:6+6 type
 6:7+10 type defaultLibrary
 6:18+4 property
 6:29+6 property

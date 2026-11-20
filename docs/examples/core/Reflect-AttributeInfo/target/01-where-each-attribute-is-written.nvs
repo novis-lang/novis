@@ -1,13 +1,17 @@
 <?nvs
 // Shows which part of a class each attribute is written on.
 
-#[{ table: 'products' }]
+attribute Table on class { name: string }
+attribute Column on property { name: string }
+attribute Cache on method { seconds: int }
+
+#[Table(name: 'products')]
 class Product
 {
-    #[{ column: 'product_name' }]
+    #[Column(name: 'product_name')]
     public string $name = '';
 
-    #[{ cache: 300 }]
+    #[Cache(seconds: 300)]
     public function price(): int
     {
         return 0;

@@ -1,3 +1,4 @@
-/contact -> contact us
-(no route) -> not routed
-/ -> home
+/contact -> Contact us
+/imprint -> (not in the menu)
+/contact -> (not in the footer)
+/imprint -> Imprint

@@ -2,7 +2,7 @@
 // Shows how to read an attribute that is on the class itself: the member name
 // is left out. A class without the attribute gets `null`, so a default is easy.
 
-type Order = { priority: int };
+attribute Order on class { priority: int }
 
 interface Plugin
 {
@@ -37,6 +37,6 @@ class Auth implements Plugin
 
 // Each plugin with its priority, and 100 for a plugin with no `Order` attribute.
 // The rows come in class-name order, so this prints `auth 1`, `cache 10`, `logger 100`.
-foreach (Core\Program::implementingWith<Plugin, Order>() as { instance: Plugin, attribute: ?Order } $row) {
+foreach (Core\Program::implementingWith<Plugin, Order>() as var $row) {
     echo $row->instance->name(), ' ', $row->attribute?->priority ?? 100, "\n";
 }

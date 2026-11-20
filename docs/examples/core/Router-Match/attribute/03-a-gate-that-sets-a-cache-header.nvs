@@ -4,11 +4,13 @@
 use Core\Http\Method;
 use Core\Router\Refusal;
 
+attribute Cache on method { seconds: int }
+
 class Pages
 {
     #[Core\Route(path: '/news', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{ seconds: 60 }]
+    #[Cache(seconds: 60)]
     public function news(): void
     {
         echo 'news';
@@ -28,7 +30,7 @@ class Gate implements Core\Router\Gate
     {
         // A route with a cache setting may be cached for that many seconds.
         // A route without one is never cached.
-        ?{ seconds: int } $cache = $route->attribute<{ seconds: int }>();
+        var $cache = $route->attribute<Cache>();
         if ($cache != null) {
             Core\Response::setHeader('Cache-Control', 'max-age=' . $cache->seconds);
         } else {

@@ -18,10 +18,7 @@ require './other.nvs';
 // `app.nvs` meant, and a fold reading it here answers a different enum.
 use Other\Mode;
 
-?{code: int, label: string, mode: App\Mode, owner: string} $meta =
-    Core\Attributes::get<{code: int, label: string, mode: App\Mode, owner: string}>(
-        App\Job::constructor
-    );
+var $meta = Core\Attributes::get<App\Meta>(App\Job::constructor);
 echo "meta=", $meta != null ? "some" : "none", "\n";
 if ($meta != null) {
     echo "code=", $meta->code as string, "\n";
@@ -32,7 +29,7 @@ if ($meta != null) {
 // `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s property spelling, over a class constant whose own value is an array:
 // the payload reads the entry a *read* of `App\Limits::ROWS` inlines, so a
 // container folds whole or not at all.
-?{rows: array<int>} $rows = Core\Attributes::get<{rows: array<int>}>(
+var $rows = Core\Attributes::get<App\Rows>(
     App\Job::constructor,
     "tries"
 );
@@ -68,15 +65,18 @@ enum Mode: int {
     Slow = 2,
 }
 
+attribute Meta on class { code: int, label: string, mode: Mode, owner: string }
+attribute Rows on property { rows: array<int> }
+
 class Limits {
     public const int MAX = 5;
     public const string LABEL = "limits";
     public const array<int> ROWS = [1, 2];
 }
 
-#[{code: Limits::MAX, label: Limits::LABEL, mode: Mode::Fast, owner: Limits::class}]
+#[Meta(code: Limits::MAX, label: Limits::LABEL, mode: Mode::Fast, owner: Limits::class)]
 class Job {
-    #[{rows: Limits::ROWS}]
+    #[Rows(rows: Limits::ROWS)]
     public int $tries = 0;
 }
 --FILE other.nvs--

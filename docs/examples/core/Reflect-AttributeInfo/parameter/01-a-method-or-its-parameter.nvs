@@ -1,10 +1,13 @@
 <?nvs
 // Shows how to tell an attribute on a method from an attribute on one of its parameters.
 
+attribute Path on method { path: string }
+attribute From on parameter { source: string }
+
 class InvoiceController
 {
-    #[{ path: '/invoices/{id}' }]
-    public function show(#[{ source: 'path' }] int $id): int
+    #[Path(path: '/invoices/{id}')]
+    public function show(#[From(source: 'path')] int $id): int
     {
         return $id;
     }

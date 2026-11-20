@@ -4,11 +4,13 @@
 // bench: calls 1
 // bench: complexity constant
 
+attribute Cache on method { seconds: int }
+
 class Pages
 {
     #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{ seconds: 60 }]
+    #[Cache(seconds: 60)]
     public function home(): string
     {
         return 'home';
@@ -16,7 +18,7 @@ class Pages
 
     #[Core\Route(path: '/news', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{ seconds: 300 }]
+    #[Cache(seconds: 300)]
     public function news(): string
     {
         return 'news';
@@ -39,7 +41,7 @@ class Bench
         while ($i < $rounds) {
             // Last round's total decides which match this round reads.
             Core\Router\Match $match = $total % 2 == 0 ? $cached : $live;
-            ?{ seconds: int } $cache = $match->attribute<{ seconds: int }>();
+            var $cache = $match->attribute<Cache>();
             if ($cache != null) {
                 $total = $total + 1;
             } else {

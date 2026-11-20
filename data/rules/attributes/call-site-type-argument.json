@@ -6,7 +6,7 @@
     "programs/implementing"
   ],
   "guardedBy": [
-    "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+    "tests/conformance/core/an-attribute-is-retrieved-by-the-declaration-it-was-written-under.nvst",
     "crates/nvs-syntax/src/parser/expr.rs"
   ]
 }

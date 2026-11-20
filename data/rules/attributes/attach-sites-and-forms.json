@@ -8,9 +8,9 @@
     "statements/a-qualified-name-is-absolute"
   ],
   "guardedBy": [
-    "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
+    "tests/conformance/reject/an-attribute-payload-is-checked-against-its-declarations-fields.nvst",
     "tests/conformance/reject/a-malformed-attribute-is-one-error.nvst",
-    "tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst",
+    "tests/conformance/lang/an-attribute-declared-in-an-interface-is-named-through-its-owner.nvst",
     "crates/nvs-syntax/src/parser/tests/decl.rs",
     "crates/nvs-types/src/attributes.rs"
   ],

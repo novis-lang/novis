@@ -1,17 +1,24 @@
 <?nvs
-// Shows the name of each attribute on a class, for the named form and for the short form.
+// Shows the full name of each attribute on a class, with its namespace.
 
-type Route = { path: string };
+namespace Shop;
+
+attribute Route on class { path: string }
+
+abstract class Controller
+{
+    attribute Cache on class { seconds: int }
+}
 
 #[Route(path: '/orders')]
-#[{ cache: 60 }]
-class OrderController
+#[Cache(seconds: 60)]
+class OrderController extends Controller
 {}
 
 var $info = Core\Reflect::forObject(new OrderController());
 
-// The first attribute has the name `Route`. The second one has no name, so `name` returns "".
-// This prints `[Route]` and then `[]`.
+// `Cache` is declared inside the class `Controller`, so its name includes the class.
+// This prints `[Shop\Route]` and then `[Shop\Controller::Cache]`.
 foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
     echo '[', $attribute->name(), "]\n";
 }

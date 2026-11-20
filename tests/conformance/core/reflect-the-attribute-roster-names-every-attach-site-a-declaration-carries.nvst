@@ -13,16 +13,19 @@
 // parameter's. The pair `target`/`parameter` is what tells the last two apart —
 // an attribute above a method and one before its parameter both name the
 // method, and only one of them names a parameter.
-type Route = {path: string};
+attribute Route on class, method { path: string }
+attribute Audit on class { audit: bool }
+attribute Column on property { column: string }
+attribute Inject on parameter { inject: string }
 
 #[Route(path: "/users")]
-#[{audit: true}]
+#[Audit(audit: true)]
 class Controller {
-    #[{column: "name"}]
+    #[Column(column: "name")]
     public string $name = "";
 
     #[Route(path: "/show")]
-    public function show(#[{inject: "repo"}] int $id): int {
+    public function show(#[Inject(inject: "repo")] int $id): int {
         return $id;
     }
 }
@@ -31,12 +34,11 @@ var $described = Core\Reflect::forObject(new Controller());
 var $roster = $described->attributes();
 
 // The count is asserted beside the rows because a roster that dropped the
-// parameter's site still prints four plausible lines. Both forms are here for
-// the same reason: the name is what was *written*, and the bare form's empty
-// string is an answer rather than an omission.
+// parameter's site still prints four plausible lines. The name is the declaration
+// each payload was written under.
 echo Core\Arr::count($roster), "\n";
 foreach ($roster as Core\Reflect\AttributeInfo $attribute) {
-    echo $attribute->name() == "" ? "bare" : $attribute->name(), " on ",
+    echo $attribute->name(), " on ",
          $attribute->target() == "" ? "<class>" : $attribute->target();
     if ($attribute->parameter() != "") { echo "($", $attribute->parameter(), ")"; }
     echo " fields=", Core\Arr::count($attribute->fields()), "\n";
@@ -54,10 +56,10 @@ foreach ($roster as Core\Reflect\AttributeInfo $one) {
 --EXPECT--
 5
 Route on <class> fields=1
-bare on <class> fields=1
-bare on name fields=1
+Audit on <class> fields=1
+Column on name fields=1
 Route on show fields=1
-bare on show($id) fields=1
+Inject on show($id) fields=1
   path="/users"
   audit=true
   column="name"

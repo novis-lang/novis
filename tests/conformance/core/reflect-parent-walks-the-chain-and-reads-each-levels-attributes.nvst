@@ -10,18 +10,20 @@
 // no instances, and an interface that extends another still has no parent.
 namespace App;
 
+attribute Column on property { column: string }
+
 abstract class Model {
-    #[{column: "id"}]
+    #[Column(column: "id")]
     public int $id = 0;
 }
 
 class Post extends Model {
-    #[{column: "title"}]
+    #[Column(column: "title")]
     public string $title = "";
 }
 
 class FeaturedPost extends Post {
-    #[{column: "rank"}]
+    #[Column(column: "rank")]
     public int $rank = 0;
 }
 

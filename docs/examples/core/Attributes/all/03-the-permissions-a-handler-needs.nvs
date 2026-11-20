@@ -2,7 +2,7 @@
 // Shows a check you can write before a handler runs. The handler lists the
 // permissions it needs, and the program reads that list back.
 
-type Needs = { permission: string };
+repeatable attribute Needs on method { permission: string }
 
 class Orders
 {
@@ -17,9 +17,9 @@ class Orders
 class Access
 {
     // Returns true when `$held` contains every permission in `$needed`.
-    public static function allows(array<Needs> $needed, array<string> $held): bool
+    public static function allows(array<{ permission: string }> $needed, array<string> $held): bool
     {
-        foreach ($needed as Needs $need) {
+        foreach ($needed as var $need) {
             if (!Core\Arr::contains($held, $need->permission)) {
                 return false;
             }
@@ -29,7 +29,7 @@ class Access
 }
 
 // `Orders::cancelAll` names the method. Both of its permissions come back.
-array<Needs> $needed = Core\Attributes::all<Needs>(Orders::cancelAll);
+var $needed = Core\Attributes::all<Needs>(Orders::cancelAll);
 array<string> $held = ['orders.read'];
 
 // This user may read orders but not write them, so this prints `not allowed`.

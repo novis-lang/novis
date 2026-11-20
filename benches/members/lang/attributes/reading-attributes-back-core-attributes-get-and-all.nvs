@@ -7,8 +7,9 @@
 // bench: allocations 7
 // bench: complexity constant
 
-type Route = { path: string };
-type Middleware = { name: string };
+attribute Route on method { path: string }
+repeatable attribute Middleware on method { name: string }
+attribute Limit on parameter { max: int }
 
 class Orders
 {
@@ -16,7 +17,7 @@ class Orders
     #[Middleware(name: 'auth')]
     #[Middleware(name: 'throttle')]
     #[Middleware(name: 'audit')]
-    public function show(#[{ max: 64 }] int $id): int
+    public function show(#[Limit(max: 64)] int $id): int
     {
         return $id;
     }
@@ -29,9 +30,9 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Route $route = Core\Attributes::get<Route>(Orders::show);
-            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show);
-            ?{ max: int } $limit = Core\Attributes::get<{ max: int }>(Orders::show, 'id');
+            var $route = Core\Attributes::get<Route>(Orders::show);
+            var $layers = Core\Attributes::all<Middleware>(Orders::show);
+            var $limit = Core\Attributes::get<Limit>(Orders::show, 'id');
             if ($route != null) {
                 if ($limit != null) {
                     // Chained: the length counted this round is picked with the

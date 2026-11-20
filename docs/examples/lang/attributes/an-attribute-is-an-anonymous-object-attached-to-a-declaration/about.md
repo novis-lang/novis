@@ -1,12 +1,18 @@
-An attribute is an anonymous object attached to a declaration. You write it as `#[...]` in front of
-the declaration. A class, an interface, an enum, a method, a property, a class constant and a
-parameter can each carry one.
+An attribute attaches fixed values to a declaration. You declare it first, with its name, the places
+it may be written and its fields:
 
-Inside the brackets you write named values, as in `#[Route(path: "/users")]`. The name in front of the
-brackets must be a `type` alias for a shape, and Novis checks your values against that shape. An
-alias declared inside a class, an interface or an enum is written with its owner, as in
-`#[Job::Meta(...)]`, the same way as in a type. An attribute is not a class. Novis creates nothing
-for it, and none of your code runs for it.
+```nvs
+attribute Table on class { name: string }
+```
+
+Then you write it as `#[...]` in front of a class, a method, a property or a parameter:
+`#[Table(name: 'users')]`. The words after `on` list where the attribute may be written. Novis checks
+your values against the fields. An attribute is not a class. Novis creates no object for it, and none
+of your code runs for it.
+
+An attribute may also be declared inside a class or an interface. Then only the classes that extend or
+implement that type may use it. Outside that type, you write its name with the owner, as in
+`Job::Meta`.
 
 Every value must be known while the program is compiled: a number, a string, `true`, `null`, a list, a
 class constant or an enum case. A variable or a function call there does not compile.

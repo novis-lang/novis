@@ -1,24 +1,29 @@
 --TEST--
-`Core\Attributes::all` answers every attached payload object satisfying the shape written at the call, in declaration order, at a class, a property, a method and a parameter alike, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`)
+`Core\Attributes::all` answers every payload written under the declaration named at the call, in the order written, at a class, a property, a method and a parameter alike, never a payload of another declaration with the same fields, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
 // covers: Core\Attributes::all
-// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: retrieval matches under width subtyping and
-// never by the name an attribute was attached under. This case asks the same
-// question at four sites and prints each roster whole, so a site that lost an
-// entry, reordered one, or started matching by name fails here while the other
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: retrieval matches by declaration and
+// never by shape. `Note` has every field `Tag` has, and it is still not a `Tag`. This case asks
+// the same question at four sites and prints each roster whole, so a site that lost an
+// entry, reordered one, or started matching by shape fails here while the other
 // three go on printing plausibly.
-type Tag = {name: string};
+repeatable attribute Tag on class, method, property, parameter { name: string }
+repeatable attribute Note on class, method { name: string, weight?: int }
+attribute Missing on class, method { missing: int }
+
+type Named = {name: string};
 
 #[Tag(name: "class-a")]
-#[{name: "class-b", weight: 2}]
+#[Note(name: "class-b", weight: 2)]
+#[Tag(name: "class-c")]
 class Target {
     #[Tag(name: "prop-a")]
     #[Tag(name: "prop-b")]
     public int $rows = 0;
 
-    #[{name: "method-a"}]
+    #[Note(name: "method-a")]
     #[Tag(name: "method-b")]
     public function run(#[Tag(name: "param-a")] int $id): int {
         return $id;
@@ -28,20 +33,22 @@ class Target {
 class Bare {}
 
 class Names {
-    public static function of(array<Tag> $tags): string {
+    public static function of(array<Named> $tags): string {
         string $out = "";
-        foreach ($tags as Tag $tag) {
+        foreach ($tags as Named $tag) {
             $out = $out == "" ? $tag->name : $out . "," . $tag->name;
         }
         return $out == "" ? "(none)" : $out;
     }
 }
 
-// Each roster read whole. A bare anonymous object and a named one are both answers, and
-// the wider `{name, weight}` object on the class satisfies the narrower `Tag`.
+// Each roster read whole, in the order written. The `Note` payloads are only
+// answers for `Note`.
 echo "class: ", Names::of(Core\Attributes::all<Tag>(Target::constructor)), "\n";
+echo "class notes: ", Names::of(Core\Attributes::all<Note>(Target::constructor)), "\n";
 echo "property: ", Names::of(Core\Attributes::all<Tag>(Target::constructor, "rows")), "\n";
 echo "method: ", Names::of(Core\Attributes::all<Tag>(Target::run)), "\n";
+echo "method notes: ", Names::of(Core\Attributes::all<Note>(Target::run)), "\n";
 echo "parameter: ", Names::of(Core\Attributes::all<Tag>(Target::run, "id")), "\n";
 echo "bare: ", Names::of(Core\Attributes::all<Tag>(Bare::constructor)), "\n";
 
@@ -57,20 +64,24 @@ string $computed = "ro" . "ws";
 if (Core\Arr::count(Core\Attributes::all<Tag>(Target::constructor, $computed)) == 0) { $agreed = $agreed + 1; }
 if (Core\Attributes::get<Tag>(Target::constructor, $computed) == null) { $agreed = $agreed + 1; }
 
-// Nothing anywhere satisfies this shape, so `get` folds to `null` and `all` to [].
-if (Core\Attributes::get<{missing: int}>(Target::constructor) == null) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{missing: int}>(Target::run)) == 0) { $agreed = $agreed + 1; }
+// Nothing is written under `Missing`, so `get` folds to `null` and `all` to [].
+if (Core\Attributes::get<Missing>(Target::constructor) == null) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<Missing>(Target::run)) == 0) { $agreed = $agreed + 1; }
 
-// The empty shape is satisfied by every attached payload object, so it answers the
-// whole roster wherever it is asked.
-if (Core\Arr::count(Core\Attributes::all<{}>(Target::constructor)) == 2) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{}>(Target::run, "id")) == 1) { $agreed = $agreed + 1; }
+// `get` answers the one payload written under the declaration. The method's `Note`
+// is not an answer for `Tag`, so `get<Tag>` is not two matches.
+var $first = Core\Attributes::get<Tag>(Target::run);
+if ($first != null) { if ($first->name == "method-b") { $agreed = $agreed + 1; } }
+var $note = Core\Attributes::get<Note>(Target::constructor);
+if ($note != null) { if ($note->weight == 2) { $agreed = $agreed + 1; } }
 
 echo "agreed: ", $agreed, " of 6\n";
 --EXPECT--
-class: class-a,class-b
+class: class-a,class-c
+class notes: class-b
 property: prop-a,prop-b
-method: method-a,method-b
+method: method-b
+method notes: method-a
 parameter: param-a
 bare: (none)
 agreed: 6 of 6

@@ -10,7 +10,7 @@
   "guardedBy": [
     "tests/conformance/core/router-match-attribute-a-gate-reads-a-routes-setting.nvst",
     "tests/conformance/core/router-match-attribute-is-null-where-the-method-has-none.nvst",
-    "tests/conformance/core/router-match-attribute-of-a-type-that-is-not-a-shape-is-e0729.nvst",
+    "tests/conformance/core/router-match-attribute-of-a-type-that-is-not-an-attribute-declaration-is-e1008.nvst",
     "tests/conformance/core/router-match-attribute-with-two-matches-on-one-method-is-e0728.nvst",
     "crates/nvs-types/src/match_attribute.rs",
     "crates/nvs-stdlib/src/router.rs"

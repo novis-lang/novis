@@ -3,10 +3,11 @@
 // bench: iterations 4096
 // bench: complexity constant
 
-type Route = { path: string };
+attribute Route on class { path: string }
+attribute Cache on class { seconds: int }
 
 #[Route(path: '/orders')]
-#[{ cache: 60 }]
+#[Cache(seconds: 60)]
 class OrderController
 {}
 

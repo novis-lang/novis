@@ -1,13 +1,16 @@
 <?nvs
 // Shows how to find the attributes written on one property.
 
+// `repeatable` allows more than one `Rule` on the same property.
+repeatable attribute Rule on property { required?: bool, maxLength?: int }
+
 class Signup
 {
-    #[{ required: true }]
-    #[{ maxLength: 254 }]
+    #[Rule(required: true)]
+    #[Rule(maxLength: 254)]
     public string $email = '';
 
-    #[{ maxLength: 40 }]
+    #[Rule(maxLength: 40)]
     public string $nickname = '';
 }
 

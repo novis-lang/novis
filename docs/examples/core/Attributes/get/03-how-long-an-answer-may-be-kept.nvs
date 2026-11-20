@@ -2,7 +2,7 @@
 // Shows a setting you can write next to a handler: the handler says how long its
 // answer may be reused, and the program reads that setting back.
 
-type Cache = { seconds: int };
+attribute Cache on method { seconds: int }
 
 class Reports
 {
@@ -20,7 +20,7 @@ class Reports
 
 class Answer
 {
-    public static function send(string $body, ?Cache $cache): void
+    public static function send(string $body, ?{ seconds: int } $cache): void
     {
         echo $body;
         if ($cache == null) {

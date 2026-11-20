@@ -3,7 +3,7 @@
 // `Archive` has no `rows` method, so this program does not compile.
 // proof: compile-error
 
-type Label = { text: string };
+attribute Label on method { text: string }
 
 interface Report
 {

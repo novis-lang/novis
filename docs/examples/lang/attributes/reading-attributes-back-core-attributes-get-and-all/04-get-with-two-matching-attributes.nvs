@@ -1,13 +1,13 @@
 <?nvs
-// Shows that `get` needs at most one matching attribute. `Engine` has two
-// `Tag` attributes, so this program does not compile. Use `all` instead.
+// Shows that `get` needs at most one attribute of the kind you name. `Engine`
+// has two `Tag` attributes, so this program does not compile. Use `all` instead.
 // proof: compile-error
 
-type Tag = { label: string };
+repeatable attribute Tag on class { label: string }
 
 #[Tag(label: 'fast')]
 #[Tag(label: 'safe')]
 class Engine
 {}
 
-?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);
+var $tag = Core\Attributes::get<Tag>(Engine::constructor);

@@ -3,13 +3,15 @@
 // bench: iterations 1024
 // bench: complexity constant
 
+attribute Endpoint on method { method: string, path: string, cache?: int }
+
 class CheckoutController
 {
-    #[{ method: 'POST', path: '/checkout' }]
+    #[Endpoint(method: 'POST', path: '/checkout')]
     public function pay(): void
     {}
 
-    #[{ method: 'GET', path: '/checkout/done', cache: 60 }]
+    #[Endpoint(method: 'GET', path: '/checkout/done', cache: 60)]
     public function done(): void
     {}
 }

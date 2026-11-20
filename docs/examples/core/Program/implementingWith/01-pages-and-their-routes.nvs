@@ -4,13 +4,15 @@
 
 interface Page
 {
+    // Every class that implements `Page` may use this attribute.
+    attribute PagePath on method { path: string }
+
     public function render(): string;
 }
 
 class Home implements Page
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
-    #[Core\Access(allow: Core\Audience::Public)]
+    #[PagePath(path: '/')]
     public function render(): string
     {
         return 'Welcome';
@@ -19,18 +21,18 @@ class Home implements Page
 
 class Contact implements Page
 {
-    #[Core\Route(path: '/contact', method: Core\Http\Method::Get)]
-    #[Core\Access(allow: Core\Audience::Public)]
+    #[PagePath(path: '/contact')]
     public function render(): string
     {
         return 'Write to us';
     }
 }
 
-// Every page beside the `path` field of its route. The rows are sorted by class name.
+// Every page beside the `PagePath` attribute of its `render` method.
+// The rows are sorted by class name.
 array<Page> $pages = [];
-foreach (Core\Program::implementingWith<Page, { path: string }>('render') as { instance: Page, attribute: ?{ path: string } } $row) {
-    ?{ path: string } $route = $row->attribute;
+foreach (Core\Program::implementingWith<Page, Page::PagePath>('render') as var $row) {
+    var $route = $row->attribute;
     if ($route != null) {
         $pages[$route->path] = $row->instance;
     }

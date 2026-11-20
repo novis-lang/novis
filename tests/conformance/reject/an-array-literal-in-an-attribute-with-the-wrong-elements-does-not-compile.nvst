@@ -2,7 +2,7 @@
 An array literal in a named attribute's payload whose elements do not fit the field's array type is `E0401` at the payload
 --FILE--
 <?nvs
-type Tags = {ids: array<int>};
+attribute Tags on method { ids: array<int> }
 
 class Shop {
     #[Tags(ids: ["one"])]

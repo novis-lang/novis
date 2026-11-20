@@ -1,7 +1,9 @@
 <?nvs
 // Shows what happens when you read a field that the attribute does not have.
 
-#[{ timeout: 30 }]
+attribute ImportSettings on class { timeout: int }
+
+#[ImportSettings(timeout: 30)]
 class Import
 {}
 

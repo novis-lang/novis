@@ -2,19 +2,25 @@
 // Attack: the attribute list of a class is read many times, on a class with many
 // attributes, on a subclass and on a class with none. Every list should be freed.
 
-type Route = { path: string };
+attribute Route on class, method { path: string }
+attribute Version on class { a: int }
+attribute Tag on class { b: string }
+attribute Column on property { column: string }
+attribute Flag on method { c: bool }
+attribute From on parameter { from: string }
+attribute Weight on method { d: float }
 
 #[Route(path: '/a')]
-#[{ a: 1 }]
-#[{ b: 'two' }]
+#[Version(a: 1)]
+#[Tag(b: 'two')]
 class Base
 {
-    #[{ column: 'id' }]
+    #[Column(column: 'id')]
     public int $id = 0;
 
     #[Route(path: '/b')]
-    #[{ c: true }]
-    public function one(#[{ from: 'query' }] int $x, #[{ from: 'body' }] int $y): void
+    #[Flag(c: true)]
+    public function one(#[From(from: 'query')] int $x, #[From(from: 'body')] int $y): void
     {
     }
 }
@@ -22,7 +28,7 @@ class Base
 #[Route(path: '/child')]
 class Child extends Base
 {
-    #[{ d: 1.5 }]
+    #[Weight(d: 1.5)]
     public function two(): void
     {
     }

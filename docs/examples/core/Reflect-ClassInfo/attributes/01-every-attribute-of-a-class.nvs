@@ -1,16 +1,18 @@
 <?nvs
 // Shows every attribute written on a class and where each one is written.
 
-type Route = { path: string };
+attribute Route on class, method { path: string }
+attribute Column on property { name: string }
+attribute From on parameter { source: string }
 
 #[Route(path: '/users')]
 class UserController
 {
-    #[{ column: 'user_name' }]
+    #[Column(name: 'user_name')]
     public string $name = '';
 
     #[Route(path: '/show')]
-    public function show(#[{ from: 'query' }] int $id): int
+    public function show(#[From(source: 'query')] int $id): int
     {
         return $id;
     }

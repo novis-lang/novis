@@ -1496,7 +1496,7 @@ fn a_query_marker_outside_a_route_method_is_refused() {
     );
     assert!(reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
     let diags = check_src(
-        "<?nvs\ntype Query = {};\nclass Users {\n  \
+        "<?nvs\nattribute Query on parameter {}\nclass Users {\n  \
          public function index(#[Query] string $sort): string { return $sort; }\n}\n",
     );
     assert!(!reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");

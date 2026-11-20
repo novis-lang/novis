@@ -1,7 +1,7 @@
 <?nvs
 // Prints the columns of a database table from a class and from every class it extends.
 
-type Column = { name: string };
+attribute Column on property { name: string }
 
 abstract class Record
 {

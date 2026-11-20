@@ -1,14 +1,10 @@
 <?nvs
-// Measures reading a command and one of its options back off the compiled
-// table. A program does this for every command it knows about when it prints a
-// help screen.
+// Measures reading a command and one of its options from the compiled table.
+// A program does this for every command it knows when it prints a help screen.
 // bench: iterations 256
 // bench: allocations 2
 // bench: calls 2
 // bench: complexity constant
-
-type Command = { name: string, about: string };
-type Option = { short: string, about: string };
 
 class Migrate
 {
@@ -31,14 +27,14 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Command $command = Core\Attributes::get<Command>(Migrate::migrate);
-            ?Option $option = Core\Attributes::get<Option>(Migrate::migrate, 'pretend');
+            var $command = Core\Attributes::get<Core\Command>(Migrate::migrate);
+            var $option = Core\Attributes::get<Core\Option>(Migrate::migrate, 'pretend');
             if ($command != null) {
                 if ($option != null) {
-                    // Chained: the length counted this round is picked with the
-                    // total from the round before.
+                    // Chained: this round's length is added to the total from
+                    // the round before. `??` gives '' when `short` is not set.
                     $total = $total + Core\Str::length($command->name) + $total % 2;
-                    $total = $total + Core\Str::length($option->short);
+                    $total = $total + Core\Str::length($option->short ?? '');
                 }
             }
             $i = $i + 1;

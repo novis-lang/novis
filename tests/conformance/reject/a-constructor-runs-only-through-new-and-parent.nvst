@@ -30,7 +30,8 @@ class Crate extends Box {
         }
     }
 }
-?{} $none = Core\Attributes::get<{}>(Box::constructor);
+attribute Note on class { text: string }
+var $none = Core\Attributes::get<Note>(Box::constructor);
 
 var $box = new Box(new Dog("Rex", 3));
 mixed $m = $box;

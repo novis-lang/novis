@@ -1,14 +1,16 @@
 --TEST--
-`Core\Program::implementingWith<I, T>($member)` answers one `{instance, attribute}` row per implementor in the enumeration's order, with `null` where the class's member carries no matching attribute, `rule:programs/implementing-with`
+`Core\Program::implementingWith<I, T>($member)` answers one `{instance, attribute}` row per implementor in the enumeration's order, with `null` where the class's member carries no attribute of the declaration `T` names, `rule:programs/implementing-with`
 --FILE--
 <?nvs
 // covers: lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute
 interface Page {
+    attribute Path on method { path: string }
+
     public function render(): string;
 }
 
 class Index implements Page {
-    #[{path: "/"}]
+    #[Path(path: "/")]
     public function render(): string { return "index"; }
 }
 
@@ -17,23 +19,23 @@ class About implements Page {
 }
 
 class Contact implements Page {
-    // Structural: a payload with more fields than the shape still matches it.
-    #[{path: "/contact", title: "Contact"}]
+    // A payload with a field the declaration does not list still compiles.
+    #[Path(path: "/contact", title: "Contact")]
     public function render(): string { return "contact"; }
 }
 
 abstract class Layout implements Page {}
 
 // Sorted by name; the abstract class is not a row; a class whose member
-// carries nothing matching answers `null`.
-foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
+// carries no `Path` answers `null`.
+foreach (Core\Program::implementingWith<Page, Page::Path>("render") as var $row) {
     echo $row->instance->render(), " ", $row->attribute?->path ?? "none", "\n";
 }
 // Nothing implements the interface: an empty array.
 interface Widget {
     public function draw(): string;
 }
-echo Core\Arr::count(Core\Program::implementingWith<Widget, {path: string}>("draw")), "\n";
+echo Core\Arr::count(Core\Program::implementingWith<Widget, Page::Path>("draw")), "\n";
 // covers: Core\Program::implementingWith
 --EXPECT--
 about none

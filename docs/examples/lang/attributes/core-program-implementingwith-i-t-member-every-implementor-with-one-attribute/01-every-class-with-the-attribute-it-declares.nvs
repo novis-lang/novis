@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to read one attribute from every class that implements an
-// interface. Each row holds the object and the attribute found on it.
+// interface. Each row has the object and the attribute found on it.
 
-type Label = { text: string };
+attribute Label on method { text: string }
 
 interface Report
 {
@@ -29,6 +29,6 @@ class StockReport implements Report
 
 // The rows are sorted by class name, so `SalesReport` comes first.
 // This prints `Sales: 12` and then `Stock: 7`.
-foreach (Core\Program::implementingWith<Report, Label>('rows') as { instance: Report, attribute: ?Label } $row) {
+foreach (Core\Program::implementingWith<Report, Label>('rows') as var $row) {
     echo $row->attribute?->text ?? '(none)', ': ', $row->instance->rows(), "\n";
 }

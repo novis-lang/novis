@@ -1,5 +1,5 @@
 --TEST--
-an attribute attaches at a class, a method, a property and a parameter, the named and bare spellings reach retrieval alike, and a declaration keeps every attachment written on it (`rule:attributes/attach-sites-and-forms` and `rule:attributes/repeatable`)
+an attribute attaches at a class, a method, a property and a parameter, and a `repeatable` declaration keeps every use written on one declaration (`rule:attributes/attach-sites-and-forms` and `rule:attributes/repeatable`)
 --FILE--
 <?nvs
 // covers: lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration
@@ -8,7 +8,7 @@ an attribute attaches at a class, a method, a property and a parameter, the name
 // one off a line of its own: a site that stopped attaching, or one attaching
 // under something retrieval cannot see, fails here while the other three go
 // on printing plausibly.
-type Site = {site: string};
+repeatable attribute Site on class, method, property, parameter { site: string }
 
 #[Site(site: "class")]
 class Target {
@@ -23,16 +23,16 @@ class Target {
 
 uint $agreed = 0;
 
-?Site $onClass = Core\Attributes::get<Site>(Target::constructor);
+var $onClass = Core\Attributes::get<Site>(Target::constructor);
 if ($onClass != null) { if ($onClass->site == "class") { $agreed = $agreed + 1; } }
 
-?Site $onMethod = Core\Attributes::get<Site>(Target::run);
+var $onMethod = Core\Attributes::get<Site>(Target::run);
 if ($onMethod != null) { if ($onMethod->site == "method") { $agreed = $agreed + 1; } }
 
-?Site $onProperty = Core\Attributes::get<Site>(Target::constructor, "rows");
+var $onProperty = Core\Attributes::get<Site>(Target::constructor, "rows");
 if ($onProperty != null) { if ($onProperty->site == "property") { $agreed = $agreed + 1; } }
 
-?Site $onParameter = Core\Attributes::get<Site>(Target::run, "id");
+var $onParameter = Core\Attributes::get<Site>(Target::run, "id");
 if ($onParameter != null) { if ($onParameter->site == "parameter") { $agreed = $agreed + 1; } }
 
 echo "sites=", $agreed as string, "/4\n";
@@ -41,42 +41,21 @@ echo "sites=", $agreed as string, "/4\n";
 // others share its site, so four attachments stay four — including the two
 // identical ones, which no deduplication collapses — and `all` answers them in
 // attach order. The comma-separated bracket is the same attachment as a second
-// line, which is why the bare anonymous object in it is counted here too.
+// line, which is why both uses in it are counted here.
 #[Site(site: "first")]
 #[Site(site: "first")]
-#[Site(site: "third"), {site: "fourth"}]
+#[Site(site: "third"), Site(site: "fourth")]
 class Repeated {}
 
-array<Site> $all = Core\Attributes::all<Site>(Repeated::constructor);
+var $all = Core\Attributes::all<Site>(Repeated::constructor);
 echo "attachments=", Core\Arr::count($all) as string, "\n";
-foreach ($all as Site $one) { echo "  ", $one->site, "\n"; }
-
-// The two spellings differ only in whether a shape checks the payload object
-// (`rule:attributes/attach-sites-and-forms`), so a retrieval written for the same shape sees
-// the same payload from either. Asserted as agreement rather than as two
-// lines: a bare anonymous object that stopped reaching retrieval fails here.
-#[Site(site: "same")]
-class Named {}
-
-#[{site: "same"}]
-class Bare {}
-
-?Site $fromNamed = Core\Attributes::get<Site>(Named::constructor);
-?Site $fromBare = Core\Attributes::get<Site>(Bare::constructor);
-string $agree = "no";
-if ($fromNamed != null) {
-    if ($fromBare != null) {
-        if ($fromNamed->site == $fromBare->site) { $agree = "yes"; }
-    }
-}
-echo "spellings agree=", $agree, "\n";
+foreach ($all as var $one) { echo "  ", $one->site, "\n"; }
 
 # Only `#[` opens an attribute, so this line is a comment and `Plain` carries
-# nothing at all — `{}` is satisfied by every attached payload object, which makes a
-# `null` here the assertion that none was attached.
+# nothing at all, which makes a `null` here the assertion that none was attached.
 class Plain {}
 
-?{} $nothing = Core\Attributes::get<{}>(Plain::constructor);
+var $nothing = Core\Attributes::get<Site>(Plain::constructor);
 echo "plain=", $nothing == null ? "none" : "some", "\n";
 --EXPECT--
 sites=4/4
@@ -85,5 +64,4 @@ attachments=4
   first
   third
   fourth
-spellings agree=yes
 plain=none

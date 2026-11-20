@@ -1,14 +1,17 @@
 <?nvs
 // Shows how a framework finds a mistyped setting in the attributes of a class.
 
+attribute Endpoint on method { method: string, path?: string }
+
 class CheckoutController
 {
-    #[{ method: 'POST', path: '/checkout' }]
+    #[Endpoint(method: 'POST', path: '/checkout')]
     public function pay(): void
     {}
 
-    // `pth` is a typing mistake for `path`.
-    #[{ method: 'GET', pth: '/checkout/done' }]
+    // `pth` is a typing mistake for `path`. The program still compiles,
+    // because an attribute may have more fields than its declaration lists.
+    #[Endpoint(method: 'GET', pth: '/checkout/done')]
     public function done(): void
     {}
 }

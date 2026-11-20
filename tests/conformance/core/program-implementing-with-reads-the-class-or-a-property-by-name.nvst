@@ -1,21 +1,24 @@
 --TEST--
-`implementingWith`'s `$member` selects the class's own attributes for the empty name and the constructor's roster for a property or promoted-parameter name, exactly as `Core\Attributes::get<T>`'s two spellings do, `rule:programs/implementing-with`
+`implementingWith`'s `$member` selects the class's own attributes for the empty name and the constructor's roster for a property or promoted-parameter name, exactly as `Core\Attributes::get<T>`'s two forms do, `rule:programs/implementing-with`
 --FILE--
 <?nvs
 // covers: lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute
 interface Plugin {
+    attribute Priority on class { priority: int }
+    attribute Setting on property, parameter { label: string }
+
     public function name(): string;
 }
 
-#[{priority: 2}]
+#[Priority(priority: 2)]
 class Late implements Plugin {
-    public function constructor(#[{label: "promoted"}] public string $when = "later") {}
+    public function constructor(#[Setting(label: "promoted")] public string $when = "later") {}
     public function name(): string { return "late"; }
 }
 
-#[{priority: 1}]
+#[Priority(priority: 1)]
 class Early implements Plugin {
-    #[{label: "declared"}]
+    #[Setting(label: "declared")]
     public string $when = "soon";
     public function name(): string { return "early"; }
 }
@@ -26,11 +29,11 @@ class Plain implements Plugin {
 }
 
 // The empty name: the attribute on the class itself.
-foreach (Core\Program::implementingWith<Plugin, {priority: int}>() as {instance: Plugin, attribute: ?{priority: int}} $row) {
+foreach (Core\Program::implementingWith<Plugin, Plugin::Priority>() as var $row) {
     echo $row->instance->name(), " ", $row->attribute?->priority ?? 0, "\n";
 }
 // A property name: a declared property and a promoted parameter alike.
-foreach (Core\Program::implementingWith<Plugin, {label: string}>("when") as {instance: Plugin, attribute: ?{label: string}} $setting) {
+foreach (Core\Program::implementingWith<Plugin, Plugin::Setting>("when") as var $setting) {
     echo $setting->instance->name(), " ", $setting->attribute?->label ?? "-", "\n";
 }
 // covers: Core\Program::implementingWith

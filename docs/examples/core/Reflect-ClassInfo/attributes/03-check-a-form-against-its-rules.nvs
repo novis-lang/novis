@@ -2,7 +2,7 @@
 // Shows how a form library checks submitted values against rules written as
 // attributes on the properties of a form class.
 
-type MaxLength = { max: int };
+attribute MaxLength on property { max: int }
 
 class SignupForm
 {

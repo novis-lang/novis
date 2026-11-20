@@ -1,7 +1,8 @@
 <?nvs
 // Shows how a small web framework builds its route table from the attributes of a controller class.
 
-type Route = { method: string, path: string };
+attribute Route on method { method: string, path: string }
+attribute Internal on method { reason: string }
 
 class UserController
 {
@@ -14,7 +15,7 @@ class UserController
     {}
 
     // This attribute is not a route, so the table does not include it.
-    #[{ internal: true }]
+    #[Internal(reason: 'only the build script calls it')]
     public function rebuildCache(): void
     {}
 }

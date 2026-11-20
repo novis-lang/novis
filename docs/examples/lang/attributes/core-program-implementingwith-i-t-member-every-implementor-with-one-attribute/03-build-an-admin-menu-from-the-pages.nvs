@@ -2,7 +2,7 @@
 // Shows what a framework does with this: every page in the program, beside the
 // menu entry that page declares for itself.
 
-type Menu = { title: string, order: int };
+attribute Menu on method { title: string, order: int }
 
 interface AdminPage
 {
@@ -39,8 +39,8 @@ class Health implements AdminPage
 
 // Adding a page to the menu is adding the attribute to the page, and no list
 // of pages can go out of date. This prints `1. Dashboard -> /admin` first.
-foreach (Core\Program::implementingWith<AdminPage, Menu>('path') as { instance: AdminPage, attribute: ?Menu } $row) {
-    ?Menu $entry = $row->attribute;
+foreach (Core\Program::implementingWith<AdminPage, Menu>('path') as var $row) {
+    var $entry = $row->attribute;
     if ($entry != null) {
         echo $entry->order, '. ', $entry->title, ' -> ', $row->instance->path(), "\n";
     }

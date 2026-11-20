@@ -1,13 +1,16 @@
 <?nvs
 // Shows how to check that an attribute has a field before you read it.
 
+// Both fields are optional. Each use below writes only one of them.
+attribute JobSettings on method { retries?: int, queue?: string }
+
 class Job
 {
-    #[{ retries: 3 }]
+    #[JobSettings(retries: 3)]
     public function sendReport(): void
     {}
 
-    #[{ queue: 'low' }]
+    #[JobSettings(queue: 'low')]
     public function cleanUp(): void
     {}
 }

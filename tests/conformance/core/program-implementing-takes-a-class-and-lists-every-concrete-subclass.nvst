@@ -6,6 +6,8 @@
 // Membership is `$c is T` for a non-abstract `$c`. `Partial` is abstract, so it
 // is never listed, and `Wide` is listed through it. `Loose` is no `Exporter`.
 // The classes are declared out of order, so the printed order is the sort.
+attribute Label on class { label: string }
+
 abstract class Exporter {
     public function name(): string { return "exporter"; }
 }
@@ -45,7 +47,7 @@ foreach (Core\Program::implementing<Json>() as Json $json) {
 echo "--\n";
 
 // The joined form selects the same classes in the same order.
-foreach (Core\Program::implementingWith<Json, {label: string}>() as var $row) {
+foreach (Core\Program::implementingWith<Json, Label>() as var $row) {
     echo $row->instance->name(), " ", $row->attribute?->label ?? "none", "\n";
 }
 --EXPECT--

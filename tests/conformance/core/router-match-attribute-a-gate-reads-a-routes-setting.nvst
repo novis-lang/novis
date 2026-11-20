@@ -1,19 +1,21 @@
 --TEST--
-A gate reads a setting of the matched route's method with `$route->attribute<{seconds: int}>()`: each route answers its own attribute, an extra field does not stop the match, and a route with none answers `null` — `rule:routing/a-match-reads-an-attribute-as-data`
+A gate reads a setting of the matched route's method with `$route->attribute<Cache>()`: each route answers its own attribute, a payload with an extra field still compiles, and a route with none answers `null` — `rule:routing/a-match-reads-an-attribute-as-data`
 --FILE--
 <?nvs
 // covers: Core\Router\Match::attribute
+attribute Cache on method { seconds: int }
+
 class Pages {
     #[Core\Route(path: "/news", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 60}]
+    #[Cache(seconds: 60)]
     public static function news(): void {
         echo "news ran\n";
     }
 
     #[Core\Route(path: "/about", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{seconds: 3600, label: "long"}]
+    #[Cache(seconds: 3600, label: "long")]
     public static function about(): void {
         echo "about ran\n";
     }
@@ -34,7 +36,7 @@ class Gate implements Core\Router\Gate {
     }
 
     public function allows(Core\Router\Match $route): bool {
-        ?{seconds: int} $cache = $route->attribute<{seconds: int}>();
+        var $cache = $route->attribute<Cache>();
         if ($cache != null) {
             echo "cache ", $cache->seconds as string, " for ", $this->label($route), "\n";
         } else {

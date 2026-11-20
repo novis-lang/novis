@@ -3,7 +3,7 @@
 // compiled. `$host` is a variable, so this program does not compile.
 // proof: compile-error
 
-type Cache = { key: string };
+attribute Cache on method { key: string }
 string $host = 'example.test';
 
 class Page

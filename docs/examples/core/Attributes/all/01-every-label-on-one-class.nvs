@@ -1,7 +1,8 @@
 <?nvs
-// Shows how to read every attribute of one shape that is attached to a class.
+// Shows how to read every attribute of one kind that is attached to a class.
 
-type Tag = { name: string };
+// `repeatable` allows more than one `Tag` on the same class.
+repeatable attribute Tag on class { name: string }
 
 #[Tag(name: 'users')]
 #[Tag(name: 'audited')]
@@ -12,11 +13,11 @@ class User
 
 // `Core\Attributes::all` returns the matching attributes in the order they were
 // written. `User::constructor` names the class itself. This prints 2.
-array<Tag> $tags = Core\Attributes::all<Tag>(User::constructor);
+var $tags = Core\Attributes::all<Tag>(User::constructor);
 echo Core\Arr::count($tags), "\n";
 
 // This prints `users` and then `audited`.
-foreach ($tags as Tag $tag) {
+foreach ($tags as var $tag) {
     echo $tag->name, "\n";
 }
 

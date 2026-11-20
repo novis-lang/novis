@@ -1,12 +1,13 @@
 --TEST--
-every `#[Command]` and every `#[Option]` a program declares is on the compiled table and reads back by the shape it satisfies — `rule:tooling/commands-are-compiled`, `rule:programs/implementing`
+every `#[Command]` and every `#[Option]` a program declares is on the compiled table and reads back by naming `Core\Command` or `Core\Option` — `rule:tooling/commands-are-compiled`, `rule:programs/implementing`
 --FILE--
 <?nvs
 // covers: lang:attributes/core-command-and-core-option-the-command-table
 //
 // Nothing dispatches to the command table in this build, so what a program can
-// ask of it is what it declared: `Core\Attributes::get` off the method, and off
-// a named parameter of that method. The whole table is asked one question here
+// ask of it is what it declared: `Core\Attributes::get<Core\Command>` off the
+// method, and `Core\Attributes::get<Core\Option>` off a named parameter of
+// that method. The whole table is asked one question here
 // rather than one command being read on one line, because a table that answered
 // plausibly for `greet` alone still fails the sweep.
 //
@@ -56,21 +57,19 @@ class Purge {
     }
 }
 
-type Named = {name: string, about: string};
-type Described = {about: string};
-
-array<Named> $commands = [];
-$commands[] = Core\Attributes::get<Named>(Greet::greet) ?? throw new RuntimeError("no greet");
-$commands[] = Core\Attributes::get<Named>(Migrate::migrate) ?? throw new RuntimeError("no migrate");
-$commands[] = Core\Attributes::get<Named>(Purge::purge) ?? throw new RuntimeError("no purge");
+var $commands = [
+    Core\Attributes::get<Core\Command>(Greet::greet) ?? throw new RuntimeError("no greet"),
+    Core\Attributes::get<Core\Command>(Migrate::migrate) ?? throw new RuntimeError("no migrate"),
+    Core\Attributes::get<Core\Command>(Purge::purge) ?? throw new RuntimeError("no purge"),
+];
 
 // Every name is distinct, which is what a table collapsing two rows onto one
 // would print. `rule:tooling/commands-are-compiled` requires it of the program
 // and this asserts it of what the program reads back.
 int $distinct = 0;
-foreach ($commands as Named $one) {
+foreach ($commands as var $one) {
     int $same = 0;
-    foreach ($commands as Named $other) {
+    foreach ($commands as var $other) {
         if ($one->name == $other->name) { $same = $same + 1; }
     }
     if ($same == 1) { $distinct = $distinct + 1; }
@@ -78,25 +77,25 @@ foreach ($commands as Named $one) {
 echo "commands=", Core\Arr::count($commands), "\n";
 echo "distinct=", $distinct, "\n";
 
-foreach ($commands as Named $one) {
-    echo $one->name, ": ", $one->about, "\n";
+foreach ($commands as var $one) {
+    echo $one->name, ": ", $one->about ?? "-", "\n";
 }
 
 // An option is read off the parameter's own name, and the four here belong to
 // three different commands. A read that answered the command's own payload
 // instead would print `Say hello` on every line.
 array<string> $options = [
-    Core\Attributes::get<Described>(Greet::greet, "loud")?->about ?? "-",
-    Core\Attributes::get<Described>(Migrate::migrate, "pretend")?->about ?? "-",
-    Core\Attributes::get<Described>(Migrate::migrate, "count")?->about ?? "-",
-    Core\Attributes::get<Described>(Purge::purge, "force")?->about ?? "-",
+    Core\Attributes::get<Core\Option>(Greet::greet, "loud")?->about ?? "-",
+    Core\Attributes::get<Core\Option>(Migrate::migrate, "pretend")?->about ?? "-",
+    Core\Attributes::get<Core\Option>(Migrate::migrate, "count")?->about ?? "-",
+    Core\Attributes::get<Core\Option>(Purge::purge, "force")?->about ?? "-",
 ];
 foreach ($options as string $about) {
     echo "option: ", $about, "\n";
 }
 
 // A positional parameter carries no `#[Option]`, so nothing is there to read.
-?Described $positional = Core\Attributes::get<Described>(Greet::greet, "name");
+var $positional = Core\Attributes::get<Core\Option>(Greet::greet, "name");
 echo "positional=", $positional == null ? "none" : "something", "\n";
 
 foreach (Core\Program::implementing<Command>() as Command $command) {

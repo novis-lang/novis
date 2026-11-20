@@ -1,7 +1,8 @@
 <?nvs
 // Shows that a class only lists the attributes written in its own declaration.
 
-type Table = { name: string };
+attribute Table on class { name: string }
+attribute Format on property { format: string }
 
 #[Table(name: 'documents')]
 class Document
@@ -11,7 +12,7 @@ class Document
 
 class Invoice extends Document
 {
-    #[{ format: 'money' }]
+    #[Format(format: 'money')]
     public int $total = 0;
 }
 

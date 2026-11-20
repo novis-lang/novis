@@ -1,9 +1,7 @@
 <?nvs
-// Shows the two spellings an option can have. `short:` is the one letter form
-// and `long:` is the word form. Without `long:` the word form is the parameter's
+// Shows the two ways to write an option. `short:` is the one letter form and
+// `long:` is the word form. Without `long:` the word form is the parameter's
 // own name. A `bool` option is a flag, and every other type takes a value.
-
-type Option = { short: string, long: string, about: string };
 
 class Serve
 {
@@ -18,17 +16,9 @@ class Serve
     }
 }
 
-// Build the help lines from the table. This is what a program prints for
-// `serve --help`.
-array<Option> $options = [];
-// Write the parameter name here. A name you compute is not looked up, and the
-// result is `null`.
-$options[] = Core\Attributes::get<Option>(Serve::serve, 'listenPort') ?? throw new RuntimeError('no option');
-$options[] = Core\Attributes::get<Option>(Serve::serve, 'silent') ?? throw new RuntimeError('no option');
-
-foreach ($options as Option $option) {
-    echo '  -', $option->short, ', --', $option->long, '  ', $option->about, "\n";
-}
+// This is what a program prints for `serve --help`. Each option shows both
+// forms, its type and its description.
+echo Core\Command::help('serve');
 
 uint $status = Serve::serve(8080, false);
 echo 'exit status ', $status, "\n";

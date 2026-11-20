@@ -1,2 +1,2 @@
-[Route]
-[]
+[Shop\Route]
+[Shop\Controller::Cache]

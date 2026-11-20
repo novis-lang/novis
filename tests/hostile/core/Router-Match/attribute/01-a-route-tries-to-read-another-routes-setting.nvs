@@ -1,14 +1,17 @@
 <?nvs
-// Attack: a route tries to get the setting of another route, or a setting with the wrong fields.
-// Each route should only give its own setting, and nothing may crash.
+// Attack: a route tries to get the setting of another route, or a setting it does not have.
+// Each route should only give its own settings, and nothing may crash.
 
 use RuntimeError;
+
+attribute Cache on method { seconds: int }
+attribute Role on method { role: string }
 
 class Site
 {
     #[Core\Route(path: '/public', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{ seconds: 3600 }]
+    #[Cache(seconds: 3600)]
     public function open(): string
     {
         return 'open';
@@ -16,7 +19,8 @@ class Site
 
     #[Core\Route(path: '/private', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    #[{ seconds: 0, role: 'admin' }]
+    #[Cache(seconds: 0)]
+    #[Role(role: 'admin')]
     public function closed(): string
     {
         return 'closed';
@@ -30,14 +34,15 @@ class Site
     }
 
     // This method has a setting but no route. No match should ever return it.
-    #[{ seconds: 99, role: 'root' }]
+    #[Cache(seconds: 99)]
+    #[Role(role: 'root')]
     public function helper(): string
     {
         return 'helper';
     }
 }
 
-// 1. Each route is read with two shapes. Each gives only its own values.
+// 1. Each route is read for two attributes. Each gives only its own values.
 array<string> $paths = ['/public', '/private', '/plain'];
 foreach ($paths as string $path) {
     try {
@@ -46,8 +51,8 @@ foreach ($paths as string $path) {
             echo $path, ' -> no route', "\n";
             continue;
         }
-        ?{ seconds: int } $cache = $found->attribute<{ seconds: int }>();
-        ?{ role: string } $role = $found->attribute<{ role: string }>();
+        var $cache = $found->attribute<Cache>();
+        var $role = $found->attribute<Role>();
         echo $path,
             ' seconds=', $cache == null ? 'none' : $cache->seconds as string,
             ' role=', $role == null ? 'none' : $role->role, "\n";
@@ -67,7 +72,7 @@ if ($open != null) {
     Core\Router\Match $route = $open;
     uint $i = 0;
     while ($i < 1000000) {
-        if ($route->attribute<{ role: string }>() != null) {
+        if ($route->attribute<Role>() != null) {
             $leaked = $leaked + 1;
         }
         $i = $i + 1;
