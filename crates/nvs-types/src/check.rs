@@ -34,7 +34,7 @@
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, Span, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
-    Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier,
+    Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier,
     NamespaceDecl, NewTarget, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -1516,6 +1516,8 @@ fn keep_body_reads(label: Option<&String>, env: &mut Env<'_>) {
 /// * `null`, which is no class at all.
 /// * a `? :` whose two branches are both on this list.
 /// * an array literal whose every value is on this list.
+/// * a `new` of a `Core` generic collection with no constructor arguments,
+///   such as `new Core\ObjectMap<string, static>()`: it is empty, as `[]` is.
 ///
 /// A local variable is not on the list, so a `static[]` built up in a loop is
 /// refused: its type is the declaring class's array, and the checker does not
@@ -1580,6 +1582,14 @@ fn yields_the_called_class(e: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
             target: NewTarget::StaticTy,
             ..
         } => true,
+        // A fresh `Core` collection with no arguments is empty, so it holds no
+        // object of any class. Only a compiler-owned generic class takes
+        // written type arguments.
+        ExprKind::New {
+            target: NewTarget::Name(_),
+            type_args,
+            args,
+        } => !type_args.is_empty() && matches!(args, CallArgs::List(list) if list.is_empty()),
         ExprKind::StaticCall {
             class,
             method: MemberName::Ident(name),

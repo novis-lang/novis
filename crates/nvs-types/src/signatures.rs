@@ -2516,8 +2516,10 @@ pub(crate) fn static_use(ty: Option<&Type>, declaring: &QName, src: &SourceFile)
 /// `id` with every occurrence of the class `declaring` replaced by `to` — the
 /// class a call names, for a position [`static_use`] says binds `static`.
 ///
-/// Only the bare class is replaced. Generic arguments never carry `static`,
-/// because [`static_use`] blocks a type that writes its class's own name.
+/// The bare class is replaced, and so is each type argument of a generic
+/// class, so `Core\ObjectMap<string, static>` binds as `array<static>` does.
+/// The declaring class never carries arguments here, because [`static_use`]
+/// blocks a type that writes its class's own name.
 pub(crate) fn bind_static(
     id: TypeId,
     declaring: &QName,
@@ -2526,6 +2528,13 @@ pub(crate) fn bind_static(
 ) -> TypeId {
     match interner.get(id).clone() {
         Ty::Class(q, args) if &q == declaring && args.is_empty() => to,
+        Ty::Class(q, args) if !args.is_empty() => {
+            let args: Vec<TypeId> = args
+                .iter()
+                .map(|a| bind_static(*a, declaring, to, interner))
+                .collect();
+            interner.generic_class(q, args)
+        }
         Ty::Array(elem) => {
             let elem = bind_static(elem, declaring, to, interner);
             interner.array(elem)
