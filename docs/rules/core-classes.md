@@ -784,7 +784,12 @@ a redirect, a body method, a cookie or a session write inside one throws `LogicE
 compile error where the checker sees it. A session write is every `Core\Session` member but `get` and
 `getSecret`, and it throws for every visitor
 ([`concurrency/deferred-work-cannot-write-the-response`](concurrency.md#concurrency-deferred-work-cannot-write-the-response)). Reading the request and the session is
-allowed. A slot reads the request's session, also where the main script never used it: while the slots
+allowed. Every `Core\Request` member that reads the request line, a header, a cookie, the query, the
+route, the scheme or the client address returns in a slot what it returns in the main script. **The
+body is the main script's**: `body`, `bodyStream`, `files`, `post`, `json` and their walks throw
+`LogicError` in a slot, and the message says to read the body in the main script and pass the value
+in. The main script may have read it already, and two readers of one socket would each get part of it.
+A slot reads the request's session, also where the main script never used it: while the slots
 run, the request lends them its session, and the first slot that needs it opens it from the request's
 cookie, once for every slot. `Core\Csrf::token` for a visitor with no session throws there, because its
 token needs a new identifier and that identifier's cookie. Outside an
@@ -797,7 +802,9 @@ the slowest slot ends. A browser without JavaScript shows the placeholders.
 
 - **Memory:** each `later` task's output is held until it is sent, and a slotted shell from the end
   of the main script until it is written: per request, O(in-flight), under the request's `memory`
-  cap.
+  cap. While the slots run, they share one copy of the request without its body. The head inside it
+  is shared with the request, so the copy is one small struct, the mount strings and the route's
+  captures.
 
 **Declined:**
 

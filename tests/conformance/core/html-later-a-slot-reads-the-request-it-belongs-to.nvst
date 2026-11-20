@@ -1,0 +1,71 @@
+--TEST--
+Inside a `Core\Html::later` slot, `Core\Request` returns the path, a header, a cookie, a query value and a route parameter of the request the slot belongs to, on a normal and on a slotted route. A body read in a slot throws `LogicError`, and the main script still reads the body -- `rule:core-classes/html-later`
+--FILE--
+<?nvs
+final class Pages {
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): void {
+        echo Core\Html::later(fn(): void => Pages::describe());
+    }
+
+    #[Core\Route(path: "/slotted/{id}", method: Core\Http\Method::Get, slotted: true)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function slotted(uint $id): void {
+        echo Core\Html::later(fn(): void => Pages::describe());
+    }
+
+    #[Core\Route(path: "/save", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void {
+        // The slot reads the body, which is not allowed.
+        echo Core\Html::later(fn(): void => {
+            try {
+                echo Core\Request::body();
+            } catch (LogicError $e) {
+                echo $e->message, "\n";
+            }
+        });
+        // The main script reads the body and passes the value to the slot.
+        tainted string $sent = Core\Request::body();
+        echo Core\Html::later(fn(): void => { echo $sent; });
+    }
+
+    // Each slot above calls this, so it reads the request inside the slot.
+    public static function describe(): void {
+        var $matched = Core\Request::route();
+        echo Core\Request::path(),
+             " lang=", Core\Request::header("accept-language") ?? "none",
+             " theme=", Core\Request::cookie("theme") ?? "none",
+             " page=", Core\Request::query("page") ?? "none",
+             " id=", $matched == null ? "none" : $matched->param("id") ?? "none";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed: ", $error == null ? "" : $error->message;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $headers = ["accept-language" => "de", "cookie" => "theme=dark"];
+    echo Core\Test::request(Core\Http\Method::Get, "/posts/5?page=2", {headers: $headers})->body(), "\n";
+    echo Core\Test::request(Core\Http\Method::Get, "/slotted/9?page=4", {headers: $headers})->body(), "\n";
+    echo Core\Test::request(Core\Http\Method::Post, "/save", {body: "hello"})->body(), "\n";
+}
+--EXPECT--
+/posts/5 lang=de theme=dark page=2 id=5
+/slotted/9 lang=de theme=dark page=4 id=9
+Core\Request::body() cannot read the request body inside `Core\Html::later`. Read the body in the main script and pass the value to the `later` function
+hello

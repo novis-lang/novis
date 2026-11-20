@@ -1856,9 +1856,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// body and what it left behind is not what `need` asks for.
 fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(), Fault> {
     let total = ctx.upload_total_limit();
-    let inbound = ctx
-        .inbound_mut()
-        .expect("the caller reads the request before it claims the body");
+    let inbound = body_carrier(ctx, &format!("Core\\Request::{member}"))?;
     if let Some((class, why)) = inbound.body_failure() {
         return Err(Fault::thrown_as(
             class,
@@ -1971,9 +1969,11 @@ pub(crate) fn query_fields_of(ctx: &mut Ctx, member: &'static str) -> Result<Nvs
         crate::uri::Values::Text,
     )
     .map_err(|fault| memory_first(ctx, fault))?;
-    ctx.inbound_mut()
-        .expect("the request was read above")
-        .hold_query_fields(fields.clone());
+    // A `Core\Html::later` slot reads a shared copy of the request, which it
+    // cannot write, so a slot parses the query on every call.
+    if let Some(inbound) = ctx.inbound_mut() {
+        inbound.hold_query_fields(fields.clone());
+    }
     Ok(fields)
 }
 
@@ -2137,6 +2137,36 @@ fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
 /// member a program actually wrote.
 pub(crate) fn served<'a>(ctx: &'a Ctx, who: &str) -> Result<&'a Inbound, Fault> {
     ctx.inbound().ok_or_else(|| no_request(who))
+}
+
+/// The carrier, borrowed so its body can be read, for `who` spelled
+/// `Core\Class::member`. Every path that reads the body takes it here.
+///
+/// **A `Core\Html::later` slot reads the request without its body**
+/// ([`nvs_runtime::Inbound::is_lent`]), so a body read there throws
+/// `LogicError`. The body is the main script's: it may have read it already,
+/// and two readers of one socket would each get part of it. An empty body
+/// would say the peer sent nothing, which
+/// `rule:security/request-state-throws-in-an-isolate` keeps apart from "this
+/// context cannot read it".
+///
+/// # Errors
+///
+/// [`no_request`]'s `LogicError` where no request arrived, and a `LogicError`
+/// naming the main script in a slot.
+fn body_carrier<'a>(ctx: &'a mut Ctx, who: &str) -> Result<&'a mut Inbound, Fault> {
+    if served(ctx, who)?.is_lent() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}() cannot read the request body inside `Core\\Html::later`. Read the body \
+                 in the main script and pass the value to the `later` function"
+            ),
+        ));
+    }
+    Ok(ctx
+        .inbound_mut()
+        .expect("a request that is not lent is the context's own"))
 }
 
 /// `rule:security/request-state-throws-in-an-isolate`'s refusal itself, so that
@@ -3661,7 +3691,7 @@ fn body_stream_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
     // hold no stream to advance. Asserted by
     // `a_body_stream_yields_the_chunks_the_wire_delivered`, which drives the
     // three names a `foreach` drives.
-    inbound_of(ctx, "bodyStream")?;
+    body_carrier(ctx, "Core\\Request::bodyStream")?;
     crate::instance::set_slot(receiver, BODY_STREAM_STATE, Value::uint(STREAM_WALKED));
     // What a prefix or random read held comes first, as one chunk.
     let held = crate::instance::take_slot(receiver, BODY_STREAM_HELD);
@@ -3683,9 +3713,12 @@ fn body_stream_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
 ///
 /// `IOError` where the connection failed under the body.
 fn body_stream_pull<T>(ctx: &mut Ctx, keep: impl FnOnce(&[u8]) -> T) -> Result<Option<T>, Fault> {
-    let Some(inbound) = ctx.inbound_mut() else {
+    if ctx.inbound().is_none() {
         return Ok(None);
-    };
+    }
+    // A walk passed into a `Core\Html::later` slot throws here, so it does not
+    // end early as if the body were complete.
+    let inbound = body_carrier(ctx, "Core\\Request::bodyStream")?;
     match inbound.body() {
         None => Ok(None),
         Some(body) => match body.next_chunk() {
@@ -3988,10 +4021,7 @@ fn files_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
     // hold no walk to advance. Asserted by
     // `a_files_walk_yields_the_file_parts_and_drains_what_it_passes`, which
     // drives the three names a `foreach` drives.
-    inbound_of(ctx, "files")?;
-    let inbound = ctx
-        .inbound_mut()
-        .expect("the read above refuses a context that is answering no request");
+    let inbound = body_carrier(ctx, "Core\\Request::files")?;
     let opened = match inbound.parts_mut() {
         // No parse, or no body at all: both are a request with no file parts in
         // it, which is an empty walk rather than a refusal.
@@ -4195,10 +4225,7 @@ fn part_parse<'ctx>(
     // No case can reach this: a `.nvst` program answers no request, so it can
     // hold no part to read. Asserted by
     // `a_parts_content_walks_the_bytes_of_the_part_the_walk_is_on`.
-    served(ctx, who)?;
-    let inbound = ctx
-        .inbound_mut()
-        .expect("the read above refuses a context that is answering no request");
+    let inbound = body_carrier(ctx, who)?;
     let Some((parse, body)) = inbound.parts_mut() else {
         return Ok(None);
     };

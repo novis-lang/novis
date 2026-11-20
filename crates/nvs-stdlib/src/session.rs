@@ -1474,11 +1474,9 @@ pub(crate) fn first_use(ctx: &mut Ctx, who: &'static str) -> Result<(), Fault> {
 /// process with no usable data folder, and for a shared store that is unconfigured or refused by
 /// capability; a thrown `IOError` for a store that cannot be reached.
 fn opened_under(ctx: &mut Ctx, who: &'static str, given: Option<String>) -> Result<(), Fault> {
-    // A `Core\Html::later` slot has no request of its own, and opens the session from the head
-    // of the request it belongs to (`nvs_runtime::Ctx::lend_session`).
-    if ctx.session_inbound().is_none() {
-        crate::request::served(ctx, who)?;
-    }
+    // A `Core\Html::later` slot reads the request it belongs to through the same carrier
+    // (`nvs_runtime::Ctx::lend_session`), so it opens the session from there.
+    crate::request::served(ctx, who)?;
     let member = format!("{who}()");
     let store = opened(
         ctx,
@@ -1496,7 +1494,7 @@ fn opened_under(ctx: &mut Ctx, who: &'static str, given: Option<String>) -> Resu
         None
     } else {
         let short_name = format!("{named}{SHORT_COOKIE_SUFFIX}");
-        ctx.session_inbound().and_then(|inbound| {
+        ctx.inbound().and_then(|inbound| {
             crate::request::cookie_of(inbound, short_name.as_bytes())
                 .and_then(|value| std::str::from_utf8(value).ok())
                 .map(str::to_owned)
@@ -1508,7 +1506,7 @@ fn opened_under(ctx: &mut Ctx, who: &'static str, given: Option<String>) -> Resu
         // through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with —
         // one reading, so a `__Host-` name that arrived twice is invisible to both rather
         // than to one of them.
-        None => ctx.session_inbound().and_then(|inbound| {
+        None => ctx.inbound().and_then(|inbound| {
             crate::request::cookie_of(inbound, named.as_bytes())
                 .and_then(|value| std::str::from_utf8(value).ok())
                 .map(str::to_owned)

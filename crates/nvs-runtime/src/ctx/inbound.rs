@@ -84,9 +84,16 @@ impl Ctx {
     /// this is read as many times as the program asks. `Core\Request`'s members
     /// are the only readers, and each of them turns `None` into
     /// `rule:security/request-state-throws-in-an-isolate`'s throw.
+    ///
+    /// In a `Core\Html::later` slot, and in a task a slot starts, it is the
+    /// request the slot belongs to, as [`Inbound::head_alone`] copied it
+    /// ([`Self::lend_session`]). That copy is [lent](Inbound::is_lent), so
+    /// [`Self::inbound_mut`] stays `None` there and the body cannot be read.
     #[must_use]
     pub fn inbound(&self) -> Option<&Inbound> {
-        self.inbound.as_deref()
+        self.inbound
+            .as_deref()
+            .or_else(|| self.lent_head())
     }
     /// The same request, borrowed so its body can be pulled from.
     ///
@@ -389,6 +396,10 @@ pub struct Inbound {
     /// that happened to carry nothing would make the rule depend on what the
     /// peer sent.
     claimed_by: Option<&'static str>,
+    /// Whether this carrier is the head a `Core\Html::later` slot reads
+    /// ([`Self::head_alone`]). Such a carrier has no body: the body belongs to
+    /// the main script, and every `Core\Request` body reader throws on it.
+    lent: bool,
     /// `rule:routing/matched-once-before-the-handler`
     /// 's match: the row this request selected out of the program's table,
     /// and the captures it filled.
@@ -749,6 +760,7 @@ impl Inbound {
             form: None,
             query_fields: None,
             claimed_by: None,
+            lent: false,
             // Nothing has matched yet, which is what every carrier says until
             // the door that has a table says otherwise.
             route: None,
@@ -929,17 +941,33 @@ impl Inbound {
         head.push(name.as_bytes());
         head.push(value);
     }
-    /// A carrier with this request's line, headers and scheme, and nothing
-    /// else: no body, no peer address, no route.
+    /// A carrier with everything of this request but its body: the line, the
+    /// headers, the scheme, the client address, the mount prefix and captures,
+    /// and the route. It is [lent](Self::is_lent), so every body reader throws.
     ///
-    /// It is what a `Core\Html::later` slot opens the request's session from
-    /// ([`Ctx::lend_session`]), which reads the cookies alone. The head is
-    /// shared, so the copy costs one reference count and one small struct.
+    /// It is what a `Core\Html::later` slot reads the request through
+    /// ([`Ctx::lend_session`]). The body stays the main script's: it may have
+    /// read it already, and two readers of one socket would each get part of it.
+    ///
+    /// What it spends: the head is shared, so the copy costs one reference
+    /// count, one small struct, the mount strings and the route's captures.
     #[must_use]
     pub fn head_alone(&self) -> Self {
         let mut copy = Self::with_head(Rc::clone(&self.head));
         copy.scheme = self.scheme;
+        copy.client = self.client;
+        copy.mount_prefix.clone_from(&self.mount_prefix);
+        copy.mount_captures.clone_from(&self.mount_captures);
+        copy.route.clone_from(&self.route);
+        copy.refusal.clone_from(&self.refusal);
+        copy.lent = true;
         copy
+    }
+    /// Whether this is a `Core\Html::later` slot's copy of the request
+    /// ([`Self::head_alone`]), which has no body to read.
+    #[must_use]
+    pub fn is_lent(&self) -> bool {
+        self.lent
     }
     /// Every header field line, in arrival order, as `(name, value)`.
     ///

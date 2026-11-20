@@ -6,7 +6,7 @@ context: [crates/nvs-runtime/src/ctx/inbound.rs, crates/nvs-runtime/src/ctx/wiri
 stages:
   - id: 1
     title: a slot reads the request's head, and a body read there throws
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-stdlib/src/request.rs]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
@@ -55,24 +55,32 @@ outside this goal, and `rule:concurrency/deferred-work-cannot-write-the-response
 **What it costs.** Per request with slots: one small carrier with a shared head, for the length of
 the slots. Nothing for a request without slots.
 
+**Every reader of `Ctx::inbound` sees a slot as a request (stage 1's call).** The fallback is in
+`Ctx::inbound` itself, so `run_kind`, `working_dir`'s refusal, a log record's request id and the panic
+report all read a slot as part of its request, which is what it is. `Ctx::inbound_mut` stays the
+context's own and is `None` in a slot, so every body path goes through `request.rs` `body_carrier`,
+which throws the slot's `LogicError` first. `query_fields_of` does not cache its parse on the shared
+copy, so a slot parses the query once per call. `lend_session` reads the context's own inbound, so a
+nested `later` keeps the cell its parent slot was lent.
+
 ## Stages
 
 ### 1. a slot reads the request's head, and a body read there throws
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/ctx/inbound.rs` `head_alone`: also copy the client address, the mount
+- [x] `crates/nvs-runtime/src/ctx/inbound.rs` `head_alone`: also copy the client address, the mount
   prefix and captures, and the route, and mark the carrier as having no body for a slot.
-- [ ] `crates/nvs-runtime/src/ctx/wiring.rs` `session_inbound` and `crates/nvs-runtime/src/ctx/inbound.rs`
+- [x] `crates/nvs-runtime/src/ctx/wiring.rs` `session_inbound` and `crates/nvs-runtime/src/ctx/inbound.rs`
   `inbound`: `inbound` returns the lent head in a slot. Remove `session_inbound` and its two callers
   in `crates/nvs-stdlib/src/session.rs` `opened_under`.
-- [ ] `crates/nvs-stdlib/src/request.rs`: every body reader throws `LogicError` on a slot's carrier.
-- [ ] `tests/conformance/core/html-later-a-slot-reads-the-request-it-belongs-to.nvst`: a routed case
+- [x] `crates/nvs-stdlib/src/request.rs`: every body reader throws `LogicError` on a slot's carrier.
+- [x] `tests/conformance/core/html-later-a-slot-reads-the-request-it-belongs-to.nvst`: a routed case
   through `Core\Test::request`, modelled on
   `tests/conformance/core/session-a-first-use-inside-later-reads-the-request-session.nvst`. One slot
   echoes the path, a header, a cookie, a query value and a route parameter. A second slot reads the
   body and catches `LogicError`.
-- [ ] `docs/rules/core-classes/html-later.md`: the sentence on reading the request names the body.
+- [x] `docs/rules/core-classes/html-later.md`: the sentence on reading the request names the body.
 
 ### 2. the goal is verified once, and every failure is fixed
 
@@ -83,12 +91,25 @@ the slots. Nothing for a request without slots.
 
 ### State
 
-Written by `session-lifetimes`' last session, which found the defect while it fixed the session half.
-Nothing is built yet.
+Stage 1 is done and committed. `Ctx::inbound` falls back to the lent head in a slot
+(`crates/nvs-runtime/src/ctx/inbound.rs` `inbound`, `crates/nvs-runtime/src/ctx/wiring.rs`
+`lent_head`). `Inbound::head_alone` copies the client, the mount, the route and the refusal, and sets
+`lent`. `session_inbound` is gone. `crates/nvs-stdlib/src/request.rs` `body_carrier` throws for every
+body path in a slot. `slot-request` is green, and the build and clippy are green.
+
+The nightly sweep's two failures were already fixed on HEAD before this session:
+`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` by `e5a100b18f`, and
+`iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst` under `NOVIS_CHECK_TYPES` by
+`438e9c44af`. Both pass locally. The next nightly confirms them.
 
 ### Next
 
-Stage 1 from its first item. The `slot-request` check names a case that does not exist yet, and is
-expected to fail until stage 1 writes it.
+Stage 2, a close (not the full gate): build, clippy, the new case by name, and
+`tests/conformance/core/session-a-first-use-inside-later-reads-the-request-session.nvst`. Then the
+goal-end gates: `bun nv owners --closes later-reads-the-request`, and `bun nv site --check stale`,
+`changes` and `review` for `core-classes/html-later`. The page, `about.md` and the help for
+`Core\Html::later` may need a sentence on reading the request and the body in a slot, and a
+`website/src/data/changes.json` entry. No test is expected to go red. A Rust test that asserted a
+slot's `Core\Request` read throws "no request here" would; none was found by the build.
 
 ### Backlog

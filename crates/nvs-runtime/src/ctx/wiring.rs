@@ -40,8 +40,13 @@ use super::*;
 /// A slot only reads: every member that writes throws where the head is
 /// closed, so the cell is never written after it is filled.
 ///
-/// What it spends: one cell and one shared reference to the request head, per
-/// in-flight request with slots, for the length of its slots.
+/// It is also the one copy of the request a slot reads: [`Ctx::inbound`] falls
+/// back to [`Self::head`], so `Core\Request` in a slot reads the same request
+/// as the main script, and a body read throws.
+///
+/// What it spends: one cell and one copy of the request without its body
+/// ([`Inbound::head_alone`]), per in-flight request with slots, for the length
+/// of its slots.
 ///
 /// Declined: opening the session before every slot run, because a request with
 /// slots and a session cookie would pay a store round trip it may not need; and
@@ -51,7 +56,8 @@ use super::*;
 pub(crate) struct LentSession {
     /// The session, once it is open.
     open: std::cell::OnceCell<Session>,
-    /// The request's head, to read the session cookies from.
+    /// The request without its body, which a slot reads and opens the session
+    /// from.
     head: Inbound,
 }
 
@@ -477,15 +483,10 @@ impl Ctx {
         self.session.as_mut()
     }
 
-    /// The request a session is opened from: this context's own, or in a
-    /// `Core\Html::later` slot the head of the request the slot belongs to.
-    ///
-    /// Only the session's open reads it. `Core\Request` reads
-    /// [`Self::inbound`], which a slot does not have.
-    #[must_use]
-    pub fn session_inbound(&self) -> Option<&Inbound> {
-        self.inbound()
-            .or_else(|| self.lent_session.as_ref().map(|lent| &lent.head))
+    /// The copy of the request a `Core\Html::later` slot reads, and `None`
+    /// outside a slot. [`Self::inbound`] falls back to it.
+    pub(super) fn lent_head(&self) -> Option<&Inbound> {
+        self.lent_session.as_ref().map(|lent| &lent.head)
     }
 
     /// Lends this request's session to the `Core\Html::later` slots about to
@@ -493,9 +494,11 @@ impl Ctx {
     /// it with [`Self::reclaim_session`] once the slots have ended.
     ///
     /// A request with no inbound lends nothing, so a slot of a program
-    /// answering no request still throws at its first session call.
+    /// answering no request still throws at its first session or request call.
+    /// A slot's own context has no inbound either, so a nested `later` keeps
+    /// the cell and the request its parent slot was lent.
     pub fn lend_session(&mut self) {
-        let Some(head) = self.inbound().map(Inbound::head_alone) else {
+        let Some(head) = self.inbound.as_deref().map(Inbound::head_alone) else {
             return;
         };
         let open = std::cell::OnceCell::new();
