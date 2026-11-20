@@ -1,0 +1,37 @@
+<?nvs
+// Sums the values of a `Core\ObjectMap` and of an array with a keyed `foreach`, as a program does to total counts stored by name.
+// bench: iterations 512
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        var $counts = new Core\ObjectMap<string, int>();
+        array<int> $list = [];
+        int $i = 0;
+        while ($i < 8) {
+            $counts->set("item{$i}", $i + 1);
+            $list["item{$i}"] = $i + 1;
+            $i = $i + 1;
+        }
+
+        int $total = 0;
+        int $r = 0;
+        while ($r < $rounds) {
+            // Each step gives one key and its value.
+            // Each step uses `$total` from the step before, so the compiler cannot remove the loop.
+            foreach ($counts as string $key => int $value) {
+                $total = $total + $value + ($total % 2);
+            }
+            // This loop reads the same entries from an array.
+            foreach ($list as string $key => int $value) {
+                $total = $total + $value + ($total % 2);
+            }
+            $r = $r + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";

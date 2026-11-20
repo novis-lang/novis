@@ -52,8 +52,10 @@ the loop, with no copy, so a body that writes copies the store once (`nvs_stdlib
 the loop and charged to its request, as the value-only loop holds. Speed: the loop grows linearly with
 no allocation per entry. Each entry costs three dispatched calls, `advance`, `key` and `current`, where
 an array loop pays none, and it saves the `get` lookup a program that walks the keys writes. The bench
-of `lang:iteration/keys-and-values-from-a-map` records the measured figures beside an array loop over
-the same entries.
+of `lang:iteration/keys-and-values-from-a-map` measures one round of a keyed loop over an 8-entry map
+beside an array loop over the same entries: 2 allocations and 224 bytes per round, all of them the
+keyed loop's, since an array loop allocates nothing, and 26 calls. Its size ramp, from 12,500 to 100,000 entries, grows no faster
+than linear, so no entry allocates.
 
 Out of scope, each staying as it is: a keyed `yield` (`rule:iteration/one-way-only`), so a generator is
 still an `Iterator<T>`; and `Core\Arr::from($map)`, which still gives the keys, since its parameter is

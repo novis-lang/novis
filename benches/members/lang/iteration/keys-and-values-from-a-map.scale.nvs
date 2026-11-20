@@ -1,0 +1,35 @@
+<?nvs
+// Measures the bench's two loops while the map and the array grow to 100,000 entries.
+// bench: start 12500
+// bench: max 100000
+
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        var $counts = new Core\ObjectMap<string, int>();
+        array<int> $list = [];
+        int $n = $size as int;
+        int $i = 0;
+        while ($i < $n) {
+            $counts->set("item{$i}", $i % 10);
+            $list["item{$i}"] = $i % 10;
+            $i = $i + 1;
+        }
+
+        int $total = 0;
+        int $r = 0;
+        while ($r < 64) {
+            foreach ($counts as string $key => int $value) {
+                $total = $total + $value + ($total % 2);
+            }
+            foreach ($list as string $key => int $value) {
+                $total = $total + $value + ($total % 2);
+            }
+            $r = $r + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(12500), "\n";
