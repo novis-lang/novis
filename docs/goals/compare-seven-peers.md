@@ -296,12 +296,12 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 - [ ] Requirement: in a detached worktree at `HEAD`, run `bun nv bench-compare --record
   benches/compare.json`, then `bun nv bench-compare --scenarios --fresh --record benches/compare.json`,
   and copy the record back (README § *One record*).
-- [ ] `tools/nv/cmd/bench-compare.ts:2438` `reps`: a pure `repsHold(passes)` runs the three-of-five
+- [x] `tools/nv/cmd/bench-compare.ts:1899` `repsHold`: a pure `repsHold(passes)` runs the three-of-five
   test from § *Standing decisions* over the record's kept passes. It returns the worst deviation for
   each figure, and whether the order changed. `bun nv bench-compare --reps-check benches/compare.json`
   prints it with no docker.
 - [ ] Requirement: run `--reps-check` on the new record. When it holds, the default at
-  `tools/nv/cmd/bench-compare.ts:2438` becomes 3. Either way, `benches/compare/README.md:257`
+  `tools/nv/cmd/bench-compare.ts:3097` becomes 3. Either way, `benches/compare/README.md:257`
   § *One record* states the reps, the worst deviation and the date of the record that decided them.
 - [ ] `tools/nv/test/bench-compare.test.ts:1`: the three `the record` tests. The plan test uses the
   record as the prior, with Novis's key changed, at the reps default the check decided.
@@ -332,37 +332,34 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1 to 5 are done. Python is the seventh peer: `compose.python.yaml` builds `python/Dockerfile`
-(CPython 3.15.2 with `uvicorn` 0.54.0, `uvloop` 0.23.0 and `httptools` 0.9.0 from
-`python/requirements.txt`) and mounts the case at `/app`, as Node.js does. Each case and served row
-has an `app.py`, a plain ASGI program. `PEERS` has `python` as `built` and not `compiled`, and
-`DIRECT_RUNS`, `DEPLOY_EXT` (`py`, which `deploy/deploy.sh` now takes), `DEPLOY_WAYS`,
-`LIVE_EDIT_SETTING` (`uvicorn --reload`), `PARALLEL_WAY` and `TUNABLES` have it. Fixed results:
-`taint`, `secret`, `config` and `session`. `--peer` now takes a comma list (`peersNamed`).
+Stages 1 to 5 are done, and stage 6's `repsHold` item. `repsHold` (`bench-compare.ts:1899`) takes
+`repsSamplesOf(record)`: one sample per case, and one per timed row (`cores`, `waiting`) and budget.
+A row's record now keeps a timed row's passes under `passes`, per peer and budget, and a reused
+result keeps its earlier passes. For every choice of 3 of the passes it gives the worst move of
+requests/sec, peak memory and p99 against `REPS_BOUNDS`, and every case whose peers a subset
+reorders. `--reps-check PATH` prints `repsReport` and starts no container. Its 9 unit tests pass by
+name (`-t "repsHold|a timed row keeps"`).
 
-Checked with docker: `--smoke --peer node,python` agreed in all 4 cases, and `--smoke --peer
-php,bun,go,node,dotnet,python` agreed in all 4, so Node.js and .NET are now checked too. `--scenarios
---smoke --peer python` ran every row: escape, config, csrf, session and headers `your-code`;
-live-edit `one-setting (uvicorn --reload)`; taint, secret, the three deploys (502s during the
-restart), loop (the runaway never answered), memory (502, the container restarted) and flood
-(502s, 6 restarts) `no`; cores (5.28x), crash (500, then 200), waiting and parallel (3.63x)
-`built-in`. tsc and `bun nv links` are clean. The peer-table, program, `--direct`, plan and
-recording tests pass by name (33), and the new `--peer` test passes.
+The recording runs in `.agent-tmp/wt-record`, a detached worktree at `0a0aa84bbd`, the commit with
+`repsHold`, so the rows keep their timed passes. A detached `nohup` run dies with its Bash call,
+because looper's shell wrapper ends the call's whole Job Object, and `looper launch` ends the same
+way. So each half runs as its own `run_in_background` call, under the 2 h limit. The case half
+writes `.agent-tmp/record-cases.log`. If a half is killed at 2 h, the next session splits it
+further, never with fewer reps.
 
-`--plan` with seven peers and nothing reused: cases 140 stacks, rows 262 stacks, 4 builds. The
-four-peer baseline's total is 247 stacks. A routine recording reuses every row but Novis's, so it
-should come in under the baseline at 5 reps. Stage 6's check decides it.
-
-The nightly failures the sweep named ran on `5d053fc6e6`, origin/main, again. Local main's
-`e5a100b18f` and `438e9c44af` fix them, and they clear when the next full gate pushes.
+All seven peers agreed in every case on smoke, and Python ran every row (stage 5). `--plan` with
+nothing reused: cases 140 stacks, rows 262 stacks, 4 builds. The four-peer baseline is 247 stacks.
+The nightly failures ran on `5d053fc6e6`, origin/main. Local `e5a100b18f` and `438e9c44af` fix
+them, and they clear when the next full gate pushes.
 
 ### Next
 
-Stage 6 from its first item: the seven-peer recording, in a detached worktree at `HEAD`, run in the
-background with the session ending its turn to wait. It brings up 402 stacks with nothing reused, so
-expect several hours. Then `repsHold` and `--reps-check`. Anchors in `tools/nv/cmd/bench-compare.ts`:
-the reps default `:2949` (`o.reps ?? (o.smoke ? 1 : 5)`), `planOf` `:1667`, `PEERS` `:147`,
-`peersNamed` `:2780`. Tests: the three `the record` tests go in `tools/nv/test/bench-compare.test.ts`,
-which has no such `describe` yet, so the `recorded` acceptance check stays red until they exist.
+Stage 6's recording: once the case half in `.agent-tmp/wt-record` ends green, run `bun nv
+bench-compare --scenarios --fresh --record benches/compare.json` there in its own background call
+(`.agent-tmp/record-rows.log`), then copy `benches/compare.json` back. Then `--reps-check` on it, the
+reps default at `tools/nv/cmd/bench-compare.ts:3097` (`o.reps ?? (o.smoke ? 1 : 5)`), and README
+§ *One record*. Anchors: `planOf` `:1670`, `PEERS` `:150`. Tests: the three `the record` tests go
+in a new `describe("the record")` in `tools/nv/test/bench-compare.test.ts`. The `recorded`
+acceptance check stays red until they exist. The worktree is removed once the record is copied.
 
 ### Backlog
