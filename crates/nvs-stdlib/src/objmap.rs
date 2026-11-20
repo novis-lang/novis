@@ -944,4 +944,87 @@ mod tests {
             value.release();
         }
     }
+
+    /// A live graph copy of an object-keyed map and set, while the originals
+    /// stay alive, makes new key objects, so the copies are re-keyed under
+    /// them. The copies find the copied keys and not the originals; without
+    /// the re-key they would find only the originals.
+    // covers: Core\ObjectMap::has, Core\ObjectMap::get, Core\ObjectSet::has
+    #[test]
+    fn a_graph_copy_of_an_object_keyed_map_and_set_finds_the_copied_keys() {
+        let mut ctx = Ctx::buffered();
+        let map = call(nvs_core_object_map_new_object, &mut ctx, &[])
+            .expect("a fresh map does not throw");
+        let set = call(crate::objset::nvs_core_object_set_new_object, &mut ctx, &[])
+            .expect("a fresh set does not throw");
+        // Two objects to key by: any instance is one, so two empty sets.
+        let first = call(crate::objset::nvs_core_object_set_new, &mut ctx, &[])
+            .expect("a fresh set does not throw");
+        let second = call(crate::objset::nvs_core_object_set_new, &mut ctx, &[])
+            .expect("a fresh set does not throw");
+        on(map, nvs_core_object_map_set, &[first, Value::int(1)]);
+        on(map, nvs_core_object_map_set, &[second, Value::int(2)]);
+        on(set, crate::objset::nvs_core_object_set_add, &[first]);
+        on(set, crate::objset::nvs_core_object_set_add, &[second]);
+
+        // One graph, so the copy shares each copied key between the copied
+        // collections and the list.
+        let mut graph = NvsArray::new();
+        for value in [map, set, first, second] {
+            #[expect(
+                unsafe_code,
+                reason = "the list keeps a reference of its own, and this frame keeps its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            graph.append(value);
+        }
+        let graph = Value::array(graph);
+        let into = nvs_runtime::Receiving::over(None, Some(crate::instance::core_class_desc));
+        let copied = nvs_runtime::copy_graph_to(graph, &into).expect("the graph crosses");
+        let held = crate::arr::borrowed(copied.array_ptr().expect("the copy is a list"));
+        let at = |slot: usize| held.value_at(slot).expect("the copy has four entries");
+        let (map_copy, set_copy, first_copy, second_copy) = (at(0), at(1), at(2), at(3));
+        assert_ne!(
+            first_copy.bits(),
+            first.bits(),
+            "a key still held here is copied, not adopted"
+        );
+
+        let has = |map: Value, key: Value| on(map, nvs_core_object_map_has, &[key]).as_bool();
+        assert_eq!(has(map_copy, first_copy), Some(true));
+        assert_eq!(has(map_copy, second_copy), Some(true));
+        assert_eq!(has(map_copy, first), Some(false));
+        assert_eq!(has(map_copy, second), Some(false));
+        assert_eq!(
+            on(map_copy, nvs_core_object_map_get, &[second_copy]).as_int(),
+            Some(2)
+        );
+        assert_eq!(has(map, first), Some(true), "the original keeps its keys");
+
+        let member = |set: Value, key: Value| {
+            on(set, crate::objset::nvs_core_object_set_has, &[key]).as_bool()
+        };
+        assert_eq!(member(set_copy, first_copy), Some(true));
+        assert_eq!(member(set_copy, second_copy), Some(true));
+        assert_eq!(member(set_copy, first), Some(false));
+        assert_eq!(
+            member(set, second),
+            Some(true),
+            "the original keeps its members"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns one reference to each of the five"
+        )]
+        unsafe {
+            copied.release();
+            map.release();
+            set.release();
+            first.release();
+            second.release();
+        }
+    }
 }
