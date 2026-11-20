@@ -4673,6 +4673,8 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "PropertyGuard",
             "PropertyObserver",
             "RecursionError",
+            "Revocable",
+            "RevokedObjectError",
             "RuntimeError",
             "Stringable",
             "Throwable",

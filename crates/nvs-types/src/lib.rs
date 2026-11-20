@@ -204,6 +204,7 @@ pub mod redaction;
 pub(crate) mod response;
 pub mod restrict;
 pub(crate) mod retrieval;
+pub mod revocable;
 pub(crate) mod returns;
 pub mod route_params;
 pub mod routes;

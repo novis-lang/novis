@@ -118,6 +118,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("Core\\Db\\RolledBack", Some("RuntimeError")),
     ("Core\\Ldap\\LdapError", Some("RuntimeError")),
     ("Core\\DeprecatedError", Some("LogicError")),
+    ("RevokedObjectError", Some("LogicError")),
     (FINISH_MARKER, None),
 ];
 

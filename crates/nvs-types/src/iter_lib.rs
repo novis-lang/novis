@@ -3,8 +3,8 @@
 //!
 //! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place all ten — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
-//! `PropertyGuard`, `LateInit`, `Iterable<T>`, `Iterator<T>`,
+//! place all eleven — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+//! `PropertyGuard`, `LateInit`, `Revocable`, `Iterable<T>`, `Iterator<T>`,
 //! `KeyedIterable<K, V>` and `KeyedIterator<K, V>` — become member
 //! signatures, in exactly the
 //! [`ClassSignature`](crate::signatures::ClassSignature) shape
@@ -37,16 +37,19 @@
 //! ([`crate::expr::operators`]), where both operands' static types are in
 //! hand, and never by this parameter.
 //!
-//! # Every member but one is bodiless, and that is what makes them dispatch
+//! # Every member but three is bodiless, and that is what makes them dispatch
 //!
 //! [`MethodSig::has_body`] is false for every member here except
-//! `Parses::tryParse`. That is not bookkeeping: a call resolving to a bodiless
+//! `Parses::tryParse`, `Revocable::revoke` and `Revocable::isRevoked`. That is
+//! not bookkeeping: a call resolving to a bodiless
 //! declaration has no compiled function to name, so it dispatches on the
 //! receiver's runtime class — which is precisely what driving a cursor whose
 //! concrete class the loop never knows requires.
 //!
-//! `tryParse` is the one `rule:classes/interface-default-methods` default on
-//! the roster, and `rule:expressions/try-parse` is why: `tryParse` **is**
+//! `revoke` and `isRevoked` are run by the runtime, and no class may declare
+//! them (`rule:classes/revocable-objects`). `tryParse` is the one
+//! `rule:classes/interface-default-methods` default a class may replace, and
+//! `rule:expressions/try-parse` is why: `tryParse` **is**
 //! `parse` with the throw caught, so an interface that required both members
 //! would hand every implementor the two-implementations-of-one-predicate
 //! failure that rule exists to forbid. Carrying it as a default makes the
@@ -66,7 +69,7 @@
 use nvs_hir::QName;
 use nvs_hir::interfaces::{
     COMPARABLE, ITERABLE, ITERATOR, KEYED_ITERABLE, KEYED_ITERATOR, LATE_INIT, PARSES,
-    PROPERTY_GUARD, PROPERTY_OBSERVER, STRINGABLE,
+    PROPERTY_GUARD, PROPERTY_OBSERVER, REVOCABLE, STRINGABLE,
 };
 use rustc_hash::FxHashMap;
 
@@ -74,7 +77,8 @@ use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
 /// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
-/// `PropertyGuard`, `LateInit`, `Iterable<T>` and `Iterator<T>` to `table`.
+/// `PropertyGuard`, `LateInit`, `Revocable`, `Iterable<T>` and `Iterator<T>` to
+/// `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`] and
 /// [`crate::error_lib::seed`], at the head of
@@ -206,8 +210,27 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         .collect(),
     );
 
-    let iterator_elem = elem_var(ITERATOR, interner);
     let bool_ty = interner.bool_ty();
+    // `rule:classes/revocable-objects`' two members. Each has a body, so an
+    // implementor owes nothing for it. The runtime runs both, and
+    // `crate::conformance::reject_revocable_redeclaration` stops a class from
+    // declaring either again.
+    let mut revoke = bodiless(&[], Vec::new(), void_ty);
+    revoke.has_body = true;
+    let mut is_revoked = bodiless(&[], Vec::new(), bool_ty);
+    is_revoked.has_body = true;
+    table.seed_class(
+        QName::parse(REVOCABLE),
+        FxHashMap::default(),
+        [
+            ("revoke".to_owned(), revoke),
+            ("isRevoked".to_owned(), is_revoked),
+        ]
+        .into_iter()
+        .collect(),
+    );
+
+    let iterator_elem = elem_var(ITERATOR, interner);
     table.seed_class(
         QName::parse(ITERATOR),
         FxHashMap::default(),

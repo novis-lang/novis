@@ -424,6 +424,8 @@ impl<'a> HierarchyResolver<'a> {
     pub fn resolve(self, symbols: &SymbolTable, diags: &mut Diagnostics) -> ClassGraph {
         let mut graph = ClassGraph::default();
         seed_exception_tree(&mut graph);
+        let revocable = QName::parse(crate::interfaces::REVOCABLE);
+        let mut below_root: Vec<(QName, Span)> = Vec::new();
 
         for pending in &self.pending {
             let mut links = ClassLinks {
@@ -441,6 +443,10 @@ impl<'a> HierarchyResolver<'a> {
                     ("extend", &extends_kinds),
                     diags,
                 ) {
+                    if qname == revocable {
+                        report_revocable_interface(raw.span, diags);
+                        continue;
+                    }
                     links.extends.push(qname);
                 }
             }
@@ -455,6 +461,10 @@ impl<'a> HierarchyResolver<'a> {
                     ("implement", &implements_kinds),
                     diags,
                 ) {
+                    if qname == revocable && !pending.extends.is_empty() {
+                        below_root.push((pending.qname.clone(), raw.span));
+                        continue;
+                    }
                     links.implements.push(qname);
                 }
             }
@@ -462,6 +472,9 @@ impl<'a> HierarchyResolver<'a> {
             graph.links.insert(pending.qname.clone(), links);
         }
 
+        for (class, span) in below_root {
+            report_revocable_below_root(&class, span, &graph, diags);
+        }
         detect_cycles(&graph, symbols, diags);
 
         graph
@@ -756,6 +769,53 @@ fn describe_kinds(kinds: &[SymbolKind]) -> String {
         .map(|k| k.describe())
         .collect::<Vec<_>>()
         .join(" or ")
+}
+
+/// `E_REVOCABLE_NOT_A_CLASS` for an interface that extends `Revocable`
+/// (`rule:classes/revocable-objects`). The link is dropped, so nothing else
+/// reports the interface as revocable.
+fn report_revocable_interface(span: Span, diags: &mut Diagnostics) {
+    diags.report(
+        Diagnostic::error(
+            code::E_REVOCABLE_NOT_A_CLASS,
+            "Only a class can implement `Revocable`.",
+        )
+        .with_primary(span, "an interface cannot extend it"),
+    );
+}
+
+/// `E_REVOCABLE_BELOW_ROOT` for `class`, which has a parent and writes
+/// `implements Revocable` at `span` (`rule:classes/revocable-objects`).
+///
+/// Asked once every link is in `graph`, so the walk to the root class sees a
+/// parent declared in a later file. The walk stops at a class it has seen,
+/// because [`detect_cycles`] reports a cycle after this. A parent that did not
+/// resolve already has its own error, and gets no second one here.
+fn report_revocable_below_root(class: &QName, span: Span, graph: &ClassGraph, diags: &mut Diagnostics) {
+    let parent_of = |q: &QName| graph.links.get(q).and_then(|l| l.extends.first().cloned());
+    let Some(parent) = parent_of(class) else {
+        return;
+    };
+    let mut root = parent.clone();
+    let mut seen = FxHashSet::default();
+    while let Some(next) = parent_of(&root) {
+        if !seen.insert(root.clone()) {
+            break;
+        }
+        root = next;
+    }
+    diags.report(
+        Diagnostic::error(
+            code::E_REVOCABLE_BELOW_ROOT,
+            format!(
+                "`{class}` cannot implement `Revocable`, because its parent class `{parent}` does not."
+            ),
+        )
+        .with_primary(span, "only a class with no parent can implement it")
+        .with_help(format!(
+            "Write `implements Revocable` on `{root}`, the class with no parent. `{class}` then gets it too."
+        )),
+    );
 }
 
 fn resolve_supertype(

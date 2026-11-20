@@ -798,6 +798,9 @@ pub(crate) fn check_method_overrides(
         let Some(own) = own_sigs.get(&name).cloned() else {
             continue;
         };
+        if reject_revocable_redeclaration(qname, &name, m.name, env) {
+            continue;
+        }
         for ancestor in &ancestors {
             let Some((owner, parent)) = resolve_method(ancestor, &name, env.signatures, env.graph)
             else {
@@ -843,6 +846,30 @@ pub(crate) fn check_method_overrides(
             );
         }
     }
+}
+
+/// `E_REVOCABLE_METHOD_DECLARED` when `qname` is revocable and declares
+/// `revoke` or `isRevoked` at `at` (`rule:classes/revocable-objects`). The
+/// runtime runs both, so a declaration could never be called. True when it
+/// reported, so the caller compares no signature for the same mistake.
+fn reject_revocable_redeclaration(qname: &QName, name: &str, at: Span, env: &mut Env<'_>) -> bool {
+    if name != "revoke" && name != "isRevoked" {
+        return false;
+    }
+    let revocable = QName::parse(nvs_hir::interfaces::REVOCABLE);
+    if !implements_interface(qname, &revocable, env.graph) {
+        return false;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_REVOCABLE_METHOD_DECLARED,
+            format!(
+                "`{qname}` cannot declare `{name}()`. `Revocable` provides this method, and a class cannot replace it."
+            ),
+        )
+        .with_primary(at, "declared here"),
+    );
+    true
 }
 
 /// One `E0404` for the first way `own` cannot replace `parent`, which `owner`

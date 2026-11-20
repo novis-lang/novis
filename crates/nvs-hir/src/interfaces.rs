@@ -42,7 +42,8 @@
 /// (`rule:classes/late-init-initializes-on-the-first-read`) take none
 /// either: each is a contract an ordinary class implements, not a `Core` domain
 /// class, so it belongs on this roster beside `Comparable` rather than under a
-/// namespace.
+/// namespace. `Revocable` (`rule:classes/revocable-objects`) takes none, and is
+/// here for the same reason.
 pub const RESERVED: &[(&str, &[&str])] = &[
     ("Comparable", &[]),
     ("Stringable", &[]),
@@ -50,6 +51,7 @@ pub const RESERVED: &[(&str, &[&str])] = &[
     ("PropertyObserver", &[]),
     ("PropertyGuard", &[]),
     ("LateInit", &[]),
+    ("Revocable", &[]),
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
     ("KeyedIterable", &["K", "V"]),
@@ -99,6 +101,13 @@ pub const PROPERTY_GUARD: &str = "PropertyGuard";
 /// a class implements so that the first read of an unset `lateinit` property
 /// calls `initProperty(string $name): void` and then reads again.
 pub const LATE_INIT: &str = "LateInit";
+
+/// `rule:classes/revocable-objects`' `Revocable` — what a root class implements
+/// so that `revoke()` removes its object from every `Core\ObjectMap`,
+/// `Core\ObjectSet` and `Core\Heap`, and any other use of it throws
+/// `RevokedObjectError`. Its two members, `revoke(): void` and
+/// `isRevoked(): bool`, are defaults no class may declare again.
+pub const REVOCABLE: &str = "Revocable";
 
 /// `rule:iteration/two-interfaces`'s `Iterable<T>` — a thing that can produce a fresh cursor.
 pub const ITERABLE: &str = "Iterable";
@@ -160,6 +169,7 @@ mod tests {
         assert_eq!(type_params(PROPERTY_OBSERVER), Some(&[][..]));
         assert_eq!(type_params(PROPERTY_GUARD), Some(&[][..]));
         assert_eq!(type_params(LATE_INIT), Some(&[][..]));
+        assert_eq!(type_params(REVOCABLE), Some(&[][..]));
     }
 
     /// `Parses` is asked of a class by name at a binding site and never
