@@ -49,6 +49,9 @@
           "help": {
             "type": "boolean"
           },
+          "reviewed": {
+            "type": "boolean"
+          },
           "comments": {
             "type": "boolean"
           },

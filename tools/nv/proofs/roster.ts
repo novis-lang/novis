@@ -57,6 +57,8 @@ export interface Entry {
   summary: string;
   /** What the binary's own help is missing, or "" when nothing. */
   help: string;
+  /** Its card in `nvs meta --json` as JSON, for a feature that list gives (`lib/texts.ts` `card`). */
+  card?: string;
 }
 
 export const examplesDir = (e: Entry) => `${EXAMPLES}/${e.path}`;
@@ -324,6 +326,7 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
         anchor: anchors.get(key) ?? "",
         summary: member.doc?.short || member.signature || "",
         help: member.doc?.short ? classHelp : `\`${key}\` has no card, so \`nvs agent show\` prints nothing for it`,
+        card: JSON.stringify(member),
       });
     }
   }
@@ -341,6 +344,7 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
         anchor: tables[kind]!.get(name) ?? "",
         summary: short,
         help: short ? "" : `\`${name}\` has no card, so \`nvs agent show\` prints nothing for it`,
+        card: JSON.stringify(item),
       });
     }
   }
@@ -355,6 +359,7 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
       anchor: tables.directive!.get(key) ?? "",
       summary: isObject(d) ? `${pyStr(d.class)} directive, applied at ${pyStr(d.apply)}` : "",
       help: "",
+      card: JSON.stringify(d),
     });
   }
 

@@ -21,9 +21,10 @@ import { proofSkip } from "../schema/proofs.ts";
 import { LEDGER, LEDGER_WHOLE, ledgerRows, perfKey } from "./ledger.ts";
 import { anchorKey, CALL_ROOTS, callsIn, callsKey, coversKey, MARKER_ROOTS, markersIn } from "./markers.ts";
 import { aboutFile, benchFile, DETAILS, detailsFile, examplesDir, hostileDir, implFile, introFile, noteRoster, programsIn, read, type Entry, type Kind } from "./roster.ts";
+import { COMMENT_DIRECTIVE_RE, COMMENT_PAYLOAD_RE, featureTexts, isReviewed, readReview } from "../lib/texts.ts";
 
 /** Every proof a feature can owe, in the order the audit prints them. */
-export const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help"] as const;
+export const PROOFS = ["tests", "examples", "perf", "hostile", "about", "help", "reviewed"] as const;
 export type Proof = (typeof PROOFS)[number];
 
 /** What one kind owes. `tests` counts cases from either side and `rust` how many of them are Rust tests. */
@@ -35,6 +36,11 @@ export interface Owes {
   hostile: number;
   about: boolean;
   help: boolean;
+  /**
+   * Every user text of the feature is reviewed at its hash now, or is on the baseline at it
+   * (`lib/texts.ts` `featureTexts`). Off unless the policy file turns it on, and no skip file excuses it.
+   */
+  reviewed: boolean;
   /** Every program among the proofs is inside the plain-comment bounds. Off unless the policy file turns it on. */
   comments?: boolean;
   /**
@@ -45,17 +51,18 @@ export interface Owes {
 }
 
 // `help` is off for an exception, an interface and a directive: the binary has no card or index entry to
-// show for one yet. `about` is off for every kind until the policy file's override for `all` turns it on.
+// show for one yet. `about` and `reviewed` are off for every kind until the policy file's override for
+// `all` turns them on.
 const POLICY: Record<Kind, Owes> = {
-  member: { tests: 2, rust: 1, examples: 3, perf: true, hostile: 1, about: false, help: true },
-  lang: { tests: 2, rust: 0, examples: 3, perf: true, hostile: 1, about: false, help: true },
-  exception: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: false },
-  enum: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 0, about: false, help: true },
-  interface: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 0, about: false, help: false },
-  tool: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: true },
-  directive: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: false },
+  member: { tests: 2, rust: 1, examples: 3, perf: true, hostile: 1, about: false, help: true, reviewed: false },
+  lang: { tests: 2, rust: 0, examples: 3, perf: true, hostile: 1, about: false, help: true, reviewed: false },
+  exception: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: false, reviewed: false },
+  enum: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 0, about: false, help: true, reviewed: false },
+  interface: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 0, about: false, help: false, reviewed: false },
+  tool: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: true, reviewed: false },
+  directive: { tests: 1, rust: 0, examples: 1, perf: false, hostile: 1, about: false, help: false, reviewed: false },
   // A package has no Rust side: its tests are its own `#[Test]` methods.
-  package: { tests: 2, rust: 0, examples: 3, perf: true, hostile: 1, about: false, help: true },
+  package: { tests: 2, rust: 0, examples: 3, perf: true, hostile: 1, about: false, help: true, reviewed: false },
 };
 
 const POLICY_FILE = "data/proofs/policy.json";
@@ -114,7 +121,7 @@ export function loadPolicy(noPerf: boolean): { policy: Policy; skips: Skips } {
 /** The proofs some kind still owes: the audit's columns, so a proof switched off shows no column. */
 export function shownProofs(policy: Policy): Proof[] {
   const kinds = Object.values(policy);
-  return PROOFS.filter((p) => (p !== "perf" && p !== "about" && p !== "help") || kinds.some((k) => k[p]));
+  return PROOFS.filter((p) => (p !== "perf" && p !== "about" && p !== "help" && p !== "reviewed") || kinds.some((k) => k[p]));
 }
 
 /** The code of a class introduction's text: every fence's lines and every backtick span, one per line. */
@@ -161,8 +168,6 @@ export function aboutProblem(path: string): string {
 const COMMENT_TOP_LINES = 4;
 const COMMENT_STEP_LINES = 2;
 const COMMENT_SENTENCE_WORDS = 25;
-const COMMENT_DIRECTIVE_RE = /^\/\/\s*(?:bench|hostile|covers|proof|requires):/;
-const COMMENT_PAYLOAD_RE = /^\/\/\s*hostile:\s*comment-payload\s*$/;
 
 /** What is wrong with the shape of the comments of the proof program at `path`; see [`commentProblemsOf`]. */
 export function commentProblems(path: string): string[] {
@@ -305,6 +310,8 @@ export interface Proofs {
   inferred: number;
   /** The proofs carrying a known-gap marker. */
   gaps: string[];
+  /** The key of the feature's first user text that is not reviewed, or "" when every one is. */
+  unreviewed?: string;
 }
 
 /** Every file under a repo-relative directory whose name ends `ext`, skipping any `target` directory. */
@@ -504,6 +511,7 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
   const me = fingerprint().id;
   const hashes = implHashes(entries.map(implFile).filter((f) => f !== ""));
   const hashOf = (path: string) => hashes.get(path) ?? "";
+  const review = readReview(ROOT);
   const out = new Map<string, Proofs>();
   for (const e of entries) {
     noteKey(coversKey(e.id));
@@ -557,6 +565,7 @@ export function collect(entries: Entry[], scanned: Scans = scans()): Map<string,
     const current = implFile(e) && hashOf(implFile(e));
     const fresh = records.filter((r) => !current || r.impl_hash === current);
     p.perfAny = fresh.at(-1) ?? null;
+    p.unreviewed = featureTexts(ROOT, e).find((t) => !isReviewed(review, t))?.key ?? "";
     out.set(e.id, p);
   }
   return out;
@@ -590,6 +599,10 @@ export function owed(entry: Entry, proofs: Proofs, policy: Policy, skips: Skips)
     else if (proofs.aboutProblem) out.about = `${proofs.about}: ${proofs.aboutProblem}`;
   }
   if (want.help && !("help" in skip) && entry.help) out.help = entry.help;
+  // No skip file excuses it: the baseline is the one list of texts it does not ask a review of yet.
+  if (want.reviewed && proofs.unreviewed) {
+    out.reviewed = `${proofs.unreviewed} changed with no review: review it, fix every finding, then \`bun nv site --review --stamp ${proofs.unreviewed}\``;
+  }
   if (want.intro && !("intro" in skip) && proofs.intro && !proofs.introNames) {
     const member = entry.id.slice(entry.id.indexOf("::") + 2);
     out.intro = `${proofs.intro} does not name \`${member}\` in code: say what it does where the introduction describes the class`;

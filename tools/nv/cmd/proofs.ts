@@ -110,7 +110,7 @@ function pythonJson(value: unknown): string {
   return JSON.stringify(value, null, 2).replace(/[\u0080-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
-const HEADINGS: Record<Proof, string> = { tests: "tests", examples: "exmpl", perf: "perf", hostile: "hostl", about: "about", help: "help" };
+const HEADINGS: Record<Proof, string> = { tests: "tests", examples: "exmpl", perf: "perf", hostile: "hostl", about: "about", help: "help", reviewed: "revwd" };
 
 interface Row {
   group: string;
@@ -180,6 +180,7 @@ function printGroup(out: string[], name: string, entries: Entry[], proofs: Map<s
       hostile: p.hostile.length,
       about: p.about ? 1 : 0,
       help: e.help ? 0 : 1,
+      reviewed: p.unreviewed ? 0 : 1,
     };
     const skipped = skips.get(e.id) ?? {};
     const cells = columns.map((c) => rjust(c in skipped ? "-" : `${have[c]}${c in missing ? "!" : ""}`, 5));

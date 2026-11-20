@@ -20,14 +20,51 @@
 //
 // What it costs: one walk of the marker trees per `Hashes`, which `bun nv site --check stale` makes
 // once per run, as `bun nv proofs` does. Nothing at run time.
+//
+// **The user texts** (`rule:testing/feature-proofs`, Reviewed) are every text an end user reads that a
+// tool can key, each with its key and a hash of its text, which `userTexts` lists:
+//
+// - an `about.md` or a `details.md` under `docs/examples/`: its path, and the file;
+// - a help card: `help:<feature id>`, and `card`; a language feature, a package type and a feature with
+//   no card have none;
+// - a handwritten page under `DOCS`: its path, and the file; the generated and the legal pages are out;
+// - a `.nvs` under `docs/examples/`, `tests/hostile/`, `benches/members/` or `website/snippets/`: its
+//   path, and its comment lines without directive lines and without a `// hostile: comment-payload`
+//   block (`commentText`), so a code edit owes no review; a file with no comment is no text;
+// - `website/src/data/changes.json`: its path, and every entry's `text` and `instead`.
+//
+// A text is reviewed when its hash is its stamp's in `data/proofs/reviewed.json`, or its baseline hash
+// in `data/proofs/review-baseline.json`, which lists the texts that existed when the review began and
+// only ever shrinks: a stamp deletes the text's key from it. What it costs: about 1 MB in the
+// repository for the two files, and nothing at run time.
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { comparePaths } from "./py.ts";
 import { ROOT } from "./paths.ts";
+import { write } from "./store.ts";
+import { reviewBaseline, reviewed } from "../schema/proofs.ts";
 import { MARKER_ROOTS, markersAt } from "../proofs/markers.ts";
-import { ABOUT, aboutFile, examplesDir, type Entry, type Meta } from "../proofs/roster.ts";
+import { ABOUT, aboutFile, benchFile, BENCHES, DETAILS, EXAMPLES, examplesDir, HOSTILE, hostileDir, type Entry, type Meta } from "../proofs/roster.ts";
+
+/** The handwritten pages' directory. */
+export const DOCS = "website/src/content/docs";
+/** The page directories a renderer writes, under `DOCS`. */
+export const GENERATED = ["reference/core/"];
+/** Pages whose wording is fixed by law, which neither `prose` nor the review judges. */
+export const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
+/** The directory of the snippets the pages show. */
+export const SNIPPETS = "website/snippets";
+/** The unreleased change entries, a user text of their own (`lib/changes.ts` reads them). */
+const CHANGES_FILE = "website/src/data/changes.json";
+export const REVIEWED = "data/proofs/reviewed.json";
+export const REVIEW_BASELINE = "data/proofs/review-baseline.json";
+
+/** A comment line a tool reads, not prose. */
+export const COMMENT_DIRECTIVE_RE = /^\/\/\s*(?:bench|hostile|covers|proof|requires):/;
+/** The line above an attack's payload, a comment block no reader reads as prose. */
+export const COMMENT_PAYLOAD_RE = /^\/\/\s*hostile:\s*comment-payload\s*$/;
 
 /** A file's text with every line ending read as `\n`, or `""` when it cannot be read. */
 export const readAt = (root: string, path: string) => {
@@ -77,8 +114,10 @@ const named = (items: unknown[] | undefined, key: string, name: string) =>
   (items ?? []).find((x) => (typeof x === "object" && x !== null ? String((x as Record<string, unknown>)[key]) : String(x)) === name);
 
 /** What the binary's help says of a feature: its card in `nvs meta --json`, or its chapter section.
- * A language feature's is empty, because `bun nv render` writes its section from its own files. */
+ * A language feature's is empty, because `bun nv render` writes its section from its own files. The
+ * roster's `card`, when it read one, is the same text, so a caller without `meta` gets it too. */
 export function card(root: string, entry: Entry, meta: Meta): string {
+  if (entry.card !== undefined) return entry.card;
   let found: unknown;
   switch (entry.kind) {
     case "member": {
@@ -254,4 +293,220 @@ export class Hashes {
     if (entry.kind !== "lang") out.push({ key: helpKey(entry.id), hash: this.help(entry) });
     return out;
   }
+}
+
+/** One text an end user reads: its key, the hash of its text, the feature it belongs to or "", and the
+ * text a reader is shown. */
+export interface UserText {
+  key: string;
+  hash: string;
+  feature: string;
+  text: string;
+}
+
+const textHash = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
+
+/** A program's prose: its `//` and `///` comment lines, without directive lines and without the comment
+ * block under `// hostile: comment-payload`, one per line. `""` when it has none. */
+export function commentText(source: string): string {
+  const out: string[] = [];
+  let payload = false;
+  for (const line of source.replace(/\r\n?/g, "\n").split("\n")) {
+    const text = line.trim();
+    if (COMMENT_PAYLOAD_RE.test(text)) {
+      payload = true;
+      continue;
+    }
+    if (payload && text.startsWith("//")) continue;
+    payload = false;
+    if (text.startsWith("//") && !COMMENT_DIRECTIVE_RE.test(text)) out.push(text);
+  }
+  return out.join("\n");
+}
+
+const userText = (key: string, text: string, feature = ""): UserText | null => (text.trim() === "" ? null : { key, hash: textHash(text), feature, text });
+
+/** A program's text, or null when it has no comment. */
+const programText = (root: string, path: string, feature = "") => userText(path, commentText(readAt(root, path)), feature);
+
+/** The help card's text of a feature, or null for a language feature and one with no card. A package
+ * type's help is the comment above its declaration in a source file, which is not a published text. */
+function helpText(root: string, entry: Entry, meta: Meta): UserText | null {
+  if (entry.kind === "lang" || entry.kind === "package") return null;
+  const text = card(root, entry, meta);
+  return text === "null" ? null : userText(helpKey(entry.id), text, entry.id);
+}
+
+/** A program's feature: the feature whose example or attack directory holds it, or whose bench it is or
+ * is a sibling of (`.scale.nvs`, `.twin.nvs`). */
+function programOwners(entries: Entry[]): (path: string) => string {
+  const dirs = new Map<string, string>();
+  const benches = new Map<string, string>();
+  for (const e of entries) {
+    dirs.set(examplesDir(e), e.id);
+    dirs.set(hostileDir(e), e.id);
+    benches.set(benchFile(e).slice(0, -".nvs".length), e.id);
+  }
+  return (path) => {
+    if (path.startsWith(`${BENCHES}/`)) return benches.get(path.replace(/(\.scale|\.twin)?\.nvs$/, "")) ?? "";
+    for (let dir = dirname(path); dir.includes("/"); dir = dirname(dir)) {
+      const id = dirs.get(dir);
+      if (id !== undefined) return id;
+    }
+    return "";
+  };
+}
+
+/** The texts of one feature that its Reviewed proof is owed for: its `about.md`, its `details.md`, its
+ * help card, and the comments of its examples, its attacks and its bench. `meta` is `{}` where the
+ * roster's `card` is all there is. */
+export function featureTexts(root: string, entry: Entry, meta: Meta = {}): UserText[] {
+  const dir = examplesDir(entry);
+  const programs = [
+    ...filesUnder(root, dir).filter((f) => f.endsWith(".nvs")),
+    ...filesUnder(root, hostileDir(entry)).filter((f) => f.endsWith(".nvs")),
+    ...[benchFile(entry), ...[".scale.nvs", ".twin.nvs"].map((s) => benchFile(entry).replace(/\.nvs$/, s))].filter((f) => existsSync(join(root, f))),
+  ];
+  return [
+    userText(`${dir}/${ABOUT}`, readAt(root, `${dir}/${ABOUT}`), entry.id),
+    userText(`${dir}/${DETAILS}`, readAt(root, `${dir}/${DETAILS}`), entry.id),
+    helpText(root, entry, meta),
+    ...programs.map((p) => programText(root, p, entry.id)),
+  ].filter((t): t is UserText => t !== null);
+}
+
+/** What `userTexts` reads the roster from. */
+export interface TextWorld {
+  entries: Entry[];
+  meta: Meta;
+}
+
+/** Every user text, in key order. */
+export function userTexts(root: string, world: TextWorld): UserText[] {
+  const owner = programOwners(world.entries);
+  const out: UserText[] = [];
+  for (const f of filesUnder(root, EXAMPLES)) {
+    if (f.endsWith(`/${ABOUT}`) || f.endsWith(`/${DETAILS}`)) {
+      const t = userText(f, readAt(root, f), owner(`${dirname(f)}/x.nvs`));
+      if (t) out.push(t);
+    }
+  }
+  for (const e of world.entries) {
+    const t = helpText(root, e, world.meta);
+    if (t) out.push(t);
+  }
+  for (const f of filesUnder(root, DOCS)) {
+    const key = f.slice(DOCS.length + 1);
+    if (!/\.mdx?$/.test(f) || GENERATED.some((g) => key.startsWith(g)) || LEGAL.includes(key)) continue;
+    const t = userText(f, readAt(root, f));
+    if (t) out.push(t);
+  }
+  for (const base of [EXAMPLES, HOSTILE, BENCHES, SNIPPETS]) {
+    for (const f of filesUnder(root, base)) {
+      if (!f.endsWith(".nvs")) continue;
+      const t = programText(root, f, base === SNIPPETS ? "" : owner(f));
+      if (t) out.push(t);
+    }
+  }
+  const changes = changesText(root);
+  if (changes) out.push(changes);
+  return out.sort((a, b) => comparePaths(a.key, b.key));
+}
+
+/** `changes.json`'s text: each entry's `text` and `instead`, one per line. */
+function changesText(root: string): UserText | null {
+  const raw = readAt(root, CHANGES_FILE);
+  if (!raw) return null;
+  let entries: { text?: unknown; instead?: unknown }[] = [];
+  try {
+    const doc = JSON.parse(raw) as { entries?: unknown };
+    if (Array.isArray(doc.entries)) entries = doc.entries;
+  } catch {
+    return userText(CHANGES_FILE, raw);
+  }
+  const lines = entries.flatMap((e) => [e.text, e.instead].filter((x): x is string => typeof x === "string"));
+  return userText(CHANGES_FILE, lines.join("\n"));
+}
+
+/** The review stamps and the baseline: key -> the hash the text was reviewed at, or had at the start. */
+export interface ReviewState {
+  reviewed: Record<string, string>;
+  baseline: Record<string, string>;
+  /** Whether the baseline file exists, since `--review --baseline` writes it once. */
+  hasBaseline: boolean;
+}
+
+const readMap = (root: string, path: string): Record<string, string> | null => {
+  const raw = readAt(root, path);
+  return raw ? (JSON.parse(raw) as Record<string, string>) : null;
+};
+
+/** Writes a stamp file through the record store, so its layout is the one `bun nv check` holds it to. */
+const writeMap = (root: string, path: string, map: Record<string, string>) => {
+  const type = path === REVIEWED ? reviewed : reviewBaseline;
+  write(type, type.name, map, root);
+};
+
+export function readReview(root: string = ROOT): ReviewState {
+  const baseline = readMap(root, REVIEW_BASELINE);
+  return { reviewed: readMap(root, REVIEWED) ?? {}, baseline: baseline ?? {}, hasBaseline: baseline !== null };
+}
+
+/** Whether a text was reviewed at its hash now, or is on the baseline at that hash. */
+export const isReviewed = (state: ReviewState, t: UserText) => state.reviewed[t.key] === t.hash || state.baseline[t.key] === t.hash;
+
+/** Every text that is not reviewed, in key order. */
+export function unreviewed(root: string, world: TextWorld, state: ReviewState = readReview(root)): UserText[] {
+  return userTexts(root, world).filter((t) => !isReviewed(state, t));
+}
+
+/** Records each named text's hash now, and takes its key off the baseline. Returns what stopped it. */
+export function stampReview(root: string, world: TextWorld, keys: string[]): string[] {
+  const texts = new Map(userTexts(root, world).map((t) => [t.key, t]));
+  const problems = keys.filter((k) => !texts.has(k)).map((k) => `${k}: no user text has this key`);
+  if (problems.length) return problems;
+  const state = readReview(root);
+  for (const k of keys) {
+    state.reviewed[k] = texts.get(k)!.hash;
+    delete state.baseline[k];
+  }
+  writeMap(root, REVIEWED, state.reviewed);
+  if (state.hasBaseline) writeMap(root, REVIEW_BASELINE, state.baseline);
+  return [];
+}
+
+/** Writes the baseline once: every user text that has no stamp, at its hash now. Returns what stopped
+ * it and how many texts it wrote. */
+export function writeReviewBaseline(root: string, world: TextWorld): { problems: string[]; texts: number } {
+  const state = readReview(root);
+  if (state.hasBaseline) return { problems: [`${REVIEW_BASELINE} exists; the baseline is written once and only shrinks`], texts: 0 };
+  const map = Object.fromEntries(userTexts(root, world).filter((t) => state.reviewed[t.key] !== t.hash).map((t) => [t.key, t.hash]));
+  writeMap(root, REVIEW_BASELINE, map);
+  return { problems: [], texts: Object.keys(map).length };
+}
+
+/** The three questions a reader answers for each text. */
+export const REVIEW_QUESTIONS = [
+  "Quote each sentence you had to read twice.",
+  "Name each word or term you did not know.",
+  "In your own words, in two or three sentences, say what the feature does, or what the page teaches.",
+];
+
+/** What a reader is given: the prose rules, the three questions, and each text with its key. `shown`
+ * gives a help card's text as `nvs agent show` prints it. */
+export function reviewBrief(texts: UserText[], rules: string, shown: (t: UserText) => string = (t) => t.text): string {
+  const out = [
+    "You read these texts as a programmer who has never seen this project. Read no file: answer from this brief alone.",
+    "",
+    "The rules the texts are written to:",
+    "",
+    rules.trim(),
+    "",
+    "For each text, under its key, answer:",
+    "",
+    ...REVIEW_QUESTIONS.map((q, i) => `${i + 1}. ${q}`),
+    "",
+  ];
+  for (const t of texts) out.push(`=== ${t.key}${t.feature ? ` (${t.feature})` : ""}`, "", (t.key.startsWith("help:") ? shown(t) : t.text).trim(), "");
+  return out.join("\n");
 }

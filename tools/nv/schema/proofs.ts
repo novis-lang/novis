@@ -3,7 +3,9 @@
 // report's bounds, each file under `data/proofs/skip/` is one feature's excuses with their reasons,
 // `data/proofs/help-backlog.json` is the features the help proof is not yet asked of, and
 // `data/proofs/intro-backlog.json` is the members their class introduction does not yet have to name,
-// and `data/proofs/released.json` is each feature's behaviour hash at the last release.
+// `data/proofs/released.json` is each feature's behaviour hash at the last release, and
+// `data/proofs/reviewed.json` and `data/proofs/review-baseline.json` are the review stamps of the texts
+// an end user reads and the texts the review does not ask of yet (`tools/nv/lib/texts.ts`).
 
 import { defineRecord, s } from "../lib/schema.ts";
 
@@ -37,6 +39,7 @@ export const proofPolicy = defineRecord({
           hostile: count,
           about: owed,
           help: owed,
+          reviewed: owed,
           comments: owed,
           intro: owed,
         }),
@@ -96,4 +99,28 @@ export const released = defineRecord({
   dir: "proofs/released",
   single: true,
   schema: s.object({ since: s.string(), features: s.map(s.string()) }),
+});
+
+/**
+ * Each user text's review stamp: its key, `docs/examples/core/Str/length/about.md` or
+ * `help:Core\Str::length`, and the hash of its text when a reader last reviewed it and every finding was
+ * fixed. `bun nv site --review --stamp` writes it.
+ */
+export const reviewed = defineRecord({
+  name: "reviewed",
+  dir: "proofs/reviewed",
+  single: true,
+  schema: s.map(s.string()),
+});
+
+/**
+ * Each user text that existed when the review began, and its hash then. A text here is reviewed while
+ * its hash is this one. `bun nv site --review --baseline` writes it once, and a review stamp deletes its
+ * key, so it only shrinks.
+ */
+export const reviewBaseline = defineRecord({
+  name: "review_baseline",
+  dir: "proofs/review-baseline",
+  single: true,
+  schema: s.map(s.string()),
 });

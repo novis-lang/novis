@@ -25,6 +25,15 @@
 //                                          what a release does with `changes.json`: each entry joins the
 //                                          changelog of every feature it names, the entries and `unseen`
 //                                          are emptied, and the snapshot is taken again as `vVERSION`
+//     bun nv site --review                 every user text that is not reviewed, one key per line, under
+//                                          the feature it belongs to (`lib/texts.ts` says what one is)
+//     bun nv site --review --brief KEY...  what a reader is given: the prose rules, the three questions,
+//                                          and each text with its key, a help card as `nvs agent show`
+//                                          prints it
+//     bun nv site --review --stamp KEY...  record each text's hash now in `data/proofs/reviewed.json`, by
+//                                          whoever fixed every finding of its review
+//     bun nv site --review --baseline      write `data/proofs/review-baseline.json` once: every text not
+//                                          stamped, at its hash now
 //     bun nv site --roadmap                write README.md's roadmap list from website/src/data/roadmap.json
 //     bun nv site --roadmap --retired      drop the retired goals from roadmap.json, then write and commit
 //     bun nv site --questions --status     `questions <area>: <n> owed, <n> stale` per area, exit 0
@@ -286,7 +295,8 @@
 // names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `tools` (see
 // `toolsProblems`), `changes` (every feature added, removed or changed since the snapshot has its entry
-// in `changes.json`, and each entry has its shape: `lib/changes.ts`), `in-depth`
+// in `changes.json`, and each entry has its shape: `lib/changes.ts`), `review` (every user text is
+// reviewed at its hash now, or is on the baseline at it: `lib/texts.ts`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`), `shots` (§ *A screenshot*), `roadmap` (the
 // roadmap is in step with the goal chain and the README: `lib/site-roadmap.ts`), `code` (§ *A code
 // block*) and `prose` (the
@@ -330,7 +340,26 @@ import { mask, recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
 import { canShoot, recordShot, SHOT, SHOT_OUT, SHOT_PNG, shotFixture, shotPng } from "../lib/shoot.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
-import { card, filesUnder, Hashes, isTextKey, readAt } from "../lib/texts.ts";
+import {
+  card,
+  DOCS,
+  filesUnder,
+  GENERATED,
+  Hashes,
+  isTextKey,
+  LEGAL,
+  readAt,
+  readReview,
+  REVIEW_BASELINE,
+  REVIEWED,
+  reviewBrief,
+  SNIPPETS,
+  stampReview,
+  unreviewed,
+  userTexts,
+  writeReviewBaseline,
+  type UserText,
+} from "../lib/texts.ts";
 import { changesProblems, readChanges, readReleased, releaseChanges, snapshot, writeReleased } from "../lib/changes.ts";
 import { styleProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
@@ -342,17 +371,12 @@ import { ABOUT, EXAMPLES, examplesDir, introFile, memberPath, metaJson, roster, 
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --changes --snapshot SINCE | --release VERSION | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --changes --snapshot SINCE | --release VERSION | --review [--brief KEY... | --stamp KEY... | --baseline] | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
 
-export const DOCS = "website/src/content/docs";
-export const SNIPPETS = "website/snippets";
+export { DOCS, SNIPPETS };
 export const LOCK = "website/site.lock.json";
-/** The page directories a renderer writes, under `DOCS`. */
-const GENERATED = ["reference/core/"];
-/** Pages whose wording is fixed by law, and which `prose` does not judge. */
-const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose", "code", "changes"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose", "code", "changes", "review"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -2484,6 +2508,9 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     } else if (part === "changes") {
       w ??= await world(nvs);
       problems = changesCheck(w);
+    } else if (part === "review") {
+      w ??= await world(nvs);
+      problems = reviewCheck(w);
     } else {
       w ??= await world(nvs);
       const s = staleness(w);
@@ -2502,6 +2529,75 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
 export function changesCheck(w: World, root: string = ROOT): string[] {
   const hashes = new Hashes(root, w.meta);
   return changesProblems(w.entries, (e) => hashes.behaviour(e), readReleased(root), readChanges(root), proseProblems);
+}
+
+/** The `review` part: every user text whose hash is neither its review stamp's nor its baseline hash. */
+export function reviewCheck(w: World, root: string = ROOT): string[] {
+  const state = readReview(root);
+  if (!state.hasBaseline) return [`${REVIEW_BASELINE} is missing: write it once with \`bun nv site --review --baseline\``];
+  return unreviewed(root, w, state).map((t) => `${t.key}${t.feature ? ` (${t.feature})` : ""}: changed with no review; review it, fix every finding, then \`bun nv site --review --stamp ${t.key}\``);
+}
+
+/** The unreviewed texts, one key per line under the feature each belongs to, the texts of no feature
+ * last. */
+export function reviewList(texts: UserText[]): string[] {
+  const groups = new Map<string, string[]>();
+  for (const t of texts) {
+    if (!groups.has(t.feature)) groups.set(t.feature, []);
+    groups.get(t.feature)!.push(t.key);
+  }
+  const ids = [...groups.keys()].filter((id) => id !== "").sort(comparePaths);
+  const out = ids.flatMap((id) => [`${id}:`, ...groups.get(id)!.map((k) => `  ${k}`)]);
+  if (groups.has("")) out.push("no feature:", ...groups.get("")!.map((k) => `  ${k}`));
+  return out;
+}
+
+/** The symbol `nvs agent show` takes for a help card's feature. */
+const showSymbol = (id: string) => (id.startsWith("directive:") ? id.slice("directive:".length) : id);
+
+/** `--review | --review --brief KEY... | --review --stamp KEY... | --review --baseline`. */
+async function reviewMode(w: World, nvs: string, operands: string[], root: string = ROOT): Promise<number> {
+  const [sub, ...keys] = operands;
+  if (sub === undefined) {
+    const due = unreviewed(root, w);
+    for (const line of reviewList(due)) console.log(line);
+    console.log(`nv site: ${due.length} text(s) are not reviewed`);
+    return 0;
+  }
+  if (sub === "--baseline") {
+    if (keys.length) {
+      console.error("nv site: --review --baseline takes no keys");
+      return 2;
+    }
+    const b = writeReviewBaseline(root, w);
+    for (const p of b.problems) console.log(`nv site: ${p}`);
+    if (b.problems.length === 0) console.log(`nv site: wrote ${b.texts} text(s) to ${REVIEW_BASELINE}`);
+    return b.problems.length ? 1 : 0;
+  }
+  if ((sub !== "--brief" && sub !== "--stamp") || keys.length === 0) {
+    console.error("nv site: --review takes nothing, --brief KEY..., --stamp KEY... or --baseline");
+    return 2;
+  }
+  if (sub === "--stamp") {
+    const problems = stampReview(root, w, keys);
+    for (const p of problems) console.log(`nv site: ${p}`);
+    if (problems.length === 0) console.log(`nv site: stamped ${keys.length} text(s) in ${REVIEWED}`);
+    return problems.length ? 1 : 0;
+  }
+  const texts = new Map(userTexts(root, w).map((t) => [t.key, t]));
+  const missing = keys.filter((k) => !texts.has(k));
+  if (missing.length) {
+    for (const k of missing) console.log(`nv site: ${k}: no user text has this key`);
+    return 1;
+  }
+  const chosen = keys.map((k) => texts.get(k)!);
+  const shown = new Map<string, string>();
+  for (const t of chosen.filter((t) => t.key.startsWith("help:"))) {
+    const out = await runProc([nvs, "agent", "show", showSymbol(t.feature)], { timeoutMs: 60_000, env: { NO_COLOR: "1" } });
+    shown.set(t.key, out.code === 0 && out.stdout.trim() ? out.stdout : t.text);
+  }
+  console.log(reviewBrief(chosen, readAt(root, "docs/agent/prose.md"), (t) => shown.get(t.key) ?? t.text));
+  return 0;
 }
 
 /** `--changes --snapshot SINCE | --release VERSION`. */
@@ -2638,6 +2734,13 @@ export async function run(args: string[]): Promise<number> {
         return 1;
       }
       return changesMode(await world(nvs), operands);
+    }
+    if (mode === "--review") {
+      if (nvs === null) {
+        console.error("nv site: no `nvs` binary: build one, or pass --nvs");
+        return 1;
+      }
+      return await reviewMode(await world(nvs), nvs, operands);
     }
     if (mode !== "--stale" && mode !== "--stamp") {
       console.error(`nv site: no mode ${mode}\n${summary}`);
