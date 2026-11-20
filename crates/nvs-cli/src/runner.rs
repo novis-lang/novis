@@ -1255,7 +1255,21 @@ pub(crate) fn run(
                 select,
             };
             match mutation::score(&checked, &listed, &cases, &stmts, &runs) {
-                Ok(mut scored) => {
+                Ok(mutation::Scoring {
+                    mut scored,
+                    compiles,
+                    ran,
+                }) => {
+                    if ran > 0 {
+                        let note = match ran {
+                            1 => format!("  compiles: {compiles}, for the 1 mutant that ran tests"),
+                            n => format!("  compiles: {compiles}, for the {n} mutants that ran tests"),
+                        };
+                        match format {
+                            Format::Human => println!("{note}"),
+                            Format::Json | Format::Junit => eprintln!("{note}"),
+                        }
+                    }
                     for key in judgments.apply(&mut scored, &keys) {
                         eprintln!(
                             "warning: {}: no mutant of this program has the key `{key}`",

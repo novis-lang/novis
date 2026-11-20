@@ -34,8 +34,9 @@
 //!
 //! # A mutant that compiles to known code runs no test
 //!
-//! Before a reached mutant is compiled whole, [`Code`] compiles the one
-//! function its change is in and hashes it. A hash equal to the program's own
+//! Before the program is compiled with its mutants, [`Code`] lowers each
+//! reached mutant with its one change made, compiles the one function the
+//! change is in, and hashes it. A hash equal to the program's own
 //! function is `equivalent`, and one equal to an earlier mutant's in that
 //! function is a `duplicate`. Neither runs a test or counts in the score.
 //!
@@ -48,10 +49,14 @@
 //! other survivors by function, most first, one line per source line, each
 //! ending with its key as a line to paste.
 //!
-//! # One mutant at a time
+//! # One compile, then one mutant at a time
 //!
-//! Each mutant is lowered and compiled whole, with no artifact cache: the
-//! cache key is the unchanged program's. Its tests run through the same suite
+//! Once every reached mutant is judged, the ones whose tests run are lowered
+//! into one program with each change behind the mutant switch
+//! ([`nvs_ir::lower::lower_schema`]), and that program is compiled once, with
+//! no artifact cache. Before each mutant's tests the run sets its number as
+//! the unit's active mutant ([`nvs_codegen::Unit::set_active_mutant`]), so only
+//! its own site takes the changed form. Its tests run through the same suite
 //! as the coverage run, with the report collected and never printed,
 //! `--fail-fast` on, and a wall-time limit for every test that has none
 //! ([`Shape::wall`]). A run that panics or whose scheduler stops is a killed
@@ -59,9 +64,12 @@
 //!
 //! # What it spends
 //!
-//! One compiled unit and one suite's tests in flight at a time, so
-//! O(`--jobs`), plus one [`Scored`] per mutant until the report is written
-//! and one test index per statement and test pair the coverage run reached.
+//! One compiled unit for the run, bigger than the program's by each armed
+//! site's second form and its test, and one suite's tests in flight at a
+//! time, so O(`--jobs`). Judging lowers the program once more per reached
+//! mutant and holds one hash each. Plus one [`Scored`] per mutant until the
+//! report is written and one test index per statement and test pair the
+//! coverage run reached.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
@@ -401,10 +409,26 @@ impl Aim {
     }
 }
 
+/// What [`score`] found: one record per mutant, and how many times the
+/// program was compiled to run them.
+pub(super) struct Scoring {
+    /// One record per mutant, in the order they were listed.
+    pub(super) scored: Vec<Scored>,
+    /// 1 when any mutant ran tests, and 0 when none did.
+    pub(super) compiles: usize,
+    /// How many mutants ran tests.
+    pub(super) ran: usize,
+}
+
 /// Runs each of `mutants` against the tests of `baseline` that reached it.
 /// `stmts` are the coverage run's statement spans, by statement number.
 ///
-/// `Err` is a mutant that did not compile, which is an internal error: every
+/// Every reached mutant is judged first ([`Code`]). Then the ones whose tests
+/// run are lowered into one schema ([`nvs_ir::lower::lower_schema`]) and
+/// compiled once, and each runs its tests with its number set as the unit's
+/// active mutant.
+///
+/// `Err` is a program that did not compile, which is an internal error: every
 /// mutant keeps its operands' and its result's types.
 pub(super) fn score(
     checked: &Rc<crate::Checked>,
@@ -412,13 +436,15 @@ pub(super) fn score(
     baseline: &[Case],
     stmts: &[Span],
     runs: &Runs<'_>,
-) -> Result<Vec<Scored>, String> {
+) -> Result<Scoring, String> {
     let covering = covering_tests(baseline);
     let wall = limit(baseline);
     let files = checked.program_files();
     let digest = crate::cache::test_program_digest(&files);
     let mut scored = Vec::with_capacity(mutants.len());
     let mut code = Code::default();
+    // The mutants whose tests run: each one's index in `scored`, and its tests.
+    let mut pending: Vec<(usize, &Mutant, BTreeSet<String>)> = Vec::new();
     for Listed { mutant, key } in mutants {
         let tests: BTreeSet<String> = innermost(stmts, mutant.span)
             .and_then(|stmt| covering.get(&stmt))
@@ -465,11 +491,9 @@ pub(super) fn score(
                     Verdict::Duplicate
                 }
                 Judged::New => {
-                    let unit = crate::cache::unit_for(&mutated.program, digest, None)
-                        .map(|(unit, _)| Arc::new(unit))
-                        .map_err(|error| internal(&error))?;
-                    drop(mutated);
-                    run_one(&unit, checked, tests, wall, runs)
+                    pending.push((scored.len(), mutant, tests));
+                    // Replaced once the mutant's tests have run.
+                    Verdict::NotReached
                 }
             }
         };
@@ -485,7 +509,40 @@ pub(super) fn score(
             judged: None,
         });
     }
-    Ok(scored)
+    let ran = pending.len();
+    if pending.is_empty() {
+        return Ok(Scoring {
+            scored,
+            compiles: 0,
+            ran,
+        });
+    }
+    let armed: Vec<&Mutant> = pending.iter().map(|(_, mutant, _)| *mutant).collect();
+    let schema = nvs_ir::lower::lower_schema(
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+        &files,
+        &checked.exprs,
+        &checked.interner,
+        &checked.enums,
+        &checked.layouts,
+        &armed,
+    );
+    let unit = crate::cache::unit_for(&schema, digest, None)
+        .map(|(unit, _)| Arc::new(unit))
+        .map_err(|error| {
+            format!("internal error: the program with its {ran} mutants did not compile: {error}")
+        })?;
+    drop(schema);
+    for (number, (at, _, tests)) in (1..).zip(pending) {
+        unit.set_active_mutant(number);
+        scored[at].verdict = run_one(&unit, checked, tests, wall, runs);
+    }
+    unit.set_active_mutant(0);
+    Ok(Scoring {
+        scored,
+        compiles: 1,
+        ran,
+    })
 }
 
 /// What [`Code::judge`] found for one mutant.
@@ -839,6 +896,20 @@ mod tests {
                 );
             }
         }
+        // And every mutant compiles behind the switch, all of them in one program.
+        let armed: Vec<&nvs_ir::lower::Mutant> = listed.iter().map(|listed| &listed.mutant).collect();
+        let schema = nvs_ir::lower::lower_schema(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &files,
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+            &armed,
+        );
+        if let Err(error) = nvs_codegen::compile(&schema) {
+            panic!("the program with every mutant behind the switch compiles: {error}");
+        }
         let runs = Runs {
             ctx: &crate::script::granting_ctx,
             config: &config,
@@ -848,7 +919,8 @@ mod tests {
             select: &select,
         };
         let scored = score(&checked, &listed, &baseline.cases, &stmts, &runs)
-            .expect("every mutant compiles");
+            .expect("every mutant compiles")
+            .scored;
         (scored, source)
     }
 

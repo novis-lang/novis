@@ -802,6 +802,10 @@ impl Emitter<'_, '_> {
             InstKind::CheckRevoked { object, site } => {
                 return self.emit_check_revoked(*object, *site, inst.on_error);
             }
+            InstKind::MutantOn(k) => {
+                let v = self.emit_mutant_on(*k)?;
+                self.define(inst, v)?;
+            }
             InstKind::ConstBool(v) => {
                 let v = self.b.ins().iconst(types::I8, i64::from(*v));
                 self.define(inst, v)?;
@@ -2237,6 +2241,27 @@ impl Emitter<'_, '_> {
                 source: Box::new(source),
             })?;
         Ok(data)
+    }
+
+    /// `rule:testing/mutation-testing`'s switch: whether mutant `k` is the
+    /// schema's active one. One load of the unit's active-mutant word, at
+    /// [`crate::MUTANT_SWITCH_SYMBOL`], and one compare.
+    fn emit_mutant_on(&mut self, k: u32) -> Result<Value, CodegenError> {
+        let data = self
+            .module
+            .declare_data(crate::MUTANT_SWITCH_SYMBOL, Linkage::Import, true, false)
+            .map_err(|source| CodegenError::Cranelift {
+                function: self.f.name.clone(),
+                source: Box::new(source),
+            })?;
+        let global = self.module.declare_data_in_func(data, self.b.func);
+        clear_colocated(self.b.func, global);
+        let word_p = self.b.ins().symbol_value(types::I64, global);
+        let active = self
+            .b
+            .ins()
+            .load(types::I32, ctx_word(), word_p, 0);
+        Ok(self.b.ins().icmp_imm_u(IntCC::Equal, active, i64::from(k)))
     }
 
     /// One defined data object's address, in the function being emitted.

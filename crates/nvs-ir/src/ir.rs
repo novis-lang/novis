@@ -39,6 +39,11 @@ pub struct Program {
     /// ([`crate::lower::without_cheaper_forms`]). The artifact cache neither
     /// writes nor reads such a program, for the same reason as [`Self::in_place`].
     pub cheaper_forms: bool,
+    /// True when the program was lowered as a mutation run's schema
+    /// ([`crate::lower::lower_schema`]): its [`InstKind::MutantOn`] tests
+    /// read the unit's mutant switch. The artifact cache neither writes nor
+    /// reads such a program, for the same reason as [`Self::in_place`].
+    pub mutant_switch: bool,
     /// Every copy the ownership pass keeps, in the order it found them
     /// ([`crate::copies`]). Empty when the pass did not run.
     pub copies: Vec<crate::copies::KeptCopy>,
@@ -1026,6 +1031,11 @@ pub enum InstKind {
         /// throw starts in.
         site: ValueId,
     },
+    /// Whether mutant `k` is a mutation run's active mutant: a `bool`
+    /// (`rule:testing/mutation-testing`). Only [`crate::lower::lower_schema`]
+    /// emits it, and its program sets [`Program::mutant_switch`]. Reads no
+    /// value and has no effect.
+    MutantOn(u32),
     /// A `bool` constant.
     ConstBool(bool),
     /// An `int` constant.
@@ -4092,6 +4102,7 @@ impl InstKind {
             InstKind::StmtMarker(..)
             | InstKind::Safepoint
             | InstKind::DeprecationCheck { .. }
+            | InstKind::MutantOn(..)
             | InstKind::ConstBool(..)
             | InstKind::ConstInt(..)
             | InstKind::ConstUint(..)
@@ -4404,6 +4415,7 @@ impl InstKind {
             | InstKind::DebugLocals(..)
             | InstKind::Safepoint
             | InstKind::DeprecationCheck { .. }
+            | InstKind::MutantOn(..)
             | InstKind::ConstBool(..)
             | InstKind::ConstInt(..)
             | InstKind::ConstUint(..)

@@ -1696,10 +1696,12 @@ pub(crate) fn unit_for(
     // debug switch is the same case: the key does not cover the switch either
     // (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`), and so is one lowered
     // with in-place changes switched off (`nvs_ir::lower::without_in_place`), or with the cheaper
-    // forms switched off (`nvs_ir::lower::without_cheaper_forms`).
+    // forms switched off (`nvs_ir::lower::without_cheaper_forms`), or as a mutation run's schema
+    // (`nvs_ir::lower::lower_schema`).
     let Some(cache) = cache.filter(|_| {
         !nvs_codegen::is_checking_types()
             && !program.is_debug()
+            && !program.mutant_switch
             && program.in_place
             && program.cheaper_forms
     }) else {

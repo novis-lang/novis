@@ -196,6 +196,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         .expect("every non-marker instruction defines a value");
     let ty = inst.ty.expect("every non-marker instruction has a type");
     let rhs = match &inst.kind {
+        InstKind::MutantOn(k) => format!("mutant.on {k}"),
         InstKind::ConstBool(b) => format!("const.bool {b}"),
         InstKind::ConstInt(n) => format!("const.int {n}"),
         InstKind::ConstUint(n) => format!("const.uint {n}"),

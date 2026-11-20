@@ -1,19 +1,29 @@
 //! `rule:testing/mutation-testing`'s mutants: one changed site in the lowered
 //! program each, made while the checked tree is lowered.
 //!
-//! # Two passes over one lowering
+//! # A survey, then one lowering with every mutant behind a switch
 //!
 //! [`mutants`] lowers the program once in *survey* mode, and every site that
-//! could take a change records a [`Mutant`] instead of changing. [`lower_mutant`]
-//! lowers it again with one of those mutants armed, and the one site whose span
-//! and [`Operator`] match makes the change. Parse and check ran once before
-//! either; neither pass checks anything again.
+//! could take a change records a [`Mutant`] instead of changing.
+//! [`lower_schema`] lowers it again with many of those mutants armed at once,
+//! each with a number from 1. An armed site lowers both its forms behind one
+//! test, [`InstKind::MutantOn`], which compares the number with the run's
+//! active mutant: `if (active == k) changed else original`. So a mutation run
+//! compiles the program once, and sets the active number before each mutant's
+//! tests. A `true` or `false`, a condition and a connector's first operand are
+//! `bool` values, so their change is the value compared unequal to the test.
+//! A changed operator lowers each operator on its own edge of the test, so a
+//! form that can throw runs only when it is chosen.
 //!
+//! [`lower_mutant`] lowers the program with one mutant's change made and no
+//! test. The equivalence check compiles the one function it changes.
+//!
+//! Parse and check ran once before every pass; none checks anything again.
 //! The plan reaches the sites through a thread-local set for the length of one
 //! [`lower_program_as`] call, because a program's functions are lowered by
 //! nine [`Lowering::new`] callers, anonymous functions and generators among
 //! them, all on the calling thread. The guard clears it on every exit, so a
-//! lowering outside these two functions never sees a plan.
+//! lowering outside these functions never sees a plan.
 //!
 //! # Every mutant compiles and keeps what the checker proved
 //!
@@ -63,7 +73,10 @@
 //!
 //! Nothing for a lowering with no plan: each site reads one thread-local and
 //! returns. A survey holds one [`Mutant`] per site, its function label
-//! included. An armed lowering clones the one expression it changes.
+//! included. A schema holds one map entry per armed mutant while it lowers,
+//! and its program has, per armed site, one [`InstKind::MutantOn`] and either
+//! one compare or a branch with both operators. That code is the run's
+//! alone: a program with a switch is never written to the artifact cache.
 
 use std::cell::RefCell;
 
@@ -136,7 +149,7 @@ pub fn mutants(
     enums: &EnumTable,
     layouts: &ClassLayoutTable,
 ) -> Vec<Mutant> {
-    let guard = Armed::set(Mode::Survey(Vec::new()));
+    let guard = Guard::set(Mode::Survey(Vec::new()));
     let _ = lower_program_as(
         script,
         files,
@@ -148,7 +161,7 @@ pub fn mutants(
     );
     match guard.take() {
         Mode::Survey(found) => found,
-        Mode::Apply { .. } => unreachable!("a survey is armed as one"),
+        Mode::Arm { .. } => unreachable!("a survey is armed as one"),
     }
 }
 
@@ -165,7 +178,8 @@ pub struct Mutated {
     pub changed: String,
 }
 
-/// The program, with its test code, lowered with `mutant`'s one change made.
+/// The program, with its test code, lowered with `mutant`'s one change made
+/// and no switch.
 ///
 /// # Panics
 ///
@@ -181,12 +195,73 @@ pub fn lower_mutant(
     layouts: &ClassLayoutTable,
     mutant: &Mutant,
 ) -> Mutated {
-    let guard = Armed::set(Mode::Apply {
-        span: mutant.span,
-        operator: mutant.operator,
-        applied: None,
+    let (program, mut changed) = lower_armed(
+        (script, files),
+        exprs,
+        checked_types,
+        enums,
+        layouts,
+        &[mutant],
+        false,
+    );
+    Mutated {
+        program,
+        changed: changed.pop().expect("one mutant was armed"),
+    }
+}
+
+/// The program, with its test code, lowered with every one of `armed` behind
+/// the mutant switch: the change at `armed[i]`'s site is made when the run's
+/// active mutant is `i + 1` ([`InstKind::MutantOn`]). With the active number
+/// at 0 the program runs unchanged.
+///
+/// # Panics
+///
+/// If a mutant matches no site, as [`lower_mutant`] does.
+#[must_use]
+pub fn lower_schema(
+    script: &str,
+    files: &[nvs_types::ProgramFile<'_>],
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+    layouts: &ClassLayoutTable,
+    armed: &[&Mutant],
+) -> crate::ir::Program {
+    lower_armed(
+        (script, files),
+        exprs,
+        checked_types,
+        enums,
+        layouts,
+        armed,
+        true,
+    )
+    .0
+}
+
+/// The lowering both [`lower_mutant`] and [`lower_schema`] run, and the name
+/// of the function each armed mutant's site is in.
+fn lower_armed(
+    (script, files): (&str, &[nvs_types::ProgramFile<'_>]),
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+    layouts: &ClassLayoutTable,
+    armed: &[&Mutant],
+    switched: bool,
+) -> (crate::ir::Program, Vec<String>) {
+    let sites = armed
+        .iter()
+        .enumerate()
+        .map(|(at, mutant)| ((mutant.span, mutant.operator), at))
+        .collect();
+    let guard = Guard::set(Mode::Arm {
+        sites,
+        switched,
+        applied: vec![None; armed.len()],
     });
-    let program = lower_program_as(
+    let mut program = lower_program_as(
         script,
         files,
         exprs,
@@ -195,26 +270,47 @@ pub fn lower_mutant(
         layouts,
         Tests::Lower,
     );
-    let Mode::Apply { applied, .. } = guard.take() else {
-        unreachable!("an armed mutant is armed as one")
+    let Mode::Arm { applied, .. } = guard.take() else {
+        unreachable!("an armed lowering is armed as one")
     };
-    let Some(changed) = applied else {
-        panic!(
-            "nvs-ir: no site matches the mutant at {:?} ({:?}); it was not listed for this program",
-            mutant.span, mutant.operator
-        );
-    };
-    Mutated { program, changed }
+    program.mutant_switch = switched;
+    let changed = applied
+        .into_iter()
+        .zip(armed)
+        .map(|(applied, mutant)| {
+            applied.unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: no site matches the mutant at {:?} ({:?}); it was not listed for this program",
+                    mutant.span, mutant.operator
+                )
+            })
+        })
+        .collect();
+    (program, changed)
 }
 
 enum Mode {
     Survey(Vec<Mutant>),
-    Apply {
-        span: Span,
-        operator: Operator,
-        /// The name of the function the change was made in, once it is.
-        applied: Option<String>,
+    Arm {
+        /// Each armed site, by its span and operator, at its index in the
+        /// armed list.
+        sites: std::collections::HashMap<(Span, Operator), usize>,
+        /// Whether each change is made behind the switch, or always.
+        switched: bool,
+        /// The name of the function each change was made in, once it is.
+        applied: Vec<Option<String>>,
     },
+}
+
+/// What [`Lowering::mutation_site`] says a site lowers to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Site {
+    /// The original form.
+    Keep,
+    /// The changed form, with no test.
+    Change,
+    /// Both forms, the changed one when mutant `k` is the active one.
+    When(u32),
 }
 
 struct Plan {
@@ -239,9 +335,9 @@ thread_local! {
 }
 
 /// The plan for one lowering, cleared when it drops.
-struct Armed;
+struct Guard;
 
-impl Armed {
+impl Guard {
     fn set(mode: Mode) -> Self {
         PLAN.with(|plan| {
             *plan.borrow_mut() = Some(Plan {
@@ -263,7 +359,7 @@ impl Armed {
     }
 }
 
-impl Drop for Armed {
+impl Drop for Guard {
     fn drop(&mut self) {
         PLAN.with(|plan| plan.borrow_mut().take());
     }
@@ -444,23 +540,23 @@ impl Lowering<'_> {
     }
 
     /// Offers the site at `span` to the plan. In a survey it records the
-    /// mutant and returns `false`; armed, it returns whether this is the
-    /// site to change. With no plan, inside test code, or in a glue call's
-    /// arguments, it returns `false`.
+    /// mutant and returns [`Site::Keep`]; armed, it says whether this site
+    /// changes, and whether behind the switch. With no plan, inside test code,
+    /// or in a glue call's arguments, it returns [`Site::Keep`].
     pub(crate) fn mutation_site(
         &self,
         span: Span,
         operator: Operator,
         from: &'static str,
         to: &'static str,
-    ) -> bool {
+    ) -> Site {
         PLAN.with(|plan| {
             let mut plan = plan.borrow_mut();
             let Some(plan) = plan.as_mut() else {
-                return false;
+                return Site::Keep;
             };
             if plan.in_test_code || plan.in_glue {
-                return false;
+                return Site::Keep;
             }
             match &mut plan.mode {
                 Mode::Survey(found) => {
@@ -473,21 +569,110 @@ impl Lowering<'_> {
                         from,
                         to,
                     });
-                    false
+                    Site::Keep
                 }
-                Mode::Apply {
-                    span: at,
-                    operator: which,
+                Mode::Arm {
+                    sites,
+                    switched,
                     applied,
                 } => {
-                    let hit = *at == span && *which == operator;
-                    if hit {
-                        *applied = Some(self.fn_label.clone());
+                    let Some(&at) = sites.get(&(span, operator)) else {
+                        return Site::Keep;
+                    };
+                    applied[at] = Some(self.fn_label.clone());
+                    if *switched {
+                        Site::When(
+                            u32::try_from(at + 1).expect("a run arms fewer than 2^32 mutants"),
+                        )
+                    } else {
+                        Site::Change
                     }
-                    hit
                 }
             }
         })
+    }
+
+    /// `v`, a `bool`, compared unequal to the test of mutant `k`: `v` while
+    /// another mutant is active, and `!v` while `k` is.
+    fn flip_when(&mut self, k: u32, v: ValueId, cur: BlockId) -> ValueId {
+        let on = self.emit(cur, Ty::Bool, InstKind::MutantOn(k)).0;
+        self.emit(
+            cur,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::NotEq,
+                lhs: v,
+                rhs: on,
+            },
+        )
+        .0
+    }
+
+    /// The condition and short-circuit value of a `&&` or `||` whose first
+    /// operand is `lhs`, a `bool` in `lhs_end`. With no switch they are `lhs`
+    /// and `short`, the connector's own result when it stops early. Under
+    /// mutant `k` the condition is `lhs` compared unequal to the test, and
+    /// the short-circuit value is `lhs` itself: `&&` and `||` both stop early
+    /// with the value of their first operand, so swapping one for the other
+    /// only inverts which edge is short.
+    pub(crate) fn connector_branch(
+        &mut self,
+        lhs: ValueId,
+        short: bool,
+        switch: Option<u32>,
+        lhs_end: BlockId,
+    ) -> (ValueId, ValueId) {
+        match switch {
+            None => (
+                lhs,
+                self.emit(lhs_end, Ty::Bool, InstKind::ConstBool(short)).0,
+            ),
+            Some(k) => (self.flip_when(k, lhs, lhs_end), lhs),
+        }
+    }
+
+    /// Lowers both forms of a changed operator, each on its own edge of
+    /// mutant `k`'s test, and joins their results. `span` names the two edges.
+    pub(crate) fn lower_switched(
+        &mut self,
+        (k, span): (u32, Span),
+        env: &mut Env,
+        cur: &mut BlockId,
+        changed: impl FnOnce(&mut Self, &mut Env, &mut BlockId) -> (ValueId, Ty),
+        original: impl FnOnce(&mut Self, &mut Env, &mut BlockId) -> (ValueId, Ty),
+    ) -> (ValueId, Ty) {
+        let on = self.emit(*cur, Ty::Bool, InstKind::MutantOn(k)).0;
+        let changed_block = self.new_block();
+        let original_block = self.new_block();
+        let merge = self.new_block();
+        let then_edge = self.ids.next_edge(span);
+        let else_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: on,
+                then_block: changed_block,
+                then_edge,
+                else_block: original_block,
+                else_edge,
+            },
+        );
+        let mut changed_end = changed_block;
+        let (cv, cty) = changed(self, env, &mut changed_end);
+        self.seal(changed_end, Terminator::Jump(merge));
+        let mut original_end = original_block;
+        let (ov, oty) = original(self, env, &mut original_end);
+        self.seal(original_end, Terminator::Jump(merge));
+        assert_eq!(cty, oty, "nvs-ir: a mutant's two forms have one result type");
+        let (v, _) = self.emit(
+            merge,
+            oty,
+            InstKind::Phi {
+                incoming: vec![(changed_end, cv), (original_end, ov)],
+            },
+        );
+        *cur = merge;
+        (v, oty)
     }
 
     /// Keeps the `true` or `false` literal `e` from being flipped, when `e`
@@ -508,49 +693,61 @@ impl Lowering<'_> {
         });
     }
 
-    /// The literal `b` at `span`, flipped when this is the armed site.
-    pub(crate) fn mutated_bool(&self, span: Span, b: bool) -> bool {
+    /// The literal `b` at `span`, lowered in `cur`: flipped when this is the
+    /// armed site, and compared with the switch under a schema.
+    pub(crate) fn lower_bool_literal(&mut self, span: Span, b: bool, cur: BlockId) -> (ValueId, Ty) {
         let shielded = PLAN.with(|plan| {
             plan.borrow()
                 .as_ref()
                 .is_some_and(|plan| plan.shielded.contains(&span))
         });
-        if shielded {
-            return b;
-        }
         let (from, to) = if b {
             ("true", "false")
         } else {
             ("false", "true")
         };
-        b != self.mutation_site(span, Operator::BooleanLiteral, from, to)
+        let site = if shielded {
+            Site::Keep
+        } else {
+            self.mutation_site(span, Operator::BooleanLiteral, from, to)
+        };
+        let (v, _) = self.emit(cur, Ty::Bool, InstKind::ConstBool(b != (site == Site::Change)));
+        match site {
+            Site::When(k) => (self.flip_when(k, v, cur), Ty::Bool),
+            Site::Keep | Site::Change => (v, Ty::Bool),
+        }
     }
 
-    /// `&&` or `||` at `whole`, swapped when this is the armed site and the
-    /// expression narrows nothing ([`Self::narrows`]).
-    pub(crate) fn mutated_connector(&self, whole: &Expr, op: BinaryOp, env: &Env) -> BinaryOp {
+    /// `&&` or `||` at `whole`: swapped when this is the armed site and the
+    /// expression narrows nothing ([`Self::narrows`]), and with the mutant's
+    /// number beside the unswapped one under a schema
+    /// ([`Self::connector_branch`]).
+    pub(crate) fn mutated_connector(
+        &self,
+        whole: &Expr,
+        op: BinaryOp,
+        env: &Env,
+    ) -> (BinaryOp, Option<u32>) {
         if self.narrows(whole, env) {
-            return op;
+            return (op, None);
         }
-        match op {
-            BinaryOp::And
-                if self.mutation_site(whole.span, Operator::LogicalConnector, "&&", "||") =>
-            {
-                BinaryOp::Or
-            }
-            BinaryOp::Or
-                if self.mutation_site(whole.span, Operator::LogicalConnector, "||", "&&") =>
-            {
-                BinaryOp::And
-            }
-            _ => op,
+        let (swapped, from, to) = match op {
+            BinaryOp::And => (BinaryOp::Or, "&&", "||"),
+            BinaryOp::Or => (BinaryOp::And, "||", "&&"),
+            _ => return (op, None),
+        };
+        match self.mutation_site(whole.span, Operator::LogicalConnector, from, to) {
+            Site::Keep => (op, None),
+            Site::Change => (swapped, None),
+            Site::When(k) => (op, Some(k)),
         }
     }
 
     /// The operator `lower_binary` lowers at `whole`, once both operands are
     /// lowered at `lty` and `rty`: `op`, or its swap when this is the armed
     /// site, the swap keeps the result type, and an equality narrows nothing
-    /// ([`Self::narrows`]).
+    /// ([`Self::narrows`]). Under a schema it is `op`, with the swap and the
+    /// mutant's number beside it for [`Self::lower_switched`].
     pub(crate) fn mutated_binary(
         &self,
         whole: &Expr,
@@ -558,9 +755,9 @@ impl Lowering<'_> {
         lty: Ty,
         rty: Ty,
         env: &Env,
-    ) -> BinaryOp {
+    ) -> (BinaryOp, Option<(BinaryOp, u32)>) {
         if !matches!(whole.kind, ExprKind::Binary { .. }) {
-            return op;
+            return (op, None);
         }
         let numeric = |ty: Ty| {
             matches!(
@@ -574,27 +771,27 @@ impl Lowering<'_> {
             BinaryOp::LtEq => (Operator::RelationalBoundary, BinaryOp::Lt, "<=", "<"),
             BinaryOp::Gt => (Operator::RelationalBoundary, BinaryOp::GtEq, ">", ">="),
             BinaryOp::GtEq => (Operator::RelationalBoundary, BinaryOp::Gt, ">=", ">"),
-            BinaryOp::Eq | BinaryOp::NotEq if self.narrows(whole, env) => return op,
+            BinaryOp::Eq | BinaryOp::NotEq if self.narrows(whole, env) => return (op, None),
             BinaryOp::Eq => (Operator::EqualityNegated, BinaryOp::NotEq, "==", "!="),
             BinaryOp::NotEq => (Operator::EqualityNegated, BinaryOp::Eq, "!=", "=="),
-            BinaryOp::Add | BinaryOp::Sub if !(numeric(lty) && numeric(rty)) => return op,
+            BinaryOp::Add | BinaryOp::Sub if !(numeric(lty) && numeric(rty)) => return (op, None),
             BinaryOp::Add => (Operator::ArithmeticSwap, BinaryOp::Sub, "+", "-"),
             BinaryOp::Sub => (Operator::ArithmeticSwap, BinaryOp::Add, "-", "+"),
             BinaryOp::Mul if fractional => (Operator::ArithmeticSwap, BinaryOp::Div, "*", "/"),
             BinaryOp::Div if fractional => (Operator::ArithmeticSwap, BinaryOp::Mul, "/", "*"),
-            _ => return op,
+            _ => return (op, None),
         };
-        if self.mutation_site(whole.span, operator, from, to) {
-            swapped
-        } else {
-            op
+        match self.mutation_site(whole.span, operator, from, to) {
+            Site::Keep => (op, None),
+            Site::Change => (swapped, None),
+            Site::When(k) => (op, Some((swapped, k))),
         }
     }
 
     /// An `if`, `elseif` or loop condition, lowered to the `bool` its branch
-    /// tests, and inverted when this is the armed site. A condition that
-    /// narrows a tagged value ([`Self::narrows`]), or is a bare `true` or
-    /// `false`, is never inverted.
+    /// tests: inverted when this is the armed site, and compared with the
+    /// switch under a schema. A condition that narrows a tagged value
+    /// ([`Self::narrows`]), or is a bare `true` or `false`, is never inverted.
     pub(crate) fn lower_branch_cond(
         &mut self,
         cond: &Expr,
@@ -607,26 +804,29 @@ impl Lowering<'_> {
         while let ExprKind::Paren(inner) = &bare.kind {
             bare = inner;
         }
-        if self.narrows(cond, env)
-            || matches!(bare.kind, ExprKind::Bool(_))
-            || !self.mutation_site(
-                cond.span,
-                Operator::BranchNegated,
-                "condition",
-                "!condition",
-            )
-        {
+        if self.narrows(cond, env) || matches!(bare.kind, ExprKind::Bool(_)) {
             return v;
         }
-        self.emit(
-            *cur,
-            Ty::Bool,
-            InstKind::UnOp {
-                op: UnOp::Not,
-                operand: v,
-            },
-        )
-        .0
+        match self.mutation_site(
+            cond.span,
+            Operator::BranchNegated,
+            "condition",
+            "!condition",
+        ) {
+            Site::Keep => v,
+            Site::Change => {
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::UnOp {
+                        op: UnOp::Not,
+                        operand: v,
+                    },
+                )
+                .0
+            }
+            Site::When(k) => self.flip_when(k, v, *cur),
+        }
     }
 }
 

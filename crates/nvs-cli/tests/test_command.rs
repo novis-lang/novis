@@ -1400,3 +1400,86 @@ fn nvs_test_mutate_reports_each_mutant_and_fails_only_on_a_failing_test() {
         "no mutant runs after a failing test: {stdout}{stderr}"
     );
 }
+
+/// Five mutants in one function: two boundaries the tests never reach, a
+/// connector, a condition and an addition. Each changes only its own site.
+const ONE_FUNCTION: &str = r#"<?nvs
+use Core\Test;
+
+final class Price {
+    public static function cap(int $x, int $limit): int {
+        if ($x > $limit && $limit > 0) {
+            return $limit;
+        }
+        return $x + 1;
+    }
+}
+
+final class PriceTest {
+    #[Test]
+    public function caps(): void {
+        Test::assertSame(Price::cap(500, 100), 100);
+        Test::assertSame(Price::cap(5, 100), 6);
+    }
+}
+"#;
+
+/// A mutation run compiles the program once, whatever the number of mutants,
+/// and says so in its report.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_compiles_the_program_once_for_every_mutant() {
+    let dir = scratch("mutate-once");
+    fs::write(dir.join("stock_test.nvs"), MUTATED).unwrap();
+    fs::write(dir.join("price_test.nvs"), ONE_FUNCTION).unwrap();
+
+    let run = test_in(&dir, &[".", "--mutate"]);
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(0), "{stdout}{stderr}");
+    assert!(
+        stdout.contains("compiles: 1, for the 7 mutants that ran tests"),
+        "seven mutants run their tests from one compile: {stdout}{stderr}"
+    );
+    assert!(
+        stdout.contains("mutants: 4 killed, 3 survived, 0 timed out, 0 not reached"),
+        "{stdout}"
+    );
+}
+
+/// Under one compile, each mutant's tests see its own change and no other:
+/// the two boundaries no test reaches survive, and the other three are
+/// killed.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_two_mutants_in_one_function_each_change_only_their_own_site() {
+    let dir = scratch("mutate-own-site");
+    fs::write(dir.join("price_test.nvs"), ONE_FUNCTION).unwrap();
+
+    let json = test_in(&dir, &["price_test.nvs", "--mutate", "--format", "json"]);
+    let document: serde_json::Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let mut outcomes: Vec<(String, String)> = document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .map(|m| {
+            (
+                m["key"].as_str().unwrap_or_default().to_owned(),
+                m["outcome"].as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect();
+    outcomes.sort();
+    let expected: Vec<(String, String)> = [
+        ("Price::cap#1: `&&` to `||`", "killed"),
+        ("Price::cap#1: `+` to `-`", "killed"),
+        ("Price::cap#1: `>` to `>=`", "survived"),
+        ("Price::cap#1: `condition` to `!condition`", "killed"),
+        ("Price::cap#2: `>` to `>=`", "survived"),
+    ]
+    .iter()
+    .map(|(key, outcome)| ((*key).to_owned(), (*outcome).to_owned()))
+    .collect();
+    assert_eq!(outcomes, expected);
+}

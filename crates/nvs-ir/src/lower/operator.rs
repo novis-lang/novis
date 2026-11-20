@@ -335,10 +335,14 @@ impl<'a> Lowering<'a> {
     /// `lhs`/`rhs` each go through [`Self::lower_truthy_cond`], so either may
     /// itself be any type `rule:expressions/truthy-positions`'s table covers, and either may itself be a
     /// nested `&&`/`||`/`!`/ternary.
+    ///
+    /// `switch` is a mutation run's number for this `&&` turned into `||`
+    /// ([`Self::connector_branch`]), and `None` everywhere else.
     pub(crate) fn lower_and(
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
+        switch: Option<u32>,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
@@ -346,7 +350,7 @@ impl<'a> Lowering<'a> {
         let lhs_end = *cur;
         // Emitted in `lhs_end` before it's sealed below — this is the join's
         // incoming value for the short-circuit (falsy-`lhs`) edge.
-        let short_v = self.emit(lhs_end, Ty::Bool, InstKind::ConstBool(false)).0;
+        let (lhs_v, short_v) = self.connector_branch(lhs_v, false, switch, lhs_end);
 
         let rhs_block = self.new_block();
         let merge_block = self.new_block();
@@ -395,12 +399,13 @@ impl<'a> Lowering<'a> {
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
+        switch: Option<u32>,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         let lhs_v = self.lower_truthy_cond(lhs, env, cur);
         let lhs_end = *cur;
-        let short_v = self.emit(lhs_end, Ty::Bool, InstKind::ConstBool(true)).0;
+        let (lhs_v, short_v) = self.connector_branch(lhs_v, true, switch, lhs_end);
 
         let rhs_block = self.new_block();
         let merge_block = self.new_block();
@@ -936,8 +941,34 @@ impl<'a> Lowering<'a> {
             (fv, fty, first_borrowed, sv, sty, second_borrowed)
         };
         // A mutant's swap, made once both representations are known
-        // (`rule:testing/mutation-testing`).
-        let op = self.mutated_binary(whole, op, lty, rty, env);
+        // (`rule:testing/mutation-testing`). Under a mutation run's switch,
+        // each operator is lowered on its own edge of the mutant's test.
+        let (op, switched) = self.mutated_binary(whole, op, lty, rty, env);
+        let (l, r) = ((lv, lty, lb), (rv, rty, rb));
+        match switched {
+            None => self.lower_binary_op(whole, op, l, r, env, cur),
+            Some((changed, k)) => self.lower_switched(
+                (k, whole.span),
+                env,
+                cur,
+                |this, env, cur| this.lower_binary_op(whole, changed, l, r, env, cur),
+                |this, env, cur| this.lower_binary_op(whole, op, l, r, env, cur),
+            ),
+        }
+    }
+
+    /// [`Self::lower_binary`] once both operands are lowered: `op` over the
+    /// left and right operand, each with its representation and whether its
+    /// slot still owns it.
+    fn lower_binary_op(
+        &mut self,
+        whole: &Expr,
+        op: BinaryOp,
+        (lv, lty, lb): (ValueId, Ty, bool),
+        (rv, rty, rb): (ValueId, Ty, bool),
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
         // `rule:types/arithmetic`'s table is a set of runtime helpers rather than
         // a machine instruction, so a `decimal` on *either* side takes
         // its own path -- including the mixed `decimal ⊕ int` row,

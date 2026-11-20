@@ -186,8 +186,8 @@ impl<'a> Lowering<'a> {
                 lhs,
                 rhs,
             } => match self.mutated_connector(expr, *op, env) {
-                BinaryOp::And => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
-                _ => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
+                (BinaryOp::And, switch) => (self.lower_and(lhs, rhs, switch, env, cur), Ty::Bool),
+                (_, switch) => (self.lower_or(lhs, rhs, switch, env, cur), Ty::Bool),
             },
             ExprKind::Binary {
                 op: BinaryOp::Coalesce,
@@ -207,10 +207,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Catch { guarded, arms } => {
                 self.lower_catch(guarded, arms, expected, env, cur)
             }
-            ExprKind::Bool(b) => {
-                let b = self.mutated_bool(expr.span, *b);
-                self.emit(*cur, Ty::Bool, InstKind::ConstBool(b))
-            }
+            ExprKind::Bool(b) => self.lower_bool_literal(expr.span, *b, *cur),
             // The literal `null`. Its own type, not a tagged one -- see
             // `Ty::Null`; `Self::coerce` widens it wherever the position it
             // lands in declares `?T`.

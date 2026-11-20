@@ -135,7 +135,7 @@ pub(crate) mod stmt;
 // `impl Lowering` below, so they export nothing to import. The ones named
 // here also carry free items this module and its siblings call.
 pub use self::checked::{check_types, is_checking_types};
-pub use self::mutate::{Mutant, Mutated, Operator, lower_mutant, mutants};
+pub use self::mutate::{Mutant, Mutated, Operator, lower_mutant, lower_schema, mutants};
 pub(crate) use self::operand::OperandOwner;
 pub use self::operand::OperandSite;
 use self::{anon_fn::*, call::delegation_forward, exception::*, generator::*};
@@ -1568,6 +1568,7 @@ fn lower_program_as(
         enums: enum_shapes(enums),
         in_place: in_place_on(),
         cheaper_forms: cheaper_forms_on(),
+        mutant_switch: false,
         copies,
         forms,
         rereads,

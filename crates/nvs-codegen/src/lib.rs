@@ -437,6 +437,11 @@ pub struct Unit {
     /// `nvs_ir::Program::functions`, the number a frame record carries — see
     /// [`Unit::debug_function`]. Empty without it.
     debug_functions: Vec<String>,
+    /// For a mutation run's schema, the word that names its active mutant —
+    /// see [`Unit::set_active_mutant`]. `None` for every other unit. The code
+    /// pages keep a second handle, because compiled code reads the word for as
+    /// long as they are mapped.
+    mutant_switch: Option<Arc<std::sync::atomic::AtomicU32>>,
     /// Every extension class the unit calls a method of, sorted and each once — see
     /// [`Unit::extension_classes`].
     extension_classes: Box<[String]>,
@@ -922,6 +927,22 @@ impl Unit {
         self.debug_sites.as_ref()
     }
 
+    /// Makes mutant `k` of a mutation run's schema the active one, so each
+    /// `nvs_ir::ir::InstKind::MutantOn(k)` test is true and every other is
+    /// false. 0 runs the program unchanged. Returns `false`, and changes
+    /// nothing, for a unit lowered without the mutant switch
+    /// (`rule:testing/mutation-testing`).
+    ///
+    /// The run sets it between two mutants' tests, while no test runs, and
+    /// starting the next test orders the store before the code's loads.
+    pub fn set_active_mutant(&self, k: u32) -> bool {
+        let Some(word) = &self.mutant_switch else {
+            return false;
+        };
+        word.store(k, std::sync::atomic::Ordering::Release);
+        true
+    }
+
     /// The name of the function a frame record's index names
     /// ([`nvs_runtime::Frame::function`]), under the debug switch. `None`
     /// without it or for an index past the unit.
@@ -1332,6 +1353,11 @@ pub fn compile_object(program: &Program) -> Result<Vec<u8>, CodegenError> {
                 .to_owned(),
         ));
     }
+    if program.mutant_switch {
+        return Err(CodegenError::Internal(
+            "a mutation run's schema is never written to the artifact cache".to_owned(),
+        ));
+    }
     let mut unit = UnitBuilder::for_object()?;
     unit.compile_all(program)?;
     unit.finish_object()
@@ -1653,6 +1679,7 @@ impl Descriptors {
             debug_slots: FxHashMap::default(),
             debug_sites: None,
             debug_functions: Vec::new(),
+            mutant_switch: None,
             extension_classes: self.extension_classes,
             copies: self.copies,
         }
@@ -1700,6 +1727,9 @@ struct UnitBuilder<M> {
     /// Under the debug switch, every function's name by index — moved into
     /// [`Unit::debug_functions`].
     debug_functions: Vec<String>,
+    /// For a mutation run's schema, the active-mutant word — moved into
+    /// [`Unit::mutant_switch`].
+    mutant_switch: Option<Arc<std::sync::atomic::AtomicU32>>,
     /// Every class the unit declares — the descriptors compiled code points
     /// at, and the field-slot index every `FieldGet`/`FieldSet` resolves
     /// through.
@@ -2808,6 +2838,7 @@ impl<M: Backend> UnitBuilder<M> {
             debug_slots: FxHashMap::default(),
             debug_sites: None,
             debug_functions: Vec::new(),
+            mutant_switch: None,
             classes: Classes::default(),
             desc_symbols,
             statics: FxHashMap::default(),
@@ -2916,7 +2947,26 @@ impl<M: Backend> UnitBuilder<M> {
             }
         }
         self.publish_debug_sites(program);
+        self.publish_mutant_switch(program);
         Ok(())
+    }
+
+    /// For a mutation run's schema, makes the unit's active-mutant word, at 0,
+    /// and publishes its address as [`MUTANT_SWITCH_SYMBOL`] for every
+    /// `MutantOn` test to relocate against. Does nothing for any other
+    /// program.
+    ///
+    /// **What it spends:** one word per schema unit.
+    fn publish_mutant_switch(&mut self, program: &Program) {
+        if !program.mutant_switch {
+            return;
+        }
+        let word = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        self.desc_symbols
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(MUTANT_SWITCH_SYMBOL.to_owned(), Arc::as_ptr(&word).addr());
+        self.mutant_switch = Some(word);
     }
 
     /// Under the debug switch, makes the unit's stop-site table, one byte per
@@ -3153,10 +3203,13 @@ impl UnitBuilder<JitPages> {
             .collect();
         // Every address is read, so the module's heap goes and its pages stay.
         self.module.shed();
-        // The stop-site table lives as long as the pages whose code reads it.
-        self.classes
-            .table
-            .keep_code(Arc::new((self.module, self.debug_sites.clone())));
+        // The stop-site table and the mutant switch live as long as the pages
+        // whose code reads them.
+        self.classes.table.keep_code(Arc::new((
+            self.module,
+            self.debug_sites.clone(),
+            self.mutant_switch.clone(),
+        )));
         Ok(Unit {
             classes: std::sync::Arc::new(self.classes.table),
             entries,
@@ -3165,6 +3218,7 @@ impl UnitBuilder<JitPages> {
             debug_slots: self.debug_slots,
             debug_sites: self.debug_sites,
             debug_functions: self.debug_functions,
+            mutant_switch: self.mutant_switch,
             extension_classes: self.extension_classes,
             copies: self.copies,
         })
@@ -3585,6 +3639,11 @@ pub fn class_desc_symbol(label: &str) -> String {
 /// [`nvs_runtime::SiteTable`]. Only the JIT resolves it, because a debug unit
 /// is never written to the artifact cache.
 pub(crate) const DEBUG_SITES_SYMBOL: &str = "nvs_debug_sites";
+
+/// The symbol a mutation run's schema relocates its `MutantOn` tests against:
+/// the address of its [`Unit::set_active_mutant`] word. Only the JIT resolves
+/// it, because a schema is never written to the artifact cache.
+pub(crate) const MUTANT_SWITCH_SYMBOL: &str = "nvs_mutant_switch";
 
 /// Every `Core` class descriptor a unit may relocate against, under
 /// [`class_desc_symbol`]'s name and at the address this process leaked it at.
