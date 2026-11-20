@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-hir/src/aliases.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-diagnostics/src/code/types_e08.rs]
   - id: 4
     title: Core's compiler attributes are declarations, and one site error covers them all
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/stubs.rs, docs/rules/attributes/access-payload.md]
   - id: 5
     title: every retrieval matches the declaration, never the shape
@@ -258,6 +258,29 @@ behaviour, so each rewritten record is `designed` under this goal until stage 9 
   space each. A member attribute declaration does not count as a member with a body for the blank-line
   rule, so two one-line declarations may stand together.
 
+**`Core`'s declarations (stage 4's calls).**
+
+- `nvs_types::derive::AttributeDoc` is the declaration value. It gains `sites` (the `on` list as
+  `nvs_syntax::ast::AttributeSite`), `repeatable`, and a `doc` on every field. `Lookup::Recognized`
+  carries the row, and `check_attribute` makes checks 1 and 3 on it with the same two helpers a
+  program's declaration uses (`site_fits`, `count_fits`). No `nvs_hir::AttributeDef` is built for a
+  `Core` row: that type holds a source `Type` with spans, and a `Core` row has no source.
+- **A `Core` payload is still checked by its pass's option roster**, not by check 4. A roster asks
+  more than a declared type says (`#[Access]`'s `allow` must be a name, `#[Test]`'s `retries` needs
+  `because`), and its codes are pinned by many cases. The roster and the row's fields name the same
+  keys.
+- `repeatable`: `#[Route]`, `#[Command]` (two names for one command), `#[TestWith]` and
+  `#[Api\Scheme]` (one per security scheme). Every other `Core` attribute is not.
+- `#[Core\Path]` on a non-parameter site, `#[Core\Deprecated]` on a hook and a second `#[Api]` were
+  each a pass's own error. They are now `E0874`, `E0874` and `E0763`. `E0844` is retired. `E0836`
+  keeps the non-`string` parameter, and `E0771` keeps every contradiction.
+- `#[Core\Router\Target]` and `#[Core\Router\Params]` are `on parameter`, so a promoted constructor
+  parameter fits, as for every attribute that lists `parameter`.
+- `#[Route]`'s stale `name` field is gone from the table (no pass reads it), and `#[Test]` gains the
+  `timeout` and `tags` its pass reads.
+- A stub writes `[repeatable] attribute Name on … { /// doc  field?: T, }`. An attribute that is
+  also a class (`Core\Test`, `Core\Command`) is still described in the class's stub card.
+
 **The goal after this one.** `attribute-property-names` builds on this goal: `static` in an attribute
 declaration's fields names the class the attribute is used on, and no top-level `type` alias changes
 what `static` means.
@@ -341,15 +364,21 @@ stage 6. That is expected, and no stage before the gate runs the whole suite.
 
 **Does:** one mechanism. `Core`'s attributes are the same declaration value as a program's.
 
-- [ ] `crates/nvs-types/src/derive.rs:75` `ATTRIBUTES`, `:150` `sites`, `:180` `AttributeDoc` and `:258`
+- [x] `crates/nvs-types/src/derive.rs:75` `ATTRIBUTES`, `:150` `sites`, `:180` `AttributeDoc` and `:258`
   `ATTRIBUTE_DOCS`: one table of declaration values with sites, `repeatable`, fields and their docs,
   read by the checker through the same lookup as a program's declaration.
-- [ ] `crates/nvs-types/src/attributes.rs:335` `check_recognized` and `:144` `check_recognized_sites`:
+  - [x] `AttributeDoc` gains `sites` and `repeatable`, and each field a `doc`
+  - [x] `derive::Site` and `derive::sites` are gone
+  - [x] `every_core_attribute_is_one_declaration` holds the table to the roster
+- [x] `crates/nvs-types/src/attributes.rs:335` `check_recognized` and `:144` `check_recognized_sites`:
   the site, count and payload checks are stage 3's. `E0874` (`:192`) and `E0763` become stage 3's
   codes. What remains is each recognizing pass's own check.
-- [ ] `crates/nvs-lsp/src/stubs.rs:754` `attribute_stub`: writes `attribute Name on … { /// … }`, and
+  - [x] `check_recognized_sites`, `routes::check_one_access` and `check_one_api` are gone
+  - [x] `paths::report_stray` and `deprecated::report_on_hook` are gone, and `E0844` is retired
+  - [x] the four cases and three Rust tests that pinned the old messages are updated
+- [x] `crates/nvs-lsp/src/stubs.rs:754` `attribute_stub`: writes `attribute Name on … { /// … }`, and
   the coverage check at `:899` still names every row.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green, then the stub coverage
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green, then the stub coverage
   test in `crates/nvs-lsp/src/stubs.rs:899` runs once, by name, with `cargo test --lib -- stubs::`.
 
 ### 5. every retrieval matches the declaration, never the shape
@@ -444,10 +473,13 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 to 3 are done. The checker resolves and checks every program attribute, and IR skips an
-`attribute` declaration. The nine `cases` files are green by name. `looper check --name cases`
-exits 1 only because `bun nv suite --case` reruns the 42 corpus cases stage 6 migrates. The
-nightly run `44722386375` predates both fixes for its failures (`e5a100b18f`, `438e9c44af`).
+Stages 1 to 4 are done. The checker resolves and checks every program attribute, and IR skips an
+`attribute` declaration. `Core`'s compiler attributes are rows of `derive::ATTRIBUTE_DOCS` with
+sites, `repeatable` and field docs, and one site check (`E0874`) and one count check (`E0763`)
+cover both kinds. The stub tree writes each `Core` attribute as an `attribute` declaration. The
+nine `cases` files are green by name. `looper check --name cases` exits 1 only because
+`bun nv suite --case` reruns the corpus cases stage 6 migrates. The nightly run `44722386375`
+predates both fixes for its failures (`e5a100b18f`, `438e9c44af`).
 
 **Red until stage 5:** the two `retrieval` cases and four unit tests that name a declaration where
 `Match::attribute` and `implementingWith` still give `E0729`:
@@ -464,17 +496,18 @@ and Rust tests that write `#[{`: `Grep` for `#\[\{` under `crates/`, such as `cr
 
 ### Next
 
-Stage 4: `Core`'s compiler attributes become declaration values.
+Stage 5: every retrieval matches the declaration, never the shape.
 
-- `crates/nvs-types/src/derive.rs:75` `ATTRIBUTES`, `:182` `AttributeDoc` and `:260`
-  `ATTRIBUTE_DOCS`, with `derive::sites`: one table of `nvs_hir::AttributeDef`-shaped values with
-  sites, `repeatable`, fields and their docs. `crates/nvs-types/src/attributes.rs` `lookup`'s
-  `Lookup::Recognized` arm then returns that value, as `Lookup::Declared` does.
-- `crates/nvs-types/src/attributes.rs:757` `check_recognized` and `:269` `check_recognized_sites`:
-  the site, count and payload checks move to `check_attribute`'s four checks. Keep each recognizing
-  pass's own check, such as `#[Route]` needing `#[Access]`.
-- `crates/nvs-lsp/src/stubs.rs:754` `attribute_stub`: write `attribute Name on … { /// … }`. Run
-  `cargo test --lib -- stubs::` once at the end.
+- `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`, `:476` `sites_for` and `:552`
+  `matching`: the type argument already resolves through
+  `crates/nvs-types/src/attributes.rs` `lower_retrieval_arg`. Match each use by the declaration
+  name `env.exprs.record_attribute_name` recorded, never by the shape `TypeId`.
+- `crates/nvs-types/src/match_attribute.rs:64` and `crates/nvs-types/src/program.rs:153`: move from
+  `E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE` (`E0729`) to `lower_retrieval_arg` and `E1008`, then retire
+  `E0729`.
+- `crates/nvs-codegen/src/lib.rs:2473` `attribute_desc`: the row carries the declaration's full name
+  for `crates/nvs-stdlib/src/reflect.rs` `AttributeInfo::name()`.
+- Then `looper check --name retrieval` once.
 
 ### Backlog
 
