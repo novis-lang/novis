@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A new `#` heading in a reference chapter adds a feature to the roster, and that feature owes
+  every proof.** `# nvs test --since` in `docs/reference/tools/10-cli.md` made
+  `tools:cli/nvs-test-since`, and `site --check changes` and `--check stale` went red. Write a
+  section of an existing feature as `##`. See `bun nv proofs --id <feature>`'s *implemented at*.
 - **A `cd` into a folder under `target/` that ends a successful call moves the session's shell, and
   then the guard hook cannot find `tools/looper/main.ts`, so every Bash call fails, `cd` included.**
   Inspecting a test's scratch checkout did this. Never `cd` there: pass `-C <dir>` to git, or give

@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-codegen/src/lib.rs, docs/rules/testing/a-debugged-program-is-compiled-with-a-debug-switch.md, tools/nv/cmd/scaling.ts, benches/scaling/testing/mutate.nvs]
   - id: 7
     title: the CLI reference names every flag of nvs test, and the pages say what this goal added
-    status: open
+    status: done
     context: [docs/reference/tools/10-cli.md, docs/examples/tools/cli/nvs-test-mutate/about.md, docs/examples/tools/cli/nvs-test/about.md, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -559,20 +559,21 @@ mutant number before each suite.
 user reads*. An `Explore` subagent first lists every flag `crates/nvs-cli/src/runner.rs:150-470`
 declares, with its help text's first line, and the session writes the pages from that list.
 
-- [ ] `docs/reference/tools/10-cli.md:221`: the synopsis names every flag of `nvs test`, and the
+- [x] `docs/reference/tools/10-cli.md:221`: the synopsis names every flag of `nvs test`, and the
   list below it has one entry per flag. Each entry says what the flag does, in one or two sentences,
   and links to the section that says more where one exists. `<file>:<line>` and `--since` are among
   them.
-- [ ] `docs/reference/tools/10-cli.md:334`: the `nvs test --mutate` section covers targets,
+- [x] `docs/reference/tools/10-cli.md:334`: the `nvs test --mutate` section covers targets,
   `#[NoMutate]`, `--since`, the two new outcomes, `mutants.toml` with the example above, the
   grouping, and one compile per run. `:399` no longer says each mutant compiles the program again.
-- [ ] `docs/examples/tools/cli/nvs-test-mutate/about.md:1` and
+- [x] `docs/examples/tools/cli/nvs-test-mutate/about.md:1` and
   `docs/examples/tools/cli/nvs-test/about.md:1`: one short paragraph each for what this goal added,
   within the about.md length bounds.
-- [ ] `docs/examples/tools/cli/nvs-test-mutate/04-no-mutate-on-a-view.nvs:1` with its `.out`: a
+- [x] `docs/examples/tools/cli/nvs-test-mutate/04-no-mutate-on-a-view.nvs:1` with its `.out`: a
   class with `#[NoMutate(because: ...)]` makes no mutant, and the report shows it. `bun nv proofs
-  --id 'tools:cli/nvs-test-mutate'` and `--id 'tools:cli/nvs-test'` owe nothing.
-- [ ] `bun nv proofs --comments` over every `.nvs` this stage wrote.
+  --id 'tools:cli/nvs-test-mutate'` and `--id 'tools:cli/nvs-test'` owe nothing but the
+  `reviewed` stamp of each `about.md`, which stage 8's newcomer review writes.
+- [x] `bun nv proofs --comments` over every `.nvs` this stage wrote.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -583,38 +584,34 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### State
 
-Stages 1 to 6 are done. The checks `aim`, `aim-ir`, `since-mutate`, `since-select`, `at-line`,
-`equivalent`, `equivalent-codegen`, `judged`, `judged-unit` and `once` are green, each run once;
-`equivalent`, `equivalent-codegen` and the `once` tests ran again after this session's change.
+Stages 1 to 7 are done. Every acceptance check from `aim` to `once` was green when its stage ended.
 
-Stage 6's last two items landed this session. `benches/scaling/testing/mutate-program.nvs` grows the
-program, n price rules with one test class each. It found the run quadratic: the judge lowered and
-declared the whole program per mutant. See the decision *The judge lowers in rounds*:
-`judge` in `crates/nvs-cli/src/runner/mutation.rs`, `lower_fixed` in
-`crates/nvs-ir/src/lower/mutate.rs`, `function_code_hashes` in `crates/nvs-codegen/src/lib.rs`, and
-`Literals::restart`, `hashed_name` and `describe` in `crates/nvs-codegen/src/emit.rs`. New unit test
-`functions_hashed_together_give_the_hashes_each_gives_alone` (codegen, green, run once). The ladder
-is flat, clock slope 1.13, and the rule's *What it costs* records it; its Declined entry
-*Recompiling only the mutated function* stays.
+Stage 7 is d9f879e2f3: `docs/reference/tools/10-cli.md` `# nvs test` names every flag, the
+`:<line>` form and a `## Running only what a change reaches` section (a `#` heading would make a
+new feature id that owes every proof), and `# nvs test --mutate` covers all this goal added. The
+`04-no-mutate-on-a-view` example, both `about.md` files, the test-runner page and `changes.json`
+(an `unseen` record for `tools:cli/profiling`) are written. `site --check stale` and `changes` are
+green. `bun nv prose` names only the synopsis code block at `:222`, which is not prose.
 
-Nightly run 44510687786 (adc7487822): each failure has a later fix (eb5c02e983, 4c82a2409a,
-656f5b2f2d, 1c75c4ef0e). The next nightly confirms Miri and browser.
+Nightly run 44722386375 (5d053fc6e6) is fixed:
+- e5a100b18f: the XML `source` memory test built the class descriptors inside its measured
+  context. It now builds them first, as a compile does. It is green, run once.
+- 438e9c44af: `is Iterable<T>` and `is KeyedIterable<K, V>` were false for a `Core\ObjectMap`.
+  `class_or_core_implementor` (`crates/nvs-ir/src/lower/expr.rs`) also tests the classes on
+  `ITERABLES` and `KEYED_ITERABLES`. A new case, `an-object-map-is-an-iterable-and-a-keyed-iterable`,
+  is green in the plain and checked builds. `Parses` has the same gap and was left alone.
 
 ### Next
 
-Stage 7: the pages, as its items say. An `Explore` subagent lists every flag
-`crates/nvs-cli/src/runner.rs:150-470` declares, with its help's first line; the session writes
-`docs/reference/tools/10-cli.md:221` (synopsis and one entry per flag, `<file>:<line>` and `--since`
-included) and `:334` (the `--mutate` section: targets, `#[NoMutate]`, `--since`, `equivalent` and
-`duplicate`, `mutants.toml`, the grouping, one compile per run). `:389` still shows the old
-`survived  file:line` line and `schemaVersion` `4`; it is now `survived in <function> (<n>):` with
-the grouped lines, and version 5. Then the two `about.md` paragraphs, the `04-no-mutate-on-a-view`
-example with its `.out`, `bun nv proofs --id` for both features, and `bun nv proofs --comments`.
+Stage 8, a close and not a full gate. Run the newcomer review first (`docs/agent/prose.md` §
+*A newcomer reads it*): `bun nv site --review` lists the texts. These include both `about.md` files
+and the help cards `help:tools:cli/nvs-test` and `help:tools:cli/nvs-test-mutate`. Stamp each once
+its findings are fixed. Then `cargo build`, `cargo clippy --all-targets -- -D warnings`, and the
+acceptance checks `aim` to `once`, each by name with `looper check --name <id>`. Then `bun nv owners
+--closes aimed-mutation`. Move each decision only this file's prose holds into
+`docs/rules/testing/mutation-testing.md` or a module doc, delete the file, and write `DONE`.
 
-Tests expected red until the gate: `bun nv site --check stale` may name the `nvs-test-mutate`
-example page, whose `.out` changed; stage 7 rereads and stamps it. A human `--mutate` run prints a
-`compiles: 1, …` line, so `docs/examples/tools/cli/nvs-test-mutate/01-a-test-that-misses-the-boundary.out`
-is expected red until stage 7 or the gate re-blesses it. No `changes.json` entry yet: stage 7 writes
-one for each feature this goal moved.
+Tests that may go red: an `nvs-ir` unit test that pins the shape of an `is Iterable` test, if one
+exists. None was run.
 
 ### Backlog
