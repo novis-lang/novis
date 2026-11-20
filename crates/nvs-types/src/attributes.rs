@@ -617,8 +617,8 @@ pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -
         )
         .with_primary(ty.span, "not an attribute declaration")
         .with_help(
-            "Declare the attribute with `attribute Name on … { … }`, and write its name here. \
-             The retrieval finds the payloads written under that declaration.",
+            "declare the attribute with `attribute Name on … { … }`, and write its name here. \
+             The call then returns the attributes written with that name",
         ),
     );
     env.interner.error()
@@ -893,8 +893,8 @@ fn check_attribute(
             )
             .with_primary(attr.span, "this is not an attribute declaration")
             .with_help(format!(
-                "Declare the attribute with `attribute Name on {} {{ … }}`, and write its \
-                 name after `#[`.",
+                "declare the attribute with `attribute Name on {} {{ … }}`, and write its \
+                 name after `#[`",
                 site.word()
             ));
             if let Some((span, replacement)) = alias_as_attribute(name, attr, site, ctx, env) {

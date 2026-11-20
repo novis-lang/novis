@@ -217,7 +217,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             if Self::is_name_segment(self.peek().kind) {
                 member = Some(self.bump().span);
             } else {
-                self.error_expected("the name of a `type` alias after `::`");
+                self.error_expected("the name of an attribute declaration after `::`");
                 named = false;
             }
         }

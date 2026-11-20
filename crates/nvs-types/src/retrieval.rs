@@ -711,8 +711,7 @@ fn report_unfoldable(value: &Expr, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_ATTRIBUTE_PAYLOAD_UNFOLDABLE,
-            "this attribute satisfies the retrieved shape, but holds a value with no \
-             compile-time form",
+            "this attribute has a value that the compiler cannot compute",
         )
         .with_primary(value.span, "no constant form")
         .with_help(

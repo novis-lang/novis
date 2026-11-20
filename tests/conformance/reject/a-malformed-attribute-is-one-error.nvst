@@ -29,7 +29,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0101]: expected the name of a `type` alias after `::`
+error[E0101]: expected the name of an attribute declaration after `::`
   --> case.nvs:9:13
 %A
 error[E0101]: expected `)`

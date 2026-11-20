@@ -19,7 +19,7 @@ error[E1008]: a retrieval's type argument must name an attribute declaration, an
    |
 12 | ?int $limit = $shop?->attribute<int>();
    |                                 ^^^ not an attribute declaration
-   = help: Declare the attribute with `attribute Name on … { … }`, and write its name here. The retrieval finds the payloads written under that declaration.
+   = help: declare the attribute with `attribute Name on … { … }`, and write its name here. The call then returns the attributes written with that name
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

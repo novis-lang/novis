@@ -59,7 +59,7 @@ error[E0792]: `Limits::RELAY` has no compile-time value to inline
    |              ^^^^^^^^^^^^^ this constant's declaration folds to no value
    = help: a class constant is copied into every place that uses it, so its value must be known when the program compiles. Write it as a number, a string, or an array of them. This compiler cannot yet do that for another class's constant, an enum case or `Foo::class`, alone or inside an array. Write the value out here, or move it to a `static` property that the class sets
 
-error[E0731]: this attribute satisfies the retrieved shape, but holds a value with no compile-time form
+error[E0731]: this attribute has a value that the compiler cannot compute
    --> case.nvs:21:14
    |
 21 | #[Code(code: Limits::RELAY)]
@@ -78,7 +78,7 @@ error[E1008]: a retrieval's type argument must name an attribute declaration, an
    |
 34 | var $scalar = Core\Attributes::get<int>(Twice::constructor);
    |                                    ^^^ not an attribute declaration
-   = help: Declare the attribute with `attribute Name on … { … }`, and write its name here. The retrieval finds the payloads written under that declaration.
+   = help: declare the attribute with `attribute Name on … { … }`, and write its name here. The call then returns the attributes written with that name
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
    --> case.nvs:39:45
