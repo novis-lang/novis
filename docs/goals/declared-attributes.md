@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/card.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/semantic.rs, editors/vscode/syntaxes/nvs.tmLanguage.json]
   - id: 8
     title: the feature's proofs, the reference and the website say what attributes are now
-    status: open
+    status: done
     context: [docs/reference/lang/90-attributes.md, docs/examples/lang/attributes/chapter.md, docs/agent/prose.md]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -459,23 +459,23 @@ first and last.
 **Split:** writing subagents take the examples, the attack and the bench while the session writes the
 reference, `about.md` and the pages. Their files are disjoint.
 
-- [ ] `docs/reference/lang/90-attributes.md:10`: the first section becomes "An attribute is declared
+- [x] `docs/reference/lang/90-attributes.md:10`: the first section becomes "An attribute is declared
   with the places it may be used", which renames the feature. Its directory under
   `docs/examples/lang/attributes/` is renamed to match, and `docs/examples/lang/attributes/chapter.md:1`
   follows. The other sections are reread and rewritten where they describe the bare form, aliases or
   the shape match.
-- [ ] That feature's `about.md` and `details.md`, its examples (a top-level attribute, an attribute owned
+- [x] That feature's `about.md` and `details.md`, its examples (a top-level attribute, an attribute owned
   by a base class, `repeatable`, a documented field), one attack (an attribute written on a class that
   does not extend its owner, and on a site its declaration does not list; neither compiles) and its
   bench, under `benches/members/lang/attributes/`.
-- [ ] `data/reference/lang/90-attributes.json`, `data/reference/core/Attributes.json` and the help text
+- [x] `data/reference/lang/90-attributes.json`, `data/reference/core/Attributes.json` and the help text
   `nvs` prints for attributes, if it has any.
-- [ ] `website/src/content/docs/syntax/attributes/*.mdx`: reread, rewritten where needed, and stamped
+- [x] `website/src/content/docs/syntax/attributes/*.mdx`: reread, rewritten where needed, and stamped
   with `bun nv site --stamp`.
-- [ ] `website/src/data/changes.json`: a `changed` entry for attributes (declarations, sites, owners,
+- [x] `website/src/data/changes.json`: a `changed` entry for attributes (declarations, sites, owners,
   `repeatable`, the declaration match, the bare form removed) and a `new` entry for doc comments on
   shape fields.
-- [ ] The `proofs` check runs once, and `bun nv site --check stale` and `changes` are green.
+- [x] The `proofs` check runs once, and `bun nv site --check stale` and `changes` are green.
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -488,44 +488,41 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 to 7 are done. The `editor` check is green, and clippy and `cargo fmt --check` are clean.
+Stages 1 to 8 are done. The `proofs` check is green over the whole roster, and
+`bun nv site --check stale`, `changes` and `review` are green. Clippy is clean.
 
-The sweep's nightly tested `5d053fc6e6`, older than its two fixes. Both of its failing tests pass
-on this tree.
+The sweep's nightly tested `5d053fc6e6`, older than `e5a100b18f` and `438e9c44af`, which fixed
+both of its failing tests.
 
-Stage 7's last two items (`24fdde95fb`, `3b5db0c4c4`):
+Stage 8 (`2542b75301`, `5bca208d93`):
 
-- A shape field's `///` run is not part of the interned type, because two shapes with the same
-  fields are one type. `crates/nvs-types/src/lower.rs` `lower_atom` records it in
-  `ExprTypeTable::record_shape_field_doc`, keyed by the shape and the field name. The first
-  documented shape of a type gives the doc. `check_anon_object` records the shape a literal's
-  position declares (`ExprTypeTable::object_shape`). `completion.rs` `object_shape` and
-  `shape_field_doc` read both, and `hover.rs` `attribute_key` answers a key in any `{…}` the same
-  way as a payload key.
-- `E1005` carries a fix when the name is a shape alias declared in the same file with no type
-  parameters, and the site is one a program may list (`attributes.rs` `alias_as_attribute`).
+- The feature is `lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used`, with
+  example 05 (an owner base class, `///` on each field) and attack 02 (`expect-refusal`).
+  `changes.json` has a `removed` entry for the old id and two `new` entries for the new one.
+- `website/src/data/core.json` comes from the release binary, and keeps the old `Core\Attributes`
+  card text until the next relink renders it.
+- E0101 after `#[Owner::`, E0731, and the help of E1005 and E1008 are reworded, with their cases.
 
-**Possibly red, not run:** `nvs-lsp`'s Rust unit tests, since `render.rs`, `completion.rs`,
-`hover.rs` and `semantic.rs` changed (the legend gained `decorator`). An `.lspt` case whose cursor
-is in a `{…}` at a shape type now gets that shape's keys, where it got the position's list before.
-A test that snapshots `ExprTypeTable::canonical_text` gains two sections. On the debug binary, three
+**Possibly red, not run:** `nvs-lsp`'s Rust unit tests and any `.lspt` case with the cursor in a
+`{…}` at a shape type (stage 7's change). A test that snapshots `ExprTypeTable::canonical_text`.
+A parser unit test that quotes "the name of a `type` alias after `::`". On the debug binary, three
 attacks pass the 10 s bound (`tests/hostile/core/Attributes/all/01`,
-`lang/attributes/an-attribute-is-an-anonymous-object-…/01`,
+`lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/01`,
 `lang/attributes/reading-attributes-back-…/01`). They take 1.4 to 2.4 s on a release proof binary.
 
 ### Next
 
-Stage 8, following its `**Split:**` line. Run
-`bun nv proofs --id 'lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used'`
-first, and write the reference section at `docs/reference/lang/90-attributes.md:10` before the
-subagents start, since the examples, the attack and the bench build on it. The Backlog's diagnostic
-wordings and the review baseline's renamed paths belong to this stage too.
+Stage 9. This goal is not the chain's full gate, so close it with `cargo build`, clippy and the
+goal's own cases by name: the `cases`, `retrieval`, `editor` and `proofs` acceptance checks
+(`looper check --name <id>`). Then the two Backlog items that stage 9 owns: the inherited-method
+retrieval (fix the code or the rule, with a case), and the ten `designed` rule records set
+`shipped` with `bun nv rules --render` and `--check`. Before `DONE`, `bun nv owners --closes
+declared-attributes`, and move each decision only this file holds into its rule or module doc.
 
 ### Backlog
 
 - `nvs/fileKinds` (`crates/nvs-lsp/src/file_kinds.rs:109`) does not list `DeclKind::Attribute`, and
-  the outline shows an attribute as `Struct`. Give the client a word for it if stage 8's pages
-  mention the outline.
+  the outline shows an attribute as `Struct`. No page mentions the outline, so it waits for a user.
 - `#[` offers a namespace-level declaration by `written_as` alone, so a `Core` attribute is offered
   as `Core\Route`, with no `use` line added. `in_reach`'s import edit could be shared if users ask.
 - An attribute name in a type position should be `E0303`. That is not checked yet, because
@@ -542,18 +539,12 @@ wordings and the review baseline's renamed paths belong to this stage too.
   `Core\Option` payload with no `long` compiles and fails at run time. Check whether an ordinary
   shape's optional field does the same. If so, it is a `rule:types/shape-type` gap, not this goal's.
 - `var $y = Core\Attributes::get<Tag>(A::other); echo $y?->name ?? 'none';` throws "read property
-  `name` on null" at run time. With `?{name: string} $y` it prints `none`. Look at the type `var`
-  infers for a retrieval.
-- Diagnostics that still describe the old rules: `E0101`'s "expected the name of a `type` alias
-  after `::`" after `#[Page::`, `E0731`'s "satisfies the retrieved shape", and `E1008`'s and
-  `E1005`'s help starting with a capital. Reword them in stage 8 with the reference.
+  `name` on null" at run time when `A::other` has no `Tag`. With a declared attribute present it
+  works (`docs/reference/core/Attributes.md`'s example). Look at the type `var` infers for a
+  retrieval that finds nothing.
 - One mistake, two errors: `implementingWith<Page, X>` with a bad `X` gives `E1008` and `E0443`
   ("foreach cannot iterate a `mixed`"), and a secret in an `array<mixed>` payload field gives
   `E0824` beside `E0727`.
-- `data/proofs/review-baseline.json` names three renamed paths:
-  `Reflect-AttributeInfo/name/01-the-written-name.nvs` (now `01-the-full-name.nvs`) and the
-  `implementingWith` example `05-each-page-beside-its-route.nvs` (now
-  `05-each-call-reads-only-the-attribute-it-names.nvs`). Stage 8's review stamps them again.
-- `docs/examples/lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration/` is
-  named for the old idea. Its texts are rewritten, and stage 8 renames the directory and its
-  `chapter.md` heading with the feature id.
+- The newcomer review found wording to improve that is not wrong: "method reference" for
+  `User::constructor` is never explained, and `attribute` is both a row's field name and the
+  word, in the `implementingWith` examples. A later wording pass may take them.
