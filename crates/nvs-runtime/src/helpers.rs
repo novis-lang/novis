@@ -4205,6 +4205,18 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::ctx::nvs_deprecated_use as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_object_revoke",
+            (crate::revoke::nvs_object_revoke as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_object_is_revoked",
+            (crate::revoke::nvs_object_is_revoked as *const ()).cast::<u8>(),
+        ),
+        (
+            "nvs_throw_revoked",
+            (crate::revoke::nvs_throw_revoked as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_probe_stmt",
             (crate::ctx::nvs_probe_stmt as *const ()).cast::<u8>(),
         ),

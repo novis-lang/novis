@@ -1085,6 +1085,21 @@ impl Emitter<'_, '_> {
             } => {
                 self.emit_copy_count(*site, *ty, *before, *after)?;
             }
+            // `rule:classes/revocable-objects`'s two intrinsics. Neither can
+            // fail, so neither has a status to check.
+            InstKind::Revoke { object, site } => {
+                let (object, _) = self.value(*object)?;
+                let (site, _) = self.value(*site)?;
+                let callee = self.runtime_ref("nvs_object_revoke", RuntimeSig::Revoke)?;
+                self.b.ins().call(callee, &[object, site]);
+            }
+            InstKind::IsRevoked { object } => {
+                let (object, _) = self.value(*object)?;
+                let callee = self.runtime_ref("nvs_object_is_revoked", RuntimeSig::IsRevoked)?;
+                let call = self.b.ins().call(callee, &[object]);
+                let answer = self.b.inst_results(call)[0];
+                self.define(inst, answer)?;
+            }
             InstKind::FieldTake {
                 object,
                 class,
@@ -5536,6 +5551,8 @@ impl Emitter<'_, '_> {
             RuntimeSig::ProbeCall => &self.sigs.probe_call,
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
             RuntimeSig::CopyCount => &self.sigs.copy_count,
+            RuntimeSig::Revoke => &self.sigs.revoke,
+            RuntimeSig::IsRevoked => &self.sigs.is_revoked,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::StrAppendParts => &self.sigs.str_append_parts,
             RuntimeSig::PtrEq => &self.sigs.ptr_eq,
@@ -5604,6 +5621,8 @@ enum RuntimeSig {
     ProbeCall,
     ProbeCallExit,
     CopyCount,
+    Revoke,
+    IsRevoked,
     StrConcat,
     StrAppendParts,
     PtrEq,

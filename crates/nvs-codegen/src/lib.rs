@@ -2438,6 +2438,13 @@ struct Signatures {
     /// count (`nvs_ir::ir::InstKind::CopyCount`). It returns nothing, because
     /// it cannot fail.
     copy_count: Signature,
+    /// `nvs_object_revoke(object, site)`, `revoke()`
+    /// (`nvs_ir::ir::InstKind::Revoke`). It returns nothing, because it
+    /// cannot fail.
+    revoke: Signature,
+    /// `nvs_object_is_revoked(object) -> u8`, `isRevoked()`
+    /// (`nvs_ir::ir::InstKind::IsRevoked`).
+    is_revoked: Signature,
     /// `nvs_str_concat(lhs, rhs) -> *mut StrHeader`,
     /// `nvs_str_append(target, suffix) -> *mut StrHeader`,
     /// `nvs_str_concat_n(pieces, count) -> *mut StrHeader` and
@@ -3205,6 +3212,13 @@ impl Signatures {
         copy_count.params.push(AbiParam::new(ptr)); // before
         copy_count.params.push(AbiParam::new(ptr)); // after
 
+        let mut revoke = module.make_signature();
+        revoke.params.push(AbiParam::new(ptr)); // object
+        revoke.params.push(AbiParam::new(ptr)); // site
+        let mut is_revoked = module.make_signature();
+        is_revoked.params.push(AbiParam::new(ptr)); // object
+        is_revoked.returns.push(AbiParam::new(types::I8));
+
         let mut str_concat = module.make_signature();
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.params.push(AbiParam::new(ptr));
@@ -3371,6 +3385,8 @@ impl Signatures {
             probe_call,
             probe_call_exit,
             copy_count,
+            revoke,
+            is_revoked,
             str_concat,
             str_append_parts,
             ptr_eq,

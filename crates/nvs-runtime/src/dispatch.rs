@@ -469,6 +469,25 @@ fn call_erased_unchecked(
     )]
     let desc = unsafe { &*desc };
     let class = desc.name();
+    // `rule:classes/revocable-objects`: `revoke()` and `isRevoked()` have no
+    // compiled body, so a call by name runs the functions a written call runs.
+    // A name only known at run time has no site blob, so the error a later use
+    // throws names the class and not the line.
+    if desc.is_revocable() && args.is_empty() && matches!(name, "revoke" | "isRevoked") {
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns a reference to this object, and its class \
+                      is revocable, so it has the hidden slot"
+        )]
+        return Ok(unsafe {
+            if name == "revoke" {
+                crate::revoke::revoke(ptr, std::ptr::null());
+                Value::null()
+            } else {
+                Value::bool(crate::revoke::is_revoked(ptr))
+            }
+        });
+    }
     let Some(row) = desc.method_row(name) else {
         // A `Core`-owned class has no *compiled* method table at all — only
         // the engine-protocol rows `nvs_stdlib::instance` puts there — so

@@ -5156,6 +5156,32 @@ impl<'a> Lowering<'a> {
                 cur,
             )
             .values;
+        // `rule:classes/revocable-objects`: `revoke()` and `isRevoked()` are run
+        // by the runtime, not by a compiled body, and a call of either compiles
+        // no revoked check. The receiver was transferred as a callee's would
+        // be, so it is released here, where a callee would release it.
+        if !is_static
+            && call.class.to_string() == "Revocable"
+            && matches!(call.method.as_str(), "revoke" | "isRevoked")
+        {
+            self.forget_transferred_since(mark);
+            let (v, ty) = if call.method == "revoke" {
+                let site = self.call_site(*cur, expr.span);
+                self.emit(
+                    *cur,
+                    Ty::Void,
+                    InstKind::Revoke {
+                        object: object_v,
+                        site,
+                    },
+                )
+            } else {
+                self.emit(*cur, Ty::Bool, InstKind::IsRevoked { object: object_v })
+            };
+            self.emit_release(*cur, object_v);
+            self.flush_ref_writebacks(staged_refs, env, cur);
+            return self.close_nullsafe(guard, v, ty, env, cur);
+        }
         // `rule:classes/comparable-is-same-class-only`: a call that resolved to
         // `Comparable::compareTo` itself may hold a receiver and an argument of
         // different classes, and the implementor's `compareTo(self $other)`

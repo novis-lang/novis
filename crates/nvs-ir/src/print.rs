@@ -95,6 +95,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    release v{}", operand.index());
         return;
     }
+    if let InstKind::Revoke { object, site } = inst.kind {
+        let _ = writeln!(out, "    revoke v{}, v{}", object.index(), site.index());
+        return;
+    }
     if let InstKind::LendPoison {
         object,
         ref class,
@@ -269,6 +273,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             }
         }
         InstKind::ClassDescOf { object } => format!("class.of v{}", object.index()),
+        InstKind::IsRevoked { object } => format!("is.revoked v{}", object.index()),
         InstKind::ClassDescIn { subject, base } => {
             format!("class.in v{} {base}", subject.index())
         }
@@ -464,6 +469,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         | InstKind::Release { .. }
         | InstKind::RefStore { .. }
         | InstKind::CopyCount { .. }
+        | InstKind::Revoke { .. }
         | InstKind::FieldSet { .. }
         | InstKind::StaticSet { .. } => {
             unreachable!("returned above")

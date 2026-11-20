@@ -995,6 +995,24 @@ pub enum InstKind {
         /// method's entry.
         at: String,
     },
+    /// `rule:classes/revocable-objects`'s `revoke()`: a call of
+    /// `nvs_runtime::revoke::nvs_object_revoke` with the object and the call's
+    /// site. It cannot fail and runs no user code. A second call keeps the
+    /// first site. Defines a `void` value, as a call returning nothing does,
+    /// and borrows `object`.
+    Revoke {
+        /// The revocable object.
+        object: ValueId,
+        /// The call's [`InstKind::SourceConst`], which the error names later.
+        site: ValueId,
+    },
+    /// `rule:classes/revocable-objects`'s `isRevoked()`: a call of
+    /// `nvs_runtime::revoke::nvs_object_is_revoked`, defining a `bool`. It
+    /// cannot fail, and borrows `object`.
+    IsRevoked {
+        /// The revocable object.
+        object: ValueId,
+    },
     /// A `bool` constant.
     ConstBool(bool),
     /// An `int` constant.
@@ -4186,6 +4204,11 @@ impl InstKind {
                 f(*before);
                 f(*after);
             }
+            InstKind::Revoke { object, site } => {
+                f(*object);
+                f(*site);
+            }
+            InstKind::IsRevoked { object } => f(*object),
             InstKind::ArrayNew { entries } => {
                 for &(_, value) in entries {
                     f(value);
@@ -4449,6 +4472,11 @@ impl InstKind {
             // It reads two pointers and adds to a counter on the context,
             // which no program reads.
             InstKind::CopyCount { .. } => Effects::NONE,
+            // `revoke()` removes the object from every collection that holds
+            // it, so it is stated as widely as a call. `isRevoked()` reads the
+            // header's flag and no slot of the program's.
+            InstKind::Revoke { .. } => Effects::USER_CODE,
+            InstKind::IsRevoked { .. } => Effects::NONE,
             InstKind::StaticGet { class, name } => Effects::reading(Slot::Static { class, name }),
             InstKind::StaticSet { class, name, .. } => {
                 Effects::writing(Slot::Static { class, name })
