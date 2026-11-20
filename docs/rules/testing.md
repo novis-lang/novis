@@ -1677,11 +1677,16 @@ a later change.
 - `unseen` names a feature whose behaviour hash moved while nothing a user sees changed, such as a
   renamed test, with the hash it was written at and why. It clears the feature only at that hash, the
   release empties it, and it is never used for a change a user can see.
+- A speed-up whose change added or moved a test gets a `faster` entry and an `unseen` record whose
+  `why` says the results are the same. A `faster` entry never clears a moved hash, so the check stays
+  strict about results, and a speed-up that also changes a result is a `changed` entry.
+- A configuration key is not on the roster, so a renamed key is named in the text of the entry for the
+  feature it serves.
 
 **The snapshot**, `data/proofs/released.json`, is `{ "since": "<tag>", "features": { id -> behaviour
 hash } }`. `bun nv site --check changes` compares it with the roster now: a feature not in it needs a
 `new` entry, a feature in it that the roster no longer has a `removed` entry, and a feature whose
-behaviour hash moved a `changed` entry or a current `unseen` record. It also fails on an entry that
+behaviour hash moved a `changed` or `fixed` entry or a current `unseen` record. It also fails on an entry that
 breaks the shape above, on prose problems in its text, and on an id neither side has. The snapshot is a
 file, not a build of the tag, because the roster comes from `nvs meta --json` and a check cannot build
 an old binary.
