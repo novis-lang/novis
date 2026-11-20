@@ -1,0 +1,38 @@
+--TEST--
+An attribute declared in a program lists only `class`, `method`, `property` and `parameter`, so each other place word in its list does not compile — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+// These four places are allowed, so this declaration compiles.
+attribute Note on class, method, property, parameter { text: string }
+
+// Each declaration below lists one place that no retrieval reads.
+attribute OnInterface on interface { text: string }
+attribute OnEnum on enum { text: string }
+attribute OnHook on hook { text: string }
+attribute OnConstant on constant { text: string }
+attribute OnCase on case { text: string }
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `interface` is not read by any retrieval
+   --> case.nvs:9:26
+%A
+error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `enum` is not read by any retrieval
+   --> case.nvs:10:21
+%A
+error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `hook` is not read by any retrieval
+   --> case.nvs:11:21
+%A
+error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `constant` is not read by any retrieval
+   --> case.nvs:12:25
+%A
+error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `case` is not read by any retrieval
+   --> case.nvs:13:21
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

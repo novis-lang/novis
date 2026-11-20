@@ -1,0 +1,45 @@
+--TEST--
+An attribute that is not `repeatable` is used once on one declaration, so a second use does not compile and is reported where it is written, with the first use named too — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+attribute Column on property { name: string }
+repeatable attribute Tag on class { label: string }
+
+abstract class Storable {
+    attribute Table on class { name: string }
+}
+
+// `Tag` is `repeatable`, so this class may use it twice.
+#[Tag(label: "catalog")]
+#[Tag(label: "public")]
+class Accepted {
+    #[Column(name: "title")]
+    public string $title = "";
+}
+
+class Refused {
+    #[Column(name: "title")]
+    #[Column(name: "heading")]
+    public string $title = "";
+}
+
+// The short name and `Storable::Table` name the same declaration, so this is a second use too.
+#[Table(name: "customers")]
+#[Storable::Table(name: "clients")]
+class Customer extends Storable {}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0763]: `Column` is used twice here, and its declaration is not `repeatable`
+   --> case.nvs:22:7
+%A
+error[E0763]: `Table` is used twice here, and its declaration is not `repeatable`
+   --> case.nvs:28:3
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

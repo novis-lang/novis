@@ -1,0 +1,33 @@
+--TEST--
+`Core\Reflect\AttributeInfo::name` returns the full name of the declaration a payload is written under, `Shop\Storable::Index` for an owned one and `Shop\Job` for one at namespace level, however the use writes it — `rule:attributes/a-retrieval-matches-the-declaration-it-names`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+// covers: Core\Reflect\AttributeInfo::name
+namespace Shop;
+
+abstract class Storable {
+    repeatable attribute Index on class { columns: string }
+}
+
+attribute Job on method { queue: string }
+
+// The first use writes the short name, and the second writes `Storable::Index`.
+// Both name the same declaration.
+#[Index(columns: "email")]
+#[Storable::Index(columns: "name")]
+class Customer extends Storable {
+    #[Job(queue: "mail")]
+    public function notify(): int {
+        return 1;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Customer());
+foreach ($described->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo $attribute->name(), " on ", $attribute->target() == "" ? "<class>" : $attribute->target(), "\n";
+}
+--EXPECT--
+Shop\Storable::Index on <class>
+Shop\Storable::Index on <class>
+Shop\Job on notify

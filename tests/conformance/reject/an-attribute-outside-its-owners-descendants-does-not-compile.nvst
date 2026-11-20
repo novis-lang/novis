@@ -1,0 +1,46 @@
+--TEST--
+An attribute declared in a class is used only on that class's descendants and their members, so a use on an unrelated class, on the owner itself or on the owner's own method does not compile — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+// The owner may not use its own attribute, on itself or on its own methods.
+#[Storable::Index(columns: "id")]
+abstract class Storable {
+    attribute Index on class, method { columns: string }
+
+    #[Storable::Index(columns: "id")]
+    public function load(): int {
+        return 1;
+    }
+}
+
+// A subclass and its method may use `Index`, so this class compiles.
+#[Index(columns: "email")]
+class Customer extends Storable {
+    #[Index(columns: "name")]
+    public function find(): int {
+        return 1;
+    }
+}
+
+// `Mailer` does not extend `Storable`, so the qualified name does not help.
+#[Storable::Index(columns: "id")]
+class Mailer {}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1006]: `Index` is declared in `Shop\Storable`, so it is used only on classes that extend or implement `Shop\Storable` and their members
+   --> case.nvs:6:3
+%A
+error[E1006]: `Index` is declared in `Shop\Storable`, so it is used only on classes that extend or implement `Shop\Storable` and their members
+   --> case.nvs:10:7
+%A
+error[E1006]: `Index` is declared in `Shop\Storable`, so it is used only on classes that extend or implement `Shop\Storable` and their members
+   --> case.nvs:26:3
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

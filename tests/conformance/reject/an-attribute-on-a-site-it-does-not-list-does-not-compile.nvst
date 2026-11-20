@@ -1,0 +1,61 @@
+--TEST--
+An attribute used on a place its declaration does not list does not compile, and the error names that place and the places the declaration allows — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+attribute Job on method { queue: string }
+attribute Column on property { name: string }
+attribute Inject on parameter { service: string }
+attribute Export on class, method { format: string }
+
+// Each use here is on a place its declaration lists, so this class compiles.
+#[Export(format: "csv")]
+class Accepted {
+    #[Column(name: "title")]
+    public string $title = "";
+
+    #[Job(queue: "mail")]
+    #[Export(format: "json")]
+    public function send(#[Inject(service: "mailer")] int $id): int {
+        return $id;
+    }
+}
+
+// Each use below is on a place its declaration does not list.
+#[Job(queue: "mail")]
+class Refused {
+    #[Job(queue: "mail")]
+    public string $name = "";
+
+    #[Export(format: "csv")]
+    public int $count = 0;
+
+    #[Column(name: "id")]
+    public function run(#[Job(queue: "mail")] int $id): int {
+        return $id;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0874]: `Job` is used on a class, and its declaration allows only `method`
+   --> case.nvs:24:3
+%A
+error[E0874]: `Job` is used on a property, and its declaration allows only `method`
+   --> case.nvs:26:7
+%A
+error[E0874]: `Export` is used on a property, and its declaration allows only `class` and `method`
+   --> case.nvs:29:7
+%A
+error[E0874]: `Column` is used on a method, and its declaration allows only `property`
+   --> case.nvs:32:7
+%A
+error[E0874]: `Job` is used on a parameter, and its declaration allows only `method`
+   --> case.nvs:33:27
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

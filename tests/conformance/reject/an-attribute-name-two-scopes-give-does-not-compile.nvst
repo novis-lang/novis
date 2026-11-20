@@ -1,0 +1,48 @@
+--TEST--
+A short attribute name that both the owner chain and the namespace or a `use` import give does not compile, and the error names both declarations, while each qualified form compiles — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+use Core\Deprecated;
+
+// `Index` is declared in `Storable` and in the namespace `Shop`.
+// `Deprecated` is declared in `Storable` and imported from `Core`.
+abstract class Storable {
+    attribute Index on class { columns: string }
+    attribute Deprecated on method { reason: string }
+}
+attribute Index on class { columns: string }
+
+// Each qualified name names one declaration, so this class compiles.
+#[Storable::Index(columns: "email")]
+#[\Shop\Index(columns: "id")]
+class Accepted extends Storable {
+    #[Storable::Deprecated(reason: "use find")]
+    public function load(): int {
+        return 1;
+    }
+}
+
+// Inside a descendant of `Storable`, each short name below is given by two scopes.
+#[Index(columns: "email")]
+class Refused extends Storable {
+    #[Deprecated(reason: "use find")]
+    public function load(): int {
+        return 1;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1007]: `Index` is declared in `Shop\Storable` and in `Shop`, so write `Storable::Index` or `\Shop\Index`
+   --> case.nvs:26:3
+%A
+error[E1007]: `Deprecated` is declared in `Shop\Storable` and in `Core`, so write `Storable::Deprecated` or `\Core\Deprecated`
+   --> case.nvs:28:7
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

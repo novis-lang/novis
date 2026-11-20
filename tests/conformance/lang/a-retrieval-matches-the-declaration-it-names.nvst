@@ -1,0 +1,57 @@
+--TEST--
+Two attribute declarations with the same fields are used on the same class and property, and a retrieval of each returns only the payloads written under it, for a namespace-level and an owned declaration alike — `rule:attributes/a-retrieval-matches-the-declaration-it-names`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+// `Label` and `Title` have the same fields. They are still two different attributes.
+attribute Label on class, property { text: string }
+attribute Title on class, property { text: string }
+
+// `Storable::Index` and `Key` also have the same fields.
+abstract class Storable {
+    attribute Index on class { columns: string }
+}
+attribute Key on class { columns: string }
+
+#[Label(text: "a label")]
+#[Title(text: "a title")]
+class Page {
+    #[Title(text: "heading")]
+    public string $heading = "";
+}
+
+#[Index(columns: "email")]
+#[Key(columns: "id")]
+class User extends Storable {}
+
+// Each loop prints every payload the retrieval returns.
+echo "page labels:";
+foreach (Core\Attributes::all<Label>(Page::constructor) as var $label) { echo " ", $label->text; }
+echo "\n";
+
+echo "page titles:";
+foreach (Core\Attributes::all<Title>(Page::constructor) as var $title) { echo " ", $title->text; }
+echo "\n";
+
+// The property has a `Title` and no `Label`, so the first result is `null`.
+echo "heading label: ", Core\Attributes::get<Label>(Page::constructor, "heading") == null ? "none" : "some", "\n";
+var $headingTitle = Core\Attributes::get<Title>(Page::constructor, "heading");
+if ($headingTitle != null) { echo "heading title: ", $headingTitle->text, "\n"; }
+
+// Outside `Storable` and its descendants, `Index` is written `Storable::Index`.
+echo "user indexes:";
+foreach (Core\Attributes::all<Storable::Index>(User::constructor) as var $index) { echo " ", $index->columns; }
+echo "\n";
+
+echo "user keys:";
+foreach (Core\Attributes::all<Key>(User::constructor) as var $key) { echo " ", $key->columns; }
+echo "\n";
+--EXPECT--
+page labels: a label
+page titles: a title
+heading label: none
+heading title: heading
+user indexes: email
+user keys: id

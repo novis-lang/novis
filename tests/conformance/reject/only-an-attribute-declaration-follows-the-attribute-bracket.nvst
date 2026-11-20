@@ -1,0 +1,52 @@
+--TEST--
+Only an attribute declaration may follow `#[` or be a retrieval's type argument, so a class, a `type` alias, an enum or an inline shape there does not compile — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+attribute Job on method { queue: string }
+
+class Mailer {}
+type Address = { street: string };
+enum Size { Small = 1, Large = 2 }
+
+// `Job` is an attribute declaration, so its use and its retrieval compile.
+class Accepted {
+    #[Job(queue: "mail")]
+    public function send(): int {
+        return 1;
+    }
+}
+var $job = Core\Attributes::get<Job>(Accepted::send);
+
+// Each name below is not an attribute declaration.
+#[Mailer(queue: "mail")]
+class WithAClass {}
+
+#[Address(street: "Main Street 1")]
+class WithAnAlias {}
+
+#[Size]
+class WithAnEnum {}
+
+var $shape = Core\Attributes::get<{name: string}>(Accepted::send);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1005]: only an attribute declaration may follow `#[`, and `Mailer` is a class
+   --> case.nvs:21:3
+%A
+error[E1005]: only an attribute declaration may follow `#[`, and `Address` is a `type` alias
+   --> case.nvs:24:3
+%A
+error[E1005]: only an attribute declaration may follow `#[`, and `Size` is an enum
+   --> case.nvs:27:3
+%A
+error[E1008]: a retrieval's type argument must name an attribute declaration, and `{ name: string }` is a shape type
+   --> case.nvs:30:35
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,46 @@
+--TEST--
+A `///` doc comment above a field of a `type` alias shape, an inline shape in a parameter type and an attribute declaration documents that field, and the program runs the same as without it — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+// A `///` comment above a field documents that field. It does not change what the program does.
+type Address = {
+    /// The street and the house number.
+    street: string,
+    /// The postal code, such as `10115`.
+    zip?: string,
+};
+
+/// Marks a method that a job runner may call.
+attribute Job on method {
+    /// The name of the queue the job is sent to.
+    queue: string,
+    /// How many times the runner tries the job again after it fails.
+    retries?: int,
+}
+
+class Mailer {
+    #[Job(queue: "mail", retries: 3)]
+    public static function send(
+        Address $to,
+        {
+            /// The subject line of the message.
+            subject: string,
+            /// The text of the message.
+            body: string,
+        } $message
+    ): string {
+        return $message->subject . " to " . $to->street;
+    }
+}
+
+Address $home = {street: "Main Street 1"};
+echo Mailer::send($home, {subject: "Hello", body: "Welcome!"}), "\n";
+
+var $job = Core\Attributes::get<Job>(Mailer::send);
+if ($job != null) { echo "job queue: ", $job->queue, "\n"; }
+--EXPECT--
+Hello to Main Street 1
+job queue: mail

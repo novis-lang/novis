@@ -1,0 +1,71 @@
+--TEST--
+An attribute declared at namespace level is used on a class, a method, a property, a parameter and a promoted constructor parameter, and a `repeatable` one is used twice — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+// Each declaration lists the places where its attribute may be used.
+attribute Table on class { name: string }
+attribute Route on method { path: string }
+attribute Column on property { name: string }
+attribute Inject on parameter { service: string }
+repeatable attribute Tag on class, method { label: string }
+
+#[Table(name: "products")]
+#[Tag(label: "catalog")]
+#[Tag(label: "public")]
+class Product {
+    #[Column(name: "price_cents")]
+    public int $price = 0;
+
+    // A promoted constructor parameter is a property and a parameter.
+    // `Column` lists only `property`, and `Inject` lists only `parameter`. Both may be used here.
+    public function constructor(#[Column(name: "title")] #[Inject(service: "names")] public string $title) {}
+
+    #[Route(path: "/products")]
+    #[Tag(label: "listing")]
+    public function show(#[Inject(service: "repository")] int $page): int {
+        return $page;
+    }
+}
+
+var $table = Core\Attributes::get<Table>(Product::constructor);
+if ($table != null) { echo "class table: ", $table->name, "\n"; }
+
+// `Tag` is used twice on the class, so `all` returns both, in the order they are written.
+echo "class tags:";
+foreach (Core\Attributes::all<Tag>(Product::constructor) as var $classTag) { echo " ", $classTag->label; }
+echo "\n";
+
+var $price = Core\Attributes::get<Column>(Product::constructor, "price");
+if ($price != null) { echo "price column: ", $price->name, "\n"; }
+
+// The promoted parameter `$title` has both attributes.
+var $titleColumn = Core\Attributes::get<Column>(Product::constructor, "title");
+if ($titleColumn != null) { echo "title column: ", $titleColumn->name, "\n"; }
+var $titleInject = Core\Attributes::get<Inject>(Product::constructor, "title");
+if ($titleInject != null) { echo "title inject: ", $titleInject->service, "\n"; }
+
+var $route = Core\Attributes::get<Route>(Product::show);
+if ($route != null) { echo "method route: ", $route->path, "\n"; }
+
+echo "method tags:";
+foreach (Core\Attributes::all<Tag>(Product::show) as var $methodTag) { echo " ", $methodTag->label; }
+echo "\n";
+
+var $page = Core\Attributes::get<Inject>(Product::show, "page");
+if ($page != null) { echo "page inject: ", $page->service, "\n"; }
+
+// The class has no `Route`, so the result is `null`.
+echo "class route: ", Core\Attributes::get<Route>(Product::constructor) == null ? "none" : "some", "\n";
+--EXPECT--
+class table: products
+class tags: catalog public
+price column: price_cents
+title column: title
+title inject: names
+method route: /products
+method tags: listing
+page inject: repository
+class route: none

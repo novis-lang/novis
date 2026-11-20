@@ -1,0 +1,79 @@
+--TEST--
+An attribute declared in an abstract class or an interface is used by its short name on a subclass, a grandchild, an implementor and their members and parameters, and by `Owner::Name` anywhere a descendant is — `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+namespace Shop;
+
+// `Storable` declares two attributes for the classes that extend it.
+abstract class Storable {
+    repeatable attribute Index on class { columns: string }
+    attribute Column on property, parameter { name: string }
+}
+
+// `Exportable` declares an attribute for the classes that implement it.
+interface Exportable {
+    attribute Export on class, method { format: string }
+}
+
+// `Record` extends `Storable` and uses no attribute.
+abstract class Record extends Storable {}
+
+// `Customer` is a grandchild of `Storable`, so it may use `Index` and `Column` by their short names.
+#[Index(columns: "email")]
+#[Index(columns: "name")]
+#[Export(format: "csv")]
+class Customer extends Record implements Exportable {
+    #[Column(name: "email_address")]
+    public string $email = "";
+
+    #[Export(format: "json")]
+    public function save(#[Column(name: "customer_name")] string $name): string {
+        return $name;
+    }
+
+    // Code inside a descendant may also use the short name in a retrieval.
+    public static function indexCount(): string {
+        return Core\Arr::count(Core\Attributes::all<Index>(Customer::constructor)) as string;
+    }
+}
+
+// `Owner::Name` names the same declaration as the short name.
+#[Storable::Index(columns: "sku")]
+#[Exportable::Export(format: "xml")]
+class Item extends Storable implements Exportable {}
+
+// Outside a descendant, a retrieval uses `Owner::Name`.
+echo "customer indexes:";
+foreach (Core\Attributes::all<Storable::Index>(Customer::constructor) as var $index) { echo " ", $index->columns; }
+echo "\n";
+
+var $customerExport = Core\Attributes::get<Exportable::Export>(Customer::constructor);
+if ($customerExport != null) { echo "customer export: ", $customerExport->format, "\n"; }
+
+var $email = Core\Attributes::get<Storable::Column>(Customer::constructor, "email");
+if ($email != null) { echo "email column: ", $email->name, "\n"; }
+
+var $saveExport = Core\Attributes::get<Exportable::Export>(Customer::save);
+if ($saveExport != null) { echo "save export: ", $saveExport->format, "\n"; }
+
+var $nameColumn = Core\Attributes::get<Storable::Column>(Customer::save, "name");
+if ($nameColumn != null) { echo "name column: ", $nameColumn->name, "\n"; }
+
+echo "indexes counted inside the class: ", Customer::indexCount(), "\n";
+
+echo "item indexes:";
+foreach (Core\Attributes::all<Storable::Index>(Item::constructor) as var $itemIndex) { echo " ", $itemIndex->columns; }
+echo "\n";
+
+var $itemExport = Core\Attributes::get<Exportable::Export>(Item::constructor);
+if ($itemExport != null) { echo "item export: ", $itemExport->format, "\n"; }
+--EXPECT--
+customer indexes: email name
+customer export: csv
+email column: email_address
+save export: json
+name column: customer_name
+indexes counted inside the class: 2
+item indexes: sku
+item export: xml
