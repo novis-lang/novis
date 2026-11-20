@@ -1,0 +1,46 @@
+--TEST--
+One attribute declaration whose field is `array<property<static>>` is used on two classes with different properties, and each `Core\Attributes::get` reads `static` as the class its first argument names, also when the call is written inside a third class — `rule:attributes/a-declaration-names-its-class-with-static`
+--FILE--
+<?nvs
+attribute Search on class { fields: array<property<static>> }
+
+#[Search(fields: ['title', 'body'])]
+class Post {
+    public string $title = '';
+    public string $body = '';
+}
+
+#[Search(fields: ['email'])]
+class User {
+    public string $email = '';
+}
+
+class Index {
+    public static function show(): void {
+        var $user = Core\Attributes::get<Search>(User::constructor);
+        if ($user != null) {
+            array<property<User>> $fields = $user->fields;
+            foreach ($fields as var $field) {
+                echo "user: ", $field as string, "\n";
+            }
+        }
+    }
+}
+
+var $post = Core\Attributes::get<Search>(Post::constructor);
+if ($post != null) {
+    array<property<Post>> $fields = $post->fields;
+    foreach ($fields as var $field) {
+        echo "post: ", $field as string, "\n";
+    }
+}
+
+Index::show();
+
+var $all = Core\Attributes::all<Search>(User::constructor);
+echo "all: ", Core\Arr::count($all), "\n";
+--EXPECT--
+post: title
+post: body
+user: email
+all: 1

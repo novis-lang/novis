@@ -111,6 +111,52 @@ pub(crate) fn expand(
         .record(call.span, ExprInfo::ProgramInstances { classes, ctors });
 }
 
+/// The shape a row's `attribute` has. `static` in `T`'s fields names each
+/// joined class (`rule:attributes/a-declaration-names-its-class-with-static`),
+/// so `T` is lowered once per class, and the shapes are joined field by field:
+/// each field's type is the union of that field's type on every class. Every
+/// class's payload fits the joined shape. A declaration that names no `static`
+/// lowers to one shape, which is `want`. The first lowering reported every
+/// mistake in `T`, so a lowering here reports nothing.
+fn joined_shape(
+    want: TypeId,
+    classes: &[QName],
+    declared: Option<&Type>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let Some(declared) = declared else {
+        return want;
+    };
+    let mut shapes = Vec::with_capacity(classes.len());
+    for class in classes {
+        let before = env.diags.len();
+        let binding = crate::lower::AttributeStatic::Class(class.clone());
+        let shape = crate::lower::with_attribute_static(binding, env, |env| {
+            crate::attributes::lower_retrieval_arg(declared, ctx, env)
+        });
+        env.diags.truncate(before);
+        if !shapes.contains(&shape) {
+            shapes.push(shape);
+        }
+    }
+    let [first, rest @ ..] = shapes.as_slice() else {
+        return want;
+    };
+    let Ty::Shape(mut fields) = env.interner.get(*first).clone() else {
+        return want;
+    };
+    for other in rest {
+        let Ty::Shape(other) = env.interner.get(*other).clone() else {
+            return want;
+        };
+        for (field, theirs) in fields.iter_mut().zip(&other) {
+            field.ty = env.interner.make_union([field.ty, theirs.ty]);
+        }
+    }
+    env.interner.shape(fields)
+}
+
 /// `rule:programs/implementing-with`: [`expand`]'s list, joined with one
 /// `rule:attributes/retrieval-folds-while-checking` retrieval per class, and
 /// recorded as [`ExprInfo::ProgramInstancesWith`].
@@ -125,9 +171,10 @@ pub(crate) fn expand(
 /// every row's `attribute` is `null`, as `get<T>`'s computed member folds.
 ///
 /// Returns the call's type — `array<{ instance: I, attribute: ?T }>` over the
-/// written arguments — because no registry row can state it: the row spells
-/// the shape for the card, and its return type is not lowered for this
-/// member. `mixed` where the call was refused.
+/// written arguments, with `T` joined over the classes by [`joined_shape`] —
+/// because no registry row can state it: the row spells the shape for the
+/// card, and its return type is not lowered for this member. `mixed` where the
+/// call was refused.
 pub(crate) fn expand_with(
     call: &Expr,
     (written, type_args): (&[TypeId], &[Type]),
@@ -234,6 +281,9 @@ pub(crate) fn expand_with(
         };
         payloads.push(value);
     }
+    let joined = joined_shape(want_shape, &classes, type_args.get(1), ctx, env);
+    let null = env.interner.null();
+    let attribute = env.interner.make_union([joined, null]);
     env.exprs.record(
         call.span,
         ExprInfo::ProgramInstancesWith {
@@ -242,8 +292,6 @@ pub(crate) fn expand_with(
             payloads,
         },
     );
-    let null = env.interner.null();
-    let attribute = env.interner.make_union([want_shape, null]);
     let row = env.interner.shape(vec![
         ShapeField {
             name: "instance".to_owned(),

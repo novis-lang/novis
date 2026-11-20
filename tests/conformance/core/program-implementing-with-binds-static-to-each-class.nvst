@@ -1,0 +1,29 @@
+--TEST--
+`Core\Program::implementingWith<I, T>` binds `static` in `T`'s fields to each class it joins, so each row's `attribute` has that class's property names, and the rows are read through one shape — `rule:attributes/a-declaration-names-its-class-with-static` and `rule:programs/implementing-with`
+--FILE--
+<?nvs
+interface Page {
+    attribute Search on class { fields: array<property<static>> }
+
+    public function render(): string;
+}
+
+#[Page::Search(fields: ['title'])]
+class Post implements Page {
+    public string $title = '';
+    public function render(): string { return "post"; }
+}
+
+#[Page::Search(fields: ['email', 'name'])]
+class User implements Page {
+    public string $email = '';
+    public string $name = '';
+    public function render(): string { return "user"; }
+}
+
+foreach (Core\Program::implementingWith<Page, Page::Search>("") as var $row) {
+    echo $row->instance->render(), ": ", Core\Arr::count($row->attribute?->fields ?? []), "\n";
+}
+--EXPECT--
+post: 1
+user: 2

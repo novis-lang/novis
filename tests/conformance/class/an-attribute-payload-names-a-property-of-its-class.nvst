@@ -1,0 +1,54 @@
+--TEST--
+A string literal at a `property<static>` field of an attribute declaration names a public property of the class the attribute is used on, alone, in a list and at a nullable field, an inherited property included, on a class, a property and a method, and `Core\Attributes::get` reads each name back — `rule:attributes/a-declaration-names-its-class-with-static` and `rule:types/property-key`
+--FILE--
+<?nvs
+attribute Search on class, property, method {
+    fields: array<property<static>>,
+    sortBy?: ?property<static>,
+}
+
+attribute Label on property { shownAs: property<static> }
+
+class Entry {
+    public string $id = '';
+}
+
+#[Search(fields: ['author', 'title'], sortBy: 'id')]
+class Post extends Entry {
+    #[Label(shownAs: 'title')]
+    public string $author = '';
+
+    public string $title = '';
+
+    #[Search(fields: ['title'], sortBy: null)]
+    public function find(): void {}
+}
+
+class Show {
+    public static function names(array<property<Post>> $fields): string {
+        var $out = '';
+        foreach ($fields as var $field) {
+            $out = $out . ' ' . ($field as string);
+        }
+        return $out;
+    }
+}
+
+var $onClass = Core\Attributes::get<Search>(Post::constructor);
+if ($onClass != null) {
+    echo "class:", Show::names($onClass->fields), " sort ", ($onClass->sortBy ?? 'none') as string, "\n";
+}
+
+var $onProperty = Core\Attributes::get<Label>(Post::constructor, 'author');
+if ($onProperty != null) {
+    echo "property: ", $onProperty->shownAs as string, "\n";
+}
+
+var $onMethod = Core\Attributes::get<Search>(Post::find);
+if ($onMethod != null) {
+    echo "method:", Show::names($onMethod->fields), " sort ", $onMethod->sortBy == null ? 'none' : 'set', "\n";
+}
+--EXPECT--
+class: author title sort id
+property: title
+method: title sort none

@@ -431,6 +431,29 @@ pub(crate) fn fold_retrieval(
     env.exprs.record(call.span, ExprInfo::CoreConst { value });
 }
 
+/// What `static` in a retrieval's type argument names
+/// (`rule:attributes/a-declaration-names-its-class-with-static`): the class
+/// the first argument names, read as [`target_declaration`] reads it. A call
+/// that is not `get` or `all` keeps the binding it has, and so does a target
+/// that names no declaration, which [`fold_retrieval`] reports.
+pub(crate) fn static_binding(
+    label: Option<(&QName, &str)>,
+    args: &CallArgs,
+    ctx: &Ctx<'_>,
+    env: &Env<'_>,
+) -> crate::lower::AttributeStatic {
+    let keep = env.attribute_static.clone();
+    let (Some((owner, member)), CallArgs::List(list)) = (label, args) else {
+        return keep;
+    };
+    if !is_retrieval(owner, member) {
+        return keep;
+    }
+    list.first()
+        .and_then(|arg| target_declaration(&arg.value, ctx, env))
+        .map_or(keep, |(class, _)| crate::lower::AttributeStatic::Class(class))
+}
+
 /// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s `$target` spelling, read syntactically: the class it names
 /// and the method whose reference was written.
 fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QName, String)> {
@@ -667,6 +690,15 @@ fn literal_type(
     if field_fits(own, want, env.interner, env.graph, env.signatures) {
         return own;
     }
+    // A string literal at a `property<C>` or `propertyPath<C>` field is a key,
+    // read as a literal at a key parameter is (`rule:types/property-key`). A
+    // wrong name is reported once by [`report_payload_keys`], so it is the
+    // key type here too, and the payload is not a mismatch a second time.
+    if let ExprKind::Str(_) = value.kind
+        && let Some((key, _, _)) = crate::expr::members::key_parameter_class(want, env)
+    {
+        return key;
+    }
     let base = env.interner.without_null(want);
     match (&value.kind, env.interner.get(base).clone()) {
         (ExprKind::ArrayLiteral(items), Ty::Array(element)) => {
@@ -690,6 +722,52 @@ fn literal_type(
                 placed
             }
         }
+    }
+}
+
+/// Reports each string literal in a payload value at a `property<C>` or
+/// `propertyPath<C>` type that names no public property of `C`, at the
+/// literal (`rule:attributes/a-declaration-names-its-class-with-static`). It
+/// walks an array literal at an `array<T>` and an anonymous object at a shape
+/// the way [`literal_type`] does. The attach check calls it once per payload,
+/// so a wrong name is reported once. It also records `C`'s names for the
+/// editor, once per class.
+pub(crate) fn report_payload_keys(value: &Expr, want: TypeId, env: &mut Env<'_>) {
+    if let ExprKind::Str(text) = value.kind
+        && let Some((_, qname, kind)) = crate::expr::members::key_parameter_class(want, env)
+    {
+        crate::expr::members::record_property_keys(&qname, env);
+        if kind == crate::expr::members::KeyKind::Path {
+            crate::expr::members::report_unwritten_property_path(&qname, text, value.span, env);
+        } else {
+            let roster = crate::expr::members::public_property_names(&qname, env);
+            crate::expr::operators::report_unwritten_property_key(
+                &qname,
+                &roster,
+                text,
+                value.span,
+                "this name is checked here",
+                env,
+            );
+        }
+        return;
+    }
+    let base = env.interner.without_null(want);
+    match (&value.kind, env.interner.get(base).clone()) {
+        (ExprKind::ArrayLiteral(items), Ty::Array(element)) => {
+            for item in items.iter().filter(|item| !item.spread && !item.by_ref) {
+                report_payload_keys(&item.value, element, env);
+            }
+        }
+        (ExprKind::AnonObject(fields), Ty::Shape(requested)) => {
+            for field in fields {
+                let name = span_text(env.src, field.name);
+                if let Some(target) = requested.iter().find(|f| f.name == name) {
+                    report_payload_keys(&field.value, target.ty, env);
+                }
+            }
+        }
+        _ => {}
     }
 }
 

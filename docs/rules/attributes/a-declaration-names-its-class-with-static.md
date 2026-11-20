@@ -32,8 +32,10 @@ properties. `property<static>` takes one name, and `array<property<static>>` a l
   and `::all` read the declaration's fields with `static` bound to the class the first argument names,
   never to the class the call is written in. A retrieval folds while compiling
   (`rule:attributes/retrieval-folds-while-checking`), so the target is always known.
-  `Core\Program::implementingWith<I, T>` binds it once per class it joins. A retrieval whose target is
-  not a class makes `static` in its type argument `E0303`.
+  `Core\Program::implementingWith<I, T>` binds it once per class it joins, and a row's `attribute` has
+  each field's types joined over those classes: `array<property<Post>>|array<property<User>>`. Every
+  class's payload fits that shape. A target that names no declaration is `E0730`, and `static` in the
+  type argument reports nothing more there (`rule:types/one-mistake-reports-once`).
 - **A string literal in a payload at a `property<C>` field is read as a written name**, as an array
   element too, exactly as a literal at a key parameter is (`rule:types/property-key`). A public declared
   property of `C`, its ancestors' included, makes it a `property<C>`. Any other name, a `private` one

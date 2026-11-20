@@ -740,7 +740,12 @@ pub(crate) fn infer_static_call(
     let label = resolved
         .as_ref()
         .map(|(owner, name, _)| (owner, name.as_str()));
-    let (sig, written) = check_written_type_args(type_args, sig, label, expr.span, ctx, env);
+    // A retrieval lowers its type argument with `static` bound to the class
+    // its target names (`rule:attributes/a-declaration-names-its-class-with-static`).
+    let binding = crate::retrieval::static_binding(label, args, ctx, env);
+    let (sig, written) = crate::lower::with_attribute_static(binding, env, |env| {
+        check_written_type_args(type_args, sig, label, expr.span, ctx, env)
+    });
     // `rule:testing/interaction-after-the-fact`'s method reference, marked
     // before the argument list is walked rather than judged after it: the
     // spelling `Mailer::send` names no constant, so what the position does is

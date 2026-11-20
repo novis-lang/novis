@@ -1,0 +1,53 @@
+--TEST--
+A string literal at a `property<static>` field of an attribute payload that names no public instance property of the class the attribute is on does not compile: a misspelled name, a `private` property, a `static` property, a wrong name in a list and the comma-separated form are each one diagnostic at the literal — `rule:attributes/a-declaration-names-its-class-with-static`
+--FILE--
+<?nvs
+attribute Search on class { fields: array<property<static>> }
+attribute Sort on class { by: property<static> }
+
+#[Sort(by: 'titel')]
+class A {
+    public string $title = '';
+}
+
+#[Sort(by: 'secret')]
+class B {
+    private string $secret = '';
+    public string $title = '';
+}
+
+#[Sort(by: 'count')]
+class C {
+    public static int $count = 0;
+    public string $title = '';
+}
+
+#[Search(fields: ['title', 'autor'])]
+class D {
+    public string $title = '';
+    public string $author = '';
+}
+
+#[Search(fields: ['author, title'])]
+class E {
+    public string $title = '';
+    public string $author = '';
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `A` has no public property `$titel`
+  --> case.nvs:5:12
+%Aerror[E0405]: `B` has no public property `$secret`
+   --> case.nvs:10:12
+%Aerror[E0405]: `C` has no public property `$count`
+   --> case.nvs:16:12
+%Aerror[E0405]: `D` has no public property `$autor`
+   --> case.nvs:22:28
+%Aerror[E0405]: `E` has no public property `$author, title`
+   --> case.nvs:28:19
+%A
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

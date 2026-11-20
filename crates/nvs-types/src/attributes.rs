@@ -986,6 +986,16 @@ fn check_attribute(
         ctx,
         env,
     );
+    // A written name at a `property<C>` field is checked once, here, at the
+    // literal (`rule:attributes/a-declaration-names-its-class-with-static`).
+    if let Ty::Shape(requested) = env.interner.get(shape).clone() {
+        for field in &attr.fields {
+            let name = span_text(env.src, field.name);
+            if let Some(target) = requested.iter().find(|f| f.name == name) {
+                crate::retrieval::report_payload_keys(&field.value, target.ty, env);
+            }
+        }
+    }
     // A payload that is not clean has had its `secret` constant reported as
     // `E0727`. A field declared `mixed` refuses a `secret` value, and that
     // would report the same constant again. So the fit reads each `mixed` as
