@@ -344,7 +344,9 @@ keeps the date, commit and key it was measured under in its row's `measured`, so
 old the oldest result is. `--fresh` runs every row again. The cases are never kept: a case's figures
 are relations between peers, measured in one interleaved run, and a figure from another run would
 compare two hosts' moods. `--plan` counts the kept results without docker: it takes every image as
-unchanged except Novis's, and the host as the record's.
+unchanged except Novis's, and the host as the record's. A row run writes the record after each row,
+so a run stopped partway leaves its finished rows. The next run without `--fresh` keeps them, since
+their keys are unchanged, and runs only the rest.
 
 **`--peer ID,...` runs the named peers**, for checking a new peer's programs or a row cheaply. With one
 peer, the answers are compared with nothing, so a new peer is smoked beside one that is already

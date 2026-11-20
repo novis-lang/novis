@@ -36,7 +36,8 @@
 // `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
 // up fresh over the row's own programs, runs its probe, and maps what the peer did to one of the four
 // results in `Verdict`, with the evidence beside it. A recording keeps a peer's recorded result for a row
-// whose `RowKey` is unchanged (`reusedOf`), and `--fresh` runs every row again.
+// whose `RowKey` is unchanged (`reusedOf`), and `--fresh` runs every row again. It writes the record after
+// each row, so a run stopped partway leaves its finished rows, and the next run without `--fresh` keeps them.
 //
 // Both walk a plan. `planOf` lists every pass a run takes before it starts, with the stacks, image
 // builds, seconds of steady load and requests of each, and the run takes exactly those passes in that
@@ -3029,11 +3030,11 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
       const evidence = Object.entries(byPeer.get(peer.id)!.evidence).map(([k, v]) => `${k} ${v}`);
       console.log(`    ${peer.label.padEnd(6)} ${evidence.join(", ")}`);
     }
+    // Each finished row is written at once. A run stopped partway leaves those rows, and a run
+    // without --fresh keeps them while their keys are unchanged, so it runs only the rest.
+    if (o.record !== null && prior !== null) writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks, measured, rowPasses)));
   }
-  if (o.record !== null && prior !== null) {
-    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks, measured, rowPasses)));
-    console.log(`  recorded the rows to ${o.record}`);
-  }
+  if (o.record !== null) console.log(`  recorded the rows to ${o.record}`);
   if (o.expect === null) return 0;
   const unmet = unmetExpectations(o.expect, results);
   for (const line of unmet) console.error(`nv bench-compare: unexpected result: ${line}`);
@@ -3091,10 +3092,17 @@ function cpusOf(o: Options): number {
   return cpus;
 }
 
+/**
+ * The timed passes a recording takes per case, peer and budget when `--reps` is not given. It is 5,
+ * because `--reps-check` over the seven-peer record of 2026-11-20 found that 3 of its 5 passes move
+ * the medians past `REPS_BOUNDS` and reorder the peers. README § *One record* gives the figures.
+ */
+export const DEFAULT_REPS = 5;
+
 /** How hard a run loads each pass, from `--requests`, `--reps` and `--smoke`. */
 function loadOf(o: Options): PlanLoad {
   const requests = o.requests ?? (o.smoke ? 300 : 20_000);
-  const reps = o.reps ?? (o.smoke ? 1 : 5);
+  const reps = o.reps ?? (o.smoke ? 1 : DEFAULT_REPS);
   if (requests < 1 || reps < 1) throw new Fail("--requests and --reps must each be at least 1");
   if (o.smoke && o.record !== null) throw new Fail("--smoke records nothing; drop --record or --smoke");
   return { requests, reps, smoke: o.smoke };
