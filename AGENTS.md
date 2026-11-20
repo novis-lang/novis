@@ -94,6 +94,11 @@ Each is here because not knowing it exists is the entire cost. The file named af
   binary. `bun nv proofs --id '<feature>'` prints what it still owes and the path of each, and every
   `.nvs` and `about.md` among them is held to § *Text an end user reads* below
   (`rule:testing/feature-proofs`).
+- **Every change to a feature reaches the website.** A goal ends with `bun nv site --check stale`,
+  `changes` and `review` green: its pages, `about.md` and help reread and stamped, a
+  `website/src/data/changes.json` entry for each feature it moved, and the gate stage's newcomer
+  review done ([prose.md](docs/agent/prose.md) § *A newcomer reads it*,
+  `rule:testing/every-change-reaches-the-website`).
 - **Code and tests hold on every CI runner, not just on your own machine.** CI runs Linux, macOS,
   aarch64 and Windows, under load, ASAN, Miri and the cost guards, and every mistake below cost a CI
   round. The code rules: state lives as long as its request or case, every way out releases what the

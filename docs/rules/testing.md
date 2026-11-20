@@ -3,8 +3,6 @@
 
 # Testing
 
-*1 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -1620,7 +1618,7 @@ the context the page names.
 
 <a id="testing-every-change-reaches-the-website"></a>
 
-## Every change to a feature reaches the website: its tests make its texts stale, and an entry in changes.json reaches the release notes  *(designed — owned by goal website-follows-changes)*
+## Every change to a feature reaches the website: its tests make its texts stale, and an entry in changes.json reaches the release notes
 
 `rule:testing/every-change-reaches-the-website`
 

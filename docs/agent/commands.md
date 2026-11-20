@@ -478,6 +478,20 @@ bun nv site --bless website/snippets/home/hero-html.nvs       # write its .out /
 A website snippet's output files, and when the page shows both the command line's and the server's,
 are `rule:testing/website-pages-are-stamped`; `tools/nv/cmd/site.ts` § *A snippet* is the mechanism.
 
+```sh
+bun nv site --check stale                 # every stale page, about.md and help card, and every broken id
+bun nv site --stamp KEY...                # after a reread: a page's path, an about.md's path or help:<feature id>
+bun nv site --check changes               # every feature added, removed or changed with no changes.json entry
+bun nv site --review                      # every user text that is not reviewed, one key per line
+bun nv site --review --brief KEY...       # the brief a reader subagent gets: the prose rules, three questions, the texts
+bun nv site --review --stamp KEY...       # after every finding of the review is fixed
+bun nv site --check review                # every user text whose hash is not its review stamp's
+```
+
+A change to a feature's tests makes its pages, its `about.md` and its help stale, and owes a
+`website/src/data/changes.json` entry or an `unseen` record (`rule:testing/every-change-reaches-the-website`).
+A changed user text owes a review stamp, and the review is [prose.md](prose.md) § *A newcomer reads it*.
+
 ## Trying a snippet
 
 ```sh

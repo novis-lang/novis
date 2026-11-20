@@ -1,14 +1,13 @@
 {
   "title": "Every change to a feature reaches the website: its tests make its texts stale, and an entry in changes.json reaches the release notes",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/website-pages-are-stamped",
     "testing/feature-proofs"
   ],
   "guardedBy": [
     "tools/nv/lib/texts.ts",
-    "tools/nv/cmd/site.ts",
-    "tools/nv/test/site.test.ts"
-  ],
-  "goal": "website-follows-changes"
+    "tools/nv/test/site.test.ts",
+    "tools/nv/test/site-changes.test.ts"
+  ]
 }

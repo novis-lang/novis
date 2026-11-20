@@ -653,6 +653,13 @@ work out again. How a goal is written in full is [loop-authoring.md](loop-author
   so a gate stage's items never name a verify run. Every other stage checks with a build. An item asks for a test or
   verify run of its own only where the stage cannot be finished without seeing it pass, and then the
   item names the exact command. A slice whose change breaks an existing test updates it as it goes.
+- **The last content stage names what the goal owes the website.** Its items name each handwritten
+  page it rereads and stamps (`bun nv site --stamp`), each `about.md` and help card it rewrites, and
+  each `website/src/data/changes.json` entry it writes, by kind and feature (`new`
+  `Core\Str::slice`). A goal that moves no feature says so in one line.
+  `rule:testing/every-change-reaches-the-website`
+- **Every gate stage starts with the newcomer review**, [prose.md](prose.md) § *A newcomer reads it*,
+  before its first `looper verify`, so `bun nv site --check review` is green when the gate runs.
 
 ## A handoff
 

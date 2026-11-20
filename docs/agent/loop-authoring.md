@@ -193,6 +193,9 @@ earning its place:
 5. **The suites and the coverage gate** — see § 3 on why a count is not enough.
 6. **The named guard tests**, then the leak sweep.
 
+The last content stage names what the goal owes the website, and the gate stage starts with the
+newcomer review: [conventions.md](conventions.md) § *A goal*.
+
 **Frozen output, unfrozen source.** A fixture's *expected output* may never be edited to make a check pass;
 its *source* may be corrected freely, because whoever wrote it ahead of the code could not compile it. Say
 in the commit message why a fixture was corrected. That distinction is what stops "make it pass" from
