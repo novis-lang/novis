@@ -215,16 +215,20 @@ user reads*. Run `bun nv proofs --id lang:types/property-keys` first and last.
 **Split:** one writing subagent writes the example and the attack while the session writes the
 reference and `about.md`. Their files are disjoint, and no one builds until both end.
 
-- [ ] `docs/examples/lang/types/property-keys/about.md:1`: one paragraph. A field typed
+- [x] `docs/examples/lang/types/property-keys/about.md:1`: one paragraph. A field typed
   `property<static>` in an attribute's shape takes the name of a property of the class the attribute is
   written on. A wrong name does not compile.
-- [ ] `docs/reference/lang/20-types.md:2887`: the same, with the retrieval binding.
-- [ ] `docs/examples/lang/types/property-keys/08-an-attribute-that-names-properties-of-its-class.nvs:1`:
+- [x] `docs/reference/lang/20-types.md:2887`: the same, with the retrieval binding.
+- [x] `docs/examples/lang/types/property-keys/08-an-attribute-that-names-properties-of-its-class.nvs:1`:
   a search attribute on a class, read back with `Core\Attributes::get`.
-- [ ] `tests/hostile/lang/types/property-keys/04-an-attribute-that-names-a-hidden-property.nvs:1`: an
+- [x] `tests/hostile/lang/types/property-keys/04-an-attribute-that-names-a-hidden-property.nvs:1`: an
   attack whose payload names a `private` property and a property of another class. It does not compile.
 - [ ] `bun nv proofs --id lang:types/property-keys` reports the feature complete, and
   `bun nv proofs --comments` passes on the two new files.
+  - [x] `bun nv proofs --comments` passes on the example and the attack.
+  - [x] `about.md` is inside its 200-word bound.
+  - [ ] `about.md` has its newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) and its stamp.
+  - [ ] The bench `benches/members/lang/types/property-keys.nvs` is measured again: the reference changed.
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -252,15 +256,21 @@ The rule `rule:ide/completion-offers-only-what-the-compiler-derived` says so. Th
 build and clippy are green. The nightly CI failures the sweep named (run `44722386375`) were fixed
 before this goal by `e5a100b18f` and `438e9c44af`.
 
+Stage 4's pages are written. `about.md` and `details.md` say what `property<static>` takes, and the
+rendered `docs/reference/lang/20-types.md` follows. The example `08-…` reads a `Search` attribute
+back with `Core\Attributes::get`, and the attack `04-…` names a private property and another class's
+property. Only the review and the bench are left.
+
 ### Next
 
-Stage 4 from its first item, as its `**Split:**` line says: `bun nv proofs --id
-lang:types/property-keys` first, then `docs/examples/lang/types/property-keys/about.md:1` and
-`docs/reference/lang/20-types.md:2887` by the session, and the example `08-…` and the attack `04-…`
-by one writing subagent. Every line is held to `AGENTS.md` § *Text an end user reads*. Then stage 5
-closes the goal with a build and this goal's own checks (`cases`, `editor`), and sets the rule's status
-to `shipped`. No existing test is expected to go red: stage 3 reaches only strings at a `property<C>`
-field of a payload, and no corpus file had one before this goal.
+Stage 4's last item. `bun nv proofs --id lang:types/property-keys` owes two proofs. First, the
+newcomer review of `docs/examples/lang/types/property-keys/about.md` (and its `details.md` paragraph
+at line 30), then `bun nv site --review --stamp` on it. Second, the bench measured again, because
+`docs/reference/lang/20-types.md` changed: see `bun nv proofs`' perf line for the command. Then stage 5
+closes the goal with a build and this goal's own checks (`cases`, `editor`), runs `bun nv owners
+--closes attribute-property-names` and `bun nv site --check stale`, and sets the rule's status to
+`shipped`. No existing test is expected to go red. The example `08-…` runs on the debug binary and
+prints its `.out`, and the attack `04-…` gives two `E0405`s, at lines 15 and 23.
 
 ### Backlog
 

@@ -1,0 +1,24 @@
+<?nvs
+// Shows an attribute whose field contains property names of the class it is written on.
+
+// `static` is the class the attribute is written on. Each name must be a public property of it.
+attribute Search on class { fields: array<property<static>> }
+
+#[Search(fields: ['title', 'author'])]
+class Post
+{
+    public string $title = 'Hello';
+    public string $author = 'Ada';
+    public string $body = 'The first post.';
+}
+
+Post $post = new Post();
+
+// For `Post`, the field has the type `array<property<Post>>`.
+var $search = Core\Attributes::get<Search>(Post::constructor);
+if ($search != null) {
+    array<property<Post>> $fields = $search->fields;
+    foreach ($fields as var $field) {
+        echo $field as string, ': ', $post->$field, "\n";
+    }
+}

@@ -1,0 +1,35 @@
+<?nvs
+// Attack: an attribute names a private property, and a property of another class.
+// Each name must be a public property of the class it is written on, so the program should not compile.
+// hostile: expect-refusal
+// covers: lang:types/property-keys
+
+attribute Search on class { fields: array<property<static>> }
+
+class User
+{
+    public string $email = 'ada@example.com';
+}
+
+// 1. The list names `password`, which is a private property of `Account`.
+#[Search(fields: ['owner', 'password'])]
+class Account
+{
+    public string $owner = 'ada';
+    private string $password = 's3cret';
+}
+
+// 2. The list names `email`, which is a property of `User`, not of `Order`.
+#[Search(fields: ['email'])]
+class Order
+{
+    public int $total = 10;
+}
+
+var $search = Core\Attributes::get<Search>(Account::constructor);
+if ($search != null) {
+    Account $account = new Account();
+    foreach ($search->fields as var $field) {
+        echo $account->$field, "\n";
+    }
+}

@@ -27,5 +27,12 @@ If the class has a public `readonly` property, a write through a key does not co
 A `property<Animal>` key works on a `Dog` when `Dog` extends `Animal`. You can also store it in a
 variable of type `property<Dog>`. A `property<Dog>` key on an `Animal` is the error `E0235`.
 
+In an attribute declaration, `static` is the class the attribute is written on. A field typed
+`property<static>` or `array<property<static>>` takes the names of that class's public properties.
+For an attribute on a property, a method or a parameter, the class is the one that declares it. A
+name of a `private` property, or of a property of another class, is `E0405` at the string.
+`Core\Attributes::get<Search>(Post::constructor)` gives `fields` the type `array<property<Post>>`.
+So `$post->$field` reads each named property.
+
 `$key as string` gives the property name. Two keys are equal when they name the same property. A
 key written in the code and a key converted from a variable are equal when the name is the same.
