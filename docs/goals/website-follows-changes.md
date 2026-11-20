@@ -6,7 +6,7 @@ context: [tools/nv/cmd/site.ts, docs/rules/testing/website-pages-are-stamped.md,
 stages:
   - id: 1
     title: "a change to a feature's tests makes its pages, its about.md and its help stale"
-    status: open
+    status: done
     context: [tools/nv/proofs/markers.ts, tools/nv/test/site.test.ts, data/rules/testing/website-pages-are-stamped.json, data/rules/testing.json]
   - id: 2
     title: "an added, removed or changed feature needs an entry in changes.json, and a release moves the entries into its release notes"
@@ -344,28 +344,28 @@ deleted, and no part dropped from the stale guard.
 **Does:** writes the rule, moves the hash code into `tools/nv/lib/texts.ts`, adds the tests to the page
 hash, stamps every `about.md` and help card, and takes the first stamps.
 
-- [ ] `docs/rules/testing/every-change-reaches-the-website.md:1`: the new rule from § *Standing
+- [x] `docs/rules/testing/every-change-reaches-the-website.md:1`: the new rule from § *Standing
   decisions* (*The rule*, *The four hashes*, *The lock keys*, *`changes.json`*, *The snapshot*, *The
   release step*), with its reasons, its cost line and its Declined list.
   `data/rules/testing/every-change-reaches-the-website.json:1` as `designed` with its `goal`, the id
   added to `data/rules/testing.json:85`, then `bun nv rules --render` and `bun nv rules --check`.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `docs/rules/testing/website-pages-are-stamped.md:1`: the hash covers the feature's tests too, and
+- [x] `docs/rules/testing/website-pages-are-stamped.md:1`: the hash covers the feature's tests too, and
   the rule points to the new one for the `about.md` and help stamps.
   `rule:testing/website-pages-are-stamped`
-- [ ] `tools/nv/lib/texts.ts:1`: `card` and `section` move here from `tools/nv/cmd/site.ts:407`, with
+- [x] `tools/nv/lib/texts.ts:1`: `card` and `section` move here from `tools/nv/cmd/site.ts:407`, with
   `testsOf(root, entry)` over `markersIn` (`tools/nv/proofs/markers.ts:22`) and each test's text as
   § *A feature's tests* says, then the page, text, `about.md`, help and behaviour hashes.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/cmd/site.ts:462`: `featureHash` is the page hash; `questionSources` (`:610`) uses the
+- [x] `tools/nv/cmd/site.ts:462`: `featureHash` is the page hash; `questionSources` (`:610`) uses the
   text hash. `staleness` (`:506`) names a stale or never-stamped `about.md` and help card beside the
   pages, and `stamp` (`:537`) takes their keys. The module doc (`:240`) and `summary` (`:329`) say so.
   `rule:testing/website-pages-are-stamped`
-- [ ] `tools/nv/cmd/site.ts:2608`: `--stamp --baseline` as § *The first stamps* says.
+- [x] `tools/nv/cmd/site.ts:2608`: `--stamp --baseline` as § *The first stamps* says.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/test/site.test.ts:32`: the six tests the `feature-hash` check names, then the check run
+- [x] `tools/nv/test/site.test.ts:32`: the six tests the `feature-hash` check names, then the check run
   once by name.
-- [ ] `bun nv site --stamp --baseline` once, then the `stale-green` check. A page stale before this
+- [x] `bun nv site --stamp --baseline` once, then the `stale-green` check. A page stale before this
   goal is reread and stamped as the rule says, never left for the baseline.
 
 ### 2. an added, removed or changed feature needs an entry in changes.json, and a release moves the entries into its release notes
@@ -483,17 +483,29 @@ commands and `--check review`, and makes Reviewed a feature proof.
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person. Their calls: every addition, change or
-removal must reach the website with good prose, good examples and a good explanation, as a new rule and
-a new proof; the plan of three gaps and three fixes in § *Why* was approved. The authoring session's
-calls: the exact data file names and shapes, the first snapshot at `v0.0.4` with the landing commit as
-the fallback, accepting the staleness from a test-only edit, the reader's three questions, the order
-of the four goals, and every other choice in § *Standing decisions*. Nothing is built yet.
+Stage 1 is done, and its `feature-hash` and `stale-green` checks are green. The rule
+`docs/rules/testing/every-change-reaches-the-website.md` is written and `designed`.
+`tools/nv/lib/texts.ts` holds `readAt`, `filesUnder`, `section`, `card`, `testIndex` and the
+`Hashes` class: `page`, `text`, `about`, `help`, `behaviour` and `textsOf` (an entry's lock
+keys with their hashes). Two shapes differ from the stage's wording, both my call: `testIndex(root)`
+scans every marker once and `Hashes` memoizes per feature, where the item named a per-entry
+`testsOf`, because `staleness` hashes thousands of features in one run; and `markersAt` in
+`tools/nv/proofs/markers.ts` now returns each marker's position, and `markersIn` is built on it, so
+both read the same markers. `staleness` reports the `about.md` and help verdicts in a new `texts`
+field beside `stale`, and `--check stale` and `--stale` print both. `bun nv site --stamp --baseline`
+ran once: 3109 `about.md` and help stamps, 260 page stamps restamped. `syntax/values/enums.mdx` was
+already stale for `Core\Unit`, `Core\Time\Weekday`, `Novis\Intl\DateFormat::ZoneStyle` and
+`Novis\Pdf\Document::Standard` (their cards and examples moved); it was reread and stamped.
+
+The acceptance sweep's nightly failures (run 44510687786, head `adc7487822`) were all fixed by
+commits after that head: Miri by `4c82a2409a` (the named tests pass under Miri in WSL), supply chain
+by `eb5c02e983` (`cargo deny check advisories` is ok), the debug-viewer shots by `656f5b2f2d`
+(`site shots: ok`), and the browser race by `1c75c4ef0e`. No change was needed.
 
 ### Next
 
-Stage 1, from its first item: the rule fragment `docs/rules/testing/every-change-reaches-the-website.md:1`,
-then `tools/nv/lib/texts.ts:1` and `tools/nv/cmd/site.ts:462`.
+Stage 2, from its first item: the `released` record in `tools/nv/schema/proofs.ts:86`, then the
+`changes` part in `tools/nv/cmd/site.ts` (`check`, near `staleness`), using
+`Hashes.behaviour` from `tools/nv/lib/texts.ts`. No test is expected to go red.
 
 ### Backlog
-
