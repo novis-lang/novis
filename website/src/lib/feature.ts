@@ -23,7 +23,7 @@ export interface Change {
   change: string
 }
 
-/** The member's changelog entries from src/data/core-changelog.json, keyed by member id. */
+/** A feature's changelog entries from src/data/core-changelog.json: a Core member by its page id, any other feature by its proofs roster id. */
 export function changesFor(id: string): Change[] {
   const entries = (changelog as Record<string, unknown>)[id]
   return Array.isArray(entries) ? (entries as Change[]) : []

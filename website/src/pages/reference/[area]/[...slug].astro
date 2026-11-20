@@ -4,15 +4,18 @@
  * generated from src/data/reference.json and each feature's `about.md`,
  * examples and `nvs.toml` (src/lib/feature.ts). Nothing here is edited per
  * page. A block's page opens with the chapter section that introduces the
- * block, and then has one section per key. A section with nothing in it is
- * not rendered, heading included. The Core classes are the sibling route
- * under core/.
+ * block, then the block's changelog, and then has one section per key, each
+ * ending with that key's changelog. A changelog comes from
+ * src/data/core-changelog.json by the feature's proofs roster id. A section
+ * or changelog with nothing in it is not rendered, heading included. The Core
+ * classes are the sibling route under core/.
  */
 import type { GetStaticPaths } from 'astro'
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
 import FeatureExamples from '~/components/FeatureExamples.astro'
+import MethodChangelog from '~/components/MethodChangelog.astro'
 import SeeAlso from '~/components/SeeAlso.astro'
-import { aboutFor, configFor, examplesFor, inlineHtml, type About } from '~/lib/feature'
+import { aboutFor, changesFor, configFor, examplesFor, inlineHtml, type About } from '~/lib/feature'
 import { APPLIED_AT, CHANGED_BY, pages, type RefPage } from '~/lib/reference'
 
 const AREAS = {
@@ -43,7 +46,8 @@ let description = plain(AREAS[area].description)
 let intro: About | null = null
 let introConfig: string | null = null
 let introExamples = false
-let keys: { key: string; slug: string; about: About | null; config: string | null; examples: boolean; notes: string[]; feature: RefPage['keys'][number] }[] = []
+let introChanges = false
+let keys: { key: string; slug: string; about: About | null; config: string | null; examples: boolean; notes: string[]; changes: boolean; feature: RefPage['keys'][number] }[] = []
 let related: string[] = []
 let groups: { label: string; items: { url: string; title: string; summary: string }[] }[] = []
 
@@ -52,6 +56,7 @@ if (page) {
   intro = page.intro ? aboutFor(page.intro) : null
   introConfig = page.intro ? configFor(page.intro) : null
   introExamples = page.intro ? examplesFor(page.intro).length > 0 : false
+  introChanges = page.intro ? changesFor(page.intro.id).length > 0 : false
   keys = page.keys.map((k) => ({
     key: k.key,
     slug: k.key.replace(/[^a-z0-9]+/gi, '-').toLowerCase(),
@@ -59,12 +64,14 @@ if (page) {
     config: configFor(k),
     examples: examplesFor(k).length > 0,
     notes: [CHANGED_BY[k.class], APPLIED_AT[k.apply]].filter(Boolean).map(inlineHtml),
+    changes: changesFor(k.id).length > 0,
     feature: k,
   }))
   description = intro?.summary || keys.find((k) => k.about)?.about?.summary || title
   related = [...new Set([...(intro?.related ?? []), ...keys.flatMap((k) => k.about?.related ?? [])])]
   // The order of the pushes is the order of the page, which the table of contents follows.
   if (introConfig || introExamples) headings.push({ depth: 2, slug: 'examples', text: 'Examples' })
+  if (introChanges) headings.push({ depth: 2, slug: 'changelog', text: 'Changelog' })
   for (const k of keys) headings.push({ depth: 2, slug: k.slug, text: k.key })
   if (related.length > 0) headings.push({ depth: 2, slug: 'related', text: 'Related' })
 } else {
@@ -91,6 +98,7 @@ if (page) {
             {page.intro && <FeatureExamples feature={page.intro} />}
           </>
         )}
+        {introChanges && page.intro && <MethodChangelog id={page.intro.id} />}
         {keys.map((k) => (
           <section class="config-key">
             <h2 id={k.slug}>
@@ -99,6 +107,7 @@ if (page) {
             {k.about && k.about.blocks.map((html) => <Fragment set:html={html} />)}
             {k.notes.map((html) => <p set:html={html} />)}
             {(k.config || k.examples) && <FeatureExamples feature={k.feature} />}
+            {k.changes && <MethodChangelog id={k.feature.id} level={3} slug={`${k.slug}-changelog`} />}
           </section>
         ))}
         {related.length > 0 && <SeeAlso ids={related} />}

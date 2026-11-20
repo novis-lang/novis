@@ -1,20 +1,27 @@
 ---
 /**
- * A member's changelog: one row per release that changed it, from
- * src/data/core-changelog.json. The page renders this only when there is a
- * row, so it never shows an empty table.
+ * A feature's changelog: one row per release that changed it, from
+ * src/data/core-changelog.json, with backticks in each change rendered as
+ * code. `id` is a Core member's page id or a proofs roster id. The heading is
+ * an `<h2 id="changelog">` unless `level` and `slug` say otherwise, so a page
+ * with several features gives each table its own heading. The page renders
+ * this only when there is a row, so it never shows an empty table.
  */
-import { changesFor } from '~/lib/feature'
+import { changesFor, inlineHtml } from '~/lib/feature'
 
 interface Props {
   id: string
+  level?: 2 | 3
+  slug?: string
 }
 
-const list = changesFor(Astro.props.id)
+const { id, level = 2, slug = 'changelog' } = Astro.props
+const list = changesFor(id)
+const Heading = level === 3 ? 'h3' : 'h2'
 ---
 
 <section class="method-changelog">
-  <h2 id="changelog">Changelog</h2>
+  <Heading id={slug}>Changelog</Heading>
   <table>
     <thead>
       <tr>
@@ -28,7 +35,7 @@ const list = changesFor(Astro.props.id)
           <td>
             <code>{e.version}</code>
           </td>
-          <td>{e.change}</td>
+          <td set:html={inlineHtml(e.change)} />
         </tr>
       ))}
     </tbody>
