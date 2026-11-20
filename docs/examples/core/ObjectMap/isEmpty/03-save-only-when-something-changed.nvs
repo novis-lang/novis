@@ -38,7 +38,7 @@ final class Changes
             echo "nothing to save\n";
             return;
         }
-        // The loop gives each changed product with its old price.
+        // This loop gives each changed product as the key, and its old price as the value.
         foreach ($this->old as Product $product => int $oldPrice) {
             echo 'save ', $product->name, ': ', $oldPrice, ' -> ', $product->price, "\n";
         }
@@ -52,7 +52,9 @@ Changes $changes = new Changes();
 // No price changed yet. This prints "nothing to save".
 $changes->save();
 
-// This prints "save lamp: 4500 -> 3900".
+// The price changes twice. The map keeps the first old price, 4500.
 $changes->setPrice($lamp, 4200);
 $changes->setPrice($lamp, 3900);
+
+// This prints "save lamp: 4500 -> 3900".
 $changes->save();

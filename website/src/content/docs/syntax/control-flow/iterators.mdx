@@ -42,6 +42,8 @@ A generator is the short way to write an `Iterator<T>`. Write the class with `ad
 ## Do and don't
 
 - Do use a generator to read a large or endless list one value at a time.
-- Do implement `Iterable` when the same object must work in more than one loop.
+- Do implement `Iterable` when the same object must work in more than one loop. Each loop then gets a
+  new cursor, so each loop starts at the first element.
 - Don't loop twice over one generator. Call the method again to get a new one.
-- Don't write `$obj[0]` on an object. Give the class a method that returns the element.
+- Don't write `$obj[0]` to read an element of an object. `[]` works only on an array. Give the class a
+  method that returns the element.

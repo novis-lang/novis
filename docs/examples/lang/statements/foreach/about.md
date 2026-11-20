@@ -4,7 +4,8 @@
 `var` gives the variable the type of the subject's values. Over an array you may get the key too,
 with `var $key => var $value`. The key of an array is always a `string`. A `Core\ObjectMap` gives
 keys too, and each key has the map's key type. You can write the type in place of
-`var`, as in `string $key => int $value`. A variable with neither does not compile.
+`var`, as in `string $key => int $value`. A loop variable without `var` and without a type does not
+compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each write to
 the variable goes back into the array. The syntax `&$value` does not compile. A loop visits the

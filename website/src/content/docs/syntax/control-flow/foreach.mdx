@@ -23,8 +23,8 @@ that pass.
 
 ## Use this when you need the position as a number
 
-`foreach` gives string keys. When you need a counter that you can add to, use a
-[`for` loop](/syntax/control-flow/loops/).
+The key of an array in `foreach` is a `string`, so you cannot do arithmetic with it. When you need the
+position as an `int`, use a [`for` loop](/syntax/control-flow/loops/).
 
 ## Do and don't
 
@@ -32,4 +32,5 @@ that pass.
 - Do use `inout` to change the elements of an array in place.
 - Don't add elements to the array inside the loop and expect the loop to visit them.
 - Don't write a key variable over an `Iterable` or an `Iterator`. A key works over an array and over a
-  `KeyedIterable`, such as a `Core\ObjectMap`.
+  `KeyedIterable`, such as a `Core\ObjectMap`. [Iterators and generators](/syntax/control-flow/iterators/)
+  explains `KeyedIterable`.

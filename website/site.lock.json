@@ -1905,7 +1905,7 @@
     "Core\\ObjectMap::has": "67ae65b73f211520"
   },
   "docs/examples/core/ObjectMap/isEmpty/about.md": {
-    "Core\\ObjectMap::isEmpty": "6654b0aaee092105"
+    "Core\\ObjectMap::isEmpty": "ad255d6c37ae0b66"
   },
   "docs/examples/core/ObjectMap/keys/about.md": {
     "Core\\ObjectMap::keys": "786a1684527bf2d4"
@@ -3675,7 +3675,7 @@
     "lang:expressions/the-pipeline-operator": "909c70a0043aefad"
   },
   "docs/examples/lang/iteration/core-collections-are-iterable/about.md": {
-    "lang:iteration/core-collections-are-iterable": "1bb05b4287457974"
+    "lang:iteration/core-collections-are-iterable": "bbe404794854c585"
   },
   "docs/examples/lang/iteration/generators/about.md": {
     "lang:iteration/generators": "310a00dc4c17f723"
@@ -3744,7 +3744,7 @@
     "lang:statements/for": "b2e5623a13424dbb"
   },
   "docs/examples/lang/statements/foreach/about.md": {
-    "lang:statements/foreach": "0241ebc21749f492"
+    "lang:statements/foreach": "b5a293ca06bb0d1e"
   },
   "docs/examples/lang/statements/if-elseif-else/about.md": {
     "lang:statements/if-elseif-else": "1940ed41841cacb1"
@@ -6705,7 +6705,7 @@
     "Core\\ObjectMap::has": "db66c99a6007e2c0"
   },
   "help:Core\\ObjectMap::isEmpty": {
-    "Core\\ObjectMap::isEmpty": "317310f8ce04bcec"
+    "Core\\ObjectMap::isEmpty": "2a4e375a84ab2943"
   },
   "help:Core\\ObjectMap::keys": {
     "Core\\ObjectMap::keys": "530fda988179318d"
@@ -9457,11 +9457,11 @@
     "lang:statements/return": "646799cf9d91a116"
   },
   "syntax/control-flow/foreach.mdx": {
-    "lang:iteration/core-collections-are-iterable": "ce5ef353b1b42919",
+    "lang:iteration/core-collections-are-iterable": "608dfd60e23024ce",
     "lang:iteration/keys-and-values-from-a-map": "7605a745ea6bd811",
     "lang:iteration/materialising-a-sequence-core-arr-from": "209b18cd9c6aec12",
-    "lang:iteration/what-foreach-walks": "5a6b2492748e98ae",
-    "lang:statements/foreach": "9c4ba5da8519ef34"
+    "lang:iteration/what-foreach-walks": "4e90e37187a25baf",
+    "lang:statements/foreach": "7323a56f7c639151"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "a370ecf5e8283a8e",
@@ -9473,7 +9473,7 @@
     "KeyedIterable": "108b76fc17c8e0a1",
     "KeyedIterator": "2b7e70ee4d9181d0",
     "lang:iteration/generators": "9a688972d0c6e55f",
-    "lang:iteration/the-two-interfaces": "f11b8650d8012d32",
+    "lang:iteration/the-two-interfaces": "647e10035874c6e5",
     "lang:iteration/what-does-not-exist": "67aaa5e6ba19edd2"
   },
   "syntax/control-flow/loops.mdx": {

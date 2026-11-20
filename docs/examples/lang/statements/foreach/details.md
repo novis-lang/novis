@@ -19,7 +19,8 @@ An array literal can be the subject when the value variable uses `var`. All its 
 same type. Elements of different types are the error `E0414`, and so is an empty array `[]`. With a
 written type, an array literal does not compile. Put it in a typed variable first.
 
-An `inout` loop walks the array itself. An element that the body adds at the end is visited too.
+An `inout` loop also visits only the elements the array had when it began. An element that the body
+adds is not visited.
 
 A later `foreach` in the same function can declare the same variable again with the same type. With
 another type, the second declaration is the error `E0406`.
