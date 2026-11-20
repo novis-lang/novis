@@ -1,0 +1,77 @@
+--TEST--
+A rendering of a `Core\ObjectMap` or `Core\ObjectSet` shows the values it stores and never the key the store files them under — `rule:errors/record-transformations`
+--FILE--
+<?nvs
+final class Tag {
+    public function constructor(public string $name) {}
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 3);
+$weights->set($blue, 7);
+echo Core\Debug::render($weights), "\n";
+
+Core\ObjectSet<Tag> $seen = new Core\ObjectSet<Tag>();
+$seen->add($red);
+echo Core\Debug::render($seen), "\n";
+
+Core\ObjectMap<int|string, int> $mixedKeys = new Core\ObjectMap<int|string, int>();
+$mixedKeys->set(5, 1);
+$mixedKeys->set("5", 2);
+echo Core\Debug::render($mixedKeys), "\n";
+
+Core\ObjectMap<?Tag, int> $maybe = new Core\ObjectMap<?Tag, int>();
+$maybe->set(null, 0);
+$maybe->set($red, 1);
+echo Core\Debug::render($maybe), "\n";
+--EXPECT--
+Core\ObjectMap#1 (3) {
+  $keys => array(2) [
+    0 => Tag#2 (1) {
+      $name => string(3) "red"
+    }
+    1 => Tag#2 (1) {
+      $name => string(4) "blue"
+    }
+  ]
+  $values => array(2) [
+    0 => int(3)
+    1 => int(7)
+  ]
+  $keying => int(3)
+}
+Core\ObjectSet#1 (2) {
+  $entries => array(1) [
+    0 => Tag#2 (1) {
+      $name => string(3) "red"
+    }
+  ]
+  $keying => int(3)
+}
+Core\ObjectMap#1 (3) {
+  $keys => array(2) [
+    0 => int(5)
+    1 => string(1) "5"
+  ]
+  $values => array(2) [
+    0 => int(1)
+    1 => int(2)
+  ]
+  $keying => int(0)
+}
+Core\ObjectMap#1 (3) {
+  $keys => array(2) [
+    0 => null
+    1 => Tag#2 (1) {
+      $name => string(3) "red"
+    }
+  ]
+  $values => array(2) [
+    0 => int(0)
+    1 => int(1)
+  ]
+  $keying => int(0)
+}

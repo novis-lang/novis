@@ -1,0 +1,67 @@
+--TEST--
+A `Core\ObjectMap` keyed by a parent class or an interface takes an instance of any class below it as a key of its own — `rule:expressions/equality-semantics`
+--FILE--
+<?nvs
+class Animal {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Dog extends Animal {
+}
+
+Dog $rex = new Dog("rex");
+Animal $cat = new Animal("cat");
+
+Core\ObjectMap<Animal, string> $sounds = new Core\ObjectMap<Animal, string>();
+$sounds->set($rex, "woof");
+$sounds->set($cat, "meow");
+echo $sounds->count(), " ", $sounds->get($rex) ?? "missing", " ", $sounds->get($cat) ?? "missing", "\n";
+echo $sounds->has($rex) ? "yes" : "no", " ", $sounds->has($cat) ? "yes" : "no", " ", $sounds->has(new Dog("rex")) ? "yes" : "no", "\n";
+echo Core\Str::join(Core\Arr::map($sounds->keys(), fn(Animal $a): string => $a->name), ","), "\n";
+
+// The same `Dog` reached as an `Animal` is the same key.
+Animal $asAnimal = $rex;
+$sounds->set($asAnimal, "bark");
+echo $sounds->count(), " ", $sounds->get($rex) ?? "missing", "\n";
+
+$sounds->remove($rex);
+echo $sounds->count(), " ", $sounds->has($rex) ? "yes" : "no", " ", $sounds->get($cat) ?? "missing", "\n";
+
+interface Named {
+    public function label(): string;
+}
+
+final class User implements Named {
+    public function label(): string {
+        return "user";
+    }
+}
+
+final class Team implements Named {
+    public function label(): string {
+        return "team";
+    }
+}
+
+User $ada = new User();
+Team $core = new Team();
+Core\ObjectMap<Named, int> $sizes = new Core\ObjectMap<Named, int>();
+$sizes->set($ada, 1);
+$sizes->set($core, 5);
+echo $sizes->count(), " ", $sizes->get($ada) ?? -1, " ", $sizes->get($core) ?? -1, " ", $sizes->has(new User()) ? "yes" : "no", "\n";
+echo Core\Str::join(Core\Arr::map($sizes->keys(), fn(Named $n): string => $n->label()), ","), "\n";
+$sizes->remove($core);
+echo $sizes->count(), " ", $sizes->has($core) ? "yes" : "no", " ", $sizes->get($ada) ?? -1, "\n";
+--EXPECT--
+2 woof meow
+yes yes no
+rex,cat
+2 bark
+1 no meow
+2 1 5 no
+user,team
+1 no 1

@@ -1,0 +1,51 @@
+--TEST--
+A `Core\ObjectMap<Tag, int>` or `Core\ObjectSet<Tag>` reached as `<mixed, ...>` through `mixed` takes an `int` and a `string` key beside its objects, and every key keeps its value and its place — `rule:expressions/equality-semantics`
+--FILE--
+<?nvs
+final class Tag {
+    public function constructor(public string $name) {}
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 3);
+$weights->set($blue, 7);
+mixed $any = $weights;
+Core\ObjectMap<mixed, int> $view = $any as Core\ObjectMap<mixed, int>;
+$view->set(5, 1);
+$view->set("5", 2);
+echo $weights->count(), "\n";
+echo $weights->get($red) ?? -1, " ", $weights->get($blue) ?? -1, " ", $view->get(5) ?? -1, " ", $view->get("5") ?? -1, "\n";
+echo $view->has($red) ? "yes" : "no", " ", $view->has(new Tag("red")) ? "yes" : "no", "\n";
+foreach ($view as mixed $k) {
+    if ($k is Tag) {
+        echo "Tag ", $k->name, "\n";
+    } else {
+        echo $k is int ? "int " : "string ", $k, "\n";
+    }
+}
+$view->remove(5);
+$weights->remove($red);
+echo $weights->count(), " ", $view->get(5) ?? -1, " ", $view->get("5") ?? -1, " ", $weights->get($red) ?? -1, " ", $weights->get($blue) ?? -1, "\n";
+
+Core\ObjectSet<Tag> $seen = new Core\ObjectSet<Tag>();
+$seen->add($red);
+mixed $anySet = $seen;
+Core\ObjectSet<mixed> $members = $anySet as Core\ObjectSet<mixed>;
+$members->add(1);
+echo $seen->count(), " ", $seen->has($red) ? "yes" : "no", " ", $members->has(1) ? "yes" : "no", " ", $members->has("1") ? "yes" : "no", " ", $seen->has($blue) ? "yes" : "no", "\n";
+$seen->remove($red);
+echo $seen->count(), " ", $seen->has($red) ? "yes" : "no", " ", $members->has(1) ? "yes" : "no", "\n";
+--EXPECT--
+4
+3 7 1 2
+yes no
+Tag red
+Tag blue
+int 5
+string 5
+2 -1 2 -1 7
+2 yes yes no no
+1 no yes

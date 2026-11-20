@@ -1,0 +1,56 @@
+--TEST--
+A new object is never found in a `Core\ObjectMap` under the key of an object that was removed and freed, while the objects that stay are still found — `rule:expressions/equality-semantics`
+--FILE--
+<?nvs
+final class Tag {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+array<Tag> $old = [];
+int $i = 0;
+for ($i = 0; $i < 200; $i++) {
+    $old[] = new Tag($i);
+    $weights->set($old[$i], $i);
+}
+
+// Keep three objects and remove the other 197.
+Tag $first = $old[0];
+Tag $middle = $old[100];
+Tag $last = $old[199];
+for ($i = 0; $i < 200; $i++) {
+    if ($i != 0 && $i != 100 && $i != 199) {
+        $weights->remove($old[$i]);
+    }
+}
+echo $weights->count(), "\n";
+
+// Drop every other reference to the removed objects, so they can be freed.
+$old = [];
+
+// None of the new objects is a key, even one that reuses the memory of a removed one.
+int $found = 0;
+int $values = 0;
+array<Tag> $fresh = [];
+for ($i = 0; $i < 200; $i++) {
+    $fresh[] = new Tag(1000 + $i);
+    if ($weights->has($fresh[$i])) {
+        $found++;
+    }
+    if ($weights->get($fresh[$i]) != null) {
+        $values++;
+    }
+}
+echo $found, " ", $values, " ", $weights->count(), "\n";
+
+echo $weights->get($first) ?? -1, " ", $weights->get($middle) ?? -1, " ", $weights->get($last) ?? -1, "\n";
+echo Core\Str::join(Core\Arr::map($weights->keys(), fn(Tag $k): string => $k->id as string), ","), "\n";
+--EXPECT--
+3
+0 0 3
+0 100 199
+0,100,199

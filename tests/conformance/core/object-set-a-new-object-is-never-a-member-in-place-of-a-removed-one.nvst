@@ -1,0 +1,51 @@
+--TEST--
+A new object is never a member of a `Core\ObjectSet` in place of an object that was removed and freed, while the members that stay are still found — `rule:expressions/equality-semantics`
+--FILE--
+<?nvs
+final class Tag {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+Core\ObjectSet<Tag> $seen = new Core\ObjectSet<Tag>();
+array<Tag> $old = [];
+int $i = 0;
+for ($i = 0; $i < 200; $i++) {
+    $old[] = new Tag($i);
+    $seen->add($old[$i]);
+}
+
+// Keep two objects and remove the other 198.
+Tag $first = $old[0];
+Tag $last = $old[199];
+for ($i = 1; $i < 199; $i++) {
+    $seen->remove($old[$i]);
+}
+echo $seen->count(), "\n";
+
+// Drop every other reference to the removed objects, so they can be freed.
+$old = [];
+
+// None of the new objects is a member, even one that reuses the memory of a removed one.
+int $found = 0;
+array<Tag> $fresh = [];
+for ($i = 0; $i < 200; $i++) {
+    $fresh[] = new Tag(1000 + $i);
+    if ($seen->has($fresh[$i])) {
+        $found++;
+    }
+}
+echo $found, " ", $seen->count(), "\n";
+echo $seen->has($first) ? "yes" : "no", " ", $seen->has($last) ? "yes" : "no", "\n";
+
+// Adding a new object makes it a member. It does not bring back a removed one.
+$seen->add($fresh[5]);
+echo $seen->count(), " ", $seen->has($fresh[5]) ? "yes" : "no", " ", $seen->has($fresh[6]) ? "yes" : "no", "\n";
+--EXPECT--
+2
+0 2
+yes yes
+3 yes no
