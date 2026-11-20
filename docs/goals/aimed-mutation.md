@@ -34,7 +34,7 @@ stages:
     context: [docs/reference/tools/10-cli.md, docs/examples/tools/cli/nvs-test-mutate/about.md, docs/examples/tools/cli/nvs-test/about.md, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: aim
@@ -577,41 +577,36 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Every acceptance check from `aim` to `once` was green when its stage ended.
+Every stage is done, and the goal is reached. Stage 8 closed it without the full gate:
+`cargo build` and `cargo clippy --all-targets -- -D warnings` are green, and so are all ten
+acceptance checks, `aim` to `once`, each run once by name. `bun nv owners --closes aimed-mutation`
+names no gap. Every standing decision below has a home in `docs/rules/testing/` or in the module
+docs of `crates/nvs-cli/src/runner/{mutation,since,reach}.rs` and `crates/nvs-ir/src/lower/mutate.rs`.
 
-Stage 7 is d9f879e2f3: `docs/reference/tools/10-cli.md` `# nvs test` names every flag, the
-`:<line>` form and a `## Running only what a change reaches` section (a `#` heading would make a
-new feature id that owes every proof), and `# nvs test --mutate` covers all this goal added. The
-`04-no-mutate-on-a-view` example, both `about.md` files, the test-runner page and `changes.json`
-(an `unseen` record for `tools:cli/profiling`) are written. `site --check stale` and `changes` are
-green. `bun nv prose` names only the synopsis code block at `:222`, which is not prose.
+The newcomer review ran over the eight texts `site --review` listed. ea2538d5be fixes its findings
+and stamps them. `site --check stale`, `changes` and `review` are green. `changes.json` has an `unseen`
+record for `Core\Xml\Node::source`, whose test moved in e5a100b18f. The two failures of nightly run
+44722386375 are the ones e5a100b18f and 438e9c44af fixed. Its failing conformance case,
+`an-object-map-passes-where-a-keyed-iterable-is-declared`, passes.
 
-Nightly run 44722386375 (5d053fc6e6) is fixed:
-- e5a100b18f: the XML `source` memory test built the class descriptors inside its measured
-  context. It now builds them first, as a compile does. It is green, run once.
-- 438e9c44af: `is Iterable<T>` and `is KeyedIterable<K, V>` were false for a `Core\ObjectMap`.
-  `class_or_core_implementor` (`crates/nvs-ir/src/lower/expr.rs`) also tests the classes on
-  `ITERABLES` and `KEYED_ITERABLES`. A new case, `an-object-map-is-an-iterable-and-a-keyed-iterable`,
-  is green in the plain and checked builds. `Parses` has the same gap and was left alone.
+The `Parses` gap is recorded in `class_or_core_implementor`'s doc comment
+(`crates/nvs-ir/src/lower/expr.rs`). The checker accepts a `Core\Uuid` for a `Parses` parameter, but
+`$x is Parses` is false for one. This was checked with `nvs run`.
 
 ### Next
 
-Stage 8, a close and not a full gate. Run the newcomer review first (`docs/agent/prose.md` §
-*A newcomer reads it*): `bun nv site --review` lists the texts. These include both `about.md` files
-and the help cards `help:tools:cli/nvs-test` and `help:tools:cli/nvs-test-mutate`. Stamp each once
-its findings are fixed. Then `cargo build`, `cargo clippy --all-targets -- -D warnings`, and the
-acceptance checks `aim` to `once`, each by name with `looper check --name <id>`. Then `bun nv owners
---closes aimed-mutation`. Move each decision only this file's prose holds into
-`docs/rules/testing/mutation-testing.md` or a module doc, delete the file, and write `DONE`.
+Nothing is left in this goal. The driver retires this file on `DONE`. The next goal on the chain is
+`declared-attributes`. This goal joins the chain's `ungated:` list, and the next full gate runs
+`looper verify` over it.
 
-Tests that may go red: an `nvs-ir` unit test that pins the shape of an `is Iterable` test, if one
-exists. None was run.
+Tests that may go red at that gate: an `nvs-ir` unit test that pins the shape of an `is Iterable`
+test, if one exists. No such test was run in this goal.
 
 ### Backlog

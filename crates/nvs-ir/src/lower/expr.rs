@@ -8979,6 +8979,10 @@ pub(super) fn test_shape(
 /// and `is Iterable<T>` holds for a `Core\ObjectMap` as the checker says it
 /// does. The rosters are read directly, so no class is recorded as used. A
 /// label off both rosters is its own class test, and costs nothing more.
+///
+/// Known gap: the checker reads `Core\Uuid` as a `Parses` and accepts it for
+/// a `Parses` parameter, but no roster here covers `Parses`, so
+/// `$x is Parses` is false for a `Core\Uuid`.
 fn class_or_core_implementor(label: String) -> TestShape {
     let core: Vec<&'static str> = match label.as_str() {
         "Iterable" => nvs_stdlib::registry::ITERABLES
