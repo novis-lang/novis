@@ -1,0 +1,30 @@
+<?nvs
+// Shows `var` in a keyed `foreach` loop, where each variable gets its type from the map.
+
+final class Product
+{
+    public string $name;
+    public int $priceInCents;
+
+    public function constructor(string $name, int $priceInCents)
+    {
+        $this->name = $name;
+        $this->priceInCents = $priceInCents;
+    }
+
+    public function label(): string
+    {
+        return Core\Str::upper($this->name);
+    }
+}
+
+var $cart = new Core\ObjectMap<Product, int>();
+$cart->set(new Product('coffee', 450), 2);
+$cart->set(new Product('bagel', 300), 3);
+
+// `$product` is a `Product`, so it has the `label` method and the price property.
+// `$quantity` is an `int`. This prints `COFFEE 2 x 450 = 900`, then `BAGEL 3 x 300 = 900`.
+foreach ($cart as var $product => var $quantity) {
+    int $line = $product->priceInCents * $quantity;
+    echo $product->label(), ' ', $quantity, ' x ', $product->priceInCents, ' = ', $line, "\n";
+}

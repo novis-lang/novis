@@ -21,6 +21,7 @@ const SRC = "crates/nvs-stdlib/src";
 /** The `CoreClass` consts that are not in the table, by path, each with why. */
 export const UNRANKED: Record<string, string> = {
   "crate::cursor::CLASS": "a runtime layout no program names, so it has no registry row (`crate::cursor`'s module doc)",
+  "crate::cursor::KEYED_CLASS": "the keyed loop's runtime layout, which no program names, so it has no registry row (`crate::cursor`'s module doc)",
 };
 
 const CONST_RE = /^(?:pub(?:\([a-z]+\))? )?const ([A-Z][A-Z0-9_]*): CoreClass = /;

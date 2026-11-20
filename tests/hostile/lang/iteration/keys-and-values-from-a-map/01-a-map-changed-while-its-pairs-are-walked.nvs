@@ -1,0 +1,94 @@
+<?nvs
+// Attack: a program changes a `Core\ObjectMap` while a loop walks its keys and values.
+// Each loop should end after the entries it started with, and the runtime should not crash.
+// covers: lang:iteration/keys-and-values-from-a-map
+// hostile: timeout-ms 20000
+// hostile: ends-early 4 FATAL
+
+// 1. A loop that removes every entry, including the one it is on, and then clears the map.
+try {
+    var $stock = new Core\ObjectMap<string, int>();
+    $stock->set('a', 1);
+    $stock->set('b', 2);
+    $stock->set('c', 3);
+    int $visited = 0;
+    int $sum = 0;
+    foreach ($stock as string $name => int $count) {
+        $visited = $visited + 1;
+        $sum = $sum + $count;
+        $stock->remove($name);
+        $stock->clear();
+    }
+    echo '1: visited ', $visited, ' with sum ', $sum, ', ', $stock->count(), " left\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A loop that removes each entry and adds it back with a new value, trying never to end.
+try {
+    var $prices = new Core\ObjectMap<string, int>();
+    $prices->set('x', 10);
+    $prices->set('y', 20);
+    $prices->set('z', 30);
+    int $rounds = 0;
+    int $total = 0;
+    foreach ($prices as string $key => int $price) {
+        $rounds = $rounds + 1;
+        $total = $total + $price;
+        $prices->remove($key);
+        $prices->set($key, $price + 1000);
+        $prices->set($key . '+', $price);
+        if ($rounds > 1000) {
+            break;
+        }
+    }
+    echo '2: visited ', $rounds, ' with sum ', $total, ', ', $prices->count(), " now\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. Keyed loops over one map nested 256 levels deep, each level writing to the map.
+class Deep
+{
+    public static function walk(Core\ObjectMap<int, int> $map, int $depth): int
+    {
+        if ($depth == 0) {
+            return 0;
+        }
+        int $reached = 0;
+        foreach ($map as int $key => int $value) {
+            $map->set($key, $value + 1);
+            $map->set(1000 + $depth, $depth);
+            $map->remove($key + 1);
+            $reached = Deep::walk($map, $depth - 1) + 1;
+            break;
+        }
+        return $reached;
+    }
+}
+
+try {
+    var $levels = new Core\ObjectMap<int, int>();
+    int $i = 0;
+    while ($i < 64) {
+        $levels->set($i, 0);
+        $i = $i + 1;
+    }
+    echo '3: reached depth ', Deep::walk($levels, 256), ' with ', $levels->count(), " entries\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. A keyed loop whose body adds new entries until the memory is full.
+// The memory limit stops the program, so this step is the last one.
+echo "step 4\n";
+var $grow = new Core\ObjectMap<int, string>();
+$grow->set(0, 'start');
+int $next = 1;
+foreach ($grow as int $id => string $label) {
+    while (true) {
+        $grow->set($next, $label . $next);
+        $next = $next + 1;
+    }
+}
+echo '4: added ', $next, "\n";

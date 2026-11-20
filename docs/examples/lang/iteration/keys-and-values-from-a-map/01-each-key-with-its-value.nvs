@@ -1,0 +1,28 @@
+<?nvs
+// Shows a `foreach` loop that gives each key of a `Core\ObjectMap` with its value.
+
+final class Tag
+{
+    public string $name;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Tag, int> $stock = new Core\ObjectMap<Tag, int>();
+$stock->set(new Tag('shirts'), 14);
+$stock->set(new Tag('hats'), 3);
+$stock->set(new Tag('scarves'), 8);
+
+// Each step gives one tag and its stock count. This prints `shirts: 14`,
+// then `hats: 3`, then `scarves: 8`.
+int $total = 0;
+foreach ($stock as Tag $tag => int $count) {
+    echo $tag->name, ': ', $count, "\n";
+    $total = $total + $count;
+}
+
+// This prints `total: 25`.
+echo 'total: ', $total, "\n";

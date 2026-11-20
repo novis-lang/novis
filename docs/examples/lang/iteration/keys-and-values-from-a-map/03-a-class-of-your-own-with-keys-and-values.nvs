@@ -1,0 +1,60 @@
+<?nvs
+// Shows a class of your own that gives keys and values to a `foreach` loop.
+
+final class ScoreCursor implements KeyedIterator<string, int>
+{
+    private array<string> $players;
+    private array<int> $scores;
+    private int $at = -1;
+
+    public function constructor(array<string> $players, array<int> $scores)
+    {
+        $this->players = $players;
+        $this->scores = $scores;
+    }
+
+    // `advance` moves to the next entry. It returns `false` when there are no more entries.
+    public function advance(): bool
+    {
+        $this->at = $this->at + 1;
+        return $this->at < Core\Arr::count($this->players);
+    }
+
+    public function key(): string
+    {
+        return $this->players[$this->at];
+    }
+
+    public function current(): int
+    {
+        return $this->scores[$this->at];
+    }
+}
+
+final class Scoreboard implements KeyedIterable<string, int>
+{
+    private array<string> $players = [];
+    private array<int> $scores = [];
+
+    public function add(string $player, int $score): void
+    {
+        $this->players[] = $player;
+        $this->scores[] = $score;
+    }
+
+    // Each loop calls `iterateKeyed` and gets a new cursor that starts at the first entry.
+    public function iterateKeyed(): KeyedIterator<string, int>
+    {
+        return new ScoreCursor($this->players, $this->scores);
+    }
+}
+
+var $board = new Scoreboard();
+$board->add('Ana', 120);
+$board->add('Ben', 95);
+$board->add('Chloe', 140);
+
+// The loop gives each player with a score. This prints `Ana: 120`, `Ben: 95` and `Chloe: 140`.
+foreach ($board as var $player => var $score) {
+    echo $player, ': ', $score, "\n";
+}
