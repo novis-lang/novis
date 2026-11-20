@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-stdlib/src/request.rs]
   - id: 2
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: slot-request
@@ -84,32 +84,31 @@ nested `later` keeps the cell its parent slot was lent.
 
 ### 2. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stage 1 is done and committed. `Ctx::inbound` falls back to the lent head in a slot
-(`crates/nvs-runtime/src/ctx/inbound.rs` `inbound`, `crates/nvs-runtime/src/ctx/wiring.rs`
-`lent_head`). `Inbound::head_alone` copies the client, the mount, the route and the refusal, and sets
-`lent`. `session_inbound` is gone. `crates/nvs-stdlib/src/request.rs` `body_carrier` throws for every
-body path in a slot. `slot-request` is green, and the build and clippy are green.
+Both stages are done, and the goal is reached. Stage 2 closed it without the full gate: the build
+and clippy are green, and so are
+`tests/conformance/core/html-later-a-slot-reads-the-request-it-belongs-to.nvst` and
+`tests/conformance/core/session-a-first-use-inside-later-reads-the-request-session.nvst`.
+`bun nv owners --closes later-reads-the-request` names no gap. `bun nv site --check stale`,
+`changes` and `review` are green after these edits: a sentence on reading the request in a slot in
+`docs/examples/core/Html/later/about.md`, the same in the `fn` parameter of `LATER_DOC` in
+`crates/nvs-stdlib/src/html.rs`, a `changed` entry in `website/src/data/changes.json`, and a
+`// covers: Core\Html::later` marker in the new case. Without that marker the changes check did not
+count the feature as moved.
 
-The nightly sweep's two failures were already fixed on HEAD before this session:
-`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` by `e5a100b18f`, and
-`iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst` under `NOVIS_CHECK_TYPES` by
-`438e9c44af`. Both pass locally. The next nightly confirms them.
+The nightly run 44722386375 ran on `5d053fc6e6`, 69 commits before this goal. All nine of its
+failed jobs are the two failures `e5a100b18f` (`xml::tests::source_stops_at_the_memory_limit_before_it_escapes`)
+and `438e9c44af` (`iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst`) already fixed.
 
 ### Next
 
-Stage 2, a close (not the full gate): build, clippy, the new case by name, and
-`tests/conformance/core/session-a-first-use-inside-later-reads-the-request-session.nvst`. Then the
-goal-end gates: `bun nv owners --closes later-reads-the-request`, and `bun nv site --check stale`,
-`changes` and `review` for `core-classes/html-later`. The page, `about.md` and the help for
-`Core\Html::later` may need a sentence on reading the request and the body in a slot, and a
-`website/src/data/changes.json` entry. No test is expected to go red. A Rust test that asserted a
-slot's `Core\Request` read throws "no request here" would; none was found by the build.
+None: the goal is reached. The driver retires it. The next full gate runs at `compare-seven-peers`.
+No test is expected to go red.
 
 ### Backlog
