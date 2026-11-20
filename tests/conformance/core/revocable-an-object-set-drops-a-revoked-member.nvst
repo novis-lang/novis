@@ -1,0 +1,35 @@
+--TEST--
+A `Core\ObjectSet` removes a member when it is revoked
+--FILE--
+<?nvs
+// Revoking a member removes it from the set. The count drops at once.
+class Tag implements Revocable {
+    public function constructor(public string $name) {}
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+var $green = new Tag("green");
+
+var $seen = new Core\ObjectSet<Tag>();
+$seen->add($red);
+$seen->add($blue);
+$seen->add($green);
+echo $seen->count(), "\n";
+
+$red->revoke();
+echo $seen->count(), "\n";
+foreach ($seen as Tag $tag) {
+    echo $tag->name, "\n";
+}
+
+// Adding a revoked object does nothing. The count stays at 2.
+$seen->add($red);
+echo $seen->count(), "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+3
+2
+blue
+green
+2

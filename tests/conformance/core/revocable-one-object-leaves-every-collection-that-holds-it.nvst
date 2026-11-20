@@ -1,0 +1,44 @@
+--TEST--
+One revoked object leaves every map, set and heap that contains it
+--FILE--
+<?nvs
+// `$red` is a key in one map, a value in another, a set member and a heap entry.
+// One `revoke()` removes it from all four.
+class Tag implements Revocable {
+    public function constructor(public string $name) {}
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+
+var $byKey = new Core\ObjectMap<Tag, int>();
+$byKey->set($red, 1);
+$byKey->set($blue, 2);
+
+var $byValue = new Core\ObjectMap<Tag, Tag>();
+$byValue->set($blue, $red);
+$byValue->set($red, $blue);
+
+var $seen = new Core\ObjectSet<Tag>();
+$seen->add($red);
+$seen->add($blue);
+
+var $queue = new Core\Heap<Tag>(fn(Tag $x, Tag $y): int => Core\Str::compare($x->name, $y->name));
+$queue->push($red);
+$queue->push($blue);
+
+echo $byKey->count(), " ", $byValue->count(), " ", $seen->count(), " ", $queue->count(), "\n";
+
+$red->revoke();
+echo $byKey->count(), " ", $byValue->count(), " ", $seen->count(), " ", $queue->count(), "\n";
+
+// `$byValue` had `$red` once as a value and once as a key, so both entries are gone.
+var $last = $queue->pop();
+echo $last->name, "\n";
+echo $seen->has($blue) ? "blue kept" : "blue gone", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+2 2 2 2
+1 0 1 1
+blue
+blue kept

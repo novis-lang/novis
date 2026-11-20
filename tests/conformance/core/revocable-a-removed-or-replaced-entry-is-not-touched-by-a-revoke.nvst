@@ -1,0 +1,50 @@
+--TEST--
+Revoking an object that was removed or replaced does not touch the entry that is there now
+--FILE--
+<?nvs
+// `remove()` deletes the entry, and `set()` replaces the old value.
+// Revoking the old value later does not change the map.
+class Tag {
+    public function constructor(public string $name) {}
+}
+
+class Note implements Revocable {
+    public function constructor(public string $text) {}
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+var $oldRed = new Note("old red");
+var $newRed = new Note("new red");
+var $oldBlue = new Note("old blue");
+var $newBlue = new Note("new blue");
+
+var $notes = new Core\ObjectMap<Tag, Note>();
+$notes->set($red, $oldRed);
+$notes->remove($red);
+$notes->set($red, $newRed);
+$notes->set($blue, $oldBlue);
+$notes->set($blue, $newBlue);
+
+$oldRed->revoke();
+$oldBlue->revoke();
+echo $notes->count(), "\n";
+foreach ($notes as Tag $tag => Note $note) {
+    echo $tag->name, "=", $note->text, "\n";
+}
+
+// A set member removed before the revoke stays removed. The other member stays.
+var $first = new Note("first");
+var $second = new Note("second");
+var $kept = new Core\ObjectSet<Note>();
+$kept->add($first);
+$kept->add($second);
+$kept->remove($first);
+$first->revoke();
+echo $kept->count(), "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+2
+red=new red
+blue=new blue
+1

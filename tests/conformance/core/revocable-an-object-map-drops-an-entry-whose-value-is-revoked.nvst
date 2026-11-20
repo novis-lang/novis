@@ -1,0 +1,37 @@
+--TEST--
+A `Core\ObjectMap` removes an entry when its value is revoked
+--FILE--
+<?nvs
+// Revoking a value removes its entry from the map. The key is not revoked.
+class Tag {
+    public function constructor(public string $name) {}
+}
+
+class Note implements Revocable {
+    public function constructor(public string $text) {}
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+var $redNote = new Note("warm");
+var $blueNote = new Note("cold");
+
+var $notes = new Core\ObjectMap<Tag, Note>();
+$notes->set($red, $redNote);
+$notes->set($blue, $blueNote);
+echo $notes->count(), "\n";
+
+$blueNote->revoke();
+echo $notes->count(), "\n";
+echo $notes->has($blue) ? "blue kept" : "blue gone", "\n";
+echo $blue->name, "\n";
+foreach ($notes as Tag $tag => Note $note) {
+    echo $tag->name, "=", $note->text, "\n";
+}
+// covers: lang:classes/revocable-objects
+--EXPECT--
+2
+1
+blue gone
+blue
+red=warm

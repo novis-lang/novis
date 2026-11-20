@@ -1,0 +1,42 @@
+--TEST--
+The count of a `Core\Heap` drops as soon as an entry is revoked
+--FILE--
+<?nvs
+// `count()` drops at the `revoke()` call, before any `pop`.
+class Job implements Revocable, Comparable {
+    public function constructor(public string $name, public int $cost) {}
+
+    public function compareTo(Job $other): int {
+        return $this->cost - $other->cost;
+    }
+}
+
+var $lint = new Job("lint", 1);
+var $build = new Job("build", 3);
+var $deploy = new Job("deploy", 5);
+
+var $jobs = new Core\Heap<Job>();
+$jobs->push($lint);
+$jobs->push($build);
+$jobs->push($deploy);
+echo $jobs->count(), "\n";
+
+$build->revoke();
+echo $jobs->count(), "\n";
+
+// A second revoke and a push of the revoked job change nothing.
+$build->revoke();
+$jobs->push($build);
+echo $jobs->count(), "\n";
+
+$lint->revoke();
+$deploy->revoke();
+echo $jobs->count(), "\n";
+echo $jobs->isEmpty() ? "empty" : "not empty", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+3
+2
+2
+0
+empty

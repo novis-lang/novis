@@ -1,0 +1,38 @@
+--TEST--
+`peek` and `pop` on a `Core\Heap` skip a revoked entry
+--FILE--
+<?nvs
+// `lint` and `build` are revoked. `peek` and `pop` return only the jobs that are left.
+class Job implements Revocable, Comparable {
+    public function constructor(public string $name, public int $cost) {}
+
+    public function compareTo(Job $other): int {
+        return $this->cost - $other->cost;
+    }
+}
+
+var $lint = new Job("lint", 1);
+var $test = new Job("test", 2);
+var $build = new Job("build", 3);
+var $deploy = new Job("deploy", 5);
+
+var $jobs = new Core\Heap<Job>();
+$jobs->push($deploy);
+$jobs->push($build);
+$jobs->push($lint);
+$jobs->push($test);
+
+$lint->revoke();
+$build->revoke();
+
+var $first = $jobs->peek();
+echo $first->name, "\n";
+while (!$jobs->isEmpty()) {
+    var $job = $jobs->pop();
+    echo $job->name, "\n";
+}
+// covers: lang:classes/revocable-objects
+--EXPECT--
+test
+test
+deploy

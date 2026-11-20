@@ -1,0 +1,51 @@
+--TEST--
+A `foreach` skips an entry that is revoked while the loop runs
+--FILE--
+<?nvs
+// The loop body revokes `blue` on the first entry. The loop then skips `blue`.
+class Tag implements Revocable {
+    public function constructor(public string $name) {}
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+var $green = new Tag("green");
+
+var $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 1);
+$weights->set($blue, 2);
+$weights->set($green, 3);
+
+foreach ($weights as Tag $tag => int $weight) {
+    if ($tag->name == "red") {
+        $blue->revoke();
+    }
+    echo $tag->name, "=", $weight, "\n";
+}
+echo $weights->count(), "\n";
+
+// The same happens in a set. The body revokes `c` on the first member.
+var $a = new Tag("a");
+var $b = new Tag("b");
+var $c = new Tag("c");
+
+var $seen = new Core\ObjectSet<Tag>();
+$seen->add($a);
+$seen->add($b);
+$seen->add($c);
+
+foreach ($seen as Tag $tag) {
+    if ($tag->name == "a") {
+        $c->revoke();
+    }
+    echo $tag->name, "\n";
+}
+echo $seen->count(), "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+red=1
+green=3
+2
+a
+b
+2

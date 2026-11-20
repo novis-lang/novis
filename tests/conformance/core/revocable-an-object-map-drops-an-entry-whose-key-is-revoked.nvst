@@ -1,0 +1,36 @@
+--TEST--
+A `Core\ObjectMap` removes an entry when its key is revoked
+--FILE--
+<?nvs
+// Revoking a key removes its entry from the map. The count drops at once.
+class Tag implements Revocable {
+    public function constructor(public string $name) {}
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+var $green = new Tag("green");
+
+var $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 3);
+$weights->set($blue, 7);
+$weights->set($green, 9);
+echo $weights->count(), "\n";
+
+$blue->revoke();
+echo $weights->count(), "\n";
+foreach ($weights as Tag $tag => int $weight) {
+    echo $tag->name, "=", $weight, "\n";
+}
+
+// Setting a revoked key does nothing. The count stays at 2.
+$blue->revoke();
+$weights->set($blue, 1);
+echo $weights->count(), "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+3
+2
+red=3
+green=9
+2
