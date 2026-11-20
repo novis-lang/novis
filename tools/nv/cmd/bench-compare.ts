@@ -1,4 +1,4 @@
-// `bun nv bench-compare`: Novis, PHP-FPM, Bun and Go, each behind the same nginx terminating TLS 1.3.
+// `bun nv bench-compare`: Novis, PHP-FPM, Bun, Go and Node.js, each behind the same nginx terminating TLS 1.3.
 //
 //     bun nv bench-compare --smoke                               # every peer and case, a few hundred requests
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
@@ -23,7 +23,7 @@
 // # What a run does
 //
 // The peers are data: `PEERS` names each one's compose file, nginx config, published port, image and the
-// settings written into its rows, and a fifth peer is a new entry and a compose file. One stack is up at a
+// settings written into its rows, and a new peer is a new entry and a compose file. One stack is up at a
 // time, and every (case, rep, peer) gets a fresh one, so `memory.peak` is that pass's alone. The reps
 // interleave the peers, and a peer's figures are the median rep's (`medianOf`). A run first builds each
 // image a peer builds from this checkout, once (`buildImages`), and no stack comes up with `--build`.
@@ -107,7 +107,7 @@ export interface PeerCtx {
    * the container. Unset serves `case`'s folder, mounted read-only.
    */
   site?: boolean | undefined;
-  /** The part count of a deploy row, which the PHP, Bun and Go programs read from `DEPLOY_PARTS`. */
+  /** The part count of a deploy row, which every peer's program but Novis's reads from `DEPLOY_PARTS`. */
   parts?: number | undefined;
   /** An nginx config under `nginx/` in place of the peer's own, for a row that serves differently. */
   nginx?: string | undefined;
@@ -188,6 +188,16 @@ export const PEERS: Peer[] = [
     settings: (ctx) => ({ server: "net/http", GOMAXPROCS: ctx.cpus }),
     compiled: true,
     built: true,
+  },
+  {
+    id: "node",
+    label: "Node.js",
+    stack: "compose.node.yaml",
+    nginx: "http.conf",
+    port: 18445,
+    image: "node:26.13.1-trixie-slim",
+    env: () => ({}),
+    settings: (ctx) => ({ server: "node:http", cluster_workers: ctx.cpus, keepAliveTimeout: 65_000 }),
   },
 ];
 
@@ -510,7 +520,10 @@ export const CORES_CASE: Case = {
 };
 
 /** The code each peer's program carries only to use more than one core, where it carries any. */
-export const CORES_IN_CODE: Record<string, string> = { bun: "a launcher that starts one reusePort process per cpu" };
+export const CORES_IN_CODE: Record<string, string> = {
+  bun: "a launcher that starts one reusePort process per cpu",
+  node: "a node:cluster primary that forks one worker per cpu",
+};
 
 /**
  * Throughput that grows by `CORES_SCALING` or more from one cpu to four uses the cores: built in, or
@@ -674,10 +687,20 @@ export const MEMORY_DEFAULT: Record<string, Setting> = {
 /**
  * The code a peer's program can carry to stop the loop row's runaway request, where the peer has a way.
  * Bun's `Worker.terminate()` stops a worker that never yields within milliseconds, so a program that
- * runs each request in a worker under a time limit stops it. Bun ignores a worker's `resourceLimits`, so
- * nothing of the kind exists for the memory row, and a goroutine cannot be stopped from outside at all.
+ * runs each request in a worker under a time limit stops it, and Node.js's `worker_threads` do the same.
+ * A goroutine cannot be stopped from outside at all.
  */
-export const LOOP_IN_CODE: Record<string, string> = { bun: "each request in a Worker, and terminate() after a time limit" };
+export const LOOP_IN_CODE: Record<string, string> = {
+  bun: "each request in a Worker, and terminate() after a time limit",
+  node: "each request in a worker_threads Worker, and terminate() after a time limit",
+};
+
+/**
+ * The code a peer's program can carry to stop the memory row's runaway request. Node.js's `Worker` honours
+ * `resourceLimits` and ends a worker that grows past them. Bun ignores a worker's `resourceLimits`, so it
+ * has no entry.
+ */
+export const MEMORY_IN_CODE: Record<string, string> = { node: "each request in a worker_threads Worker with resourceLimits" };
 
 /** How long the flood row's load runs. */
 export const FLOOD_SECONDS = 10;
@@ -958,6 +981,7 @@ export function liveEditResult(seconds: number | null, setting: Setting | undefi
 export const LIVE_EDIT_SETTING: Record<string, Setting> = {
   php: { name: "opcache.validate_timestamps", default: true },
   bun: { name: "bun --hot", default: false },
+  node: { name: "node --watch", default: false },
 };
 
 /** `setting` where the peer starts with it on: the setting a change of files that shows without a step names. */
@@ -1031,10 +1055,11 @@ export interface DeployWay {
 export const DEPLOY_WAYS: Record<string, DeployWay> = {
   bun: { name: "a restart", run: "restart" },
   go: { name: "a new image and a restart", run: "restart" },
+  node: { name: "a restart", run: "restart" },
 };
 
 /** The extension of the parts each peer's program reads. Go's parts are compiled into its image. */
-export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts" };
+export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts", node: "mjs" };
 
 /**
  * What the deploy rows' checking load saw: every reply, each failed (an exception or a status but
@@ -1290,7 +1315,7 @@ export const PARALLEL_TRIES = 3;
 export const PARALLEL_SPEEDUP = 2;
 
 /** How each peer's program runs its parts at once, where it can. */
-export const PARALLEL_WAY: Record<string, string> = { nvs: 'spawn script … on: "worker"', bun: "Worker", go: "goroutines" };
+export const PARALLEL_WAY: Record<string, string> = { nvs: 'spawn script … on: "worker"', bun: "Worker", go: "goroutines", node: "worker_threads" };
 
 /** The setting a peer needs before its program may run a part elsewhere. Novis denies `spawn script` by default. */
 export const PARALLEL_GRANT: Record<string, TableEdit> = {
@@ -1363,6 +1388,7 @@ export const SCENARIOS: Scenario[] = [
       php: noCheck("https://www.php.net/manual/en/security.database.sql-injection.php"),
       bun: noCheck("https://bun.sh/docs/api/sql"),
       go: noCheck("https://go.dev/doc/database/sql-injection"),
+      node: noCheck("https://nodejs.org/api/sqlite.html#statementrunnamedparameters-anonymousparameters"),
     },
     probe: async (p) => {
       const c = p.check("main.nvs");
@@ -1378,6 +1404,7 @@ export const SCENARIOS: Scenario[] = [
       php: noCheck("https://www.php.net/manual/en/class.sensitiveparameter.php"),
       bun: noCheck("https://bun.sh/docs/runtime/env"),
       go: noCheck("https://pkg.go.dev/log/slog#LogValuer"),
+      node: noCheck("https://nodejs.org/api/util.html#utilinspectcustom"),
     },
     probe: async (p) => {
       const c = p.check("main.nvs");
@@ -1404,7 +1431,7 @@ export const SCENARIOS: Scenario[] = [
     id: "config",
     tree: "cases",
     case: "hello",
-    fixed: { bun: headersInCode, go: headersInCode },
+    fixed: { bun: headersInCode, go: headersInCode, node: headersInCode },
     probe: async (p) => {
       const change = CONFIG_CHANGES[p.peer]!;
       if (change.applied(ok(await p.get("/"), "hello"))) throw new Fail("the header already has the value the change sets");
@@ -1456,7 +1483,7 @@ export const SCENARIOS: Scenario[] = [
     runs: RUNAWAY_RUNS,
     merge: mergeRunaways,
     loadSeconds: RUNAWAY_PROBE_SECONDS,
-    probe: (p) => runawayProbe(p, "/alloc", MEMORY_DEFAULT),
+    probe: (p) => runawayProbe(p, "/alloc", MEMORY_DEFAULT, MEMORY_IN_CODE),
   },
   {
     id: "flood",
@@ -1479,6 +1506,7 @@ export const SCENARIOS: Scenario[] = [
     fixed: {
       bun: noSession("https://bun.sh/docs/api/cookie"),
       go: noSession("https://pkg.go.dev/net/http#Cookie"),
+      node: noSession("https://nodejs.org/api/http.html#responsesetheadername-value"),
     },
     probe: sessionProbe,
   },
@@ -1932,6 +1960,7 @@ const TUNABLES = [
   join(COMPARE_DIR, "nginx", "fastcgi.conf"),
   join(COMPARE_DIR, "nginx", "fastcgi-switch.conf"),
   join(COMPARE_DIR, "bun", "serve.ts"),
+  join(COMPARE_DIR, "node", "serve.mjs"),
   join(COMPARE_DIR, "deploy", "deploy.sh"),
   join(COMPARE_DIR, "go", "Dockerfile"),
   PHP_INI,
@@ -2253,6 +2282,12 @@ export const DIRECT_RUNS: Record<string, DirectRun> = {
     mounts: (c) => [[join(COMPARE_DIR, "cases", c), "/app"], [join(COMPARE_DIR, "bun", "serve.ts"), "/srv/serve.ts"]],
     env: { WORKERS: String(DIRECT_CPUS), APP_DIR: "/app" },
     command: () => ["bun", "/srv/serve.ts"],
+  },
+  node: {
+    image: "node:26.13.1-trixie-slim",
+    mounts: (c) => [[join(COMPARE_DIR, "cases", c), "/app"], [join(COMPARE_DIR, "node", "serve.mjs"), "/srv/serve.mjs"]],
+    env: { WORKERS: String(DIRECT_CPUS), APP_DIR: "/app" },
+    command: () => ["node", "/srv/serve.mjs"],
   },
 };
 
@@ -2637,7 +2672,7 @@ function help(): string {
     "  --profile CASE        profile Novis alone serving CASE: the top symbols under perf, the system",
     "                        calls per request under strace, and for wait the memory per request in",
     "                        flight. Needs a privileged container",
-    "  --direct              Novis, Bun and Go with no nginx. Each backend runs alone on one cpu, and oha",
+    "  --direct              Every HTTP peer with no nginx. Each backend runs alone on one cpu, and oha",
     "                        runs on other cores. Prints requests/sec, CPU microseconds per request",
     "                        (user and system) and throttled periods. With --smoke, a few hundred",
     "                        requests per peer. Records nothing",
