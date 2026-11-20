@@ -1,0 +1,39 @@
+<?nvs
+// Shows a job queue where a cancelled job is never run.
+
+final class Job implements Revocable, Comparable
+{
+    public function constructor(public string $name, public int $priority)
+    {}
+
+    // A job with a smaller number runs first.
+    public function compareTo(Job $other): int
+    {
+        return $this->priority - $other->priority;
+    }
+
+    // `cancel` revokes the job. Every `Core\Heap` that contains it removes it.
+    public function cancel(): void
+    {
+        $this->revoke();
+    }
+}
+
+var $email = new Job('send email', 1);
+var $report = new Job('build report', 2);
+var $backup = new Job('backup', 3);
+
+var $queue = new Core\Heap<Job>();
+$queue->push($backup);
+$queue->push($report);
+$queue->push($email);
+
+// The email job is cancelled. The queue now has two jobs, so this prints 2.
+$email->cancel();
+echo $queue->count(), "\n";
+
+// `pop` returns the next job that was not cancelled. This prints `build report`, then `backup`.
+while (!$queue->isEmpty()) {
+    var $job = $queue->pop();
+    echo $job->name, "\n";
+}

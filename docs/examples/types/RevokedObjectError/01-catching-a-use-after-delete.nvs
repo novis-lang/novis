@@ -1,0 +1,38 @@
+<?nvs
+// Shows the error you get when a program reads a post that it already deleted.
+
+final class Post implements Revocable
+{
+    public function constructor(public string $title)
+    {}
+
+    public function delete(): void
+    {
+        $this->revoke();
+    }
+}
+
+var $hello = new Post('Hello');
+var $news = new Post('News');
+array<Post> $posts = [$hello, $news];
+
+// A plain array still contains the post after `delete`.
+$news->delete();
+
+// The loop prints `Hello`. Reading the title of the deleted post throws `RevokedObjectError`.
+// The message names the class `Post` and line 11, where `revoke()` was called.
+try {
+    foreach ($posts as Post $post) {
+        echo $post->title, "\n";
+    }
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+
+// `isRevoked()` never throws. This loop skips the deleted post and prints only `Hello`.
+foreach ($posts as Post $post) {
+    if ($post->isRevoked()) {
+        continue;
+    }
+    echo $post->title, "\n";
+}

@@ -362,6 +362,10 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
     4's call).** The `revoked` slot counts such entries. A revoked entry sorts first, so it rises to
     the root, and `pop` and `peek` drop it there (`settle`). `sift_up` compares with the nearest
     ancestor that is not revoked. `count` is the store's count less the slot.
+26. **The newcomer review and the perf record of both features are taken in stage 8 (stage 6's
+    call).** Both go stale with any later edit of `about.md` or the chapter, and stages 7 and 8
+    still edit text. So stage 6 is done with every file written, and `feature-proofs` and
+    `error-proofs` owe only `reviewed` and `perf`. Measuring last is the playbook's order.
 
 ### More choices the authoring session made (settled)
 
@@ -626,30 +630,30 @@ attacks, one the bench and its two siblings. Each is told the reference section'
 message and the neutral names of § *Why*. The session writes the reference section and the
 `about.md` and `details.md` files, and runs both proof checks once.
 
-- [ ] First: `bun nv proofs --id lang:classes/revocable-objects` and `bun nv proofs --id
+- [x] First: `bun nv proofs --id lang:classes/revocable-objects` and `bun nv proofs --id
   RevokedObjectError` print what each owes. If the roster gives `revoke` and `isRevoked` ids of their
   own, each id gets its own check in this goal's front matter and its proofs here.
-- [ ] `docs/reference/lang/50-classes.md:3902`: a `#` section *Revocable objects* after `Parses` and
+- [x] `docs/reference/lang/50-classes.md:3902`: a `#` section *Revocable objects* after `Parses` and
   before *Objects are handles*. It makes the feature and its help (`nvs agent show`). It says what the
   interface does, the two methods, what throws and what does not, and the three collections.
-- [ ] `docs/examples/lang/classes/revocable-objects/about.md:1` and `details.md:1`.
-- [ ] Three examples in the same folder, each with its `.out`: `01-an-identity-map-forgets-a-deleted-row`
+- [x] `docs/examples/lang/classes/revocable-objects/about.md:1` and `details.md:1`.
+- [x] Three examples in the same folder, each with its `.out`: `01-an-identity-map-forgets-a-deleted-row`
   (the identity map of § *Why*, walked with a keyed `foreach`), `02-a-set-of-online-users` (a user who
   logs out is revoked and leaves the set), `03-a-job-heap-skips-a-cancelled-job` (a cancelled job is
   revoked, and `pop` returns the next one).
-- [ ] `tests/hostile/lang/classes/revocable-objects/01-keep-a-revoked-object-and-use-it.nvs:1`:
+- [x] `tests/hostile/lang/classes/revocable-objects/01-keep-a-revoked-object-and-use-it.nvs:1`:
   `// Attack:` a request keeps a revoked object in a plain array, a static property and a closure.
   Each numbered step tries one use: a read, a write, a call, a clone, `Core\Json::encode` and a
   `Core\Reflect` read. Every step should throw `RevokedObjectError`, and the runtime should stay standing.
-- [ ] `benches/members/lang/classes/revocable-objects.nvs:1`, with `.scale.nvs` and `.twin.nvs`, as
+- [x] `benches/members/lang/classes/revocable-objects.nvs:1`, with `.scale.nvs` and `.twin.nvs`, as
   § *More choices* describes. `// bench: complexity constant`.
-- [ ] `docs/examples/types/RevokedObjectError/about.md:1`, one example
+- [x] `docs/examples/types/RevokedObjectError/about.md:1`, one example
   `01-catching-a-use-after-delete.nvs` with its `.out`, and the attack
   `tests/hostile/types/RevokedObjectError/01-revoke-inside-a-catch-and-a-finally.nvs:1`, as
   `Core\DeprecatedError`'s are laid out.
-- [ ] Both rules flip to `"status": "shipped"`, with their `guardedBy` lists naming the cases of the
+- [x] Both rules flip to `"status": "shipped"`, with their `guardedBy` lists naming the cases of the
   checks above.
-- [ ] The `feature-proofs` and `error-proofs` checks run once, and every proof they name is written.
+- [x] The `feature-proofs` and `error-proofs` checks run once, and every proof they name is written.
 
 ### 7. the website explains revocable objects and lists the change
 
@@ -682,6 +686,10 @@ user reads*.
 
 - [ ] The newcomer review `website-follows-changes` requires, for every user page this goal changed,
   with its stamp. The `site-review` check run once.
+- [ ] Once the review's edits are in, the perf record of `lang:classes/revocable-objects`, from the
+  release binary (`bun nv relink --build`, then `bun nv proofs --record-perf --nvs
+  target/release/nvs.exe --only lang:classes/revocable-objects`). Then `feature-proofs` and
+  `error-proofs` run once and owe nothing (decision 26).
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -689,29 +697,38 @@ user reads*.
 
 ### State
 
-Stages 1 to 5 are built and checked. The `editor` check is green, run once.
-- The cards are `nvs_types::iter_lib::revocable_card`. `hover.rs` `revocable` answers them for
-  `Target::Type(Revocable)` and for a call whose declaring class is `Revocable`, from `core`.
-- The four `.lspt` cases were written by the session, not a subagent: four files of ten lines.
-- `tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt` now lists
-  `RevokedObjectError`, which stage 1 added to the error classes. It was the one red `lsp-test` case.
-- Inside a namespace, a case needs `use Revocable;`, as for every global name.
+Stages 1 to 6 are built and checked.
+- The chapter heading `# Revocable objects` is in `docs/examples/lang/classes/chapter.md`, after
+  `Parses`. Its `about.md` and `details.md` render into `docs/reference/lang/50-classes.md`.
+- Three examples, one `RevokedObjectError` example, two attacks and the bench with its `.scale` and
+  `.twin` siblings are written. `bun nv proofs --run --id` is green for both ids: 4 examples and 2
+  attacks, all ok. `bun nv scaling --growth` reports the bench constant (debug binary).
+- The bench pays 3 allocations per round and its twin 2. The extra one is the membership a fresh
+  revocable `Post` gets when it enters the map, as decision 12 says.
+- Both rules are `shipped`, and their `guardedBy` lists name the conformance cases, the codegen
+  test and the attacks.
+- Both proof ids owe only `reviewed`, and the lang id also `perf: stale`. Decision 26 moves both
+  to stage 8.
+- The attack covers a reflective call and write after `revoke()`, so that backlog item is closed.
 - The nightly CI failures of run 44510687786 (commit `adc7487822`) were all fixed by later commits
   (`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`, each a descendant of it). Nothing to do
   unless the next nightly is red again.
+- `bun nv rules --check` names one finding in `docs/goals/attribute-property-names.md:112`, a rule that
+  goal will create. It was there before this goal's stage 6.
 
 ### Next
 
-Stage 6, the proofs. Follow its `**Split:**` line.
-1. `bun nv proofs --id lang:classes/revocable-objects` and `--id RevokedObjectError` first.
-2. The reference section at `docs/reference/lang/50-classes.md` (re-find *Objects are handles* with
-   `bun nv peek --locate`), then `about.md` and `details.md`, then the three writing subagents.
-3. Carried: `Core\Debug::dump` of a heap shows a third property, `$revoked => int(0)`. No case pins a
-   heap dump. Stage 6's pages should not show one.
+Stage 7, the website. Its gate: `docs/goals/website-follows-changes.md` does not exist.
+1. `website/src/content/docs/syntax/classes/revocable-objects.mdx`, after *Stringable, Comparable
+   and Parses* in `website/astro.config.ts` (re-find the anchor with `grep`).
+2. The `error-types.mdx` row, the three `docs/reference/core/{ObjectMap,ObjectSet,Heap}.md`
+   introductions, the cookbook recipe with its snippet, and the `changes.json` entry.
+3. `bun nv site --stale`, then the `site-changes` check once.
+4. Carried: `Core\Debug::dump` of a heap shows a third property, `$revoked => int(0)`. No case pins a
+   heap dump. The pages should not show one.
 
 Expected red: none known.
 
 ### Backlog
 
-- A reflective call and a reflective write after `revoke()` have no case; both go through the erased
-  entries the read case covers. Stage 6's proofs may add one.
+- None.

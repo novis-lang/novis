@@ -1,6 +1,6 @@
 {
   "title": "A root class may implement Revocable, and any use of a revoked object but a few throws RevokedObjectError",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/collections-drop-revoked-objects",
     "classes/interface-default-methods",
@@ -13,7 +13,27 @@
     "tests/conformance/reject/revocable-only-a-class-can-implement-it.nvst",
     "tests/conformance/reject/revocable-revoke-and-isrevoked-cannot-be-declared-again.nvst",
     "tests/conformance/reject/revocable-an-object-map-of-a-subclass-is-not-a-map-of-its-root.nvst",
-    "tests/conformance/class/revocable-static-in-a-collection-type-is-bound-at-the-call.nvst"
+    "tests/conformance/class/revocable-static-in-a-collection-type-is-bound-at-the-call.nvst",
+    "tests/conformance/class/revocable-a-call-through-an-interface-throws.nvst",
+    "tests/conformance/class/revocable-a-method-call-throws.nvst",
+    "tests/conformance/class/revocable-a-property-read-throws.nvst",
+    "tests/conformance/class/revocable-a-property-write-throws.nvst",
+    "tests/conformance/class/revocable-a-reflective-read-throws.nvst",
+    "tests/conformance/class/revocable-a-second-revoke-does-nothing.nvst",
+    "tests/conformance/class/revocable-a-subclass-inherits-it-from-the-root.nvst",
+    "tests/conformance/class/revocable-a-type-test-does-not-throw.nvst",
+    "tests/conformance/class/revocable-a-use-through-mixed-throws.nvst",
+    "tests/conformance/class/revocable-an-array-a-property-and-a-variable-keep-it.nvst",
+    "tests/conformance/class/revocable-clone-throws.nvst",
+    "tests/conformance/class/revocable-equality-is-identity-and-does-not-throw.nvst",
+    "tests/conformance/class/revocable-isrevoked-does-not-throw.nvst",
+    "tests/conformance/class/revocable-json-encode-throws.nvst",
+    "tests/conformance/class/revocable-passing-and-storing-do-not-throw.nvst",
+    "tests/conformance/class/revocable-the-class-name-does-not-throw.nvst",
+    "tests/conformance/class/revocable-the-error-names-the-class-and-the-revoke-line.nvst",
+    "crates/nvs-codegen/tests/revocable.rs",
+    "tests/hostile/lang/classes/revocable-objects/01-keep-a-revoked-object-and-use-it.nvs",
+    "tests/hostile/types/RevokedObjectError/01-revoke-inside-a-catch-and-a-finally.nvs"
   ],
   "goal": "revocable-objects"
 }

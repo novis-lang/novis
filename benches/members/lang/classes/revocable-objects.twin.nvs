@@ -1,0 +1,37 @@
+<?nvs
+// Measures the same work as the `revocable-objects` bench with an array and `unset`, and no `Revocable`.
+// bench: iterations 2048
+
+final class Post
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['post-1', 'post-2', 'post-3'];
+        array<Post> $posts = [];
+        $posts[$keys[0]] = new Post(1);
+        $posts[$keys[1]] = new Post(1);
+        $posts[$keys[2]] = new Post(1);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $key = $keys[($total % 3) as int];
+            unset($posts[$key]);
+            $posts[$key] = new Post(1);
+            $total = $total + ((($posts[$key] ?? null)?->id ?? 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

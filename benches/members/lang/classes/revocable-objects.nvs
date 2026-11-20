@@ -1,0 +1,42 @@
+<?nvs
+// Revokes a post kept in an identity map and stores a new one, as a blog does when it deletes and reloads a row.
+// bench: iterations 2048
+// bench: allocations 3
+// bench: calls 4
+// bench: complexity constant
+
+final class Post implements Revocable
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['post-1', 'post-2', 'post-3'];
+        Core\ObjectMap<string, Post> $posts = new Core\ObjectMap<string, Post>();
+        $posts->set($keys[0], new Post(1));
+        $posts->set($keys[1], new Post(1));
+        $posts->set($keys[2], new Post(1));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // `$total` from the last round picks the key for this round.
+            // Each new `id` is 1, so the rounds use the three keys in turn.
+            string $key = $keys[($total % 3) as int];
+            $posts->get($key)?->revoke();
+            $posts->set($key, new Post(1));
+            $total = $total + (($posts->get($key)?->id ?? 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

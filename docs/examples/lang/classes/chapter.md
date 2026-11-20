@@ -1,8 +1,8 @@
 ---
 order: 50
 title: Classes, interfaces and objects
-summary: declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies
-keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+summary: declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`, `Revocable`; what an object is and what `clone` copies
+keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 ---
 
 # Declaring a class
@@ -20,6 +20,7 @@ keywords: class, constructor, __construct, new, public, protected, private, stat
 # `Stringable`
 # `Comparable`
 # `Parses`
+# Revocable objects
 # Objects are handles
 # Nullable objects and `?->`
 # `object`: the top of every class type

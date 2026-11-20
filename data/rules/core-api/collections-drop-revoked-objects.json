@@ -1,11 +1,21 @@
 {
   "title": "ObjectMap, ObjectSet and Heap drop a revoked object at the revoke, and their count stays exact",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "classes/revocable-objects",
     "core-api/no-methods-on-scalars-or-arrays",
     "programs/memory-priority"
   ],
-  "guardedBy": [],
+  "guardedBy": [
+    "tests/conformance/core/revocable-a-heap-count-is-exact-after-a-revoke.nvst",
+    "tests/conformance/core/revocable-a-heap-pop-and-peek-skip-a-revoked-entry.nvst",
+    "tests/conformance/core/revocable-a-loop-skips-an-entry-revoked-during-the-loop.nvst",
+    "tests/conformance/core/revocable-a-removed-or-replaced-entry-is-not-touched-by-a-revoke.nvst",
+    "tests/conformance/core/revocable-an-object-map-drops-an-entry-whose-key-is-revoked.nvst",
+    "tests/conformance/core/revocable-an-object-map-drops-an-entry-whose-value-is-revoked.nvst",
+    "tests/conformance/core/revocable-an-object-set-drops-a-revoked-member.nvst",
+    "tests/conformance/core/revocable-one-object-leaves-every-collection-that-holds-it.nvst",
+    "crates/nvs-codegen/tests/revocable.rs"
+  ],
   "goal": "revocable-objects"
 }

@@ -1,0 +1,46 @@
+<?nvs
+// Measures the revoke of a post in an identity map, at growing numbers of posts.
+// It shows that a larger map does not make one revoke slower.
+// bench: start 3125
+// bench: max 100000
+// bench: rounds 2048
+
+final class Post implements Revocable
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size, uint $rounds): uint
+    {
+        int $n = $size as int;
+        array<string> $keys = [];
+        Core\ObjectMap<string, Post> $posts = new Core\ObjectMap<string, Post>();
+        int $k = 0;
+        while ($k < $n) {
+            string $key = "post-{$k}";
+            $keys[] = $key;
+            $posts->set($key, new Post(1));
+            $k = $k + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every new `id` is 1, so `$total` grows by 1 and the rounds use the keys in order.
+            string $pick = $keys[($total % $size) as int];
+            $posts->get($pick)?->revoke();
+            $posts->set($pick, new Post(1));
+            $total = $total + (($posts->get($pick)?->id ?? 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(3125, 2048), "\n";

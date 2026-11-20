@@ -1,0 +1,39 @@
+<?nvs
+// Shows a set of online users that loses a user as soon as the user logs out.
+
+final class User implements Revocable
+{
+    public function constructor(public string $name)
+    {}
+
+    // `logOut` revokes the user. Every `Core\ObjectSet` that contains the user removes it.
+    public function logOut(): void
+    {
+        $this->revoke();
+    }
+}
+
+var $ada = new User('ada');
+var $bob = new User('bob');
+var $eve = new User('eve');
+
+var $online = new Core\ObjectSet<User>();
+$online->add($ada);
+$online->add($bob);
+$online->add($eve);
+
+// Three users are online. This prints 3.
+echo $online->count(), "\n";
+
+// `bob` logs out and leaves the set. This prints 2.
+$bob->logOut();
+echo $online->count(), "\n";
+
+// The loop prints `ada` and `eve`.
+foreach ($online as User $user) {
+    echo $user->name, "\n";
+}
+
+// `add` does nothing with a revoked user. This prints 2 again.
+$online->add($bob);
+echo $online->count(), "\n";

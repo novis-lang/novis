@@ -1,0 +1,92 @@
+<?nvs
+// Attack: a program revokes objects inside `catch` and `finally` blocks, and uses them while an error is handled.
+// Every use should throw `RevokedObjectError`, each one is caught, and the program runs to the end.
+// covers: RevokedObjectError, lang:classes/revocable-objects
+
+class Order implements Revocable
+{
+    public function constructor(public int $id) {}
+
+    public function total(): int
+    {
+        return $this->id * 10;
+    }
+}
+
+final class Shop
+{
+    public static function fail(): void
+    {
+        throw new RuntimeError('payment failed');
+    }
+}
+
+// 1. Revokes an order inside a `catch` block, then reads it after the block.
+var $first = new Order(1);
+try {
+    Shop::fail();
+} catch (RuntimeError $failed) {
+    $first->revoke();
+}
+try {
+    echo $first->id, "\n";
+} catch (RevokedObjectError $e) {
+    echo "1 revoked in catch: caught\n";
+}
+
+// 2. Revokes an order inside a `finally` block, then calls a method after it.
+var $second = new Order(2);
+try {
+    try {
+        Shop::fail();
+    } finally {
+        $second->revoke();
+    }
+} catch (RuntimeError $failed) {
+    echo "2 payment error: caught\n";
+}
+try {
+    echo $second->total(), "\n";
+} catch (RevokedObjectError $e) {
+    echo "2 revoked in finally: caught\n";
+}
+
+// 3. Revokes another order while a `RevokedObjectError` is handled, then uses it inside the same `catch`.
+var $third = new Order(3);
+try {
+    echo $first->id, "\n";
+} catch (RevokedObjectError $e) {
+    $first->revoke();
+    $third->revoke();
+    try {
+        echo $third->total(), "\n";
+    } catch (RevokedObjectError $inner) {
+        echo "3 inner use: caught\n";
+    }
+}
+
+// 4. Uses a revoked order in a `finally` block while the `try` block throws the same error.
+try {
+    try {
+        echo $third->id, "\n";
+    } finally {
+        echo $second->id, "\n";
+    }
+} catch (RevokedObjectError $e) {
+    echo "4 use in finally: caught\n";
+}
+
+// 5. Uses a revoked order inside a `catch` block, so the `catch` block throws again.
+try {
+    try {
+        Shop::fail();
+    } catch (RuntimeError $failed) {
+        echo $first->total(), "\n";
+    }
+} catch (RevokedObjectError $e) {
+    echo "5 use in catch: caught\n";
+}
+
+// 6. Checks that a new order still works after all of this.
+var $fresh = new Order(4);
+echo "6 new order total: ", $fresh->total(), "\n";

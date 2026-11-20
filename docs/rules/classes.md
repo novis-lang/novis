@@ -3,8 +3,6 @@
 
 # Classes
 
-*1 of 51 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="classes-no-free-functions-or-constants"></a>
 
 ## No `function` and no `const` may be declared outside a class body
@@ -1145,7 +1143,7 @@ call a member, not what an interface may hold. Interfaces still declare no state
 
 <a id="classes-revocable-objects"></a>
 
-## A root class may implement Revocable, and any use of a revoked object but a few throws RevokedObjectError  *(designed — owned by goal revocable-objects)*
+## A root class may implement Revocable, and any use of a revoked object but a few throws RevokedObjectError
 
 `rule:classes/revocable-objects`
 

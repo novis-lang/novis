@@ -1,0 +1,3 @@
+Hello
+This `Post` object was revoked in `docs/examples/types/RevokedObjectError/01-catching-a-use-after-delete.nvs` on line 11. A revoked object cannot be used.
+Hello

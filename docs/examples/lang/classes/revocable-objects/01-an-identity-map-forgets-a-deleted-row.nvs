@@ -1,0 +1,58 @@
+<?nvs
+// Shows an identity map that forgets a row as soon as the program deletes it.
+
+abstract class Storable implements Revocable
+{
+    public function constructor(public int $id)
+    {}
+
+    // `delete` revokes the object. Every `Core\ObjectMap` that contains it removes it.
+    public function delete(): void
+    {
+        $this->revoke();
+    }
+}
+
+final class Post extends Storable
+{
+    public function constructor(int $id, public string $title)
+    {
+        parent::constructor($id);
+    }
+}
+
+final class IdentityMap
+{
+    // A static property cannot start with a `new` object, so the map is created on first use.
+    private static ?Core\ObjectMap<string, Storable> $objectsByKey = null;
+
+    public static function all(): Core\ObjectMap<string, Storable>
+    {
+        return self::$objectsByKey ??= new Core\ObjectMap<string, Storable>();
+    }
+
+    public static function remember(Storable $object): void
+    {
+        self::all()->set("{$object::class}#{$object->id}", $object);
+    }
+}
+
+var $hello = new Post(1, 'Hello');
+var $news = new Post(2, 'News');
+var $later = new Post(3, 'Later');
+IdentityMap::remember($hello);
+IdentityMap::remember($news);
+IdentityMap::remember($later);
+
+// The map has three posts. This prints 3.
+echo IdentityMap::all()->count(), "\n";
+
+// After `delete`, the map no longer contains post 2. This prints 2.
+$news->delete();
+var $map = IdentityMap::all();
+echo $map->count(), "\n";
+
+// The loop shows only the posts that were not deleted.
+foreach ($map as string $key => Storable $object) {
+    echo $key, "\n";
+}

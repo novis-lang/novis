@@ -3,8 +3,6 @@
 
 # The Core API
 
-*1 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-api-core-means-always-present"></a>
 
 ## `Core` means always present, so nothing outside Tier 0 may register a name under it
@@ -851,7 +849,7 @@ ordered by priority through a comparator or `Comparable` ([`classes/comparable`]
 
 <a id="core-api-collections-drop-revoked-objects"></a>
 
-## ObjectMap, ObjectSet and Heap drop a revoked object at the revoke, and their count stays exact  *(designed — owned by goal revocable-objects)*
+## ObjectMap, ObjectSet and Heap drop a revoked object at the revoke, and their count stays exact
 
 `rule:core-api/collections-drop-revoked-objects`
 

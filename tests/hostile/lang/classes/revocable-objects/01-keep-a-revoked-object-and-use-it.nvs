@@ -1,0 +1,99 @@
+<?nvs
+// Attack: a program revokes a post but keeps it in an array, a static property and a function.
+// Then it tries every way to use the post. Each use should throw `RevokedObjectError`.
+// covers: lang:classes/revocable-objects, RevokedObjectError
+
+#[Core\Json\Derive]
+class Post implements Revocable
+{
+    public function constructor(public string $title) {}
+
+    public function headline(): string
+    {
+        return 'Post: ' . $this->title;
+    }
+}
+
+final class Blog
+{
+    public static ?Post $kept = null;
+}
+
+var $post = new Post('Hello');
+array<Post> $list = [$post];
+Blog::$kept = $post;
+var $read = fn(): string => $post->title;
+var $info = Core\Reflect::forObject($post);
+$post->revoke();
+
+// 1. Reads a property through the array.
+try {
+    echo $list[0]->title, "\n";
+} catch (RevokedObjectError $e) {
+    echo "1 read: caught\n";
+}
+
+// 2. Writes a property through the static property.
+try {
+    var $kept = Blog::$kept;
+    if ($kept != null) {
+        $kept->title = 'Changed';
+    }
+    echo "2 write: not caught\n";
+} catch (RevokedObjectError $e) {
+    echo "2 write: caught\n";
+}
+
+// 3. Calls a method through the array.
+try {
+    echo $list[0]->headline(), "\n";
+} catch (RevokedObjectError $e) {
+    echo "3 call: caught\n";
+}
+
+// 4. Reads a property inside the function that captured the post.
+try {
+    echo $read(), "\n";
+} catch (RevokedObjectError $e) {
+    echo "4 function: caught\n";
+}
+
+// 5. Makes a copy with `clone`.
+try {
+    var $copy = clone $list[0];
+    echo "5 clone: not caught\n";
+} catch (RevokedObjectError $e) {
+    echo "5 clone: caught\n";
+}
+
+// 6. Encodes the post as JSON.
+try {
+    echo Core\Json::encode($list[0]), "\n";
+} catch (RevokedObjectError $e) {
+    echo "6 json: caught\n";
+}
+
+// 7. Reads a property by its name with `Core\Reflect`.
+try {
+    echo $info->get($list[0], 'title'), "\n";
+} catch (RevokedObjectError $e) {
+    echo "7 reflect get: caught\n";
+}
+
+// 8. Writes a property by its name with `Core\Reflect`.
+try {
+    $info->set($list[0], 'title', 'Changed');
+    echo "8 reflect set: not caught\n";
+} catch (RevokedObjectError $e) {
+    echo "8 reflect set: caught\n";
+}
+
+// 9. Calls a method by its name with `Core\Reflect`.
+try {
+    echo $info->call($list[0], 'headline', []) as string, "\n";
+} catch (RevokedObjectError $e) {
+    echo "9 reflect call: caught\n";
+}
+
+// 10. Checks that the post is still in every place, and is still revoked.
+echo $list[0]->isRevoked() && Blog::$kept == $post ? "10 still revoked\n" : "10 changed\n";
