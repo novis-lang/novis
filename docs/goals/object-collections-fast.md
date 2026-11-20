@@ -237,6 +237,57 @@ entry in `website/src/data/changes.json`, which the release puts in its release 
 `bun nv site --stale` names, are reread and restamped. Every code comment and doc that describes the
 old copy or the old chain is rewritten as a whole.
 
+**What stage 1 found.** These are the facts stages 2 and 3 build on.
+
+- **An object never moves, and its identity is its address.** `NvsObj::alloc` places it once and
+  `dismantle` frees it in place. The one change of owner, `crate::graph`'s crossing, hands the same
+  pointer over and relinks it (`crates/nvs-runtime/src/object.rs:202` § *every object is on its
+  context's live list*). `collect` frees only cyclic garbage, never an object a live collection
+  holds. `crates/nvs-runtime/src/sweep.rs` deletes temporary directories and touches no object.
+  `hash_shallow` hashes an object in its `_` arm by the tag byte and `value.bits()`
+  (`crates/nvs-runtime/src/identity.rs:355`), and `shallow_identical`'s fall-through compares tag
+  and bits (`:244`). So `object` keying is built in stage 3.
+- **The static types whose every value is an object:** `Ty::Class` (a class, an interface and every
+  `Core` class, `Core\Html\Markup` included: it is a one-slot instance), `Ty::Object`, `Ty::Shape`
+  (every shape is a subtype of `object`, `rule:types/object-top`), `Ty::Callable` and
+  `Ty::CallableSig` (a callable is an object, `crates/nvs-runtime/src/value.rs:72`), and a
+  `Ty::Intersection` whose members are all of these. An enum implements no interface (`E0218`,
+  `rule:enums/no-class-machinery`), so no enum case reaches an interface type. Kept on the chain:
+  `Ty::Iterable` (an array is one), `Ty::ClassRef`, `Ty::ShapeOfCallables`, a type variable, and
+  every union, nullable included (`crates/nvs-types/src/ty.rs:37`).
+- **Typed code passes an `int` key only as `Tag::Int` and a `string` key only as `Tag::Str`.**
+  `assignable` (`crates/nvs-types/src/expr/assign.rs:262`) widens `int` and `uint` only to `float`,
+  an enum case only to its enum, and a single-value type only to its base. An enum case reaches
+  `int` only through `as int`. **But an erased view gets past it:** `as` and `is` check a
+  collection's class and never its type arguments. A probe built an `ObjectMap<string, int>`, put
+  `"5"` in it and called `set(5, …)` through `$any as Core\ObjectMap<int, int>`, and it printed a
+  count of `2`. The same held through `is`. The next decision says what a keyed collection does then.
+- **`tainted` and `secret` leave nothing at run time.** No tag and no string header field carries
+  either (`crates/nvs-runtime/src/value.rs`, `crates/nvs-runtime/src/string.rs`).
+- **A store key is shown by two readers.** `Core\Debug::dump` prints each slot's array with its
+  chain keys (`$keys => array(1) [ "700af0ec7d4a7e00#0" => string(1) "a" ]`, and `$entries` for a
+  set). An uncaught-error record walks a thrown object's properties with the same generic object
+  walk (`crates/nvs-runtime/src/record.rs:410` `properties_of`), so a collection held in a property
+  shows the same. `Core\Json::encode` throws (the class has no JSON encoding) and
+  `Core\Serialize::encode` throws (`cannot be written to bytes`), so neither shows a key. No case
+  under `tests/` pins a collection's dump. So stage 3's printer item holds: both printers show the
+  stored values only, with a case each, before `object` keying lands.
+
+**A key whose tag is not the keying's turns the collection into a `chain` one, once (stage 1's
+session's call).** Stage 1 found that `$any as Core\ObjectMap<int, int>` and `$any is
+Core\ObjectMap<int, int>` check the class and never its type arguments, so a map built
+`<string, int>` takes `set(5, …)` through that view, and today it then holds `"5"` and `5` as two
+keys. So the instance's keying is a fact about the instance, never a promise the static type keeps.
+Each `string`, `int` or `object` operation compares the key's tag with its keying first, one byte
+compare. On a mismatch it rebuilds its store under chain keys, writes `chain` into the `keying`
+slot, and goes on as a `chain` collection, so every result is today's. A read that misses on the
+tag (`get`, `has`) can answer from the tag alone without the rebuild, since no stored key has that
+tag. Why: it keeps § *No syntax and no observable behaviour changes* on a path the checker cannot
+see, and nothing is spent on the typed path but the compare. Declined: throwing on the mismatch,
+which changes what a program that works today does; and checking type arguments in `as` and `is`,
+which is a language change this goal does not make. Stage 2 adds a conformance case for the erased
+view, and stage 3 the same for an object keying.
+
 **Lanes.** One lane. Every stage edits `crates/nvs-stdlib/src/identity_store.rs`, `objmap.rs` or
 `objset.rs`, so the stages run in order. Stage 2 edits `crates/nvs-types/src/expr/calls.rs` and
 `crates/nvs-ir/src/lower/expr.rs`, so this goal does not run as a side goal beside a compiler goal
@@ -263,28 +314,39 @@ changes in this stage.
 `benches/members/README.md` as its brief and the file list of § *The bench*. The session confirms the
 facts, then runs the before measurement once the subagent ends.
 
-- [ ] No object moves: read `crates/nvs-runtime/src/object.rs:3423` `ObjHeader` and the paths that
+- [x] No object moves: read `crates/nvs-runtime/src/object.rs:3423` `ObjHeader` and the paths that
   free or reclaim an object (`crates/nvs-runtime/src/release.rs:1`, `crates/nvs-runtime/src/sweep.rs:1`),
   and confirm that an object's address is fixed from allocation to free. Confirm that
   `crates/nvs-runtime/src/identity.rs:326` `hash_shallow` hashes an object by `value.bits()` and that
   `value_identical` (`:150`) compares two objects by their pointer (`rule:expressions/equality-semantics`).
   Write the finding into § State. If either fails, § *An object key is its identity*'s fallback
   holds for stage 3.
-- [ ] Which static types hold only objects at run time: a class, an interface (an enum may implement
+  - [x] the allocation, the crossing and the collector read
+  - [x] the hash and the comparison read
+  - [x] the finding written into § State
+- [x] Which static types hold only objects at run time: a class, an interface (an enum may implement
   one, and an enum case is `Tag::EnumInt` or `Tag::EnumUint`, `crates/nvs-runtime/src/value.rs:88`),
   a callable type, `object` if the language has it. Write the list into § State; stage 3 keys only
   those by identity (`rule:enums/representation`).
-- [ ] An `int` parameter receives only `Tag::Int` and a `string` parameter only `Tag::Str`: an
+  - [x] `Ty`'s variants and the `object` and shape rules read
+  - [x] the list written into § State
+- [x] An `int` parameter receives only `Tag::Int` and a `string` parameter only `Tag::Str`: an
   int-backed enum case, a `uint`, a `float` and a `bytes` each need a conversion first. Confirm it
   from the checker's assignability and the case corpus, and write it into § State. If an enum case can
   reach an `int` parameter as itself, `int` keying is not built and `int` keys keep the chain
   (`rule:enums/representation`, `rule:types/arrays`).
-- [ ] No store key is ever shown. Read what `Core\Debug::dump`, `Core\Serialize`
+  - [x] the checker's `assignable` read
+  - [x] an erased view probed with `as` and `is`, and the decision recorded
+  - [x] the finding written into § State
+- [x] No store key is ever shown. Read what `Core\Debug::dump`, `Core\Serialize`
   (`crates/nvs-stdlib/src/instance.rs:345`, `Slots::NotReadBack`), `Core\Json` and an uncaught-error
   record (`crates/nvs-runtime/src/record.rs:434`) print for an `ObjectMap` and an `ObjectSet`, and
   write it into § State. If any of them prints a slot's array, stage 3 makes it print the stored
   values only and adds a case for it before `object` keying lands
   (`rule:classes/serialize-is-a-closed-format`, `rule:errors/record-transformations`).
+  - [x] dump, JSON and Serialize probed on a map and a set
+  - [x] the record's object walk read
+  - [x] the finding written into § State
 - [ ] The benches of § *The bench*, written by the subagent: rewrite
   `benches/members/lang/iteration/core-collections-are-iterable.nvs:1` and its `.scale.nvs`, and
   `benches/members/core/ObjectMap/get.nvs:1`, `has.nvs:1`, `set.nvs:1`; write the twins and scale
@@ -452,7 +514,10 @@ on `ExprInfo::New`; objects keep the chain if they can move; `Core\Heap` keeps i
 `tainted string` or `secret string` key keeps the chain; and the bench sizes (a small collection in
 each bench, 12,500 to 100,000 entries in each scale sibling).
 
-Sessions per stage: none yet.
+Sessions per stage: stage 1, one.
+
+Stage 1's four facts are confirmed and written under § *Standing decisions* § *What stage 1
+found*: `object` keying is built, and stage 3's printer item holds.
 
 ### Next
 
@@ -461,8 +526,8 @@ to a writing subagent while the session confirms the facts.
 
 ### Backlog
 
-- A `tainted string` or `secret string` key keeps the chain. If stage 1 finds that the qualifier has
-  no run-time state, the `string` keying could take it too.
+- A `tainted string` or `secret string` key keeps the chain. Stage 1 found that neither qualifier
+  has run-time state, so the `string` keying could take both, if a program shows the need.
 - A `uint` key keeps the chain. The `int` keying could take one whose value fits an `i64`, if a
   program shows the need.
 - From `cheaper-forms`, which took it from `strings-in-place` and `arrays-in-place`:
