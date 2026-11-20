@@ -533,6 +533,9 @@ in `site.test.ts`, `site-changes.test.ts` and `site-review.test.ts`) are green.
 moves a test and on a renamed configuration key, and the `fixed` entry clearing a move, are now in
 `rule:testing/every-change-reaches-the-website`, so this file holds no decision the rule does not.
 
+The first DONE was refused on `ci-check`: that fragment edit had left `docs/rules/testing.md`
+unrendered. It is rendered and committed, and `bun nv ci --check` is green.
+
 ### Next
 
 Nothing. The goal is reached, and the driver retires it. It joins the chain's `ungated:` list, and
