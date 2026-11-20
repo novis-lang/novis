@@ -93,8 +93,8 @@ try {
     echo '4: caught ', $e->message, "\n";
 }
 
-// 5. A set of two hundred thousand members walked at 256 levels of nesting at once.
-// The copies those loops hold fill the memory, so this step ends the program.
+// 5. Each of 256 nested loops adds a member to a set of 200,000 members.
+// Each loop then keeps its own copy of the set. The copies fill the memory and end the program.
 echo "step 5\n";
 class Deep
 {
@@ -105,6 +105,7 @@ class Deep
         }
         int $reached = 0;
         foreach ($members as int $member) {
+            $members->add(-$depth);
             $reached = Deep::walk($members, $depth - 1) + 1;
             break;
         }

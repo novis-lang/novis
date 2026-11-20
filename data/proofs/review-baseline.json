@@ -11170,7 +11170,6 @@
   "tests/hostile/lang/expressions/string-operators/01-text-joined-until-it-runs-out-of-memory-and-a-recursion-that-appends-at-every-level.nvs": "ab3d24d1d70a8acb",
   "tests/hostile/lang/expressions/string-operators/02-an-operand-that-frees-the-one-before-it.nvs": "295aa65aef093c2a",
   "tests/hostile/lang/expressions/the-pipeline-operator/01-nested-holes-and-unbounded-chains.nvs": "7e8b9dafaac16981",
-  "tests/hostile/lang/iteration/core-collections-are-iterable/01-collections-changed-while-they-are-walked.nvs": "45774f534c859103",
   "tests/hostile/lang/iteration/generators/01-driving-a-generator-off-its-path.nvs": "e5d2fa717d52096f",
   "tests/hostile/lang/iteration/generators/02-a-finally-that-keeps-its-own-generator.nvs": "6b4e7c20fb77e054",
   "tests/hostile/lang/iteration/materialising-a-sequence-core-arr-from/01-draining-a-sequence-that-fights-back.nvs": "3a28b69fa32f1791",

@@ -50,6 +50,7 @@
   "help:Revocable": "819935aa39f1a081",
   "help:RevokedObjectError": "f627d25b13dd8443",
   "tests/hostile/lang/classes/revocable-objects/01-keep-a-revoked-object-and-use-it.nvs": "14053c86fd4f1f38",
+  "tests/hostile/lang/iteration/core-collections-are-iterable/01-collections-changed-while-they-are-walked.nvs": "0059437a1cfdc669",
   "tests/hostile/lang/iteration/keys-and-values-from-a-map/01-a-map-changed-while-its-pairs-are-walked.nvs": "cc5967236a5d9e92",
   "tests/hostile/types/RevokedObjectError/01-revoke-inside-a-catch-and-a-finally.nvs": "f7fe78be3808d129",
   "website/snippets/guides/cookbook/forget-deleted-row/forget-deleted-row.nvs": "551dfc43b9b8ed2e",
