@@ -3450,7 +3450,7 @@
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "6c3d2ddd665398ad"
   },
   "docs/examples/lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/about.md": {
-    "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "77fe6f58cd82493d"
+    "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "97b6cebf88d06bec"
   },
   "docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md": {
     "lang:attributes/core-api-and-the-openapi-document": "26b39c1a94db62c2"
@@ -3474,7 +3474,7 @@
     "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "b99a40e719ee7dd2"
   },
   "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/about.md": {
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "fdabe61be7585005"
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "fe9a160f84e7b5a4"
   },
   "docs/examples/lang/attributes/the-names-the-compiler-acts-on/about.md": {
     "lang:attributes/the-names-the-compiler-acts-on": "d182ff9202674c63"
@@ -9383,8 +9383,8 @@
     "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "aefc12e9ea3146c5"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "fb92683a1a3158a9",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "1b93e3c7d6a4d5b4",
+    "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "ce4bd8cfb011f986",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "e719e21936894ae9",
     "lang:attributes/the-names-the-compiler-acts-on": "5b704cd29bf2a79d"
   },
   "syntax/basics/comments.mdx": {

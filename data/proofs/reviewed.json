@@ -56,7 +56,7 @@
   "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/03-a-permission-check-built-from-the-methods.nvs": "9094112041f07696",
   "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/04-get-with-two-matching-attributes.nvs": "8af6a506d16b8d35",
   "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/about.md": "9d93e6b112485fbe",
-  "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/details.md": "374d42f397f2cabe",
+  "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/details.md": "03f079c898cb5b63",
   "docs/examples/lang/attributes/the-names-the-compiler-acts-on/01-one-attribute-written-two-ways.nvs": "d142b9ae06639cd2",
   "docs/examples/lang/attributes/the-names-the-compiler-acts-on/02-an-attribute-of-your-own-with-the-same-name.nvs": "8a356be15a237aa0",
   "docs/examples/lang/attributes/the-names-the-compiler-acts-on/03-a-class-that-carries-both-kinds.nvs": "072cba46c262df2e",
@@ -121,5 +121,5 @@
   "website/src/content/docs/syntax/control-flow/iterators.mdx": "bb7f40ac15471ee7",
   "website/src/content/docs/syntax/errors/error-types.mdx": "c441d0499b122fc6",
   "website/src/content/docs/tools/test-runner/index.mdx": "17047d1c820b003e",
-  "website/src/data/changes.json": "7f12d7480e4a4bd3"
+  "website/src/data/changes.json": "7db84341cabda04a"
 }

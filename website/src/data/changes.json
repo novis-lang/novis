@@ -450,7 +450,7 @@
         "lang:attributes/reading-attributes-back-core-attributes-get-and-all",
         "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute"
       ],
-      "text": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`. Two attributes with the same fields are not mixed up any more. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration.",
+      "text": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration.",
       "breaking": true,
       "instead": "Name an attribute declaration between `<` and `>`, as in `Core\\Attributes::get<Table>(User::constructor)`. A shape such as `get<{name: string}>` does not compile."
     },

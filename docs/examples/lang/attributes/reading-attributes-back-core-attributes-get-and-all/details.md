@@ -23,9 +23,11 @@ not have is `E0798`. For the parameters of the constructor, use `Users::construc
 parameter's name. For a promoted constructor parameter, you get the attributes on the parameter and
 on the property together.
 
-A subclass does not get its parent's attributes. `B::constructor` finds nothing when only the
-parent class `A` has the attribute. `B::show` also finds nothing when `show` is declared in `A`,
-even if `B` does not override it. An interface method's attributes are read with `I::m`.
+A subclass does not get its parent's class attributes. `B::constructor` finds nothing when only the
+parent class `A` has the attribute. A method is read where it is declared. When `B` does not
+override `show`, `B::show` is the method `A` declares, and you get the attributes `A` wrote on it.
+When `B` overrides `show`, you get only the attributes on `B`'s method. An interface method's
+attributes are read with `I::m`.
 
 A class constant, an enum case or `Foo::class` in an attribute is read back as its value. The value
 comes from the place where the attribute is written. In a file with `namespace Shop;`, `K::class` is
