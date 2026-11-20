@@ -332,34 +332,31 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1 to 5 are done, and stage 6's `repsHold` item. `repsHold` (`bench-compare.ts:1899`) takes
-`repsSamplesOf(record)`: one sample per case, and one per timed row (`cores`, `waiting`) and budget.
-A row's record now keeps a timed row's passes under `passes`, per peer and budget, and a reused
-result keeps its earlier passes. For every choice of 3 of the passes it gives the worst move of
-requests/sec, peak memory and p99 against `REPS_BOUNDS`, and every case whose peers a subset
-reorders. `--reps-check PATH` prints `repsReport` and starts no container. Its 9 unit tests pass by
-name (`-t "repsHold|a timed row keeps"`).
+Stages 1 to 5 are done, and stage 6's `repsHold` item (`--reps-check PATH`, 9 unit tests green by
+name). The case half is recorded at `0a0aa84bbd` in `.agent-tmp/wt-record`: all 7 peers agree in all
+4 cases, 1446 s of steps, with a copy at `.agent-tmp/compare-cases.json`. `--reps-check` on its
+passes already fails every bound: requests/sec 13.09% (html-page, .NET, reps 1 2 5), peak memory
+18.17% (hello, Bun, reps 1 2 3), p99 63.03% (hello, Python, reps 1 2 3), and 5 subsets reorder
+hello or wait. So the default stays 5: `DEFAULT_REPS` in `bench-compare.ts`, with the reason in its
+doc comment.
 
-The recording runs in `.agent-tmp/wt-record`, a detached worktree at `0a0aa84bbd`, the commit with
-`repsHold`, so the rows keep their timed passes. A detached `nohup` run dies with its Bash call,
-because looper's shell wrapper ends the call's whole Job Object, and `looper launch` ends the same
-way. So each half runs as its own `run_in_background` call, under the 2 h limit. The case half
-writes `.agent-tmp/record-cases.log`. If a half is killed at 2 h, the next session splits it
-further, never with fewer reps.
+The rows half ran past the 2 h limit of a background call and was stopped at row 12 (`memory`),
+with nothing written. A detached `nohup` run dies with its Bash call too. So `d676c2f8fb` writes the
+record after each row. The rows run again in the worktree at `d676c2f8fb` with `--fresh`, logging
+to `.agent-tmp/record-rows.log`.
 
-All seven peers agreed in every case on smoke, and Python ran every row (stage 5). `--plan` with
-nothing reused: cases 140 stacks, rows 262 stacks, 4 builds. The four-peer baseline is 247 stacks.
-The nightly failures ran on `5d053fc6e6`, origin/main. Local `e5a100b18f` and `438e9c44af` fix
-them, and they clear when the next full gate pushes.
+Uncommitted: the three `the record` tests in `tools/nv/test/bench-compare.test.ts`. They read
+`benches/compare.json`, so they are red until the seven-peer record is copied back. The nightly
+failures ran on `5d053fc6e6`, origin/main, and local `e5a100b18f` and `438e9c44af` fix them.
 
 ### Next
 
-Stage 6's recording: once the case half in `.agent-tmp/wt-record` ends green, run `bun nv
-bench-compare --scenarios --fresh --record benches/compare.json` there in its own background call
-(`.agent-tmp/record-rows.log`), then copy `benches/compare.json` back. Then `--reps-check` on it, the
-reps default at `tools/nv/cmd/bench-compare.ts:3097` (`o.reps ?? (o.smoke ? 1 : 5)`), and README
-§ *One record*. Anchors: `planOf` `:1670`, `PEERS` `:150`. Tests: the three `the record` tests go
-in a new `describe("the record")` in `tools/nv/test/bench-compare.test.ts`. The `recorded`
-acceptance check stays red until they exist. The worktree is removed once the record is copied.
+If the rows run is stopped at 2 h, run `bun nv bench-compare --scenarios --record
+benches/compare.json` in the worktree with no `--fresh`, which keeps the finished rows. Never change
+the worktree's commit between the two, since the tool digest is in each row's key. Then copy the
+record to `benches/compare.json` and run `--reps-check` for the final worst figures. Write them and
+the record's date into README § *One record*, after § *Every figure is the median of interleaved
+runs*. Run the `the record` tests by name, commit, and remove the worktree and scratch copies. Then
+stage 7.
 
 ### Backlog
