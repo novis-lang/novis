@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-types/src/expr/calls.rs, docs/rules/expressions/equality-semantics.md, tests/conformance/core/object-collections-follow-an-object-but-copy-a-value.nvst]
   - id: 4
     title: a loop shares the collection's store and copies it only on a write
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cursor.rs, crates/nvs-stdlib/src/heap.rs, docs/rules/iteration/two-interfaces.md, docs/rules/classes/two-copy-depths.md, tests/conformance/core/object-collections-walk-a-snapshot-so-a-body-may-mutate-what-it-walks.nvst]
   - id: 5
     title: the figures after, the trade-offs and the pages
@@ -449,26 +449,26 @@ shape of `tests/conformance/core/object-collections-walk-a-snapshot-so-a-body-ma
 each covering a `string`, an `int`, an `object` and a `chain` collection of both classes. The
 session writes the code.
 
-- [ ] `crates/nvs-stdlib/src/cursor.rs:68` the slots and `:102` `over`: the cursor holds a
+- [x] `crates/nvs-stdlib/src/cursor.rs:68` the slots and `:102` `over`: the cursor holds a
   reference on the store and a slot that says what it yields (the value, the key as a `string`, the
   key as an `int`). `:144` `stepped` and `:158` `read` walk the shared store by slot, and `read`
   builds an `int` key through `NvsArray::slot_key` with no allocation (`rule:iteration/two-interfaces`).
-- [ ] `iterate` in `crates/nvs-stdlib/src/objmap.rs:523` and `crates/nvs-stdlib/src/objset.rs:502`:
+- [x] `iterate` in `crates/nvs-stdlib/src/objmap.rs:523` and `crates/nvs-stdlib/src/objset.rs:502`:
   one retain on the store the keying walks (the key store of a `chain` or `object` map, the one store
   otherwise), and no `listed`. `crates/nvs-stdlib/src/identity_store.rs:241` `listed` stays for
   `keys()` and `values()`. Confirm by reading that every mutator the classes call (`set`,
   `overwrite`, `unset`, `rename`, `set_index`) separates a shared array first
   (`crates/nvs-runtime/src/array.rs:2041`), and that `clear` (`identity_store.rs:230` `replace`) puts a
   fresh array in the slot and leaves the cursor's alone (`rule:classes/two-copy-depths`).
-- [ ] `crates/nvs-stdlib/src/heap.rs:759` `iterate` passes its sorted list to the new `over` with
+- [x] `crates/nvs-stdlib/src/heap.rs:759` `iterate` passes its sorted list to the new `over` with
   the value yield, and its cursor walks a list that nothing else holds (`rule:iteration/foreach-subjects`).
-- [ ] `crates/nvs-stdlib/src/cursor.rs:22`'s Decision is rewritten as a whole: the cursor shares the
+- [x] `crates/nvs-stdlib/src/cursor.rs:22`'s Decision is rewritten as a whole: the cursor shares the
   store, a write separates the collection once, the loop sees the collection as it was when it
   began, why `Core\Heap` keeps its copy, and what it spends now (one reference per loop, and one copy
   of the store when the body writes). `crates/nvs-stdlib/src/cursor.rs:1`'s first line,
   `crates/nvs-stdlib/src/objmap.rs:29` and `:78`, and `crates/nvs-stdlib/src/objset.rs:43` stop
   calling it a snapshot copy (`rule:iteration/two-interfaces`).
-- [ ] The tests: `crates/nvs-stdlib/src/cursor.rs:201` gains the two tests the `cursor-shares` check
+- [x] The tests: `crates/nvs-stdlib/src/cursor.rs:201` gains the two tests the `cursor-shares` check
   names. The first asserts that during a loop the cursor and the map hold the same array, and that
   after a `set` the map holds another one and the cursor still holds the first. Write them, and the
   two cases, then run the `cursor-shares` and `loops-share` checks once, `bun nv suite
@@ -509,48 +509,42 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### State
 
-Stages 1 to 3 are done, one session each. Keyings live in `identity_store::Keying`: `Chain`,
-`Str`, `Int` and `Object` (slot value `3`). The checker picks one in `calls.rs` `keying_of` and
-`is_always_an_object`, and `registry::KEYED_CONSTRUCTORS` names each symbol. A direct map has one
-store, and a chain or object map keeps two (`keeps_keys()`). An object's key is `IdentityKey`: `@`
-and the pointer's 16 hex digits. `ClassDesc::keyed_stores` (`Rekey`) re-keys a live graph copy
-(`graph.rs` `close_object`, `objmap::rekey`, `objset::rekey`). `record.rs` `store_node` shows those
-classes' array slots by their values. Checks green: `keying`, `direct-keys`, `object-keying` and
-`object-keys`. `nvs test` over `core/` and `iter/` gives 1930 passed and 0 failed.
+Stages 1 to 4 are done, one session each. `identity_store::Keying` is `Chain`, `Str`, `Int` or
+`Object`; `calls.rs` `keying_of` picks it. A direct map has one store, a chain or object map two
+(`keeps_keys()`). `ClassDesc::keyed_stores` holds `Rekey`, which re-keys a live graph copy, and
+`KeysPrivate`, which makes `record.rs` show a chain or object store by its values and a direct
+store with its keys. A map's or set's cursor clones its store handle (`cursor.rs` `yielding`,
+`Yield`), and `Core\Heap` keeps its sorted list.
 
-The sweep's nightly failures (run 44510687786) were fixed on disk before it: `4c82a2409a` and
-`9478fd2f66`. Push run 44623108825 has supply chain, proofs and browser green.
+Checks green: `keying`, `direct-keys`, `object-keying`, `object-keys`, `cursor-shares`,
+`loops-share` and `loop-start-constant`. `nvs test` over `core/` and `iter/`: 1932 passed, 0
+failed. The sweep's nightly failures (run 44510687786) were fixed before stage 4 (`4c82a2409a`,
+`9478fd2f66`), and no nightly has run since.
 
-Every `ObjectMap` and `ObjectSet` perf record is stale until stage 5. The before figures, as ns/op,
-statements, allocations and twin ratio: `ObjectMap::get` 1620, 3, 0, 0.85x; `has` 1867, 3, 0,
-1.27x; `set` 17536, 4, 0, 0.90x; `ObjectSet::has` 1680, 6, 0, 1.46x. The iteration bench fails
-`constant` (bytes slope 1.00) until stage 4, which also judges by `bun nv proofs --record-perf
---force --id 'lang:iteration/core-collections-are-iterable'`. `bun nv scaling --budget` is red on
-48 benches outside this goal.
+Figures as ns/op, statements, allocations, twin. Iteration bench after stage 4: 26558, 27, 7,
+1.23x, growth flat; before, it failed `constant` (bytes slope 1.00). Before figures of the stale
+records: `ObjectMap::get` 1620, 3, 0, 0.85x; `has` 1867, 3, 0, 1.27x; `set` 17536, 4, 0, 0.90x;
+`ObjectSet::has` 1680, 6, 0, 1.46x. `bun nv scaling --budget` is red on 48 benches outside this
+goal.
 
 ### Next
 
-Two things stage 3 left open come first. Each is one slice.
+Stage 5, one session. The release binary is built from `fe4baee1db` (`bun nv relink --build`); a
+doc edit to a member's source file makes its perf record stale again, so write the docs first and
+measure last.
 
-- **A dumped `string` or `int` map shows no keys.** `crates/nvs-runtime/src/record.rs` `store_node`
-  lists every store slot by its values. A direct map's keys exist only as the store's keys, so
-  `Core\Debug::render` shows `$keys => array(0) [ ]` and the values. Those keys are program values
-  and may be shown. Fix: `store_node` shows the array as it is unless the collection's `keying`
-  slot is chain (`0`) or object (`3`). Do it with a second hook beside `Rekey`, or by passing the
-  keying slot's value. Then update the `$keys`/`$values` lines of
-  `tests/conformance/core/object-collections-dump-shows-stored-values-only.nvst`, whose render
-  includes the `string` map.
-- **No test covers the re-key after a graph copy.** Add a Rust test beside
-  `crates/nvs-runtime/src/graph.rs` `a_core_value_crosses_a_live_boundary_into_any_program`, or in
-  `objmap.rs`/`objset.rs` tests. It copies an object-keyed map and set with `copy_graph_to` while
-  the originals stay alive, so the members are copied and not adopted. Assert that `has`/`get` find
-  the copied keys and not the originals.
+- `crates/nvs-stdlib/src/identity_store.rs:1`'s module doc, rewritten as a whole as the item says,
+  with the four trade-off lines. `crates/nvs-stdlib/src/objmap.rs:4`'s Decision says which
+  keyings keep two stores.
+- `docs/reference/core/ObjectMap.md:11` and `docs/reference/core/ObjectSet.md:9`: one end-user
+  sentence each about a loop that does not copy. Restamp them and every page `bun nv site --stale`
+  names (prefix a `/` argument with `MSYS_NO_PATHCONV=1`).
+- The highlight entry in `website/src/data/changes.json`, then the `pages` check.
+- Last, the figures: list every stale record with `bun nv proofs --gate --limit 0 --nvs
+  target/debug/nvs.exe`, grepped for `perf: stale`, rebuild with `bun nv relink --build`, record
+  them in one run, and write each figure beside its before figure in § State.
 
-Then stage 4, the shared loop: `crates/nvs-stdlib/src/cursor.rs` `over` takes one reference on the
-store and walks it by slot (`NvsArray::next_slot`). The cursor yields the value, the key as a
-`string`, or the key as an `int`. `objmap.rs`/`objset.rs` `iterate` pass the store and the yield
-mode. An object map's cursor walks the `keys` store's values. `Core\Heap` keeps its sorted copy.
-Expect red until stage 4: the perf proof of `lang:iteration/core-collections-are-iterable`.
+Expect red until stage 5: the stale `ObjectMap` and `ObjectSet` perf records, and `pages`.
 
 ### Backlog
 
