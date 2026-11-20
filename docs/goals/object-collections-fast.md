@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/cursor.rs, crates/nvs-stdlib/src/heap.rs, docs/rules/iteration/two-interfaces.md, docs/rules/classes/two-copy-depths.md, tests/conformance/core/object-collections-walk-a-snapshot-so-a-body-may-mutate-what-it-walks.nvst]
   - id: 5
     title: the figures after, the trade-offs and the pages
-    status: open
+    status: done
     context: [docs/reference/core/ObjectMap.md, docs/reference/core/ObjectSet.md, website/src/data/changes.json, docs/agent/prose.md, docs/rules/core-api/reference-card.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -481,24 +481,35 @@ session writes the code.
 **Does:** measures the result against stage 1's figures, writes the trade-offs into the module
 docs, and brings the pages up to date under the website rules of `website-follows-changes`.
 
-- [ ] The after figures: the same `bun nv scaling --iterations ...` and the four `bun nv proofs
+- [x] The after figures: the same `bun nv scaling --iterations ...` and the four `bun nv proofs
   --record-perf --id ...` runs as stage 1, plus `bun nv proofs --record-perf --id
   'lang:iteration/core-collections-are-iterable'`. Write each figure beside its before figure in
   § State (`rule:testing/member-perf-ledger`).
-- [ ] `crates/nvs-stdlib/src/identity_store.rs:1`'s module doc, rewritten as a whole: one Decision
+  - [x] every stale record listed and recorded on a release binary of the tree
+  - [x] the iteration bench recorded and its `--iterations --check` run
+  - [x] the figures written into § State
+- [x] `crates/nvs-stdlib/src/identity_store.rs:1`'s module doc, rewritten as a whole: one Decision
   section per keying with its key and what it spends, the Decision on how the keying reaches the
   constructor with its Declined alternative, and the four trade-off lines of § *What it spends, and
   the trade-offs*. `crates/nvs-stdlib/src/objmap.rs:4`'s Decision says which keyings keep two stores
   and which keep one (`rule:core-api/no-methods-on-scalars-or-arrays`).
-- [ ] `docs/reference/core/ObjectMap.md:11` and `docs/reference/core/ObjectSet.md:9`: reread, keep
+  - [x] the module doc rewritten with a keying table, a Decision per keying, the constructor
+    Decision and the trade-offs
+  - [x] `objmap.rs`'s Decision names the two layouts
+- [x] `docs/reference/core/ObjectMap.md:11` and `docs/reference/core/ObjectSet.md:9`: reread, keep
   the sentence about what a loop sees, and add one sentence each in end-user prose, such as "A
   `foreach` does not copy the map. If the loop changes the map, the loop still walks the entries the
   map had when it began." Restamp both, and every page `bun nv site --stale` names
   (`rule:core-api/reference-card`).
-- [ ] The highlight entry in `website/src/data/changes.json:1`, in the form the rule
+  - [x] one sentence on each page
+  - [x] the six stale about pages and help cards reread and stamped
+- [x] The highlight entry in `website/src/data/changes.json:1`, in the form the rule
   `website-follows-changes` wrote gives it (Grep `docs/rules/` for `changes.json`). In end-user prose, such as: "`Core\ObjectMap` and `Core\ObjectSet` are faster. A lookup
   with a `string`, `int` or object key is one hash lookup, as in an array. A `foreach` over either
   does not copy it." Run the `pages` check once (`rule:core-api/reference-card`).
+  - [x] the `faster` highlight entry, and `unseen` records for the three members whose tests moved
+  - [x] the newcomer review of the 15 texts, each finding fixed and stamped
+  - [x] `pages` green
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -509,42 +520,39 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### State
 
-Stages 1 to 4 are done, one session each. `identity_store::Keying` is `Chain`, `Str`, `Int` or
-`Object`; `calls.rs` `keying_of` picks it. A direct map has one store, a chain or object map two
-(`keeps_keys()`). `ClassDesc::keyed_stores` holds `Rekey`, which re-keys a live graph copy, and
-`KeysPrivate`, which makes `record.rs` show a chain or object store by its values and a direct
-store with its keys. A map's or set's cursor clones its store handle (`cursor.rs` `yielding`,
-`Yield`), and `Core\Heap` keeps its sorted list.
+Stages 1 to 5 are done, one session each. Every acceptance check is green, `pages` included. The
+module docs (`identity_store.rs:1`, `objmap.rs:4`, `cursor.rs`) hold every standing decision and
+the trade-offs. The sweep's nightly failures (run 44510687786) were fixed before stage 4
+(`4c82a2409a`, `9478fd2f66`), and no nightly has run since.
 
-Checks green: `keying`, `direct-keys`, `object-keying`, `object-keys`, `cursor-shares`,
-`loops-share` and `loop-start-constant`. `nvs test` over `core/` and `iter/`: 1932 passed, 0
-failed. The sweep's nightly failures (run 44510687786) were fixed before stage 4 (`4c82a2409a`,
-`9478fd2f66`), and no nightly has run since.
+Figures as ns/op, statements, allocations, twin. Counts decide; the clock was noisy.
 
-Figures as ns/op, statements, allocations, twin. Iteration bench after stage 4: 26558, 27, 7,
-1.23x, growth flat; before, it failed `constant` (bytes slope 1.00). Before figures of the stale
-records: `ObjectMap::get` 1620, 3, 0, 0.85x; `has` 1867, 3, 0, 1.27x; `set` 17536, 4, 0, 0.90x;
-`ObjectSet::has` 1680, 6, 0, 1.46x. `bun nv scaling --budget` is red on 48 benches outside this
-goal.
+| Record | Before | After |
+|---|---|---|
+| `ObjectMap::get` | 1620, 3, 0, 0.85x | 2371, 3, 0, 2.23x |
+| `ObjectMap::has` | 1867, 3, 0, 1.27x | 634, 3, 0, 2.33x |
+| `ObjectMap::set` | 17536, 4, 0, 0.90x | 1787, 4, 0, under the floor |
+| `ObjectSet::has` | 1680, 6, 0, 1.46x | 1949, 6, 0, 1.29x |
+| iteration bench | fails `constant` (bytes slope 1.00) | 23047, 27, 7 (672 bytes), 1.38x, flat |
+
+Every count is equal or lower and every growth flat. `bun nv scaling --budget` is red on 48
+benches outside this goal.
 
 ### Next
 
-Stage 5, one session. The release binary is built from `fe4baee1db` (`bun nv relink --build`); a
-doc edit to a member's source file makes its perf record stale again, so write the docs first and
-measure last.
+Stage 6, one session: the goal's close. The pack names whether it is the chain's full gate.
 
-- `crates/nvs-stdlib/src/identity_store.rs:1`'s module doc, rewritten as a whole as the item says,
-  with the four trade-off lines. `crates/nvs-stdlib/src/objmap.rs:4`'s Decision says which
-  keyings keep two stores.
-- `docs/reference/core/ObjectMap.md:11` and `docs/reference/core/ObjectSet.md:9`: one end-user
-  sentence each about a loop that does not copy. Restamp them and every page `bun nv site --stale`
-  names (prefix a `/` argument with `MSYS_NO_PATHCONV=1`).
-- The highlight entry in `website/src/data/changes.json`, then the `pages` check.
-- Last, the figures: list every stale record with `bun nv proofs --gate --limit 0 --nvs
-  target/debug/nvs.exe`, grepped for `perf: stale`, rebuild with `bun nv relink --build`, record
-  them in one run, and write each figure beside its before figure in § State.
+- At a close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, and this goal's own
+  checks by name (`looper check --name` for each acceptance id). At a full gate: `looper verify`
+  in the background, then `bun nv verify --doc` and `bun nv ci --check`.
+- `bun nv owners --closes object-collections-fast`, then move each decision only this file holds
+  into a module doc (the Standing decisions are already in `identity_store.rs` and `cursor.rs`)
+  before the file is deleted.
+- No newcomer review is owed: `site review` is green.
 
-Expect red until stage 5: the stale `ObjectMap` and `ObjectSet` perf records, and `pages`.
+Expect no red from this goal. `bun nv verify --doc` may flag the new intra-doc links in
+`identity_store.rs:1` (`crate::registry::constructor_symbol`, `Keying::admits`) if a private item
+is linked from a public doc.
 
 ### Backlog
 
