@@ -573,21 +573,13 @@ codes! {
     /// `Core\Router\Match::attribute` report it for the same mistake on one
     /// listed class or one routed method.
     pub const E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS: Code = Code::new("E0728").card(
-        "More than one attribute on this declaration matches the shape, so `get` cannot choose \
-         one. Make the shape more specific, or call `Core\\Attributes::all` to get every match.",
+        "This declaration has more than one attribute of the kind you asked for, so `get` cannot \
+         choose one. Call `Core\\Attributes::all` to get every one.",
     );
-    /// The `<T>` written at a `Core\Attributes::get`/`all` call site is not a
-    /// shape type — `rule:attributes/a-retrieval-matches-the-declaration-it-names`.
-    ///
-    /// Retrieval is *structural*: `T` is what an attribute's payload object is matched
-    /// against under `rule:types/shape-type`'s width subtyping, so a `T` that is not a
-    /// shape names nothing an attribute payload could ever satisfy.
-    /// `Core\Program::implementingWith` and `Core\Router\Match::attribute`
-    /// report it for their shape argument too.
-    pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729").card(
-        "The type argument of an attribute lookup must be a shape. Write an inline shape `{...}`, \
-         or the name of a `type` alias for one.",
-    );
+    // `E0729` is retired and is never reused: it refused a retrieval's type
+    // argument that was not a shape. A retrieval now names an `attribute`
+    // declaration, and anything else there is `E1008`.
+
     /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
     /// declaration this unit holds — `rule:attributes/a-retrieval-matches-the-declaration-it-names`.
     ///

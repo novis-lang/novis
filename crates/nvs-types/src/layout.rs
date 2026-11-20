@@ -294,15 +294,17 @@ pub struct ClassAttribute {
     /// The parameter of [`Self::member`] the attribute is written on, or the
     /// empty string for every other attach site.
     pub parameter: String,
-    /// The `type` alias the named form names, or the **empty string** for the
-    /// bare form.
-    ///
-    /// Carried as what was written rather than as a resolved name: the name
-    /// checks the literal where it is *written* and is never part of how a
-    /// caller asks for it (`rule:attributes/a-retrieval-matches-the-declaration-it-names`), so a
-    /// description that resolved it would be reporting the checker's answer to
-    /// a question the reader did not ask.
+    /// The name as it is written, `Index` or `Storable::Index`. `nvs-ir`
+    /// replaces it with the full name of the declaration it resolves to
+    /// ([`Self::name_span`]), which is what
+    /// `Core\Reflect\AttributeInfo::name` returns
+    /// (`rule:attributes/a-retrieval-matches-the-declaration-it-names`). This
+    /// pass runs without the checker's answers, so it cannot resolve the name
+    /// itself.
     pub name: String,
+    /// The span of the name, the key the checker records the declaration it
+    /// resolves to under (`nvs_types::ExprTypeTable::attribute_name_at`).
+    pub name_span: Option<nvs_diagnostics::Span>,
     /// The payload's fields in source order, each folded by
     /// [`crate::consts::fold_expr`].
     ///
@@ -877,6 +879,7 @@ fn push_attributes(
                 name: attr
                     .written_name()
                     .map_or_else(String::new, |span| span_text(src, span).to_owned()),
+                name_span: attr.name.as_ref().map(|name| name.span),
                 fields: attr
                     .fields
                     .iter()

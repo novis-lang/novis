@@ -1,8 +1,8 @@
 //! `rule:routing/a-match-reads-an-attribute-as-data`: `Core\Router\Match::attribute<T>()`,
 //! folded while checking.
 //!
-//! The question a call asks — *which payload on the matched route's method
-//! satisfies `T`* — has an answer for every routed method before the program
+//! The question a call asks — *which payload on the matched route's method is
+//! written under the declaration `T`* — has an answer for every routed method before the program
 //! starts, because a method's attributes are fixed by its source. Which method
 //! matched is the one thing the call site cannot know. So this pass folds `T`
 //! once per method carrying a `#[Route]`, exactly as
@@ -20,62 +20,52 @@
 //! than in [`crate::routes::RouteTable`].
 //!
 //! The refusals are [`crate::program::expand_with`]'s, for the same mistakes:
-//! `T` that is not a shape is `E0729`, and two matching payloads on one routed
-//! method are `E0728` naming it. A method with no match has no entry, and the
-//! helper returns `null` for it.
+//! `T` that is not an attribute declaration is `E1008`, reported where the type
+//! argument is lowered ([`crate::attributes::lower_retrieval_arg`]), and two
+//! payloads of `T` on one routed method are `E0728` naming it. A method with no
+//! payload of `T` has no entry, and the helper returns `null` for it.
 //!
 //! [`ResolvedCall::route_attributes`]: crate::expr_table::ResolvedCall::route_attributes
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
+use nvs_syntax::ast::Type;
 
-use crate::Env;
 use crate::defaults::ConstArg;
 use crate::retrieval::{fold_payload, matching, routed_methods};
 use crate::ty::{Ty, TypeId};
+use crate::{Ctx, Env};
 
 /// The payloads a `Core\Router\Match::attribute<T>` call folds to, keyed by
 /// each routed method's `Class::method` label and sorted by it, or `None` for
 /// a member off `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS` and for a call
 /// this reports a refusal for.
 ///
-/// `written` is the call's type arguments, already lowered. A missing one is
-/// `check_written_type_args`' refusal, so this adds none.
+/// `written` is the call's type arguments, already lowered, and `type_args`
+/// what the call wrote. A missing or wrong one is reported where it is
+/// lowered, so this adds nothing.
 pub(crate) fn fold(
     owner: &QName,
     member: &str,
-    written: &[TypeId],
+    (written, type_args): (&[TypeId], &[Type]),
     call: Span,
+    ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<Vec<(String, ConstArg)>> {
     if !nvs_stdlib::registry::takes_route_attributes(&owner.to_string(), member) {
         return None;
     }
     let want = *written.first()?;
-    // A type argument that did not resolve has reported already
+    // `E1008` or the name's own error has been reported already
     // (`rule:types/one-mistake-reports-once`).
-    if env.interner.is_error(want) {
+    if env.interner.is_error(want) || !matches!(env.interner.get(want), Ty::Shape(_)) {
         return None;
     }
-    if !matches!(env.interner.get(want), Ty::Shape(_)) {
-        let found = env.interner.describe(want);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE,
-                format!("`{owner}::{member}` returns an attribute by its shape, and `{found}` is not a shape"),
-            )
-            .with_primary(call, format!("`{found}` written here"))
-            .with_help(
-                "write a shape such as `{ seconds: int }`, or a `type` name for one. An attribute \
-                 matches when it has every field of the shape",
-            ),
-        );
-        return None;
-    }
+    let declared = crate::attributes::declaration_of(type_args.first()?, ctx, env)?;
     let mut entries = Vec::new();
     let mut refused = false;
     for (class, method, sites) in routed_methods(env) {
-        let matched = matching(&sites, want, env);
+        let matched = matching(&sites, &declared.name, env);
         match matched.len() {
             0 => {}
             1 => match fold_payload(matched[0], env) {
@@ -87,12 +77,12 @@ pub(crate) fn fold(
                 env.diags.report(
                     Diagnostic::error(
                         code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
-                        format!("`{class}::{method}` has {count} attributes that match this shape"),
+                        format!("`{class}::{method}` has {count} `{}` attributes", declared.name),
                     )
                     .with_primary(call, "`attribute` returns at most one")
                     .with_help(format!(
-                        "add a field to the shape so that only one attribute of \
-                         `{class}::{method}` has all of its fields"
+                        "read `{class}::{method}` with `Core\\Attributes::all<T>(…)`, which \
+                         returns every one"
                     )),
                 );
                 refused = true;
@@ -191,22 +181,36 @@ mod tests {
         );
     }
 
-    /// A type argument that is not a shape is `E0729`, and the call records
-    /// nothing.
+    /// A type argument that is not an attribute declaration is `E1008`, and
+    /// the call records nothing. An inline shape is not one either.
     #[test]
-    fn attribute_of_a_type_that_is_not_a_shape_is_e0729() {
-        let (folded, diags) = check(&program("int", "#[Timeout(seconds: 60)]"));
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE)),
-            "{diags:?}"
-        );
-        assert!(folded.is_none());
+    fn attribute_of_a_type_that_is_not_a_declaration_is_e1008() {
+        for written in ["int", "{ seconds: int }"] {
+            let (folded, diags) = check(&program(written, "#[Timeout(seconds: 60)]"));
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_ATTRIBUTE_TYPE_ARG_NOT_DECLARED)),
+                "{written}: {diags:?}"
+            );
+            assert!(folded.is_none(), "{written}");
+        }
     }
 
-    /// Two payloads of the shape on one routed method are `E0728`, naming the
-    /// method.
+    /// A payload of another declaration with the same fields is not a match.
+    #[test]
+    fn attribute_finds_only_payloads_of_the_declaration_it_names() {
+        let src = program("Timeout", "#[Delay(seconds: 60)]").replace(
+            "class Shop",
+            "attribute Delay on method { seconds: int }\nclass Shop",
+        );
+        let (folded, diags) = check(&src);
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+        assert_eq!(folded.expect("the call recorded its payloads"), []);
+    }
+
+    /// Two payloads of the declaration on one routed method are `E0728`,
+    /// naming the method.
     #[test]
     fn two_matching_payloads_on_one_routed_method_are_e0728() {
         let (folded, diags) = check(&program(

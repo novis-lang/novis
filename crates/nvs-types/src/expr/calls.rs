@@ -275,8 +275,14 @@ pub(crate) fn infer_method_call(
             call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
             // The same folded payloads a call is handed — see
             // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`.
-            call.route_attributes =
-                crate::match_attribute::fold(qname, name, &written, expr.span, env);
+            call.route_attributes = crate::match_attribute::fold(
+                qname,
+                name,
+                (&written, type_args),
+                expr.span,
+                ctx,
+                env,
+            );
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
             let held = method_ref_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
@@ -316,7 +322,14 @@ pub(crate) fn infer_method_call(
         // `Core\Router\Match::attribute<T>` returns the payload the checker
         // folded for the matched route's method — see
         // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`.
-        call.route_attributes = crate::match_attribute::fold(qname, name, &written, expr.span, env);
+        call.route_attributes = crate::match_attribute::fold(
+            qname,
+            name,
+            (&written, type_args),
+            expr.span,
+            ctx,
+            env,
+        );
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // The return type already has `static` bound to the receiver's class, above.
@@ -462,8 +475,14 @@ fn infer_union_method_call(
             target.record_on(&mut resolved, list);
         }
         resolved.written_enum = written_enum_of(&owner, name, &written, type_args, expr.span, env);
-        resolved.route_attributes =
-            crate::match_attribute::fold(&owner, name, &written, expr.span, env);
+        resolved.route_attributes = crate::match_attribute::fold(
+            &owner,
+            name,
+            (&written, type_args),
+            expr.span,
+            ctx,
+            env,
+        );
         let info = match method_ref {
             true => ExprInfo::CallableRef(resolved),
             false => ExprInfo::Call(resolved),
@@ -926,7 +945,7 @@ pub(crate) fn infer_static_call(
         && crate::retrieval::is_retrieval(qname, name)
     {
         let name = name.clone();
-        crate::retrieval::fold_retrieval(expr, &name, &written, args, ctx, env);
+        crate::retrieval::fold_retrieval(expr, &name, &written, type_args, args, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
     // `rule:programs/relative-paths-resolve-from-their-file`'s `thisFile` and
@@ -958,7 +977,15 @@ pub(crate) fn infer_static_call(
         // no registry row can spell `array<{ instance: I, attribute: ?T }>`
         // as a lowered type — so it answers the type itself.
         if crate::program::is_joined(name) {
-            return crate::program::expand_with(expr, &written, args, live, scope, ctx, env);
+            return crate::program::expand_with(
+                expr,
+                (&written, type_args),
+                args,
+                live,
+                scope,
+                ctx,
+                env,
+            );
         }
         // `constructors`' type is built from its written arguments too, for
         // the same reason.

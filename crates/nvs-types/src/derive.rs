@@ -24,10 +24,8 @@
 //! only [`crate::check`]'s walk holds, so this pass runs from that walk rather
 //! than as a second traversal of its own. [`crate::Ctx`] carries both.
 //!
-//! [`ATTRIBUTES`] is that closed list. Nothing else is ever matched by name;
-//! `Core\Attributes::get<T>`/`::all<T>` retrieval stays structural
-//! (`rule:attributes/a-retrieval-matches-the-declaration-it-names`), and a userland `type Derive = {};` resolves to a different `QName` and
-//! generates nothing.
+//! [`ATTRIBUTES`] is that closed list. A program's own `attribute Derive on
+//! class {}` resolves to a different `QName` and generates nothing.
 //!
 //! # What the pass produces
 //!

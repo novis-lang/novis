@@ -84,13 +84,16 @@ codes! {
          interface, and one in the namespace or in a `use` import. Write the full name of the \
          one you mean, such as `Storable::Index` or `Shop\\Index`.",
     );
-    /// A `Core\Attributes::get<T>` or `::all<T>` whose `T` is not an
-    /// `attribute` declaration
+    /// A `Core\Attributes::get<T>` or `::all<T>`, a
+    /// `Core\Router\Match::attribute<T>` or a
+    /// `Core\Program::implementingWith<I, T>` whose `T` is not an `attribute`
+    /// declaration
     /// (`rule:attributes/a-retrieval-matches-the-declaration-it-names`). It
-    /// replaces `E0729` for a retrieval.
+    /// replaces the retired `E0729`.
     pub const E_ATTRIBUTE_TYPE_ARG_NOT_DECLARED: Code = Code::new("E1008").card(
-        "The type argument of `Core\\Attributes::get` or `all` must be the name of an attribute \
-         declaration. A shape, a class or a `type` alias is not allowed there. Write the name \
-         of the attribute you want to find.",
+        "The type argument that names an attribute must be the name of an attribute \
+         declaration. This is the `T` of `Core\\Attributes::get`, `Core\\Attributes::all`, \
+         `Core\\Router\\Match::attribute` and `Core\\Program::implementingWith`. A shape, a class \
+         or a `type` alias is not allowed there. Write the name of the attribute you want to find.",
     );
 }

@@ -474,8 +474,58 @@ pub(crate) fn lookup<'e>(
     Lookup::Reported
 }
 
-/// One type argument of a `Core\Attributes` retrieval, which names an
-/// attribute declaration. The answer is the declaration's fields as a shape
+/// Which written type argument of `owner::member` names an attribute
+/// declaration: the `T` of `Core\Attributes::get` and `::all`, of
+/// `Core\Router\Match::attribute` and of `Core\Program::implementingWith`.
+/// [`lower_retrieval_arg`] lowers that argument.
+pub(crate) fn declaration_arg(owner: &nvs_hir::QName, member: &str) -> Option<usize> {
+    if crate::retrieval::is_retrieval(owner, member)
+        || nvs_stdlib::registry::takes_route_attributes(&owner.to_string(), member)
+    {
+        return Some(0);
+    }
+    (crate::program::is_enumeration(owner, member) && crate::program::is_joined(member)).then_some(1)
+}
+
+/// The attribute declaration a type argument names, or `None` where it names
+/// none. It reports nothing: [`lower_retrieval_arg`] has reported every
+/// mistake in the same argument already.
+pub(crate) fn declaration_of<'e>(
+    ty: &Type,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'e>,
+) -> Option<&'e nvs_hir::AttributeDef> {
+    let (name, member) = match &ty.kind {
+        TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => (name, None),
+        TypeKind::Atom(TypeAtom::Member(owner, member)) => (owner, Some(*member)),
+        _ => return None,
+    };
+    let before = env.diags.len();
+    let found = lookup(name, member, ctx, env);
+    env.diags.truncate(before);
+    match found {
+        Lookup::Declared(def) => Some(def),
+        _ => None,
+    }
+}
+
+/// The declaration an attribute written at a site resolves to, read in the
+/// file and scope it was written in. It reports nothing: the site's own check
+/// has reported every mistake in the name already.
+pub(crate) fn declaration_at(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::QName> {
+    let name = attr.name.as_ref()?;
+    let before = env.diags.len();
+    let found = match lookup(name, attr.member, ctx, env) {
+        Lookup::Declared(def) => Some(def.name.clone()),
+        Lookup::Recognized(_, qname) => Some(qname),
+        Lookup::NotAnAttribute(_) | Lookup::Reported => None,
+    };
+    env.diags.truncate(before);
+    found
+}
+
+/// One type argument that names an attribute declaration
+/// ([`declaration_arg`]). The answer is the declaration's fields as a shape
 /// type. Anything else is `E1008`, and the answer is the error type.
 pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     let found = match &ty.kind {
@@ -494,6 +544,9 @@ pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -
     };
     let (written, what) = match found {
         Some(Lookup::Declared(def)) => {
+            if let TypeKind::Atom(TypeAtom::Name(name, _) | TypeAtom::Member(name, _)) = &ty.kind {
+                env.exprs.record_attribute_name(name.span, def.name.clone());
+            }
             let shape = def.shape.clone();
             return crate::lower::lower_type(&shape, ctx, env);
         }

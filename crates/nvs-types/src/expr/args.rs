@@ -2136,11 +2136,12 @@ pub(crate) fn check_written_type_args(
 ) -> (Option<MethodSig>, Vec<TypeId>) {
     // A retrieval's type argument names an attribute declaration, which is
     // not a type, so it is resolved as one and lowered to its fields.
-    let retrieval = label.is_some_and(|(owner, name)| crate::retrieval::is_retrieval(owner, name));
+    let declared = label.and_then(|(owner, name)| crate::attributes::declaration_arg(owner, name));
     let written: Vec<TypeId> = type_args
         .iter()
-        .map(|ty| {
-            if retrieval {
+        .enumerate()
+        .map(|(index, ty)| {
+            if declared == Some(index) {
                 crate::attributes::lower_retrieval_arg(ty, ctx, env)
             } else {
                 lower_type(ty, ctx, env)

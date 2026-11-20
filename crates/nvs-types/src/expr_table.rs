@@ -2261,6 +2261,19 @@ impl ExprTypeTable {
         self.attribute_shapes.get(&span).copied()
     }
 
+    /// The declaration the attribute name written at `span` resolved to.
+    ///
+    /// A search of [`Self::attribute_names`], made once per attribute of a
+    /// described class while lowering. It costs one comparison per resolved
+    /// name, while compiling only.
+    #[must_use]
+    pub fn attribute_name_at(&self, span: Span) -> Option<&QName> {
+        self.attribute_names
+            .iter()
+            .find(|(at, _)| *at == span)
+            .map(|(_, name)| name)
+    }
+
     /// Every attribute name the checker resolved, with the span it was written
     /// at, in the order the walk reached them.
     pub fn attribute_names(&self) -> impl Iterator<Item = (Span, &QName)> {

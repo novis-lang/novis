@@ -37,7 +37,7 @@
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, SymbolKind};
-use nvs_syntax::ast::{CallArgs, Expr, ExprKind};
+use nvs_syntax::ast::{CallArgs, Expr, ExprKind, Type};
 
 use crate::defaults::ConstArg;
 use crate::expr::args::check_args_typed;
@@ -130,7 +130,7 @@ pub(crate) fn expand(
 /// member. `mixed` where the call was refused.
 pub(crate) fn expand_with(
     call: &Expr,
-    written: &[TypeId],
+    (written, type_args): (&[TypeId], &[Type]),
     args: &CallArgs,
     live: &mut Live,
     scope: &LocalScope,
@@ -146,21 +146,18 @@ pub(crate) fn expand_with(
     let Some(selector) = selector_of(call, WITH, want_selector, env) else {
         return env.interner.mixed();
     };
-    if !matches!(env.interner.get(want_shape), Ty::Shape(_)) {
-        let found = env.interner.describe(want_shape);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE,
-                format!("`Core\\Program::{WITH}` retrieves a shape, and `{found}` is not one"),
-            )
-            .with_primary(call.span, format!("`{found}` written here"))
-            .with_help(
-                "an attribute matches when its value has every field of the shape `T`. Write \
-                 the second type argument as a shape `{...}`, or as a `type` alias of a shape",
-            ),
-        );
+    // `E1008` or the name's own error has been reported where `T` was lowered
+    // ([`crate::attributes::lower_retrieval_arg`]).
+    if env.interner.is_error(want_shape) || !matches!(env.interner.get(want_shape), Ty::Shape(_))
+    {
         return env.interner.mixed();
     }
+    let Some(declared) = type_args
+        .get(1)
+        .and_then(|ty| crate::attributes::declaration_of(ty, ctx, env))
+    else {
+        return env.interner.mixed();
+    };
     let member_arg = match args {
         CallArgs::List(list) => list.first().map(|arg| &arg.value),
         _ => None,
@@ -215,7 +212,7 @@ pub(crate) fn expand_with(
         } else {
             sites_for(env, class, &method, property)
         };
-        let matched = matching(&sites, want_shape, env);
+        let matched = matching(&sites, &declared.name, env);
         let value = match matched.len() {
             0 => ConstArg::Null,
             1 => match fold_payload(matched[0], env) {
@@ -226,12 +223,11 @@ pub(crate) fn expand_with(
                 env.diags.report(
                     Diagnostic::error(
                         code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
-                        format!("`{class}::{method}` has {count} attribute payloads that match this shape"),
+                        format!("`{class}::{method}` has {count} `{}` attributes", declared.name),
                     )
                     .with_primary(call.span, "each row's `attribute` holds at most one")
                     .with_help(format!(
-                        "change the shape so that only one attribute of `{class}` matches it. Or \
-                         read that class with `Core\\Attributes::all<T>(…)`"
+                        "read `{class}` with `Core\\Attributes::all<T>(…)`, which returns every one"
                     )),
                 );
                 return env.interner.mixed();

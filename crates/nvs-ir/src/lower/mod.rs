@@ -1329,8 +1329,21 @@ fn lower_program_as(
                 constants: layout.constants.clone(),
                 // The attach sites beside them, own-only and already folded,
                 // for the same reason: the front end is the only layer that
-                // still has the `#[...]` payload to fold.
-                attributes: layout.attributes.clone(),
+                // still has the `#[...]` payload to fold. Each name becomes the
+                // full name of the declaration the checker resolved it to.
+                attributes: layout
+                    .attributes
+                    .iter()
+                    .map(|attribute| {
+                        let mut attribute = attribute.clone();
+                        if let Some(name) =
+                            attribute.name_span.and_then(|span| exprs.attribute_name_at(span))
+                        {
+                            attribute.name = name.to_string();
+                        }
+                        attribute
+                    })
+                    .collect(),
                 conforms: layout.conforms.clone(),
                 // A test method left out of the lowering is left out of the table too, so a
                 // dynamic call names no function the unit does not have.

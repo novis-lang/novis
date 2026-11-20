@@ -5,28 +5,25 @@
 //! pass at all. A declaration's attached attributes are fixed by its source, and
 //! [`crate::attributes`] has already proved every payload value is a
 //! compile-time constant (`rule:attributes/payload-is-a-compile-time-constant`), so the whole
-//! question — *which attribute payload objects structurally satisfy `T`* — has an
+//! question — *which attribute payloads are written under the declaration `T`* — has an
 //! answer before the program starts. The call is therefore **replaced** with
 //! that answer: a compiled-in `null` where nothing matches, the matched
 //! literal itself where exactly one does, and a compile-time diagnostic
-//! (`E0728`) where more than one does, naming `::all<T>` as the fix. There is
+//! (`E0728`) where `get` finds more than one, naming `::all<T>` as the fix. There is
 //! no runtime lookup, no reflection table in the compiled unit, and
 //! `nvs_stdlib::attributes`' two symbols name a body that aborts if it is ever
 //! reached.
 //!
-//! # Structural, not nominal
+//! # By declaration, never by shape
 //!
-//! `rule:attributes/a-retrieval-matches-the-declaration-it-names` makes retrieval match on *shape*: an
-//! attribute's payload object is an answer to `get<T>` exactly when it
-//! satisfies `T` under
-//! [`crate::expr::built_fits`]: `rule:types/shape-type`'s width subtyping, with field
-//! types compared covariantly because the payload is folded into a new value at
-//! each retrieval. That holds regardless of whether it was
-//! written bare or under a name, and regardless of what that name was. An
-//! attribute's optional name exists to check the literal where it is
-//! *written* ([`crate::attributes`]), and is never part of how a caller asks
-//! for it. That is what keeps attributes from growing a second namespace of
-//! kind names for unrelated frameworks to collide in.
+//! `T` names an `attribute` declaration, resolved by
+//! [`crate::attributes::lower_retrieval_arg`], and anything else there is
+//! `E1008`. A payload is an answer exactly when the name written at its site
+//! resolves to that same declaration, read in the file and scope the site was
+//! written in ([`matching`]). Its fields play no part, so two declarations with
+//! the same fields never answer each other's retrievals. The fields were
+//! checked where the payload is written, so a payload that answers has the
+//! shape `T`'s fields describe.
 //!
 //! # Which declaration `$target` names
 //!
@@ -81,12 +78,12 @@ use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
     AnonObjectField, Attribute, AttributeGroup, CallArgs, ClassDecl, ClassMember, ClassMemberKind,
-    Expr, ExprKind, MemberName, StmtKind,
+    Expr, ExprKind, MemberName, StmtKind, Type,
 };
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
-use crate::expr::{built_fits, check_anon_object, check_expr, field_fits, resolve_class_expr};
+use crate::expr::{check_expr, field_fits, resolve_class_expr};
 use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::signatures::{resolve_method_ref, resolve_property};
@@ -307,6 +304,7 @@ pub(crate) fn fold_retrieval(
     call: &Expr,
     member: &str,
     written: &[TypeId],
+    type_args: &[Type],
     args: &CallArgs,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -330,6 +328,12 @@ pub(crate) fn fold_retrieval(
     if !matches!(env.interner.get(want), Ty::Shape(_)) {
         return;
     }
+    let Some(declared) = type_args
+        .first()
+        .and_then(|ty| crate::attributes::declaration_of(ty, ctx, env))
+    else {
+        return;
+    };
     let Some(target) = list.first().map(|arg| &arg.value) else {
         // A missing argument is the arity check's refusal, already made.
         return;
@@ -391,7 +395,7 @@ pub(crate) fn fold_retrieval(
             member_name.as_ref().map(|(_, name)| name.as_str()),
         )
     };
-    let matched = matching(&sites, want, env);
+    let matched = matching(&sites, &declared.name, env);
     let value = match (member, matched.len()) {
         ("get", 0) => ConstArg::Null,
         ("get", 1) => match fold_payload(matched[0], env) {
@@ -403,8 +407,9 @@ pub(crate) fn fold_retrieval(
                 Diagnostic::error(
                     code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
                     format!(
-                        "`{class}::{method}` has {} attribute payloads that match this shape",
-                        matched.len()
+                        "`{class}::{method}` has {} `{}` attributes",
+                        matched.len(),
+                        declared.name
                     ),
                 )
                 .with_primary(call.span, "`get` answers at most one")
@@ -543,32 +548,21 @@ pub(crate) fn routed_methods<'a>(env: &mut Env<'a>) -> Vec<(QName, String, Vec<S
     found
 }
 
-/// The sites whose payload satisfies `want`, in attach order.
+/// The sites written under the declaration `want`, in attach order.
 ///
-/// Each payload is inferred under **its own** file's source and its own
-/// [`Scope`], because a field name, a string literal and a `Mode::Fast` are all
-/// read out of the text they were written in — the retrieval's file and
-/// imports have no bearing on what the payload says.
-pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) -> Vec<Site<'a>> {
+/// Each site's name is resolved under **its own** file's source and its own
+/// [`Scope`], as it was when the site was checked: the retrieval's file and
+/// imports have no bearing on which declaration a use names. The payload's
+/// shape plays no part, so two declarations with the same fields never find
+/// each other's payloads.
+pub(crate) fn matching<'a>(sites: &[Site<'a>], want: &QName, env: &mut Env<'a>) -> Vec<Site<'a>> {
     let outer = env.src;
     let table = env.attributes;
     let mut matched = Vec::new();
     for site in sites {
         env.src = site.src;
-        let mut live = Live::default();
-        let scope = LocalScope::new();
         let written = site_ctx(&table.scopes[site.scope]);
-        let actual = check_anon_object(&site.attr.fields, None, &mut live, &scope, &written, env);
-        let actual = with_requested_literals(
-            &site.attr.fields,
-            actual,
-            want,
-            &mut live,
-            &scope,
-            &written,
-            env,
-        );
-        if built_fits(actual, want, env.interner, env.graph, env.signatures) {
+        if crate::attributes::declaration_at(site.attr, &written, env).as_ref() == Some(want) {
             matched.push(*site);
         }
     }
