@@ -685,6 +685,10 @@ impl Carrier for Live<'_> {
         if let Some(rekey) = class.keyed_stores() {
             rekey(*holder);
         }
+        // The copy's revocable members get memberships of the copy's own.
+        if let Some(hooks) = class.collection_hooks() {
+            (hooks.link_all)(*holder);
+        }
     }
 
     fn discard(&mut self, node: Value) {

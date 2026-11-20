@@ -60,6 +60,7 @@
 //! `Heap` is `Iterable` for that reason alone: without it, a heap's contents are
 //! reachable only by emptying it.
 
+use nvs_runtime::revoke::{self, MembershipKind};
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
@@ -518,13 +519,153 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::set(K $key, V $value): void` — associates
     /// `$value` with `$key`, replacing whatever `$key` held.
     ///
-    /// The key is written only where it is new: an insertion-ordered hash
-    /// keeps a rewritten entry where it was, so re-setting an existing key
-    /// would release and re-store an identical value for nothing, and would
-    /// be the one place the two stores could drift apart.
+    /// Where a revocable class exists, a revocable key or value gets a
+    /// membership of this map, and a replaced value loses its own.
     fn nvs_core_object_map_set(_ctx, args: [3]) {
         let receiver = map_of(args[0], "set")?;
         let (key, value) = (args[1], args[2]);
+        if !revoke::in_use() {
+            write_pair(receiver, key, value)?;
+            return Ok(Value::null());
+        }
+        // `rule:core-api/collections-drop-revoked-objects`: a map never holds a
+        // revoked object, so a pair with one is dropped at once.
+        if revoke::is_revoked_value(key) || revoke::is_revoked_value(value) {
+            return Ok(Value::null());
+        }
+        let old = held_under(receiver, key, "set")?;
+        if let Some(old) = old {
+            revoke::unlink(old, receiver, MembershipKind::MapValue, key);
+        }
+        write_pair(receiver, key, value)?;
+        if old.is_none() {
+            revoke::link(key, receiver, MembershipKind::MapKey, Value::null());
+        }
+        revoke::link(value, receiver, MembershipKind::MapValue, key);
+        Ok(Value::null())
+    }
+}
+
+/// The value `receiver` holds under `key`, borrowed from its store, or `None`
+/// when it holds no key identical to `key`.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s, unchanged.
+fn held_under(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<Option<Value>, Fault> {
+    let keying = keying_of(receiver);
+    if keying == store::Keying::Chain {
+        let (chain, present) = at(receiver, key, member)?;
+        if !present {
+            return Ok(None);
+        }
+        let values = store::borrow(receiver, VALUES, &CLASS, member)?;
+        return Ok(values.get(&chain));
+    }
+    let values = store::borrow(receiver, VALUES, &CLASS, member)?;
+    Ok(store::find(&values, keying, key))
+}
+
+/// Calls `visit` with each key and value `receiver` holds, both borrowed. A
+/// map whose stores are gone, as in a map being freed by the cycle collector,
+/// visits nothing.
+fn each_pair(receiver: *mut ObjHeader, member: &str, mut visit: impl FnMut(Value, Value)) {
+    let keying = keying_of(receiver);
+    let Ok(values) = store::borrow(receiver, VALUES, &CLASS, member) else {
+        return;
+    };
+    let keys = if keying.keeps_keys() {
+        let Ok(keys) = store::borrow(receiver, KEYS, &CLASS, member) else {
+            return;
+        };
+        Some(keys)
+    } else {
+        None
+    };
+    let mut from = 0usize;
+    while let Some(slot) = values.next_slot(from) {
+        from = slot + 1;
+        let Some(value) = values.value_at(slot) else {
+            continue;
+        };
+        if let Some(keys) = &keys {
+            let key = values
+                .key_at(slot)
+                .and_then(|bytes| keys.get(bytes.as_bytes()))
+                .unwrap_or_else(Value::null);
+            visit(key, value);
+        } else if let Some(key) = store::key_value(&values, slot, keying) {
+            visit(key, value);
+            #[expect(
+                unsafe_code,
+                reason = "`key_value` returned a key this frame owns"
+            )]
+            unsafe {
+                key.release();
+            }
+        }
+    }
+}
+
+/// Takes `key`'s entry out of `receiver`, and the memberships of its key and
+/// its value with it. What `remove` and a revoke run.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s and [`store::edit`]'s, unchanged.
+fn remove_entry(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(), Fault> {
+    if revoke::in_use()
+        && let Some(value) = held_under(receiver, key, member)?
+    {
+        revoke::unlink(value, receiver, MembershipKind::MapValue, key);
+        revoke::unlink(key, receiver, MembershipKind::MapKey, Value::null());
+    }
+    remove_pair(receiver, key, member)
+}
+
+/// The map's [`revoke::CollectionHooks`]: a revoked key or value takes its
+/// entry out with `remove`'s own code.
+pub(crate) const HOOKS: revoke::CollectionHooks = revoke::CollectionHooks {
+    drop_entry: |map, object, kind, key| {
+        let Some(receiver) = map.obj_ptr() else {
+            return;
+        };
+        let key = if kind == MembershipKind::MapKey { object } else { key };
+        let _ = remove_entry(receiver, key, "revoke");
+    },
+    unlink_all: |map| {
+        let Some(receiver) = map.obj_ptr() else {
+            return;
+        };
+        each_pair(receiver, "release", |key, value| {
+            revoke::unlink(key, receiver, MembershipKind::MapKey, Value::null());
+            revoke::unlink(value, receiver, MembershipKind::MapValue, key);
+        });
+    },
+    link_all: |map| {
+        let Some(receiver) = map.obj_ptr() else {
+            return;
+        };
+        each_pair(receiver, "copy", |key, value| {
+            revoke::link(key, receiver, MembershipKind::MapKey, Value::null());
+            revoke::link(value, receiver, MembershipKind::MapValue, key);
+        });
+    },
+};
+
+/// Writes `value` under `key`, what `set` does once a revoked object is ruled
+/// out.
+///
+/// The key is written only where it is new: an insertion-ordered hash keeps a
+/// rewritten entry where it was, so re-setting an existing key would release
+/// and re-store an identical value for nothing, and would be the one place the
+/// two stores could drift apart.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s and [`store::edit`]'s, unchanged.
+fn write_pair(receiver: *mut ObjHeader, key: Value, value: Value) -> Result<(), Fault> {
+    {
         let keying = keying_for_write(receiver, key, "set")?;
         if keying == store::Keying::Object {
             let present = {
@@ -549,7 +690,7 @@ nvs_runtime::nvs_helper! {
                     store::put(stored, &place, present, held);
                 })?;
             }
-            return Ok(Value::null());
+            return Ok(());
         }
         if !keying.keeps_keys() {
             store::edit(receiver, VALUES, &CLASS, "set", |values| {
@@ -564,7 +705,7 @@ nvs_runtime::nvs_helper! {
                 }
                 store::put(values, &place, present, value);
             })?;
-            return Ok(Value::null());
+            return Ok(());
         }
         let (chain, present) = at(receiver, key, "set")?;
         if !present {
@@ -605,7 +746,7 @@ nvs_runtime::nvs_helper! {
                 values.set(NvsStr::new(&chain), value);
             }
         })?;
-        Ok(Value::null())
+        Ok(())
     }
 }
 
@@ -668,38 +809,50 @@ nvs_runtime::nvs_helper! {
     /// this module's alignment invariant.
     fn nvs_core_object_map_remove(_ctx, args: [2]) {
         let receiver = map_of(args[0], "remove")?;
+        remove_entry(receiver, args[1], "remove")?;
+        Ok(Value::null())
+    }
+}
+
+/// Takes `key`'s entry out of both stores, and does nothing where the map holds
+/// no such key.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s and [`store::edit`]'s, unchanged.
+fn remove_pair(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(), Fault> {
+    {
         let keying = keying_of(receiver);
         if keying != store::Keying::Chain {
-            let key = args[1];
             let present = {
-                let values = store::borrow(receiver, VALUES, &CLASS, "remove")?;
+                let values = store::borrow(receiver, VALUES, &CLASS, member)?;
                 store::contains(&values, keying, key)
             };
             if !present {
-                return Ok(Value::null());
+                return Ok(());
             }
             // An identity-keyed map removes the key from its key store too.
             let slots: &[usize] = if keying.keeps_keys() { &[KEYS, VALUES] } else { &[VALUES] };
             for slot in slots {
-                store::edit(receiver, *slot, &CLASS, "remove", |stored| {
+                store::edit(receiver, *slot, &CLASS, member, |stored| {
                     let (place, present) = store::place(stored, keying, key);
                     if present {
                         store::remove(stored, &place);
                     }
                 })?;
             }
-            return Ok(Value::null());
+            return Ok(());
         }
-        let (chain, present) = at(receiver, args[1], "remove")?;
+        let (chain, present) = at(receiver, key, member)?;
         if !present {
-            return Ok(Value::null());
+            return Ok(());
         }
         for slot in [KEYS, VALUES] {
-            store::edit(receiver, slot, &CLASS, "remove", |held| {
+            store::edit(receiver, slot, &CLASS, member, |held| {
                 store::vacate(held, &chain);
             })?;
         }
-        Ok(Value::null())
+        Ok(())
     }
 }
 
@@ -766,7 +919,16 @@ nvs_runtime::nvs_helper! {
                 store::Keying::Int => (VALUES, crate::cursor::Yield::IntKey),
             };
             let walked = store::borrow(receiver, slot, &CLASS, nvs_runtime::sequence::ITERATE)?;
-            Ok(crate::cursor::yielding(NvsArray::clone(&walked), yields))
+            // A loop over the key store skips an entry whose value was revoked
+            // during the loop, so it holds the value store too.
+            let pairs = if slot == KEYS {
+                let values =
+                    store::borrow(receiver, VALUES, &CLASS, nvs_runtime::sequence::ITERATE)?;
+                NvsArray::clone(&values)
+            } else {
+                NvsArray::new()
+            };
+            Ok(crate::cursor::paired(NvsArray::clone(&walked), yields, pairs))
         });
         crate::cursor::consume(args[0]);
         cursor
@@ -804,6 +966,9 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::clear(): void` — drops every pair.
     fn nvs_core_object_map_clear(_ctx, args: [1]) {
         let receiver = map_of(args[0], "clear")?;
+        if revoke::in_use() {
+            (HOOKS.unlink_all)(args[0]);
+        }
         store::replace(receiver, KEYS);
         store::replace(receiver, VALUES);
         Ok(Value::null())

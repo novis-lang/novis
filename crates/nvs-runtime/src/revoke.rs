@@ -36,7 +36,9 @@
 //! object of any other class. The memberships are allocated on the request's
 //! heap, charged to it and freed with it.
 
+use std::cell::Cell;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{Ctx, NvsObj, ObjHeader, ThrownClass, Value};
 
@@ -99,6 +101,183 @@ pub struct Memberships {
     pub entries: Vec<Membership>,
 }
 
+/// What [`revoke`] and a release ask of a collection class, which only
+/// `nvs_stdlib` can answer: the runtime knows the memberships, and the class
+/// knows its stores. `nvs_stdlib::instance` writes one for `Core\ObjectMap`,
+/// `Core\ObjectSet` and `Core\Heap` through
+/// [`crate::ClassTable::set_collection_hooks`].
+///
+/// No hook may reach compiled code, retain or release the collection it is
+/// given, or throw: each runs inside `revoke()` or a release.
+#[derive(Clone, Copy, Debug)]
+pub struct CollectionHooks {
+    /// Takes one entry out for a revoked object: a map's or set's entry with
+    /// its own `remove`, and a heap's by lowering its count, the entry staying
+    /// in place. It is handed the collection, the revoked object, the
+    /// membership's kind and, for a map value, the entry's key.
+    pub drop_entry: fn(collection: Value, object: Value, kind: MembershipKind, key: Value),
+    /// Unlinks every revocable object the collection holds, run as the
+    /// collection is freed while its stores are still there. A slot that is
+    /// already `null` is skipped.
+    pub unlink_all: fn(collection: Value),
+    /// Links every revocable object the collection holds, run for a copy that
+    /// `clone` or a graph copy made.
+    pub link_all: fn(collection: Value),
+}
+
+/// Whether this process has defined a revocable class. A collection skips its
+/// membership work while it is `false`, so a program with no revocable class
+/// pays one load per write and nothing else.
+static IN_USE: AtomicBool = AtomicBool::new(false);
+
+/// Whether this process has defined a revocable class — see [`IN_USE`].
+#[must_use]
+#[inline]
+pub fn in_use() -> bool {
+    IN_USE.load(Ordering::Relaxed)
+}
+
+/// Records that a revocable class exists. [`crate::ClassTable::set_revocable`]
+/// calls it.
+pub(crate) fn mark_in_use() {
+    IN_USE.store(true, Ordering::Relaxed);
+}
+
+thread_local! {
+    /// How many objects this thread has revoked, never decreasing. A loop over
+    /// a collection's store keeps the figure from its start, and checks each
+    /// entry for a revoked object only once it moves ([`revokes`]).
+    static REVOKES: Cell<u64> = const { Cell::new(0) };
+}
+
+/// How many objects this thread has revoked, never decreasing. A collection's
+/// loop shares the store it began with, so an entry revoked during the loop is
+/// still in that store. The loop skips such an entry, and while this figure is
+/// what it was when the loop began there is none, so the loop checks nothing.
+#[must_use]
+pub fn revokes() -> u64 {
+    REVOKES.with(Cell::get)
+}
+
+/// Whether `value` is a revoked object.
+#[must_use]
+pub fn is_revoked_value(value: Value) -> bool {
+    value.obj_ptr().filter(|ptr| !ptr.is_null()).is_some_and(|ptr| {
+        #[expect(
+            unsafe_code,
+            reason = "a Value that holds an object holds a reference to it, so \
+                      the object is live"
+        )]
+        unsafe {
+            is_revoked(ptr)
+        }
+    })
+}
+
+/// The object `value` holds when it is a live object of a revocable class
+/// that is not revoked: the one kind of value that gets a membership.
+fn linkable(value: Value) -> Option<*mut ObjHeader> {
+    let ptr = value.obj_ptr().filter(|ptr| !ptr.is_null())?;
+    #[expect(
+        unsafe_code,
+        reason = "a Value that holds an object holds a reference to it, so the \
+                  object is live"
+    )]
+    let usable = unsafe { is_revocable(ptr) && !is_revoked(ptr) };
+    usable.then_some(ptr)
+}
+
+/// Records that `collection` holds `object` as `kind`, with `key` for a map
+/// value. Anything but an object of a revocable class that is not revoked is
+/// left as it is, so a collection calls this for every value it stores.
+///
+/// A map value's key is retained unless it is an object: the map holds an
+/// object key for as long as the entry exists, and a reference from here
+/// would hide a cycle from the collector.
+pub fn link(object: Value, collection: *mut ObjHeader, kind: MembershipKind, key: Value) {
+    let Some(ptr) = linkable(object) else {
+        return;
+    };
+    if key.obj_ptr().is_none() {
+        #[expect(
+            unsafe_code,
+            reason = "the key is the caller's, live for the call, and the \
+                      membership keeps a reference of its own"
+        )]
+        unsafe {
+            key.retain();
+        }
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the class is revocable, so slot 0 is the hidden slot, and it \
+                  holds zero or the `Memberships` box this module leaked into it"
+    )]
+    unsafe {
+        let slot = hidden_slot(ptr);
+        let held = slot.read().bits();
+        let list = if held == 0 {
+            let fresh = Box::into_raw(Box::<Memberships>::default());
+            slot.write(Value::source_const(fresh.cast::<u8>()));
+            fresh
+        } else {
+            usize::try_from(held).unwrap_or(0) as *mut Memberships
+        };
+        // Most objects are in one or two collections, so a short list grows
+        // by one entry at a time, and a long one as a `Vec` does.
+        let entries = &mut (*list).entries;
+        if entries.len() < 4 {
+            entries.reserve_exact(1);
+        }
+        entries.push(Membership {
+            collection,
+            kind,
+            key,
+        });
+    }
+}
+
+/// Removes the membership [`link`] wrote for `object` in `collection` as
+/// `kind`, and for a map value the one under `key`. A revoked object, an
+/// object in no collection and anything that is not a revocable object are
+/// left as they are. The box is freed with its last entry.
+pub fn unlink(object: Value, collection: *mut ObjHeader, kind: MembershipKind, key: Value) {
+    let Some(ptr) = linkable(object) else {
+        return;
+    };
+    crate::budget::count_membership_walk();
+    #[expect(
+        unsafe_code,
+        reason = "the class is revocable and the object is not revoked, so the \
+                  hidden slot holds zero or this module's `Memberships` box"
+    )]
+    unsafe {
+        let slot = hidden_slot(ptr);
+        let held = slot.read().bits();
+        if held == 0 {
+            return;
+        }
+        let list = usize::try_from(held).unwrap_or(0) as *mut Memberships;
+        let entries = &mut (*list).entries;
+        let found = entries.iter().position(|entry| {
+            ptr::eq(entry.collection, collection)
+                && entry.kind == kind
+                && (kind != MembershipKind::MapValue
+                    || crate::identity::value_identical(entry.key, key))
+        });
+        if let Some(at) = found {
+            let gone = entries.swap_remove(at);
+            if gone.key.obj_ptr().is_none() {
+                gone.key.release();
+            }
+        }
+        if entries.is_empty() {
+            drop(Box::from_raw(list));
+            slot.write(Value::null());
+        }
+    }
+}
+
 /// The hidden slot of the object at `ptr`.
 ///
 /// # Safety
@@ -150,10 +329,17 @@ pub unsafe fn is_revoked(ptr: *mut ObjHeader) -> bool {
     word != crate::IMMORTAL_REFCOUNT && word & REVOKED != 0
 }
 
-/// Revokes the object at `ptr`, which `revoke()` runs: it sets the flag, frees
-/// the object's memberships, and keeps `site` in the hidden slot. A second
-/// call does nothing, so the first site stays. An object of a class that is
-/// not revocable is left as it is.
+/// Revokes the object at `ptr`, which `revoke()` runs: it sets the flag, takes
+/// the object out of every collection that holds it, frees its memberships,
+/// and keeps `site` in the hidden slot. A second call does nothing, so the
+/// first site stays. An object of a class that is not revocable is left as it
+/// is.
+///
+/// The flag and the site are written first, so an [`unlink`] a removal makes
+/// for this object finds it revoked and leaves the list being walked alone.
+/// The object and every collection are retained for the walk: a removal
+/// releases what the entry held, and that can free another collection on the
+/// list.
 ///
 /// # Safety
 ///
@@ -182,14 +368,46 @@ pub unsafe fn revoke(ptr: *mut ObjHeader, site: *const u8) {
         reason = "the hidden slot holds a `null` Value whose payload is zero or \
                   the `Memberships` box this module leaked into it"
     )]
-    unsafe {
+    let list = unsafe {
         let held = slot.read().bits();
-        if held != 0 {
-            drop(Box::from_raw(
-                usize::try_from(held).unwrap_or(0) as *mut Memberships
-            ));
-        }
         slot.write(Value::source_const(site));
+        (held != 0).then(|| Box::from_raw(usize::try_from(held).unwrap_or(0) as *mut Memberships))
+    };
+    REVOKES.with(|count| count.set(count.get().wrapping_add(1)));
+    let Some(list) = list else {
+        return;
+    };
+    crate::budget::count_membership_walk();
+    let object = Value::from_obj_ptr(ptr);
+    #[expect(
+        unsafe_code,
+        reason = "the object and every collection on its list are live: a \
+                  collection unlinks its members before it is freed. Each is \
+                  retained here and released once the walk ends"
+    )]
+    unsafe {
+        object.retain();
+        for entry in &list.entries {
+            Value::from_obj_ptr(entry.collection).retain();
+        }
+        for entry in &list.entries {
+            let class = &*NvsObj::class_of(entry.collection);
+            if let Some(hooks) = class.collection_hooks() {
+                (hooks.drop_entry)(
+                    Value::from_obj_ptr(entry.collection),
+                    object,
+                    entry.kind,
+                    entry.key,
+                );
+            }
+        }
+        for entry in &list.entries {
+            if entry.key.obj_ptr().is_none() {
+                entry.key.release();
+            }
+            Value::from_obj_ptr(entry.collection).release();
+        }
+        object.release();
     }
 }
 

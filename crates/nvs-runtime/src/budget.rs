@@ -1314,6 +1314,30 @@ pub fn retain_calls() -> usize {
     RETAIN_CALLS.with(Cell::get)
 }
 
+#[cfg(debug_assertions)]
+thread_local! {
+    /// Monotonic: how many times this thread walked a revocable object's
+    /// memberships — see [`membership_walks`].
+    static MEMBERSHIP_WALKS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Counts one walk of a revocable object's memberships: a `revoke()` or an
+/// unlink. It compiles to nothing without `debug_assertions`.
+#[inline]
+pub(crate) fn count_membership_walk() {
+    #[cfg(debug_assertions)]
+    MEMBERSHIP_WALKS.with(|c| c.set(c.get().wrapping_add(1)));
+}
+
+/// How many times this thread has walked a revocable object's memberships,
+/// never decreasing. The guard that the request's end walks none reads it
+/// around a teardown. It exists only under `debug_assertions`.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn membership_walks() -> usize {
+    MEMBERSHIP_WALKS.with(Cell::get)
+}
+
 /// How many bytes this thread has ever allocated, never decreasing.
 ///
 /// The other half of [`allocations`]: a run that allocated nothing has a zero

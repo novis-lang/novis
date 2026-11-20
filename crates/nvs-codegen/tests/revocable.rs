@@ -216,3 +216,193 @@ fn revoke_and_isrevoked_compile_no_check() {
     assert_eq!(checks_in("Uses::end"), 0);
     assert_eq!(output_of(ACCESSES), "bplainapostyes");
 }
+
+/// One object that stays alive while `iterations` sets each take it as a
+/// member and are dropped. Each set is freed before the next is made, and
+/// `revoke()` at the end walks the object's list.
+fn passing_sets(iterations: u32) -> String {
+    format!(
+        r#"<?nvs
+class Post implements Revocable {{
+    public function constructor(public string $title) {{}}
+}}
+class K {{
+    public static function hold(Post $post): int {{
+        var $set = new Core\ObjectSet<Post>();
+        $set->add($post);
+        return $set->has($post) ? 1 : 0;
+    }}
+}}
+var $post = new Post("kept");
+var $i = 0;
+var $held = 0;
+while ($i < {iterations}) {{
+    $held = $held + K::hold($post);
+    $i = $i + 1;
+}}
+$post->revoke();
+echo $held;
+"#
+    )
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn a_freed_collection_clears_its_back_links() {
+    // A freed set takes itself off its member's list. If it did not, the
+    // list would grow by one entry per set, and `revoke()` would follow a
+    // pointer to a freed set. Measured as a slope, as above.
+    assert_eq!(output_of(&passing_sets(200)), "200");
+    let short = peak_bytes_of_run(&passing_sets(200));
+    let long = peak_bytes_of_run(&passing_sets(2000));
+    assert!(
+        long - short < 4096,
+        "a freed set leaves its membership behind: 200 sets held {short} bytes, 2000 held {long}"
+    );
+}
+
+/// `iterations` cycles of a node and a map: the node holds the map, and the
+/// map holds the node as a key and as a value. Each cycle is dropped at the end
+/// of its iteration, so only the cycle collector frees it.
+fn map_cycles(iterations: u32) -> String {
+    format!(
+        r#"<?nvs
+class Node implements Revocable {{
+    public ?Core\ObjectMap<Node, Node> $links = null;
+}}
+class K {{
+    public static function cycle(): int {{
+        var $node = new Node();
+        var $map = new Core\ObjectMap<Node, Node>();
+        $map->set($node, $node);
+        $node->links = $map;
+        return $map->has($node) ? 1 : 0;
+    }}
+}}
+var $i = 0;
+var $made = 0;
+while ($i < {iterations}) {{
+    $made = $made + K::cycle();
+    $i = $i + 1;
+}}
+echo $made;
+"#
+    )
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn a_cycle_of_a_map_and_its_member_is_reclaimed_cleanly() {
+    // The collector unlinks the map's members before it frees any object of
+    // the cycle. Freeing the node first would leave the map's unlink reading
+    // a freed node, which the debug allocator and Miri report. The slope
+    // shows that every cycle, its list included, is freed.
+    assert_eq!(output_of(&map_cycles(200)), "200");
+    let short = peak_bytes_of_run(&map_cycles(200));
+    let long = peak_bytes_of_run(&map_cycles(2000));
+    assert!(
+        long - short < 4096,
+        "a cycle of a map and its member is kept: 200 cycles held {short} bytes, 2000 held {long}"
+    );
+}
+
+/// Revocable objects left in a map, a set and a heap when the script ends.
+const LEFT_IN_COLLECTIONS: &str = r#"<?nvs
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+var $map = new Core\ObjectMap<string, Post>();
+var $set = new Core\ObjectSet<Post>();
+var $heap = new Core\Heap<int>();
+var $i = 0;
+while ($i < 100) {
+    var $post = new Post("p" . $i);
+    $map->set("p" . $i, $post);
+    $set->add($post);
+    $i = $i + 1;
+}
+$heap->push(1);
+echo $map->count() + $set->count();
+"#;
+
+#[test]
+#[cfg(debug_assertions)]
+fn the_request_end_walks_no_back_link() {
+    // The request's end frees the heap whole. No collection is dismantled,
+    // so no membership list is walked (`rule:classes/no-destructors`).
+    let unit = compile(LEFT_IN_COLLECTIONS).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    entry.call(&mut ctx).expect("the script ran to completion");
+    let before = nvs_runtime::budget::membership_walks();
+    drop(ctx);
+    assert_eq!(
+        nvs_runtime::budget::membership_walks(),
+        before,
+        "the request's end walked a membership list"
+    );
+}
+
+/// `count` objects of a class that is or is not revocable, each added to one
+/// set. With `remove`, each is taken out of the set again.
+fn members(revocable: bool, remove: bool) -> String {
+    let implements = if revocable { " implements Revocable" } else { "" };
+    let removal = if remove { "$set->remove($post);" } else { "" };
+    format!(
+        r#"<?nvs
+class Post{implements} {{
+    public function constructor(public string $title) {{}}
+}}
+var $set = new Core\ObjectSet<Post>();
+array<Post> $all = [];
+var $i = 0;
+while ($i < 1000) {{
+    var $post = new Post("p" . $i);
+    $set->add($post);
+    {removal}
+    $all[] = $post;
+    $i = $i + 1;
+}}
+echo Core\Arr::count($all);
+"#
+    )
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn a_membership_is_charged_to_the_request_and_returned() {
+    // A revocable object costs its 16-byte hidden slot. While it is in a set,
+    // its list and one 32-byte membership are charged to the request too, so
+    // the request's peak has them.
+    let slot = 1000 * 16;
+    let held = peak_bytes_of_run(&members(true, false)) - peak_bytes_of_run(&members(false, false));
+    assert!(
+        held >= slot + 1000 * 32,
+        "1000 memberships were not charged to the request: its peak grew by {held} bytes"
+    );
+    // Taken out of the set, each list is freed at once, and only the slot is
+    // left at the peak.
+    let removed =
+        peak_bytes_of_run(&members(true, true)) - peak_bytes_of_run(&members(false, true));
+    assert!(
+        removed <= slot + 4096,
+        "1000 removed memberships were not returned: the peak grew by {removed} bytes"
+    );
+    // Once the script ends, everything it charged is returned.
+    let left = live_bytes_of_run(&members(true, false)) - live_bytes_of_run(&members(false, false));
+    assert!(left < 4096, "the script's end left {left} bytes of memberships");
+}
+
+/// The highest the request heap reached during one run of `source`, measured
+/// from the balance after the unit was installed.
+#[cfg(debug_assertions)]
+fn peak_bytes_of_run(source: &str) -> isize {
+    let unit = compile(source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    ctx.rebase_memory();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    isize::try_from(ctx.memory_peak()).expect("a peak fits in an `isize`")
+}

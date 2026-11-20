@@ -91,8 +91,15 @@ pub(crate) const NAME: &str = r"Core\Cursor";
 const ITEMS: usize = 0;
 /// … the slot of it the cursor is on, `-1` before the first [`ADVANCE`] …
 const INDEX: usize = 1;
-/// … and what each slot yields, a [`Yield`].
+/// … what each slot yields, a [`Yield`] …
 const YIELDS: usize = 2;
+/// … how many objects the thread had revoked when the loop began
+/// ([`nvs_runtime::revoke::revokes`]) …
+const EPOCH: usize = 3;
+/// … and, for a loop over a map's key store, the map's value store, so an
+/// entry whose value was revoked during the loop is skipped. Every other
+/// cursor has the empty array here.
+const PAIRS: usize = 4;
 
 /// What a cursor yields at each slot of the array it walks. The `yields` slot
 /// holds it as an `int`.
@@ -134,7 +141,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: None,
     methods: &[],
     instance: &[],
-    slots: &["items", "index", "yields"],
+    slots: &["items", "index", "yields", "epoch", "pairs"],
     constants: &[],
 };
 
@@ -164,10 +171,36 @@ pub(crate) fn over(items: NvsArray) -> Value {
 /// taking over its reference. A map or set passes a clone of its own store,
 /// which is one reference and no copy.
 pub(crate) fn yielding(items: NvsArray, yields: Yield) -> Value {
+    paired(items, yields, NvsArray::new())
+}
+
+/// [`yielding`], for a loop over a map's key store: `pairs` is the map's value
+/// store, which the cursor holds one reference on.
+pub(crate) fn paired(items: NvsArray, yields: Yield, pairs: NvsArray) -> Value {
     crate::instance::build(
         &CLASS,
-        [Value::array(items), Value::int(-1), yields.value()],
+        [
+            Value::array(items),
+            Value::int(-1),
+            yields.value(),
+            epoch(),
+            Value::array(pairs),
+        ],
     )
+}
+
+/// The thread's revoke count, as a cursor's `epoch` slot keeps it.
+fn epoch() -> Value {
+    Value::int(i64::from_ne_bytes(
+        nvs_runtime::revoke::revokes().to_ne_bytes(),
+    ))
+}
+
+/// Whether an object was revoked since the cursor at `receiver` began, which
+/// is when an entry of the store it shares may hold a revoked object
+/// (`rule:core-api/collections-drop-revoked-objects`).
+fn revoked_since(receiver: *mut ObjHeader, slot: usize) -> bool {
+    crate::instance::slot(receiver, slot).bits() != epoch().bits()
 }
 
 /// Releases the receiver reference a virtual call transferred — see this
@@ -210,14 +243,37 @@ fn state(
 /// there was one.
 fn stepped(value: Value) -> Result<Value, Fault> {
     let (receiver, items, index) = state(value, ADVANCE)?;
-    let from = usize::try_from(index + 1).unwrap_or(0);
-    let Some(slot) = items.next_slot(from) else {
-        return Ok(Value::bool(false));
+    let mut from = usize::try_from(index + 1).unwrap_or(0);
+    let slot = loop {
+        let Some(slot) = items.next_slot(from) else {
+            return Ok(Value::bool(false));
+        };
+        from = slot + 1;
+        if !revoked_since(receiver, EPOCH) || !holds_revoked(receiver, &items, slot) {
+            break slot;
+        }
     };
     let slot = i64::try_from(slot)
         .map_err(|_| Fault::fatal(format!("{NAME}::{ADVANCE} walked past slot {slot}")))?;
     crate::instance::set_slot(receiver, INDEX, Value::int(slot));
     Ok(Value::bool(true))
+}
+
+/// Whether the entry at `slot` of `items` holds a revoked object: its value,
+/// or for a loop over a map's key store, the value the map pairs with it.
+fn holds_revoked(receiver: *mut ObjHeader, items: &NvsArray, slot: usize) -> bool {
+    use nvs_runtime::revoke::is_revoked_value;
+    if items.value_at(slot).is_some_and(is_revoked_value) {
+        return true;
+    }
+    let Ok(pairs) = store::borrow(receiver, PAIRS, &CLASS, ADVANCE) else {
+        return false;
+    };
+    !pairs.is_empty()
+        && items
+            .key_at(slot)
+            .and_then(|key| pairs.get(key.as_bytes()))
+            .is_some_and(is_revoked_value)
 }
 
 /// [`CURRENT`]'s body: what the slot [`ADVANCE`] last moved to yields, as a
@@ -289,10 +345,13 @@ const KEYED_KEY_INDEX: usize = 2;
 /// … the slot of the value store the cursor is on, `-1` before the first
 /// [`ADVANCE`] …
 const KEYED_INDEX: usize = 3;
-/// … and where each key comes from, a [`Yield`]: [`Yield::Value`] reads it from
+/// … where each key comes from, a [`Yield`]: [`Yield::Value`] reads it from
 /// the key store, and [`Yield::StrKey`] or [`Yield::IntKey`] from the value
-/// store's own key.
+/// store's own key …
 const KEYED_KEYS_FROM: usize = 4;
+/// … and how many objects the thread had revoked when the loop began, as
+/// [`EPOCH`] is.
+const KEYED_EPOCH: usize = 5;
 
 /// The keyed cursor `Core\ObjectMap::iterateKeyed()` returns:
 /// `rule:iteration/keyed-interfaces`'s `KeyedIterator<K, V>` half, over the
@@ -312,7 +371,7 @@ pub(crate) const KEYED_CLASS: CoreClass = CoreClass {
     doc: None,
     methods: &[],
     instance: &[],
-    slots: &["keys", "values", "keyIndex", "index", "keysFrom"],
+    slots: &["keys", "values", "keyIndex", "index", "keysFrom", "epoch"],
     constants: &[],
 };
 
@@ -347,6 +406,7 @@ pub(crate) fn keyed(keys: NvsArray, values: NvsArray, keys_from: Yield) -> Value
             Value::int(-1),
             Value::int(-1),
             keys_from.value(),
+            epoch(),
         ],
     )
 }
@@ -371,14 +431,41 @@ fn keyed_slot(receiver: *mut ObjHeader, index: usize, member: &str) -> Result<us
     })
 }
 
-/// The keyed cursor's [`ADVANCE`]: moves the value slot to the next entry, and
-/// the key slot with it when the keys have a store of their own.
+/// The keyed cursor's [`ADVANCE`]: moves to the next entry whose key and value
+/// are not revoked objects. An entry is checked only once an object was
+/// revoked during the loop.
 fn keyed_stepped(value: Value) -> Result<Value, Fault> {
+    use nvs_runtime::revoke::is_revoked_value;
     let receiver = crate::instance::receiver(value, &KEYED_CLASS, ADVANCE)?;
+    loop {
+        if !keyed_step(receiver)? {
+            return Ok(Value::bool(false));
+        }
+        if !revoked_since(receiver, KEYED_EPOCH) {
+            return Ok(Value::bool(true));
+        }
+        let slot = keyed_slot(receiver, KEYED_INDEX, ADVANCE)?;
+        let values = store::borrow(receiver, KEYED_VALUES, &KEYED_CLASS, ADVANCE)?;
+        let mut revoked = values.value_at(slot).is_some_and(is_revoked_value);
+        if Yield::of(crate::instance::slot(receiver, KEYED_KEYS_FROM)) == Yield::Value {
+            let key_slot = keyed_slot(receiver, KEYED_KEY_INDEX, ADVANCE)?;
+            let keys = store::borrow(receiver, KEYED_KEYS, &KEYED_CLASS, ADVANCE)?;
+            revoked |= keys.value_at(key_slot).is_some_and(is_revoked_value);
+        }
+        if !revoked {
+            return Ok(Value::bool(true));
+        }
+    }
+}
+
+/// Moves the keyed cursor at `receiver` to the next entry, and answers whether
+/// there was one: the value slot, and the key slot with it when the keys have
+/// a store of their own.
+fn keyed_step(receiver: *mut ObjHeader) -> Result<bool, Fault> {
     let values = store::borrow(receiver, KEYED_VALUES, &KEYED_CLASS, ADVANCE)?;
     let from = usize::try_from(keyed_index(receiver, KEYED_INDEX, ADVANCE)? + 1).unwrap_or(0);
     let Some(slot) = values.next_slot(from) else {
-        return Ok(Value::bool(false));
+        return Ok(false);
     };
     let as_int = |slot: usize| {
         i64::try_from(slot)
@@ -396,7 +483,7 @@ fn keyed_stepped(value: Value) -> Result<Value, Fault> {
         })?;
         crate::instance::set_slot(receiver, KEYED_KEY_INDEX, Value::int(as_int(key_slot)?));
     }
-    Ok(Value::bool(true))
+    Ok(true)
 }
 
 /// Retains a value that belongs to a store the cursor holds, so the caller owns

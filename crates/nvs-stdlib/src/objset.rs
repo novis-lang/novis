@@ -8,6 +8,7 @@
 //! identity key for a set of a type whose every value is an object; the
 //! `keying` slot says which.
 
+use nvs_runtime::revoke::{self, MembershipKind};
 use nvs_runtime::{Fault, NvsArray, ObjHeader, Value};
 
 use crate::identity_store as store;
@@ -367,8 +368,70 @@ fn built_from(keying: store::Keying, fill: impl FnOnce(&mut Building)) -> Value 
         keying,
     };
     fill(&mut out);
-    crate::instance::build(&CLASS, [Value::array(out.store), out.keying.value()])
+    let set = crate::instance::build(&CLASS, [Value::array(out.store), out.keying.value()]);
+    if revoke::in_use() {
+        (HOOKS.link_all)(set);
+    }
+    set
 }
+
+/// Calls `visit` with each member `set` holds, borrowed. A set whose store is
+/// gone, as in a set being freed by the cycle collector, visits nothing.
+fn each_member(set: Value, member: &str, mut visit: impl FnMut(*mut ObjHeader, Value)) {
+    let Some(receiver) = set.obj_ptr() else {
+        return;
+    };
+    let Ok(entries) = store::borrow(receiver, ENTRIES, &CLASS, member) else {
+        return;
+    };
+    let mut from = 0usize;
+    while let Some(slot) = entries.next_slot(from) {
+        from = slot + 1;
+        if let Some(value) = entries.value_at(slot) {
+            visit(receiver, value);
+        }
+    }
+}
+
+/// Takes `value` out of the set at `receiver`, and its membership with it.
+/// What `remove` and a revoke run.
+///
+/// # Errors
+///
+/// [`store::edit`]'s, unchanged.
+fn remove_member(receiver: *mut ObjHeader, value: Value, member: &str) -> Result<(), Fault> {
+    let keying = keying_of(receiver);
+    if !keying.admits(value) {
+        return Ok(());
+    }
+    revoke::unlink(value, receiver, MembershipKind::SetMember, Value::null());
+    store::edit(receiver, ENTRIES, &CLASS, member, |entries| {
+        let (place, present) = store::place(entries, keying, value);
+        if present {
+            store::remove(entries, &place);
+        }
+    })
+}
+
+/// The set's [`revoke::CollectionHooks`]: a revoked member is taken out with
+/// `remove`'s own code.
+pub(crate) const HOOKS: revoke::CollectionHooks = revoke::CollectionHooks {
+    drop_entry: |set, object, _, _| {
+        if let Some(receiver) = set.obj_ptr() {
+            let _ = remove_member(receiver, object, "revoke");
+        }
+    },
+    unlink_all: |set| {
+        each_member(set, "release", |receiver, value| {
+            revoke::unlink(value, receiver, MembershipKind::SetMember, Value::null());
+        });
+    },
+    link_all: |set| {
+        each_member(set, "copy", |receiver, value| {
+            revoke::link(value, receiver, MembershipKind::SetMember, Value::null());
+        });
+    },
+};
 
 /// The two sides an algebra member reads, as `(this, other)`, each with its
 /// own keying.
@@ -474,6 +537,12 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_object_set_add(_ctx, args: [2]) {
         let receiver = set_of(args[0], "add")?;
         let value = args[1];
+        // `rule:core-api/collections-drop-revoked-objects`: a set never holds a
+        // revoked object, so adding one does nothing.
+        let tracked = revoke::in_use();
+        if tracked && revoke::is_revoked_value(value) {
+            return Ok(Value::null());
+        }
         let mut keying = keying_of(receiver);
         if !keying.admits(value) {
             // A member of another tag: the set becomes a chain set, as
@@ -486,10 +555,10 @@ nvs_runtime::nvs_helper! {
             keying = store::Keying::Chain;
             crate::instance::set_slot(receiver, KEYING, keying.value());
         }
-        store::edit(receiver, ENTRIES, &CLASS, "add", |entries| {
+        let added = store::edit(receiver, ENTRIES, &CLASS, "add", |entries| {
             let (place, present) = store::place(entries, keying, value);
             if present {
-                return;
+                return false;
             }
             #[expect(
                 unsafe_code,
@@ -500,7 +569,11 @@ nvs_runtime::nvs_helper! {
                 value.retain();
             }
             store::put(entries, &place, false, value);
+            true
         })?;
+        if tracked && added {
+            revoke::link(value, receiver, MembershipKind::SetMember, Value::null());
+        }
         Ok(Value::null())
     }
 }
@@ -522,17 +595,7 @@ nvs_runtime::nvs_helper! {
     /// Silent for the same reason `add` is: "was it there" is `has`'s question.
     fn nvs_core_object_set_remove(_ctx, args: [2]) {
         let receiver = set_of(args[0], "remove")?;
-        let value = args[1];
-        let keying = keying_of(receiver);
-        if !keying.admits(value) {
-            return Ok(Value::null());
-        }
-        store::edit(receiver, ENTRIES, &CLASS, "remove", |entries| {
-            let (place, present) = store::place(entries, keying, value);
-            if present {
-                store::remove(entries, &place);
-            }
-        })?;
+        remove_member(receiver, args[1], "remove")?;
         Ok(Value::null())
     }
 }
@@ -630,6 +693,9 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::clear(): void` — drops every member.
     fn nvs_core_object_set_clear(_ctx, args: [1]) {
         let receiver = set_of(args[0], "clear")?;
+        if revoke::in_use() {
+            (HOOKS.unlink_all)(args[0]);
+        }
         store::replace(receiver, ENTRIES);
         Ok(Value::null())
     }

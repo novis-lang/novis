@@ -60,6 +60,7 @@
 
 use std::cmp::Ordering;
 
+use nvs_runtime::revoke::{self, MembershipKind};
 use nvs_runtime::{Ctx, Fault, NvsArray, ObjHeader, Tag, Value};
 
 use crate::identity_store as store;
@@ -162,7 +163,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&IS_EMPTY_DOC),
         },
     ],
-    slots: &["entries", "comparator"],
+    slots: &["entries", "comparator", "revoked"],
     constants: &[],
 };
 
@@ -248,6 +249,10 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 pub(crate) const ENTRIES: usize = 0;
 /// The `callable` given at construction, or `null`.
 const COMPARATOR: usize = 1;
+/// How many entries hold a revoked object, as an `int`. Such an entry stays in
+/// place until it reaches the root, and `count` leaves it out
+/// (`rule:core-api/collections-drop-revoked-objects`).
+const REVOKED: usize = 2;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
@@ -306,13 +311,57 @@ fn label(member: &str) -> &'static str {
     }
 }
 
-/// How many elements the heap holds.
+/// How many entries the store holds, a revoked one included: the tree's size.
 ///
 /// # Errors
 ///
 /// [`store::borrow`]'s, unchanged.
 fn len(receiver: *mut ObjHeader, member: &str) -> Result<usize, Fault> {
     Ok(store::borrow(receiver, ENTRIES, &CLASS, member)?.count())
+}
+
+/// How many entries hold a revoked object — see [`REVOKED`].
+fn revoked_count(receiver: *mut ObjHeader) -> usize {
+    crate::instance::slot(receiver, REVOKED)
+        .as_int()
+        .and_then(|count| usize::try_from(count).ok())
+        .unwrap_or(0)
+}
+
+/// Writes [`REVOKED`].
+fn set_revoked_count(receiver: *mut ObjHeader, count: usize) {
+    let count = i64::try_from(count).unwrap_or(i64::MAX);
+    crate::instance::set_slot(receiver, REVOKED, Value::int(count));
+}
+
+/// How many elements the heap holds: the entries that are not revoked.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s, unchanged.
+fn live_len(receiver: *mut ObjHeader, member: &str) -> Result<usize, Fault> {
+    Ok(len(receiver, member)?.saturating_sub(revoked_count(receiver)))
+}
+
+/// Whether the entry at tree position `index` holds a revoked object.
+fn revoked_at(receiver: *mut ObjHeader, member: &str, index: usize) -> bool {
+    store::borrow(receiver, ENTRIES, &CLASS, member)
+        .ok()
+        .and_then(|entries| entries.get_index(at(index)))
+        .is_some_and(revoke::is_revoked_value)
+}
+
+/// Which of two values sorts first when one is revoked, without calling the
+/// ordering: a revoked one goes first, so it rises to the root and is dropped
+/// there. `None` when neither is revoked, or when no revocable class exists.
+fn revoked_first(left: Value, right: Value) -> Option<bool> {
+    if !revoke::in_use() {
+        return None;
+    }
+    match (revoke::is_revoked_value(left), revoke::is_revoked_value(right)) {
+        (false, false) => None,
+        (left, right) => Some(left && !right),
+    }
 }
 
 /// The comparator given at construction, borrowed — `null` when there is none.
@@ -360,7 +409,10 @@ fn precedes(
         }
         (a, b)
     };
-    let verdict = compare(ctx, receiver, a, b, member);
+    let verdict = match revoked_first(a, b) {
+        Some(first) => Ok(if first { Ordering::Less } else { Ordering::Greater }),
+        None => compare(ctx, receiver, a, b, member),
+    };
     #[expect(
         unsafe_code,
         reason = "this frame owns exactly the two references the retains above \
@@ -426,6 +478,11 @@ fn swap(receiver: *mut ObjHeader, member: &str, left: usize, right: usize) -> Re
 
 /// Moves the element at `index` up until its parent precedes it — the half of
 /// the invariant a `push` can break.
+///
+/// A revoked ancestor is passed over: the element is compared with, and swapped
+/// with, the nearest ancestor that is not revoked. Such an ancestor's
+/// descendants all follow it, so the swap keeps the order of every entry that
+/// is not revoked.
 fn sift_up(
     ctx: &mut Ctx,
     receiver: *mut ObjHeader,
@@ -433,8 +490,15 @@ fn sift_up(
     index: usize,
 ) -> Result<(), Fault> {
     let mut index = index;
+    let skips = revoked_count(receiver) > 0;
     while index > 0 {
-        let parent = (index - 1) / 2;
+        let mut parent = (index - 1) / 2;
+        while skips && parent > 0 && revoked_at(receiver, member, parent) {
+            parent = (parent - 1) / 2;
+        }
+        if skips && revoked_at(receiver, member, parent) {
+            break;
+        }
         if !precedes(ctx, receiver, member, index, parent)? {
             break;
         }
@@ -565,13 +629,27 @@ fn drain_into(
     pending: &mut Vec<Value>,
     out: &mut NvsArray,
 ) -> Result<(), Fault> {
+    // A revoked entry reaches the root as `pop` would see it, and is left out.
+    let keep = |out: &mut NvsArray, value: Value| {
+        if revoke::is_revoked_value(value) {
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the reference `sorted` took for the copy"
+            )]
+            unsafe {
+                value.release();
+            }
+        } else {
+            out.append(value);
+        }
+    };
     while let Some(last) = pending.pop() {
         if pending.is_empty() {
-            out.append(last);
+            keep(out, last);
             break;
         }
         let root = std::mem::replace(&mut pending[0], last);
-        out.append(root);
+        keep(out, root);
         sift_down_copy(ctx, receiver, member, pending)?;
     }
     Ok(())
@@ -593,19 +671,117 @@ fn sift_down_copy(
         }
         let right = left + 1;
         let child = if right < pending.len()
-            && compare(ctx, receiver, pending[right], pending[left], member)? == Ordering::Less
+            && copy_precedes(ctx, receiver, member, pending[right], pending[left])?
         {
             right
         } else {
             left
         };
-        if compare(ctx, receiver, pending[child], pending[index], member)? != Ordering::Less {
+        if !copy_precedes(ctx, receiver, member, pending[child], pending[index])? {
             return Ok(());
         }
         pending.swap(index, child);
         index = child;
     }
 }
+
+/// Whether `left` sorts before `right` in [`sift_down_copy`], where a revoked
+/// one goes first as in [`precedes`].
+///
+/// # Errors
+///
+/// [`compare`]'s, unchanged.
+fn copy_precedes(
+    ctx: &mut Ctx,
+    receiver: *mut ObjHeader,
+    member: &str,
+    left: Value,
+    right: Value,
+) -> Result<bool, Fault> {
+    match revoked_first(left, right) {
+        Some(first) => Ok(first),
+        None => Ok(compare(ctx, receiver, left, right, member)? == Ordering::Less),
+    }
+}
+
+/// Takes the root out: the last entry takes its place and sifts down.
+///
+/// # Errors
+///
+/// [`store::edit`]'s, and whatever a comparison throws.
+fn take_root(ctx: &mut Ctx, receiver: *mut ObjHeader, member: &str) -> Result<(), Fault> {
+    store::edit(receiver, ENTRIES, &CLASS, member, |entries| {
+        let Some(last) = entries.count().checked_sub(1) else {
+            return;
+        };
+        if last != 0
+            && let Some(tail) = entries.get_index(at(last))
+        {
+            #[expect(
+                unsafe_code,
+                reason = "the value is borrowed from the store, and `set` \
+                          takes over a reference — the store's own is \
+                          released by the `unset` below"
+            )]
+            unsafe {
+                tail.retain();
+            }
+            entries.set_index(0, tail);
+        }
+        with_key(last, |key| entries.unset(key));
+    })?;
+    sift_down(ctx, receiver, member, 0)
+}
+
+/// Drops each revoked entry that is at the root, so the root is an element
+/// that is not revoked, or the heap is empty. `pop` and `peek` run it first.
+///
+/// # Errors
+///
+/// [`take_root`]'s, unchanged.
+fn settle(ctx: &mut Ctx, receiver: *mut ObjHeader, member: &str) -> Result<(), Fault> {
+    while revoked_count(receiver) > 0 && revoked_at(receiver, member, 0) {
+        set_revoked_count(receiver, revoked_count(receiver) - 1);
+        take_root(ctx, receiver, member)?;
+    }
+    Ok(())
+}
+
+/// Calls `visit` with each entry `heap` holds, borrowed. A heap whose store is
+/// gone, as in a heap being freed by the cycle collector, visits nothing.
+fn each_entry(heap: Value, member: &str, mut visit: impl FnMut(*mut ObjHeader, Value)) {
+    let Some(receiver) = heap.obj_ptr() else {
+        return;
+    };
+    let Ok(entries) = store::borrow(receiver, ENTRIES, &CLASS, member) else {
+        return;
+    };
+    for index in 0..entries.count() {
+        if let Some(value) = entries.get_index(at(index)) {
+            visit(receiver, value);
+        }
+    }
+}
+
+/// The heap's [`revoke::CollectionHooks`]. A revoked entry stays in place, and
+/// the heap's count drops by one.
+pub(crate) const HOOKS: revoke::CollectionHooks = revoke::CollectionHooks {
+    drop_entry: |heap, _, _, _| {
+        if let Some(receiver) = heap.obj_ptr() {
+            set_revoked_count(receiver, revoked_count(receiver) + 1);
+        }
+    },
+    unlink_all: |heap| {
+        each_entry(heap, "release", |receiver, value| {
+            revoke::unlink(value, receiver, MembershipKind::HeapEntry, Value::null());
+        });
+    },
+    link_all: |heap| {
+        each_entry(heap, "copy", |receiver, value| {
+            revoke::link(value, receiver, MembershipKind::HeapEntry, Value::null());
+        });
+    },
+};
 
 nvs_runtime::nvs_helper! {
     /// `new Core\Heap<T>(?callable $comparator = null)` — a fresh empty heap,
@@ -640,7 +816,7 @@ nvs_runtime::nvs_helper! {
         }
         Ok(crate::instance::build(
             &CLASS,
-            [Value::array(NvsArray::new()), comparator],
+            [Value::array(NvsArray::new()), comparator, Value::int(0)],
         ))
     }
 }
@@ -656,6 +832,12 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_heap_push(ctx, args: [2]) {
         let receiver = heap_of(args[0], "push")?;
         let value = args[1];
+        // `rule:core-api/collections-drop-revoked-objects`: a heap never
+        // counts a revoked object, so pushing one does nothing.
+        let tracked = revoke::in_use();
+        if tracked && revoke::is_revoked_value(value) {
+            return Ok(Value::null());
+        }
         let position = store::edit(receiver, ENTRIES, &CLASS, "push", |entries| {
             let position = entries.count();
             #[expect(
@@ -669,6 +851,9 @@ nvs_runtime::nvs_helper! {
             entries.set_index(at(position), value);
             position
         })?;
+        if tracked {
+            revoke::link(value, receiver, MembershipKind::HeapEntry, Value::null());
+        }
         sift_up(ctx, receiver, "push", position)?;
         Ok(Value::null())
     }
@@ -677,8 +862,9 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::peek(): T` — the element `pop` would answer with, left
     /// where it is.
-    fn nvs_core_heap_peek(_ctx, args: [1]) {
+    fn nvs_core_heap_peek(ctx, args: [1]) {
         let receiver = heap_of(args[0], "peek")?;
+        settle(ctx, receiver, "peek")?;
         root(receiver, "peek")
     }
 }
@@ -693,26 +879,10 @@ nvs_runtime::nvs_helper! {
     /// tree and the array never stops being a packed list.
     fn nvs_core_heap_pop(ctx, args: [1]) {
         let receiver = heap_of(args[0], "pop")?;
+        settle(ctx, receiver, "pop")?;
         let top = root(receiver, "pop")?;
-        store::edit(receiver, ENTRIES, &CLASS, "pop", |entries| {
-            let last = entries.count() - 1;
-            if last != 0
-                && let Some(tail) = entries.get_index(at(last))
-            {
-                #[expect(
-                    unsafe_code,
-                    reason = "the value is borrowed from the store, and `set` \
-                              takes over a reference — the store's own is \
-                              released by the `unset` below"
-                )]
-                unsafe {
-                    tail.retain();
-                }
-                entries.set_index(0, tail);
-            }
-            with_key(last, |key| entries.unset(key));
-        })
-        .and_then(|()| sift_down(ctx, receiver, "pop", 0))
+        revoke::unlink(top, receiver, MembershipKind::HeapEntry, Value::null());
+        take_root(ctx, receiver, "pop")
         .map(|()| top)
         .inspect_err(|_| {
             // The root is already out of the store, so a throw from re-ordering
@@ -733,7 +903,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::count(): uint` — how many elements the heap holds.
     fn nvs_core_heap_count(_ctx, args: [1]) {
         let receiver = heap_of(args[0], "count")?;
-        let count = u64::try_from(len(receiver, "count")?).expect("an entry count fits in a `uint`");
+        let count =
+            u64::try_from(live_len(receiver, "count")?).expect("an entry count fits in a `uint`");
         Ok(Value::uint(count))
     }
 }
@@ -745,7 +916,7 @@ nvs_runtime::nvs_helper! {
     /// this is how a caller asks first.
     fn nvs_core_heap_is_empty(_ctx, args: [1]) {
         let receiver = heap_of(args[0], "isEmpty")?;
-        Ok(Value::bool(len(receiver, "isEmpty")? == 0))
+        Ok(Value::bool(live_len(receiver, "isEmpty")? == 0))
     }
 }
 

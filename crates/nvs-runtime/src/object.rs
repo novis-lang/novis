@@ -816,6 +816,14 @@ pub struct ClassDesc {
     /// program's own `string` or `int` keys shows them. Set with
     /// [`ClassDesc::keyed_stores`], and `None` for every other class.
     keys_private: Option<KeysPrivate>,
+    /// What [`crate::revoke`] asks of a collection that may hold a revocable
+    /// object: `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap`. `None` for
+    /// every other class. [`dismantle`] and the cycle collector unlink a
+    /// collection's members through it, and `clone` and a graph copy link a
+    /// copy's. `nvs_stdlib::instance` writes it through
+    /// [`ClassTable::set_collection_hooks`]. **Cost:** three words per class,
+    /// once per process, and one load and branch per object freed or copied.
+    collection: Option<crate::revoke::CollectionHooks>,
 }
 
 /// A [`ClassDesc::free`] hook. It is handed the dying object, borrowed at
@@ -1750,6 +1758,12 @@ impl ClassDesc {
     #[must_use]
     pub fn keyed_stores(&self) -> Option<Rekey> {
         self.keyed_stores
+    }
+
+    /// The hooks a collection class gives [`crate::revoke`] — see the field.
+    #[must_use]
+    pub fn collection_hooks(&self) -> Option<crate::revoke::CollectionHooks> {
+        self.collection
     }
 
     /// Whether `object`, an instance of this class, keeps keys in its array
@@ -2741,6 +2755,7 @@ impl ClassTable {
             free: None,
             keyed_stores: None,
             keys_private: None,
+            collection: None,
         }));
         id
     }
@@ -2904,6 +2919,7 @@ impl ClassTable {
             "a revocable class has its hidden slot first"
         );
         desc.revocable = true;
+        crate::revoke::mark_in_use();
     }
 
     /// Fills in `id`'s [`ClassDesc::free`] hook, on
@@ -2937,6 +2953,21 @@ impl ClassTable {
             .expect("a class id always belongs to the table that handed it out");
         desc.keyed_stores = Some(rekey);
         desc.keys_private = Some(keys_private);
+    }
+
+    /// Gives `id` the hooks [`crate::revoke`] asks of a collection class — see
+    /// [`ClassDesc::collection_hooks`]. A setter on [`ClassTable::set_free`]'s
+    /// terms.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_collection_hooks(&mut self, id: ClassId, hooks: crate::revoke::CollectionHooks) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.collection = Some(hooks);
     }
 
     /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].
@@ -4074,6 +4105,17 @@ fn reclaim(list: &LiveList, room: Option<usize>) -> usize {
     for &member in &garbage {
         bump(member);
     }
+    // Every collection in the cycle leaves its members' lists before any
+    // object of the cycle is freed, so the order of freeing never matters.
+    // Its slots are `null` by the time it is dismantled, so the unlink there
+    // finds nothing.
+    for &member in &garbage {
+        #[expect(unsafe_code, reason = "every member of `garbage` is live here")]
+        let hooks = unsafe { (*NvsObj::class_of(member)).collection };
+        if let Some(hooks) = hooks {
+            (hooks.unlink_all)(Value::from_obj_ptr(member));
+        }
+    }
     for &member in &garbage {
         #[expect(
             unsafe_code,
@@ -5096,6 +5138,11 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut crate::release::W
             let object = Value::from_obj_ptr(ptr);
             crate::ctx::with_current(|ctx| free(ctx, object));
         }
+        // A collection takes itself off its revocable members' lists while
+        // its stores still hold them (`rule:core-api/collections-drop-revoked-objects`).
+        if let Some(hooks) = (*class).collection {
+            (hooks.unlink_all)(Value::from_obj_ptr(ptr));
+        }
         unlink(ptr);
         let field_count = (*class).fields.len();
         for index in 0..field_count {
@@ -5311,10 +5358,18 @@ pub unsafe extern "C" fn nvs_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
         }
         copy.set_field(index, value);
     }
+    // A copy of a collection holds what the source holds, so each revocable
+    // member gets a membership for the copy too.
+    #[expect(unsafe_code, reason = "a live object's descriptor outlives it")]
+    let hooks = unsafe { &*source.class() }.collection_hooks();
     // The borrow ends here: `from_raw` adopted the caller's reference, which
     // the caller still owns, so it must not be dropped with `source`.
     std::mem::forget(source);
-    copy.into_raw()
+    let copy = copy.into_raw();
+    if let Some(hooks) = hooks {
+        (hooks.link_all)(Value::from_obj_ptr(copy));
+    }
+    copy
 }
 
 crate::nvs_helper! {

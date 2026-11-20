@@ -1257,6 +1257,19 @@ fn descriptors() -> &'static Descriptors {
                 found.table.set_keyed_stores(id, rekey, keys_private);
             }
         }
+        // The three collections a revoked object leaves at once
+        // (`rule:core-api/collections-drop-revoked-objects`).
+        let collections: [(&str, nvs_runtime::revoke::CollectionHooks); 3] = [
+            (crate::objmap::NAME, crate::objmap::HOOKS),
+            (crate::objset::NAME, crate::objset::HOOKS),
+            (crate::heap::NAME, crate::heap::HOOKS),
+        ];
+        for (name, hooks) in collections {
+            let ids: Vec<_> = found.ids_named(name).collect();
+            for id in ids {
+                found.table.set_collection_hooks(id, hooks);
+            }
+        }
         // `rule:classes/serialize-is-a-closed-format`: what each slot holds,
         // for every descriptor of the name. A class with no row keeps neither
         // mark, so the bytes carrier refuses it.
