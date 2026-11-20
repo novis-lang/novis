@@ -1,0 +1,397 @@
+//! `rule:classes/revocable-objects`'s runtime half: the revoked flag in an
+//! object's count word, the hidden slot of a revocable class, and the thrower
+//! of `RevokedObjectError`.
+//!
+//! # The flag is the count word's top bit
+//!
+//! [`REVOKED`] is set once, by [`revoke`], and never cleared. Every read that
+//! compares or reports a count masks it off ([`count_of`]), so a revoked
+//! object is freed with its last reference, exactly as one that is not. The
+//! immortal count is all ones and has the bit set too, so [`count_of`] leaves
+//! it whole, and [`revoke`] never writes an immortal header: no revocable
+//! class has an immortal instance, and the check keeps a read-only header
+//! unwritten if one ever did.
+//!
+//! Compiled code's inline release takes the decrement only for a count from 2
+//! up to one below the flag, which is one unsigned compare, as it was. A
+//! revoked object's count is above that bound, so each release of one calls
+//! `nvs_object_release`, which masks. An object that is not revoked runs the
+//! instructions it ran before.
+//!
+//! # The hidden slot
+//!
+//! A revocable class's slot 0 is the hidden slot. Only a root class may
+//! implement `Revocable`, and a subclass's slots follow its parent's, so slot
+//! 0 is the same slot in every class of the tree. It holds a `null` [`Value`]
+//! whose payload is:
+//!
+//! - zero, while the object is in no collection;
+//! - a pointer to its [`Memberships`], while it is in one and not revoked;
+//! - the site blob of the first `revoke()` call, once it is revoked.
+//!
+//! The flag says which of the last two the payload is, so no bit of the
+//! payload is borrowed. A sweep reads the slot as `null` and releases nothing.
+//!
+//! **What it spends:** one 16-byte slot per revocable object, and nothing per
+//! object of any other class. The memberships are allocated on the request's
+//! heap, charged to it and freed with it.
+
+use std::ptr;
+
+use crate::{Ctx, NvsObj, ObjHeader, ThrownClass, Value};
+
+/// The revoked flag: the top bit of an object's count word.
+pub const REVOKED: usize = 1 << (usize::BITS - 1);
+
+// The flag sits above every count a program can reach, and the immortal count
+// is the one word that has it and is not revoked.
+const _: () = assert!(crate::IMMORTAL_REFCOUNT & REVOKED != 0);
+
+/// The slot index of a revocable class's hidden slot.
+pub const HIDDEN_SLOT: usize = 0;
+
+/// The reference count a count word holds, without the revoked flag. The
+/// immortal count is returned unchanged.
+#[must_use]
+pub const fn count_of(word: usize) -> usize {
+    if word == crate::IMMORTAL_REFCOUNT {
+        word
+    } else {
+        word & !REVOKED
+    }
+}
+
+/// One collection entry that holds a revocable object.
+#[derive(Debug)]
+pub struct Membership {
+    /// The collection object.
+    pub collection: *mut ObjHeader,
+    /// Which part of the entry the object is.
+    pub kind: MembershipKind,
+    /// The entry's key, for a map value; `null` otherwise.
+    pub key: Value,
+}
+
+/// Which part of a collection entry a revocable object is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MembershipKind {
+    /// A `Core\ObjectMap` key.
+    MapKey,
+    /// A `Core\ObjectMap` value.
+    MapValue,
+    /// A `Core\ObjectSet` member.
+    SetMember,
+    /// A `Core\Heap` entry.
+    HeapEntry,
+}
+
+/// Every collection entry that holds one revocable object, which the hidden
+/// slot points to while the object is in a collection.
+#[derive(Debug, Default)]
+pub struct Memberships {
+    /// The entries, in the order they were added.
+    pub entries: Vec<Membership>,
+}
+
+/// The hidden slot of the object at `ptr`.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live object of a revocable class.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness and class are the caller's obligation"
+)]
+unsafe fn hidden_slot(ptr: *mut ObjHeader) -> *mut Value {
+    #[expect(
+        unsafe_code,
+        reason = "a revocable class has at least one slot, `set_revocable`'s \
+                  assert, and slot 0 is inside the allocation"
+    )]
+    unsafe {
+        ptr.cast::<u8>()
+            .add(crate::field_offset(HIDDEN_SLOT))
+            .cast::<Value>()
+    }
+}
+
+/// Whether the object at `ptr` is of a revocable class.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live object.
+#[expect(unsafe_code, reason = "the pointee's liveness is the caller's obligation")]
+unsafe fn is_revocable(ptr: *mut ObjHeader) -> bool {
+    #[expect(
+        unsafe_code,
+        reason = "a live object's descriptor is live, `NvsObj::new`'s contract"
+    )]
+    unsafe {
+        (*NvsObj::class_of(ptr)).is_revocable()
+    }
+}
+
+/// Whether the object at `ptr` was revoked.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live object.
+#[must_use]
+#[expect(unsafe_code, reason = "the pointee's liveness is the caller's obligation")]
+pub unsafe fn is_revoked(ptr: *mut ObjHeader) -> bool {
+    #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
+    let word = unsafe { NvsObj::count_word(ptr) }.get();
+    word != crate::IMMORTAL_REFCOUNT && word & REVOKED != 0
+}
+
+/// Revokes the object at `ptr`, which `revoke()` runs: it sets the flag, frees
+/// the object's memberships, and keeps `site` in the hidden slot. A second
+/// call does nothing, so the first site stays. An object of a class that is
+/// not revocable is left as it is.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live object, and `site` must be null or an address
+/// [`crate::source::encode`]'s bytes were baked at.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness and the blob's are the caller's obligation"
+)]
+pub unsafe fn revoke(ptr: *mut ObjHeader, site: *const u8) {
+    #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
+    let revocable = unsafe { is_revocable(ptr) };
+    #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
+    let word = unsafe { NvsObj::count_word(ptr) };
+    if !revocable || word.get() == crate::IMMORTAL_REFCOUNT || word.get() & REVOKED != 0 {
+        return;
+    }
+    word.set(word.get() | REVOKED);
+    #[expect(
+        unsafe_code,
+        reason = "the class is revocable, so slot 0 is the hidden slot"
+    )]
+    let slot = unsafe { hidden_slot(ptr) };
+    #[expect(
+        unsafe_code,
+        reason = "the hidden slot holds a `null` Value whose payload is zero or \
+                  the `Memberships` box this module leaked into it"
+    )]
+    unsafe {
+        let held = slot.read().bits();
+        if held != 0 {
+            drop(Box::from_raw(
+                usize::try_from(held).unwrap_or(0) as *mut Memberships
+            ));
+        }
+        slot.write(Value::source_const(site));
+    }
+}
+
+/// The site blob of the first `revoke()` of the object at `ptr`, or null when
+/// it is not revoked or was revoked with no site.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live object.
+#[must_use]
+#[expect(unsafe_code, reason = "the pointee's liveness is the caller's obligation")]
+pub unsafe fn revoke_site(ptr: *mut ObjHeader) -> *const u8 {
+    #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
+    let revoked = unsafe { is_revoked(ptr) } && unsafe { is_revocable(ptr) };
+    if !revoked {
+        return ptr::null();
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the class is revocable, so slot 0 is the hidden slot"
+    )]
+    let held = unsafe { hidden_slot(ptr).read() };
+    held.as_source_const().unwrap_or(ptr::null())
+}
+
+/// `RevokedObjectError`'s message for the object at `ptr`.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live object, and its hidden slot's site, if any, to a
+/// blob a compiled unit baked.
+#[must_use]
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness and the blob's are the caller's obligation"
+)]
+pub unsafe fn revoked_message(ptr: *mut ObjHeader) -> String {
+    #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
+    let class = unsafe { (*NvsObj::class_of(ptr)).name().to_owned() };
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the site is a baked blob or null"
+    )]
+    let source = unsafe { crate::source::decode(revoke_site(ptr)) };
+    match source {
+        Some(source) if !source.file.is_empty() => format!(
+            "This `{class}` object was revoked in `{}` on line {}. A revoked object cannot be used.",
+            source.file, source.line
+        ),
+        _ => format!("This `{class}` object was revoked. A revoked object cannot be used."),
+    }
+}
+
+/// `revoke()`, as compiled code calls it. `site` is the call's own site blob.
+///
+/// # Safety
+///
+/// As [`revoke`].
+#[expect(unsafe_code, reason = "compiled code passes an object and a blob")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_revoke(object: *mut ObjHeader, site: *const u8) {
+    #[expect(unsafe_code, reason = "forwarding this function's own contract")]
+    unsafe {
+        revoke(object, site);
+    }
+}
+
+/// `isRevoked()`, as compiled code calls it: `1` when the object was revoked,
+/// `0` otherwise.
+///
+/// # Safety
+///
+/// `object` must refer to a live object.
+#[expect(unsafe_code, reason = "compiled code passes an object")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_is_revoked(object: *mut ObjHeader) -> u8 {
+    #[expect(unsafe_code, reason = "forwarding this function's own contract")]
+    u8::from(unsafe { is_revoked(object) })
+}
+
+/// Throws `RevokedObjectError` for a use of the revoked object `object`, and
+/// returns [`crate::THROWN`]. `site` is the use's own site blob, which names
+/// the frame the throw starts in.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the call, `object` must refer
+/// to a live object, and `site` must be null or a baked blob.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes its context, an object and a blob"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_throw_revoked(
+    ctx: *mut Ctx,
+    object: *mut ObjHeader,
+    site: *const u8,
+) -> i32 {
+    // Contained like `nvs_deprecated_use`: the message is Rust that allocates.
+    // The closure runs inside this block, so the object and the blob it reads
+    // are the caller's contract, passed on unchanged.
+    #[expect(unsafe_code, reason = "the caller's contract, passed on unchanged")]
+    unsafe {
+        crate::abi::contain_panic(ctx, |ctx| {
+            let message = revoked_message(object);
+            ctx.set_pending_as(ThrownClass::Revoked, message);
+            ctx.seed_raise_site(site);
+            crate::THROWN
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // covers: lang:classes/revocable-objects
+    use super::*;
+    use crate::ClassTable;
+    use nvs_render::Source;
+
+    /// A revocable root class with one property behind its hidden slot.
+    fn revocable() -> (ClassTable, crate::ClassId) {
+        let mut table = ClassTable::new();
+        let post = table.define("Blog\\Post", &["", "title"], &[]);
+        table.set_revocable(post);
+        (table, post)
+    }
+
+    fn blob(line: u32) -> Vec<u8> {
+        crate::source::encode(&Source {
+            file: "src/Blog/Post.nvs".to_owned(),
+            line,
+            member: None,
+        })
+    }
+
+    #[test]
+    fn the_revoked_flag_is_masked_from_every_count_read() {
+        let (table, post) = revocable();
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let object = unsafe { NvsObj::new(table.desc(post)) };
+        let second = object.clone();
+        let ptr = object.into_raw();
+        let site = blob(3);
+        #[expect(unsafe_code, reason = "a live object and a live blob")]
+        unsafe {
+            revoke(ptr, site.as_ptr());
+            assert!(is_revoked(ptr));
+            assert_eq!(NvsObj::refcount_of(ptr), 2);
+            assert_eq!(NvsObj::count_word(ptr).get(), REVOKED | 2);
+        }
+        assert_eq!(second.refcount(), 2);
+        assert!(format!("{second:?}").contains("refcount: 2"));
+        #[expect(unsafe_code, reason = "the reference `into_raw` gave up")]
+        drop(unsafe { NvsObj::from_raw(ptr) });
+        assert_eq!(second.refcount(), 1);
+    }
+
+    #[test]
+    fn a_revoked_object_is_freed_with_its_last_reference() {
+        let (table, post) = revocable();
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let object = unsafe { NvsObj::new(table.desc(post)) };
+        let title = Value::text("a title that is not inline");
+        #[expect(unsafe_code, reason = "the test holds a second reference")]
+        unsafe {
+            title.retain();
+        }
+        object.set_field(1, title);
+        assert_eq!(title.refcount(), Some(2));
+        let ptr = object.into_raw();
+        #[expect(unsafe_code, reason = "a live object")]
+        unsafe {
+            revoke(ptr, ptr::null());
+            crate::nvs_object_release(ptr);
+        }
+        // The object was freed, and freeing it released its title.
+        assert_eq!(title.refcount(), Some(1));
+        #[expect(unsafe_code, reason = "the test's own reference")]
+        unsafe {
+            title.release();
+        }
+    }
+
+    #[test]
+    fn a_second_revoke_keeps_the_first_site() {
+        let (table, post) = revocable();
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let object = unsafe { NvsObj::new(table.desc(post)) };
+        let ptr = object.into_raw();
+        let (first, second) = (blob(42), blob(77));
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "a live object, live blobs and a live context")]
+        unsafe {
+            revoke(ptr, first.as_ptr());
+            revoke(ptr, second.as_ptr());
+            assert_eq!(revoke_site(ptr), first.as_ptr());
+            assert_eq!(
+                nvs_throw_revoked(&raw mut ctx, ptr, ptr::null()),
+                crate::THROWN
+            );
+            crate::nvs_object_release(ptr);
+        }
+        assert_eq!(
+            ctx.pending().as_deref(),
+            Some(
+                "This `Blog\\Post` object was revoked in `src/Blog/Post.nvs` on line 42. \
+                 A revoked object cannot be used."
+            )
+        );
+    }
+}

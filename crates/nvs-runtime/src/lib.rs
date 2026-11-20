@@ -243,6 +243,7 @@ pub mod placeholder;
 pub mod pool;
 pub mod record;
 pub mod release;
+pub mod revoke;
 pub mod routes;
 pub mod script;
 pub mod sequence;

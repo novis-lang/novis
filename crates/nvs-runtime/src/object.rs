@@ -759,6 +759,13 @@ pub struct ClassDesc {
     /// test defines by hand has instances. **Cost:** one `bool` per class,
     /// once per compiled unit, not per instance.
     no_instances: bool,
+    /// Whether the class implements `Revocable` (`rule:classes/revocable-objects`).
+    /// Such a class's slot 0 is the hidden slot [`crate::revoke`] owns, and
+    /// its count word may carry [`crate::revoke::REVOKED`].
+    /// `nvs_ir::ir::Class` carries the answer down and
+    /// [`ClassTable::set_revocable`] writes it. **Cost:** one `bool` per
+    /// class, once per compiled unit, not per instance.
+    revocable: bool,
     /// The full name of the class this one extends, or `None` for a class
     /// that extends none, for an interface and for every class the compiler
     /// or a native test makes. `nvs_ir::ir::Class::parent` carries it down,
@@ -1779,6 +1786,12 @@ impl ClassDesc {
         self.no_instances
     }
 
+    /// Whether the class implements `Revocable` — see the field.
+    #[must_use]
+    pub fn is_revocable(&self) -> bool {
+        self.revocable
+    }
+
     /// The full name of the class this one extends — see the field.
     #[must_use]
     pub fn parent(&self) -> Option<&str> {
@@ -2696,6 +2709,7 @@ impl ClassTable {
             compiler_made,
             is_core: false,
             no_instances: false,
+            revocable: false,
             parent: None,
             states_slot_types: false,
             bytes_refusal: None,
@@ -2845,6 +2859,26 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.no_instances = true;
+    }
+
+    /// Marks `id` as a class that implements `Revocable` — see
+    /// [`ClassDesc::is_revocable`]. A setter on
+    /// [`ClassTable::set_no_instances`]'s terms.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or the class has no slot for
+    /// [`crate::revoke`] to keep its hidden word in.
+    pub fn set_revocable(&mut self, id: ClassId) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            !desc.fields.is_empty(),
+            "a revocable class has its hidden slot first"
+        );
+        desc.revocable = true;
     }
 
     /// Fills in `id`'s [`ClassDesc::free`] hook, on
@@ -4119,14 +4153,14 @@ fn field_count(ptr: *mut ObjHeader) -> usize {
 }
 
 /// This object's current reference count — [`sweep`]'s one reader, which needs
-/// it beside a tally rather than as a `bool`.
+/// it beside a tally rather than as a `bool`. The revoked flag is masked off.
 fn refcount(ptr: *mut ObjHeader) -> usize {
     #[expect(
         unsafe_code,
         reason = "every caller in this module holds a live reference to `ptr`"
     )]
     unsafe {
-        (*ptr).refcount.get()
+        crate::revoke::count_of((*ptr).refcount.get())
     }
 }
 
@@ -4599,10 +4633,11 @@ impl NvsObj {
         }
     }
 
-    /// How many owners currently hold this allocation.
+    /// How many owners currently hold this allocation. The revoked flag is
+    /// masked off.
     #[must_use]
     pub fn refcount(&self) -> usize {
-        self.header().refcount.get()
+        crate::revoke::count_of(self.header().refcount.get())
     }
 
     /// The class's rendered name.
@@ -4697,7 +4732,27 @@ impl NvsObj {
     pub unsafe fn refcount_of(ptr: *const ObjHeader) -> usize {
         #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
         unsafe {
-            (*ptr).refcount.get()
+            crate::revoke::count_of((*ptr).refcount.get())
+        }
+    }
+
+    /// The count word of the object `ptr` refers to: its reference count, with
+    /// [`crate::revoke::REVOKED`] set once it is revoked. Only
+    /// [`crate::revoke`] reads and writes the flag through it.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must refer to a live Novis object allocation, and the returned
+    /// reference must not outlive it.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "the pointee's liveness is the caller's obligation to state"
+    )]
+    pub(crate) unsafe fn count_word<'a>(ptr: *const ObjHeader) -> &'a Cell<usize> {
+        #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
+        unsafe {
+            &(*ptr).refcount
         }
     }
 
@@ -4832,7 +4887,9 @@ fn bump(ptr: *mut ObjHeader) {
     let count = header.refcount.get();
     // A constant in a compiled unit's data section is reachable from every
     // core, so its count is read and never written — see this module's
-    // § *Decision: an immortal instance is on no list at all*.
+    // § *Decision: an immortal instance is on no list at all*. A revoked
+    // object's flag is the top bit, and adding one leaves it in place: no
+    // count reaches the bit below it.
     if count == crate::IMMORTAL_REFCOUNT {
         return;
     }
@@ -4888,7 +4945,9 @@ pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
         .checked_sub(1)
         .expect("a released object holds the caller's reference");
     header.refcount.set(remaining);
-    remaining == 0
+    // The revoked flag is not a reference: a revoked object is freed with its
+    // last one.
+    crate::revoke::count_of(remaining) == 0
 }
 
 /// Drops one reference to `root`, freeing it and everything it solely owns.

@@ -871,8 +871,9 @@ value's entry keeps its key.
 - `revoke()` sets the flag, follows the memberships and removes each entry in O(1). A map or set leaves
   a hole and compacts later, as an array's `unset` does. A `Heap` entry stays in place, and the heap's
   count drops by one.
-- The memberships are then freed, and the slot holds the call-site constant of the `revoke()` call,
-  with its low bit set to tell it from a pointer. The error reads the class name and that site from the
+- The memberships are then freed, and the slot holds the call-site constant of the `revoke()` call.
+  The revoked flag tells the site from the memberships pointer, so no bit of the slot is borrowed: a
+  site constant has no alignment to spare one. The error reads the class name and that site from the
   object, so the message costs nothing until it is thrown. A second `revoke()` keeps the first site.
 - A collection freed during the request clears its members' memberships in the walk that already
   releases its entries. The cycle collector clears them before it frees any object of the cycle, so the

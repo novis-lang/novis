@@ -416,6 +416,10 @@ pub enum ThrownClass {
     /// (`rule:packaging/a-guest-crash-throws`). A `RuntimeError` whose message
     /// names the extension, the export and the trap.
     Extension,
+    /// `RevokedObjectError` — a use of a revoked object
+    /// (`rule:classes/revocable-objects`). A `LogicError`, and
+    /// [`crate::revoke::nvs_throw_revoked`] is its one thrower.
+    Revoked,
 }
 
 impl ThrownClass {
@@ -437,6 +441,7 @@ impl ThrownClass {
             Self::LdapError => "Core\\Ldap\\LdapError",
             Self::Deprecated => "Core\\DeprecatedError",
             Self::Extension => "ExtensionError",
+            Self::Revoked => "RevokedObjectError",
         }
     }
 
@@ -456,6 +461,7 @@ impl ThrownClass {
         Self::LdapError,
         Self::Deprecated,
         Self::Extension,
+        Self::Revoked,
     ];
 }
 
