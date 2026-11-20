@@ -424,23 +424,31 @@ commit says why.
 **Split:** one writing subagent writes the six `.lspt` cases of the `editor` check while the session
 changes `crates/nvs-lsp/`. Their files are disjoint.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:2856`: after `#[`, the items are the attribute declarations
+- [x] `crates/nvs-lsp/src/completion.rs:2856`: after `#[`, the items are the attribute declarations
   whose sites include this declaration's kind and whose owner fits this class, `Core`'s included, each
   with its doc. No class and no alias is offered.
 - [ ] `crates/nvs-lsp/src/completion.rs:1438` `attribute_key_at` and `:1477` `shape_keys`: one path for
   every declaration, and each key item carries its field's doc. A key in any object literal at a shape
   type shows its doc too.
-- [ ] After `on` in a declaration, the nine site words, or the four a user's declaration may list.
-- [ ] `crates/nvs-lsp/src/hover.rs` and `crates/nvs-lsp/src/card.rs:113`: an attribute name shows its
+  - [x] an attribute payload's keys come from one path, `attribute_decls::Declared::keys`, with docs
+  - [x] hovering a payload key shows its doc
+  - [ ] a key in any object literal at a shape type, and a nested `{…}` in a payload, shows its doc
+  - [ ] a case pins the object-literal key's doc
+- [x] After `on` in a declaration, the nine site words, or the four a user's declaration may list.
+- [x] `crates/nvs-lsp/src/hover.rs` and `crates/nvs-lsp/src/card.rs:113`: an attribute name shows its
   declaration's doc, its sites and its owner. A key shows its doc.
-- [ ] `crates/nvs-lsp/src/definition.rs:822` `attribute_at`: jumps to the declaration. Find references
+- [x] `crates/nvs-lsp/src/definition.rs:822` `attribute_at`: jumps to the declaration. Find references
   on a declaration lists its uses and its retrievals.
-- [ ] `crates/nvs-lsp/src/semantic.rs`: an attribute name is its own token kind, not a type.
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json`: `attribute`, `repeatable` and `on` in a declaration
+- [x] `crates/nvs-lsp/src/semantic.rs`: an attribute name is its own token kind, not a type.
+- [x] `editors/vscode/syntaxes/nvs.tmLanguage.json`: `attribute`, `repeatable` and `on` in a declaration
   header are keywords.
-- [ ] Every existing `.lspt` case under `tests/lsp/` that writes a shape alias as an attribute was
+- [x] Every existing `.lspt` case under `tests/lsp/` that writes a shape alias as an attribute was
   migrated in stage 6. Its expected list changes only where this stage changed the answer.
-- [ ] The `editor` check runs once.
+- [ ] `E1005`'s fix: a code action rewrites a shape alias the program declares, used after `#[`, to
+  `attribute Name on <the site of this use> { … }`
+  (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), with an `.lspt` case under
+  `tests/lsp/actions/`.
+- [x] The `editor` check runs once.
 
 ### 8. the feature's proofs, the reference and the website say what attributes are now
 
@@ -480,44 +488,43 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 to 6 are done. Every `.nvs`, `.nvst` and `.lspt` file in the corpus declares its
-attributes (commit `c8b3922075`), and no file writes `#[{` or names `E0726`, `E0729` or `E0871`.
-The 43 touched conformance cases pass by name, the changed Rust tests pass by name, and
-`bun nv proofs --comments` passed on every touched directory. `bun nv rules --check` is green.
+Stages 1 to 6 are done, and stage 7's editor work is in (`9b154d39c4`). The `editor` check is
+green, and all 634 `.lspt` cases pass on the debug binary. Clippy is green. `10ea0decab` lays out
+stages 3 to 6's Rust as rustfmt writes it, so `cargo fmt --check` is clean.
 
-This session also landed three fixes the migration found:
+The nightly's two failures were already fixed (`e5a100b18f`, `438e9c44af`).
+`crates/nvs-lsp/src/attribute_decls.rs` `Declared` is one value for a program's and a `Core`
+declaration, read by `completion.rs` `attributes_that_fit` and `on_list_at`, the payload keys, and
+`hover.rs` `attribute_card` and `attribute_key`. An attribute name is a `decorator` token. A `Core`
+attribute's name now lists its uses under references and highlight. `on` offers the four program
+sites. `#[` items carry their card inline, because the list is short.
 
-- **A retrieval may name a `Core` declaration** (`48aa41503e`, recorded under *Standing
-  decisions*). `attributes::core_payload_type` builds the payload type from the row's fields, and
-  `attributes::declaration_of` returns a `QName` for both kinds. A `Core` enum field such as
-  `Core\Route`'s `method` is that enum. `tests/conformance/core/a-retrieval-reads-a-core-attributes-payload.nvst`
-  pins `Core\Command`, `Core\Option` and `Core\Route`.
-- **`Core\Ast` has `AttributeDecl`** (`fa0e6ea768`) and **a second `#[Json\Field]` is `E0763`
-  alone** (`f632eefe61`). The nightly's other reds were fixed before this session.
-
-**Red, expected:** four `.lspt` cases from stage 4's `Core` declarations, which stage 7 owns:
-`tests/lsp/definition/a-compiler-attribute-answers-its-stub.lspt` (answers `Route.nvs:10:22`, not
-`10:6`), and `tests/lsp/hover/a-changed-grant-changes-the-route-hover.lspt`,
-`a-route-hover-lists-the-programs-grants.lspt` and `an-attribute-name-answers-the-attributes-card.lspt`
-(the `#[Core\Route(...)]` card changed). On the debug binary, three attacks pass the 10 s bound
-(`tests/hostile/core/Attributes/all/01`, `lang/attributes/an-attribute-is-an-anonymous-object-…/01`,
+**Possibly red, not run:** `nvs-lsp`'s Rust unit tests, since `render.rs`, `completion.rs` and
+`semantic.rs` changed (the legend gained `decorator`). On the debug binary, three attacks pass the
+10 s bound (`tests/hostile/core/Attributes/all/01`,
+`lang/attributes/an-attribute-is-an-anonymous-object-…/01`,
 `lang/attributes/reading-attributes-back-…/01`). They take 1.4 to 2.4 s on a release proof binary.
 
 ### Next
 
-Stage 7: the editor offers only the attributes that fit. Follow the stage's `**Split:**` line.
+Stage 7's two open items, then stage 8.
 
-- Fix the four red `.lspt` cases above first: each is the stub or card that stage 4's declaration
-  rows changed. Read the new answer, and decide whether the case or the server is wrong.
-- `tests/lsp/semantic/an-attribute-name-is-a-type-token.lspt` pins an attribute name as a `type`
-  token, and a declaration's own name gets no token. The stage's `semantic.rs` item changes both,
-  and the case is renamed with it.
-- `crates/nvs-lsp/src/completion.rs:2856` and `:1438` are the anchors the stage names.
+- A key in an object literal at a shape type shows its field's doc. `nvs_types::ty::ShapeField`
+  (`crates/nvs-types/src/ty.rs:426`) has no doc. Carry the `///` text, or the source span of the
+  field's doc, from lowering into the type, then read it in `completion.rs` `shape_keys` and add a
+  hover arm. A nested `{…}` in a payload goes through `shape_keys` too. Add one `.lspt` case.
+- `E1005`'s code action: find how an existing fix is attached (`crates/nvs-lsp/src/actions.rs`),
+  and rewrite `type Name = { … };` to `attribute Name on <site> { … }`. The site is the site of the
+  use that raised `E1005`.
+- Then stage 8, following its `**Split:**` line.
 
 ### Backlog
 
-- `E1005`'s fix, the code action that rewrites a shape alias to `attribute Name on <site> { … }`, is
-  not built. The diagnostic's help names the syntax. Build the fix in stage 7, with the editor work.
+- `nvs/fileKinds` (`crates/nvs-lsp/src/file_kinds.rs:109`) does not list `DeclKind::Attribute`, and
+  the outline shows an attribute as `Struct`. Give the client a word for it if stage 8's pages
+  mention the outline.
+- `#[` offers a namespace-level declaration by `written_as` alone, so a `Core` attribute is offered
+  as `Core\Route`, with no `use` line added. `in_reach`'s import edit could be shared if users ask.
 - An attribute name in a type position should be `E0303`. That is not checked yet, because
   `SymbolKind::Attribute` is in the symbol table. Check what `crates/nvs-types/src/lower.rs` does
   with it.
