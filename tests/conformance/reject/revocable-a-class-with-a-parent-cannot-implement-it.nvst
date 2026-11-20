@@ -1,0 +1,23 @@
+--TEST--
+A class with a parent class cannot write `implements Revocable`
+--FILE--
+<?nvs
+// Only the class at the top of a chain may write `implements Revocable`.
+class Base {}
+
+class Mid extends Base {}
+
+class Post extends Mid implements Revocable {}
+
+echo "unreachable\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1001]: `Post` cannot implement `Revocable`, because its parent class `Mid` does not.
+  --> case.nvs:7:35
+%A
+  = help: Write `implements Revocable` on `Base`, the class with no parent. `Post` then gets it too.
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

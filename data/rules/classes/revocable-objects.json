@@ -1,0 +1,19 @@
+{
+  "title": "A root class may implement Revocable, and any use of a revoked object but a few throws RevokedObjectError",
+  "status": "designed",
+  "seeAlso": [
+    "core-api/collections-drop-revoked-objects",
+    "classes/interface-default-methods",
+    "classes/no-destructors",
+    "statements/static-is-a-member-modifier",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/revocable-a-class-with-a-parent-cannot-implement-it.nvst",
+    "tests/conformance/reject/revocable-only-a-class-can-implement-it.nvst",
+    "tests/conformance/reject/revocable-revoke-and-isrevoked-cannot-be-declared-again.nvst",
+    "tests/conformance/reject/revocable-an-object-map-of-a-subclass-is-not-a-map-of-its-root.nvst",
+    "tests/conformance/class/revocable-static-in-a-collection-type-is-bound-at-the-call.nvst"
+  ],
+  "goal": "revocable-objects"
+}

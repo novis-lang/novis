@@ -1,0 +1,22 @@
+--TEST--
+A `Core\ObjectMap` of a subclass is not a `Core\ObjectMap` of its parent class
+--FILE--
+<?nvs
+// A map of `Post` values cannot be used where a map of `Storable` values is expected.
+abstract class Storable implements Revocable {}
+
+class Post extends Storable {}
+
+Core\ObjectMap<string, Post> $posts = new Core\ObjectMap<string, Post>();
+Core\ObjectMap<string, Storable> $items = $posts;
+
+echo "unreachable\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\ObjectMap<string, Storable>`, found `Core\ObjectMap<string, Post>`
+  --> case.nvs:8:43
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

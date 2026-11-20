@@ -1,0 +1,11 @@
+{
+  "title": "ObjectMap, ObjectSet and Heap drop a revoked object at the revoke, and their count stays exact",
+  "status": "designed",
+  "seeAlso": [
+    "classes/revocable-objects",
+    "core-api/no-methods-on-scalars-or-arrays",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [],
+  "goal": "revocable-objects"
+}

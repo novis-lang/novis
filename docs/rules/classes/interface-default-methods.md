@@ -1,7 +1,8 @@
 An `interface` method may carry a body. A `public` one is a default: every implementor gets it for
 free, may override it exactly as it overrides an inherited method, and genuinely *is* the interface —
 `$impl is I` answers `true` (`rule:types/type-test`), reflectable and checkable at every call site
-that asks for the type, which is what a trait never gave.
+that asks for the type, which is what a trait never gave. The one exception is `Revocable`: its two
+defaults cannot be declared again (`rule:classes/revocable-objects`).
 
 `$this` inside an interface's own method body is typed as that interface, not the concrete class.
 Only members the interface itself declares, or one it `extends` does, are reachable through it. That

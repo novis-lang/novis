@@ -268,12 +268,21 @@ the loop, with no copy, so a body that writes copies the store once (`nvs_stdlib
 the loop and charged to its request, as the value-only loop holds. Speed: the loop grows linearly with
 no allocation per entry. Each entry costs three dispatched calls, `advance`, `key` and `current`, where
 an array loop pays none, and it saves the `get` lookup a program that walks the keys writes. The bench
-of `lang:iteration/keys-and-values-from-a-map` records the measured figures beside an array loop over
-the same entries.
+of `lang:iteration/keys-and-values-from-a-map` measures one round of a keyed loop over an 8-entry map
+beside an array loop over the same entries: 2 allocations and 224 bytes per round, all of them the
+keyed loop's, since an array loop allocates nothing, and 26 calls. Its size ramp, from 12,500 to 100,000 entries, grows no faster
+than linear, so no entry allocates.
 
 Out of scope, each staying as it is: a keyed `yield` ([`iteration/one-way-only`](iteration.md#iteration-one-way-only)), so a generator is
-still an `Iterator<T>`; and `Core\Arr::from($map)`, which still gives the keys, since its parameter is
-`array|Iterable|Iterator`.
+still an `Iterator<T>`; `Core\Arr::from($map)`, which still gives the keys, since its parameter is
+`array|Iterable|Iterator`; and a `KeyedIterable` that is not also an `Iterable`, which a `Core` member
+whose parameter reads `Iterable` does not accept.
+
+**A stated bound.** A wrong type-argument count on `implements KeyedIterable` is `E0442`, and the class
+is then checked against the bare name, so a follow-on `E0404` names `iterateKeyed` as well.
+`tests/conformance/reject/a-keyed-interface-needs-concrete-type-arguments.nvst` pins both. Giving one
+mistake one diagnostic is a change to `lower_generic_interface`'s recovery, and it changes that case's
+expected output.
 
 **Declined:**
 - **`Iterable<K, V>` with a second type argument.** A name's arity is one fact on the reserved roster,

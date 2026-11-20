@@ -1,0 +1,28 @@
+--TEST--
+A revocable class cannot declare its own `revoke()` or `isRevoked()`
+--FILE--
+<?nvs
+// A subclass of a revocable class cannot declare `revoke()` or `isRevoked()` again.
+class Base implements Revocable {}
+
+class Tag extends Base {
+    public function revoke(): void {}
+
+    public function isRevoked(): bool {
+        return false;
+    }
+}
+
+echo "unreachable\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1003]: `Tag` cannot declare `revoke()`. `Revocable` provides this method, and a class cannot replace it.
+  --> case.nvs:6:21
+%A
+error[E1003]: `Tag` cannot declare `isRevoked()`. `Revocable` provides this method, and a class cannot replace it.
+  --> case.nvs:8:21
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -34,6 +34,7 @@
     "classes/no-traits",
     "classes/interface-default-methods",
     "classes/interface-private-methods",
+    "classes/revocable-objects",
     "classes/interfaces-declare-no-state",
     "classes/delegation-by-property",
     "classes/comparable",

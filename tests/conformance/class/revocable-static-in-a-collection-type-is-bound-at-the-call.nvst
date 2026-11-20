@@ -1,0 +1,26 @@
+--TEST--
+`static` in a collection type means the class the method was called on
+--FILE--
+<?nvs
+// `Post::fresh()` returns a map of `Post` values, and `Post::addTo` takes one.
+abstract class Storable implements Revocable {
+    public function constructor(public string $key) {}
+
+    public static function fresh(): Core\ObjectMap<string, static> {
+        return new Core\ObjectMap<string, static>();
+    }
+
+    public static function addTo(Core\ObjectMap<string, static> $map, Storable $item): void {
+        $map->set($item->key, $item);
+    }
+}
+
+class Post extends Storable {}
+
+Core\ObjectMap<string, Post> $posts = Post::fresh();
+Post::addTo($posts, new Post("first"));
+Post::addTo($posts, new Post("second"));
+echo $posts->count(), "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+2

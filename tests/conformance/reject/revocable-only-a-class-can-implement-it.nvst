@@ -1,0 +1,17 @@
+--TEST--
+An interface cannot extend `Revocable`
+--FILE--
+<?nvs
+// Only a class can implement `Revocable`, so an interface cannot extend it.
+interface Removable extends Revocable {}
+
+echo "unreachable\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E1002]: Only a class can implement `Revocable`.
+  --> case.nvs:3:29
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

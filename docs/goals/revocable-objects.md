@@ -6,7 +6,7 @@ context: [docs/rules/classes/interface-default-methods.md, docs/rules/classes/no
 stages:
   - id: 1
     title: the rules are written, and the checker knows Revocable, its two methods and its error
-    status: open
+    status: done
     context: [crates/nvs-hir/src/interfaces.rs, crates/nvs-types/src/iter_lib.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-types/src/conformance.rs, crates/nvs-hir/src/errors.rs, docs/rules/statements/static-is-a-member-modifier.md, docs/rules/core-api/no-methods-on-scalars-or-arrays.md]
   - id: 2
     title: an object carries its revoked flag in its count word and its revoke site in one hidden slot
@@ -301,6 +301,19 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
     (`crates/nvs-runtime/src/budget.rs:1967`) charges it to the request, and it is freed with the
     request. It is O(in-flight), never O(requests served). The rule states it.
 
+13. **`may_be_revocable` is a set, built once (stage 1's call).** `RevocableTypes::of(graph)` holds
+    every name a concrete revocable class reaches, through `extends` or `implements`, itself included.
+    A class type, an interface or a `Core` contract needs the check when it is in the set. `mixed`,
+    `object` and a type variable need it when the set is not empty. A program with no revocable class
+    compiles no check. This needs no lookup of a declaration's kind, and it is exact: a class type
+    outside the set has no revocable subclass, because only a root opts in.
+14. **An enum that writes `implements Revocable` keeps its one error (stage 1's call).**
+    `rule:enums/no-class-machinery` already refuses every `implements` on an enum, so
+    `E_REVOCABLE_NOT_A_CLASS` is for an interface alone. One mistake gets one error.
+15. **Decision 7's answer: the default does not compile (`E0472`).** A static property's default is a
+    compile-time constant. The examples create the map on first use with `??=`, in a static property
+    typed `?Core\ObjectMap<…>`, and the rule says so.
+
 ### More choices the authoring session made (settled)
 
 - **`Revocable` sits on the compiler's interface roster** (`crates/nvs-hir/src/interfaces.rs:45`)
@@ -403,32 +416,39 @@ compile errors. Nothing runs yet.
 `checker` check, each with `// covers: lang:classes/revocable-objects`. The session runs the check
 once.
 
-- [ ] First: `crates/nvs-types/src/expr/calls.rs:160` binds `static` in a parameter or return type at
+- [x] First: `crates/nvs-types/src/expr/calls.rs:160` binds `static` in a parameter or return type at
   the call. Confirm that `Core\ObjectMap<string, static>` in a static method's return type is bound
   there (the collection's type arguments are made at `crates/nvs-types/src/core_lib.rs:975`). If not,
   bind it at the same site (decision 6's fallback). The case
-  `revocable-static-in-a-collection-type-is-bound-at-the-call.nvst` pins it.
-- [ ] Then: `crates/nvs-types/src/defaults.rs:359` `eval_property_default` decides what a static
+  `revocable-static-in-a-collection-type-is-bound-at-the-call.nvst` pins it. **It was not bound**:
+  `bind_static` (`crates/nvs-types/src/signatures.rs:2521`) now rewrites a generic class's type
+  arguments, and `yields_the_called_class` (`crates/nvs-types/src/check.rs:1567`) takes a fresh
+  `new Core\ObjectMap<string, static>()` with no arguments, as it takes `[]`.
+- [x] Then: `crates/nvs-types/src/defaults.rs:359` `eval_property_default` decides what a static
   property's default may be. Confirm whether decision 7's `new Core\ObjectMap<...>()` default compiles,
   and write the answer into § *State*. Change nothing in the language.
-- [ ] `docs/rules/classes/revocable-objects.md:1` and
+- [x] `docs/rules/classes/revocable-objects.md:1` and
   `docs/rules/core-api/collections-drop-revoked-objects.md:1`: the two rules of § *The rules*, with
   their records and their places in the topic lists. `docs/rules/classes/interface-default-methods.md:1`
   gains one sentence: a default of `Revocable` cannot be declared again. `bun nv rules --render`,
   then `bun nv rules --check` is green.
-- [ ] `crates/nvs-hir/src/interfaces.rs:45`: `Revocable` joins `RESERVED`, with its constant
+- [x] `crates/nvs-hir/src/interfaces.rs:45`: `Revocable` joins `RESERVED`, with its constant
   and the sentence at `:42`. `crates/nvs-types/src/iter_lib.rs:81`: `seed` adds it with `revoke(): void`
   and `isRevoked(): bool`, each with `has_body` set and a flag that refuses a redeclaration.
-- [ ] `crates/nvs-hir/src/hierarchy.rs:761` `resolve_supertype`: `E_REVOCABLE_BELOW_ROOT` for a class
+  No flag was needed: `conformance.rs` `reject_revocable_redeclaration` asks the graph.
+- [x] `crates/nvs-hir/src/hierarchy.rs:761` `resolve_supertype`: `E_REVOCABLE_BELOW_ROOT` for a class
   with a parent, and `E_REVOCABLE_NOT_A_CLASS` for an interface or an enum.
   `crates/nvs-types/src/conformance.rs:768` `check_method_overrides`: `E_REVOCABLE_METHOD_DECLARED`.
   The three codes and their cards go in `crates/nvs-diagnostics/src/code/types_e08.rs:1254`, with the
-  text of § *The text an end user reads*.
-- [ ] `crates/nvs-hir/src/errors.rs:120`: `("RevokedObjectError", Some("LogicError"))`, and its
-  constructor in `crates/nvs-types/src/error_lib.rs:267` if the tree needs one there.
-- [ ] `crates/nvs-types/src/revocable.rs:1`: `may_be_revocable(ty)`, the test of decision 9, built on
+  text of § *The text an end user reads*. They are E1001 to E1003 in `types_e10.rs`: `E0899` closed
+  the `E08xx` range. The checks are in `HierarchyResolver::resolve`, after every link is in the graph,
+  so the help can name a root declared in a later file.
+- [x] `crates/nvs-hir/src/errors.rs:120`: `("RevokedObjectError", Some("LogicError"))`, and its
+  constructor in `crates/nvs-types/src/error_lib.rs:267` if the tree needs one there. It needs none.
+- [x] `crates/nvs-types/src/revocable.rs:1`: `may_be_revocable(ty)`, the test of decision 9, built on
   `implements_interface` (`crates/nvs-hir/src/hierarchy.rs:871`). Stage 3 calls it from the IR.
-- [ ] The `checker` check, run once.
+  It is `RevocableTypes::of(graph).may_be_revocable(ty, interner)`: see decision 13.
+- [x] The `checker` check, run once. Green.
 
 ### 2. an object carries its revoked flag in its count word and its revoke site in one hidden slot
 
@@ -616,14 +636,29 @@ The authoring session's calls: the names `revoke`, `Revocable` and `RevokedObjec
 root-only opt-in; a public `revoke()`; eager removal through memberships; the flag in the count
 word; an `ObjectMap` that drops an entry on its key or its value; the list of forms that throw and
 that do not; the two fallbacks; and every choice under § *More choices* and decisions 8 to 10's
-"my call" lines. Nothing is built yet.
+"my call" lines.
+
+Stage 1 is built. `static` in a collection's type arguments is now bound at the call (decision 6's
+fallback, commit `281e8dd4d4`). A static property's default of `new Core\ObjectMap<…>()` does not
+compile, so the examples use `??=` (decision 15). The checker knows `Revocable`, its two methods,
+`RevokedObjectError` and E1001 to E1003 (`5cad994ab8`). `RevocableTypes` is decision 13's set. Both
+rules are written, as `designed`, with their records. `$t->revoke()` and `$t->isRevoked()` type-check
+today, and nothing compiles a body for them yet.
+
+The acceptance sweep's nightly failures (run 44510687786) were each fixed on disk after that run
+started: the wasmtime bump `eb5c02e983`, the Miri payload pointer `4c82a2409a`, the debug-viewer shots
+`656f5b2f2d` and the registry page wait `1c75c4ef0e`. No nightly has run since to confirm them.
 
 ### Next
 
-Stage 1, once its gate holds: the `static` binding confirm at `crates/nvs-types/src/expr/calls.rs:160`
-first, then the static default at `crates/nvs-types/src/defaults.rs:359`, then the two rules at
-`docs/rules/classes/revocable-objects.md:1` and `docs/rules/core-api/collections-drop-revoked-objects.md:1`.
+Stage 2, in its item order: `crates/nvs-runtime/src/revoke.rs:1` with `ThrownClass::Revoked`
+(`crates/nvs-runtime/src/throwable.rs:341`), then the masked count reads (`object.rs` `fn refcount`,
+re-found with `bun nv peek --locate refcount`), then the inline release bound
+(`crates/nvs-codegen/src/emit.rs:4766`), the hidden slot (`crates/nvs-types/src/layout.rs:1002`), and
+the lowering of the two intrinsics.
 
-No test is expected to go red.
+A test may go red once `ThrownClass` gains `Revoked`: `ThrownClass::ALL` is iterated by
+`every_thrown_class_is_in_the_compiler_s_exception_tree` in `nvs-codegen`, which stays green because
+the tree already has the class.
 
 ### Backlog

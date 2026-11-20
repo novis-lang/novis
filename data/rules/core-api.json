@@ -30,6 +30,7 @@
     "core-api/failure-throws",
     "core-api/one-paradigm-per-operation",
     "core-api/no-methods-on-scalars-or-arrays",
+    "core-api/collections-drop-revoked-objects",
     "core-api/no-mode-strings",
     "core-api/units-are-types",
     "core-api/no-encoding-argument",

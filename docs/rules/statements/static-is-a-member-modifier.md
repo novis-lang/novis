@@ -14,7 +14,10 @@ read at run time off the descriptor the frame already holds.
 
 A `static` anywhere in a parameter type or a return type is the class the call names, at
 `Category::find(...)` and at `$category->find(...)` alike: `property<static>`, `array<static>`,
-`?static` and `: static` are all bound at the call. A base class that declares
+`Core\ObjectMap<string, static>`, `?static` and `: static` are all bound at the call. A body that
+promises one of these returns `$this`, `new static(...)`, `null`, a call on `self`, `static`,
+`parent` or `$this` whose own return binds `static`, an array literal or a `? :` of those, or a
+fresh `Core` collection with no constructor arguments, which is empty as `[]` is (`E0741`). A base class that declares
 `sortBy(property<static> $field)` once then checks each subclass's own properties at each call, with
 no override per subclass. A type that also writes `self` or the declaring class's own name is not
 bound, and neither is a `static` among a written callable's parameters; both keep the declaring class.
