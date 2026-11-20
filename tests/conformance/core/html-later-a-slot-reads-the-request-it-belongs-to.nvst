@@ -2,6 +2,7 @@
 Inside a `Core\Html::later` slot, `Core\Request` returns the path, a header, a cookie, a query value and a route parameter of the request the slot belongs to, on a normal and on a slotted route. A body read in a slot throws `LogicError`, and the main script still reads the body -- `rule:core-classes/html-later`
 --FILE--
 <?nvs
+// covers: Core\Html::later
 final class Pages {
     #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]

@@ -1053,7 +1053,7 @@
     "Core\\Html::join": "55dda38f33a51cbe"
   },
   "docs/examples/core/Html/later/about.md": {
-    "Core\\Html::later": "84a6b4ad6df25cb3"
+    "Core\\Html::later": "2fd3ac694109ead3"
   },
   "docs/examples/core/Html/parse/about.md": {
     "Core\\Html::parse": "70bdb4478ce56747"
@@ -5838,7 +5838,7 @@
     "Core\\Html::join": "b0460ff250e29e3d"
   },
   "help:Core\\Html::later": {
-    "Core\\Html::later": "43eddede61faca01"
+    "Core\\Html::later": "ccda395e0c7807b1"
   },
   "help:Core\\Html::parse": {
     "Core\\Html::parse": "c2191d2f3d8a1347"

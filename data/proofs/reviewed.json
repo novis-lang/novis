@@ -23,6 +23,7 @@
   "docs/examples/core/Attributes/all/01-every-label-on-one-class.nvs": "4d13cfdd7d244f8d",
   "docs/examples/core/Attributes/all/about.md": "8bbff74b91f7fee9",
   "docs/examples/core/Attributes/get/about.md": "bc84826cc7e27111",
+  "docs/examples/core/Html/later/about.md": "98ea927edbafd049",
   "docs/examples/core/ObjectMap/isEmpty/03-save-only-when-something-changed.nvs": "d60a90595a5a4472",
   "docs/examples/core/Program/implementingWith/01-pages-and-their-routes.nvs": "735a3c14f99559cf",
   "docs/examples/core/Program/implementingWith/04-jobs-that-extend-a-base-class.nvs": "6c883aee77507304",
@@ -95,6 +96,7 @@
   "docs/examples/types/Revocable/about.md": "6eb2fef1199fc633",
   "docs/examples/types/RevokedObjectError/01-catching-a-use-after-delete.nvs": "e07ffc27186fec4f",
   "docs/examples/types/RevokedObjectError/about.md": "5f914ba43299412d",
+  "help:Core\\Html::later": "38bea2ef1b73f6d2",
   "help:Core\\Reflect\\AttributeInfo::name": "1a5170c53d5f6c08",
   "help:KeyedIterable": "fc9f491200463b3f",
   "help:KeyedIterator": "8bc8ba435555f409",
@@ -126,5 +128,5 @@
   "website/src/content/docs/syntax/control-flow/iterators.mdx": "bb7f40ac15471ee7",
   "website/src/content/docs/syntax/errors/error-types.mdx": "c441d0499b122fc6",
   "website/src/content/docs/tools/test-runner/index.mdx": "17047d1c820b003e",
-  "website/src/data/changes.json": "7db84341cabda04a"
+  "website/src/data/changes.json": "7e8962e55ab7ba06"
 }

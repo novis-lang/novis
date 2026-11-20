@@ -448,7 +448,9 @@ const LATER_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "fn",
             desc: "The function to run. It takes no arguments. Its output is what it echoes, \
-                   followed by the `Core\\Html\\Markup` it returns, if any.",
+                   followed by the `Core\\Html\\Markup` it returns, if any. It can read the \
+                   request with `Core\\Request`, but not the body. A body read throws a \
+                   `LogicError`.",
             shape: &[],
         },
         ParamDoc {

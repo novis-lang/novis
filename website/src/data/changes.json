@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "Core\\Html::later"
+      ],
+      "text": "A callable in `Core\\Html::later` can read the request with `Core\\Request`. The path, the query, a header, a cookie and the route parameters are the same as in the main script. A body read in the callable throws a `LogicError`."
+    },
+    {
       "kind": "removed",
       "features": [
         "Core\\Time::fromIso",
