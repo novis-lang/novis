@@ -72,11 +72,16 @@
 // that needs the tag stops there and says to fetch them. It never renders the whole history as notes,
 // and it never names a version that is already released.
 //
-// **The notes are compacted.** `git log` here is written by an unattended loop and is largely
+// **The notes start with what a user reads.** The entries of `website/src/data/changes.json` come first,
+// in the six sections of `docs/agent/changelog-summary.md`, Security fixes first, and the commit log
+// follows under *Details* (`rule:testing/every-change-reaches-the-website`). A release step moves the
+// entries out of that file once the notes are rendered (`bun nv site --changes --release`).
+//
+// **The commit log is compacted.** `git log` here is written by an unattended loop and is largely
 // bookkeeping. So `feat`, `fix` and `perf` are listed in full and grouped by scope, anything breaking
-// is lifted to the top, a commit of any type scoped `fmt` is listed under *Formatter* after them, a
-// subject that is not a conventional commit is listed under *Other*, and every other type collapses
-// into one *Internal* line with per-type counts. The counts add up to the commit
+// is lifted to the top of *Details*, a commit of any type scoped `fmt` is listed under *Formatter* after
+// them, a subject that is not a conventional commit is listed under *Other*, and every other type
+// collapses into one *Internal changes* line with per-type counts. The counts add up to the commit
 // total, and the compare link at the foot reaches the rest.
 //
 // **This never publishes.** `--apply` writes the tree and stops. Tagging, pushing and the GitHub draft
@@ -89,6 +94,7 @@ import { join, resolve as resolvePath } from "node:path";
 import { deflateRawSync, gzipSync } from "node:zlib";
 import { parse as parseToml } from "smol-toml";
 import { ROOT } from "../lib/paths.ts";
+import { type ChangeEntry, notesSections, readChanges } from "../lib/changes.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyInt } from "../lib/py.ts";
 
@@ -113,7 +119,7 @@ export const ARCHIVE_EXTRAS = ["README.md", "LICENSE", "THIRD-PARTY-LICENSES.txt
 // does not match is listed under *Other*.
 const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<bang>!)?: (?<subject>.+)$/;
 
-// Listed in full, in this order. Every other type collapses into the Internal count.
+// Listed in full, in this order. Every other type collapses into the *Internal changes* count.
 export const HEADLINE_SECTIONS: [string, string][] = [
   ["feat", "Features"],
   ["fix", "Fixes"],
@@ -435,7 +441,11 @@ function bullet(entry: Entry, url: string): string {
 
 const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-/** One version's changelog section, dated `today`. */
+/**
+ * One version's changelog section, dated `today`. It starts with the user's entries of `changes.json` in
+ * their sections (`lib/changes.ts` `notesSections`), then *Internal changes*, the count of the commits no
+ * headline type lists, and then the commit log under *Details*.
+ */
 export function renderNotes(
   version: string,
   previousTag: string,
@@ -443,9 +453,11 @@ export function renderNotes(
   url: string,
   today: string,
   cap: number = SECTION_CAP,
+  changes: ChangeEntry[] = [],
 ): string {
-  const lines = [`## [${version}] - ${today}`, ""];
+  const lines = [`## [${version}] - ${today}`, "", ...notesSections(changes)];
   if (entries.length === 0) return [...lines, "No commits since the previous release.", ""].join("\n");
+  const details: string[] = ["### Details", ""];
 
   const listing = (rows: Entry[]): string[] => {
     const ordered = [...rows].sort((a, b) => byCodePoint(a.scope ?? "", b.scope ?? "") || byCodePoint(a.clean, b.clean));
@@ -455,7 +467,7 @@ export function renderNotes(
   };
   const section = (title: string, rows: Entry[]) => {
     if (rows.length === 0) return;
-    lines.push(`### ${title}`, "", ...listing(rows), "");
+    details.push(`#### ${title}`, "", ...listing(rows), "");
   };
 
   const listed = new Set<Entry>();
@@ -467,8 +479,8 @@ export function renderNotes(
 
   const breaking = take((e) => e.breaking);
   if (breaking.length > 0) {
-    lines.push(
-      "### Breaking changes",
+    details.push(
+      "#### Breaking changes",
       "",
       "What a break may and may not be is `rule:packaging/the-versioned-surface-is-enumerated`, `rule:packaging/below-1-0-the-breaking-slot-moves-left` and `rule:packaging/who-can-see-it-decides-the-release-slot`.",
       "",
@@ -488,8 +500,9 @@ export function renderNotes(
     const counts = new Map<string, number>();
     for (const e of rest) counts.set(e.type!, (counts.get(e.type!) ?? 0) + 1);
     const tally = [...counts].sort((a, b) => b[1] - a[1]).map(([kind, n]) => `${kind} (${n})`).join(", ");
-    lines.push("### Internal", "", `${rest.length} further commits: ${tally}.`, "");
+    lines.push("### Internal changes", "", `${rest.length} further commits: ${tally}.`, "");
   }
+  lines.push(...details);
 
   if (url) lines.push(`[Full changes](${url}/compare/${previousTag}...v${version}) — ${entries.length} commits.`, "");
   return lines.join("\n");
@@ -798,7 +811,7 @@ export async function notesFor(version: string, previousTag: string, cap: number
   const today = new Date().toISOString().slice(0, 10);
   // Never through a shell: a subject in this history may contain backticks, `$(...)` or a quote.
   const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", `${previousTag}..HEAD`]);
-  return renderNotes(version, previousTag, parseLog(raw).map(classify), repoUrl(), today, cap);
+  return renderNotes(version, previousTag, parseLog(raw).map(classify), repoUrl(), today, cap, readChanges(ROOT).entries);
 }
 
 /** The `fix` commits among `entries`: the ones `--fixes-built` holds a build to. */

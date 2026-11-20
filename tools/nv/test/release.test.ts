@@ -184,12 +184,13 @@ describe("nv release notes", () => {
     .join("");
   const entries = parseLog(log).map(classify);
 
-  test("breaking is lifted to the top, headline types are listed, and the rest is counted", () => {
+  test("breaking is lifted to the top of the details, headline types are listed, and the rest is counted", () => {
     const notes = renderNotes("0.1.0", "v0.0.1", entries, "https://example.com/r", "2026-01-02");
-    expect(notes.startsWith("## [0.1.0] - 2026-01-02\n\n### Breaking changes\n")).toBe(true);
-    expect(notes).toContain("### Features\n\n- **stdlib**: a feature ([`a1`](https://example.com/r/commit/a1))\n");
+    expect(notes.startsWith("## [0.1.0] - 2026-01-02\n\n### Internal changes\n\n3 further commits")).toBe(true);
+    expect(notes).toContain("### Details\n\n#### Breaking changes\n");
+    expect(notes).toContain("#### Features\n\n- **stdlib**: a feature ([`a1`](https://example.com/r/commit/a1))\n");
     expect(notes).not.toContain("### Fixes");
-    expect(notes).toContain("### Other\n\n- added logos");
+    expect(notes).toContain("#### Other\n\n- added logos");
     expect(notes).toContain("3 further commits: docs (2), test (1).");
     expect(notes).toContain("[Full changes](https://example.com/r/compare/v0.0.1...v0.1.0) — 6 commits.");
   });
@@ -210,7 +211,7 @@ describe("nv release notes", () => {
     expect(notes).toContain("### Breaking changes");
     expect(notes).toContain("- **fmt**: braces on their own line (`s4`)\n");
     expect(notes).toContain(
-      "### Performance\n\n- faster (`p1`)\n\n### Formatter\n\n- **fmt**: a blank line after a use block (`q2`)\n- **fmt**: a match arm is one line (`r3`)\n",
+      "#### Performance\n\n- faster (`p1`)\n\n#### Formatter\n\n- **fmt**: a blank line after a use block (`q2`)\n- **fmt**: a match arm is one line (`r3`)\n",
     );
     expect(notes.split("braces on their own line")).toHaveLength(2);
     expect(notes).not.toContain("### Fixes");
@@ -220,7 +221,7 @@ describe("nv release notes", () => {
   test("a section past the cap lists the first entries and counts the rest", () => {
     const feats = parseLog("b\x1ffeat: second\x1f\x1ea\x1ffeat: first\x1f\x1e").map(classify);
     const notes = renderNotes("0.1.0", "v0.0.1", feats, "", "2026-01-02", 1);
-    expect(notes).toContain("### Features\n\n- first (`a`)\n- …and 1 more, in the full changes below.\n");
+    expect(notes).toContain("#### Features\n\n- first (`a`)\n- …and 1 more, in the full changes below.\n");
     expect(notes).not.toContain("Full changes](");
   });
 

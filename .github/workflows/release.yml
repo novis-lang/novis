@@ -355,6 +355,20 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: bun nv release --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
 
+      # The notes are rendered, so the entries of `website/src/data/changes.json` move out of it: each
+      # joins the changelog of every feature it names, and the behaviour snapshot is taken again under
+      # this version (`rule:testing/every-change-reaches-the-website`). The roster is read from the
+      # Linux x86_64 binary this release ships.
+      - name: Move the change entries into the feature changelogs
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nvs-linux"
+          tar -xzf dist/nvs-*-linux-x86_64.tar.gz -C "$RUNNER_TEMP/nvs-linux"
+          nvs=$(find "$RUNNER_TEMP/nvs-linux" -type f -name nvs | head -n 1)
+          bun nv site --changes --release "$VERSION" --nvs "$nvs"
+
       - name: Commit and tag
         env:
           VERSION: ${{ needs.plan.outputs.version }}
@@ -365,7 +379,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # Named files, never `git add -A`: a runner's working tree also holds dist/ and
           # whatever a build script dropped.
-          git add Cargo.toml Cargo.lock fuzz/Cargo.lock CHANGELOG.md editors/vscode/package.json editors/vscode/package-lock.json
+          git add Cargo.toml Cargo.lock fuzz/Cargo.lock CHANGELOG.md editors/vscode/package.json editors/vscode/package-lock.json \
+            website/src/data/changes.json website/src/data/core-changelog.json data/proofs/released.json
           # Written to a file and passed with -F. The subject follows
           # docs/agent/conventions.md, and the commit-msg hook rejects trailers — there are none.
           printf '%s\n' \
