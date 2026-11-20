@@ -7810,9 +7810,7 @@
   "docs/examples/tools/cli/nvs-test-mutate/01-a-test-that-misses-the-boundary.nvs": "00c437219bac5d1d",
   "docs/examples/tools/cli/nvs-test-mutate/02-a-boundary-test-kills-every-mutant.nvs": "bfc0932c4289070b",
   "docs/examples/tools/cli/nvs-test-mutate/03-code-no-test-calls.nvs": "2c9a2c5df826f0d0",
-  "docs/examples/tools/cli/nvs-test-mutate/about.md": "f0f805531f30a469",
   "docs/examples/tools/cli/nvs-test/01-test-a-price-rule.nvs": "976bd9f927170b00",
-  "docs/examples/tools/cli/nvs-test/about.md": "a086de3a4679deab",
   "docs/examples/tools/cli/nvs-update-check/about.md": "d1e68208464e8334",
   "docs/examples/tools/cli/one-binary/01-check-test-and-run-one-file.nvs": "47ffe159d096d96c",
   "docs/examples/tools/cli/one-binary/about.md": "ee0a9861b99a44c4",
@@ -9738,8 +9736,6 @@
   "help:tools:cli/nvs-meta-json": "6dd4733dd0ac886b",
   "help:tools:cli/nvs-run": "f4233982ac60361e",
   "help:tools:cli/nvs-telemetry": "fa1bcfd7a455a678",
-  "help:tools:cli/nvs-test": "38d49903792c4563",
-  "help:tools:cli/nvs-test-mutate": "3d59175d050c78db",
   "help:tools:cli/nvs-update-check": "6ab04cbcab456d42",
   "help:tools:cli/one-binary": "58fdb362de81d118",
   "help:tools:cli/profiling": "da8ba3d7258c0bd3",
@@ -11847,6 +11843,5 @@
   "website/src/content/docs/tools/formatter/index.mdx": "4ff8a9d9f73ed61b",
   "website/src/content/docs/tools/index.mdx": "61b1adffe5764dce",
   "website/src/content/docs/tools/profiler/index.mdx": "a007e278e8494f94",
-  "website/src/content/docs/tools/test-runner/coverage.mdx": "07b19a4c4f0376d7",
-  "website/src/content/docs/tools/test-runner/index.mdx": "8370eff52e66ca97"
+  "website/src/content/docs/tools/test-runner/coverage.mdx": "07b19a4c4f0376d7"
 }

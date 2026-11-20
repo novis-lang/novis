@@ -6,7 +6,7 @@ directory of such files. A case is one program with its expected output.
 
 `nvs test CartTest.nvs:42` runs the test that contains line 42. `--filter <text>` runs the tests
 whose name contains the text. `--tag` and `--skip-tag` select tests by their tags. `--since main`
-runs the tests that reach code you changed since the git branch `main`.
+runs the tests that ran code you changed since the git branch `main`.
 
 `--fail-fast` stops after the first failure. `--rerun-failed` runs the tests that failed in the
 last run. `--watch` runs the tests again each time you save a file. `nvs test --help` lists every

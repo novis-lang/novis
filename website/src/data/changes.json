@@ -408,10 +408,14 @@
       "features": [
         "tools:cli/nvs-test-mutate"
       ],
-      "text": "`nvs test --mutate=Shop\\Cart` changes only the code you name, `--since main` only the lines you edited, and `#[NoMutate]` keeps a class or a method out. A mutant that compiles to the same code runs no test, and a run compiles the program once. Survivors you checked go in `mutants.toml`, and the report lists the others by method."
+      "text": "`nvs test --mutate=Shop\\Cart` makes mutants only in the code you name, and `#[NoMutate]` keeps a class or a method out. `--since main` makes mutants only on the lines you edited, and a run compiles the program once. Survivors you checked go in `mutants.toml`, and the report lists the others by method."
     }
   ],
   "unseen": {
+    "Core\\Xml\\Node::source": {
+      "hash": "6c1b29fa78cec5da",
+      "why": "a test now builds the class descriptors before it measures memory, and the method works the same"
+    },
     "tools:cli/profiling": {
       "hash": "51432f528ce29319",
       "why": "its test is in a file that changed for the test runner, and the profiler works the same"

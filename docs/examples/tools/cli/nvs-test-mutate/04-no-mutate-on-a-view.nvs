@@ -1,6 +1,6 @@
 <?nvs
 // Shows `#[NoMutate]`, which keeps a class out of a mutation run.
-// `PriceLabel` makes no mutant, so the report counts only the mutants in `Discount`.
+// `PriceLabel` gets no mutants. The report counts only the mutants in the `Discount` class.
 // proof: test --mutate
 use Core\Test;
 use Core\Test\NoMutate;
@@ -17,7 +17,7 @@ class Discount
     }
 }
 
-// `because:` says why no mutant is needed here. It must not be empty.
+// `because:` is the reason, for a person who reads the code. It must not be empty.
 #[NoMutate(because: 'only the text of a label, which a person checks on the page')]
 class PriceLabel
 {

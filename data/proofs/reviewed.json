@@ -37,6 +37,9 @@
   "docs/examples/lang/statements/foreach/details.md": "ceac6e66f5b4b839",
   "docs/examples/lang/types/array-t/details.md": "4a3d9fa2181b48eb",
   "docs/examples/lang/types/every-binding-has-a-type/about.md": "322beafbe622099e",
+  "docs/examples/tools/cli/nvs-test-mutate/04-no-mutate-on-a-view.nvs": "f385116d03b6f7f4",
+  "docs/examples/tools/cli/nvs-test-mutate/about.md": "df9e257139bab60d",
+  "docs/examples/tools/cli/nvs-test/about.md": "c2bebae057d470c7",
   "docs/examples/types/KeyedIterable/01-a-timesheet-you-can-walk-twice.nvs": "9f5c7eac98d9f889",
   "docs/examples/types/KeyedIterable/about.md": "f55124dad235b53c",
   "docs/examples/types/KeyedIterator/01-a-repayment-plan-read-once.nvs": "e16db614ba8e6e50",
@@ -49,9 +52,12 @@
   "help:KeyedIterator": "8bc8ba435555f409",
   "help:Revocable": "819935aa39f1a081",
   "help:RevokedObjectError": "f627d25b13dd8443",
+  "help:tools:cli/nvs-test": "e30e32945ef34461",
+  "help:tools:cli/nvs-test-mutate": "a6bad84031128838",
   "tests/hostile/lang/classes/revocable-objects/01-keep-a-revoked-object-and-use-it.nvs": "14053c86fd4f1f38",
   "tests/hostile/lang/iteration/core-collections-are-iterable/01-collections-changed-while-they-are-walked.nvs": "0059437a1cfdc669",
   "tests/hostile/lang/iteration/keys-and-values-from-a-map/01-a-map-changed-while-its-pairs-are-walked.nvs": "cc5967236a5d9e92",
+  "tests/hostile/tools/cli/nvs-test/02-a-ref-that-is-a-git-option.nvs": "0045c21fb6abe382",
   "tests/hostile/types/RevokedObjectError/01-revoke-inside-a-catch-and-a-finally.nvs": "f7fe78be3808d129",
   "website/snippets/guides/cookbook/forget-deleted-row/forget-deleted-row.nvs": "551dfc43b9b8ed2e",
   "website/src/content/docs/guides/cookbook/forget-deleted-row.mdx": "bb2bd4c3d4921215",
@@ -60,5 +66,6 @@
   "website/src/content/docs/syntax/control-flow/foreach.mdx": "d66f1d83b3a0035d",
   "website/src/content/docs/syntax/control-flow/iterators.mdx": "bb7f40ac15471ee7",
   "website/src/content/docs/syntax/errors/error-types.mdx": "c441d0499b122fc6",
-  "website/src/data/changes.json": "1a0e2979a3a4dfa2"
+  "website/src/content/docs/tools/test-runner/index.mdx": "17047d1c820b003e",
+  "website/src/data/changes.json": "4400265042ce959f"
 }

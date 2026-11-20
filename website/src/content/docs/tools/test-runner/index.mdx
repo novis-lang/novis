@@ -107,7 +107,7 @@ the exit status is `0`.
 
 The report lists survived mutants by method. Each line ends with the mutant's key, such as
 ``Shipping::total#1: `>=` to `>` ``. If you checked a survivor and it is fine, copy that line into a
-file named `mutants.toml` and add a `reason`. The report then counts it and does not list it.
+file named `mutants.toml` and add a `reason`. The report then counts that mutant, but it does not list it.
 
 A large program has many mutants, so you can choose which code changes:
 

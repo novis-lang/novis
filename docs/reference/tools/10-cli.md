@@ -293,7 +293,7 @@ skipped: not written yet
 - `--since <ref>` runs only the tests that a change since a git branch, tag or commit can reach. See
   *Running only what a change reaches* below.
 - `--rerun-failed` runs only the tests that failed in the last run of this program. When the last
-  run had no failed test, every selected test runs. It is an error beside `--since`.
+  run had no failed test, every selected test runs. You cannot use it together with `--since`.
 - `--format human|json|junit` chooses how a program's run is reported.
   - `human` is the default. It prints one line per test as it runs, then
     `N failed, N passed, N skipped, N flaky in N ms`.
@@ -402,8 +402,8 @@ keeps this record in its data folder, one for each program. A test runs when one
 - you added or changed the test itself;
 - the record does not have the test.
 
-Every test runs when Novis cannot tell which tests a change reaches. The first line of the report
-then says why:
+Sometimes Novis cannot tell which tests a change affects. Then every test runs, and the first line
+of the report says why:
 
 - no run of this program was recorded yet;
 - a line outside a method body changed, such as a property, a method's parameters, an attribute or
@@ -456,8 +456,8 @@ Some conditions tell Novis the type of a value inside the `if`. These conditions
 
 Some code changes only a message, never a result. A value inside the arguments of a `Core\Log`
 method makes no mutant. A value inside the arguments of the `new` in a `throw new` makes none
-either. Output written with `echo` or `Core\Html` is changed, because the page is the result of a
-web program.
+either. Output written with `echo` or `Core\Html` makes mutants, because the page is the result of
+a web program.
 
 **Choosing what changes.** `--mutate` alone changes the whole program. `--mutate=<target>` changes
 only the code you name. The `=` is required. Separate two targets with a comma:
@@ -471,7 +471,8 @@ only the code you name. The `=` is required. Separate two targets with a comma:
 A path is relative to the current folder. A target that matches nothing stops the run with exit
 status `2`, and the error names it. `--since <ref>` changes only the lines you added or edited since
 a git branch, tag or commit. It also changes every line of a new file that git does not track yet.
-Under `--mutate`, every test runs. With a target as well, a line must match both.
+Under `--mutate`, `--since` chooses only the mutants, and every test runs. With a target as well,
+a mutant must be in the target and on a changed line.
 
 `#[NoMutate(because: '...')]` on a class or a method keeps its code out of every mutation run. The
 attribute is `Core\Test\NoMutate`. `because:` says why, and it must not be empty. The attribute
@@ -498,7 +499,7 @@ Each mutant has one of these results:
 | `killed` | a test failed, so the tests noticed the change |
 | `survived` | every test passed, so no test checks this line's result |
 | `timed out` | a test ran past its time limit, which also counts as noticed |
-| `not reached` | no test ran the line, so no test ran again |
+| `not reached` | no test ran the line, so there was no test to run |
 | `equivalent` | the changed method compiles to the same machine code as the original, so no test can notice it |
 | `duplicate` | the changed method compiles to the same machine code as an earlier mutant of that method |
 
@@ -518,7 +519,8 @@ changes when you rename the method.
 
 Under `human`, the run prints the normal test report, then the counts and the score. Then it lists
 the survived mutants by method, the method with the most first. Each source line is one line: its
-first change, how many more changes on that line survived, and the key:
+first change, how many more changes on that line survived, and the key. The `compiles:` line says
+how many times the program was compiled for the mutants:
 
 ```text
   compiles: 1, for the 5 mutants that ran tests

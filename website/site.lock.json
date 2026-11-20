@@ -3396,7 +3396,7 @@
     "Core\\Xml\\Node::namespaceUri": "80c33e4c645e0d73"
   },
   "docs/examples/core/Xml-Node/source/about.md": {
-    "Core\\Xml\\Node::source": "9cab1908471074ec"
+    "Core\\Xml\\Node::source": "80f2ce7d76737a33"
   },
   "docs/examples/core/Xml-Node/text/about.md": {
     "Core\\Xml\\Node::text": "1f653a1d4960dd98"
@@ -3684,7 +3684,7 @@
     "lang:iteration/generators": "310a00dc4c17f723"
   },
   "docs/examples/lang/iteration/keys-and-values-from-a-map/about.md": {
-    "lang:iteration/keys-and-values-from-a-map": "1e879b323f97e290"
+    "lang:iteration/keys-and-values-from-a-map": "ddac68095c362c47"
   },
   "docs/examples/lang/iteration/materialising-a-sequence-core-arr-from/about.md": {
     "lang:iteration/materialising-a-sequence-core-arr-from": "f2eb444dba6499de"
@@ -4386,10 +4386,10 @@
     "tools:cli/nvs-telemetry": "9abbb9d86e296fc3"
   },
   "docs/examples/tools/cli/nvs-test/about.md": {
-    "tools:cli/nvs-test": "c1af83ee4f062e2c"
+    "tools:cli/nvs-test": "b81aac29fe5d640b"
   },
   "docs/examples/tools/cli/nvs-test-mutate/about.md": {
-    "tools:cli/nvs-test-mutate": "c6e1c42f68e0ce7e"
+    "tools:cli/nvs-test-mutate": "0259621bd0cc6ac4"
   },
   "docs/examples/tools/cli/nvs-update-check/about.md": {
     "tools:cli/nvs-update-check": "4b7510f61af71723"
@@ -8253,7 +8253,7 @@
     "Core\\Xml\\Node::namespaceUri": "8961f3d30ac54f2e"
   },
   "help:Core\\Xml\\Node::source": {
-    "Core\\Xml\\Node::source": "39edc937779a5e2a"
+    "Core\\Xml\\Node::source": "15e25920e7ae6519"
   },
   "help:Core\\Xml\\Node::text": {
     "Core\\Xml\\Node::text": "64f48ecb9260f623"
@@ -9180,10 +9180,10 @@
     "tools:cli/nvs-telemetry": "496af1ec2f7fe8bb"
   },
   "help:tools:cli/nvs-test": {
-    "tools:cli/nvs-test": "135b393814876ba0"
+    "tools:cli/nvs-test": "af22de1b3dd5fd2a"
   },
   "help:tools:cli/nvs-test-mutate": {
-    "tools:cli/nvs-test-mutate": "ed89e116d2fe6ab7"
+    "tools:cli/nvs-test-mutate": "a44e3b9b04aa9b93"
   },
   "help:tools:cli/nvs-update-check": {
     "tools:cli/nvs-update-check": "64113ac656f538fc"
@@ -9477,7 +9477,7 @@
   },
   "syntax/control-flow/foreach.mdx": {
     "lang:iteration/core-collections-are-iterable": "608dfd60e23024ce",
-    "lang:iteration/keys-and-values-from-a-map": "7605a745ea6bd811",
+    "lang:iteration/keys-and-values-from-a-map": "7eefd2f2a3b9dc40",
     "lang:iteration/materialising-a-sequence-core-arr-from": "209b18cd9c6aec12",
     "lang:iteration/what-foreach-walks": "8807d6e372d99adb",
     "lang:statements/foreach": "c411470cd727e2ab"
@@ -9763,7 +9763,7 @@
     "tools:cli/profiling": "f9416f0b950726ae"
   },
   "tools/test-runner/coverage.mdx": {
-    "tools:cli/nvs-test": "d7693bf5b58e0240"
+    "tools:cli/nvs-test": "3b17bb38adc0b4cb"
   },
   "tools/test-runner/index.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "368f1a80f39ee11b",
@@ -9771,7 +9771,7 @@
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
     "lang:testing/test-options": "a9cf559722e174fc",
-    "tools:cli/nvs-test": "d7693bf5b58e0240",
-    "tools:cli/nvs-test-mutate": "f7e9c5cb69708ed2"
+    "tools:cli/nvs-test": "3b17bb38adc0b4cb",
+    "tools:cli/nvs-test-mutate": "d9ceecb30e34ccc7"
   }
 }

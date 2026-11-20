@@ -6,7 +6,7 @@ use Core\Test;
 
 final class SinceTest
 {
-    // This test should never run, because the arguments are refused first.
+    // This test never runs. `nvs test` stops with an error before any test starts.
     #[Test]
     public function neverRuns(): void
     {
