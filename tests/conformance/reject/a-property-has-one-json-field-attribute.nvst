@@ -1,5 +1,5 @@
 --TEST--
-A property's `#[Json\Field]` overrides are one attribute, and a second is reported at itself — `rule:core-classes/derive-property-list`
+A property's `#[Json\Field]` overrides are one attribute, so a second is `E0763`, because `Core\Json\Field` is not `repeatable` — `rule:core-classes/derive-property-list`
 --FILE--
 <?nvs
 #[Core\Json\Derive]
@@ -16,7 +16,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0464]: this property has more than one `#[Json\Field]`
+error[E0763]: `Core\Json\Field` is used twice here, and its declaration is not `repeatable`
   --> case.nvs:4:7
 %A
 error: aborting due to 1 error

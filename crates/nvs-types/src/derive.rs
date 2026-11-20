@@ -3365,38 +3365,21 @@ pub(crate) fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &En
 
 /// Every field written on the first of `format`'s field attributes in `groups`.
 ///
-/// A property's overrides are one attribute (`rule:core-classes/derive-property-list`), so every
-/// later one is an `E_DERIVE_FIELD_ATTRIBUTE` at itself, naming the first. Reading both would
-/// merge two sets of overrides, and choosing one in silence would drop the other.
+/// A property's overrides are one attribute (`rule:core-classes/derive-property-list`). Each field
+/// attribute's declaration is not `repeatable`, so a second one is the count check's `E0763`
+/// (`crate::attributes::check_attribute`), reported once there, and this reads the first alone.
 fn attribute_fields<'a>(
     groups: &'a [AttributeGroup],
     format: Format,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> &'a [AnonObjectField] {
-    let mut first: Option<&'a Attribute> = None;
-    for attr in groups.iter().flat_map(|group| &group.attributes) {
-        if !attribute_is(attr, format.field(), ctx, env) {
-            continue;
-        }
-        let Some(declared) = first else {
-            first = Some(attr);
-            continue;
-        };
-        let attribute = format.field_attribute();
-        env.diags.report(
-            Diagnostic::error(
-                code::E_DERIVE_FIELD_ATTRIBUTE,
-                format!("this property has more than one `{attribute}`"),
-            )
-            .with_primary(attr.span, format!("a second `{attribute}`"))
-            .with_secondary(declared.span, "the attribute this property already has")
-            .with_help(format!(
-                "write every option for this property in one `{attribute}`, and delete the other"
-            )),
-        );
-    }
-    first.map(|attr| attr.fields.as_slice()).unwrap_or_default()
+    groups
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .find(|attr| attribute_is(attr, format.field(), ctx, env))
+        .map(|attr| attr.fields.as_slice())
+        .unwrap_or_default()
 }
 
 /// `rule:core-classes/derive-attribute`'s nominal match: `text`, resolved against the active namespace
