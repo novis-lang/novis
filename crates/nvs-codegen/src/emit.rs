@@ -103,11 +103,22 @@ const POINTER_ALIGN_SHIFT: u8 = 3;
 )]
 const IMMORTAL_REFCOUNT_I64: i64 = nvs_runtime::IMMORTAL_REFCOUNT as i64;
 
+/// [`nvs_runtime::revoke::REVOKED`] as the `i64` immediate an object's inline
+/// release compares against: an object's count at or above it is revoked or
+/// immortal, and its release calls the entry.
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "the top bit alone is `i64::MIN`, which is the word the immediate needs"
+)]
+const REVOKED_I64: i64 = nvs_runtime::revoke::REVOKED as i64;
+
 // What `Emitter::emit_refcount`'s inline count update relies on. Each header
 // keeps its count as its first word, one `usize` of 64 bits, so the update
 // loads and stores an `I64` at the published offset. A string's or an object's
 // count of `IMMORTAL_REFCOUNT` is never written, and that is the all-ones
-// word. A change to any of these fails the build here.
+// word. An object's revoked flag is the top bit, so the immortal word has it
+// too, and one bound sends both to the entry. A change to any of these fails
+// the build here.
 const _: () = {
     assert!(nvs_runtime::REFCOUNT_OFFSET == 0);
     assert!(nvs_runtime::OBJ_REFCOUNT_OFFSET == 0);
@@ -115,6 +126,8 @@ const _: () = {
     assert!(std::mem::size_of::<usize>() == 8);
     assert!(nvs_runtime::IMMORTAL_REFCOUNT == usize::MAX);
     assert!(IMMORTAL_REFCOUNT_I64 == -1);
+    assert!(nvs_runtime::revoke::REVOKED == 1 << 63);
+    assert!(REVOKED_I64 == i64::MIN);
 };
 
 /// Memory flags for a load or store this frame fully controls — a stack slot
@@ -4953,7 +4966,9 @@ impl Emitter<'_, '_> {
     /// outside a landing block is inline too: a null test, a load and one
     /// unsigned compare, and a store of the count minus one when that leaves it
     /// above zero. A count of one or an immortal count calls the entry, in a
-    /// cold block, and the entry is the only place a value is freed. A release
+    /// cold block, and the entry is the only place a value is freed. An
+    /// object's bound is its revoked flag rather than the immortal count, so a
+    /// revoked object's release calls the entry, which masks the flag. A release
     /// in a landing block stays a call; the crate docs' § *The inline retain*
     /// give the figures. The `const` block beside [`IMMORTAL_REFCOUNT_I64`]
     /// asserts the layout both rely on.
@@ -4978,14 +4993,20 @@ impl Emitter<'_, '_> {
             self.b.ins().call(callee, &[tag_word, bits]);
             return Ok(());
         }
-        let (release, offset, immortal) = match ty {
-            Ty::Str | Ty::Bytes => ("nvs_str_release", nvs_runtime::REFCOUNT_OFFSET, true),
-            Ty::Object => ("nvs_object_release", nvs_runtime::OBJ_REFCOUNT_OFFSET, true),
-            Ty::Array => (
-                "nvs_array_release",
-                nvs_runtime::ARRAY_REFCOUNT_OFFSET,
-                false,
+        // `ceiling` is the first count a release does not decrement inline:
+        // the immortal count for a string, and the revoked flag for an object.
+        let (release, offset, ceiling) = match ty {
+            Ty::Str | Ty::Bytes => (
+                "nvs_str_release",
+                nvs_runtime::REFCOUNT_OFFSET,
+                Some(IMMORTAL_REFCOUNT_I64),
             ),
+            Ty::Object => (
+                "nvs_object_release",
+                nvs_runtime::OBJ_REFCOUNT_OFFSET,
+                Some(REVOKED_I64),
+            ),
+            Ty::Array => ("nvs_array_release", nvs_runtime::ARRAY_REFCOUNT_OFFSET, None),
             // An internal-consistency check on `nvs-ir`, not on the language,
             // which is why it is an `Internal` rather than an `Unsupported`:
             // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s,
@@ -5023,16 +5044,16 @@ impl Emitter<'_, '_> {
         let count = self.b.ins().load(types::I64, trusted(), value, offset);
         if !retain {
             // One unsigned compare picks the counts a decrement leaves above
-            // zero: 2 up to one below `IMMORTAL_REFCOUNT` for a string or an
-            // object, and anything from 2 for an array. A count of one, and an
-            // immortal one, go to the entry, which sees the count unchanged and
-            // is the only place a value is freed.
-            let above_one = if immortal {
+            // zero: 2 up to one below the ceiling for a string or an object,
+            // and anything from 2 for an array. A count of one, an immortal
+            // one and a revoked object's go to the entry, which sees the count
+            // unchanged and is the only place a value is freed.
+            let above_one = if let Some(ceiling) = ceiling {
                 let shifted = self.b.ins().iadd_imm_s(count, -2);
                 self.b.ins().icmp_imm_s(
                     IntCC::UnsignedLessThan,
                     shifted,
-                    IMMORTAL_REFCOUNT_I64.wrapping_sub(2),
+                    ceiling.wrapping_sub(2),
                 )
             } else {
                 self.b
@@ -5055,8 +5076,9 @@ impl Emitter<'_, '_> {
             return Ok(());
         }
         // A string's or an object's immortal header is never written: it may
-        // sit in a unit's read-only data.
-        if immortal {
+        // sit in a unit's read-only data. A revoked object's count is bumped
+        // like any other, and its flag stays in place.
+        if ceiling.is_some() {
             let bump = self.b.create_block();
             let is_immortal = self
                 .b
