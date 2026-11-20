@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/value.rs, benches/members/README.md, benches/members/lang/iteration/core-collections-are-iterable.nvs, docs/rules/testing/member-perf-ledger.md, docs/rules/enums/representation.md]
   - id: 2
     title: a map or set keyed by exactly string or int stores the key as it is
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/array.rs, docs/rules/types/arrays.md]
   - id: 3
     title: a map or set keyed by a class stores each object by its identity
@@ -381,30 +381,30 @@ say.
 point: the session runs the check once before the change and once after. The session writes the
 code.
 
-- [ ] The keying, chosen by the checker: the enum in `crates/nvs-stdlib/src/identity_store.rs:1`,
+- [x] The keying, chosen by the checker: the enum in `crates/nvs-stdlib/src/identity_store.rs:1`,
   public through `crates/nvs-stdlib/src/registry.rs:3134`; the field on `ExprInfo::New`
   (`crates/nvs-types/src/expr_table.rs:567`), set where `check_new_type_args`
   (`crates/nvs-types/src/expr/calls.rs:1741`) binds the arguments, from the first one: exactly
   `string`, exactly `int`, else `chain` (`rule:types/arrays`).
-- [ ] The symbols: `crates/nvs-stdlib/src/registry.rs:3156` `constructor_symbol` takes the keying;
+- [x] The symbols: `crates/nvs-stdlib/src/registry.rs:3156` `constructor_symbol` takes the keying;
   `crates/nvs-ir/src/lower/expr.rs:3784` passes the recorded one. The keyed symbols join
   `crates/nvs-stdlib/src/objmap.rs:300` and `crates/nvs-stdlib/src/objset.rs:261` `address`, the
   roster at `crates/nvs-stdlib/src/lib.rs:362`, and `member_label` (`registry.rs:3168`), which names
   each as the class's constructor (`rule:testing/debug-probes`).
-- [ ] `crates/nvs-stdlib/src/identity_store.rs:104` `locate` and `:124` `vacate` take the keying: a
+- [x] `crates/nvs-stdlib/src/identity_store.rs:104` `locate` and `:124` `vacate` take the keying: a
   `string` key is the string's own bytes, an `int` key goes through `NvsArray::get_index`/`set_index`
   (`crates/nvs-runtime/src/array.rs:1497`, `:1507`), and neither walks a chain. `borrow`, `edit` and
   `replace` keep their shape, because `crates/nvs-stdlib/src/hash.rs:1215` and
   `crates/nvs-stdlib/src/compress.rs:1459` use them too (`rule:expressions/equality-semantics`).
-- [ ] `Core\ObjectMap` in the two direct keyings (`crates/nvs-stdlib/src/objmap.rs:172` slots,
+- [x] `Core\ObjectMap` in the two direct keyings (`crates/nvs-stdlib/src/objmap.rs:172` slots,
   `:346` new, `:365` set, `:420` get, `:443` has, `:457` remove, `:499` keys, `:535` clear): one store,
   and `keys()` reads the keys back, as `int`s through `NvsArray::slot_key` (`array.rs:1943`) for an
   `int` map. `count`, `isEmpty` and `values` read the one store (`rule:core-api/no-methods-on-scalars-or-arrays`).
-- [ ] `Core\ObjectSet` in the two direct keyings (`crates/nvs-stdlib/src/objset.rs:135` slots,
+- [x] `Core\ObjectSet` in the two direct keyings (`crates/nvs-stdlib/src/objset.rs:135` slots,
   `:362` new, `:375` add, `:400` has, `:413` remove), and the algebra (`:294` `collect_into`, `:327`
   `built_from`, `:461` union, `:473` intersect, `:487` diff) reads each operand by its own keying, as
   § *Every operation that reads two collections* says.
-- [ ] The tests: `crates/nvs-types/tests/generics.rs:1` gains the two tests the `keying` check names,
+- [x] The tests: `crates/nvs-types/tests/generics.rs:1` gains the two tests the `keying` check names,
   covering `string`, `int`, an alias of `string`, `?string`, `int|string`, `mixed`, `uint`,
   `tainted string` and `array<int>`. Run the `keying` and `direct-keys` checks once, and every
   existing case named in § *No syntax and no observable behaviour changes* once with `bun nv suite
@@ -509,35 +509,38 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### State
 
-Stage 1 is done; no crate has changed. Sessions per stage: stage 1, one. Its facts are under
-§ *Standing decisions* § *What stage 1 found*: `object` keying is built, and stage 3's printer item
-holds. The fourteen bench files are in.
+Stages 1 and 2 are done, one session each. `string` and `int` keying is in:
+`identity_store::Keying` (`Chain`, `Str`, `Int`), `ExprInfo::New`'s `keying` from `keying_of` in
+`crates/nvs-types/src/expr/calls.rs`, and `registry::KEYED_CONSTRUCTORS` behind
+`constructor_symbol(class, keying)`. Each collection's last slot is `keying`. A direct map keeps
+the shared empty array in `keys`. `locate`/`vacate` stay chain-only for `hash.rs` and
+`compress.rs`, and the keyed half is `place`, `find`, `contains`, `put`, `remove`, `keys_listed`
+and `rechain_*`. Checks: `keying` and `direct-keys` green, a new erased-view case green, and
+`nvs test` over `core/` and `iter/` gave 1925 passed and 0 failed.
 
-The before figures (release binary, `--record-perf --force`), as ns/op, statements, allocations and
-twin ratio: `ObjectMap::get` 1620, 3, 0, 0.85x; `ObjectMap::has` 1867, 3, 0, 1.27x;
-`ObjectMap::set` 17536, 4, 0, 0.90x (growth unclear); `ObjectSet::has` 1680, 6, 0, 1.46x. Each is
-flat in size. `lang:iteration/core-collections-are-iterable` fails `constant`: bytes grow with
-slope 1.00, which is the loop's copy. It stays red, and unrecorded, until stage 4.
+The changed source files make every `ObjectMap` and `ObjectSet` perf record stale until stage 5
+records it. The before figures, as ns/op, statements, allocations and twin ratio: `ObjectMap::get`
+1620, 3, 0, 0.85x; `has` 1867, 3, 0, 1.27x; `set` 17536, 4, 0, 0.90x; `ObjectSet::has` 1680, 6,
+0, 1.46x. `lang:iteration/core-collections-are-iterable` fails `constant` (bytes slope 1.00, the
+loop's copy) until stage 4. `bun nv scaling --iterations` measures one size, so the
+`loop-start-constant` check cannot see the copy. Stage 4 also judges by `bun nv proofs
+--record-perf --force --id 'lang:iteration/core-collections-are-iterable'`.
 
-`bun nv scaling --iterations` measures a fixed size, so it reported the iteration bench flat and
-skipped every `.scale.nvs`. The `loop-start-constant` check runs that command, so it cannot tell
-the copy from the share. Stage 4 judges its loop item by `bun nv proofs --record-perf --force --id
-'lang:iteration/core-collections-are-iterable'` too, which fails today.
-
-`bun nv scaling --budget` is red on 48 benches outside this goal, the `novis/Spreadsheet-*` ones and
-`core/Arr/hasKey`, `core/Cap/has`, `core/Metrics/*`, `lang/expressions/the-pipeline-operator`. None is
-this goal's, and this goal does not change their shares.
+`bun nv scaling --budget` is red on 48 benches outside this goal (`novis/Spreadsheet-*`,
+`core/Arr/hasKey`, `core/Cap/has`, `core/Metrics/*`, `the-pipeline-operator`).
 
 ### Next
 
-Stage 2: the `string` and `int` keyings, from `crates/nvs-stdlib/src/identity_store.rs:1` (the
-keying enum), `crates/nvs-stdlib/src/registry.rs:3156` `constructor_symbol`,
-`crates/nvs-types/src/expr/calls.rs:1741` `check_new_type_args` and
-`crates/nvs-ir/src/lower/expr.rs:3784`. Each keyed operation compares the key's tag first, as
-§ *A key whose tag is not the keying's* says, with a case for the erased view
-(`$any as Core\ObjectMap<int, int>` on a `<string, int>` map gives a count of `2`). A new symbol
-needs its row in `crates/nvs-stdlib/src/lib.rs` `entry_of` (playbook). Expect red until stage 4:
-the perf proof of `lang:iteration/core-collections-are-iterable`.
+Stage 3: the `object` keying. Add `Keying::Object` in `crates/nvs-stdlib/src/identity_store.rs`
+(`Keying`, its `value`/`of`/`admits`, `Place`, `place`, `find`, `put`, `remove`), with an identity
+key written on the stack from the pointer. Add the `_object` symbols beside `NEW_STRING_SYMBOL`
+in `objmap.rs` and `objset.rs`, and their rows in `registry.rs` `KEYED_CONSTRUCTORS`. Extend
+`keying_of` in `crates/nvs-types/src/expr/calls.rs` for stage 1's list of object types. An
+`object` map keeps its two stores, so `objmap.rs` `set`, `get`, `has`, `remove` and `keys_of`
+gain an `object` arm: `get` and `has` read `values` only, and `keys()` reads `keys`. The printer
+item comes first: `Core\Debug::dump` and `crates/nvs-runtime/src/record.rs` `properties_of` now
+also show the `keying` slot as an `int`. Expect red until stage 4: the perf proof of
+`lang:iteration/core-collections-are-iterable`.
 
 ### Backlog
 

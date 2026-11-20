@@ -43,6 +43,41 @@
 //! attacker-chosen member lands on is not predictable across processes — the
 //! collision-flooding concern `nvs_runtime::identity`'s `hash_numeric` already
 //! reasons about, at the one place a program chooses what goes into the table.
+//!
+//! # Decision: a `string` or `int` key is stored as it is
+//!
+//! A collection is built with one [`Keying`], which the checker picks from its
+//! first type argument and `new` writes into the instance's `keying` slot. A
+//! key type of exactly `string` or exactly `int` needs no chain: every value of
+//! it is a key the array already compares the way `==` does. So the store is
+//! keyed by the string's own bytes, or by the `int` as an array subscript is
+//! (`rule:types/arrays`), and `get`, `has`, `set` and `remove` are one lookup
+//! with no identity hash. Every other key type keeps the chain, which is
+//! correct for all of them. A `tainted string` or `secret string` key stays on
+//! the chain too.
+//!
+//! A direct map has one store: the values, under the key itself. `keys()` and a
+//! `foreach` read each key back from it, as an `int` for an `int` map. A
+//! direct set has one store, each member under its own key.
+//!
+//! The hash of a direct key is the array's own SipHash, seeded per process,
+//! so the flooding concern above is met the same way.
+//!
+//! **What it spends:** one more slot per collection, an `int`. A direct map
+//! drops its key store, so a pair costs one entry, not two, and a `string`
+//! key shares the caller's string instead of a 17- to 20-byte chain key.
+//!
+//! # Decision: a key whose tag is not the keying's
+//!
+//! An `as` or `is` checks a collection's class and never its type arguments,
+//! so a map built `<string, int>` can be passed a `5` through an erased view.
+//! Each keyed operation compares the key's tag with its keying first, one byte
+//! compare ([`Keying::admits`]). A read of such a key answers absent, because
+//! no stored key has that tag. A write rebuilds the store under chain keys
+//! ([`rechain_members`], [`rechain_pairs`]), writes the chain into the
+//! `keying` slot, and goes on as a chain collection. So every result is the one
+//! the chain gives. Declined: throwing on the mismatch, which changes what a
+//! working program does.
 
 use std::cell::OnceCell;
 use std::collections::hash_map::RandomState;
@@ -257,6 +292,262 @@ pub(crate) fn listed(store: &NvsArray) -> NvsArray {
         from = slot + 1;
     }
     out
+}
+
+/// How a collection keys its store: chosen once, when `new` builds it, and
+/// kept in the instance's `keying` slot.
+///
+/// The checker picks it from the first type argument
+/// (`nvs_types::expr::calls`), and `nvs-ir` lowers `new` to the constructor
+/// symbol of that keying ([`crate::registry::constructor_symbol`]). A key
+/// whose tag is not the keying's turns the collection into a [`Self::Chain`]
+/// one — this module's docs § *Decision: a key whose tag is not the keying's*.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Keying {
+    /// Every key type: the store is keyed by the chain key this module's docs
+    /// describe.
+    Chain,
+    /// Exactly `string`: the store is keyed by the string's own bytes.
+    Str,
+    /// Exactly `int`: the store is keyed by the `int`, normalised as an array
+    /// subscript is (`rule:types/arrays`).
+    Int,
+}
+
+impl Keying {
+    /// The value the `keying` slot holds for this keying.
+    pub(crate) const fn value(self) -> Value {
+        Value::int(match self {
+            Self::Chain => 0,
+            Self::Str => 1,
+            Self::Int => 2,
+        })
+    }
+
+    /// The keying a `keying` slot's value names. Anything else is the chain,
+    /// which is correct for every key.
+    pub(crate) fn of(value: Value) -> Self {
+        match value.as_int() {
+            Some(1) => Self::Str,
+            Some(2) => Self::Int,
+            _ => Self::Chain,
+        }
+    }
+
+    /// Whether `key` can be stored under this keying: the chain takes every
+    /// value, and a direct keying only a value of its own tag.
+    ///
+    /// The raw tag byte, so an enum case backed by an `int` is not an `int`
+    /// key here.
+    pub(crate) fn admits(self, key: Value) -> bool {
+        match self {
+            Self::Chain => true,
+            Self::Str => key.tag_byte() == Tag::Str as u8,
+            Self::Int => key.tag_byte() == Tag::Int as u8,
+        }
+    }
+}
+
+/// Where a key lives in a store under its collection's keying.
+pub(crate) enum Place {
+    /// A chain key, written on the stack.
+    Chain(ChainKey),
+    /// A `string` key, borrowed from the caller.
+    Str(Value),
+    /// An `int` key.
+    Int(i64),
+}
+
+impl Place {
+    /// The key as the bytes the store holds it under. An `int` is written in
+    /// decimal on the stack, as an array subscript is.
+    fn with_bytes<R>(&self, read: impl FnOnce(&[u8]) -> R) -> R {
+        match self {
+            Self::Chain(key) => read(key),
+            Self::Str(key) => read(key.as_str_bytes().unwrap_or_default()),
+            Self::Int(index) => {
+                let mut bytes = [0u8; 24];
+                let mut rest = &mut bytes[..];
+                write!(rest, "{index}").expect("an `i64` fits in 24 bytes");
+                let len = 24 - rest.len();
+                read(&bytes[..len])
+            }
+        }
+    }
+}
+
+/// Where `key` lives in `store` under `keying`, as `(place, present)`.
+///
+/// `key` must be one `keying` [admits](Keying::admits). The chain walks its
+/// chain as [`locate`] does, and a direct keying is one lookup.
+pub(crate) fn place(store: &NvsArray, keying: Keying, key: Value) -> (Place, bool) {
+    debug_assert!(keying.admits(key), "the caller checked the key's tag");
+    match keying {
+        Keying::Chain => {
+            let (chain, present) = locate(store, key);
+            (Place::Chain(chain), present)
+        }
+        Keying::Str => {
+            let present = key.as_str_bytes().is_some_and(|bytes| store.has_key(bytes));
+            (Place::Str(key), present)
+        }
+        Keying::Int => {
+            let index = key.as_int().unwrap_or_default();
+            (Place::Int(index), store.get_index(index).is_some())
+        }
+    }
+}
+
+/// The value a direct keying stores under `key`, borrowed, or `None` when the
+/// key is absent or its tag is not the keying's. A chain store answers `None`:
+/// its key comes from [`locate`].
+pub(crate) fn find(store: &NvsArray, keying: Keying, key: Value) -> Option<Value> {
+    if !keying.admits(key) {
+        return None;
+    }
+    match keying {
+        Keying::Chain => None,
+        Keying::Str => store.get(key.as_str_bytes()?),
+        Keying::Int => store.get_index(key.as_int()?),
+    }
+}
+
+/// Whether `store` holds `key` under `keying`. A key of another tag is never
+/// there, because no stored key has that tag.
+pub(crate) fn contains(store: &NvsArray, keying: Keying, key: Value) -> bool {
+    keying.admits(key) && place(store, keying, key).1
+}
+
+/// Writes `value` at `place`, taking over its reference. `present` is what
+/// [`place`] answered, so an existing entry is overwritten where it is and
+/// builds no key.
+///
+/// A `string` key is stored as the caller's own string, with a reference of
+/// its own, so a new key copies no bytes.
+pub(crate) fn put(store: &mut NvsArray, place: &Place, present: bool, value: Value) {
+    let value = if present {
+        match place.with_bytes(|bytes| store.overwrite(bytes, value)) {
+            Ok(()) => return,
+            Err(value) => value,
+        }
+    } else {
+        value
+    };
+    match place {
+        Place::Chain(chain) => store.set(NvsStr::new(chain), value),
+        Place::Str(key) => {
+            let Some(ptr) = key.str_ptr() else { return };
+            #[expect(
+                unsafe_code,
+                reason = "the key is borrowed from the caller's frame, so the \
+                          copy the store keeps needs a reference of its own, \
+                          and that reference is the one the handle below owns"
+            )]
+            let shared = unsafe {
+                key.retain();
+                NvsStr::from_raw(ptr)
+            };
+            store.set(shared, value);
+        }
+        Place::Int(index) => store.set_index(*index, value),
+    }
+}
+
+/// Removes the entry at `place`, which [`place`] answered present for. A
+/// chain store keeps its chain dense, as [`vacate`] does.
+pub(crate) fn remove(store: &mut NvsArray, place: &Place) {
+    match place {
+        Place::Chain(chain) => vacate(store, chain),
+        Place::Str(_) | Place::Int(_) => place.with_bytes(|bytes| store.unset(bytes)),
+    }
+}
+
+/// The key at `slot` of a direct store, as a value the caller owns: a
+/// `string` for [`Keying::Str`] and an `int` for [`Keying::Int`].
+fn key_value(store: &NvsArray, slot: usize, keying: Keying) -> Option<Value> {
+    match keying {
+        Keying::Chain => None,
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "a `string` store's every key was written from a `string` \
+                      value, which is UTF-8 already"
+        )]
+        Keying::Str => store.key_at(slot).map(Value::str),
+        Keying::Int => match store.slot_key(slot)? {
+            nvs_runtime::SlotKey::Index(index) => Some(Value::int(index)),
+            nvs_runtime::SlotKey::Str(key) => std::str::from_utf8(key.as_bytes())
+                .ok()?
+                .parse::<i64>()
+                .ok()
+                .map(Value::int),
+        },
+    }
+}
+
+/// Every key of a direct store, in the store's order, as a fresh Novis list:
+/// what `keys()` and a `foreach` over a `string` or `int` map read.
+pub(crate) fn keys_listed(store: &NvsArray, keying: Keying) -> NvsArray {
+    let mut out = NvsArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = store.next_slot(from) {
+        if let Some(key) = key_value(store, slot, keying) {
+            out.append(key);
+        }
+        from = slot + 1;
+    }
+    out
+}
+
+/// A set's direct store rebuilt under chain keys, in the same order. Each
+/// member is the value under its own key, so the members are read from the
+/// values.
+pub(crate) fn rechain_members(store: &NvsArray) -> NvsArray {
+    let mut out = NvsArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = store.next_slot(from) {
+        from = slot + 1;
+        let Some(member) = store.value_at(slot) else {
+            continue;
+        };
+        let (chain, _) = locate(&out, member);
+        #[expect(
+            unsafe_code,
+            reason = "the member is owned by the old store, so the copy the new \
+                      store keeps needs a reference of its own"
+        )]
+        unsafe {
+            member.retain();
+        }
+        out.set(NvsStr::new(&chain), member);
+    }
+    out
+}
+
+/// A map's direct store rebuilt as the chain's two stores, `(keys, values)`,
+/// in the same order.
+pub(crate) fn rechain_pairs(store: &NvsArray, keying: Keying) -> (NvsArray, NvsArray) {
+    let mut keys = NvsArray::new();
+    let mut values = NvsArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = store.next_slot(from) {
+        from = slot + 1;
+        let (Some(key), Some(value)) = (key_value(store, slot, keying), store.value_at(slot))
+        else {
+            continue;
+        };
+        let (chain, _) = locate(&keys, key);
+        #[expect(
+            unsafe_code,
+            reason = "the value is owned by the old store, so the copy the new \
+                      store keeps needs a reference of its own"
+        )]
+        unsafe {
+            value.retain();
+        }
+        keys.set(NvsStr::new(&chain), key);
+        values.set(NvsStr::new(&chain), value);
+    }
+    (keys, values)
 }
 
 #[cfg(test)]

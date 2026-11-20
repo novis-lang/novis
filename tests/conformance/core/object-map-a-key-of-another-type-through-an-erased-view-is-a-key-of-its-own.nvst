@@ -1,0 +1,41 @@
+--TEST--
+A `Core\ObjectMap<string, int>` or `Core\ObjectSet<string>` reached as `<int, ...>` through `mixed` takes `5` beside `"5"` as two keys, and every key keeps its type and its place
+--FILE--
+<?nvs
+Core\ObjectMap<string, int> $byName = new Core\ObjectMap<string, int>();
+$byName->set("a", 1);
+$byName->set("5", 2);
+mixed $any = $byName;
+echo $any is Core\ObjectMap<int, int> ? "is a map\n" : "is not a map\n";
+Core\ObjectMap<int, int> $byNumber = $any as Core\ObjectMap<int, int>;
+echo $byNumber->has(5) ? "yes" : "no", " ", $byNumber->get(5) ?? "missing", "\n";
+$byNumber->set(5, 3);
+echo $byName->count(), "\n";
+echo $byName->get("5") ?? "missing", " ", $byNumber->get(5) ?? "missing", " ", $byName->get("a") ?? "missing", "\n";
+foreach ($byNumber as mixed $k) {
+    echo $k is int ? "int " : "string ", $k, "\n";
+}
+$byNumber->remove(5);
+echo $byName->count(), " ", $byName->get("5") ?? "missing", "\n";
+
+Core\ObjectSet<string> $names = new Core\ObjectSet<string>();
+$names->add("7");
+mixed $view = $names;
+Core\ObjectSet<int> $numbers = $view as Core\ObjectSet<int>;
+echo $numbers->has(7) ? "yes" : "no", "\n";
+$numbers->add(7);
+echo $names->count(), " ", $names->has("7") ? "yes" : "no", " ", $numbers->has(7) ? "yes" : "no", "\n";
+Core\ObjectSet<string> $both = $names->union($names);
+echo $both->count(), "\n";
+--EXPECT--
+is a map
+no missing
+3
+2 3 1
+string a
+string 5
+int 5
+2 2
+no
+2 yes yes
+2

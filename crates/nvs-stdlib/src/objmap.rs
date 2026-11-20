@@ -26,6 +26,12 @@
 //! **What it spends:** two array allocations per map, and two entries per
 //! pair — see [`crate::identity_store`] for the per-entry figure.
 //!
+//! A map keyed by exactly `string` or `int` has no chain, so it holds one
+//! store: the values, under the key itself. Its `keys` slot keeps the empty
+//! array, which is shared and allocates nothing, and `keys()` reads each key
+//! back from the value store. [`crate::identity_store`]'s docs § *A `string`
+//! or `int` key is stored as it is* own that choice.
+//!
 //! # Why the three collections are mutable
 //!
 //! `ObjectMap`, `ObjectSet` and `Heap` are the only mutable `Core` types: a
@@ -48,6 +54,14 @@ pub(crate) const NAME: &str = r"Core\ObjectMap";
 /// The linker symbol `new Core\ObjectMap<K, V>()` lowers to — see
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `nvs-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "nvs_core_object_map_new";
+
+/// The constructor of a map keyed by exactly `string`
+/// ([`store::Keying::Str`]), which [`crate::registry::constructor_symbol`]
+/// names for that keying.
+pub(crate) const NEW_STRING_SYMBOL: &str = "nvs_core_object_map_new_string";
+
+/// The constructor of a map keyed by exactly `int` ([`store::Keying::Int`]).
+pub(crate) const NEW_INT_SYMBOL: &str = "nvs_core_object_map_new_int";
 
 /// The symbol behind `Iterable<K>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
@@ -169,7 +183,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&CLEAR_DOC),
         },
     ],
-    slots: &["keys", "values"],
+    slots: &["keys", "values", "keying"],
     constants: &[],
 };
 
@@ -291,15 +305,20 @@ const CLEAR_DOC: MethodDoc = MethodDoc {
 };
 
 /// [`CLASS`]'s slots, by index — the two stores this module's docs describe.
+/// A map keyed by `string` or `int` keeps the empty array in [`KEYS`].
 const KEYS: usize = 0;
 /// See [`KEYS`].
 const VALUES: usize = 1;
+/// The map's [`store::Keying`], written once by its constructor.
+const KEYING: usize = 2;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         NEW_SYMBOL => (nvs_core_object_map_new as *const ()).cast(),
+        NEW_STRING_SYMBOL => (nvs_core_object_map_new_string as *const ()).cast(),
+        NEW_INT_SYMBOL => (nvs_core_object_map_new_int as *const ()).cast(),
         "nvs_core_object_map_set" => (nvs_core_object_map_set as *const ()).cast(),
         "nvs_core_object_map_get" => (nvs_core_object_map_get as *const ()).cast(),
         "nvs_core_object_map_has" => (nvs_core_object_map_has as *const ()).cast(),
@@ -338,19 +357,89 @@ fn at(
     Ok(store::locate(&keys, key))
 }
 
+/// `receiver`'s keying, from its `keying` slot.
+fn keying_of(receiver: *mut ObjHeader) -> store::Keying {
+    store::Keying::of(crate::instance::slot(receiver, KEYING))
+}
+
+/// The keying a write of `key` runs under. A direct map given a key of
+/// another tag becomes a chain map first, so the write lands where the chain
+/// puts it — [`crate::identity_store`]'s docs § *A key whose tag is not the
+/// keying's*.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s, unchanged.
+fn keying_for_write(
+    receiver: *mut ObjHeader,
+    key: Value,
+    member: &str,
+) -> Result<store::Keying, Fault> {
+    let keying = keying_of(receiver);
+    if keying.admits(key) {
+        return Ok(keying);
+    }
+    let (keys, values) = {
+        let values = store::borrow(receiver, VALUES, &CLASS, member)?;
+        store::rechain_pairs(&values, keying)
+    };
+    crate::instance::set_slot(receiver, KEYS, Value::array(keys));
+    crate::instance::set_slot(receiver, VALUES, Value::array(values));
+    crate::instance::set_slot(receiver, KEYING, store::Keying::Chain.value());
+    Ok(store::Keying::Chain)
+}
+
+/// Every key of `receiver`, as a fresh list in insertion order: the key store's
+/// values for a chain map, and the value store's own keys for a direct one.
+///
+/// # Errors
+///
+/// [`store::borrow`]'s, unchanged.
+fn keys_of(receiver: *mut ObjHeader, member: &str) -> Result<NvsArray, Fault> {
+    let keying = keying_of(receiver);
+    if keying == store::Keying::Chain {
+        let keys = store::borrow(receiver, KEYS, &CLASS, member)?;
+        return Ok(store::listed(&keys));
+    }
+    let values = store::borrow(receiver, VALUES, &CLASS, member)?;
+    Ok(store::keys_listed(&values, keying))
+}
+
+/// A fresh empty map keyed by `keying`.
+fn built(keying: store::Keying) -> Value {
+    crate::instance::build(
+        &CLASS,
+        [
+            Value::array(NvsArray::new()),
+            Value::array(NvsArray::new()),
+            keying.value(),
+        ],
+    )
+}
+
 nvs_runtime::nvs_helper! {
     /// `new Core\ObjectMap<K, V>()` — a fresh empty map.
     ///
     /// Reached as a symbol rather than as a registered `constructor` member,
     /// for the reason [`crate::instance`]'s module docs give.
     fn nvs_core_object_map_new(_ctx, _args: [0]) {
-        Ok(crate::instance::build(
-            &CLASS,
-            [
-                Value::array(NvsArray::new()),
-                Value::array(NvsArray::new()),
-            ],
-        ))
+        Ok(built(store::Keying::Chain))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `new Core\ObjectMap<string, V>()` — a fresh empty map keyed by the
+    /// string itself.
+    fn nvs_core_object_map_new_string(_ctx, _args: [0]) {
+        Ok(built(store::Keying::Str))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `new Core\ObjectMap<int, V>()` — a fresh empty map keyed by the `int`
+    /// itself.
+    fn nvs_core_object_map_new_int(_ctx, _args: [0]) {
+        Ok(built(store::Keying::Int))
     }
 }
 
@@ -365,6 +454,22 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_object_map_set(_ctx, args: [3]) {
         let receiver = map_of(args[0], "set")?;
         let (key, value) = (args[1], args[2]);
+        let keying = keying_for_write(receiver, key, "set")?;
+        if keying != store::Keying::Chain {
+            store::edit(receiver, VALUES, &CLASS, "set", |values| {
+                let (place, present) = store::place(values, keying, key);
+                #[expect(
+                    unsafe_code,
+                    reason = "the argument is borrowed from the caller's frame, so \
+                              the copy the store keeps needs a reference of its own"
+                )]
+                unsafe {
+                    value.retain();
+                }
+                store::put(values, &place, present, value);
+            })?;
+            return Ok(Value::null());
+        }
         let (chain, present) = at(receiver, key, "set")?;
         if !present {
             store::edit(receiver, KEYS, &CLASS, "set", |keys| {
@@ -419,12 +524,18 @@ nvs_runtime::nvs_helper! {
     /// spelling that resolves it.
     fn nvs_core_object_map_get(_ctx, args: [2]) {
         let receiver = map_of(args[0], "get")?;
-        let (chain, present) = at(receiver, args[1], "get")?;
-        if !present {
-            return Ok(Value::null());
-        }
-        let values = store::borrow(receiver, VALUES, &CLASS, "get")?;
-        let held = values.get(&chain).unwrap_or_else(Value::null);
+        let keying = keying_of(receiver);
+        let held = if keying == store::Keying::Chain {
+            let (chain, present) = at(receiver, args[1], "get")?;
+            if !present {
+                return Ok(Value::null());
+            }
+            let values = store::borrow(receiver, VALUES, &CLASS, "get")?;
+            values.get(&chain).unwrap_or_else(Value::null)
+        } else {
+            let values = store::borrow(receiver, VALUES, &CLASS, "get")?;
+            store::find(&values, keying, args[1]).unwrap_or_else(Value::null)
+        };
         #[expect(
             unsafe_code,
             reason = "the store owns the reference and outlives this call, so \
@@ -442,8 +553,13 @@ nvs_runtime::nvs_helper! {
     /// key identical to `$key`.
     fn nvs_core_object_map_has(_ctx, args: [2]) {
         let receiver = map_of(args[0], "has")?;
-        let (_, present) = at(receiver, args[1], "has")?;
-        Ok(Value::bool(present))
+        let keying = keying_of(receiver);
+        if keying == store::Keying::Chain {
+            let (_, present) = at(receiver, args[1], "has")?;
+            return Ok(Value::bool(present));
+        }
+        let values = store::borrow(receiver, VALUES, &CLASS, "has")?;
+        Ok(Value::bool(store::contains(&values, keying, args[1])))
     }
 }
 
@@ -456,6 +572,19 @@ nvs_runtime::nvs_helper! {
     /// this module's alignment invariant.
     fn nvs_core_object_map_remove(_ctx, args: [2]) {
         let receiver = map_of(args[0], "remove")?;
+        let keying = keying_of(receiver);
+        if keying != store::Keying::Chain {
+            let key = args[1];
+            if keying.admits(key) {
+                store::edit(receiver, VALUES, &CLASS, "remove", |values| {
+                    let (place, present) = store::place(values, keying, key);
+                    if present {
+                        store::remove(values, &place);
+                    }
+                })?;
+            }
+            return Ok(Value::null());
+        }
         let (chain, present) = at(receiver, args[1], "remove")?;
         if !present {
             return Ok(Value::null());
@@ -473,8 +602,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::count(): uint` — how many pairs the map holds.
     fn nvs_core_object_map_count(_ctx, args: [1]) {
         let receiver = map_of(args[0], "count")?;
-        let keys = store::borrow(receiver, KEYS, &CLASS, "count")?;
-        let count = u64::try_from(keys.count()).expect("an entry count fits in a `uint`");
+        let values = store::borrow(receiver, VALUES, &CLASS, "count")?;
+        let count = u64::try_from(values.count()).expect("an entry count fits in a `uint`");
         Ok(Value::uint(count))
     }
 }
@@ -484,8 +613,8 @@ nvs_runtime::nvs_helper! {
     /// pairs.
     fn nvs_core_object_map_is_empty(_ctx, args: [1]) {
         let receiver = map_of(args[0], "isEmpty")?;
-        let keys = store::borrow(receiver, KEYS, &CLASS, "isEmpty")?;
-        Ok(Value::bool(keys.is_empty()))
+        let values = store::borrow(receiver, VALUES, &CLASS, "isEmpty")?;
+        Ok(Value::bool(values.is_empty()))
     }
 }
 
@@ -498,8 +627,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_object_map_values`]'s.
     fn nvs_core_object_map_keys(_ctx, args: [1]) {
         let receiver = map_of(args[0], "keys")?;
-        let keys = store::borrow(receiver, KEYS, &CLASS, "keys")?;
-        Ok(Value::array(store::listed(&keys)))
+        Ok(Value::array(keys_of(receiver, "keys")?))
     }
 }
 
@@ -522,8 +650,7 @@ nvs_runtime::nvs_helper! {
     /// [`crate::cursor`]'s module docs own both halves of that.
     fn nvs_core_object_map_iterate(_ctx, args: [1]) {
         let cursor = map_of(args[0], nvs_runtime::sequence::ITERATE).and_then(|receiver| {
-            let keys = store::borrow(receiver, KEYS, &CLASS, nvs_runtime::sequence::ITERATE)?;
-            Ok(crate::cursor::over(store::listed(&keys)))
+            Ok(crate::cursor::over(keys_of(receiver, nvs_runtime::sequence::ITERATE)?))
         });
         crate::cursor::consume(args[0]);
         cursor

@@ -1364,7 +1364,7 @@ fn an_open_file_is_an_object_and_never_a_resource() {
     // And a program cannot fabricate one: there is no constructor, so the only
     // thing that produces a handle is the door that checked the capability.
     assert!(
-        nvs_stdlib::registry::constructor_symbol(FILE).is_none(),
+        nvs_stdlib::registry::constructor_of(FILE).is_none(),
         "`new Core\\IO\\File()` would be a handle nothing had granted"
     );
 }

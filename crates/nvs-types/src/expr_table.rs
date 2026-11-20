@@ -605,6 +605,11 @@ pub enum ExprInfo {
         /// The `new` expression's own result type — always `Ty::Class(class)`,
         /// recorded directly so a consumer never needs to re-intern it.
         ty: TypeId,
+        /// How a `Core\ObjectMap` or `Core\ObjectSet` keys its store, from
+        /// its first type argument: `Str` for exactly `string`, `Int` for
+        /// exactly `int`, and `Chain` for every other type and every other
+        /// class. `nvs-ir` passes it to `core_constructor_symbol`.
+        keying: nvs_stdlib::registry::Keying,
     },
     /// `new $cls(...)` over a `class<T>` operand —
     /// `rule:types/class-reference-sites`'s dynamic form, and a variant of its own precisely because it
@@ -3571,6 +3576,7 @@ mod tests {
                 class: QName::parse("Foo"),
                 ctor: None,
                 ty,
+                keying: nvs_stdlib::registry::Keying::Chain,
             },
         );
         assert!(matches!(

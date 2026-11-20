@@ -3818,7 +3818,13 @@ impl<'a> Lowering<'a> {
         if let Some(ExprInfo::NewDynamic { ctor, .. }) = self.exprs.lookup(expr.span) {
             return self.lower_new_through_a_class_reference(target, args, ctor.as_ref(), env, cur);
         }
-        let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
+        let Some(ExprInfo::New {
+            class,
+            ctor,
+            keying,
+            ..
+        }) = self.exprs.lookup(expr.span)
+        else {
             panic!(
                 "nvs-ir: `new` at {:?} has no resolved class recorded in the \
                  typed-expression table — did this program pass \
@@ -3842,8 +3848,10 @@ impl<'a> Lowering<'a> {
         // with the same **borrowed** arguments — which is why this branch
         // lowers them itself rather than sharing the transferred ones below.
         // `nvs_stdlib::registry::CONSTRUCTORS` is what gives it a signature to
-        // check them against: `new Core\Heap<T>($by)` carries one.
-        if let Some(symbol) = nvs_types::core_constructor_symbol(&target_label) {
+        // check them against: `new Core\Heap<T>($by)` carries one. The keying
+        // the checker recorded picks a collection's constructor, so
+        // `new Core\ObjectMap<string, V>()` builds a map keyed by the string.
+        if let Some(symbol) = nvs_types::core_constructor_symbol(&target_label, *keying) {
             let mark = self.temporaries_mark();
             let values = match ctor {
                 Some(call) => {

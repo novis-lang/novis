@@ -1,11 +1,13 @@
 //! `Core\ObjectSet<T>`, the identity-keyed set, which replaces `SplObjectStorage` used as a set.
 //!
-//! One slot, holding the store [`crate::identity_store`] describes: a member
-//! is an entry under its own chain key, so `has` is a lookup, `count` is the
+//! One store slot, holding the store [`crate::identity_store`] describes: a
+//! member is an entry under its own key, so `has` is a lookup, `count` is the
 //! store's own count, and nothing here decides anything about identity that
-//! `nvs_runtime::identity` has not already decided.
+//! `nvs_runtime::identity` has not already decided. The key is the chain key,
+//! or the member itself for a set of exactly `string` or `int`; the `keying`
+//! slot says which.
 
-use nvs_runtime::{Fault, NvsStr, ObjHeader, Value};
+use nvs_runtime::{Fault, ObjHeader, Value};
 
 use crate::identity_store as store;
 use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
@@ -16,6 +18,13 @@ pub(crate) const NAME: &str = r"Core\ObjectSet";
 /// The linker symbol `new Core\ObjectSet<T>()` lowers to — see
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `nvs-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "nvs_core_object_set_new";
+
+/// The constructor of a set of exactly `string` ([`store::Keying::Str`]),
+/// which [`crate::registry::constructor_symbol`] names for that keying.
+pub(crate) const NEW_STRING_SYMBOL: &str = "nvs_core_object_set_new_string";
+
+/// The constructor of a set of exactly `int` ([`store::Keying::Int`]).
+pub(crate) const NEW_INT_SYMBOL: &str = "nvs_core_object_set_new_int";
 
 /// The symbol behind `Iterable<T>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
@@ -132,7 +141,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&CLEAR_DOC),
         },
     ],
-    slots: &["entries"],
+    slots: &["entries", "keying"],
     constants: &[],
 };
 
@@ -253,14 +262,18 @@ const CLEAR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// [`CLASS`]'s one slot, by index.
+/// [`CLASS`]'s store slot, by index.
 const ENTRIES: usize = 0;
+/// The set's [`store::Keying`], written once by its constructor.
+const KEYING: usize = 1;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         NEW_SYMBOL => (nvs_core_object_set_new as *const ()).cast(),
+        NEW_STRING_SYMBOL => (nvs_core_object_set_new_string as *const ()).cast(),
+        NEW_INT_SYMBOL => (nvs_core_object_set_new_int as *const ()).cast(),
         "nvs_core_object_set_add" => (nvs_core_object_set_add as *const ()).cast(),
         "nvs_core_object_set_has" => (nvs_core_object_set_has as *const ()).cast(),
         "nvs_core_object_set_remove" => (nvs_core_object_set_remove as *const ()).cast(),
@@ -284,30 +297,27 @@ fn set_of(value: Value, member: &str) -> Result<*mut ObjHeader, Fault> {
     crate::instance::receiver(value, &CLASS, member)
 }
 
-/// Adds every value of `source` that `keep` answers `true` for to `out`.
-///
-/// The one shape behind `union`, `intersect` and `diff`: each is a walk of one
-/// side deciding membership against the other, and the three differ only in
-/// which walks and which verdict. Keys are recomputed rather than copied,
-/// because a chain ordinal is a property of what is *already* in the store it
-/// belongs to, and two stores do not agree about it.
-fn collect_into(
-    out: &mut nvs_runtime::NvsArray,
-    source: &nvs_runtime::NvsArray,
-    keep: impl Fn(Value) -> bool,
-) {
-    let mut from = 0usize;
-    while let Some(slot) = source.next_slot(from) {
-        from = slot + 1;
-        let Some(value) = source.value_at(slot) else {
-            continue;
-        };
-        if !keep(value) {
-            continue;
+/// One side of an algebra member: its store and its keying.
+type Side = (std::mem::ManuallyDrop<nvs_runtime::NvsArray>, store::Keying);
+
+/// The result an algebra member is building: its store and its keying, which
+/// starts as the receiver's.
+struct Building {
+    store: nvs_runtime::NvsArray,
+    keying: store::Keying,
+}
+
+impl Building {
+    /// Adds `member` if the result does not hold it yet. A member whose tag is
+    /// not the result's keying turns the result into a chain set first.
+    fn add(&mut self, member: Value) {
+        if !self.keying.admits(member) {
+            self.store = store::rechain_members(&self.store);
+            self.keying = store::Keying::Chain;
         }
-        let (key, present) = store::locate(out, value);
+        let (place, present) = store::place(&self.store, self.keying, member);
         if present {
-            continue;
+            return;
         }
         #[expect(
             unsafe_code,
@@ -316,40 +326,74 @@ fn collect_into(
                       reference of its own"
         )]
         unsafe {
-            value.retain();
+            member.retain();
         }
-        out.set(NvsStr::new(&key), value);
+        store::put(&mut self.store, &place, false, member);
     }
 }
 
-/// A fresh set whose store `fill` writes — the result every algebra member
-/// hands back, built once rather than constructed and then edited.
-fn built_from(fill: impl FnOnce(&mut nvs_runtime::NvsArray)) -> Value {
-    let mut out = nvs_runtime::NvsArray::new();
-    fill(&mut out);
-    crate::instance::build(&CLASS, [Value::array(out)])
+/// Adds every member of `source` that `keep` answers `true` for to `out`.
+///
+/// The one shape behind `union`, `intersect` and `diff`: each is a walk of one
+/// side deciding membership against the other, and the three differ only in
+/// which walks and which verdict. Keys are recomputed rather than copied,
+/// because a chain ordinal is a property of what is *already* in the store it
+/// belongs to, and two stores do not agree about it. A member is the value
+/// under its key in every keying, so the walk reads the values.
+fn collect_into(out: &mut Building, source: &nvs_runtime::NvsArray, keep: impl Fn(Value) -> bool) {
+    let mut from = 0usize;
+    while let Some(slot) = source.next_slot(from) {
+        from = slot + 1;
+        let Some(value) = source.value_at(slot) else {
+            continue;
+        };
+        if keep(value) {
+            out.add(value);
+        }
+    }
 }
 
-/// The two stores an algebra member reads, as `(this, other)`.
+/// A fresh set built from the receiver's keying, whose store `fill` writes —
+/// the result every algebra member hands back.
+fn built_from(keying: store::Keying, fill: impl FnOnce(&mut Building)) -> Value {
+    let mut out = Building {
+        store: nvs_runtime::NvsArray::new(),
+        keying,
+    };
+    fill(&mut out);
+    crate::instance::build(&CLASS, [Value::array(out.store), out.keying.value()])
+}
+
+/// The two sides an algebra member reads, as `(this, other)`, each with its
+/// own keying.
 ///
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member if the argument is not a set, which
 /// `nvs_types` already refused — the argument's declared type is
 /// [`CoreTy::Instance`] of this very class.
-fn both(
-    args: &[Value],
-    member: &str,
-) -> Result<
-    (
-        std::mem::ManuallyDrop<nvs_runtime::NvsArray>,
-        std::mem::ManuallyDrop<nvs_runtime::NvsArray>,
-    ),
-    Fault,
-> {
-    let mine = store::borrow(set_of(args[0], member)?, ENTRIES, &CLASS, member)?;
-    let theirs = store::borrow(set_of(args[1], member)?, ENTRIES, &CLASS, member)?;
-    Ok((mine, theirs))
+fn both(args: &[Value], member: &str) -> Result<(Side, Side), Fault> {
+    let side = |value: Value| -> Result<Side, Fault> {
+        let receiver = set_of(value, member)?;
+        Ok((
+            store::borrow(receiver, ENTRIES, &CLASS, member)?,
+            keying_of(receiver),
+        ))
+    };
+    Ok((side(args[0])?, side(args[1])?))
+}
+
+/// `receiver`'s keying, from its `keying` slot.
+fn keying_of(receiver: *mut ObjHeader) -> store::Keying {
+    store::Keying::of(crate::instance::slot(receiver, KEYING))
+}
+
+/// A fresh empty set keyed by `keying`.
+fn built(keying: store::Keying) -> Value {
+    crate::instance::build(
+        &CLASS,
+        [Value::array(nvs_runtime::NvsArray::new()), keying.value()],
+    )
 }
 
 nvs_runtime::nvs_helper! {
@@ -360,8 +404,23 @@ nvs_runtime::nvs_helper! {
     /// lowers `new` on one straight to this helper and nothing below it
     /// learns that `Core` owns a class ([`crate::instance`]'s module docs).
     fn nvs_core_object_set_new(_ctx, _args: [0]) {
-        let empty = nvs_runtime::NvsArray::new();
-        Ok(crate::instance::build(&CLASS, [Value::array(empty)]))
+        Ok(built(store::Keying::Chain))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `new Core\ObjectSet<string>()` — a fresh empty set keyed by each member
+    /// itself.
+    fn nvs_core_object_set_new_string(_ctx, _args: [0]) {
+        Ok(built(store::Keying::Str))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `new Core\ObjectSet<int>()` — a fresh empty set keyed by each member
+    /// itself.
+    fn nvs_core_object_set_new_int(_ctx, _args: [0]) {
+        Ok(built(store::Keying::Int))
     }
 }
 
@@ -375,8 +434,20 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_object_set_add(_ctx, args: [2]) {
         let receiver = set_of(args[0], "add")?;
         let value = args[1];
+        let mut keying = keying_of(receiver);
+        if !keying.admits(value) {
+            // A member of another tag: the set becomes a chain set, as
+            // `crate::identity_store`'s docs say.
+            let rebuilt = {
+                let entries = store::borrow(receiver, ENTRIES, &CLASS, "add")?;
+                store::rechain_members(&entries)
+            };
+            crate::instance::set_slot(receiver, ENTRIES, Value::array(rebuilt));
+            keying = store::Keying::Chain;
+            crate::instance::set_slot(receiver, KEYING, keying.value());
+        }
         store::edit(receiver, ENTRIES, &CLASS, "add", |entries| {
-            let (key, present) = store::locate(entries, value);
+            let (place, present) = store::place(entries, keying, value);
             if present {
                 return;
             }
@@ -388,7 +459,7 @@ nvs_runtime::nvs_helper! {
             unsafe {
                 value.retain();
             }
-            entries.set(NvsStr::new(&key), value);
+            store::put(entries, &place, false, value);
         })?;
         Ok(Value::null())
     }
@@ -400,8 +471,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_object_set_has(_ctx, args: [2]) {
         let receiver = set_of(args[0], "has")?;
         let entries = store::borrow(receiver, ENTRIES, &CLASS, "has")?;
-        let (_, present) = store::locate(&entries, args[1]);
-        Ok(Value::bool(present))
+        Ok(Value::bool(store::contains(&entries, keying_of(receiver), args[1])))
     }
 }
 
@@ -413,10 +483,14 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_object_set_remove(_ctx, args: [2]) {
         let receiver = set_of(args[0], "remove")?;
         let value = args[1];
+        let keying = keying_of(receiver);
+        if !keying.admits(value) {
+            return Ok(Value::null());
+        }
         store::edit(receiver, ENTRIES, &CLASS, "remove", |entries| {
-            let (key, present) = store::locate(entries, value);
+            let (place, present) = store::place(entries, keying, value);
             if present {
-                store::vacate(entries, &key);
+                store::remove(entries, &place);
             }
         })?;
         Ok(Value::null())
@@ -459,8 +533,8 @@ nvs_runtime::nvs_helper! {
     /// counterparts already read. The receiver's values come first, so the
     /// result's iteration order is this side then the other's newcomers.
     fn nvs_core_object_set_union(_ctx, args: [2]) {
-        let (mine, theirs) = both(args, "union")?;
-        Ok(built_from(|out| {
+        let ((mine, keying), (theirs, _)) = both(args, "union")?;
+        Ok(built_from(keying, |out| {
             collect_into(out, &mine, |_| true);
             collect_into(out, &theirs, |_| true);
         }))
@@ -471,9 +545,9 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::intersect(ObjectSet<T> $other): ObjectSet<T>` — a
     /// new set holding the values both sides hold.
     fn nvs_core_object_set_intersect(_ctx, args: [2]) {
-        let (mine, theirs) = both(args, "intersect")?;
-        Ok(built_from(|out| {
-            collect_into(out, &mine, |value| store::locate(&theirs, value).1);
+        let ((mine, keying), (theirs, their_keying)) = both(args, "intersect")?;
+        Ok(built_from(keying, |out| {
+            collect_into(out, &mine, |value| store::contains(&theirs, their_keying, value));
         }))
     }
 }
@@ -485,9 +559,9 @@ nvs_runtime::nvs_helper! {
     /// Spelled `diff` rather than `difference` because `Core\Arr` spells it
     /// that way and one operation gets one name.
     fn nvs_core_object_set_diff(_ctx, args: [2]) {
-        let (mine, theirs) = both(args, "diff")?;
-        Ok(built_from(|out| {
-            collect_into(out, &mine, |value| !store::locate(&theirs, value).1);
+        let ((mine, keying), (theirs, their_keying)) = both(args, "diff")?;
+        Ok(built_from(keying, |out| {
+            collect_into(out, &mine, |value| !store::contains(&theirs, their_keying, value));
         }))
     }
 }
@@ -523,7 +597,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use super::*;
 
-    use nvs_runtime::{Ctx, NvsFn, call};
+    use nvs_runtime::{Ctx, NvsFn, NvsStr, call};
 
     /// Runs `member` with `set` as the receiver and `rest` past it.
     fn on(set: Value, member: NvsFn, rest: &[Value]) -> Value {

@@ -319,3 +319,61 @@ fn a_class_named_inside_an_accepted_new_type_argument_list_is_still_resolved() {
         "{diags:?}"
     );
 }
+
+/// The keying the checker records on each `new` of `class` whose first type
+/// argument is one of `types`, in order.
+fn keyings_of(class: &str, rest: &str, types: &[&str]) -> Vec<nvs_types::CoreKeying> {
+    use std::fmt::Write as _;
+    let mut src = String::from("<?nvs\ntype Name = string;\n");
+    let news: Vec<String> = types
+        .iter()
+        .map(|ty| format!("new Core\\{class}<{ty}{rest}>()"))
+        .collect();
+    for (n, new) in news.iter().enumerate() {
+        writeln!(src, "var $c{n} = {new};").expect("a string takes a write");
+    }
+    let (diags, declared) = check_src_declared(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+    news.iter()
+        .map(|new| match declared.folded_at(new) {
+            Some(nvs_types::expr_table::ExprInfo::New { keying, .. }) => *keying,
+            other => panic!("`{new}` recorded {other:?}"),
+        })
+        .collect()
+}
+
+/// The key types the two tests below read, and the keying each gets: exactly
+/// `string` and exactly `int` are stored as they are, an alias of `string` is
+/// `string`, and every other type keeps the chain.
+const KEY_TYPES: &[(&str, nvs_types::CoreKeying)] = &[
+    ("string", nvs_types::CoreKeying::Str),
+    ("int", nvs_types::CoreKeying::Int),
+    ("Name", nvs_types::CoreKeying::Str),
+    ("?string", nvs_types::CoreKeying::Chain),
+    ("int|string", nvs_types::CoreKeying::Chain),
+    ("mixed", nvs_types::CoreKeying::Chain),
+    ("uint", nvs_types::CoreKeying::Chain),
+    ("tainted string", nvs_types::CoreKeying::Chain),
+    ("array<int>", nvs_types::CoreKeying::Chain),
+];
+
+/// `new Core\ObjectMap<K, V>()` records the keying its `K` decides.
+#[test]
+fn a_new_object_map_is_keyed_by_its_exact_key_type() {
+    let types: Vec<&str> = KEY_TYPES.iter().map(|(ty, _)| *ty).collect();
+    let expected: Vec<_> = KEY_TYPES.iter().map(|(_, keying)| *keying).collect();
+    assert_eq!(keyings_of("ObjectMap", ", int", &types), expected);
+}
+
+/// `new Core\ObjectSet<T>()` records the keying its `T` decides, and a heap
+/// is never keyed.
+#[test]
+fn a_new_object_set_is_keyed_by_its_exact_element_type() {
+    let types: Vec<&str> = KEY_TYPES.iter().map(|(ty, _)| *ty).collect();
+    let expected: Vec<_> = KEY_TYPES.iter().map(|(_, keying)| *keying).collect();
+    assert_eq!(keyings_of("ObjectSet", "", &types), expected);
+    assert_eq!(
+        keyings_of("Heap", "", &["int"]),
+        vec![nvs_types::CoreKeying::Chain]
+    );
+}

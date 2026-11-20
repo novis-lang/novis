@@ -3150,11 +3150,50 @@ pub fn constructor_of(class: &str) -> Option<&'static CoreMethod> {
         .map(|(_, method)| *method)
 }
 
-/// The symbol that builds a `class` instance, or `None` when `new` on it is
-/// not a thing a program may write — which is every other name.
+/// How a `Core\ObjectMap` or `Core\ObjectSet` keys its store, which the
+/// checker picks from its first type argument. [`crate::identity_store`] is
+/// its home.
+pub use crate::identity_store::Keying;
+
+/// The constructors of a collection keyed other than by the chain, as
+/// `(class, keying, symbol)`. Each builds the same class as its
+/// [`CONSTRUCTORS`] row and takes the same arguments: none.
+pub const KEYED_CONSTRUCTORS: &[(&str, Keying, &str)] = &[
+    (
+        crate::objmap::NAME,
+        Keying::Str,
+        crate::objmap::NEW_STRING_SYMBOL,
+    ),
+    (
+        crate::objmap::NAME,
+        Keying::Int,
+        crate::objmap::NEW_INT_SYMBOL,
+    ),
+    (
+        crate::objset::NAME,
+        Keying::Str,
+        crate::objset::NEW_STRING_SYMBOL,
+    ),
+    (
+        crate::objset::NAME,
+        Keying::Int,
+        crate::objset::NEW_INT_SYMBOL,
+    ),
+];
+
+/// The symbol that builds a `class` instance keyed by `keying`, or `None`
+/// when `new` on it is not a thing a program may write — which is every other
+/// name.
+///
+/// A class with no [`KEYED_CONSTRUCTORS`] row for `keying` is built by its
+/// [`CONSTRUCTORS`] row, which is the chain's for the two collections.
 #[must_use]
-pub fn constructor_symbol(class: &str) -> Option<&'static str> {
-    constructor_of(class).map(|method| method.symbol)
+pub fn constructor_symbol(class: &str, keying: Keying) -> Option<&'static str> {
+    KEYED_CONSTRUCTORS
+        .iter()
+        .find(|(name, keyed, _)| *name == class && *keyed == keying)
+        .map(|(_, _, symbol)| *symbol)
+        .or_else(|| constructor_of(class).map(|method| method.symbol))
 }
 
 /// The `Core\Class::member` the member at linker symbol `symbol` is written as,
@@ -3185,6 +3224,12 @@ pub fn member_label(symbol: &str) -> Option<&'static str> {
                         .map(|owned| (owned.symbol, label.clone()));
                     std::iter::once((method.symbol, label)).chain(owned)
                 })
+                // A keyed constructor is the class's constructor.
+                .chain(
+                    KEYED_CONSTRUCTORS
+                        .iter()
+                        .map(|(class, _, symbol)| (*symbol, format!("{class}::constructor"))),
+                )
                 .collect()
         })
         .get(symbol)

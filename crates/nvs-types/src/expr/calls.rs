@@ -1263,7 +1263,7 @@ pub(crate) fn infer_new(
         // module docs own. So the class is a legal `new` target while
         // `Core\ObjectSet::constructor` remains an unknown member.
         if crate::core_lib::is_registered(qname)
-            && nvs_stdlib::registry::constructor_symbol(&qname.to_string()).is_none()
+            && nvs_stdlib::registry::constructor_of(&qname.to_string()).is_none()
         {
             report_unknown_member(expr.span, qname, "constructor", "member", env);
         }
@@ -1296,11 +1296,40 @@ pub(crate) fn infer_new(
                 class: qname.clone(),
                 ctor,
                 ty: target_ty,
+                keying: keying_of(target_ty, env),
             }
         };
         env.exprs.record(expr.span, info);
     }
     target_ty
+}
+
+/// How a `new` of `target_ty` keys its store: by the first type argument of a
+/// class that has keyed constructors, `Core\ObjectMap` and `Core\ObjectSet`
+/// (`nvs_stdlib::registry::KEYED_CONSTRUCTORS`).
+///
+/// Exactly `string` is `Str` and exactly `int` is `Int`, read after aliases
+/// are resolved: the two types whose every value is a key an array compares
+/// as `==` does (`rule:types/arrays`). Every other type keeps the chain: a
+/// union, a nullable, `mixed`, `uint`, `tainted string`, an array, and every
+/// other class.
+fn keying_of(target_ty: TypeId, env: &Env<'_>) -> nvs_stdlib::registry::Keying {
+    use nvs_stdlib::registry::Keying;
+    let Ty::Class(qname, args) = env.interner.get(target_ty) else {
+        return Keying::Chain;
+    };
+    let class = qname.to_string();
+    if !nvs_stdlib::registry::KEYED_CONSTRUCTORS
+        .iter()
+        .any(|(name, _, _)| *name == class)
+    {
+        return Keying::Chain;
+    }
+    match args.first().map(|arg| env.interner.get(*arg)) {
+        Some(Ty::String) => Keying::Str,
+        Some(Ty::Int) => Keying::Int,
+        _ => Keying::Chain,
+    }
 }
 
 /// Refuses `new` on a declaration that has no instances — an `abstract`

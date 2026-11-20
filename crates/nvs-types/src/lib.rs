@@ -279,6 +279,7 @@ pub use nvs_stdlib::regex::{
     PREPARED_LINEAR as CORE_REGEX_PREPARED_LINEAR, PREPARED_NONE as CORE_REGEX_PREPARED_NONE,
     Tier as RegexTier,
 };
+pub use nvs_stdlib::registry::Keying as CoreKeying;
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::records_site as core_records_site;
 pub use nvs_stdlib::registry::takes_call_site as core_takes_call_site;

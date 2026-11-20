@@ -367,6 +367,13 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // rosters are chained rather than the constructor being folded into
         // one of them.
         .chain(registry::CONSTRUCTORS.iter().map(|(_, new)| new.symbol))
+        // The collections' keyed constructors, which build the same class as
+        // its `CONSTRUCTORS` row and so have no row of their own.
+        .chain(
+            registry::KEYED_CONSTRUCTORS
+                .iter()
+                .map(|(_, _, symbol)| *symbol),
+        )
         // `rule:routing/link-target-and-params-are-checked`'s two prepared link implementations, which no member row
         // names on purpose — `router::link`'s own docs own why one member has
         // two entry points.
