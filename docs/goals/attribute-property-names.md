@@ -6,7 +6,7 @@ context: [crates/nvs-types/src/attributes.rs, crates/nvs-types/src/retrieval.rs,
 stages:
   - id: 1
     title: "the rule is written, and static in an attribute declaration's fields binds where the attribute is used"
-    status: open
+    status: done
     context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/members.rs, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 2
     title: a payload names a property with property<static>, and a retrieval binds static to its target
@@ -113,6 +113,12 @@ JSON, cited from `rule:types/property-key` and from the fragment
 `docs/rules/attributes/an-attribute-is-declared-with-its-sites.md` that `declared-attributes` writes. The feature is part
 of `lang:types/property-keys`, so its proofs are added there.
 
+**How `static` is bound (my call, stage 1).** No declaration is marked. `check_attribute` already
+lowers a declaration's shape at every use, and the interner makes a repeat free, so the binding is an
+`Env` field set around that lowering, not a second table. The declaration's own lowering binds
+nothing, so `static` there is the error type with no diagnostic, and each use reports for its own
+class. A use with no class, such as one on a function, makes `static` `E0303` at that use.
+
 **Lanes.** Stages 1 and 2 run in order: both change `crates/nvs-types/`. Stage 3 changes
 `crates/nvs-lsp/` alone, and stage 4 changes `docs/` and `tests/hostile/` alone. Both need stage 2's
 checker and may run side by side after it.
@@ -128,19 +134,19 @@ open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** writes the rule, and lowers a declaration that names `static` at each use with the class the
 attribute is on. Nothing about payloads changes yet. Starts only when the gate in § *Why* holds.
 
-- [ ] `docs/rules/attributes/a-declaration-names-its-class-with-static.md:1`: the new rule with its JSON
+- [x] `docs/rules/attributes/a-declaration-names-its-class-with-static.md:1`: the new rule with its JSON
   under `data/rules/attributes/`, written from § *Standing decisions*: the syntax, what `static` binds to
   at a use and at a retrieval, the written-name check, inheritance, and the Declined list.
   `docs/rules/types/property-key.md:1` and `docs/rules/attributes/an-attribute-is-declared-with-its-sites.md:1`
   cite it. Then `bun nv rules --render`, and `bun nv rules --check` is green.
-- [ ] `crates/nvs-types/src/lower.rs:880`: lowering an attribute declaration's fields does not report
+- [x] `crates/nvs-types/src/lower.rs:880`: lowering an attribute declaration's fields does not report
   `static`. The declaration table `declared-attributes` built marks a declaration whose fields name
   `static`, and the use check lowers it with the class the attribute is on. A `type` alias keeps its
   `E0303`.
-- [ ] `crates/nvs-types/src/attributes.rs:242` `check_attribute`: confirm that `ctx.current_class` is the
+- [x] `crates/nvs-types/src/attributes.rs:242` `check_attribute`: confirm that `ctx.current_class` is the
   declaring class for each attach site `check_declaration` (`:50`) walks, the class itself included. A
   site whose `Ctx` has no class gets one there.
-- [ ] `tests/conformance/reject/static-in-a-top-level-type-alias-does-not-compile.nvst:1`: a top-level
+- [x] `tests/conformance/reject/static-in-a-top-level-type-alias-does-not-compile.nvst:1`: a top-level
   `type` alias with `property<static>` is `E0303` where it is declared, beside an attribute declaration
   with the same field that compiles.
 
@@ -156,9 +162,11 @@ type argument with `static` bound to its target.
   unknown-member diagnostic at the literal once, at attach time, and is `E0401`-free: the payload's own
   mismatch is not reported a second time (`rule:types/one-mistake-reports-once`). The checker records
   the class's roster with `record_property_keys` (`crates/nvs-types/src/expr/members.rs:790`).
-- [ ] `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`: the type argument is lowered with a `Ctx`
-  whose `current_class` is the target class from `target_declaration` (`:440`). `matching` (`:561`)
-  then reads each payload at that type. `Core\Program::implementingWith` binds it per joined class.
+- [ ] `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`: the type argument is lowered inside
+  `crate::lower::with_attribute_static` with `AttributeStatic::Class` of the target class from
+  `target_declaration` (`:440`), or `AttributeStatic::NoClass` for a function target. The `Ctx` is
+  left alone. `matching` (`:561`) then reads each payload at that type. `Core\Program::implementingWith`
+  binds it per joined class (`crates/nvs-types/src/program.rs:150`).
 - [ ] `tests/conformance/class/an-attribute-payload-names-a-property-of-its-class.nvst:1`: one name, a
   list, a nullable field and an inherited property, on a class, a property and a method attribute, each
   read back with `Core\Attributes::get` and printed.
@@ -228,12 +236,27 @@ Rewritten on 2026-11-20 to build on `declared-attributes`, which runs first: `st
 attribute declaration's fields, and no `type` alias changes meaning. The person's syntax at the use is
 unchanged.
 
+Stage 1 is done. The rule `rule:attributes/a-declaration-names-its-class-with-static` is written with
+status `designed`, and stage 5 sets it `shipped`. `nvs_hir::AliasSite::attribute` marks an attribute
+declaration's body, `crate::lower::in_alias_site` sets `Env::in_attribute_body` from it, and inside the
+body `static` reads `Env::attribute_static` (`crate::lower::AttributeStatic`), while `self` and
+`parent` are `E0303`. `check_attribute`'s step 4 lowers the shape inside `with_attribute_static` with
+the class of the use. The new reject case is green, and build and clippy are green.
+
+The nightly CI failures the sweep named were already fixed on `main` before this session:
+`e5a100b18f` (the XML memory test) and `438e9c44af` (`is KeyedIterable` for a `Core\ObjectMap`). Both
+were confirmed locally.
+
 ### Next
 
-Once the gate in § *Why* holds, stage 1 from its first item: the rule fragment, then
-`crates/nvs-types/src/lower.rs:880` and the per-use lowering of a declaration that names `static`,
-then the `E0303` reject case. The `cases` and `editor` checks name cases
-and tests that do not exist yet, and are expected to fail until stages 2 and 3 write them.
+Stage 2 from its first item: `crate::retrieval::literal_type` (`crates/nvs-types/src/retrieval.rs:663`)
+reads a string literal at a `property<C>` field as a key. Until it does, a payload that writes a name
+at a `property<static>` field is `E0401`, because the literal stays a `string`. Then
+`fold_retrieval` binds `static` with `with_attribute_static`. Today a retrieval lowers the shape with
+`AttributeStatic::Declaration`, so `static` there is the error type, with no diagnostic. The `cases`
+and `editor` checks name cases and tests that do not exist yet, and are expected to fail until stages
+2 and 3 write them. No existing test is expected to go red: no corpus file writes `static`, `self` or
+`parent` in an attribute declaration.
 
 ### Backlog
 
