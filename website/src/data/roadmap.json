@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "The website shows every change",
-      "text": "When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.",
-      "goals": [
-        "website-follows-changes"
-      ]
-    },
-    {
       "title": "Objects as keys",
       "text": "`Core\\ObjectMap` and `Core\\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.",
       "goals": [
