@@ -1,4 +1,4 @@
-// `bun nv bench-compare`: Novis, PHP-FPM, Bun, Go and Node.js, each behind the same nginx terminating TLS 1.3.
+// `bun nv bench-compare`: Novis, PHP-FPM, Bun, Go, Node.js and .NET, each behind the same nginx terminating TLS 1.3.
 //
 //     bun nv bench-compare --smoke                               # every peer and case, a few hundred requests
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
@@ -198,6 +198,18 @@ export const PEERS: Peer[] = [
     image: "node:26.13.1-trixie-slim",
     env: () => ({}),
     settings: (ctx) => ({ server: "node:http", cluster_workers: ctx.cpus, keepAliveTimeout: 65_000 }),
+  },
+  {
+    id: "dotnet",
+    label: ".NET",
+    stack: "compose.dotnet.yaml",
+    nginx: "http.conf",
+    port: 18446,
+    image: "mcr.microsoft.com/dotnet/sdk:10.0.404-alpine3.24, run on mcr.microsoft.com/dotnet/aspnet:10.0.15-alpine3.24",
+    env: () => ({}),
+    settings: () => ({ server: "Kestrel, ASP.NET Core minimal API", build: "framework-dependent Release", gc: "server", tiered_pgo: true }),
+    compiled: true,
+    built: true,
   },
 ];
 
@@ -673,7 +685,7 @@ export function mergeRunaways(_peer: string, results: RowResult[]): RowResult {
 /**
  * The limit each peer starts with that stops the loop row's and the memory row's runaway request. Both
  * rows run every peer at its defaults. Novis's `[limits]` and PHP's ini stop a request at 128 MB or 30
- * seconds of CPU time unless a setting turns the limit off. Bun and Go have no such limit.
+ * seconds of CPU time unless a setting turns the limit off. Bun, Go, Node.js and .NET have no such limit.
  */
 export const LOOP_DEFAULT: Record<string, Setting> = {
   nvs: { name: "[limits] cpu_time", default: true },
@@ -688,7 +700,8 @@ export const MEMORY_DEFAULT: Record<string, Setting> = {
  * The code a peer's program can carry to stop the loop row's runaway request, where the peer has a way.
  * Bun's `Worker.terminate()` stops a worker that never yields within milliseconds, so a program that
  * runs each request in a worker under a time limit stops it, and Node.js's `worker_threads` do the same.
- * A goroutine cannot be stopped from outside at all.
+ * A goroutine cannot be stopped from outside at all, and neither can a .NET thread: `Thread.Abort` throws
+ * `PlatformNotSupportedException`, and a `CancellationToken` is only read by code that checks it.
  */
 export const LOOP_IN_CODE: Record<string, string> = {
   bun: "each request in a Worker, and terminate() after a time limit",
@@ -984,6 +997,9 @@ export const LIVE_EDIT_SETTING: Record<string, Setting> = {
   node: { name: "node --watch", default: false },
 };
 
+/** The live-edit row's result for a peer whose program is compiled into its image: a new image and a restart. */
+const compiledIn: RowResult = { result: "no", evidence: { compiled_into: "the image", restarts: 1 } };
+
 /** `setting` where the peer starts with it on: the setting a change of files that shows without a step names. */
 export const onByDefault = (setting: Setting | undefined): Setting | undefined => (setting?.default === true ? setting : undefined);
 
@@ -1056,9 +1072,10 @@ export const DEPLOY_WAYS: Record<string, DeployWay> = {
   bun: { name: "a restart", run: "restart" },
   go: { name: "a new image and a restart", run: "restart" },
   node: { name: "a restart", run: "restart" },
+  dotnet: { name: "a new image and a restart", run: "restart" },
 };
 
-/** The extension of the parts each peer's program reads. Go's parts are compiled into its image. */
+/** The extension of the parts each peer's program reads. Go's and .NET's parts are compiled into their images. */
 export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts", node: "mjs" };
 
 /**
@@ -1315,7 +1332,13 @@ export const PARALLEL_TRIES = 3;
 export const PARALLEL_SPEEDUP = 2;
 
 /** How each peer's program runs its parts at once, where it can. */
-export const PARALLEL_WAY: Record<string, string> = { nvs: 'spawn script … on: "worker"', bun: "Worker", go: "goroutines", node: "worker_threads" };
+export const PARALLEL_WAY: Record<string, string> = {
+  nvs: 'spawn script … on: "worker"',
+  bun: "Worker",
+  go: "goroutines",
+  node: "worker_threads",
+  dotnet: "Task.Run",
+};
 
 /** The setting a peer needs before its program may run a part elsewhere. Novis denies `spawn script` by default. */
 export const PARALLEL_GRANT: Record<string, TableEdit> = {
@@ -1389,6 +1412,7 @@ export const SCENARIOS: Scenario[] = [
       bun: noCheck("https://bun.sh/docs/api/sql"),
       go: noCheck("https://go.dev/doc/database/sql-injection"),
       node: noCheck("https://nodejs.org/api/sqlite.html#statementrunnamedparameters-anonymousparameters"),
+      dotnet: noCheck("https://learn.microsoft.com/en-us/ef/core/querying/sql-queries#passing-parameters"),
     },
     probe: async (p) => {
       const c = p.check("main.nvs");
@@ -1405,6 +1429,7 @@ export const SCENARIOS: Scenario[] = [
       bun: noCheck("https://bun.sh/docs/runtime/env"),
       go: noCheck("https://pkg.go.dev/log/slog#LogValuer"),
       node: noCheck("https://nodejs.org/api/util.html#utilinspectcustom"),
+      dotnet: noCheck("https://learn.microsoft.com/en-us/dotnet/core/extensions/data-redaction"),
     },
     probe: async (p) => {
       const c = p.check("main.nvs");
@@ -1416,7 +1441,7 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "live-edit",
     copy: true,
-    fixed: { go: { result: "no", evidence: { compiled_into: "the image", restarts: 1 } } },
+    fixed: { go: compiledIn, dotnet: compiledIn },
     probe: async (p) => {
       const before = ok(await p.get("/"), "the first version").body;
       if (!before.includes(LIVE_EDIT_FROM)) throw new Fail(`the first version: body ${pyRepr(before.slice(0, 200))}`);
@@ -1431,7 +1456,7 @@ export const SCENARIOS: Scenario[] = [
     id: "config",
     tree: "cases",
     case: "hello",
-    fixed: { bun: headersInCode, go: headersInCode, node: headersInCode },
+    fixed: { bun: headersInCode, go: headersInCode, node: headersInCode, dotnet: headersInCode },
     probe: async (p) => {
       const change = CONFIG_CHANGES[p.peer]!;
       if (change.applied(ok(await p.get("/"), "hello"))) throw new Fail("the header already has the value the change sets");
@@ -1963,6 +1988,9 @@ const TUNABLES = [
   join(COMPARE_DIR, "node", "serve.mjs"),
   join(COMPARE_DIR, "deploy", "deploy.sh"),
   join(COMPARE_DIR, "go", "Dockerfile"),
+  join(COMPARE_DIR, "dotnet", "Dockerfile"),
+  join(COMPARE_DIR, "dotnet", "App.csproj"),
+  join(COMPARE_DIR, "dotnet", "appsettings.json"),
   PHP_INI,
   FILE_CHECK_INI,
   join(ROOT, "benches", "proxied", "php", "pool.conf.in"),
@@ -2289,6 +2317,12 @@ export const DIRECT_RUNS: Record<string, DirectRun> = {
     env: { WORKERS: String(DIRECT_CPUS), APP_DIR: "/app" },
     command: () => ["node", "/srv/serve.mjs"],
   },
+  dotnet: {
+    image: "nvs-compare-dotnet:local",
+    mounts: () => [],
+    env: {},
+    command: (c) => ["dotnet", `/srv/cases/${c}/app.dll`, "--contentRoot", `/srv/cases/${c}`],
+  },
 };
 
 /** The peers `--direct` runs, in the table's order. */
@@ -2472,10 +2506,9 @@ async function directReady(peer: Peer, c: Case, cpuset: string): Promise<void> {
 async function direct(smoke: boolean, commit: string): Promise<number> {
   const peers = directPeers();
   const sets = directCpusets(pyInt(dockerOut(["info", "--format", "{{.NCPU}}"])) ?? 0);
-  for (const id of ["nvs", "go"]) {
-    const peer = PEERS.find((p) => p.id === id)!;
+  for (const peer of peers.filter((p) => p.built === true)) {
     const env = stackEnv(peer, { cpus: DIRECT_CPUS, concurrency: DIRECT_CONCURRENCY, tree: "cases", case: DIRECT_CASES[0], commit });
-    if (compose(stackPath(peer), ["build", "app"], env, false).code !== 0) throw new Fail(`building ${DIRECT_RUNS[id]!.image} failed`);
+    if (compose(stackPath(peer), ["build", "app"], env, false).code !== 0) throw new Fail(`building ${DIRECT_RUNS[peer.id]!.image} failed`);
   }
   console.log(`backend on core ${sets.backend} with ${DIRECT_CPUS} cpu, oha on cores ${sets.oha}, ${DIRECT_CONCURRENCY} connections, no proxy`);
   for (const id of DIRECT_CASES) {

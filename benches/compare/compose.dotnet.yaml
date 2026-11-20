@@ -1,0 +1,48 @@
+# .NET: nginx with TLS in front of an ASP.NET Core minimal API on Kestrel, at its defaults.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-dotnet
+
+services:
+  app:
+    # Every case is built into the image, one program per case folder; `dotnet/Dockerfile` says how.
+    build:
+      context: .
+      dockerfile: dotnet/Dockerfile
+    image: nvs-compare-dotnet:local
+
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    # The `loop`, `memory` and `flood` rows' cap, as `compose.nvs.yaml` says.
+    mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+    memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+
+    # Started again when it exits, as `compose.nvs.yaml` says.
+    restart: unless-stopped
+
+    # .NET reads the container's CPU quota itself, so nothing sets the budget here. The deploy program
+    # reads its part count from `DEPLOY_PARTS`.
+    environment:
+      DEPLOY_PARTS: ${DEPLOY_PARTS:-}
+
+    # `--contentRoot` is the program's folder, so it reads the `appsettings.json` beside it.
+    command: ["dotnet", "/srv/${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}/app.dll", "--contentRoot", "/srv/${TREE}/${CASE}"]
+
+    # A TCP connect: not every case has a route at `/`.
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "8080"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }

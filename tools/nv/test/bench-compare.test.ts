@@ -290,8 +290,8 @@ describe("the work a recording does", () => {
 });
 
 describe("the peer table", () => {
-  test("names Novis, PHP, Bun, Go and Node.js, in that order", () => {
-    expect(PEERS.map((p) => p.id)).toEqual(["nvs", "php", "bun", "go", "node"]);
+  test("names Novis, PHP, Bun, Go, Node.js and .NET, in that order", () => {
+    expect(PEERS.map((p) => p.id)).toEqual(["nvs", "php", "bun", "go", "node", "dotnet"]);
   });
 
   test("every peer has its own compose file and port, and an nginx config that exists", () => {
@@ -381,7 +381,7 @@ describe("the peer table", () => {
   });
 
   test("every case has a program for every peer", () => {
-    const files = ["main.nvs", "index.php", "server.ts", "main.go", "server.mjs"];
+    const files = ["main.nvs", "index.php", "server.ts", "main.go", "server.mjs", "Program.cs"];
     for (const c of CASES) for (const f of files) expect(existsSync(join(COMPARE_DIR, "cases", c.id, f))).toBe(true);
   });
 });
@@ -441,7 +441,7 @@ describe("the agreement mapping", () => {
 
 describe("the feature scenarios", () => {
   test("every row has a program for every peer it does not give a fixed result", () => {
-    const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go", node: "server.mjs" };
+    const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go", node: "server.mjs", dotnet: "Program.cs" };
     for (const s of SCENARIOS) {
       for (const peer of PEERS) {
         // A row that serves a case serves every peer's program, fixed or not. In a deploy row, `deploy.sh`
@@ -999,7 +999,7 @@ describe("--direct", () => {
 
   test("runs every peer behind the HTTP config, in the table's order, and not PHP", () => {
     expect(directPeers().map((p) => p.id)).toEqual(PEERS.filter((p) => p.nginx === "http.conf").map((p) => p.id));
-    expect(directPeers().map((p) => p.id)).toEqual(["nvs", "bun", "go", "node"]);
+    expect(directPeers().map((p) => p.id)).toEqual(["nvs", "bun", "go", "node", "dotnet"]);
     expect(DIRECT_RUNS.php).toBeUndefined();
     expect([...DIRECT_CASES]).toEqual(["hello", "json-api", "html-page"]);
   });

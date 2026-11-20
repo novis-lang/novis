@@ -1,0 +1,5 @@
+# Scoped to this directory's `Dockerfile` alone, as `go/Dockerfile.dockerignore` says. The image builds
+# only `cases/`, `scenarios/` and the two files under `dotnet/`.
+generated/
+**/bin/
+**/obj/

@@ -1,7 +1,7 @@
 # The comparison: Novis and its peers behind one TLS proxy
 
 `bun nv bench-compare` runs this directory. It measures servers end to end — `nvs serve`, PHP-FPM,
-`Bun.serve`, Go's `net/http` and Node.js's `node:http` — each behind the same nginx terminating TLS
+`Bun.serve`, Go's `net/http`, Node.js's `node:http` and ASP.NET Core on Kestrel — each behind the same nginx terminating TLS
 1.3, on the same CPU budget, with the same generator. Its record is `benches/compare.json`, and the website's comparison
 page is rendered from it.
 
@@ -16,7 +16,8 @@ is `tools/nv/cmd/bench-compare.ts`'s header.
 Novis against the runtimes a team choosing a web server is likely to weigh it against. PHP, because
 FPM is the deployment Novis replaces. Bun and Node.js, as the JavaScript peers: Node.js is the runtime
 most JavaScript servers run on, and Bun the one that competes with it on speed, so a reader sees both.
-Go, as the compiled peer with a standard-library server. Python is absent because
+Go, as the compiled peer with a standard-library server. .NET, as the JIT-compiled peer whose server,
+Kestrel, ships with the runtime. Python is absent because
 `rule:tooling/python-claims` forbids the claim such a column would make.
 
 Each peer uses its standard library only, and is tuned to its own advantage with every setting in git:
@@ -24,7 +25,11 @@ FPM with a static pool, opcache and the JIT; Bun with one process per CPU of the
 port with `reusePort`; Node.js with a `node:cluster` primary forking one worker per CPU of the budget,
 the cluster documentation's own example, and a keep-alive timeout longer than nginx's, as its
 documentation advises behind a proxy; Go with `GOMAXPROCS` set to the budget, because the Go runtime
-reads the host's cores and not the container's quota; `nvs serve` with its defaults. The one exception is PHP's file
+reads the host's cores and not the container's quota; .NET as a framework-dependent Release build at
+its defaults, which are server GC and tiered compilation with dynamic PGO, with the logging
+`dotnet new web` writes (`dotnet/appsettings.json`), so ASP.NET Core logs no line per request. Native
+AOT is not used: the JIT with PGO is .NET's default deployment, and the faster one for a long-running
+server. `nvs serve` runs with its defaults. The one exception is PHP's file
 check, which stays on at PHP's defaults (`php/file-check.ini`). The page groups PHP with Novis as a
 server whose copied files are live, and with the check off a copied file is not live until a reload.
 
@@ -53,8 +58,9 @@ file, never a new code path.
 ## One program per case per peer
 
 A case is a folder under `cases/` with one program per peer: `main.nvs`, `index.php`, `server.ts`,
-`main.go` and `server.mjs`. The stack mounts or builds the case it is brought up for, so no peer
-carries a router the others do not. Go compiles every case into its image once (`go/Dockerfile`), Bun
+`main.go`, `server.mjs` and `Program.cs`. The stack mounts or builds the case it is brought up for, so no peer
+carries a router the others do not. Go compiles every case into its image once (`go/Dockerfile`), and
+.NET builds each into its image with one shared project file (`dotnet/Dockerfile`, `dotnet/App.csproj`). Bun
 runs the case's `default { fetch }` under `bun/serve.ts`, and Node.js runs the case's default request
 listener under `node/serve.mjs`.
 
@@ -62,12 +68,13 @@ listener under `node/serve.mjs`.
 is rounded half up by integer division, so no peer's float formatting shows. Keys are written in one
 fixed order. The items are sorted by a stable sort, largest total first, and `order.json` has two items
 with one total, so a peer whose sort is not stable disagrees. Every failed check answers 422 with one
-fixed body. Each peer checks types in its own language's usual way: Novis and Go decode into typed
+fixed body. Each peer checks types in its own language's usual way: Novis, Go and .NET decode into typed
 classes, PHP, Bun and Node.js test the decoded value. The rules are the same set, never the same code.
 
 `html-page` builds its 100 products again on every request and escapes each name and the search term
 the way each peer's own documentation says to: an html template in Novis, `htmlspecialchars` in PHP,
-`Bun.escapeHTML` in Bun and `html/template` in Go. Node.js has no HTML escaper in its standard
+`Bun.escapeHTML` in Bun, `html/template` in Go and `HtmlEncoder` in .NET, created with
+`UnicodeRanges.All` so a letter such as `é` is not encoded. Node.js has no HTML escaper in its standard
 library, so its program replaces the five characters in a function of its own. The timed term holds `<`, `>`, `&`, `"` and `'` and
 no `+`, because `html/template` alone also escapes `+` and that difference is not one the comparison
 maps away. Prices are integer cents formatted with integer division, for `json-api`'s reason.
@@ -106,9 +113,10 @@ names a setting the row had to change, or the command or step the peer needed. T
 
 **Each peer is written the way its own documentation shows.** The programs are what a developer meets
 first, not the most careful version a peer allows. `escape` prints the term twice. On `/` it uses
-PHP's `<?=`, a Bun template literal, Go's `html/template`, Node.js's escaper function and a Novis html
-template. On `/direct` it uses the plainest write to the response: PHP's `echo`, a Bun string joined
-with `+`, Go's `fmt.Fprintf`, Node.js's `res.end` of a joined string and a Novis `echo` of strings. The row is `built-in` only when both arrive escaped,
+PHP's `<?=`, a Bun template literal, Go's `html/template`, Node.js's escaper function, .NET's
+`HtmlEncoder` and a Novis html template. On `/direct` it uses the plainest write to the response:
+PHP's `echo`, a Bun string joined with `+`, Go's `fmt.Fprintf`, Node.js's `res.end` of a joined
+string, .NET's `WriteAsync` of a joined string and a Novis `echo` of strings. The row is `built-in` only when both arrive escaped,
 because a safe way that sits beside an unsafe one is a choice the developer has to get right.
 Otherwise the developer chooses the safe way or calls an escaper, so the result is `your-code` and
 not `no`.
@@ -130,7 +138,8 @@ not `no`.
   ends the worker process, and Node.js's documentation says a process must exit after an uncaught
   exception. `node/serve.mjs` then ends the container, as `bun/serve.ts` does when a process exits,
   and the restart policy starts it again. A primary that forks a replacement would hide the crash
-  from the restart count while the worker's other requests were still lost.
+  from the restart count while the worker's other requests were still lost. ASP.NET Core catches an
+  exception a handler throws and answers `500`, as Go's `net/http` recovers a panic.
 - `loop` and `memory` each put 15 seconds of steady load on `/` with nothing else running, then 15
   seconds more with one runaway request sent 3 seconds in. Five unmeasured seconds of the same load
   come first, so both loads start on a warm server: the first load on a fresh one pays for opcache,
@@ -146,13 +155,17 @@ not `no`.
   not a failure. Every peer runs at its defaults. Novis's `[limits]` and PHP's `memory_limit` and
   `max_execution_time` both stop a request at 128 MB or 30 seconds of CPU time, so both are
   `on-by-default` naming the key their row needs. Thirty seconds is longer than the load, so `loop`
-  measures the other requests while the runaway one still runs. Bun, Node.js and Go have no limit for
+  measures the other requests while the runaway one still runs. Bun, Node.js, Go and .NET have no limit for
   one request, so their answers are `no`, and the load's p99 stays in the evidence. Bun's and
   Node.js's `loop` is `your-code` (`LOOP_IN_CODE`): `Worker.terminate()` stops a worker that never
   yields, so a program that runs each request in a worker under a time limit stops it. Node.js's
   `memory` is `your-code` too (`MEMORY_IN_CODE`), because its `Worker` honours `resourceLimits`. Bun
   ignores a worker's `resourceLimits`, measured with `oven/bun:1.4.3-slim` and stated in its Node
-  compatibility page, so its `memory` has no such way. No framework on either side stops a goroutine or a blocked event loop: Gin,
+  compatibility page, so its `memory` has no such way. .NET cannot stop a thread from outside:
+  `Thread.Abort` throws `PlatformNotSupportedException`, and a `CancellationToken` stops only code that
+  checks it. .NET's `memory` is `built-in`: in a container with a memory cap, the GC limits its heap
+  to 75 percent of the cap, so the runaway allocation throws `OutOfMemoryException`, and ASP.NET Core
+  answers that request `500` while the others go on. No framework on either side stops a goroutine or a blocked event loop: Gin,
   Echo, Fiber, chi, Hono, Express and Fastify time out the reply and leave the handler running.
 - `flood` puts load past capacity on the backend for 10 seconds: 200 connections send `/hold`
   without pause, and each hold keeps 8 MiB for 300 ms. That wants 1.6 GB, three times the 512 MiB
@@ -170,12 +183,12 @@ not `no`.
   are stopped with `500`. Every CI run runs the row's `--smoke` form, which fails only when
   a stack cannot serve the row.
 - No row tests whether a request sees a value another request set. A process that keeps state
-  between requests is a design choice in Bun, Node.js and Go, not a failure, and a yes or no cannot say which
+  between requests is a design choice in Bun, Node.js, Go and .NET, not a failure, and a yes or no cannot say which
   of the two a reader wants.
 - `taint` and `secret` run `nvs check` over a program that puts a request value into an SQL string,
   and over one that prints a secret, in a one-off app container with no stack up. The check must
   fail with the row's own error code, so a program that fails for another reason is not counted.
-  PHP, Bun, Go and Node.js have no such check, so they run nothing. Their result is `no`, and the evidence
+  PHP, Bun, Go, Node.js and .NET have no such check, so they run nothing. Their result is `no`, and the evidence
   links the page in their own documentation that warns about the mistake.
 - `csrf` sends two `POST`s to a route that changes state: one with no `Origin`, which must change
   it, and one with `Origin: https://other.example`. The second is rejected when its reply does not
@@ -185,7 +198,8 @@ not `no`.
   seconds, and 200 ms later `/fast` with the same cookie, which only reads it. `/fast` answered in
   under a second is `built-in`. Longer is PHP's session lock holding it until `/slow` ends, and
   `your-code` names the two calls that release it early. Bun, Go and Node.js have no session without
-  a library, so they run nothing and are `your-code`. The row does not test lost writes: with no lock,
+  a library, so they run nothing and are `your-code`. ASP.NET Core's session middleware ships with
+  .NET, so .NET runs the row with `AddSession` and `UseSession`. The row does not test lost writes: with no lock,
   two requests of one visitor that change one value keep the last write, which the page says.
 - `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
   (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
@@ -199,7 +213,8 @@ not `no`.
 - `parallel` gives the backend four cpus whatever the run's budget. It sends `?parts=1` and then
   `?parts=4`, three times each, and keeps the fastest of each. One part is the same integer loop in
   every program, long enough that starting a thread or a child is a small share of it. With four
-  parts, Go starts goroutines, Bun starts `Worker` threads, Node.js starts `worker_threads` and
+  parts, Go starts goroutines, Bun starts `Worker` threads, Node.js starts `worker_threads`, .NET
+  starts `Task.Run` tasks on its thread pool and
   Novis spawns child scripts
   `on: "worker"`. PHP-FPM has no way to do it, so its parts run one after another. A speedup of 2x
   or more over four parts in a row is `built-in`. Novis denies `spawn script` by default, so it
@@ -211,7 +226,7 @@ not `no`.
   `php/file-check.ini`, so an edit that shows is `on-by-default` naming the setting. Bun runs
   without `--hot` and Node.js without `--watch`, their defaults. An edit that never shows is `one-setting` where the peer's
   documentation names a setting it starts without, and the measured `null` stays in the evidence. Go
-  compiles its program into the image, so it runs nothing and is `no`.
+  and .NET compile their programs into the image, so they run nothing and are `no`.
 - `deploy`, `deploy-big` and `deploy-switch` serve a program that reads part files, each
   printing its version, so a reply shows every part's version. `deploy/deploy.sh` writes the parts, and
   Novis's entry too, because `require` takes only a path written as literal text. It runs inside the
@@ -223,9 +238,9 @@ not `no`.
   replies out of many. A reply is failed (an error, or any status but `200`), mixed (more than one
   version in it) or complete. Two seconds in, the driver writes version 2 one file at a time with a
   10 ms pause, then runs the step the peer needs at its defaults: none for Novis and PHP, which check
-  their files, and a restart for Bun, Node.js and Go. The load stops a second after the first reply of the
-  new version, or 20 seconds after the step without one. Go compiles its parts into the image, so it
-  only restarts, and its new version is its first reply to a request sent after the restart.
+  their files, and a restart for Bun, Node.js, Go and .NET. The load stops a second after the first reply of the
+  new version, or 20 seconds after the step without one. Go and .NET compile their parts into the image, so they
+  only restart, and the new version is the first reply to a request sent after the restart.
   `deploy` replaces 200 parts in place, about 2 seconds of copying, and `deploy-big` 2000, about 20.
   `deploy-switch` is the deploy PHP's own tools recommend: the folder holds `releases/1/` and a
   `current` link to it, the driver writes the whole of `releases/2/`, and one rename inside the app
@@ -241,8 +256,9 @@ not `no`.
   mount shows every file as world-writable, and Novis refuses such a config file, so Novis edits the
   `nvs.toml` its data folder holds. The change applied with no command is `built-in`, after the
   peer's documented reload command is `one-setting` naming it, and only after a restart is `no`.
-  Bun, Go and Node.js have no config file that sets a response header, so they run nothing and are
-  `your-code`.
+  Bun, Go, Node.js and .NET have no config file that sets a response header, so they run nothing and are
+  `your-code`. ASP.NET Core's `appsettings.json` configures the server, but no setting in it adds a
+  response header.
 - No row replaces the runtime itself. Every server needs a restart or a reload for a new runtime
   version, so such a row says nothing a reader does not already know.
 

@@ -1,0 +1,16 @@
+<!--
+  The one project file every .NET program of the comparison builds with. `dotnet/Dockerfile` copies it
+  into each folder that has a `Program.cs`, so a folder carries its program and nothing else.
+
+  A framework-dependent Release build at the Web SDK's defaults: server GC, and tiered compilation with
+  dynamic PGO. Native AOT is not used.
+-->
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>app</AssemblyName>
+    <RootNamespace>Compare</RootNamespace>
+  </PropertyGroup>
+</Project>

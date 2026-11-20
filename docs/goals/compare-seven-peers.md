@@ -18,7 +18,7 @@ stages:
     context: [benches/compare/compose.bun.yaml, benches/compare/bun/serve.ts, benches/compare/nginx/http.conf]
   - id: 4
     title: .NET is a peer
-    status: open
+    status: done
     context: [benches/compare/compose.go.yaml, benches/compare/go/Dockerfile, benches/compare/nginx/http.conf]
   - id: 5
     title: Python is a peer
@@ -253,13 +253,13 @@ compose file, `PEERS` and the settings, then runs the smoke.
 **Split:** as stage 3. A writing subagent writes `Program.cs` for the 4 cases and every row. The
 session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
-- [ ] `benches/compare/compose.dotnet.yaml:1` and `benches/compare/dotnet/Dockerfile:1`: the SDK build
+- [x] `benches/compare/compose.dotnet.yaml:1` and `benches/compare/dotnet/Dockerfile:1`: the SDK build
   stage and the ASP.NET runtime stage, with every case and row built into the image as Go's are.
-- [ ] `tools/nv/cmd/bench-compare.ts:126` `PEERS`, `tools/nv/cmd/bench-compare.ts:1932` `DIRECT_RUNS`,
+- [x] `tools/nv/cmd/bench-compare.ts:126` `PEERS`, `tools/nv/cmd/bench-compare.ts:1932` `DIRECT_RUNS`,
   and the `Setting` and deploy tables.
-- [ ] The programs for the 4 cases and every row with per-peer programs.
-- [ ] Requirement: both smoke runs with `--peer dotnet` are green.
-- [ ] `tools/nv/test/bench-compare.test.ts:101`: the peer-table test names .NET.
+- [x] The programs for the 4 cases and every row with per-peer programs.
+- [x] Requirement: both smoke runs with `--peer dotnet` are green.
+- [x] `tools/nv/test/bench-compare.test.ts:101`: the peer-table test names .NET.
 
 ### 5. Python is a peer
 
@@ -319,45 +319,42 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1, 2 and 3 are done. Node.js is the fifth peer (commit `993032307d`): `compose.node.yaml`
-pins `node:26.13.1-trixie-slim`, the current LTS on nodejs.org, and `node/serve.mjs` forks one
-`node:cluster` worker per cpu. Every case and served row has a `server.mjs` whose default export is
-a `node:http` request listener. `deploy/deploy.sh` takes the `mjs` extension. Node.js has a fixed
-result in `taint`, `secret`, `session` and `config`. The new table is `MEMORY_IN_CODE`, which the
-`memory` row now passes to `runawayProbe`. `benches/compare/README.md` names Node.js throughout,
-and § *Why these peers* (it was "four peers") says why it is there beside Bun.
+Stages 1 to 4 are done. .NET 10 (the current LTS) is the sixth peer: `dotnet/Dockerfile` publishes
+each folder's `Program.cs`, a minimal API on Kestrel, with the shared `dotnet/App.csproj` and
+`dotnet new web`'s `dotnet/appsettings.json`, so no line is logged per request. `PEERS` has
+`dotnet` as `built` and `compiled`, and `DIRECT_RUNS` has it. `direct()` now builds every `built`
+direct peer. Fixed results: `taint`, `secret`, `config` and `live-edit` (`compiledIn`, shared with
+Go). `session` runs a program, because ASP.NET Core's session ships with the framework.
 
-Checked with docker in a detached worktree: `--smoke --peer node` and `--scenarios --smoke --peer
-node` are green, and a five-peer `--smoke` reported "5 peers agree" in every case. That run was
-also the first docker run of stage 2's `buildImages` and `agrees` paths, and both worked. Node.js's
-rows: escape, config, csrf, session and headers `your-code`; loop and memory `your-code`; cores
-`your-code` (scaling 3.37); waiting and parallel `built-in`; live-edit `one-setting (node --watch)`;
-taint, secret, crash, flood and the three deploy rows `no`. The deploy and flood rows fail on 502s
-during the restart, the same shape as Bun's record. The peer-table, program, plan, work and
-`--direct` tests pass by name, and tsc is clean.
+Checked with docker: `--smoke --peer dotnet` agreed in all 4 cases, and `--scenarios --smoke --peer
+dotnet` ran every row. Rows: escape, config, csrf and headers `your-code`; taint, secret, live-edit,
+loop and the three deploys `no` (502s during the restart, as Go's); cores, crash, memory, flood,
+session, waiting and parallel `built-in`. `memory` is `built-in` because the GC caps its heap at
+75% of the container's memory, so the runaway request throws `OutOfMemoryException` and answers
+500. The README says so. The peer-table, program and `--direct` tests pass by name, and tsc is
+clean. No six-peer smoke ran. Stage 6's recording runs every peer together.
 
-The nightly failures the sweep named ran on `5d053fc6e6` again. That is origin/main, 76 commits
-behind local main, and the previous session's commits `e5a100b18f` and `438e9c44af` fix them. They
-clear when the next full gate pushes.
+The nightly failures the sweep named ran on `5d053fc6e6`, origin/main, again. Local main's
+`e5a100b18f` and `438e9c44af` fix them, and they clear when the next full gate pushes.
 
 ### Next
 
-Stage 4 from its first item: .NET. Node.js's commit `993032307d` is the model for every place a
-peer is named. Anchors in `tools/nv/cmd/bench-compare.ts`: `PEERS` `:146`, `DIRECT_RUNS` `:2267`,
-`CORES_IN_CODE` `:523`, `LOOP_IN_CODE` `:693`, `MEMORY_IN_CODE` `:703`, `LIVE_EDIT_SETTING` `:981`,
-`DEPLOY_WAYS` `:1055`, `DEPLOY_EXT` `:1062`, `CONFIG_CHANGES` `:1293`, `PARALLEL_WAY` `:1318`,
-`TUNABLES` `:1956` (add `dotnet/Dockerfile`), `appImage` `:2008`, and the `fixed` maps of `taint`,
-`secret`, `config` and `session` in `SCENARIOS`. Tests: `tools/nv/test/bench-compare.test.ts:293`
-(the peer table), `:356` (the stacks that mount `/app`), `:383` and `:443` (the program file per
-peer) and `:1002` (`--direct` peers).
+Stage 5 from its first item: Python. .NET's commit is the model for a peer with its own build, and
+Node.js's `993032307d` for a peer that mounts `/app`, which Python does. Anchors in
+`tools/nv/cmd/bench-compare.ts`: `PEERS` `:146`, `CORES_IN_CODE` `:535`, `LOOP_IN_CODE` `:706`,
+`MEMORY_IN_CODE` `:716`, `LIVE_EDIT_SETTING` `:994`, `DEPLOY_WAYS` `:1071`, `CONFIG_CHANGES`
+`:1310`, `PARALLEL_WAY` `:1335`, `TUNABLES` `:1981`, `DIRECT_RUNS` `:2295`, and the `fixed` maps of
+`taint` `:1406`, `secret` `:1423`, `config` `:1456` and `session` `:1528`. Tests in
+`tools/nv/test/bench-compare.test.ts`: `:293` (the peer table), `:356` (the stacks that mount
+`/app`), `:383` and `:443` (the program file per peer) and `:1000` (`--direct` peers).
 
-- .NET is built from the tree as Go is: `built: true` and `compiled: true`, with every case and row
-  compiled into the image. `DEPLOY_EXT` then needs no entry, and `deployProbe` only restarts it.
-  `appImage` reads the compose file's `image:` at four-space indent.
-- The `crash` row: ASP.NET Core catches an exception in a handler and answers 500, so expect
-  `built-in`, as Go's and Bun's are.
-- Bun's `escape` program escapes nothing on either path. .NET's `/` path uses what a minimal API
-  documents for HTML, and `/direct` the plainest write.
-- Expect the four tests above to go red once `dotnet` is in `PEERS`. Stage 4 updates them.
+- Python mounts `/app` as Node.js does, so `DEPLOY_EXT` needs `py`, `deploy/deploy.sh` takes it,
+  and `:356`'s list of stacks that mount `/app` gains `python`. `live-edit` runs: `uvicorn` without
+  `--reload` is `one-setting` if the run shows it.
+- `requirements.txt` pins `uvicorn`, `uvloop` and `httptools` at exact versions. Install them in a
+  small image of the compose file's own, or with `pip install` at start. The first is faster and
+  the plan counts it as a build, so prefer it, and set `built: true`.
+- The README's Python sentence in § *Why these peers* is replaced, as the standing decision says.
+- Expect the four tests above to go red once `python` is in `PEERS`. Stage 5 updates them.
 
 ### Backlog
