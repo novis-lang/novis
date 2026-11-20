@@ -22,7 +22,7 @@ stages:
     context: [website/src/content/docs/syntax/control-flow/foreach.mdx, website/src/content/docs/syntax/control-flow/iterators.mdx, website/src/content/docs/syntax/basics/variables.mdx, docs/reference/core/ObjectMap.md, website/src/data/changes.json, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: keyed-checker
@@ -461,54 +461,39 @@ their `.out` files, which must print what they print today. The session writes t
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
-- [ ] The newcomer review the `website-follows-changes` rule names, over every page, card and diagnostic
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The newcomer review the `website-follows-changes` rule names, over every page, card and diagnostic
   this goal changed, each finding fixed and each page stamped. The `site-review` check run once.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. A keyed `foreach` runs over a `Core\ObjectMap` and a user
-`KeyedIterable`/`KeyedIterator`, and the feature and both interfaces owe no proof: the `editor`,
-`feature-proofs`, `keyed-iterable-proofs`, `keyed-iterator-proofs` and `site-changes` checks are green,
-and `bun nv site --check stale` is green.
+Every stage is done, and every check of this goal is green: `keyed-checker`, `keyed-loop`,
+`keyed-runtime`, `editor`, `feature-proofs`, `keyed-iterable-proofs`, `keyed-iterator-proofs`,
+`site-changes` and `site-review`. `cargo build` and `cargo clippy --all-targets -- -D warnings` are
+green, and so are `site --check stale` and `owners --closes keyed-iteration`.
 
-- Stage 4 rewrote every page it listed, plus `docs/examples/lang/statements/foreach/about.md:5`
-  ("the key is always a `string`"). The five `docs/examples/core/ObjectMap/` examples use the keyed
-  form and print what they printed (`bun nv proofs --run --id` green for `set`, `remove`, `isEmpty`).
-- `docs/reference/core/ObjectMap.md`'s example loop now prints each pair, so its output line is
-  `red=4 blue=7`, not `red blue`. A loop that binds a value and never prints it shows nothing, so the
-  card's output changed by design. It was run from a scratch copy and matches.
-- `prose` flagged three pre-existing *The examples below* sentences over 25 words in touched files;
-  each is split. `changes.json` has the `new` entry in the decided wording.
-- Every stale page, `about.md` and help card was reread and stamped (`site --stamp`). The
-  stage 4 texts have no *newcomer review* stamp yet: that is stage 5's item.
-
-
-The acceptance sweep's nightly findings (run 44510687786) ran on `adc7487`, before their fixes
-`4c82a2409a`, `eb5c02e983`, `656f5b2f2d` and `1c75c4ef0e`, so nothing was left to fix.
+- The newcomer review read the twelve texts this goal changed. Each finding is fixed in `838e50605b`,
+  and the texts carry their review stamps. `docs/examples/lang/statements/foreach/details.md` had said
+  an `inout` loop visits an element the body adds, against
+  `rule:iteration/an-inout-loop-walks-the-array-it-began-with`. It now says the element is not visited.
+- The whole editor suite was red on `tests/lsp/definition/a-core-class-answers-its-stub.lspt`: commit
+  `89bd4d9c3f` added a line to the ObjectSet card, so the stub declares the class on line 61. The
+  case expects 61 (`2d8c70174f`), and `nvs lsp-test tests/lsp` passes all 622 cases.
+- The backlog's E0442 follow-on and the `walk_element` limit are stated in
+  `rule:iteration/keyed-interfaces`. The nightly findings of run 44510687786 ran on `adc7487`, before
+  their fixes `4c82a2409a`, `eb5c02e983`, `656f5b2f2d` and `1c75c4ef0e`.
 
 ### Next
 
-Stage 5, the close (the full gate runs at a later goal). First the newcomer review
-(`docs/agent/prose.md` § *A newcomer reads it*): `bun nv site --review` lists the unreviewed texts,
-which are this session's stage 4 pages, the `ObjectMap` card and the website pages
-`syntax/control-flow/foreach.mdx`, `iterators.mdx` and `basics/variables.mdx`. Then `cargo build`,
-`cargo clippy --all-targets -- -D warnings` and this goal's own checks by name, then `site-review`.
+Nothing: the goal is reached. The full gate runs at the next goal, `revocable-objects`.
 
 No test is expected to go red.
 
 ### Backlog
 
-- `help:KeyedIterable` and `help:KeyedIterator` show the reader only `{"name":...,"typeParams":[...]}`,
-  as `help:Iterable` does: `nvs agent show Iterable` finds no symbol. An interface's help card should
-  carry its `about.md`. That is a change to how the help is built for every `RESERVED` interface.
-- A wrong type-argument count on `implements KeyedIterable` (`E0442`) also prints a follow-on `E0404`
-  about `iterateKeyed`, because the recovery interns the bare name. `a-keyed-interface-needs-concrete-type-arguments.nvst`
-  pins both. One mistake should give one diagnostic. The fix is in `lower_generic_interface`'s recovery
-  or in the override check, and it would change that case's expected output.
-- `walk_element` (`crates/nvs-types/src/expr/args.rs`) treats only the value pair as a walk, so a
-  `KeyedIterable` that is not also an `Iterable` is not admitted where a `Core` member reads an
-  `Iterable`. That is the settled decision for `Core\Arr::from`, and it stays.
+- `help:KeyedIterable`, `help:KeyedIterator` and `help:Iterable` show only the interface's name and
+  type parameters. An interface's help card should carry its `about.md`. That changes how help is
+  built for every reserved interface (`crates/nvs-hir/src/interfaces.rs`).

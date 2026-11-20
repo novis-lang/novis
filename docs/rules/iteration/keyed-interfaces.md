@@ -58,8 +58,15 @@ keyed loop's, since an array loop allocates nothing, and 26 calls. Its size ramp
 than linear, so no entry allocates.
 
 Out of scope, each staying as it is: a keyed `yield` (`rule:iteration/one-way-only`), so a generator is
-still an `Iterator<T>`; and `Core\Arr::from($map)`, which still gives the keys, since its parameter is
-`array|Iterable|Iterator`.
+still an `Iterator<T>`; `Core\Arr::from($map)`, which still gives the keys, since its parameter is
+`array|Iterable|Iterator`; and a `KeyedIterable` that is not also an `Iterable`, which a `Core` member
+whose parameter reads `Iterable` does not accept.
+
+**A stated bound.** A wrong type-argument count on `implements KeyedIterable` is `E0442`, and the class
+is then checked against the bare name, so a follow-on `E0404` names `iterateKeyed` as well.
+`tests/conformance/reject/a-keyed-interface-needs-concrete-type-arguments.nvst` pins both. Giving one
+mistake one diagnostic is a change to `lower_generic_interface`'s recovery, and it changes that case's
+expected output.
 
 **Declined:**
 - **`Iterable<K, V>` with a second type argument.** A name's arity is one fact on the reserved roster,
