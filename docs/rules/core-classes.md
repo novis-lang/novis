@@ -3082,7 +3082,7 @@ never triggers one because it resolves to no name at all. An import binds a whol
 never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names nothing.
 
 This is a carve-out of exactly one sentence, and it is the only one: attribute *retrieval* stays
-structural, unchanged ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). Every future compiler-recognized
+structural, unchanged ([`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names)). Every future compiler-recognized
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
 table in the compiler (`nvs_types::derive::ATTRIBUTES`), and a rule adding an entry says its attribute
 joins the list and states no running total, because a count restated beside each entry goes stale.
@@ -3101,7 +3101,7 @@ argued on its own.
   name to be the same string, which is wrong often enough that two attributes would be needed at
   once. A class using both formats with the same rename writes it twice, and that is visible.
 
-<sub>See also [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval).</sub>
+<sub>See also [`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names).</sub>
 
 <a id="core-classes-derive-property-list"></a>
 

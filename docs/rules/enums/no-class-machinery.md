@@ -8,8 +8,9 @@ refused with **`E0220`**, which names the class such a member belongs on instead
 members of its own, and is not an array key — index with `$case as int`.
 
 An enum has no constructor. `new E()` and the constructor reference `E::constructor` are each
-**`E0870`** at the enum's name, whose help says a case is written `E::Case`. A user attribute on an
-enum or an enum case is `E0871` (`rule:attributes/attach-sites-and-forms`).
+**`E0870`** at the enum's name, whose help says a case is written `E::Case`. A program's attribute
+declaration may not list `enum` or `case`, so no program attribute is used on an enum or an enum case
+(`rule:attributes/an-attribute-is-declared-with-its-sites`).
 
 What a program writes for each job:
 

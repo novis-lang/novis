@@ -168,7 +168,7 @@ same goes for `#[Api]`'s second use. `#[Route]` and `#[Index]`-like attributes a
 
 **Retrieval (my call).** `Core\Attributes::get<Storable::Index>(…)` and `::all<…>` name a declaration
 and find only the payloads written under it. The match is by declaration, never by shape. So
-`rule:attributes/structural-retrieval` is replaced, and an inline shape such as `get<{name: string}>`
+the structural match is replaced by `rule:attributes/a-retrieval-matches-the-declaration-it-names`, and an inline shape such as `get<{name: string}>`
 does not compile. `Core\Router\Match::attribute<T>()` and `Core\Program::implementingWith<I, T>`
 take a declaration the same way. `Core\Reflect\AttributeInfo::name()` returns the declaration's full
 name. A retrieval still folds while compiling (`rule:attributes/retrieval-folds-while-checking`).
@@ -217,6 +217,26 @@ list below. `inert-metadata`, `attach-sites-and-forms`, `structural-retrieval`, 
 `crates/nvs-types/`. Stage 6 needs stage 5, and its batches are disjoint directories. Stage 7 changes
 `crates/nvs-lsp/` and `editors/vscode/` alone and needs stage 4, so it may run beside stage 6 as a
 side goal. Stage 8 needs stages 6 and 7.
+
+**The diagnostic codes (stage 1's call).** A released code is retired, never repurposed
+(`crates/nvs-diagnostics/src/code/mod.rs:3`), so a check whose meaning moves takes a new code, and a
+check that only widens keeps its code. The frozen cases name these:
+
+- `E0874` widens: every attribute used on a site its declaration does not list (check 1).
+- `E0763` widens: a second use of any declaration that is not `repeatable` (check 3).
+- `E1004`: a program's declaration lists a site no retrieval reads. `E0871` is retired.
+- `E1005`: a class, interface, enum or `type` alias after `#[`. `E0726` is retired.
+- `E1006`: an owned attribute used outside its owner's descendants (check 2).
+- `E1007`: a short name both the owner chain and the namespace scope give.
+- `E1008`: a retrieval's, `Match::attribute`'s or `implementingWith`'s `T` is not an attribute
+  declaration. `E0729` is retired.
+- `E0140`: the bare `#[{…}]`. `E0141`: a missing or empty `on` list, or a word that is not a site.
+  `E0142`: an attribute declaration in an enum body.
+- An attribute declaration in a type position is the ordinary `E0303`, a second member of one name in
+  a body is `E0304`, and `Sub::Index` for an inherited owner is `E0405`, as for an alias.
+
+The eight rewritten rules and `enums/no-class-machinery`'s `E0871` sentence state the designed
+behaviour, so each rewritten record is `designed` under this goal until stage 9 sets it `shipped`.
 
 **The goal after this one.** `attribute-property-names` builds on this goal: `static` in an attribute
 declaration's fields names the class the attribute is used on, and no top-level `type` alias changes

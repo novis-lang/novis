@@ -1,0 +1,21 @@
+{
+  "title": "Only an attribute declaration follows `#[`, it lists the sites it is used on, and one declared in a class or interface is used on that type's descendants",
+  "status": "designed",
+  "seeAlso": [
+    "attributes/attach-sites-and-forms",
+    "attributes/repeatable",
+    "attributes/a-retrieval-matches-the-declaration-it-names",
+    "types/shape-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-attribute-is-declared-with-its-sites.nvst",
+    "tests/conformance/lang/an-attribute-declared-in-a-class-is-used-on-its-descendants.nvst",
+    "tests/conformance/reject/an-attribute-on-a-site-it-does-not-list-does-not-compile.nvst",
+    "tests/conformance/reject/an-attribute-outside-its-owners-descendants-does-not-compile.nvst",
+    "tests/conformance/reject/a-second-use-of-an-attribute-that-is-not-repeatable-does-not-compile.nvst",
+    "tests/conformance/reject/only-an-attribute-declaration-follows-the-attribute-bracket.nvst",
+    "tests/conformance/reject/an-attribute-declaration-lists-only-sites-a-retrieval-reads.nvst",
+    "tests/conformance/reject/an-attribute-name-two-scopes-give-does-not-compile.nvst"
+  ],
+  "goal": "declared-attributes"
+}

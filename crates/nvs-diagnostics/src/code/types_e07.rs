@@ -564,7 +564,7 @@ codes! {
     ///
     /// It is a sink rather than a mismatch because of where the value ends up:
     /// the payload is folded into the compiled unit's constant pool and handed
-    /// back by `rule:attributes/structural-retrieval` to anything that asks, so the credential is
+    /// back by `rule:attributes/a-retrieval-matches-the-declaration-it-names` to anything that asks, so the credential is
     /// written into the program's own metadata rather than read at run time
     /// from somewhere a capability guards.
     ///
@@ -591,7 +591,7 @@ codes! {
          one. Make the shape more specific, or call `Core\\Attributes::all` to get every match.",
     );
     /// The `<T>` written at a `Core\Attributes::get`/`all` call site is not a
-    /// shape type — `rule:attributes/structural-retrieval`.
+    /// shape type — `rule:attributes/a-retrieval-matches-the-declaration-it-names`.
     ///
     /// Retrieval is *structural*: `T` is what an attribute's payload object is matched
     /// against under `rule:types/shape-type`'s width subtyping, so a `T` that is not a
@@ -603,7 +603,7 @@ codes! {
          or the name of a `type` alias for one.",
     );
     /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
-    /// declaration this unit holds — `rule:attributes/structural-retrieval`.
+    /// declaration this unit holds — `rule:attributes/a-retrieval-matches-the-declaration-it-names`.
     ///
     /// That rule fixes the spelling: a method (a constructor included) is named by
     /// its own method reference `Foo::bar`, and a class by
@@ -1661,7 +1661,7 @@ codes! {
     /// A `Core\Attributes` retrieval whose `$member`, given as a string literal, names no declared
     /// parameter or property of the target.
     ///
-    /// `rule:attributes/structural-retrieval`'s last paragraph: a written `$member` is checked against
+    /// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s last paragraph: a written `$member` is checked against
     /// the target's real declarations at the call site, the same
     /// inspection of a string literal that `rule:security/secret-sinks-refuse`'s sinks make. Only a
     /// *computed* `$member` falls back to the empty result that rule fixes,

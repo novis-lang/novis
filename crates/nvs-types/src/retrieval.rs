@@ -1,4 +1,4 @@
-//! `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`: `Core\Attributes::get<T>` and `::all<T>`, answered here rather than
+//! `rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`: `Core\Attributes::get<T>` and `::all<T>`, answered here rather than
 //! at run time.
 //!
 //! `rule:attributes/retrieval-folds-while-checking` is what makes this a checker
@@ -16,7 +16,7 @@
 //!
 //! # Structural, not nominal
 //!
-//! `rule:attributes/structural-retrieval` makes retrieval match on *shape*: an
+//! `rule:attributes/a-retrieval-matches-the-declaration-it-names` makes retrieval match on *shape*: an
 //! attribute's payload object is an answer to `get<T>` exactly when it
 //! satisfies `T` under
 //! [`crate::expr::built_fits`]: `rule:types/shape-type`'s width subtyping, with field
@@ -30,7 +30,7 @@
 //!
 //! # Which declaration `$target` names
 //!
-//! `rule:attributes/structural-retrieval` fixes four spellings and this pass
+//! `rule:attributes/a-retrieval-matches-the-declaration-it-names` fixes four spellings and this pass
 //! inspects them **syntactically**, exactly as `rule:security/secret-sinks-refuse`'s
 //! sinks inspect a literal argument: the reference
 //! is never evaluated, so `Foo::bar` here is a written name rather than a
@@ -93,7 +93,7 @@ use crate::signatures::{resolve_method_ref, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
-/// The class `rule:attributes/structural-retrieval`'s two members live on, spelled as
+/// The class `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s two members live on, spelled as
 /// [`nvs_hir::QName`] renders it.
 const OWNER: &str = "Core\\Attributes";
 
@@ -145,7 +145,7 @@ fn site_ctx(scope: &Scope) -> Ctx<'_> {
     }
 }
 
-/// Every attach site in the program, indexed by the declaration `rule:attributes/structural-retrieval`'s
+/// Every attach site in the program, indexed by the declaration `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s
 /// `$target` spellings name.
 ///
 /// Built once, before any body is checked, for the reason
@@ -291,7 +291,7 @@ fn push<'a>(
     }
 }
 
-/// Whether `owner::member` is one of `rule:attributes/structural-retrieval`'s two retrievals — the cheap
+/// Whether `owner::member` is one of `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s two retrievals — the cheap
 /// test [`crate::expr::calls`] makes before reaching for anything here.
 pub(crate) fn is_retrieval(owner: &QName, member: &str) -> bool {
     owner.to_string() == OWNER && matches!(member, "get" | "all")
@@ -435,7 +435,7 @@ pub(crate) fn fold_retrieval(
     env.exprs.record(call.span, ExprInfo::CoreConst { value });
 }
 
-/// `rule:attributes/structural-retrieval`'s `$target` spelling, read syntactically: the class it names
+/// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s `$target` spelling, read syntactically: the class it names
 /// and the method whose reference was written.
 fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QName, String)> {
     let ExprKind::StaticCall {
@@ -452,7 +452,7 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
 }
 
 /// Whether `member` names a real declaration of the target —
-/// `rule:attributes/structural-retrieval`'s validation
+/// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s validation
 /// of a *written* member name, and the whole of what `E0798` reports on.
 ///
 /// Asked of [`crate::signatures`] rather than of [`AttributeTable`], which
@@ -481,7 +481,7 @@ pub(crate) fn declares_member(class: &QName, method: &str, member: &str, env: &E
 }
 
 /// The attach sites `$target` plus `$member` names, joined where
-/// `rule:attributes/structural-retrieval`'s two spellings overlap — see this module's own docs.
+/// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s two spellings overlap — see this module's own docs.
 pub(crate) fn sites_for<'a>(
     env: &Env<'a>,
     class: &QName,
@@ -495,7 +495,7 @@ pub(crate) fn sites_for<'a>(
         return if method == "constructor" {
             // A class with no written `constructor` still names itself this
             // way — `rule:classes/definite-property-initialization` synthesizes
-            // one, so `rule:attributes/structural-retrieval` uses the spelling for
+            // one, so `rule:attributes/a-retrieval-matches-the-declaration-it-names` uses the spelling for
             // every class rather than only for the ones that declare it, and
             // a class that *does* write one may carry attributes on both.
             let mut sites = entry.own.clone();

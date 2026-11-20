@@ -5,7 +5,7 @@
     "core-classes/derive-property-list",
     "core-classes/derive-generates-what-is-missing",
     "attributes/inert-metadata",
-    "attributes/structural-retrieval"
+    "attributes/a-retrieval-matches-the-declaration-it-names"
   ],
   "guardedBy": [
     "tests/conformance/core/db-derive-is-a-recognized-attribute.nvst",

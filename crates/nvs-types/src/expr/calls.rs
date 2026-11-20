@@ -917,7 +917,7 @@ pub(crate) fn infer_static_call(
         }
         return env.interner.callable();
     }
-    // `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval, which is not a call at all once it has been
+    // `rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`'s retrieval, which is not a call at all once it has been
     // resolved: the answer is recorded against this span as an ordinary
     // compile-time constant, so the `ExprInfo::Call` below must *not* also be
     // recorded — one span carries one entry, and `nvs-ir` would then lower the
@@ -1607,7 +1607,7 @@ fn reject_unforwardable_method_ref(
 
 /// Marks a `Core\Attributes` retrieval's target, `Foo::constructor`, as
 /// the one place a constructor reference is written
-/// (`rule:attributes/structural-retrieval`). The retrieval folds it at check
+/// (`rule:attributes/a-retrieval-matches-the-declaration-it-names`). The retrieval folds it at check
 /// time and nothing calls it, so [`infer_static_call`] does not refuse it.
 fn note_retrieval_target(
     resolved: Option<&(QName, String, MethodSig)>,

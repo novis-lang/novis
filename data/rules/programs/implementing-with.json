@@ -1,9 +1,9 @@
 {
   "title": "`Core\\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "programs/implementing",
-    "attributes/structural-retrieval",
+    "attributes/a-retrieval-matches-the-declaration-it-names",
     "attributes/retrieval-folds-while-checking"
   ],
   "guardedBy": [
@@ -13,5 +13,6 @@
     "tests/conformance/reject/program-implementing-with-answers-at-most-one-attribute-per-class.nvst",
     "crates/nvs-types/src/program.rs",
     "tests/conformance/core/program-implementing-with-alone-finds-autoloaded-classes.nvst"
-  ]
+  ],
+  "goal": "declared-attributes"
 }

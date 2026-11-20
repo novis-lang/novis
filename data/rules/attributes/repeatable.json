@@ -1,13 +1,14 @@
 {
-  "title": "An attribute may be attached to one declaration any number of times, and attach time never counts them",
-  "status": "shipped",
+  "title": "Only an attribute declared `repeatable` may be used twice on one declaration",
+  "status": "designed",
   "seeAlso": [
-    "attributes/structural-retrieval",
+    "attributes/a-retrieval-matches-the-declaration-it-names",
     "attributes/retrieval-folds-while-checking",
     "attributes/access-payload"
   ],
   "guardedBy": [
     "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
     "crates/nvs-types/tests/attributes.rs"
-  ]
+  ],
+  "goal": "declared-attributes"
 }

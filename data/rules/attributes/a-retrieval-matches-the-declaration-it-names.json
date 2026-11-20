@@ -1,0 +1,18 @@
+{
+  "title": "A retrieval names an attribute declaration and finds only the payloads written under it, never a payload of the same shape",
+  "status": "designed",
+  "seeAlso": [
+    "attributes/an-attribute-is-declared-with-its-sites",
+    "attributes/retrieval-folds-while-checking",
+    "attributes/call-site-type-argument",
+    "attributes/repeatable"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-retrieval-matches-the-declaration-it-names.nvst",
+    "tests/conformance/core/a-reflected-attribute-names-its-declaration.nvst",
+    "tests/conformance/reject/a-synthesized-constructor-is-referenced-and-not-called.nvst",
+    "crates/nvs-types/tests/attributes.rs",
+    "crates/nvs-types/src/retrieval.rs"
+  ],
+  "goal": "declared-attributes"
+}

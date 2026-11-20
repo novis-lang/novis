@@ -1,9 +1,9 @@
 --TEST--
-`Core\Attributes::get<T>`/`all<T>` answer the attached payload objects that structurally satisfy `T`, folded at the call site (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+`Core\Attributes::get<T>`/`all<T>` answer the attached payload objects that structurally satisfy `T`, folded at the call site (`rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: Core\Attributes::get
-// `rule:attributes/structural-retrieval`: retrieval is structural, not nominal. `T` is a shape and an
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: retrieval is structural, not nominal. `T` is a shape and an
 // attached payload object is an answer exactly when it satisfies `T` under `rule:types/shape-type`
 // 's width subtyping — whether it was attached bare or under a name, and
 // whatever that name was.
@@ -12,7 +12,7 @@ type Route = {path: string};
 #[Route(path: "/users")]
 #[{audit: true}]
 class Controller {
-    // `rule:attributes/structural-retrieval`: a property is named by its class's `constructor` reference plus a
+    // `rule:attributes/a-retrieval-matches-the-declaration-it-names`: a property is named by its class's `constructor` reference plus a
     // literal member name.
     #[{column: "name", unique: true}]
     public string $name = "";
@@ -61,7 +61,7 @@ foreach ($both as {column: string} $one) { echo "  ", $one->column, "\n"; }
 array<{nosuch: string}> $empty = Core\Attributes::all<{nosuch: string}>(Controller::constructor);
 echo "empty=", Core\Arr::count($empty) as string, "\n";
 
-// `rule:attributes/structural-retrieval`'s method and parameter spellings.
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s method and parameter spellings.
 ?Route $method = Core\Attributes::get<Route>(Controller::show);
 if ($method != null) { echo "method route=", $method->path, "\n"; }
 
@@ -72,7 +72,7 @@ if ($method != null) { echo "method route=", $method->path, "\n"; }
 ?{inject: string} $named = Core\Attributes::get<{inject: string}>(Controller::show, "id");
 if ($named != null) { echo "param inject=", $named->inject, "\n"; }
 
-// `rule:attributes/structural-retrieval`: a computed member name resolves nothing, and that is
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: a computed member name resolves nothing, and that is
 // an empty result rather than a diagnostic.
 string $computed = "i" . "d";
 ?{inject: string} $dynamic = Core\Attributes::get<{inject: string}>(Controller::show, $computed);

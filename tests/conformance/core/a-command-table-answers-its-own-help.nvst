@@ -1,5 +1,5 @@
 --TEST--
-every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — `rule:tooling/commands-are-compiled`, `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`
+every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — `rule:tooling/commands-are-compiled`, `rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`
 --FILE--
 <?nvs
 // `rule:tooling/commands-are-compiled`'s command table is built while compiling, and its reader —
@@ -8,7 +8,7 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 // (docs/agent/goals/core-depth.md item 6). So this case asks the question
 // that *is* answerable today, and it is the one that section's promise rests
 // on: **nobody writes usage text**, which is only true if every word of it is
-// already in the declaration. `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval reads those payloads
+// already in the declaration. `rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`'s retrieval reads those payloads
 // back at the call site, so the help below contains no text of its own —
 // every name, every spelling and every sentence in it was retrieved.
 //
@@ -96,7 +96,7 @@ class Help {
     }
 }
 
-// `rule:attributes/structural-retrieval`'s method spelling: a method reference names the method the
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s method spelling: a method reference names the method the
 // `#[Command]` is attached to.
 ?{name: string} $deployName = Core\Attributes::get<{name: string}>(Deploy::deploy);
 ?{about: string} $deployAbout = Core\Attributes::get<{about: string}>(Deploy::deploy);

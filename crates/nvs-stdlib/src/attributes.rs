@@ -1,4 +1,4 @@
-//! `Core\Attributes` — `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval, and the one `Core` class whose members never
+//! `Core\Attributes` — `rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval, and the one `Core` class whose members never
 //! run.
 //!
 //! Every other class in this crate registers a signature *and* an
@@ -20,7 +20,7 @@
 //!
 //! # Why `$member` is one optional parameter rather than two overloads
 //!
-//! `rule:attributes/structural-retrieval` writes each member twice, once with a `$member` name and once without.
+//! `rule:attributes/a-retrieval-matches-the-declaration-it-names` writes each member twice, once with a `$member` name and once without.
 //! The registry has no overloading and wants none: what the two spellings
 //! differ in is *which* declaration is named, which is one argument's worth of
 //! information. So the parameter is a single `string` defaulting to the empty
@@ -60,7 +60,7 @@ const CARD: ClassDoc = ClassDoc {
 
 /// The registry row. See [`crate::registry::CLASSES`].
 ///
-/// `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval. Registered like any other class
+/// `rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval. Registered like any other class
 /// and implemented by nothing — see [`crate::attributes`].
 // rank: 30
 pub(crate) const CLASS: CoreClass = CoreClass {

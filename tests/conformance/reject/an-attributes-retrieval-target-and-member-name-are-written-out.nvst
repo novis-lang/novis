@@ -1,9 +1,9 @@
 --TEST--
-a `Core\Attributes` retrieval reads its target and its written member name syntactically, so a target that is only a `callable` value and a member name naming no declaration are both refused where they are written, and `get` refuses a shape two attribute payload objects satisfy (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+a `Core\Attributes` retrieval reads its target and its written member name syntactically, so a target that is only a `callable` value and a member name naming no declaration are both refused where they are written, and `get` refuses a shape two attribute payload objects satisfy (`rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
-// `rule:attributes/structural-retrieval`: the target is read where it is written and
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: the target is read where it is written and
 // never evaluated, and a *written* member name is checked against the target's
 // real declarations, because the empty result a misspelling folds to is the
 // one a correct retrieval of an absent attribute gives and nothing later can

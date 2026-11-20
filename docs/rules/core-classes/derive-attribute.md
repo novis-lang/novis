@@ -20,7 +20,7 @@ never triggers one because it resolves to no name at all. An import binds a whol
 never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names nothing.
 
 This is a carve-out of exactly one sentence, and it is the only one: attribute *retrieval* stays
-structural, unchanged (`rule:attributes/structural-retrieval`). Every future compiler-recognized
+structural, unchanged (`rule:attributes/a-retrieval-matches-the-declaration-it-names`). Every future compiler-recognized
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
 table in the compiler (`nvs_types::derive::ATTRIBUTES`), and a rule adding an entry says its attribute
 joins the list and states no running total, because a count restated beside each entry goes stale.

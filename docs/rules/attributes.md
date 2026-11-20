@@ -3,131 +3,229 @@
 
 # Attributes
 
+*7 of 12 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="attributes-inert-metadata"></a>
 
-## An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it
+## An attribute is an anonymous object on a declaration, checked against its attribute declaration, and nothing is ever instantiated for it  *(designed — owned by goal declared-attributes)*
 
 `rule:attributes/inert-metadata`
 
-`#[Name(field: value, ...)]`, or the bare `#[{field: value, ...}]`, attaches an anonymous object
-to a declaration. It is the same value an ordinary shape-typed binding takes rather than a
-new kind of value, and **no class is declared, instantiated or invoked for it**: an attribute is inert
-data from the moment it is parsed.
+`#[Name(field: value, ...)]` attaches an anonymous object to a declaration. `Name` is an attribute
+declaration ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)), and the payload is the same
+value an ordinary shape-typed binding takes rather than a new kind of value. **No class is declared,
+instantiated or invoked for it**: an attribute is inert data from the moment it is parsed.
 
 The whole payload resolves once, while compiling, into the compiled unit's constant pool — the storage
 class an enum case's backing integer already uses ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)). What it costs is
 O(attachments written in the compiled code), held once per declaration, and never per request, per
 object or per instance.
 
-Retrieval is `Core\Attributes` and nothing else ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). There is no
-attribute table in the compiled unit for `Core\Reflect` or anything else to walk.
+Retrieval is `Core\Attributes` and nothing else
+([`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names)). There is no attribute table in the
+compiled unit for `Core\Reflect` or anything else to walk.
 
 An attribute is a bag of data, and the language already has a structurally checked bag of data: the
-anonymous object and its shape type. Attaching that to a declaration needs no fourth mechanism. A
-quick, one-off tag costs one `#[{...}]` and no declaration at all; a validated, reusable one costs one
-`type` alias line.
+anonymous object and its shape type. The declaration is a shape's field list with a name, the sites it
+may be used on and the docs of its keys. That is all a developer needs to find the right attribute, and
+nothing more is declared.
 
 **Declined:**
 - **An attribute class per kind, constructed when read**, as PHP, Java and C# do. It is class overhead
-  for what is a bag of data, and a `type` alias gives the same structural check with nothing ever
-  instantiated.
+  for what is a bag of data, and a declaration gives the same structural check of its payload with
+  nothing ever instantiated.
+- **A `type` alias as the attribute's name, or no name at all.** An alias names a type, not where it may
+  be used, so the editor could not offer the attributes that fit, and a nameless payload could not be
+  found or retrieved ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)).
 - **Doc comments parsed by convention.** The compiler has no part in them: no structural check and no
   first-class retrieval, so every framework parses its own text.
 - **A free-form string payload**, the way a Go struct tag is written. It loses the structural check
   entirely and leaves every validation to framework code at run time.
 
-<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
+
+<a id="attributes-an-attribute-is-declared-with-its-sites"></a>
+
+## Only an attribute declaration follows `#[`, it lists the sites it is used on, and one declared in a class or interface is used on that type's descendants  *(designed — owned by goal declared-attributes)*
+
+`rule:attributes/an-attribute-is-declared-with-its-sites`
+
+```nvs
+abstract class Storable
+{
+    /// Adds a database index over one or more columns of this table.
+    repeatable attribute Index on class {
+        /// The column names, separated by commas.
+        columns: string,
+        /// `true` means no two rows may have the same values in these columns.
+        unique?: bool,
+    }
+
+    /// Sets how this property is stored.
+    attribute Column on property, parameter {
+        /// What happens to this row when the row it points to is deleted.
+        onTargetDelete?: 'deleteThisObjectToo'|'setNull'|'refuse',
+    }
+}
+
+/// Marks a method a job runner may call.
+attribute Job on method { queue: string }
+```
+
+Only an **attribute declaration** may follow `#[`. It is written `[repeatable] attribute Name on <site>,
+<site> { field, … }`, at namespace level or as a member of a class or interface body. An enum body
+declares none, and one written there is `E0142`. `attribute`, `repeatable` and `on` are contextual words,
+read as `type` is, so no identifier is taken from programs.
+
+- **The body is a shape's field list**, `name: T` and `name?: T`, with [`types/shape-type`](types.md#types-shape-type)'s grammar
+  and check. A field has no default. A doc comment above the declaration documents the attribute, and a
+  doc comment above a field documents that key ([`types/shape-type`](types.md#types-shape-type)).
+- **The declaration is a name of its own kind, not a type.** `#[`, a retrieval's type argument
+  ([`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names)), `Core\Router\Match::attribute<T>` and
+  `Core\Program::implementingWith`'s `T` are the only places that name it. Written in a type position, it
+  is the ordinary undefined-type `E0303`. In a body, it shares the member names of that body's aliases,
+  constants, enums and enum cases, and a second member of one name is `E0304`.
+- **The sites are fixed words:** `class`, `interface`, `enum`, `method` (a constructor included),
+  `property`, `hook`, `constant`, `case` and `parameter`. The list after `on` has one or more of them and
+  no wildcard. A missing list, an empty one or a word that is not a site is `E0141` at the word. A
+  promoted constructor parameter is a property and a parameter, and an attribute fits there when its list
+  has either word.
+- **A program's declaration lists only the sites a retrieval reads:** `class`, `method`, `property` and
+  `parameter`. Any other word in its list is `E1004` at that word, naming the four. `Core`'s declarations
+  list the other five, such as `Core\Deprecated`'s. When a retrieval learns to read another site, this
+  list grows by that site.
+
+**Resolution.** `#[Name(…)]` resolves `Name` through the namespace and `use` scope, as every name does.
+On a descendant of an owner, the owner's attributes are also in scope by their short names, and so are
+the attributes of every owner that owner inherits from. The owner chain is the class graph's parents
+and interfaces, walked once per use. `#[Owner::Name(…)]` resolves to the same declaration, and only the
+owner that declares it may stand left of `::`: `Sub::Index`, where `Storable` declares `Index`, is
+`E0405` naming `Storable`, as it is for an alias ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)).
+
+- A name nothing declares is `E0303`.
+- A short name that both the owner chain and the namespace scope give is `E1007`, naming both
+  declarations. The compiler never chooses one. The qualified form names one and is the fix.
+- A name that resolves to a class, an interface, an enum or a `type` alias is `E1005`: only an attribute
+  declaration may follow `#[`. When the name is a shape alias the program declares, the fix rewrites it
+  to `attribute Name on <the site of this use> { … }` with the alias's fields.
+- `#[{…}]`, a payload that names no declaration, is the parse error `E0140`, which says to declare an
+  attribute.
+
+**The checks at a use.** Each is its own diagnostic at the attribute, in this order, and once one of
+them reports a use, the checks after it are skipped for that use. One mistake is one error.
+
+1. **The site.** A use on a site the declaration does not list is `E0874`, naming this site and the
+   allowed ones. `Core`'s compiler attributes are checked by the same code ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
+2. **The owner.** A use of an owned declaration on a declaration that is not one of the owner's
+   descendants is `E1006`, naming the owner. A descendant is a class or interface that extends or
+   implements the owner, directly or through its parents, and every member, hook and parameter declared
+   in its body. The owner itself and its own members are not its descendants, so a use there is
+   `E1006` whether it is written short or qualified. A namespace-level
+   declaration has no owner, and this check passes.
+3. **The count.** A second use of one declaration on one declaration needs `repeatable`
+   ([`attributes/repeatable`](attributes.md#attributes-repeatable)). Without it, the second use is `E0763`, naming both.
+4. **The payload.** The payload fits the declaration's fields, with the check
+   [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms) makes. A field that does not fit is `E0401`.
+
+- **Memory:** nothing at run time and nothing per request. A payload is a compile-time constant, and a
+  retrieval folds to its answer ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)). While compiling, each
+  use costs one site check, at most one walk up its class's parents, and one count per declaration.
+
+**Declined:**
+- **An attribute usable anywhere by its qualified name**, `#[Storable::Index]` on any class. It brings
+  back an attribute that compiles where nothing reads it.
+- **`on any`, or no `on` list meaning everywhere.** The same: an attribute that shows up everywhere says
+  nothing about where it means something.
+- **A meta-attribute on a `type` alias**, `#[Core\Attribute(on: 'class')] type Index = {…}`. It is one
+  more name a developer must know, and a type alias carries no attributes.
+- **Keeping the structural match beside the declaration.** Two attributes with the same fields would
+  answer each other's retrievals again.
+- **An attribute class, constructed when read.** It is class overhead for a bag of data.
+- **The bare `#[{…}]` form.** Nobody can discover it, the editor can offer nothing for it, and no
+  retrieval can name it.
+- **A user declaration on a site no retrieval reads.** Its payload would compile where nothing can read
+  it.
+- **Picking the owner's declaration, or the namespace's, when both give a short name.** Either choice is
+  silent, and adding a declaration in one scope would change what a use in the other means.
+
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="attributes-attach-sites-and-forms"></a>
 
-## An attribute attaches to a declaration or a parameter, and a named one's name is a shape-typed `type` alias
+## An attribute attaches to a declaration or a parameter its declaration lists, and its payload is checked against the declaration's fields  *(designed — owned by goal declared-attributes)*
 
 `rule:attributes/attach-sites-and-forms`
 
 An attribute attaches to a declaration: a class, an interface or an enum, a method, a property or one
 of its hooks, a class constant, an enum case, and a method's parameter. It is written directly above
-the declaration, or directly before the parameter or the enum case.
-
-`Core\Attributes` reads the attributes of a class, a method, a property and a parameter
-([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), and no retrieval reaches an enum, an enum case or a class constant. A user attribute on
-one of those three is **`E0871`** at the attribute, so a payload is never written where nothing can
-read it. A compiler-recognized attribute is held to the sites its own rule names instead.
+the declaration, or directly before the parameter or the enum case. Which of those sites one attribute
+may use is its declaration's `on` list ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)), and
+a use on any other site is **`E0874`** at the attribute, naming the site and the allowed ones.
 
 ```nvs
-#[Route(path: "/users/:id", method: "GET")]
+repeatable attribute Route on method { path: string, method: string }
+attribute Column on property, parameter { type: string, length?: int }
+attribute Cache on method { ttlSeconds: int }
+
 class UserController {
     #[Column(type: "varchar", length: 255)]
     public string $name;
 
+    #[Route(path: "/users/:id", method: "GET")]
     #[Cache(ttlSeconds: 60)]
-    public function show(#[Autowire] UserRepository $repo): Response { … }
+    public function show(#[Column(type: "int")] int $id): Response { … }
 }
 ```
 
-Two forms carry one payload between them, and both take named fields — there is no positional form.
-The **bare** `#[{...}]` names no shape and is checked only as a well-formed anonymous object. The
-**named** `#[Name(...)]` requires `Name` to resolve, through the ordinary namespace and `use` scope, to
-a `type` alias whose right-hand side is a shape type; the payload object is then checked against it by the
-width subtyping every shape-typed position already uses. An array literal in a field is checked
-against that field's declared array type, element by element and nested literals included, so
-`#[Tags(ids: [1, 2])]` fits `{ids: array<int>}`. A string, `int`, `bool` or enum-case literal is read
-at the single-value type its field names, as an assignment reads it ([`types/single-value-types`](types.md#types-single-value-types)),
-so `#[Link(onRemove: 'clear')]` fits `{onRemove: 'keep'|'clear'}`, in an array element and a nested
-shape too. That is the check a retrieval makes
-([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so a payload accepted where it is written is the payload
-`Core\Attributes::get<Tags>` finds. Neither has the `int` to `float` row, because the payload is
-stored as written.
+There is one form, `#[Name(...)]`, and it takes named fields — there is no positional form. `Name`
+resolves to an attribute declaration ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)), and
+the payload object is checked against the declaration's fields by the width subtyping every
+shape-typed position already uses. An array literal in a field is checked against that field's declared
+array type, element by element and nested literals included, so `#[Tags(ids: [1, 2])]` fits
+`{ids: array<int>}`. A string, `int`, `bool` or enum-case literal is read at the single-value type its
+field names, as an assignment reads it ([`types/single-value-types`](types.md#types-single-value-types)), so
+`#[Link(onRemove: 'clear')]` fits `{onRemove: 'keep'|'clear'}`, in an array element and a nested shape
+too. A retrieval returns the payload as it was accepted where it was written
+([`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names)). Neither has the `int` to `float` row,
+because the payload is stored as written. A field that does not fit is the ordinary mismatch `E0401`.
 
-The name may be written `Owner::Name`, an alias declared as a member of an interface, class or enum
-body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)), and it is then resolved exactly as the type `Owner::Name` is,
-the owner's file being autoloaded like any other name the attribute writes. A name is therefore
-written the same way in an attribute and in a type, and an alias that belongs to an interface needs
-no second, file-scope declaration to be usable as an attribute
-([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The checker builds the type atom and lowers it, so an
-alias standing left of `::`, the owner's namespace and imports, and every diagnostic for a name that
-resolves to nothing are the type position's own. Retrieval is structural and never reads the name
-([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so `Page::Meta` and the shape it names find the same
-payloads.
+`Owner::Name` names an attribute declared in the body of the class or interface `Owner`, and the
+owner's file is autoloaded like any other name the attribute writes. On the owner's descendants the
+short `Name` resolves to it too. An attribute that takes no options is the same attribute with an empty
+list, so `#[Core\Json\Derive()]` is `#[Core\Json\Derive]`.
 
-- **Memory:** nothing per request. The member form costs one type lowering per attribute while
-  compiling, which the plain form already pays through the alias table.
-
-Three answers, deliberately three. A name nothing declares is the ordinary undefined-name `E0303` —
-an attribute name is not a second namespace, so it gets no refusal of its own; for `Owner::Name` it is
-the answer the same type would get. A name resolving to something that is not a shape-typed alias, a
-class, a `type Id = int;` or an enum case, is `E0726`. A payload that fails the shape is the ordinary
-mismatch `E0401`.
+- **Memory:** nothing per request. Resolving a name costs one lookup per use while compiling, and one
+  walk up a class's parents for a short name on a descendant.
 
 A malformed attribute is one error. The parser skips the rest of its `#[...]` group up to the
 group's own `]`, so the declaration after it still parses and nothing else is reported for it.
 "expected `]`" is reported only if nothing inside the group was reported yet, and the skip counts
 brackets, parentheses and braces. Outside every bracket, a `;`, an unmatched closing bracket or a
 keyword that begins a declaration also ends the skip without being consumed, so a group missing its
-`]` loses only its own tokens. A `::` with no name after it is one error, and that attribute is kept
-as the bare form, so the checker says nothing more about it.
+`]` loses only its own tokens. A `::` with no name after it is one error, and the checker says nothing
+more about that attribute.
 
-The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
-and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
-name is an alias or a mistake. A recognized attribute takes only the sites where it means something,
-and on any other declaration it is **`E0874`** at the attribute. `#[Core\Json\Derive]` and
-`#[Core\Db\Derive]` go on a class; their `Field`s on a property or a promoted constructor parameter;
-`#[Core\Test]`, `#[Fixture]`, `#[TestWith]`, the three test hooks, `#[Core\Command]`, `#[Core\Route]`,
-`#[Core\Access]` and `#[Core\Api]` on a method; and `#[Core\Option]` and `#[Core\Query]` on a
-parameter. The table is `nvs_types::derive::sites`, and what an owning pass asks beyond the kind of
-declaration (a `static` method, a `#[Route]` beside `#[Api]`) stays with that pass. An attribute that
-takes no options is the same attribute with an empty list, so `#[Core\Json\Derive()]` is
-`#[Core\Json\Derive]`, and a field in that list is `E0454`. The rule that owns an attribute may name
-its sites itself: `#[Core\Path]` is written before a `string` parameter
+**`Core`'s compiler attributes are declarations too.** Each of them is the same declaration value a
+program's `attribute` declaration builds: its name, its sites, `repeatable` and its fields with their
+docs. The checker, the stub tree and the editor read that one value, so `E0874` is one check for every
+attribute. `#[Core\Json\Derive]` and `#[Core\Db\Derive]` go on a class; their `Field`s on a property or
+a promoted constructor parameter; `#[Core\Test]`, `#[Fixture]`, `#[TestWith]`, the three test hooks,
+`#[Core\Command]`, `#[Core\Route]`, `#[Core\Access]` and `#[Core\Api]` on a method; and
+`#[Core\Option]` and `#[Core\Query]` on a parameter. What an owning pass checks beyond the site (a
+`static` method, a `#[Route]` beside `#[Api]`) stays with that pass. The rule that owns an attribute may
+name its sites itself: `#[Core\Path]` is written before a `string` parameter
 ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), and `#[Core\Deprecated]` above any of these
 sites but a property hook and that hook's parameter
 ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
 
 **Declined:**
-- **A lookup of its own in the attribute checker** for `Owner::Name`, reading the member alias table
-  directly. It would be a second resolver for one syntax, and the type position's handling of an alias
-  left of `::` and its diagnostics would have to be copied into it.
-- **Matching `Owner::Name` against the recognized roster.** No recognized attribute is a member of
-  anything, so the only effect would be a second way to write a name the compiler acts on.
+- **A second table of sites for `Core`'s attributes**, beside the declarations. Two tables answer the
+  same question, and the editor would read one while the checker read the other.
+- **A lookup of its own in the attribute checker** for `Owner::Name`. It would be a second resolver for
+  one syntax, and the owner chain the short name walks would be written twice.
+- **The bare `#[{...}]` form and a shape-typed `type` alias as the name.** Neither says where the
+  attribute may be used, so the editor cannot offer the attributes that fit
+  ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)).
 
 <sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
@@ -161,28 +259,36 @@ process is the durable exposure the `secret` sinks exist to close.
 
 <a id="attributes-repeatable"></a>
 
-## An attribute may be attached to one declaration any number of times, and attach time never counts them
+## Only an attribute declared `repeatable` may be used twice on one declaration  *(designed — owned by goal declared-attributes)*
 
 `rule:attributes/repeatable`
 
-The same attribute — named or bare, with the same field values or different ones — may be attached to
-one declaration any number of times.
+An attribute declared `repeatable` may be used on one declaration any number of times. Any other
+attribute is used at most once per declaration, and a second use is `E0763` at the second, naming both
+([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)).
 
 ```nvs
+repeatable attribute Cache on method { ttlSeconds: int, tag?: string }
+
 #[Cache(ttlSeconds: 60)]
 #[Cache(ttlSeconds: 300, tag: "long")]
 public function show(): Response { … }
 ```
 
-Nothing about attaching one attribute is aware of how many others share its site. There is no arity
-check and no deduplication, so attaching the identical payload object twice keeps both copies and `all<T>`
-answers with both, in attach order: `count(all<T>(...))` counts attachments, never distinct payloads.
+A `repeatable` attribute has no deduplication, so the identical payload used twice keeps both copies,
+and `all<T>` returns both, in attach order: `count(all<T>(...))` counts uses, never distinct payloads.
+A retrieval of a `repeatable` attribute with `get<T>` is ambiguous where two uses exist, and that is
+retrieval's error ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)).
 
-Ambiguity is entirely retrieval's problem ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)). A rule
-that needs exactly one attachment says so itself and refuses the second where it is written, the way
-`#[Access]` does ([`attributes/access-payload`](attributes.md#attributes-access-payload)).
+`Core`'s attributes follow the same rule: `#[Access]` and `#[Api]` are not `repeatable`, and `#[Route]`
+and `#[TestWith]` are.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload).</sub>
+**Declined:**
+- **Every attribute repeatable, with each rule that needs one counting on its own.** A second use that
+  nothing reads compiled, and each attribute that needed exactly one wrote its own check and its own
+  error code.
+
+<sub>See also [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload).</sub>
 
 <a id="attributes-call-site-type-argument"></a>
 
@@ -203,24 +309,27 @@ everything up to a matching `>` parses as a type list with no diagnostic **and**
 against a class-shaped name and immediately followed by a parenthesized operand — parentheses say the
 other thing.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing).</sub>
+<sub>See also [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names), [`programs/implementing`](programs.md#programs-implementing).</sub>
 
-<a id="attributes-structural-retrieval"></a>
+<a id="attributes-a-retrieval-matches-the-declaration-it-names"></a>
 
-## A retrieval matches a payload by the shape it satisfies, never by the name it was attached under
+## A retrieval names an attribute declaration and finds only the payloads written under it, never a payload of the same shape  *(designed — owned by goal declared-attributes)*
 
-`rule:attributes/structural-retrieval`
+`rule:attributes/a-retrieval-matches-the-declaration-it-names`
 
 ```nvs
 function Core\Attributes::get<T>(callable $target, string $member = ""): ?T;
 function Core\Attributes::all<T>(callable $target, string $member = ""): array<T>;
 ```
 
-`T` is a shape type — an inline `{...}`, or a `type` alias naming one. Retrieval is **structural**:
-every attached payload object satisfying `T` under width subtyping is an answer, whether it was written
-bare or under a name, and whatever that name was. An attach-time name checks the payload object where it is
-written and is never part of how a caller asks for it, so there is no namespace of attribute-kind names
-for unrelated libraries to collide in.
+`T` names an attribute declaration ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)), by its
+short name or as `Owner::Name`, resolved as `#[` resolves it. A retrieval finds exactly the payloads
+written under that declaration. It never matches by shape: two declarations with the same fields find
+only their own payloads, and a payload written under one is never an answer for the other. The answer's
+type is the declaration's shape.
+
+A `T` that is not an attribute declaration is `E1008` at the type argument. That covers an inline
+shape such as `get<{name: string}>`, a `type` alias, a class and an enum.
 
 `$target` names a declaration through a first-class-callable reference, read syntactically and never
 evaluated. A method is its own reference, `Foo::bar`. A class or interface has none of its own and
@@ -228,13 +337,24 @@ is named by its `constructor`'s, `Foo::constructor`, which every class definitel
 is the owning method's reference plus its name as `$member`; a property is the owning class's
 `constructor` reference plus its name. Those two overlap deliberately: for a promoted constructor
 parameter they are the same declaration, so both rosters are consulted and their attributes joined.
+A retrieval reads the one declaration the target resolves to. `Sub::constructor` with no member reads
+the class `Sub` and none of its parents, and a method `Sub` overrides reads the override alone. A method
+`Sub` inherits without overriding resolves to its parent's declaration, and that is what is read.
 
 A written `$member` is checked against the target's real declarations and one naming neither roster is
-`E0798` — the answer a misspelling would otherwise fold to is the answer a correct retrieval of an
-absent attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string
-literal has no name to check and folds to an empty result.
+`E0798`. The answer a misspelling would otherwise fold to is the answer a correct retrieval of an absent
+attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string literal
+has no name to check and folds to an empty result.
+
+`Core\Reflect\AttributeInfo::name()` returns the full name of the declaration a payload was written
+under, such as `Shop\Storable::Index` for an owned one and `Shop\Job` for one at namespace level.
 
 **Declined:**
+- **The structural match**, every payload satisfying a shape `T` under width subtyping. Two attributes
+  with the same fields answered each other's retrievals, and an inline shape named no attribute a reader
+  could look up.
+- **Keeping the structural match beside the declaration match.** Two ways to ask, with two answers for
+  the same program.
 - **Retrieval through `Core\Reflect`'s general walk.** Every attribute list is known while compiling,
   so a walk by name at run time throws that knowledge away and opens a second, broader introspection
   surface for a question the compiler answers narrowly.
@@ -242,20 +362,21 @@ literal has no name to check and folds to an empty result.
   class already has a nameable `constructor` reference, so every target is one callable reference, and
   a member name string is what PHP's own reflection accepts for members that are not callable.
 
-<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
+<sub>See also [`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 
 <a id="attributes-retrieval-folds-while-checking"></a>
 
-## A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error
+## A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error  *(designed — owned by goal declared-attributes)*
 
 `rule:attributes/retrieval-folds-while-checking`
 
 A declaration's attached-attribute list is fixed by its source, so `Core\Attributes::get<T>` and
 `::all<T>` are answered by `nvs check` and the call is **replaced** with the answer:
 
-- nothing satisfies `T` — a compiled-in `null`, or the empty array under `all<T>`;
-- exactly one does — that payload itself, as a constant, with no lookup at run time;
-- more than one does under `get<T>` — `E0728`, naming `::all<T>` as the fix.
+- no payload was written under `T` — a compiled-in `null`, or the empty array under `all<T>`;
+- exactly one was — that payload itself, as a constant, with no lookup at run time;
+- more than one was under `get<T>` — `E0728`, naming `::all<T>` as the fix. Only a `repeatable`
+  declaration can have more than one ([`attributes/repeatable`](attributes.md#attributes-repeatable)).
 
 So an ambiguous retrieval of a repeated attribute fails at the call site that would be wrong, while
 compiling, and never on the first request that reaches a site with two matches.
@@ -265,9 +386,11 @@ There is no runtime lookup and no reflection table in the compiled unit. The two
 
 Because the call becomes the payload, every value in a *matched* payload needs a constant form, folded
 through the scope the payload was written in — a class constant whose own declaration folds to no value
-is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no declaration is `E0730`.
+is `E0731`. A `T` that is not an attribute declaration is `E1008`
+([`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names)), and a `$target` that names no
+declaration is `E0730`.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
+<sub>See also [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 
@@ -366,13 +489,13 @@ compiler never asks what the name means.
 
 <a id="attributes-access-payload"></a>
 
-## `#[Access]` names one resolvable decision in `allow`, and one of them covers a method
+## `#[Access]` names one resolvable decision in `allow`, and one of them covers a method  *(designed — owned by goal declared-attributes)*
 
 `rule:attributes/access-payload`
 
 ```nvs
 enum Core\Audience { case Public; }
-type Core\Access = {allow: mixed, csrf?: bool};
+attribute Core\Access on method { allow: mixed, csrf?: bool }
 ```
 
 `allow` is required, and its declared type is `mixed` because the compiler promises not to know what
@@ -390,10 +513,10 @@ access levels is interpretation, which the compiler refuses. Every other value i
 false` on a method none of whose verbs is `Get` or unsafe is `E0764`: there is nothing to opt out of,
 because an upgrade a browser sends is a `Get`.
 
-**Exactly one `#[Access]` per method**, and a second is `E0763`, naming both. Two decisions are two
-readings — conjunction or disjunction — and choosing between them silently is the failure this
-prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
-of them.
+**Exactly one `#[Access]` per method.** `Core\Access` is not `repeatable`, so a second is `E0763`,
+naming both ([`attributes/repeatable`](attributes.md#attributes-repeatable)). Two decisions are two readings — conjunction or
+disjunction — and choosing between them silently is the failure this prevents. A method carrying
+several `#[Route]` attributes still carries one `#[Access]`, covering all of them.
 
 <sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 

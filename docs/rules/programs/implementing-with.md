@@ -2,12 +2,13 @@
 function Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>;
 ```
 
-`rule:programs/implementing`'s enumeration joined with `rule:attributes/structural-retrieval`'s retrieval
+`rule:programs/implementing`'s enumeration joined with `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s retrieval
 in one expansion: one row per class the enumeration would instantiate, in its order, each carrying the
 instance and what `Core\Attributes::get<T>` answers for that class's own `$member` — the class itself for
 an empty name, its method for a method name, its property otherwise joined with the constructor
 parameter of that name, so a promoted parameter is read once. A constructor parameter that is not
-promoted is no property, and its name is `E0798`. `attribute` is the one attached payload object satisfying `T`, or `null`.
+promoted is no property, and its name is `E0798`. `T` names an attribute declaration, and `attribute`
+is the one payload written under it, or `null`.
 
 `I` is an interface or a class, selected exactly as `implementing<I>` selects it.
 
@@ -18,8 +19,8 @@ compiler holds both lists at the same moment, and the join is one retrieval fold
 about what a retrieval target may be changes, and no reflection table reaches the compiled unit.
 
 The retrieval's refusals are this member's, each naming the class it was made on: a `$member` some
-implementor does not declare is `E0798`, two matching payload objects on one class are `E0728`, and a `T` that
-is not a shape is `E0729`. A `$member` that is not a string literal names no roster, and every row's
+implementor does not declare is `E0798`, two payloads of `T` on one class are `E0728`, and a `T` that
+is not an attribute declaration is `E1008`. A `$member` that is not a string literal names no roster, and every row's
 `attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
 hold unchanged.
 

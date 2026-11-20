@@ -1,4 +1,4 @@
-//! `rule:attributes/structural-retrieval` and
+//! `rule:attributes/a-retrieval-matches-the-declaration-it-names` and
 //! `rule:attributes/retrieval-folds-while-checking`'s retrieval, asserted where it
 //! is *decided*: an attached attribute list is fixed by its source, so
 //! `Core\Attributes::get<T>` is answered while checking and the call is replaced
@@ -36,7 +36,7 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
 fn get_with_no_matching_attribute_folds_to_a_constant_null() {
     // Something *is* attached to `$id` and it does not satisfy the retrieved
     // shape — the case a table keyed by "does this declaration carry
-    // attributes" would get wrong, since `rule:attributes/structural-retrieval`
+    // attributes" would get wrong, since `rule:attributes/a-retrieval-matches-the-declaration-it-names`
     // matches on shape and never on presence.
     let (diags, run) = check_src_declared(
         "<?nvs
@@ -158,7 +158,7 @@ class Row {
         "{diags:?}"
     );
 
-    // `rule:attributes/structural-retrieval` states the other side of that
+    // `rule:attributes/a-retrieval-matches-the-declaration-it-names` states the other side of that
     // bound: a member name that is not a literal has nothing to check, so it is
     // an empty result and not a diagnostic — the same misspelling, one
     // concatenation apart.

@@ -1,6 +1,6 @@
 {
   "title": "`#[Access]` names one resolvable decision in `allow`, and one of them covers a method",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/payload-is-a-compile-time-constant",
@@ -9,5 +9,6 @@
   "guardedBy": [
     "crates/nvs-types/tests/routes.rs",
     "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst"
-  ]
+  ],
+  "goal": "declared-attributes"
 }

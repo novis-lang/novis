@@ -1,14 +1,15 @@
 {
-  "title": "An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it",
-  "status": "shipped",
+  "title": "An attribute is an anonymous object on a declaration, checked against its attribute declaration, and nothing is ever instantiated for it",
+  "status": "designed",
   "seeAlso": [
     "attributes/attach-sites-and-forms",
     "attributes/payload-is-a-compile-time-constant",
-    "attributes/structural-retrieval",
+    "attributes/a-retrieval-matches-the-declaration-it-names",
     "enums/closed-integer-type"
   ],
   "guardedBy": [
     "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
     "crates/nvs-types/src/attributes.rs"
-  ]
+  ],
+  "goal": "declared-attributes"
 }

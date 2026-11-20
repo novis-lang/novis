@@ -1088,7 +1088,7 @@ pub enum ExprInfo {
     },
     /// A value the checker folded at a site that named **no constant of its
     /// own**: a `Foo::class`, an attribute retrieval
-    /// (`rule:attributes/structural-retrieval`), a static call settled while
+    /// (`rule:attributes/a-retrieval-matches-the-declaration-it-names`), a static call settled while
     /// checking. It carries the value for [`ExprInfo::EnumCase`]'s reason
     /// exactly: the answer is inlined at the use site, so there is no storage
     /// a consumer could read it back from, and the [`ConstArg`] here is the

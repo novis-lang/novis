@@ -1,10 +1,10 @@
 --TEST--
-`Core\Attributes::all` answers every attached payload object satisfying the shape written at the call, in declaration order, at a class, a property, a method and a parameter alike, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+`Core\Attributes::all` answers every attached payload object satisfying the shape written at the call, in declaration order, at a class, a property, a method and a parameter alike, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
 // covers: Core\Attributes::all
-// `rule:attributes/structural-retrieval`: retrieval matches under width subtyping and
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: retrieval matches under width subtyping and
 // never by the name an attribute was attached under. This case asks the same
 // question at four sites and prints each roster whole, so a site that lost an
 // entry, reordered one, or started matching by name fails here while the other

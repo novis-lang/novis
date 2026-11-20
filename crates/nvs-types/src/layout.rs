@@ -235,7 +235,7 @@ pub struct ClassLayout {
     /// the chain, while an attribute is a fact about *where it was written*.
     /// A roster that inherited one would report a base class's attach site as
     /// this class's, which is the one thing
-    /// `rule:attributes/structural-retrieval`'s target spellings never do.
+    /// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s target spellings never do.
     ///
     /// **Cost:** one [`ClassAttribute`] per attach site per class, once per
     /// compiled unit, never per request.
@@ -288,7 +288,7 @@ pub struct ClassAttribute {
     /// A property's name with no `$` sigil, or a method's name; a parameter's
     /// attach site names the method here and the parameter in
     /// [`Self::parameter`], which is
-    /// `rule:attributes/structural-retrieval`'s own pair of target spellings
+    /// `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s own pair of target spellings
     /// kept as a pair rather than folded into one invented one.
     pub member: String,
     /// The parameter of [`Self::member`] the attribute is written on, or the
@@ -299,7 +299,7 @@ pub struct ClassAttribute {
     ///
     /// Carried as what was written rather than as a resolved name: the name
     /// checks the literal where it is *written* and is never part of how a
-    /// caller asks for it (`rule:attributes/structural-retrieval`), so a
+    /// caller asks for it (`rule:attributes/a-retrieval-matches-the-declaration-it-names`), so a
     /// description that resolved it would be reporting the checker's answer to
     /// a question the reader did not ask.
     pub name: String,

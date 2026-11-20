@@ -1,6 +1,6 @@
 {
-  "title": "An attribute attaches to a declaration or a parameter, and a named one's name is a shape-typed `type` alias",
-  "status": "shipped",
+  "title": "An attribute attaches to a declaration or a parameter its declaration lists, and its payload is checked against the declaration's fields",
+  "status": "designed",
   "seeAlso": [
     "attributes/inert-metadata",
     "attributes/payload-is-a-compile-time-constant",
@@ -13,5 +13,6 @@
     "tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst",
     "crates/nvs-syntax/src/parser/tests/decl.rs",
     "crates/nvs-types/src/attributes.rs"
-  ]
+  ],
+  "goal": "declared-attributes"
 }

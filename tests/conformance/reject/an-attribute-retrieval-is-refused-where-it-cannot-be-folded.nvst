@@ -1,5 +1,5 @@
 --TEST--
-The four ways a `Core\Attributes` retrieval is refused where it is written (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+The four ways a `Core\Attributes` retrieval is refused where it is written (`rule:attributes/a-retrieval-matches-the-declaration-it-names` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 type Route = {path: string};
@@ -32,7 +32,7 @@ echo Core\Arr::count($ok) as string, "\n";
 // test run.
 ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor);
 
-// `rule:attributes/structural-retrieval`: retrieval is structural, so `T` has to be a shape.
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: retrieval is structural, so `T` has to be a shape.
 ?int $scalar = Core\Attributes::get<int>(Twice::constructor);
 
 // The same rule: the target is a method reference, inspected where it is written —
@@ -45,7 +45,7 @@ callable $fn = fn (): int => 1;
 // one site that needs the value rather than the name.
 ?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Relay::constructor);
 
-// `rule:attributes/structural-retrieval`: a *written* member name is checked against the target's real
+// `rule:attributes/a-retrieval-matches-the-declaration-it-names`: a *written* member name is checked against the target's real
 // declarations. It has to be — the `null` a misspelling folds to is the answer
 // a correct retrieval of an absent attribute gives, so nothing downstream
 // could tell them apart. Only a computed name falls back to that empty result.

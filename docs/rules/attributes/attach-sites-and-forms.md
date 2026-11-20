@@ -1,84 +1,70 @@
 An attribute attaches to a declaration: a class, an interface or an enum, a method, a property or one
 of its hooks, a class constant, an enum case, and a method's parameter. It is written directly above
-the declaration, or directly before the parameter or the enum case.
-
-`Core\Attributes` reads the attributes of a class, a method, a property and a parameter
-(`rule:attributes/structural-retrieval`), and no retrieval reaches an enum, an enum case or a class constant. A user attribute on
-one of those three is **`E0871`** at the attribute, so a payload is never written where nothing can
-read it. A compiler-recognized attribute is held to the sites its own rule names instead.
+the declaration, or directly before the parameter or the enum case. Which of those sites one attribute
+may use is its declaration's `on` list (`rule:attributes/an-attribute-is-declared-with-its-sites`), and
+a use on any other site is **`E0874`** at the attribute, naming the site and the allowed ones.
 
 ```nvs
-#[Route(path: "/users/:id", method: "GET")]
+repeatable attribute Route on method { path: string, method: string }
+attribute Column on property, parameter { type: string, length?: int }
+attribute Cache on method { ttlSeconds: int }
+
 class UserController {
     #[Column(type: "varchar", length: 255)]
     public string $name;
 
+    #[Route(path: "/users/:id", method: "GET")]
     #[Cache(ttlSeconds: 60)]
-    public function show(#[Autowire] UserRepository $repo): Response { … }
+    public function show(#[Column(type: "int")] int $id): Response { … }
 }
 ```
 
-Two forms carry one payload between them, and both take named fields — there is no positional form.
-The **bare** `#[{...}]` names no shape and is checked only as a well-formed anonymous object. The
-**named** `#[Name(...)]` requires `Name` to resolve, through the ordinary namespace and `use` scope, to
-a `type` alias whose right-hand side is a shape type; the payload object is then checked against it by the
-width subtyping every shape-typed position already uses. An array literal in a field is checked
-against that field's declared array type, element by element and nested literals included, so
-`#[Tags(ids: [1, 2])]` fits `{ids: array<int>}`. A string, `int`, `bool` or enum-case literal is read
-at the single-value type its field names, as an assignment reads it (`rule:types/single-value-types`),
-so `#[Link(onRemove: 'clear')]` fits `{onRemove: 'keep'|'clear'}`, in an array element and a nested
-shape too. That is the check a retrieval makes
-(`rule:attributes/structural-retrieval`), so a payload accepted where it is written is the payload
-`Core\Attributes::get<Tags>` finds. Neither has the `int` to `float` row, because the payload is
-stored as written.
+There is one form, `#[Name(...)]`, and it takes named fields — there is no positional form. `Name`
+resolves to an attribute declaration (`rule:attributes/an-attribute-is-declared-with-its-sites`), and
+the payload object is checked against the declaration's fields by the width subtyping every
+shape-typed position already uses. An array literal in a field is checked against that field's declared
+array type, element by element and nested literals included, so `#[Tags(ids: [1, 2])]` fits
+`{ids: array<int>}`. A string, `int`, `bool` or enum-case literal is read at the single-value type its
+field names, as an assignment reads it (`rule:types/single-value-types`), so
+`#[Link(onRemove: 'clear')]` fits `{onRemove: 'keep'|'clear'}`, in an array element and a nested shape
+too. A retrieval returns the payload as it was accepted where it was written
+(`rule:attributes/a-retrieval-matches-the-declaration-it-names`). Neither has the `int` to `float` row,
+because the payload is stored as written. A field that does not fit is the ordinary mismatch `E0401`.
 
-The name may be written `Owner::Name`, an alias declared as a member of an interface, class or enum
-body (`rule:types/class-scoped-alias`), and it is then resolved exactly as the type `Owner::Name` is,
-the owner's file being autoloaded like any other name the attribute writes. A name is therefore
-written the same way in an attribute and in a type, and an alias that belongs to an interface needs
-no second, file-scope declaration to be usable as an attribute
-(`rule:statements/nothing-gets-a-second-name`). The checker builds the type atom and lowers it, so an
-alias standing left of `::`, the owner's namespace and imports, and every diagnostic for a name that
-resolves to nothing are the type position's own. Retrieval is structural and never reads the name
-(`rule:attributes/structural-retrieval`), so `Page::Meta` and the shape it names find the same
-payloads.
+`Owner::Name` names an attribute declared in the body of the class or interface `Owner`, and the
+owner's file is autoloaded like any other name the attribute writes. On the owner's descendants the
+short `Name` resolves to it too. An attribute that takes no options is the same attribute with an empty
+list, so `#[Core\Json\Derive()]` is `#[Core\Json\Derive]`.
 
-- **Memory:** nothing per request. The member form costs one type lowering per attribute while
-  compiling, which the plain form already pays through the alias table.
-
-Three answers, deliberately three. A name nothing declares is the ordinary undefined-name `E0303` —
-an attribute name is not a second namespace, so it gets no refusal of its own; for `Owner::Name` it is
-the answer the same type would get. A name resolving to something that is not a shape-typed alias, a
-class, a `type Id = int;` or an enum case, is `E0726`. A payload that fails the shape is the ordinary
-mismatch `E0401`.
+- **Memory:** nothing per request. Resolving a name costs one lookup per use while compiling, and one
+  walk up a class's parents for a short name on a descendant.
 
 A malformed attribute is one error. The parser skips the rest of its `#[...]` group up to the
 group's own `]`, so the declaration after it still parses and nothing else is reported for it.
 "expected `]`" is reported only if nothing inside the group was reported yet, and the skip counts
 brackets, parentheses and braces. Outside every bracket, a `;`, an unmatched closing bracket or a
 keyword that begins a declaration also ends the skip without being consumed, so a group missing its
-`]` loses only its own tokens. A `::` with no name after it is one error, and that attribute is kept
-as the bare form, so the checker says nothing more about it.
+`]` loses only its own tokens. A `::` with no name after it is one error, and the checker says nothing
+more about that attribute.
 
-The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
-and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
-name is an alias or a mistake. A recognized attribute takes only the sites where it means something,
-and on any other declaration it is **`E0874`** at the attribute. `#[Core\Json\Derive]` and
-`#[Core\Db\Derive]` go on a class; their `Field`s on a property or a promoted constructor parameter;
-`#[Core\Test]`, `#[Fixture]`, `#[TestWith]`, the three test hooks, `#[Core\Command]`, `#[Core\Route]`,
-`#[Core\Access]` and `#[Core\Api]` on a method; and `#[Core\Option]` and `#[Core\Query]` on a
-parameter. The table is `nvs_types::derive::sites`, and what an owning pass asks beyond the kind of
-declaration (a `static` method, a `#[Route]` beside `#[Api]`) stays with that pass. An attribute that
-takes no options is the same attribute with an empty list, so `#[Core\Json\Derive()]` is
-`#[Core\Json\Derive]`, and a field in that list is `E0454`. The rule that owns an attribute may name
-its sites itself: `#[Core\Path]` is written before a `string` parameter
+**`Core`'s compiler attributes are declarations too.** Each of them is the same declaration value a
+program's `attribute` declaration builds: its name, its sites, `repeatable` and its fields with their
+docs. The checker, the stub tree and the editor read that one value, so `E0874` is one check for every
+attribute. `#[Core\Json\Derive]` and `#[Core\Db\Derive]` go on a class; their `Field`s on a property or
+a promoted constructor parameter; `#[Core\Test]`, `#[Fixture]`, `#[TestWith]`, the three test hooks,
+`#[Core\Command]`, `#[Core\Route]`, `#[Core\Access]` and `#[Core\Api]` on a method; and
+`#[Core\Option]` and `#[Core\Query]` on a parameter. What an owning pass checks beyond the site (a
+`static` method, a `#[Route]` beside `#[Api]`) stays with that pass. The rule that owns an attribute may
+name its sites itself: `#[Core\Path]` is written before a `string` parameter
 (`rule:programs/relative-paths-resolve-from-their-file`), and `#[Core\Deprecated]` above any of these
 sites but a property hook and that hook's parameter
 (`rule:attributes/a-deprecation-names-its-replacement-as-code`).
 
 **Declined:**
-- **A lookup of its own in the attribute checker** for `Owner::Name`, reading the member alias table
-  directly. It would be a second resolver for one syntax, and the type position's handling of an alias
-  left of `::` and its diagnostics would have to be copied into it.
-- **Matching `Owner::Name` against the recognized roster.** No recognized attribute is a member of
-  anything, so the only effect would be a second way to write a name the compiler acts on.
+- **A second table of sites for `Core`'s attributes**, beside the declarations. Two tables answer the
+  same question, and the editor would read one while the checker read the other.
+- **A lookup of its own in the attribute checker** for `Owner::Name`. It would be a second resolver for
+  one syntax, and the owner chain the short name walks would be written twice.
+- **The bare `#[{...}]` form and a shape-typed `type` alias as the name.** Neither says where the
+  attribute may be used, so the editor cannot offer the attributes that fit
+  (`rule:attributes/an-attribute-is-declared-with-its-sites`).

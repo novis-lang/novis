@@ -165,7 +165,7 @@
 //! `nvs_types::layout::ClassAttribute` owns that reading, and the row keeps the
 //! declaration it names — the empty string for the class itself, a member's
 //! name, and a parameter's beside its method's — rather than folding the four
-//! of `rule:attributes/structural-retrieval`'s target spellings into one
+//! of `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s target spellings into one
 //! invented one.
 //!
 //! A program that wants the ancestors' attributes too walks the chain itself:

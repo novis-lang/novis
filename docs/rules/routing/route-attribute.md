@@ -25,7 +25,7 @@ The closed list only works if every entry on it is argued: a compiler-recognized
 cheap to add is how an attribute set becomes an undocumented second language surface.
 
 **Declined:**
-- **Structural matching**, the way `rule:attributes/structural-retrieval` retrieves an attribute. A
+- **Structural matching**, the way `rule:attributes/a-retrieval-matches-the-declaration-it-names` retrieves an attribute. A
   framework's own `Route`-shaped literal would register routes Novis does not own
   (`rule:core-classes/derive-attribute`).
 - **A `name` field.** It is a second identity beside the method, with a mapping to learn and a

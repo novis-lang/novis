@@ -1,6 +1,6 @@
 ```nvs
 enum Core\Audience { case Public; }
-type Core\Access = {allow: mixed, csrf?: bool};
+attribute Core\Access on method { allow: mixed, csrf?: bool }
 ```
 
 `allow` is required, and its declared type is `mixed` because the compiler promises not to know what
@@ -18,7 +18,7 @@ access levels is interpretation, which the compiler refuses. Every other value i
 false` on a method none of whose verbs is `Get` or unsafe is `E0764`: there is nothing to opt out of,
 because an upgrade a browser sends is a `Get`.
 
-**Exactly one `#[Access]` per method**, and a second is `E0763`, naming both. Two decisions are two
-readings — conjunction or disjunction — and choosing between them silently is the failure this
-prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
-of them.
+**Exactly one `#[Access]` per method.** `Core\Access` is not `repeatable`, so a second is `E0763`,
+naming both (`rule:attributes/repeatable`). Two decisions are two readings — conjunction or
+disjunction — and choosing between them silently is the failure this prevents. A method carrying
+several `#[Route]` attributes still carries one `#[Access]`, covering all of them.

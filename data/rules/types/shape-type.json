@@ -1,6 +1,6 @@
 {
   "title": "`{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "types/anonymous-object",
     "types/object-top",
@@ -13,5 +13,6 @@
     "crates/nvs-types/tests/objects_and_shapes.rs",
     "tests/conformance/lang/an-anonymous-object-at-a-declared-shape-takes-the-declared-field-types.nvst",
     "tests/conformance/reject/an-existing-int-shape-field-does-not-widen-to-float.nvst"
-  ]
+  ],
+  "goal": "declared-attributes"
 }

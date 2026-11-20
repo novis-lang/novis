@@ -3,6 +3,8 @@
 
 # Programs
 
+*1 of 18 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="programs-audience"></a>
 
 ## Novis is built for web applications of every kind, with command-line tooling second
@@ -309,7 +311,7 @@ never checked past its declaration and never reaches codegen.
 
 <a id="programs-implementing-with"></a>
 
-## `Core\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling
+## `Core\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling  *(designed — owned by goal declared-attributes)*
 
 `rule:programs/implementing-with`
 
@@ -317,12 +319,13 @@ never checked past its declaration and never reaches codegen.
 function Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>;
 ```
 
-[`programs/implementing`](programs.md#programs-implementing)'s enumeration joined with [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)'s retrieval
+[`programs/implementing`](programs.md#programs-implementing)'s enumeration joined with [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names)'s retrieval
 in one expansion: one row per class the enumeration would instantiate, in its order, each carrying the
 instance and what `Core\Attributes::get<T>` answers for that class's own `$member` — the class itself for
 an empty name, its method for a method name, its property otherwise joined with the constructor
 parameter of that name, so a promoted parameter is read once. A constructor parameter that is not
-promoted is no property, and its name is `E0798`. `attribute` is the one attached payload object satisfying `T`, or `null`.
+promoted is no property, and its name is `E0798`. `T` names an attribute declaration, and `attribute`
+is the one payload written under it, or `null`.
 
 `I` is an interface or a class, selected exactly as `implementing<I>` selects it.
 
@@ -333,8 +336,8 @@ compiler holds both lists at the same moment, and the join is one retrieval fold
 about what a retrieval target may be changes, and no reflection table reaches the compiled unit.
 
 The retrieval's refusals are this member's, each naming the class it was made on: a `$member` some
-implementor does not declare is `E0798`, two matching payload objects on one class are `E0728`, and a `T` that
-is not a shape is `E0729`. A `$member` that is not a string literal names no roster, and every row's
+implementor does not declare is `E0798`, two payloads of `T` on one class are `E0728`, and a `T` that
+is not an attribute declaration is `E1008`. A `$member` that is not a string literal names no roster, and every row's
 `attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
 hold unchanged.
 
@@ -356,7 +359,7 @@ checking, and nothing runs that did not run before.
 - **An interface that requires an attribute**, the compiler checking that every implementor's method
   carries it. That checks the duplication rather than removing it: the path is still written twice.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking).</sub>
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/a-retrieval-matches-the-declaration-it-names`](attributes.md#attributes-a-retrieval-matches-the-declaration-it-names), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking).</sub>
 
 <a id="programs-constructors"></a>
 

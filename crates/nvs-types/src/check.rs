@@ -306,7 +306,7 @@ fn check_files(
         &module.graph,
         diags,
     );
-    // `rule:attributes/structural-retrieval`'s retrieval reads this. Built whole, ahead of the walk, for
+    // `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s retrieval reads this. Built whole, ahead of the walk, for
     // `build_const_table`'s reason: a retrieval may be written above the
     // declaration it asks about, so a table filled as the walk descends would
     // answer differently depending on source order.

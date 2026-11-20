@@ -1826,7 +1826,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             walk_args_admitting_method_ref(class, method, args, src, ctx, env);
             if let MemberName::Ident(name_span) = method {
                 let name = src.span_text(*name_span).unwrap_or_default();
-                // `rule:attributes/structural-retrieval`'s class target — `Foo::constructor(...)` — rests
+                // `rule:attributes/a-retrieval-matches-the-declaration-it-names`'s class target — `Foo::constructor(...)` — rests
                 // on `rule:classes/definite-property-initialization`'s "every class has one, definitely", so a
                 // *reference* to a constructor no class body writes names the
                 // synthesized one and is not an undefined member.

@@ -2,7 +2,7 @@
   "title": "An explicit `<T>` at a call site is written for compiler-owned members only",
   "status": "shipped",
   "seeAlso": [
-    "attributes/structural-retrieval",
+    "attributes/a-retrieval-matches-the-declaration-it-names",
     "programs/implementing"
   ],
   "guardedBy": [

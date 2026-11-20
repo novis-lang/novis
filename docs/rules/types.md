@@ -3,6 +3,8 @@
 
 # Types
 
+*1 of 58 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -2768,7 +2770,7 @@ without declaring a class, and the carrier two anonymous functions use to share 
 
 <a id="types-shape-type"></a>
 
-## `{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent
+## `{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent  *(designed — owned by goal declared-attributes)*
 
 `rule:types/shape-type`
 
@@ -2807,9 +2809,9 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   writes and every key it requires is written, so `{formula: "A1", cached: null}` at
   `{text: string}|{formula: string, cached: ?float}` is the second member. Where no member or two
   members match, it declares none.
-- **An attribute payload's field types are covariant** ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)),
-  where it is attached and where it is retrieved. A payload is folded into a new value at each
-  retrieval, so no other view of it exists.
+- **An attribute payload's field types are covariant** against its declaration's fields
+  ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)), where it is attached and where it is
+  retrieved. A payload is folded into a new value at each retrieval, so no other view of it exists.
 - **The refusal stays `E0401`.** When the only reason a field fails is the missing widening of an
   `int` or `uint`, the help line names the field and says to build a new value, such as
   `{w: $value->w}`. A field built that way is converted where the new value stores it, so its slot
@@ -2818,6 +2820,11 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
   they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one
   does not.
+- **A field may carry a doc comment.** A `///` comment directly above a field of any shape, in a `type`
+  alias, an inline shape and an attribute declaration's body alike, is that key's doc. The editor shows
+  it in hover and completion for the key in an object literal, an attribute payload, a property read on
+  the shape and a named argument whose parameter is the shape. The doc is not part of the type: two
+  shapes that differ only in their docs are the same type.
 - Plain `object` is the fully erased form, and every shape type is a subtype of it
   ([`types/object-top`](types.md#types-object-top)).
 - A shape is a type *expression*, so [`types/type-alias`](types.md#types-type-alias) names one for free — and a **local

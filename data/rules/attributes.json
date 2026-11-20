@@ -3,11 +3,12 @@
   "order": 80,
   "rules": [
     "attributes/inert-metadata",
+    "attributes/an-attribute-is-declared-with-its-sites",
     "attributes/attach-sites-and-forms",
     "attributes/payload-is-a-compile-time-constant",
     "attributes/repeatable",
     "attributes/call-site-type-argument",
-    "attributes/structural-retrieval",
+    "attributes/a-retrieval-matches-the-declaration-it-names",
     "attributes/retrieval-folds-while-checking",
     "attributes/api-adds-and-cannot-contradict",
     "attributes/access-is-a-required-sibling",
