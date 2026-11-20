@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Faster mutation tests",
-      "text": "`nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.",
-      "goals": [
-        "aimed-mutation"
-      ]
-    },
-    {
       "title": "Attributes and property names the compiler checks",
       "text": "An attribute is declared with the places where it may be used, and the editor offers only the attributes that fit. A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile.",
       "goals": [

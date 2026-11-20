@@ -130,12 +130,11 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Faster mutation tests.** *Working on it now.* `nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.
-2. **Attributes and property names the compiler checks.** An attribute is declared with the places where it may be used, and the editor offers only the attributes that fit. A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile.
-3. **A part of the page filled later reads the request.** A function passed to `Core\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.
-4. **A comparison with seven servers.** The comparison page measures Novis beside seven other servers, among them Node.js, .NET and Python. Recording a new comparison takes less work.
-5. **Reload a running server.** `nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.
-6. **Faster answers from nvs code.** `nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.
+1. **Attributes and property names the compiler checks.** *Working on it now.* An attribute is declared with the places where it may be used, and the editor offers only the attributes that fit. A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile.
+2. **A part of the page filled later reads the request.** A function passed to `Core\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.
+3. **A comparison with seven servers.** The comparison page measures Novis beside seven other servers, among them Node.js, .NET and Python. Recording a new comparison takes less work.
+4. **Reload a running server.** `nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.
+5. **Faster answers from nvs code.** `nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.
 <!-- roadmap:end -->
 
 ## Contributing
