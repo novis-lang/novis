@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-cli/tests/test_command.rs]
   - id: 3
     title: "--since selects the tests a change can reach, and <file>:<line> runs the test at that line"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, docs/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.md, docs/rules/testing/tags-and-shards-select-what-runs.md, crates/nvs-cli/tests/test_command.rs]
   - id: 4
     title: a mutant that compiles to the program's code, or to an earlier mutant's, runs no test
@@ -334,6 +334,19 @@ selected. The reached map's storage goes in
 `docs/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.md` beside the failed-tests
 file. `bun nv rules --render` and `bun nv rules --check` after each.
 
+**The reached map, as built (my call).** It hashes each method body (`function <hash> <label>`),
+each test class outside its bodies (`class`), and each program file outside its test classes and
+bodies (`file`). The class and file hashes read whitespace runs as one space. One hash per whole
+file would mark every method of an edited file changed, so `--since` would select by file. A body
+hash that differs marks its method changed. A class hash that differs runs its class. A file hash
+that differs, or a file missing from the map, runs every test. A blank added line outside a body is
+ignored. Each added line is judged alone, because git aligns a hunk across two methods. A deletion
+point `p` sits between lines `p` and `p + 1`, and is in a body only when both are. A changed line in
+a test method runs that test; elsewhere in a test class, the whole class. A narrowed run keeps the
+stored entries of the tests it did not run, while the program still has them. Under `--mutate`,
+`--since` narrows mutants only and every test runs. `<file>:<line>` needs the file to exist, and
+only one path may name a line. All of it is in `crates/nvs-cli/src/runner/reach.rs`.
+
 **Declined (my call, written into the rules' Declined lists).**
 - *Regular expressions or globs in `--filter`.* A substring, tags and shards already select every
   set a suite has needed, and each syntax is one more thing to learn.
@@ -412,22 +425,22 @@ Test selection waits for stage 3.
 
 **Does:** the reached map, the selection with its fail-safe rules, and the line form of a path.
 
-- [ ] `crates/nvs-cli/src/runner.rs:1126`: `reached_map_file(entry)` beside `failed_tests_file`,
+- [x] `crates/nvs-cli/src/runner.rs:1126`: `reached_map_file(entry)` beside `failed_tests_file`,
   with a write after a run that measured per-test coverage (beside `:1153` `record_failed_tests`)
   and a read. The format is text: one `test <Class::method>` line followed by its function labels,
   then one `file <hash> <path>` line per program file. A write that fails is a warning.
-- [ ] `crates/nvs-cli/src/runner.rs:1580` `Selection` gains the `--since` selection, computed from
+- [x] `crates/nvs-cli/src/runner.rs:1580` `Selection` gains the `--since` selection, computed from
   the map, the changed lines from stage 2 and the checked program's spans: changed functions, the
   declaration rule, the non-`.nvs` rule, a new or edited test. The one line that says why every
   test runs is printed under `human`, and goes to standard error under the machine formats.
-- [ ] `crates/nvs-cli/src/runner.rs:858`: `--since` turns `measured` on, so its run writes a fresh
+- [x] `crates/nvs-cli/src/runner.rs:858`: `--since` turns `measured` on, so its run writes a fresh
   map.
-- [ ] `crates/nvs-cli/src/runner.rs:156`: a path ending in `:` and digits, as the standing decision
+- [x] `crates/nvs-cli/src/runner.rs:156`: a path ending in `:` and digits, as the standing decision
   says, selects the test or class at that line through `Selection`.
-- [ ] `docs/rules/testing/tags-and-shards-select-what-runs.md`: retitled, with `--since` and
+- [x] `docs/rules/testing/tags-and-shards-select-what-runs.md`: retitled, with `--since` and
   `<file>:<line>`. `docs/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.md`: the
   reached map beside the failed-tests file, and `--since` refused beside `--rerun-failed`.
-- [ ] The six `since-select` and four `at-line` tests in `crates/nvs-cli/tests/test_command.rs`,
+- [x] The six `since-select` and four `at-line` tests in `crates/nvs-cli/tests/test_command.rs`,
   with `// covers: tools:cli/nvs-test`. Both checks run once.
 
 ### 4. a mutant that compiles to the program's code, or to an earlier mutant's, runs no test
@@ -531,29 +544,25 @@ Stages 1 and 2 are done; `aim`, `aim-ir` and `since-mutate` are green. Stage 1: 
 `#[NoMutate]` (`crates/nvs-types/src/derive.rs` `NO_MUTATE`, `E0880`), `mutation::Aim::resolve`,
 keys numbered before the aim filters, JSON version 5.
 
-Stage 2: `crates/nvs-cli/src/runner/since.rs` gives `since::changed(folder, ref) -> Changed`, a map
-from canonical path to added line ranges (untracked files whole), with `Changed::touches(path,
-first, last)`. The flag is `Args::since` with `value_parser = since_ref` and `requires = "mutate"`;
-`Flags::since` carries it. `runner::run` reads the changes after `Aim::resolve`, in
-`snapshot.folder()` or the entry file's folder, and calls `Aim::since`. `Aim::keeps` is now
-`targets_keep && since`. `main.rs` refuses `--since` beside a `.nvst` tree. The standing decision
-*What `--since` runs, as built* lists what differs from the plan: four git commands, and the new
-`// proof: test-refused <args>` directive the attack uses. The tests' git runs under
-`GIT_CONFIG_GLOBAL` (an empty file), `GIT_CONFIG_NOSYSTEM` and `GIT_CEILING_DIRECTORIES`, because
-the scratch folder is inside this repository's own checkout (`test_command.rs` `git_env`).
+Stage 3 is done; `since-select` and `at-line` are green, each run once. The decision *The reached
+map, as built* lists what differs from the plan: hashes per method body and per test class, not one
+per file. `crates/nvs-cli/src/runner/reach.rs` has `Layout`, the map (`map_file`, `read`, `record`),
+`select`, `at_line`, `split_line` and `Pick`. `Selection` gained `line` and `picks`. `Flags` gained
+`reached_map`, which `main.rs` `run_program_pass` sets. `since::Lines` is now `Whole`, `Ranges {
+added, deleted }` or `Gone`. `Folder::reached_tests` is `reached/` in the data folder. `--since` no
+longer needs `--mutate`.
 
-The nightly failures of run 44510687786 were all on adc7487822, and later commits fixed each one
-(eb5c02e983, 4c82a2409a, 656f5b2f2d, 1c75c4ef0e).
+Stage 2: `since::changed(folder, ref)` in `crates/nvs-cli/src/runner/since.rs`; a mutation run
+calls `Aim::since`. The tests' git runs under `test_command.rs` `git_env`, because the scratch
+folder is inside this repository's checkout. Nightly run 44510687786 was on adc7487822, and later
+commits fixed each of its failures.
 
 ### Next
 
-Stage 3: remove `requires = "mutate"` from `Args::since` (`crates/nvs-cli/src/runner.rs`, the
-`since:` field), and conflict it with `rerun_failed` (done already). The reached map goes beside
-`failed_tests_file` (`crates/nvs-cli/src/runner.rs:1214`), and `--since` turns on `measured`
-(`:908`). The selection goes into `Selection` (`:1669`), built from `since::Changed`. A pure
-deletion adds no range today: `since::added` returns `None` for a `+N,0` hunk. Stage 3 should
-record the deletion point, so a function that only lost lines counts as changed. `<file>:<line>`
-is parsed where `paths` is read.
+Stage 4: equivalent and duplicate mutants. Start at `crates/nvs-codegen/src/lib.rs`, around the
+anchor stage 4's first item names, for `function_code_hash`. Then `crates/nvs-cli/src/runner/mutation.rs`
+`score`: hash each reached mutant's changed function before its tests run. The outcomes go in
+the JSON document beside `json_document`'s mutant records in `crates/nvs-cli/src/runner.rs`.
 
 Tests expected red until the gate: the CLI reference's flag check, if one exists, may now name
 `--since`; stage 7 writes it. No `changes.json` entry yet: it comes with the goal's last stages.

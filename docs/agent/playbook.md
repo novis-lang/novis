@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A `cd` into a folder under `target/` that ends a successful call moves the session's shell, and
+  then the guard hook cannot find `tools/looper/main.ts`, so every Bash call fails, `cd` included.**
+  Inspecting a test's scratch checkout did this. Never `cd` there: pass `-C <dir>` to git, or give
+  the folder as a path argument. See `.claude/settings.json`'s guard hook.
 - **Git Bash rewrites a leading `/` argument into a Windows path.** `bun nv site --questions --stamp
   /syntax/values/enums/` reached the tool as `C:/Program Files/Git/syntax/...` and stamped nothing.
   Prefix the call with `MSYS_NO_PATHCONV=1`. An app's tests run as `nvs test .` from the app's own
