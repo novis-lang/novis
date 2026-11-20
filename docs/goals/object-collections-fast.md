@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-runtime/src/array.rs, docs/rules/types/arrays.md]
   - id: 3
     title: a map or set keyed by a class stores each object by its identity
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-types/src/expr/calls.rs, docs/rules/expressions/equality-semantics.md, tests/conformance/core/object-collections-follow-an-object-but-copy-a-value.nvst]
   - id: 4
     title: a loop shares the collection's store and copies it only on a write
@@ -421,20 +421,20 @@ nothing else.
 shape of `tests/conformance/core/object-collections-follow-an-object-but-copy-a-value.nvst`. The
 session writes the code.
 
-- [ ] The keying: `crates/nvs-types/src/expr/calls.rs:1741` chooses `object` for a first type
+- [x] The keying: `crates/nvs-types/src/expr/calls.rs:1741` chooses `object` for a first type
   argument on stage 1's list, and `chain` for an enum, a nullable class, an interface an enum can
   implement, and every type not on the list (`rule:expressions/equality-semantics`).
-- [ ] The key: `crates/nvs-stdlib/src/identity_store.rs:76` beside `ChainKey`, an identity key
+- [x] The key: `crates/nvs-stdlib/src/identity_store.rs:76` beside `ChainKey`, an identity key
   written on the stack from the object's pointer, in a form that never reads as a decimal integer,
   and `locate`/`vacate` (`:104`, `:124`) for it with no hash of the value and no chain
   (`rule:expressions/equality-semantics`).
-- [ ] `Core\ObjectMap` (`crates/nvs-stdlib/src/objmap.rs:332` `at`, `:420` get, `:443` has, `:457`
+- [x] `Core\ObjectMap` (`crates/nvs-stdlib/src/objmap.rs:332` `at`, `:420` get, `:443` has, `:457`
   remove) and `Core\ObjectSet` (`crates/nvs-stdlib/src/objset.rs:375` add, `:400` has, `:413` remove)
   in the `object` keying. `get` and `has` read only the values store
   (`rule:core-api/no-methods-on-scalars-or-arrays`).
-- [ ] If stage 1 found a printer that shows a slot's array, it shows the stored values only, with a
+- [x] If stage 1 found a printer that shows a slot's array, it shows the stored values only, with a
   case beside the three below (`rule:errors/record-transformations`).
-- [ ] The tests: the two tests the `object-keying` check names in
+- [x] The tests: the two tests the `object-keying` check names in
   `crates/nvs-types/tests/generics.rs:1`, and the three cases the `object-keys` check names. The
   removed-object cases free many objects after a removal and make new ones, so a new object can take
   a freed address, and assert that none of them is found. Run both checks once, and `bun nv suite
@@ -509,38 +509,48 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### State
 
-Stages 1 and 2 are done, one session each. `string` and `int` keying is in:
-`identity_store::Keying` (`Chain`, `Str`, `Int`), `ExprInfo::New`'s `keying` from `keying_of` in
-`crates/nvs-types/src/expr/calls.rs`, and `registry::KEYED_CONSTRUCTORS` behind
-`constructor_symbol(class, keying)`. Each collection's last slot is `keying`. A direct map keeps
-the shared empty array in `keys`. `locate`/`vacate` stay chain-only for `hash.rs` and
-`compress.rs`, and the keyed half is `place`, `find`, `contains`, `put`, `remove`, `keys_listed`
-and `rechain_*`. Checks: `keying` and `direct-keys` green, a new erased-view case green, and
-`nvs test` over `core/` and `iter/` gave 1925 passed and 0 failed.
+Stages 1 to 3 are done, one session each. Keyings live in `identity_store::Keying`: `Chain`,
+`Str`, `Int` and `Object` (slot value `3`). The checker picks one in `calls.rs` `keying_of` and
+`is_always_an_object`, and `registry::KEYED_CONSTRUCTORS` names each symbol. A direct map has one
+store, and a chain or object map keeps two (`keeps_keys()`). An object's key is `IdentityKey`: `@`
+and the pointer's 16 hex digits. `ClassDesc::keyed_stores` (`Rekey`) re-keys a live graph copy
+(`graph.rs` `close_object`, `objmap::rekey`, `objset::rekey`). `record.rs` `store_node` shows those
+classes' array slots by their values. Checks green: `keying`, `direct-keys`, `object-keying` and
+`object-keys`. `nvs test` over `core/` and `iter/` gives 1930 passed and 0 failed.
 
-The changed source files make every `ObjectMap` and `ObjectSet` perf record stale until stage 5
-records it. The before figures, as ns/op, statements, allocations and twin ratio: `ObjectMap::get`
-1620, 3, 0, 0.85x; `has` 1867, 3, 0, 1.27x; `set` 17536, 4, 0, 0.90x; `ObjectSet::has` 1680, 6,
-0, 1.46x. `lang:iteration/core-collections-are-iterable` fails `constant` (bytes slope 1.00, the
-loop's copy) until stage 4. `bun nv scaling --iterations` measures one size, so the
-`loop-start-constant` check cannot see the copy. Stage 4 also judges by `bun nv proofs
---record-perf --force --id 'lang:iteration/core-collections-are-iterable'`.
+The sweep's nightly failures (run 44510687786) were fixed on disk before it: `4c82a2409a` and
+`9478fd2f66`. Push run 44623108825 has supply chain, proofs and browser green.
 
-`bun nv scaling --budget` is red on 48 benches outside this goal (`novis/Spreadsheet-*`,
-`core/Arr/hasKey`, `core/Cap/has`, `core/Metrics/*`, `the-pipeline-operator`).
+Every `ObjectMap` and `ObjectSet` perf record is stale until stage 5. The before figures, as ns/op,
+statements, allocations and twin ratio: `ObjectMap::get` 1620, 3, 0, 0.85x; `has` 1867, 3, 0,
+1.27x; `set` 17536, 4, 0, 0.90x; `ObjectSet::has` 1680, 6, 0, 1.46x. The iteration bench fails
+`constant` (bytes slope 1.00) until stage 4, which also judges by `bun nv proofs --record-perf
+--force --id 'lang:iteration/core-collections-are-iterable'`. `bun nv scaling --budget` is red on
+48 benches outside this goal.
 
 ### Next
 
-Stage 3: the `object` keying. Add `Keying::Object` in `crates/nvs-stdlib/src/identity_store.rs`
-(`Keying`, its `value`/`of`/`admits`, `Place`, `place`, `find`, `put`, `remove`), with an identity
-key written on the stack from the pointer. Add the `_object` symbols beside `NEW_STRING_SYMBOL`
-in `objmap.rs` and `objset.rs`, and their rows in `registry.rs` `KEYED_CONSTRUCTORS`. Extend
-`keying_of` in `crates/nvs-types/src/expr/calls.rs` for stage 1's list of object types. An
-`object` map keeps its two stores, so `objmap.rs` `set`, `get`, `has`, `remove` and `keys_of`
-gain an `object` arm: `get` and `has` read `values` only, and `keys()` reads `keys`. The printer
-item comes first: `Core\Debug::dump` and `crates/nvs-runtime/src/record.rs` `properties_of` now
-also show the `keying` slot as an `int`. Expect red until stage 4: the perf proof of
-`lang:iteration/core-collections-are-iterable`.
+Two things stage 3 left open come first. Each is one slice.
+
+- **A dumped `string` or `int` map shows no keys.** `crates/nvs-runtime/src/record.rs` `store_node`
+  lists every store slot by its values. A direct map's keys exist only as the store's keys, so
+  `Core\Debug::render` shows `$keys => array(0) [ ]` and the values. Those keys are program values
+  and may be shown. Fix: `store_node` shows the array as it is unless the collection's `keying`
+  slot is chain (`0`) or object (`3`). Do it with a second hook beside `Rekey`, or by passing the
+  keying slot's value. Then update the `$keys`/`$values` lines of
+  `tests/conformance/core/object-collections-dump-shows-stored-values-only.nvst`, whose render
+  includes the `string` map.
+- **No test covers the re-key after a graph copy.** Add a Rust test beside
+  `crates/nvs-runtime/src/graph.rs` `a_core_value_crosses_a_live_boundary_into_any_program`, or in
+  `objmap.rs`/`objset.rs` tests. It copies an object-keyed map and set with `copy_graph_to` while
+  the originals stay alive, so the members are copied and not adopted. Assert that `has`/`get` find
+  the copied keys and not the originals.
+
+Then stage 4, the shared loop: `crates/nvs-stdlib/src/cursor.rs` `over` takes one reference on the
+store and walks it by slot (`NvsArray::next_slot`). The cursor yields the value, the key as a
+`string`, or the key as an `int`. `objmap.rs`/`objset.rs` `iterate` pass the store and the yield
+mode. An object map's cursor walks the `keys` store's values. `Core\Heap` keeps its sorted copy.
+Expect red until stage 4: the perf proof of `lang:iteration/core-collections-are-iterable`.
 
 ### Backlog
 
