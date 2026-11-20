@@ -14,13 +14,15 @@ It accepts three kinds of subject: an array, an object whose class implements `I
 object whose class implements `Iterator`. A method that contains `yield` returns an `Iterator`, so it
 is a subject too. Write `var` for the loop variable, and it gets the type of the subject's values. Or
 write the type, and the compiler checks it. Over an array the loop may get the key as well as the
-value. The other two subjects have no keys, so a loop over one gets the value alone.
+value. An `Iterable` or an `Iterator` has no keys, so a loop over one gets the value alone. A class
+that implements `KeyedIterable` or `KeyedIterator` gives a key with each value, as `Core\ObjectMap`
+does.
 
 **Good to know:** a method that takes `Iterable<T>` as a parameter type works with every class that
 can be walked. One function can then read a list, a cart or a database result the same way.
 
-**The examples below** show an array with and without its keys, then an object and a generator, then
-a checkout that adds up a shopping cart. Each one uses `var` first and a written type after it.
+**The examples below** show an array with and without its keys, then an object and a generator. The
+last one is a checkout that adds up a shopping cart. Each one uses `var` first and a written type after it.
 Example 04 shows a second loop over the same iterator.
 
 The key of an array is always a `string`, also when the array was written as a list. `var $k` is a
@@ -227,8 +229,9 @@ first
 
 # The two interfaces
 
-Two interfaces make a class walkable by a `foreach` loop: `Iterator<T>` and `Iterable<T>`. There are
-no others.
+Two interfaces make a class walkable by a `foreach` loop that gets values: `Iterator<T>` and
+`Iterable<T>`. A loop that gets a key with each value uses `KeyedIterator<K, V>` and
+`KeyedIterable<K, V>`.
 
 `Iterator<T>` is the cursor. `advance()` moves it to the next element and returns `false` once there
 are none left. `current()` returns the element the last `advance()` moved to. `Iterable<T>` has one
@@ -236,11 +239,11 @@ method, `iterate()`, which returns a fresh `Iterator<T>`. A class declares one o
 concrete type, such as `Iterator<int>`. Both names also work as a parameter type or a variable type.
 
 **Good to know:** `foreach` calls `iterate()` once per loop, so one `Iterable<T>` object can be
-walked twice, or nested inside a loop over itself. A cursor has no keys, so a loop over one cannot
-bind a key.
+walked twice, or nested inside a loop over itself. An `Iterator<T>` has no keys, so a loop over one
+cannot bind a key. To give keys, implement `KeyedIterable<K, V>`.
 
-**The examples below** show a cursor written by hand, then a class that gives out a fresh cursor per
-loop, then a search result read page by page. Example 04 shows that a loop over a cursor cannot get
+**The examples below** show a cursor written by hand. Then a class gives out a new cursor for each
+loop, and a search result is read page by page. Example 04 shows that a loop over a cursor cannot get
 a key.
 
 `implements Iterator` with no type argument is the error `E0442`. Write the element type, such as
@@ -857,7 +860,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A `foreach` loop walks a `Core` collection the same way it walks an array.
 
 Four classes work this way. `Core\ObjectSet` gives you its members and `Core\ObjectMap` gives you its
-keys, both in the order you added them. `Core\Heap` gives you its elements smallest first, and leaves
+keys, both in the order you added them. Write `foreach ($map as var $key => var $value)` to get each
+key of a map with its value. `Core\Heap` gives you its elements smallest first, and leaves
 the heap full. `Core\Task\Channel` gives you each value another task sent, and the loop ends when that
 task calls `close`.
 
@@ -868,12 +872,13 @@ start, and your changes are in the collection when it ends.
 **The examples below** show a set and a map first, then a heap, then a channel between two tasks.
 
 `Core\ObjectSet<T>`, `Core\Heap<T>` and `Core\Task\Channel<T>` are each an `Iterable<T>`.
-`Core\ObjectMap<K, V>` is an `Iterable<K>`. You can pass each one to a parameter of that type.
+`Core\ObjectMap<K, V>` is an `Iterable<K>` and a `KeyedIterable<K, V>`. You can pass each one to a
+parameter of that type.
 
-A loop over a map gives the keys, never the values. `int $v` over an `ObjectMap<string, int>` is the
-error `E0401`. A key variable is not allowed: `foreach ($map as string $k => int $v)` is the error
-`E0444`. The written type of the loop variable must be the element type, or the error is `E0401`.
-`var $v` takes the element type.
+A loop with only a value variable over a map gives the keys. A loop with a key variable gives each key
+with its value. Over an `ObjectMap<Tag, int>`, `foreach ($map as var $tag => var $n)` gives `$tag` the
+type `Tag` and `$n` the type `int`. A written type that does not fit is the error `E0401`. A set, a
+heap and a channel have no keys, so a key variable over one is the error `E0444`.
 
 A heap made with a compare function gives its elements in the order that function sets. A heap of
 `Comparable` objects gives them in the order of `compareTo`.

@@ -2,7 +2,8 @@
 `foreach ($subject as var $value)`, and the body runs once for each element.
 
 `var` gives the variable the type of the subject's values. Over an array you may get the key too,
-with `var $key => var $value`. The key is always a `string`. You can write the type in place of
+with `var $key => var $value`. The key of an array is always a `string`. A `Core\ObjectMap` gives
+keys too, and each key has the map's key type. You can write the type in place of
 `var`, as in `string $key => int $value`. A variable with neither does not compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each write to

@@ -1905,16 +1905,16 @@
     "Core\\ObjectMap::has": "67ae65b73f211520"
   },
   "docs/examples/core/ObjectMap/isEmpty/about.md": {
-    "Core\\ObjectMap::isEmpty": "36ae9c314ff18985"
+    "Core\\ObjectMap::isEmpty": "6654b0aaee092105"
   },
   "docs/examples/core/ObjectMap/keys/about.md": {
     "Core\\ObjectMap::keys": "786a1684527bf2d4"
   },
   "docs/examples/core/ObjectMap/remove/about.md": {
-    "Core\\ObjectMap::remove": "e3b48a51f5229130"
+    "Core\\ObjectMap::remove": "4edea62e1d8e5342"
   },
   "docs/examples/core/ObjectMap/set/about.md": {
-    "Core\\ObjectMap::set": "328a9903cc3799e0"
+    "Core\\ObjectMap::set": "29700465363cca44"
   },
   "docs/examples/core/ObjectMap/values/about.md": {
     "Core\\ObjectMap::values": "27a586f0f3a54e8d"
@@ -3675,16 +3675,19 @@
     "lang:expressions/the-pipeline-operator": "909c70a0043aefad"
   },
   "docs/examples/lang/iteration/core-collections-are-iterable/about.md": {
-    "lang:iteration/core-collections-are-iterable": "c7e70a90b5d67aeb"
+    "lang:iteration/core-collections-are-iterable": "1bb05b4287457974"
   },
   "docs/examples/lang/iteration/generators/about.md": {
     "lang:iteration/generators": "310a00dc4c17f723"
+  },
+  "docs/examples/lang/iteration/keys-and-values-from-a-map/about.md": {
+    "lang:iteration/keys-and-values-from-a-map": "1e879b323f97e290"
   },
   "docs/examples/lang/iteration/materialising-a-sequence-core-arr-from/about.md": {
     "lang:iteration/materialising-a-sequence-core-arr-from": "f2eb444dba6499de"
   },
   "docs/examples/lang/iteration/the-two-interfaces/about.md": {
-    "lang:iteration/the-two-interfaces": "28ddd0f8a33e1494"
+    "lang:iteration/the-two-interfaces": "be9105b5168516b0"
   },
   "docs/examples/lang/iteration/what-does-not-exist/about.md": {
     "lang:iteration/what-does-not-exist": "fbec72399cb65857"
@@ -3741,7 +3744,7 @@
     "lang:statements/for": "b2e5623a13424dbb"
   },
   "docs/examples/lang/statements/foreach/about.md": {
-    "lang:statements/foreach": "7b52356f95683db6"
+    "lang:statements/foreach": "0241ebc21749f492"
   },
   "docs/examples/lang/statements/if-elseif-else/about.md": {
     "lang:statements/if-elseif-else": "1940ed41841cacb1"
@@ -3792,7 +3795,7 @@
     "lang:types/a-member-every-class-of-a-union-declares": "36f4cad317cb8424"
   },
   "docs/examples/lang/types/array-t/about.md": {
-    "lang:types/array-t": "ca05371a61517883"
+    "lang:types/array-t": "5fccdbced28d049b"
   },
   "docs/examples/lang/types/callable-classes-object-shapes/about.md": {
     "lang:types/callable-classes-object-shapes": "658bef078a46aa8e"
@@ -4669,6 +4672,12 @@
   },
   "docs/examples/types/Iterator/about.md": {
     "Iterator": "cfb6fd1dc3fcd92c"
+  },
+  "docs/examples/types/KeyedIterable/about.md": {
+    "KeyedIterable": "6bdd6c40df92febe"
+  },
+  "docs/examples/types/KeyedIterator/about.md": {
+    "KeyedIterator": "107dc14c061263e2"
   },
   "docs/examples/types/LateInit/about.md": {
     "LateInit": "29162510134426d4"
@@ -6696,16 +6705,16 @@
     "Core\\ObjectMap::has": "db66c99a6007e2c0"
   },
   "help:Core\\ObjectMap::isEmpty": {
-    "Core\\ObjectMap::isEmpty": "b188ea0b0d1c1fd8"
+    "Core\\ObjectMap::isEmpty": "317310f8ce04bcec"
   },
   "help:Core\\ObjectMap::keys": {
     "Core\\ObjectMap::keys": "530fda988179318d"
   },
   "help:Core\\ObjectMap::remove": {
-    "Core\\ObjectMap::remove": "2450f69bc6460716"
+    "Core\\ObjectMap::remove": "bdc57660483ad8df"
   },
   "help:Core\\ObjectMap::set": {
-    "Core\\ObjectMap::set": "e55d53a1cd737a76"
+    "Core\\ObjectMap::set": "00344162f8dda895"
   },
   "help:Core\\ObjectMap::values": {
     "Core\\ObjectMap::values": "2c4810623c6d0567"
@@ -8498,6 +8507,12 @@
   "help:Iterator": {
     "Iterator": "7fe337f0762314ed"
   },
+  "help:KeyedIterable": {
+    "KeyedIterable": "cc9c7a3f4a976c1d"
+  },
+  "help:KeyedIterator": {
+    "KeyedIterator": "73e91b3fcc612170"
+  },
   "help:LateInit": {
     "LateInit": "5f81af62bf2731d2"
   },
@@ -9367,7 +9382,7 @@
     "lang:programs/names-and-casing": "30ac80157b285ab7"
   },
   "syntax/basics/variables.mdx": {
-    "lang:types/every-binding-has-a-type": "30f36d721839eed0"
+    "lang:types/every-binding-has-a-type": "074e79b078a85f5b"
   },
   "syntax/classes/anonymous-objects.mdx": {
     "lang:expressions/anonymous-objects": "7ab9db232dfd4312"
@@ -9442,10 +9457,11 @@
     "lang:statements/return": "646799cf9d91a116"
   },
   "syntax/control-flow/foreach.mdx": {
-    "lang:iteration/core-collections-are-iterable": "0279f22f7aeb4a26",
+    "lang:iteration/core-collections-are-iterable": "ce5ef353b1b42919",
+    "lang:iteration/keys-and-values-from-a-map": "7605a745ea6bd811",
     "lang:iteration/materialising-a-sequence-core-arr-from": "209b18cd9c6aec12",
-    "lang:iteration/what-foreach-walks": "51cf70b7ae1c8fde",
-    "lang:statements/foreach": "deda6bc56d6bf956"
+    "lang:iteration/what-foreach-walks": "5a6b2492748e98ae",
+    "lang:statements/foreach": "9c4ba5da8519ef34"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "a370ecf5e8283a8e",
@@ -9454,8 +9470,10 @@
   "syntax/control-flow/iterators.mdx": {
     "Iterable": "86e2f7fb9e281ee2",
     "Iterator": "b80b1aa216263d07",
+    "KeyedIterable": "108b76fc17c8e0a1",
+    "KeyedIterator": "2b7e70ee4d9181d0",
     "lang:iteration/generators": "9a688972d0c6e55f",
-    "lang:iteration/the-two-interfaces": "b7d6b848162cfef3",
+    "lang:iteration/the-two-interfaces": "f11b8650d8012d32",
     "lang:iteration/what-does-not-exist": "67aaa5e6ba19edd2"
   },
   "syntax/control-flow/loops.mdx": {
@@ -9578,7 +9596,7 @@
   },
   "syntax/values/arrays.mdx": {
     "lang:expressions/arrays-in-expressions": "e246ed6ffa3f0504",
-    "lang:types/array-t": "9e43d394e4ca3928"
+    "lang:types/array-t": "2bce18472e581290"
   },
   "syntax/values/as.mdx": {
     "lang:types/the-conversion-operator-as": "8e390cdd5c8c268e",

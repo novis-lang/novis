@@ -8,7 +8,8 @@ A written type can be wider than the element type. Write `int|float $v` over an 
 body stores a `float` in `$v`. The compiler checks that each element fits the written type.
 
 A generator, an `Iterator<T>` and an `Iterable<T>` give values of type `T` and have no key. A key
-variable over one of them is the error `E0444`.
+variable over one of them is the error `E0444`. A `KeyedIterable<K, V>`, such as a `Core\ObjectMap`,
+gives keys of type `K` and values of type `V`.
 
 The word `as` in the header belongs to `foreach`. To convert the subject, put the conversion in
 parentheses: `foreach (($m as array<int>) as var $v)`. A `mixed` subject without a conversion is the

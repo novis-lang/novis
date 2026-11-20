@@ -666,7 +666,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 `foreach ($subject as var $value)`, and the body runs once for each element.
 
 `var` gives the variable the type of the subject's values. Over an array you may get the key too,
-with `var $key => var $value`. The key is always a `string`. You can write the type in place of
+with `var $key => var $value`. The key of an array is always a `string`. A `Core\ObjectMap` gives
+keys too, and each key has the map's key type. You can write the type in place of
 `var`, as in `string $key => int $value`. A variable with neither does not compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each write to
@@ -688,7 +689,8 @@ A written type can be wider than the element type. Write `int|float $v` over an 
 body stores a `float` in `$v`. The compiler checks that each element fits the written type.
 
 A generator, an `Iterator<T>` and an `Iterable<T>` give values of type `T` and have no key. A key
-variable over one of them is the error `E0444`.
+variable over one of them is the error `E0444`. A `KeyedIterable<K, V>`, such as a `Core\ObjectMap`,
+gives keys of type `K` and values of type `V`.
 
 The word `as` in the header belongs to `foreach`. To convert the subject, put the conversion in
 parentheses: `foreach (($m as array<int>) as var $v)`. A `mixed` subject without a conversion is the

@@ -1,6 +1,6 @@
 ---
 title: foreach
-covers: ['lang:statements/foreach', 'lang:iteration/what-foreach-walks', 'lang:iteration/core-collections-are-iterable', 'lang:iteration/materialising-a-sequence-core-arr-from']
+covers: ['lang:statements/foreach', 'lang:iteration/what-foreach-walks', 'lang:iteration/core-collections-are-iterable', 'lang:iteration/keys-and-values-from-a-map', 'lang:iteration/materialising-a-sequence-core-arr-from']
 description: How foreach visits each element of an array, an iterator or a Core collection.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
@@ -17,6 +17,8 @@ that pass.
 
 <FeatureSection examples="lang/iteration/core-collections-are-iterable" heading="Core collections" id="core-collections" />
 
+<FeatureSection examples="lang/iteration/keys-and-values-from-a-map" heading="Keys and values from a map" id="keys-and-values-from-a-map" />
+
 <FeatureSection examples="lang/iteration/materialising-a-sequence-core-arr-from" heading="Core\Arr::from" id="core-arr-from" />
 
 ## Use this when you need the position as a number
@@ -29,4 +31,5 @@ that pass.
 - Do use `var` for the loop variable unless you need a wider type.
 - Do use `inout` to change the elements of an array in place.
 - Don't add elements to the array inside the loop and expect the loop to visit them.
-- Don't write a key variable for an object. Only arrays have keys.
+- Don't write a key variable over an `Iterable` or an `Iterator`. A key works over an array and over a
+  `KeyedIterable`, such as a `Core\ObjectMap`.

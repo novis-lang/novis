@@ -375,6 +375,15 @@
         "lang:iteration/core-collections-are-iterable"
       ],
       "text": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "lang:iteration/keys-and-values-from-a-map",
+        "KeyedIterable",
+        "KeyedIterator"
+      ],
+      "text": "`foreach` gives the key and the value of a `Core\\ObjectMap`: write `foreach ($map as var $key => var $value)`. A class of your own can do the same by implementing `KeyedIterable<K, V>`."
     }
   ],
   "unseen": {

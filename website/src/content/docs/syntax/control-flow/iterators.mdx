@@ -1,12 +1,13 @@
 ---
 title: Iterators and generators
-covers: ['lang:iteration/the-two-interfaces', 'lang:iteration/generators', 'lang:iteration/what-does-not-exist', 'Iterable', 'Iterator']
+covers: ['lang:iteration/the-two-interfaces', 'lang:iteration/generators', 'lang:iteration/what-does-not-exist', 'Iterable', 'Iterator', 'KeyedIterable', 'KeyedIterator']
 description: How a method with yield makes values one at a time, and how a class works in foreach.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
 A method that contains `yield` is a generator. It returns an `Iterator<T>`. A class works in
-`foreach` when it implements `Iterable<T>` or `Iterator<T>`.
+`foreach` when it implements `Iterable<T>` or `Iterator<T>`. A class that gives a key with each
+value implements `KeyedIterable<K, V>` or `KeyedIterator<K, V>`.
 
 <FeatureSection examples="lang/iteration/generators" heading="Generators" id="generators" />
 
@@ -20,6 +21,16 @@ A method that contains `yield` is a generator. It returns an `Iterator<T>`. A cl
 | `current(): T` | returns the value that `advance()` moved to |
 
 `Iterable<T>` has one method, `iterate(): Iterator<T>`.
+
+`KeyedIterator<K, V>` has three methods. A loop over it can write `$key => $value`.
+
+| Method | What it does |
+|---|---|
+| `advance(): bool` | moves to the next entry. It returns `false` when there are no more entries |
+| `key(): K` | returns the key of the entry that `advance()` moved to |
+| `current(): V` | returns the value of that entry |
+
+`KeyedIterable<K, V>` has one method, `iterateKeyed(): KeyedIterator<K, V>`.
 
 <FeatureSection examples="lang/iteration/what-does-not-exist" heading="What does not exist" id="what-does-not-exist" />
 

@@ -2,7 +2,7 @@ An `array<T>` is an ordered table with `string` keys and values of the type `T`.
 arrays to any depth, such as `array<array<int>>`. `array<mixed>` can contain values of any type.
 
 An `int` key is the same key as its digits written as a string, so `$a[1]` and `$a["1"]` read one
-entry. The key variable of a `foreach` loop is always a `string`.
+entry. The key variable of a `foreach` loop over an array is always a `string`.
 
 `$a[] = 60;` adds a value at the end. Its key is one more than the largest whole-number key, so after
 `$a[5] = 50;` the next key is `6`.

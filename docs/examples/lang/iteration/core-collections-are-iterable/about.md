@@ -1,7 +1,8 @@
 A `foreach` loop walks a `Core` collection the same way it walks an array.
 
 Four classes work this way. `Core\ObjectSet` gives you its members and `Core\ObjectMap` gives you its
-keys, both in the order you added them. `Core\Heap` gives you its elements smallest first, and leaves
+keys, both in the order you added them. Write `foreach ($map as var $key => var $value)` to get each
+key of a map with its value. `Core\Heap` gives you its elements smallest first, and leaves
 the heap full. `Core\Task\Channel` gives you each value another task sent, and the loop ends when that
 task calls `close`.
 
