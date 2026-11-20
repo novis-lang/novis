@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/ty.rs, crates/nvs-syntax/src/parser/mod.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-fmt/src/lib.rs]
   - id: 3
     title: the checker resolves an attribute to its declaration and checks its site, its owner, its count and its payload
-    status: open
+    status: done
     context: [crates/nvs-hir/src/aliases.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-diagnostics/src/code/types_e08.rs]
   - id: 4
     title: Core's compiler attributes are declarations, and one site error covers them all
@@ -335,7 +335,7 @@ stage 6. That is expected, and no stage before the gate runs the whole suite.
   declaration, for a user's site list.
 - [x] `crates/nvs-types/src/attributes.rs:50` `check_declaration`: the declaration itself is checked,
   its fields as a shape type is, with a duplicate field and a duplicate site word each one error.
-- [ ] The `cases` check runs once.
+- [x] The `cases` check runs once.
 
 ### 4. Core's compiler attributes are declarations, and one site error covers them all
 
@@ -444,66 +444,37 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's checker landed, with a green build and clippy, in one commit:
+Stages 1 to 3 are done. The checker resolves and checks every program attribute, and IR skips an
+`attribute` declaration. The nine `cases` files are green by name. `looper check --name cases`
+exits 1 only because `bun nv suite --case` reruns the 42 corpus cases stage 6 migrates. The
+nightly run `44722386375` predates both fixes for its failures (`e5a100b18f`, `438e9c44af`).
 
-- `crates/nvs-hir/src/aliases.rs`: `AttributeDef` and `AliasTable::attribute(&QName)`. A top-level
-  declaration is keyed by its `QName`, and an owned one by `QName::member(owner, name)`. The body
-  is filed as a pending alias under `AliasKey::Attribute`. Aliases are substituted in its fields,
-  and its body span is an alias site, so `lower_type(&def.shape)` reads it in its own scope.
-- `crates/nvs-types/src/attributes.rs:394` `lookup` resolves the owner chain, the namespace and
-  `use` scope, `E1007`, and `Owner::Name`. `:582` `check_attribute` runs checks 1 to 4 in order and
-  stops at the first that fails. `:151` `check_attribute_decl` reports `E1004`, a duplicate site
-  word and a duplicate field. `:494` `lower_retrieval_arg` gives `E1008`, and
-  `crates/nvs-types/src/expr/args.rs` `check_written_type_args` calls it for a retrieval.
-  `reject_unread` and the old alias resolution are gone.
-- Codes: `E1004` to `E1008` are in `types_e10.rs`. `E0726` and `E0871` are retired, as comments.
-  The cards of `E0874` and `E0763` are widened. `E0729` stays for `Match::attribute` and
-  `implementingWith` until stage 5. `fold_retrieval` no longer reports it.
+**Red until stage 5:** the two `retrieval` cases and four unit tests that name a declaration where
+`Match::attribute` and `implementingWith` still give `E0729`:
+`match_attribute::tests::attribute_folds_one_payload_per_routed_method_that_has_one`,
+`match_attribute::tests::two_matching_payloads_on_one_routed_method_are_e0728`,
+`program::tests::program_implementing_with_records_one_payload_per_class` and
+`program::tests::program_implementing_with_takes_a_class`.
 
-The nightly CI failures the sweep named were already fixed on disk before this session. The
-`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` peak was fixed by `e5a100b18f`.
-`an-object-map-passes-where-a-keyed-iterable-is-declared` was fixed by `438e9c44af`. Both commits
-came after the nightly's commit `5d053fc6e6`.
-
-**The `cases` check ran once: 3 green and 6 red.** The red ones need the fixes below. Every message
-text already matches.
-
-1. **The two `lang` run cases panic** at `crates/nvs-ir/src/lower/stmt.rs:320` (the `_` arm).
-   `StmtKind::AttributeDecl` needs adding beside `TypeAliasDecl` at `stmt.rs:46` (the file-scope
-   skip) and `:306`, and at `crates/nvs-ir/src/rereads.rs:716`.
-2. **The three frozen reject cases are wrong about the renderer, not about the checker.** Correct the
-   cases. `crates/nvs-diagnostics/src/render.rs:148` sizes the gutter from the line numbers, so a
-   one-digit line is `  -->` with two spaces. Fix `case.nvs:9:26` in
-   `an-attribute-declaration-lists-only-sites-a-retrieval-reads` and `case.nvs:6:3` in
-   `an-attribute-outside-its-owners-descendants`. `render.rs:155` anchors `-->` on the earliest
-   label, so `E0763` with its `first use` secondary reads `21:7` and `27:3` in
-   `a-second-use-of-an-attribute-that-is-not-repeatable`. Correct those two locations. The caret
-   still marks the second use.
-3. **`\Shop\Index` is `E0240` ("a name is already absolute")**, because a qualified name is
-   absolute. In `an-attribute-name-two-scopes-give-does-not-compile`, write `#[Shop\Index(...)]` on
-   line 17 and expect "write `Storable::Index` or `Shop\Index`" and "`Storable::Deprecated` or
-   `Core\Deprecated`". Then drop the `\\` before `{scoped}` in both `format!`s of
-   `attributes.rs` `report_two_scopes`, and in the `E1007` card in `types_e10.rs`.
-4. `only-an-attribute-declaration-follows-the-attribute-bracket` was not read in detail. Check its
-   `E1008` text, `{ name: string }`, against `interner.describe` once item 1 is fixed.
-
-**Expected red until stage 6: `#[{…}]` is now `E0140`.** About 55 corpus files fail to parse, under
-`tests/conformance/`, `tests/hostile/`, `docs/examples/`, `benches/members/` and two
-`tests/lsp/` cases. `Grep` for `#\[\{` lists them. The Rust tests that write the bare form go red
-too: `crates/nvs-types/tests/attributes.rs`, `crates/nvs-codegen/tests/probes.rs:220`
-`A_FOLDED_CALL`, and the test sources in `crates/nvs-types/src/` `attributes`, `derive`,
-`match_attribute`, `program` and `retrieval`. The two `retrieval` cases stay red until stage 5.
-These also go red until stage 6: `tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst`
-(`E0726`), `an-attribute-on-an-enum-or-a-class-constant-does-not-compile.nvst` (`E0871`), every
-corpus file that uses a shape alias after `#[` (now `E1005`), and every `get<{…}>` (now `E1008`).
+**Red until stage 6:** every corpus file with `#[{…}]` (`E0140`), a shape alias after `#[`
+(`E1005`) or `get<{…}>` (`E1008`). About 55 files are under `tests/conformance/`, `tests/hostile/`,
+`docs/examples/`, `benches/members/` and `tests/lsp/`. Also the `E0726` and `E0871` reject cases,
+and Rust tests that write `#[{`: `Grep` for `#\[\{` under `crates/`, such as `crates/nvs-fmt/tests/`,
+`crates/nvs-lsp/tests/` and `crates/nvs-cli/tests/agent.rs`. Stage 6 migrates them with the corpus.
 
 ### Next
 
-Stage 3's last item: the four fixes in § *State*, in that order. Then rewrite the Rust tests named
-above to declarations: `crates/nvs-types/tests/attributes.rs`, `crates/nvs-codegen/tests/probes.rs:220`,
-and the test modules in `crates/nvs-types/src/` `attributes`, `derive`, `match_attribute`, `program`
-and `retrieval`. Run the nine cases once with `target/debug/nvs.exe test <files>`, then `looper check
---name cases`. Set stage 3 `done` when it is green. Then go on to stage 4.
+Stage 4: `Core`'s compiler attributes become declaration values.
+
+- `crates/nvs-types/src/derive.rs:75` `ATTRIBUTES`, `:182` `AttributeDoc` and `:260`
+  `ATTRIBUTE_DOCS`, with `derive::sites`: one table of `nvs_hir::AttributeDef`-shaped values with
+  sites, `repeatable`, fields and their docs. `crates/nvs-types/src/attributes.rs` `lookup`'s
+  `Lookup::Recognized` arm then returns that value, as `Lookup::Declared` does.
+- `crates/nvs-types/src/attributes.rs:757` `check_recognized` and `:269` `check_recognized_sites`:
+  the site, count and payload checks move to `check_attribute`'s four checks. Keep each recognizing
+  pass's own check, such as `#[Route]` needing `#[Access]`.
+- `crates/nvs-lsp/src/stubs.rs:754` `attribute_stub`: write `attribute Name on … { /// … }`. Run
+  `cargo test --lib -- stubs::` once at the end.
 
 ### Backlog
 
