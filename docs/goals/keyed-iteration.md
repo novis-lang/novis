@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-stdlib/src/cursor.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-runtime/src/sequence.rs, tests/conformance/core/object-map-iterates-its-keys.nvst, tests/conformance/iter/foreach-over-an-iterable-object.nvst]
   - id: 3
     title: the editor shows the key's type, and the feature has its proofs
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/hints.rs, tests/lsp/hints/an-inferred-var-declaration-carries-the-type-it-hid.lspt, docs/examples/lang/iteration/chapter.md, docs/examples/lang/iteration/core-collections-are-iterable/about.md, docs/examples/types/Iterable/about.md, tests/hostile/lang/iteration/core-collections-are-iterable/01-collections-changed-while-they-are-walked.nvs, benches/members/lang/iteration/core-collections-are-iterable.nvs, docs/agent/prose.md]
   - id: 4
     title: every page that says a map loop gives only keys says what it gives now
@@ -383,13 +383,13 @@ one the attack, one the bench. A fourth writes the two interface features' `abou
 `.out`. Each is told the section's path and § *Standing decisions*. The session writes the `.lspt`
 cases, the section and the chapter line, and runs the four stage-3 checks once.
 
-- [ ] `tests/lsp/hints/a-foreach-over-a-map-shows-the-key-and-value-types.lspt:1`: a `var` key and value
+- [x] `tests/lsp/hints/a-foreach-over-a-map-shows-the-key-and-value-types.lspt:1`: a `var` key and value
   over `Core\ObjectMap<Tag, int>` hint `: Tag` and `: int`, in the shape of
   `tests/lsp/hints/an-inferred-var-declaration-carries-the-type-it-hid.lspt`. Expected to need no code in
   `crates/nvs-lsp/src/hints.rs:206`; if the key hint is missing, the fix goes there.
-- [ ] `tests/lsp/completion/a-key-from-a-map-completes-its-class-methods.lspt:1`: `$key->` inside the
+- [x] `tests/lsp/completion/a-key-from-a-map-completes-its-class-methods.lspt:1`: `$key->` inside the
   loop offers `Tag`'s methods. The `editor` check run once.
-- [ ] `docs/examples/lang/iteration/chapter.md:12`: the heading `# Keys and values from a map`, and the
+- [x] `docs/examples/lang/iteration/chapter.md:12`: the heading `# Keys and values from a map`, and the
   front matter's `keywords` gain `KeyedIterable`, `KeyedIterator`, `iterateKeyed`, `key`, `key and value`.
   `docs/examples/lang/iteration/keys-and-values-from-a-map/about.md:1` opens with the wording of
   § *Standing decisions*, then says what the loop sees when the body changes the map, and that a class
@@ -397,12 +397,12 @@ cases, the section and the chapter line, and runs the four stage-3 checks once.
   `Iterable`, `E0401` for a wrong key type, `E0851` for a plain `string` over a `tainted` key, `E0490`
   for `inout`. `bun nv render` writes the section into `docs/reference/lang/60-iteration.md`, which is
   the feature's help (`nvs agent find KeyedIterable` reaches it).
-- [ ] Three examples in `docs/examples/lang/iteration/keys-and-values-from-a-map/`, each with its
+- [x] Three examples in `docs/examples/lang/iteration/keys-and-values-from-a-map/`, each with its
   `.out`: `01-each-key-with-its-value` (written types over `ObjectMap<Tag, int>`),
   `02-var-takes-the-types-from-the-map` (`var` for both, and a use of each type),
   `03-a-class-of-your-own-with-keys-and-values` (a user class implementing `KeyedIterable<string, int>`
   with its own `KeyedIterator`).
-- [ ] `tests/hostile/lang/iteration/keys-and-values-from-a-map/01-a-map-changed-while-its-pairs-are-walked.nvs:1`,
+- [x] `tests/hostile/lang/iteration/keys-and-values-from-a-map/01-a-map-changed-while-its-pairs-are-walked.nvs:1`,
   in the shape of `tests/hostile/lang/iteration/core-collections-are-iterable/01-collections-changed-while-they-are-walked.nvs`.
   Its top comment:
 
@@ -415,14 +415,14 @@ cases, the section and the chapter line, and runs the four stage-3 checks once.
   remove every entry while walking; remove and add back each entry with a new value while walking;
   nest keyed loops over one map and write at each depth; grow a map inside a keyed loop until the
   memory limit stops the program.
-- [ ] `benches/members/lang/iteration/keys-and-values-from-a-map.nvs:1`: a keyed loop over a map of
+- [x] `benches/members/lang/iteration/keys-and-values-from-a-map.nvs:1`: a keyed loop over a map of
   100,000 entries beside an array loop over the same entries, summing the values in each.
   `// bench: complexity linear`. The ramp's verdict and the per-op allocation count go into the rule's
   *What it spends* line.
-- [ ] `docs/examples/types/KeyedIterable/about.md:1` and `docs/examples/types/KeyedIterator/about.md:1`,
+- [x] `docs/examples/types/KeyedIterable/about.md:1` and `docs/examples/types/KeyedIterator/about.md:1`,
   each in the shape of `docs/examples/types/Iterable/about.md`, with one example and its `.out` each.
   The two user-class cases of stage 2 carry their `// covers:` lines.
-- [ ] The `feature-proofs`, `keyed-iterable-proofs` and `keyed-iterator-proofs` checks run once, and
+- [x] The `feature-proofs`, `keyed-iterable-proofs` and `keyed-iterator-proofs` checks run once, and
   every proof they name written.
 
 ### 4. every page that says a map loop gives only keys says what it gives now
@@ -470,42 +470,40 @@ their `.out` files, which must print what they print today. The session writes t
 
 ### State
 
-Stages 1 and 2 are done. A keyed `foreach` runs over a `Core\ObjectMap` and over a user
-`KeyedIterable`/`KeyedIterator`, and the `keyed-checker`, `keyed-loop` and `keyed-runtime` checks are
-green.
+Stages 1, 2 and 3 are done. A keyed `foreach` runs over a `Core\ObjectMap` and a user
+`KeyedIterable`/`KeyedIterator`, and the feature and both interfaces owe no proof: the `editor`,
+`feature-proofs`, `keyed-iterable-proofs` and `keyed-iterator-proofs` checks are green.
 
-- `lower_foreach_cursor` (`crates/nvs-ir/src/lower/control.rs`) takes a `CursorDrive` (the key binding,
-  `via_iterable`, `keyed`). A keyed drive calls `iterateKeyed`, then per entry `advance`, `key` (only when
-  a key is bound) and `current`.
-- `Core\KeyedCursor` (`crates/nvs-stdlib/src/cursor.rs` `KEYED_CLASS`) holds one reference on the
-  map's key store and one on its value store. It steps the two by order, with a slot index per store,
-  so it never relies on the two stores having the same slot layout. A `string` or `int` map reads the
-  key from the value store's own key. `nvs_core_object_map_iterate_keyed` builds it, and the dispatch
-  rows and `INTERNAL_CLASSES` in `crates/nvs-stdlib/src/instance.rs` name it.
-- `E0851` over the keyed pair has its own help (`OUTSIDE_KEYED_KEY_HELP` in
-  `crates/nvs-types/src/expr/iteration.rs`), and `E0442` over an interface with two type arguments asks
-  for every argument (`crates/nvs-types/src/lower.rs` `lower_generic_interface`).
-- The thirteen cases are under `tests/conformance/iter/` and `tests/conformance/reject/`, with
-  `// covers:` lines. `object-map-iterates-its-keys.nvst` stays green unchanged.
+- The editor needed no code. `tests/lsp/hints/a-foreach-over-a-map-shows-the-key-and-value-types.lspt`
+  and `tests/lsp/completion/a-key-from-a-map-completes-its-class-methods.lspt` pin it.
+- `# Keys and values from a map` is in `docs/examples/lang/iteration/chapter.md`, rendered into
+  `docs/reference/lang/60-iteration.md`, with three examples, the attack under
+  `tests/hostile/lang/iteration/keys-and-values-from-a-map/` and the bench with its `.scale.nvs`
+  sibling. `docs/examples/types/KeyedIterable/` and `KeyedIterator/` each have an about and one example.
+- The bench is recorded on the release binary: 2 allocations and 224 bytes per round, flat to 100,000
+  entries. `rule:iteration/keyed-interfaces`'s *What it spends* line states it.
+- `tools/nv/renderers/core-classes.ts` `UNRANKED` names `crate::cursor::KEYED_CLASS`; `bun nv render`
+  failed without it.
+- The fourteen new texts had their newcomer review, each finding fixed, and are stamped.
 
 The acceptance sweep's nightly findings ran on `adc7487`, before their fixes `4c82a2409a`, `eb5c02e983`,
 `656f5b2f2d` and `1c75c4ef0e`, so nothing was left to fix this session.
 
 ### Next
 
-Stage 3, following its `**Split:**` line. First the session's own part: the two `.lspt` cases under
-`tests/lsp/hints/` and `tests/lsp/completion/` (shape:
-`tests/lsp/hints/an-inferred-var-declaration-carries-the-type-it-hid.lspt`), then the chapter heading
-`# Keys and values from a map` in `docs/examples/lang/iteration/chapter.md` and the section's
-`about.md`/`details.md`. Then the four writing subagents (examples, attack, bench, the two interfaces'
-`about.md`). The bench records the keyed loop beside an array loop, and its measured figures go into
-`rule:iteration/keyed-interfaces`'s *What it spends* line.
+Stage 4, following its `**Split:**` line. First the writing subagent over the five
+`docs/examples/core/ObjectMap/` examples (their `.out` must not change). The session rewrites the
+pages stage 4 lists, starting with `docs/examples/lang/iteration/core-collections-are-iterable/details.md:5`,
+which still says a key over a map is `E0444`, then `docs/reference/core/ObjectMap.md:11`, the three
+`website/` pages and the `changes.json` entry, and runs `site-changes` once. Then stage 5.
 
-No test is expected to go red. A frozen case that prints E0442's help for a multi-argument interface
-in full would change, and none was found: every reject case matches that help with `%A`.
+No test is expected to go red.
 
 ### Backlog
 
+- `help:KeyedIterable` and `help:KeyedIterator` show the reader only `{"name":...,"typeParams":[...]}`,
+  as `help:Iterable` does: `nvs agent show Iterable` finds no symbol. An interface's help card should
+  carry its `about.md`. That is a change to how the help is built for every `RESERVED` interface.
 - A wrong type-argument count on `implements KeyedIterable` (`E0442`) also prints a follow-on `E0404`
   about `iterateKeyed`, because the recovery interns the bare name. `a-keyed-interface-needs-concrete-type-arguments.nvst`
   pins both. One mistake should give one diagnostic. The fix is in `lower_generic_interface`'s recovery
