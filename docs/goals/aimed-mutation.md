@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/runner.rs, docs/rules/testing/a-run-can-stop-early-rerun-failures-and-shuffle.md, docs/rules/testing/tags-and-shards-select-what-runs.md, crates/nvs-cli/tests/test_command.rs]
   - id: 4
     title: a mutant that compiles to the program's code, or to an earlier mutant's, runs no test
-    status: open
+    status: done
     context: [crates/nvs-codegen/src/lib.rs, crates/nvs-cli/src/cache.rs, docs/rules/testing/report-formats.md]
   - id: 5
     title: judged survivors are read from mutants.toml, glue makes no mutant, and survivors are grouped by function
@@ -447,21 +447,21 @@ Test selection waits for stage 3.
 
 **Does:** the equivalence filter before any mutant's tests run, and the two new outcomes.
 
-- [ ] `crates/nvs-codegen/src/lib.rs:2689`: a public `function_code_hash(program, name)` that
+- [x] `crates/nvs-codegen/src/lib.rs:2689`: a public `function_code_hash(program, name)` that
   compiles one function alone into a throwaway module at `opt_level()`, with probes off, and
   returns the blake3 hash of its bytes and its relocation targets by name. The two
   `equivalent-codegen` tests in that crate's tests, and the check run once.
-- [ ] `crates/nvs-cli/src/runner/mutation.rs:112` `score`: before a reached mutant runs, hash its
+- [x] `crates/nvs-cli/src/runner/mutation.rs:112` `score`: before a reached mutant runs, hash its
   changed function, compare it with the original function's (hashed once per function) and with
   earlier mutants' of that function, and give `equivalent` or `duplicate`. `Verdict` (`:44`) gains
   both, and `report` (`:273`) prints their counts and leaves them out of the score.
-- [ ] `crates/nvs-cli/src/runner.rs:4604`: the two outcomes and `sameAs` in version 5.
-- [ ] The two `equivalent` tests. The duplicate fixture is `if ($a == $b)`: the equality negation
+- [x] `crates/nvs-cli/src/runner.rs:4604`: the two outcomes and `sameAs` in version 5.
+- [x] The two `equivalent` tests. The duplicate fixture is `if ($a == $b)`: the equality negation
   and the branch negation likely compile alike. The equivalent fixture is one the stage finds that
   Cranelift folds; if none exists at the run's level, the test uses a duplicate's first mutant
   against a hand-written equivalent function and the rule says that no operator was found that
   Cranelift folds. The `equivalent` check runs once.
-- [ ] Record on `benches/scaling/testing/mutate.nvs`'s program how many mutants were equivalent and
+- [x] Record on `benches/scaling/testing/mutate.nvs`'s program how many mutants were equivalent and
   duplicate, and write the share into `docs/rules/testing/mutation-testing.md` with the rest of
   this stage's rule text.
 
@@ -540,29 +540,32 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### State
 
-Stages 1 and 2 are done; `aim`, `aim-ir` and `since-mutate` are green. Stage 1: `Mutant.function`,
-`#[NoMutate]` (`crates/nvs-types/src/derive.rs` `NO_MUTATE`, `E0880`), `mutation::Aim::resolve`,
-keys numbered before the aim filters, JSON version 5.
+Stages 1 to 4 are done, and the checks `aim`, `aim-ir`, `since-mutate`, `since-select`,
+`at-line`, `equivalent` and `equivalent-codegen` are green, each run once.
 
-Stage 3 is done; `since-select` and `at-line` are green, each run once. The decision *The reached
-map, as built* lists what differs from the plan: hashes per method body and per test class, not one
-per file. `crates/nvs-cli/src/runner/reach.rs` has `Layout`, the map (`map_file`, `read`, `record`),
-`select`, `at_line`, `split_line` and `Pick`. `Selection` gained `line` and `picks`. `Flags` gained
-`reached_map`, which `main.rs` `run_program_pass` sets. `since::Lines` is now `Whole`, `Ranges {
-added, deleted }` or `Gone`. `Folder::reached_tests` is `reached/` in the data folder. `--since` no
-longer needs `--mutate`.
+Stage 4: `nvs_codegen::function_code_hash(program, name)` compiles one function into a throwaway
+`ObjectModule` (`UnitBuilder::declare_all`, then `compile_function` with every base 0) and hashes
+its bytes, relocations by name and data objects (`emit::Literals::record`). Line numbers are in the
+code as backtrace data, so a function moved to another line hashes differently; a mutant never moves
+one. `lower_mutant` returns `Mutated { program, changed }`, `changed` being the IR function the
+change landed in. `mutation::Code::judge` (`mutation.rs:391`) holds the unchanged program and the
+hashes. `Verdict` gained `Equivalent` and `Duplicate`, `Scored` gained `same_as`.
 
-Stage 2: `since::changed(folder, ref)` in `crates/nvs-cli/src/runner/since.rs`; a mutation run
-calls `Aim::since`. The tests' git runs under `test_command.rs` `git_env`, because the scratch
-folder is inside this repository's checkout. Nightly run 44510687786 was on adc7487822, and later
-commits fixed each of its failures.
+Earlier stages: `Mutant.function`, `#[NoMutate]` (`E0880`), `Aim::resolve`, JSON version 5;
+`since::changed` in `runner/since.rs`; the reached map and `<file>:<line>` in `runner/reach.rs`
+(decision *The reached map, as built*). The tests' git runs under `test_command.rs` `git_env`.
+
+Nightly run 44510687786 (adc7487822): each failure has a later fix, checked this session:
+eb5c02e983 (wasmtime 50.0.2), 4c82a2409a (Miri, immortal string pointer), 656f5b2f2d
+(debug-viewer shots), 1c75c4ef0e (browser wait). The next nightly confirms Miri and browser.
 
 ### Next
 
-Stage 4: equivalent and duplicate mutants. Start at `crates/nvs-codegen/src/lib.rs`, around the
-anchor stage 4's first item names, for `function_code_hash`. Then `crates/nvs-cli/src/runner/mutation.rs`
-`score`: hash each reached mutant's changed function before its tests run. The outcomes go in
-the JSON document beside `json_document`'s mutant records in `crates/nvs-cli/src/runner.rs`.
+Stage 5: `mutants.toml`, glue and grouping. Start at `crates/nvs-ir/src/lower/mutate.rs:367`
+`mutation_site` and the `in_test_code` flag (`:214`) for the glue sites, with the unit test beside
+`a_survey_names_the_function_each_mutant_is_in` (`:674`). Then `crates/nvs-cli/src/runner/mutation.rs:546`
+`report` for the grouping and the judged count, and `score` (`:290`) for reading `mutants.toml`.
+A `duplicate` shows its first mutant's outcome in the grouping (`Scored::same_as`).
 
 Tests expected red until the gate: the CLI reference's flag check, if one exists, may now name
 `--since`; stage 7 writes it. No `changes.json` entry yet: it comes with the goal's last stages.
