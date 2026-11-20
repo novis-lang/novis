@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/runner/mutation.rs, crates/nvs-ir/src/lower/mutate.
 stages:
   - id: 1
     title: "every mutant knows its function, and a run is aimed by a path, a name or #[NoMutate]"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-types/src/testing.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/mod.rs, docs/rules/testing/report-formats.md, docs/rules/testing/tests-never-reach-a-build.md]
   - id: 2
     title: "--since <ref> reads the changed lines from git, and a mutation run mutates only those"
@@ -353,23 +353,23 @@ still open after two sessions stops the loop with `BLOCKED` naming the item.
 **Does:** the survey records each mutant's function, `--mutate` takes targets, and `#[NoMutate]`
 keeps code out. The JSON report becomes version 5 with `function` and `key`.
 
-- [ ] `crates/nvs-ir/src/lower/mutate.rs:77` `Mutant` gains `function`, filled at `:343`
+- [x] `crates/nvs-ir/src/lower/mutate.rs:77` `Mutant` gains `function`, filled at `:343`
   `mutation_site` from the lowering's own function label. A site in an anonymous function or
   generator takes its method's label. `a_survey_names_the_function_each_mutant_is_in` beside the
   test at `:600`, and the `aim-ir` check run once.
-- [ ] `crates/nvs-types/src/testing.rs:1286`: `#[NoMutate]` with `because:`, checked like
+- [x] `crates/nvs-types/src/testing.rs:1286`: `#[NoMutate]` with `because:`, checked like
   `#[Bench]`'s roster, and `crates/nvs-types/src/expr_table.rs:2620` gains `is_no_mutate(label)` for
   a method or its class. `crates/nvs-ir/src/lower/mod.rs:1070` passes it to `mutate::within` beside
   `test_code`. The `Core\Test` reference card says what the attribute does, in end-user prose.
-- [ ] `crates/nvs-cli/src/runner.rs:321` `mutate: bool` becomes an optional list with
+- [x] `crates/nvs-cli/src/runner.rs:321` `mutate: bool` becomes an optional list with
   `require_equals` and `num_args(0..=1)` and a comma delimiter. Its help text is rewritten whole in
   end-user prose. `crates/nvs-cli/src/runner/mutation.rs:95` `list` filters by the targets, and a
   target that matches nothing exits with status 2 at `crates/nvs-cli/src/runner.rs:1056`.
-- [ ] `crates/nvs-cli/src/runner/mutation.rs:68` `Scored` gains `function` and `key`, and
+- [x] `crates/nvs-cli/src/runner/mutation.rs:68` `Scored` gains `function` and `key`, and
   `crates/nvs-cli/src/runner.rs:4604` `json_document` writes version 5.
   `docs/rules/testing/report-formats.md:25` says what version 5 adds.
-- [ ] `docs/rules/testing/mutation-testing.md`: the function, the key, aiming and `#[NoMutate]`.
-- [ ] The four `aim` tests in `crates/nvs-cli/tests/test_command.rs`, beside `:399`, with the
+- [x] `docs/rules/testing/mutation-testing.md`: the function, the key, aiming and `#[NoMutate]`.
+- [x] The four `aim` tests in `crates/nvs-cli/tests/test_command.rs`, beside `:399`, with the
   `// covers: tools:cli/nvs-test-mutate` line. The `aim` check runs once.
 
 ### 2. --since <ref> reads the changed lines from git, and a mutation run mutates only those
@@ -515,18 +515,28 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### State
 
-Written on 2026-11-17 from a design conversation with the person. Nothing is built yet. The person
-chose all six mutation changes and folding `--since`, `<file>:<line>` and the reference page into
-this goal, with one `--since` flag for both test selection and mutation. Every other choice in
-§ *Standing decisions* is the authoring session's call under the priority ordering, and stands
-until the person picks another.
+Stage 1 is done, and `aim` and `aim-ir` are green. `Mutant.function` is set by `mutate::within`,
+which now takes the label, and wraps methods, generators, property hooks and file scripts.
+`#[NoMutate]` is `crates/nvs-types/src/derive.rs` `NO_MUTATE` (sites: class, method), its card is
+the `AttributeDoc` there, and a missing or empty `because:` is `E0880`. `ExprTypeTable::is_no_mutate`
+matches the label or any `::` prefix of it. `--mutate` is `Option<Vec<String>>` in `Flags`.
+`mutation::Aim::resolve` (`crates/nvs-cli/src/runner/mutation.rs:168`) judges the targets before the
+suite runs (`crates/nvs-cli/src/runner.rs:960`), exit 2. Keys are numbered over the whole survey in
+`mutation::keys` before the aim filters, so an aimed run keeps every key. JSON is version 5.
+
+Nightly run 44510687786's failures (supply chain, every Miri shard, the debug-viewer shots, the
+registry browser test) were all on adc7487822. Later commits fix each one: eb5c02e983,
+4c82a2409a, 656f5b2f2d and 1c75c4ef0e. Nothing was left to fix.
 
 ### Next
 
-Stage 1, every item: `crates/nvs-ir/src/lower/mutate.rs:77` `Mutant.function`, then
-`crates/nvs-types/src/testing.rs:1286` `#[NoMutate]` and `crates/nvs-ir/src/lower/mod.rs:1070`,
-then `crates/nvs-cli/src/runner.rs:321` targets and `crates/nvs-cli/src/runner/mutation.rs:95`
-`list`, then `crates/nvs-cli/src/runner.rs:4604` version 5, the rule and the `aim` tests. Every test
-the `aim` and `aim-ir` checks name is unwritten and red until the stage writes it.
+Stage 2: `crates/nvs-cli/src/runner/since.rs` (new), the `--since` flag beside the selectors at
+`crates/nvs-cli/src/runner.rs:156`, and the changed-line filter in `Aim::keeps`
+(`crates/nvs-cli/src/runner/mutation.rs:218`), which `list` (`:125`) already calls per mutant.
+`Mutant.span` and `checked.map` give each site's lines. The `since-mutate` tests are unwritten and
+red until the stage writes them.
+
+Tests expected red until the gate: none known. The existing `--mutate` tests that read
+`schemaVersion` were updated to 5.
 
 ### Backlog
