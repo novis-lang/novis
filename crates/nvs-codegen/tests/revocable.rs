@@ -295,14 +295,27 @@ echo $made;
 fn a_cycle_of_a_map_and_its_member_is_reclaimed_cleanly() {
     // The collector unlinks the map's members before it frees any object of
     // the cycle. Freeing the node first would leave the map's unlink reading
-    // a freed node, which the debug allocator and Miri report. The slope
-    // shows that every cycle, its list included, is freed.
-    assert_eq!(output_of(&map_cycles(200)), "200");
-    let short = peak_bytes_of_run(&map_cycles(200));
-    let long = peak_bytes_of_run(&map_cycles(2000));
+    // a freed node, which the debug allocator and Miri report. The collector
+    // runs only near the request's ceiling, so the run is held to a ceiling
+    // far below what its cycles take together: 20,000 cycles of about 960
+    // bytes each finish under 512 KiB only if every cycle, its list included,
+    // is freed.
+    const CEILING: usize = 512 * 1024;
+    let unit = compile(&map_cycles(20_000)).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    ctx.rebase_memory();
+    ctx.set_memory_limit(CEILING);
+    let ran = entry.call(&mut ctx);
     assert!(
-        long - short < 4096,
-        "a cycle of a map and its member is kept: 200 cycles held {short} bytes, 2000 held {long}"
+        ran.is_ok(),
+        "the cycles were not reclaimed under a {CEILING}-byte ceiling: {:?}",
+        ctx.take_pending()
+    );
+    assert_eq!(
+        ctx.take_buffered_output().as_deref(),
+        Some(&b"20000"[..])
     );
 }
 
