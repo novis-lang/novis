@@ -236,3 +236,37 @@ then the `E0303` reject case. The `cases` and `editor` checks name cases
 and tests that do not exist yet, and are expected to fail until stages 2 and 3 write them.
 
 ### Backlog
+
+Taken over from `declared-attributes`, whose file is deleted once it is retired. None of them blocks
+a stage here, and each stays here until a stage that touches its file takes it.
+
+- **Possibly red at the next full gate, not run by `declared-attributes`:** `nvs-lsp`'s Rust unit
+  tests and any `.lspt` case with the cursor in a `{…}` at a shape type. A test that snapshots
+  `ExprTypeTable::canonical_text`. A parser unit test that quotes "the name of a `type` alias after
+  `::`". On the debug binary, three attacks pass the 10 s bound (`tests/hostile/core/Attributes/all/01`,
+  `lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/01`,
+  `lang/attributes/reading-attributes-back-…/01`). They take 1.4 to 2.4 s on a release proof binary.
+
+- An attribute name in a type position should be `E0303`. That is not checked yet, because
+  `SymbolKind::Attribute` is in the symbol table. Stage 1 touches `crates/nvs-types/src/lower.rs`,
+  so check what it does with the name there.
+- `nvs/fileKinds` (`crates/nvs-lsp/src/file_kinds.rs:109`) does not list `DeclKind::Attribute`, and
+  the outline shows an attribute as `Struct`. No page mentions the outline, so it waits for a user.
+- `#[` offers a namespace-level declaration by `written_as` alone, so a `Core` attribute is offered
+  as `Core\Route`, with no `use` line added. `in_reach`'s import edit could be shared if users ask.
+- `ExprTypeTable::attribute_name_at` searches a `Vec` once per attribute of a described class. It
+  costs one comparison per resolved name, while compiling only. A map is the fix if a program with
+  many attributes shows it in a compile profile.
+- **An optional field a payload omits reads without `??`, then throws.** `string $l = $o->long;` on a
+  `Core\Option` payload with no `long` compiles and fails at run time. Check whether an ordinary
+  shape's optional field does the same. If so, it is a `rule:types/shape-type` gap.
+- `var $y = Core\Attributes::get<Tag>(A::other); echo $y?->name ?? 'none';` throws "read property
+  `name` on null" at run time when `A::other` has no `Tag`. With a declared attribute present it
+  works (`docs/reference/core/Attributes.md`'s example). Look at the type `var` infers for a
+  retrieval that finds nothing.
+- One mistake, two errors: `implementingWith<Page, X>` with a bad `X` gives `E1008` and `E0443`
+  ("foreach cannot iterate a `mixed`"), and a secret in an `array<mixed>` payload field gives
+  `E0824` beside `E0727`.
+- The newcomer review found wording to improve that is not wrong: "method reference" for
+  `User::constructor` is never explained, and `attribute` is both a row's field name and the
+  word, in the `implementingWith` examples. A later wording pass may take them.

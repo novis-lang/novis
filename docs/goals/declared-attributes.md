@@ -38,7 +38,7 @@ stages:
     context: [docs/reference/lang/90-attributes.md, docs/examples/lang/attributes/chapter.md, docs/agent/prose.md]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: cases
@@ -479,72 +479,38 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### 9. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
-- [ ] The ten rule records `designed` under this goal are set `shipped`, and their `goal` key removed,
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+  - [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are clean.
+  - [x] The `cases`, `retrieval`, `editor` and `proofs` checks are green.
+  - [x] The inherited-method retrieval is fixed in the code, with its case.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The ten rule records `designed` under this goal are set `shipped`, and their `goal` key removed,
   then `bun nv rules --render` and `--check`.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done. The `proofs` check is green over the whole roster, and
-`bun nv site --check stale`, `changes` and `review` are green. Clippy is clean.
+Every stage is done, and the goal is reached. Its close ran `cargo build`, clippy and the `cases`,
+`retrieval`, `editor` and `proofs` checks, all green. `bun nv site --check stale`, `changes` and
+`review` are green, and `bun nv owners --closes declared-attributes` names no gap.
 
-The sweep's nightly tested `5d053fc6e6`, older than `e5a100b18f` and `438e9c44af`, which fixed
-both of its failing tests.
+The sweep's nightly tested `5d053fc6e6`. Its jobs failed on the XML memory-limit unit test (fixed in
+`e5a100b18f`, green here) and the `KeyedIterable` case (fixed in `438e9c44af`).
 
-Stage 8 (`2542b75301`, `5bca208d93`):
-
-- The feature is `lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used`, with
-  example 05 (an owner base class, `///` on each field) and attack 02 (`expect-refusal`).
-  `changes.json` has a `removed` entry for the old id and two `new` entries for the new one.
-- `website/src/data/core.json` comes from the release binary, and keeps the old `Core\Attributes`
-  card text until the next relink renders it.
-- E0101 after `#[Owner::`, E0731, and the help of E1005 and E1008 are reworded, with their cases.
-
-**Possibly red, not run:** `nvs-lsp`'s Rust unit tests and any `.lspt` case with the cursor in a
-`{…}` at a shape type (stage 7's change). A test that snapshots `ExprTypeTable::canonical_text`.
-A parser unit test that quotes "the name of a `type` alias after `::`". On the debug binary, three
-attacks pass the 10 s bound (`tests/hostile/core/Attributes/all/01`,
-`lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/01`,
-`lang/attributes/reading-attributes-back-…/01`). They take 1.4 to 2.4 s on a release proof binary.
+- `f8c7d5ee75`: a retrieval of an inherited, not overridden method reads its parent's declaration,
+  as the rule says. The code was fixed and not the rule: `B::show` names the method a call runs.
+  `sites_for` in `crates/nvs-types/src/retrieval.rs` does it, with a case that is red without it.
+- `674abf35ee`: the ten records are `shipped`. `9ea2e27d8f`: `details.md` and `changes.json` agree.
+- The open Backlog items and the tests that are possibly red at the next full gate moved to
+  `attribute-property-names`. Every decision here is in `docs/rules/attributes/` or the module docs
+  of `crates/nvs-types/src/attributes.rs` and `derive.rs`.
 
 ### Next
 
-Stage 9. This goal is not the chain's full gate, so close it with `cargo build`, clippy and the
-goal's own cases by name: the `cases`, `retrieval`, `editor` and `proofs` acceptance checks
-(`looper check --name <id>`). Then the two Backlog items that stage 9 owns: the inherited-method
-retrieval (fix the code or the rule, with a case), and the ten `designed` rule records set
-`shipped` with `bun nv rules --render` and `--check`. Before `DONE`, `bun nv owners --closes
-declared-attributes`, and move each decision only this file holds into its rule or module doc.
+Nothing in this goal. The driver retires it, and the chain goes on with `attribute-property-names`,
+whose stage 1 starts at `crates/nvs-types/src/lower.rs:880`.
 
 ### Backlog
 
-- `nvs/fileKinds` (`crates/nvs-lsp/src/file_kinds.rs:109`) does not list `DeclKind::Attribute`, and
-  the outline shows an attribute as `Struct`. No page mentions the outline, so it waits for a user.
-- `#[` offers a namespace-level declaration by `written_as` alone, so a `Core` attribute is offered
-  as `Core\Route`, with no `use` line added. `in_reach`'s import edit could be shared if users ask.
-- An attribute name in a type position should be `E0303`. That is not checked yet, because
-  `SymbolKind::Attribute` is in the symbol table. Check what `crates/nvs-types/src/lower.rs` does
-  with it.
-- `ExprTypeTable::attribute_name_at` searches a `Vec` once per attribute of a described class. It
-  costs one comparison per resolved name, while compiling only. A map is the fix if a program with
-  many attributes shows it in a compile profile.
-- **The rule and the binary disagree on an inherited method.**
-  `rule:attributes/a-retrieval-matches-the-declaration-it-names` says a method `Sub` inherits without
-  overriding reads its parent's declaration. `get<Tag>(B::show)`, where only `A` declares `show`,
-  returns `null`. Stage 9 fixes the code or the rule, with a case.
-- **An optional field a payload omits reads without `??`, then throws.** `string $l = $o->long;` on a
-  `Core\Option` payload with no `long` compiles and fails at run time. Check whether an ordinary
-  shape's optional field does the same. If so, it is a `rule:types/shape-type` gap, not this goal's.
-- `var $y = Core\Attributes::get<Tag>(A::other); echo $y?->name ?? 'none';` throws "read property
-  `name` on null" at run time when `A::other` has no `Tag`. With a declared attribute present it
-  works (`docs/reference/core/Attributes.md`'s example). Look at the type `var` infers for a
-  retrieval that finds nothing.
-- One mistake, two errors: `implementingWith<Page, X>` with a bad `X` gives `E1008` and `E0443`
-  ("foreach cannot iterate a `mixed`"), and a secret in an `array<mixed>` payload field gives
-  `E0824` beside `E0727`.
-- The newcomer review found wording to improve that is not wrong: "method reference" for
-  `User::constructor` is never explained, and `attribute` is both a row's field name and the
-  word, in the `implementingWith` examples. A later wording pass may take them.
+Empty. Every open item moved to `attribute-property-names`' Backlog.
