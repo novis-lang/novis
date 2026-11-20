@@ -124,7 +124,10 @@ use nvs_types::defaults::ConstArg;
 use rand::RngExt;
 
 mod mutation;
+mod reach;
 mod since;
+
+pub(crate) use reach::map_file as reached_map_file;
 
 /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
 /// cases.
@@ -155,6 +158,11 @@ pub(crate) struct Args {
     pub(crate) in_place: crate::in_place::Switch,
     /// The program or directory of programs to run, or the case files and
     /// directories.
+    ///
+    /// `cart_test.nvs:42` runs the test that line 42 of the file is in. A
+    /// line in a test class but outside its tests runs every test of the
+    /// class. A line outside every test class stops the run with exit code 2.
+    // `rule:testing/tags-and-shards-select-what-runs`.
     #[arg(required = true)]
     paths: Vec<PathBuf>,
     /// Run only the tests whose name contains this text — a `.nvst` case's
@@ -336,21 +344,30 @@ pub(crate) struct Args {
         conflicts_with_all = ["list", "update", "watch"]
     )]
     mutate: Option<Vec<String>>,
-    /// Change only the lines that changed since a git branch, tag or commit.
+    /// Run only the tests that a change since a git branch, tag or commit
+    /// can reach.
     ///
     /// `--since main` reads the changes with `git diff main`. A line you
     /// added or edited counts, and so does every line of a new file that
-    /// git does not track yet. No change is made on any other line. This
-    /// flag needs `--mutate`. With a `--mutate` target as well, a change is
-    /// made only where both apply.
-    /// The program's folder must be in a git checkout, and `git` must be on
-    /// your `PATH`. Otherwise the run stops with exit code 2.
-    // `rule:testing/mutation-testing`.
+    /// git does not track yet. A test runs when it ran a method you
+    /// changed, when you changed the test, or when no earlier run recorded
+    /// it. The tests run with coverage on, because each run records which
+    /// methods each test ran. Every selected test runs when no run was
+    /// recorded yet, when a line outside a method body changed, or when a
+    /// file that is not a `.nvs` file changed. The first line of the report
+    /// then says why. Use `--since` while you edit, and run every test in
+    /// CI.
+    ///
+    /// With `--mutate`, every test runs, and only the changed lines are
+    /// changed. With a `--mutate` target as well, a change is made only
+    /// where both apply. The program's folder must be in a git checkout,
+    /// and `git` must be on your `PATH`. Otherwise the run stops with exit
+    /// code 2.
+    // `rule:testing/tags-and-shards-select-what-runs`, and `rule:testing/mutation-testing`.
     #[arg(
         long,
         value_name = "REF",
         value_parser = since_ref,
-        requires = "mutate",
         conflicts_with_all = ["list", "update", "watch", "rerun_failed"]
     )]
     since: Option<String>,
@@ -459,8 +476,24 @@ impl Args {
         if self.probes {
             nvs_runtime::probe_every_site();
         }
+        // `<file>:<line>` is one form of a path: the file is the path, and the line selects.
+        let mut paths = Vec::with_capacity(self.paths.len());
+        let mut line = None;
+        for path in self.paths {
+            match reach::split_line(&path) {
+                Some((file, at)) if line.is_none() => {
+                    line = Some((file.clone(), at));
+                    paths.push(file);
+                }
+                Some(_) => {
+                    eprintln!("error: only one path may name a line, such as `cart_test.nvs:42`");
+                    return ExitCode::from(2);
+                }
+                None => paths.push(path),
+            }
+        }
         crate::run_test(
-            &self.paths,
+            &paths,
             Selection {
                 filter: self.filter,
                 tags: self.tag,
@@ -468,6 +501,8 @@ impl Args {
                 shard: self.shard,
                 only: None,
                 bench: self.bench,
+                line,
+                picks: Vec::new(),
             },
             self.jobs,
             self.format,
@@ -491,6 +526,7 @@ impl Args {
                 record_failed: None,
                 mutate: self.mutate.clone(),
                 since: self.since,
+                reached_map: None,
                 profile: self.profile.map(|format| (format, self.profile_out)),
                 debug: None,
             },
@@ -855,6 +891,7 @@ pub(crate) fn run(
         record_failed,
         mutate,
         since,
+        reached_map,
         profile,
         debug,
     } = flags;
@@ -867,11 +904,26 @@ pub(crate) fn run(
         );
         return ExitCode::FAILURE;
     }
+    // `--mutate` runs the suite with coverage first, to find the tests each mutant needs, and
+    // `--since` to write a fresh reached map ([`reach`]).
+    let measured = coverage.any() || mutate || since.is_some();
+    let layout = (measured || select.line.is_some()).then(|| reach::Layout::of(&checked));
+    let mut select = select.clone();
+    // `<file>:<line>`, judged before a listing, so `--list` lists what the line selects.
+    if let (Some((file, line)), Some(layout)) = (&select.line, &layout) {
+        match reach::at_line(layout, &checked, file, *line) {
+            Ok(pick) => select.picks.push(Arc::new(pick)),
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     // Answered before the compile below, rather than beside the run: what
     // discovery reads is the checked program's own test table, so a listing
     // costs no lowering and can say nothing about how a test would come out.
     if list {
-        let listed = listing(&checked, select);
+        let listed = listing(&checked, &select);
         return match format {
             Format::Human => {
                 for test in &listed {
@@ -904,8 +956,6 @@ pub(crate) fn run(
     // program lower the same `nvs_ir::Program` through the same entry label, so
     // they share an artifact and whichever ran first pays for it.
     let cache = crate::cache::from_config(&snapshot.config);
-    // `--mutate` runs the suite with coverage first, to find the tests each mutant needs.
-    let measured = coverage.any() || mutate;
     let (unit, probes, sites_of, query_sites, copy_sites) =
         match compile(&checked, cache.as_ref(), measured, debug.is_some()) {
             Ok(compiled) => compiled,
@@ -914,7 +964,7 @@ pub(crate) fn run(
                 return ExitCode::FAILURE;
             }
         };
-    let stmts = match mutate {
+    let stmts = match measured {
         true => probes.stmt_spans().to_vec(),
         false => Vec::new(),
     };
@@ -1015,14 +1065,33 @@ pub(crate) fn run(
             true => PathBuf::from("."),
             false => folder,
         };
-        match since::changed(&folder, reference) {
-            Ok(changed) => aim.since(changed),
+        let changed = match since::changed(&folder, reference) {
+            Ok(changed) => changed,
             Err(error) => {
                 eprintln!("error: {error}");
                 return ExitCode::from(2);
             }
+        };
+        match (mutate, &layout) {
+            // A mutant runs the tests the coverage run saw reach it, so every test runs first.
+            (true, _) | (false, None) => aim.since(changed),
+            (false, Some(layout)) => {
+                let folder = std::fs::canonicalize(&folder).unwrap_or(folder);
+                let map = reached_map.as_deref().and_then(reach::read);
+                match reach::select(layout, &checked, map, &changed, &folder) {
+                    Ok(pick) => select.picks.push(Arc::new(pick)),
+                    Err(why) => {
+                        let line = format!("Every selected test runs, because {why}.");
+                        match format {
+                            Format::Human => println!("{line}"),
+                            Format::Json | Format::Junit => eprintln!("{line}"),
+                        }
+                    }
+                }
+            }
         }
     }
+    let select = &select;
     let checked = Rc::new(checked);
     let started = Instant::now();
     let (suite, mut ctx) = match run_suite_in_a_task(
@@ -1060,6 +1129,9 @@ pub(crate) fn run(
     } = suite;
     if let Some(file) = &record_failed {
         record_failed_tests(file, &cases);
+    }
+    if measured && let (Some(file), Some(layout)) = (&reached_map, &layout) {
+        reach::record(file, layout, &stmts, &cases, &checked);
     }
     // Flushed before the summary: the report and what the class hooks printed
     // are written through the context, and printing the counts over the top of
@@ -1663,8 +1735,9 @@ fn percent(hit: usize, of: usize) -> f64 {
     }
 }
 
-/// What `--filter`, `--tag`, `--skip-tag` and `--shard` select of a program's tests
-/// (`rule:testing/tags-and-shards-select-what-runs`). A test runs when every one of them selects it.
+/// What `--filter`, `--tag`, `--skip-tag`, `--shard`, `--since` and `<file>:<line>` select of a
+/// program's tests (`rule:testing/tags-and-shards-select-what-runs`). A test runs when every one
+/// of them selects it.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Selection {
     pub(crate) filter: Option<String>,
@@ -1679,6 +1752,10 @@ pub(crate) struct Selection {
     /// `--bench`: the `#[Bench]` methods run and no `#[Test]` does. Without it, no bench runs
     /// (`rule:testing/bench-counters`).
     pub(crate) bench: bool,
+    /// `<file>:<line>`: the file and the line, which [`run`] turns into a [`reach::Pick`].
+    pub(crate) line: Option<(PathBuf, usize)>,
+    /// What `<file>:<line>` and `--since` picked ([`reach`]). A test runs when every one picks it.
+    pub(crate) picks: Vec<Arc<reach::Pick>>,
 }
 
 impl Selection {
@@ -1709,6 +1786,10 @@ impl Selection {
                 .only
                 .as_ref()
                 .is_none_or(|only| only.contains(&format!("{class}::{}", call.label)))
+            && self
+                .picks
+                .iter()
+                .all(|pick| pick.picks(class, &call.case.method, &call.label))
     }
 
     /// Whether `call` is a bench under `--bench`, or a test without it. A call of the other
@@ -1748,9 +1829,12 @@ pub(crate) struct Flags {
     /// that reach it ([`mutation`]). `Some` under the flag, with the targets `--mutate=<target>`
     /// named, and none for the whole program.
     pub(crate) mutate: Option<Vec<String>>,
-    /// `--since <ref>` ([`since`]): a mutation run keeps only the mutants on a line changed since
-    /// the ref.
+    /// `--since <ref>` ([`since`]): a run selects the tests a change since the ref can reach
+    /// ([`reach`]), and a mutation run keeps only the mutants on a changed line.
     pub(crate) since: Option<String>,
+    /// The file a run that measured coverage writes its reached map to ([`reached_map_file`]),
+    /// and `--since` reads, or `None` to write and read nothing.
+    pub(crate) reached_map: Option<PathBuf>,
     /// `--profile` and `--profile-out` ([`crate::profile`]).
     pub(crate) profile: Option<(crate::profile::Format, Option<PathBuf>)>,
     /// The session of `nvs dap`'s `test` launch: the suite compiles under the debug switch, and
@@ -6583,6 +6667,7 @@ mod tests {
                     record_failed: None,
                     mutate: None,
                     since: None,
+                    reached_map: None,
                     profile: Some((format, Some(out.clone()))),
                     debug: None,
                 },
@@ -6798,6 +6883,7 @@ mod tests {
                 record_failed: None,
                 mutate: None,
                 since: None,
+                reached_map: None,
                 profile: None,
                 debug: None,
             },
@@ -6829,6 +6915,7 @@ mod tests {
                 record_failed: None,
                 mutate: None,
                 since: None,
+                reached_map: None,
                 profile: None,
                 debug: None,
             },

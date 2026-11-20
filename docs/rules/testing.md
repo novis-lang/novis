@@ -533,12 +533,13 @@ about that test, not about the run.
 
 <a id="testing-tags-and-shards-select-what-runs"></a>
 
-## `#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts
+## A test is selected four ways: `--tag`/`--skip-tag` by label, `--shard N/M` as one of M stable disjoint parts, `--since <ref>` by the code a change can reach, and `<file>:<line>` by where it is written
 
 `rule:testing/tags-and-shards-select-what-runs`
 
-`#[Test(tags: ["slow", "db"])]` labels a test, `--tag` and `--skip-tag` select by label, and
-`--shard N/M` runs the Nth of M disjoint parts of the selection.
+`#[Test(tags: ["slow", "db"])]` labels a test, `--tag` and `--skip-tag` select by label,
+`--shard N/M` runs the Nth of M disjoint parts of the selection, `--since <ref>` runs the tests a
+change since a git ref can reach, and `<file>:<line>` runs the test written at that line.
 
 A tag is a string, and a test may carry any number of them. `--tag slow` runs only the tests that carry
 `slow`, and `--skip-tag slow` leaves them out. Both flags may be repeated: a test runs when it carries
@@ -558,9 +559,57 @@ one. A `.nvst` run writes that count on its own line above the summary line, whi
 The hash is FNV-1a over the name's bytes, with `/` between a path's parts on every platform, so every
 machine of one CI run computes the same parts (`crates/nvs-test/src/shard.rs`).
 
-- **Memory:** nothing per test beyond its list of tags, held in the test table while compiling.
+**`<file>:<line>` selects by where a test is written.** A path argument that does not exist, ends in
+`:` and digits, and names an existing file before that colon is read as a file and a line, so
+`C:\app\cart_test.nvs:42` keeps its drive letter. A line in a test method, its attributes included,
+runs that test with every data row. A line in a test class outside its tests runs the whole class. A
+line outside every test class exits with status 2 and names the nearest test class in the file. Only
+one path may name a line, and a `.nvst` tree refuses it.
+
+**`--since <ref>` runs the tests a change can reach.** It reads the changed lines from git as
+[`testing/mutation-testing`](testing.md#testing-mutation-testing) does. A run that measures per-test coverage writes a *reached map*
+([`testing/a-run-can-stop-early-rerun-failures-and-shuffle`](testing.md#testing-a-run-can-stop-early-rerun-failures-and-shuffle) says where): each test with the
+methods it ran, and a hash of each method body, of each test class outside its bodies, and of each
+program file outside its test classes and bodies. A statement in an anonymous function or class
+counts for the method it is written in. A coverage flag, `--mutate` and `--since` write the map, so a
+`--since` run has its coverage probes on. A run with none of them writes nothing and pays nothing.
+
+A method is changed when a changed line is in its body after the line of its `{`, or when its body's
+hash differs from the map's. A test runs when it reached a changed method, when a line of its own
+method changed, or when the map does not name it. A changed line in a test class outside its tests,
+or a class hash that differs, runs every test of that class. **Every selected test runs**, and the
+run prints one line saying why, when:
+
+- there is no map for this entry;
+- a changed line that is not blank is outside every method body and test class: a class header, a
+  property, a constant, a property hook, a method's first line, an attribute or a `use`. A new
+  override changes which code a call reaches, on lines no test reached before;
+- a program file is not in the map, or its hash differs;
+- a file in the program's folder that is not a `.nvs` file changed or was deleted, such as `nvs.toml`
+  or a data file a test reads.
+
+A line that was only deleted sits between two lines, and is in a body only when both are. The hashes
+keep the map honest when it was written from a working tree that has changed since: an edit put back
+the way the ref has it is not in git's diff, and its body hash still differs. The file and class
+hashes read each run of whitespace as one space, so a blank line between classes changes neither. A
+data file edited and put back since the map was written is not seen. `--since` is for the
+edit-and-run loop, and CI runs the whole suite. Under `--mutate`, `--since` narrows the mutants and
+every test runs, because a mutant runs the tests coverage saw reach it.
+
+Every selector combines with the others, and a test must pass all of them. `--since` beside
+`--rerun-failed` is an error, because the two choose tests by different evidence.
+
+- **Memory:** nothing per test beyond its list of tags, held in the test table while compiling. A run
+  that writes or reads the reached map holds one label and one line range per method body and per
+  test class, and one label set per test, for the length of the run.
 
 **Declined:**
+- **Regular expressions or globs in `--filter`.** A substring, tags and shards already select every
+  set a suite has needed, and each syntax is one more thing to learn.
+- **A coverage minimum flag.** CI reads the coverage files, and a threshold there is one line of CI.
+- **A slowest-tests flag.** `--format json` has `durationMs` per test.
+- **A hash of each whole file in the map.** After any edit, every method of the file would count as
+  changed, and `--since` would select by file.
 - **Shards balanced by recorded run time.** It needs a timing file every machine reads, and a part
   would change whenever the timings do, so two runs of one commit could split differently.
 - **Shards by position in declaration order.** Adding one test would move every test after it to
@@ -568,7 +617,7 @@ machine of one CI run computes the same parts (`crates/nvs-test/src/shard.rs`).
 - **A closed list of tags declared somewhere.** A typo in a tag selects nothing, and the summary's count
   shows it. A roster would be a second place to edit for every new label.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/a-run-can-stop-early-rerun-failures-and-shuffle`](testing.md#testing-a-run-can-stop-early-rerun-failures-and-shuffle), [`testing/mutation-testing`](testing.md#testing-mutation-testing).</sub>
 
 <a id="testing-a-run-can-stop-early-rerun-failures-and-shuffle"></a>
 
@@ -591,7 +640,13 @@ row's `#N` included, to `failed-tests/<hash>.txt` in the data folder, where the 
 program's canonical entry path. `--rerun-failed` runs exactly those tests, and a later run overwrites
 the file, with an empty one when nothing failed. When the last run failed nothing, or no run was
 recorded, it runs the whole selection and says so in its first line. It combines with `--filter` and
-the tag flags ([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)), which narrow it further.
+the tag flags ([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)), which narrow it further. It is an
+error beside `--since`, because the two choose tests by different evidence.
+
+**The reached map** that `--since` reads ([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)) is kept
+the same way, in `reached/<hash>.txt` of the data folder under the same hash. A run with a coverage
+flag, `--mutate` or `--since` replaces it. Each test the run did not run keeps its entry from the
+stored map, while the program still has that test, so a narrowed run never forgets the rest.
 
 **`--shuffle`.** The tests of each class start in an order drawn from a seed, and the summary prints
 the seed. `--shuffle=<seed>` repeats that order: the draw is a SplitMix64 stream, so a seed gives one
@@ -607,7 +662,9 @@ Under `--format json` and `--format junit` the documents keep their schema, and 
 the seed are printed on stderr. A `.nvst` tree refuses all three flags: a case is a process of its
 own, judged on its whole output, and has no class or seed to shuffle by.
 
-- **Memory:** the failed-test file is one line per failed test, on disk. A shuffled run holds, per
+- **Memory:** the failed-test file is one line per failed test, on disk. The reached map is one
+  line per test and per method it reached, and one hash line per method body, test class and
+  program file, per entry path. It grows with the program, never with runs. A shuffled run holds, per
   class, one slot per selected test and the result of each finished test that waits for one written
   above it to start. A run without `--shuffle` holds nothing more.
 
@@ -1147,7 +1204,9 @@ code, and one attribute is simpler than two.
 
 **`--since <ref>` mutates only what changed.** With `--mutate`, it keeps a mutant when any line of its
 span was added or edited in the working tree since the git ref, or is in a file git does not track.
-With a target as well, both must hold. A line that was only deleted leaves no line to mutate. `nvs`
+With a target as well, both must hold. A line that was only deleted leaves no line to mutate. Every
+test still runs under `--mutate`, because a mutant runs the tests coverage saw reach it. Without
+`--mutate`, `--since` selects tests instead ([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)). `nvs`
 runs the `git` program in the program's folder (the folder `nvs.toml` is in, or the entry file's),
 as a child process with no shell, and gains no git library:
 

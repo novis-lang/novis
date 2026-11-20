@@ -45,7 +45,9 @@ code, and one attribute is simpler than two.
 
 **`--since <ref>` mutates only what changed.** With `--mutate`, it keeps a mutant when any line of its
 span was added or edited in the working tree since the git ref, or is in a file git does not track.
-With a target as well, both must hold. A line that was only deleted leaves no line to mutate. `nvs`
+With a target as well, both must hold. A line that was only deleted leaves no line to mutate. Every
+test still runs under `--mutate`, because a mutant runs the tests coverage saw reach it. Without
+`--mutate`, `--since` selects tests instead (`rule:testing/tags-and-shards-select-what-runs`). `nvs`
 runs the `git` program in the program's folder (the folder `nvs.toml` is in, or the entry file's),
 as a child process with no shell, and gains no git library:
 

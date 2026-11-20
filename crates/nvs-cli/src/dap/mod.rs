@@ -775,6 +775,7 @@ fn test(
             record_failed: None,
             mutate: None,
             since: None,
+            reached_map: None,
             profile: None,
             debug: Some(debugger.clone()),
         },

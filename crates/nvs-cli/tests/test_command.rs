@@ -783,6 +783,287 @@ fn nvs_test_since_outside_a_checkout_exits_with_an_error() {
     assert!(!stdout.contains("AimTest"), "no test runs: {stdout}");
 }
 
+/// Two test classes over `Cart`: `TotalTest`'s two tests call `Cart::total`,
+/// and `BigTest`'s one test calls `Cart::big`. The line numbers matter to the
+/// `<file>:<line>` tests: `adds` is on lines 7 to 10, and `TotalTest` starts
+/// on line 6.
+const SELECT_ENTRY: &str = r#"<?nvs
+use Core\Test;
+
+require 'shop/cart.nvs';
+
+final class TotalTest {
+    #[Test]
+    public function adds(): void {
+        Test::assertSame(Cart::total(2, 3), 5);
+    }
+
+    #[Test]
+    public function addsZero(): void {
+        Test::assertSame(Cart::total(0, 3), 3);
+    }
+}
+
+final class BigTest {
+    #[Test]
+    public function big(): void {
+        Test::assertTrue(Cart::big(10));
+    }
+}
+"#;
+
+/// The selection program in a new scratch folder.
+fn selected_program(case: &str) -> PathBuf {
+    let dir = scratch(case);
+    fs::create_dir_all(dir.join("shop")).unwrap();
+    fs::write(dir.join("select_test.nvs"), SELECT_ENTRY).unwrap();
+    fs::write(dir.join("shop").join("cart.nvs"), AIMED_CART).unwrap();
+    dir
+}
+
+/// The selection program in a new checkout, every file committed, and a
+/// data folder that lasts as long as the value.
+fn selected_checkout(case: &str) -> (PathBuf, nvs_repo::Scratch) {
+    let dir = selected_program(case);
+    git_in(&dir, &["init", "--quiet"]);
+    git_in(&dir, &["add", "."]);
+    git_in(&dir, &["commit", "--quiet", "-m", "start"]);
+    (dir, nvs_repo::scratch_private("nvsdata"))
+}
+
+/// Runs `nvs test select_test.nvs --since HEAD --format json` from `dir`
+/// with the data folder `data`, under [`git_env`]. Gives the `Class::method`
+/// of every test that ran, sorted, and the standard error.
+fn since_run(dir: &Path, data: &Path) -> (Vec<String>, String) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    command
+        .arg("--data")
+        .arg(data)
+        .args([
+            "test",
+            "select_test.nvs",
+            "--since",
+            "HEAD",
+            "--format",
+            "json",
+        ])
+        .current_dir(dir);
+    for (key, value) in git_env(dir) {
+        command.env(key, value);
+    }
+    let out = command
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
+    (ran_tests(&out), stderr)
+}
+
+/// The `Class::method` of every test a `--format json` run reports, sorted.
+fn ran_tests(out: &Output) -> Vec<String> {
+    let document: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|e| {
+        panic!(
+            "`--format json` writes one document: {e}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )
+    });
+    let mut ran: Vec<String> = document["tests"]
+        .as_array()
+        .expect("a `tests` array")
+        .iter()
+        .map(|t| {
+            format!(
+                "{}::{}",
+                t["class"].as_str().unwrap_or_default(),
+                t["method"].as_str().unwrap_or_default()
+            )
+        })
+        .collect();
+    ran.sort();
+    ran
+}
+
+const EVERY_TEST: [&str; 3] = ["BigTest::big", "TotalTest::adds", "TotalTest::addsZero"];
+
+/// After a run recorded what each test reached, an edit inside `Cart::total`
+/// runs the two tests that called it, and not `BigTest`. A later run still
+/// knows `BigTest`, which the narrowed run did not run.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_since_runs_only_the_tests_that_reached_a_changed_function() {
+    let (dir, data) = selected_checkout("since-select-reached");
+    let (ran, _) = since_run(&dir, &data);
+    assert_eq!(ran, EVERY_TEST, "the first run records every test");
+    fs::write(
+        dir.join("shop").join("cart.nvs"),
+        AIMED_CART.replace("return $a + $b;", "return $b + $a;"),
+    )
+    .unwrap();
+    for _ in 0..2 {
+        let (ran, stderr) = since_run(&dir, &data);
+        assert_eq!(
+            ran,
+            ["TotalTest::adds", "TotalTest::addsZero"],
+            "only the tests that called `Cart::total`: {stderr}"
+        );
+        assert!(!stderr.contains("Every selected test runs"), "{stderr}");
+    }
+}
+
+/// An edited test and a new test class run. A test that reached nothing
+/// that changed does not.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_since_runs_a_new_or_edited_test() {
+    let (dir, data) = selected_checkout("since-select-new-test");
+    since_run(&dir, &data);
+    let edited = SELECT_ENTRY.replace("Cart::big(10)", "Cart::big(11)")
+        + "\nfinal class NewTest {\n    #[Test]\n    public function fresh(): void {\n        Test::assertSame(1, 1);\n    }\n}\n";
+    fs::write(dir.join("select_test.nvs"), edited).unwrap();
+    let (ran, stderr) = since_run(&dir, &data);
+    assert_eq!(ran, ["BigTest::big", "NewTest::fresh"], "{stderr}");
+}
+
+/// A changed method signature is outside every body, so every test runs, and
+/// the first line says why.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_since_runs_every_test_when_a_declaration_changed() {
+    let (dir, data) = selected_checkout("since-select-declaration");
+    since_run(&dir, &data);
+    fs::write(
+        dir.join("shop").join("cart.nvs"),
+        AIMED_CART.replace("big(int $n)", "big(int $n = 0)"),
+    )
+    .unwrap();
+    let (ran, stderr) = since_run(&dir, &data);
+    assert_eq!(ran, EVERY_TEST, "{stderr}");
+    assert!(
+        stderr.contains("Every selected test runs, because line 7 of `shop/cart.nvs` changed"),
+        "{stderr}"
+    );
+}
+
+/// A new file in the program's folder that is not a `.nvs` file may be data
+/// a test reads, so every test runs.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_since_runs_every_test_when_a_file_that_is_not_nvs_changed() {
+    let (dir, data) = selected_checkout("since-select-data-file");
+    since_run(&dir, &data);
+    fs::write(dir.join("prices.csv"), "1,2\n").unwrap();
+    let (ran, stderr) = since_run(&dir, &data);
+    assert_eq!(ran, EVERY_TEST, "{stderr}");
+    assert!(
+        stderr.contains("`prices.csv` changed, and it is not a `.nvs` file"),
+        "{stderr}"
+    );
+}
+
+/// With no earlier run recorded, every test runs, and the line says why.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_since_runs_every_test_with_no_stored_map() {
+    let (dir, data) = selected_checkout("since-select-no-map");
+    fs::write(
+        dir.join("shop").join("cart.nvs"),
+        AIMED_CART.replace("return $a + $b;", "return $b + $a;"),
+    )
+    .unwrap();
+    let (ran, stderr) = since_run(&dir, &data);
+    assert_eq!(ran, EVERY_TEST, "{stderr}");
+    assert!(
+        stderr.contains("Every selected test runs, because no earlier run recorded"),
+        "{stderr}"
+    );
+}
+
+/// The record was written while `Cart::total` was edited. Putting the edit
+/// back leaves nothing in git's diff, and `Cart::total` still counts as
+/// changed, because its text differs from the recorded one.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_since_counts_a_file_edited_since_the_map_as_changed() {
+    let (dir, data) = selected_checkout("since-select-edited-since-map");
+    let cart = dir.join("shop").join("cart.nvs");
+    fs::write(
+        &cart,
+        AIMED_CART.replace("return $a + $b;", "return $b + $a;"),
+    )
+    .unwrap();
+    since_run(&dir, &data);
+    fs::write(&cart, AIMED_CART).unwrap();
+    let (ran, stderr) = since_run(&dir, &data);
+    assert_eq!(ran, ["TotalTest::adds", "TotalTest::addsZero"], "{stderr}");
+}
+
+/// Runs `nvs test <path> --format json` from `dir`.
+fn at_line_run(dir: &Path, path: &str) -> Output {
+    test_in(dir, &[path, "--format", "json"])
+}
+
+/// A line inside a test method runs that test alone.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_at_a_line_runs_the_test_that_holds_it() {
+    let dir = selected_program("at-line-test");
+    for line in [7, 9, 10] {
+        let out = at_line_run(&dir, &format!("select_test.nvs:{line}"));
+        assert_eq!(out.status.code(), Some(0), "line {line}");
+        assert_eq!(ran_tests(&out), ["TotalTest::adds"], "line {line}");
+    }
+}
+
+/// A line of a test class outside its tests runs every test of the class.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_at_a_class_line_runs_its_class() {
+    let dir = selected_program("at-line-class");
+    for line in [6, 11, 16] {
+        let out = at_line_run(&dir, &format!("select_test.nvs:{line}"));
+        assert_eq!(out.status.code(), Some(0), "line {line}");
+        assert_eq!(
+            ran_tests(&out),
+            ["TotalTest::adds", "TotalTest::addsZero"],
+            "line {line}"
+        );
+    }
+}
+
+/// A line outside every test class stops the run with exit code 2, and the
+/// error names the nearest test class.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_at_a_line_outside_test_code_exits_with_an_error() {
+    let dir = selected_program("at-line-outside");
+    let out = test_in(&dir, &["select_test.nvs:4"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{stdout}{stderr}");
+    assert!(
+        stderr.contains("The nearest test class is `TotalTest`, on line 6"),
+        "{stderr}"
+    );
+    assert!(!stdout.contains("TotalTest"), "no test runs: {stdout}");
+}
+
+/// An absolute path keeps its own colons, such as a Windows drive letter, and
+/// only the last `:` and digits are the line.
+// covers: tools:cli/nvs-test
+#[test]
+fn nvs_test_at_a_line_keeps_a_windows_drive_letter() {
+    let dir = selected_program("at-line-absolute");
+    let file = dir.join("select_test.nvs");
+    let out = at_line_run(&dir, &format!("{}:20", file.display()));
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(ran_tests(&out), ["BigTest::big"]);
+}
+
 /// `nvs test --mutate` runs the tests, then each mutant: the human report
 /// names the survivor and its change, a survivor does not fail the run, and
 /// the JSON document's `mutants` records say how many tests ran each one. A

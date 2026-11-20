@@ -13,7 +13,13 @@ row's `#N` included, to `failed-tests/<hash>.txt` in the data folder, where the 
 program's canonical entry path. `--rerun-failed` runs exactly those tests, and a later run overwrites
 the file, with an empty one when nothing failed. When the last run failed nothing, or no run was
 recorded, it runs the whole selection and says so in its first line. It combines with `--filter` and
-the tag flags (`rule:testing/tags-and-shards-select-what-runs`), which narrow it further.
+the tag flags (`rule:testing/tags-and-shards-select-what-runs`), which narrow it further. It is an
+error beside `--since`, because the two choose tests by different evidence.
+
+**The reached map** that `--since` reads (`rule:testing/tags-and-shards-select-what-runs`) is kept
+the same way, in `reached/<hash>.txt` of the data folder under the same hash. A run with a coverage
+flag, `--mutate` or `--since` replaces it. Each test the run did not run keeps its entry from the
+stored map, while the program still has that test, so a narrowed run never forgets the rest.
 
 **`--shuffle`.** The tests of each class start in an order drawn from a seed, and the summary prints
 the seed. `--shuffle=<seed>` repeats that order: the draw is a SplitMix64 stream, so a seed gives one
@@ -29,7 +35,9 @@ Under `--format json` and `--format junit` the documents keep their schema, and 
 the seed are printed on stderr. A `.nvst` tree refuses all three flags: a case is a process of its
 own, judged on its whole output, and has no class or seed to shuffle by.
 
-- **Memory:** the failed-test file is one line per failed test, on disk. A shuffled run holds, per
+- **Memory:** the failed-test file is one line per failed test, on disk. The reached map is one
+  line per test and per method it reached, and one hash line per method body, test class and
+  program file, per entry path. It grows with the program, never with runs. A shuffled run holds, per
   class, one slot per selected test and the result of each finished test that waits for one written
   above it to start. A run without `--shuffle` holds nothing more.
 

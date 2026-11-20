@@ -3130,9 +3130,17 @@ fn run_test(
         return ExitCode::FAILURE;
     }
     if since {
-        // `rule:testing/mutation-testing`: the changed lines aim a program's mutants.
+        // `rule:testing/tags-and-shards-select-what-runs`: the changed lines select a program's
+        // tests by the code each one reached, and a case has no record of that.
         eprintln!("error: `--since` reads a program's changed lines, not a `.nvst` tree");
         return ExitCode::FAILURE;
+    }
+    if select.line.is_some() {
+        // A line selects a `#[Test]` method or its class, and a case has neither.
+        eprintln!(
+            "error: `<file>:<line>` selects a program's `#[Test]` methods, not `.nvst` cases"
+        );
+        return ExitCode::from(2);
     }
     if profile.is_some() {
         // The calls are timed in the one program this process compiles, as coverage is.
@@ -3389,6 +3397,9 @@ fn run_program_pass(
     let mut flags = flags;
     let mut select = select.clone();
     flags.record_failed = runner::failed_tests_file(program.configured());
+    // `rule:testing/tags-and-shards-select-what-runs`: a run that measures coverage writes which
+    // code each test reached, and `--since` reads it.
+    flags.reached_map = runner::reached_map_file(program.configured());
     if flags.rerun_failed {
         select.only = flags
             .record_failed

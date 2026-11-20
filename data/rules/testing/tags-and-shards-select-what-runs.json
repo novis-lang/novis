@@ -1,14 +1,18 @@
 {
-  "title": "`#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts",
+  "title": "A test is selected four ways: `--tag`/`--skip-tag` by label, `--shard N/M` as one of M stable disjoint parts, `--since <ref>` by the code a change can reach, and `<file>:<line>` by where it is written",
   "status": "shipped",
   "seeAlso": [
     "testing/test-attribute",
     "testing/tests-run-across-every-core",
-    "testing/report-formats"
+    "testing/report-formats",
+    "testing/a-run-can-stop-early-rerun-failures-and-shuffle",
+    "testing/mutation-testing"
   ],
   "guardedBy": [
     "crates/nvs-test/src/shard.rs",
     "crates/nvs-cli/src/runner.rs",
+    "crates/nvs-cli/src/runner/reach.rs",
+    "crates/nvs-cli/tests/test_command.rs",
     "tests/conformance/reject/a-test-timeout-that-is-not-a-duration-or-an-empty-tag-does-not-compile.nvst"
   ]
 }
