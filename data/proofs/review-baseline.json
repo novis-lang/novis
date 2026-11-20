@@ -7051,8 +7051,6 @@
   "docs/examples/lang/types/property-keys/05-a-write-of-the-wrong-type.nvs": "baf8dc0a9380511c",
   "docs/examples/lang/types/property-keys/06-a-parent-key-on-a-child-object.nvs": "7b52adf46569001d",
   "docs/examples/lang/types/property-keys/07-a-class-with-a-readonly-property.nvs": "dbacc5f3ff094d30",
-  "docs/examples/lang/types/property-keys/about.md": "64d2bbde2ba50c9e",
-  "docs/examples/lang/types/property-keys/details.md": "ac5522ef50e820c0",
   "docs/examples/lang/types/property-paths/01-a-path-through-a-relation.nvs": "bdb274d57c5d679b",
   "docs/examples/lang/types/property-paths/02-the-property-to-sort-by-from-the-address.nvs": "6f28fdee40d62350",
   "docs/examples/lang/types/property-paths/03-a-path-that-starts-at-the-calling-class.nvs": "8a7350727af19d45",

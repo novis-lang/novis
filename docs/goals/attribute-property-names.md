@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/tests/completion_file_values.rs]
   - id: 4
     title: the reference, the examples and the attack say what the feature does
-    status: open
+    status: done
     context: [docs/examples/lang/types/property-keys/about.md, docs/reference/lang/20-types.md, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -223,12 +223,12 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
   a search attribute on a class, read back with `Core\Attributes::get`.
 - [x] `tests/hostile/lang/types/property-keys/04-an-attribute-that-names-a-hidden-property.nvs:1`: an
   attack whose payload names a `private` property and a property of another class. It does not compile.
-- [ ] `bun nv proofs --id lang:types/property-keys` reports the feature complete, and
+- [x] `bun nv proofs --id lang:types/property-keys` reports the feature complete, and
   `bun nv proofs --comments` passes on the two new files.
   - [x] `bun nv proofs --comments` passes on the example and the attack.
   - [x] `about.md` is inside its 200-word bound.
-  - [ ] `about.md` has its newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) and its stamp.
-  - [ ] The bench `benches/members/lang/types/property-keys.nvs` is measured again: the reference changed.
+  - [x] `about.md` has its newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) and its stamp.
+  - [x] The bench `benches/members/lang/types/property-keys.nvs` is measured again: the reference changed.
 
 ### 5. the goal is verified once, and every failure is fixed
 

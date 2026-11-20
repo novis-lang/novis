@@ -1,6 +1,6 @@
 <?nvs
-// Attack: an attribute names a private property, and a property of another class.
-// Each name must be a public property of the class it is written on, so the program should not compile.
+// Attack: a `Search` attribute above a class lists a private property, or a property of another class.
+// Each name must be a public property of the class below the attribute. The program should not compile.
 // hostile: expect-refusal
 // covers: lang:types/property-keys
 
@@ -11,7 +11,7 @@ class User
     public string $email = 'ada@example.com';
 }
 
-// 1. The list names `password`, which is a private property of `Account`.
+// 1. The attribute above `Account` names `password`, which is a private property of `Account`.
 #[Search(fields: ['owner', 'password'])]
 class Account
 {
@@ -19,7 +19,7 @@ class Account
     private string $password = 's3cret';
 }
 
-// 2. The list names `email`, which is a property of `User`, not of `Order`.
+// 2. The attribute above `Order` names `email`. `email` is a property of `User`, and `Order` has no `email`.
 #[Search(fields: ['email'])]
 class Order
 {

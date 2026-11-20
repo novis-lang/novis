@@ -1,7 +1,7 @@
 <?nvs
-// Shows an attribute whose field contains property names of the class it is written on.
+// Shows an attribute (data written above a class) with a list of the class's property names.
 
-// `static` is the class the attribute is written on. Each name must be a public property of it.
+// In the declaration, `static` is the class that uses the attribute. Here that class is `Post`.
 attribute Search on class { fields: array<property<static>> }
 
 #[Search(fields: ['title', 'author'])]
@@ -14,7 +14,7 @@ class Post
 
 Post $post = new Post();
 
-// For `Post`, the field has the type `array<property<Post>>`.
+// `Core\Attributes::get` reads the attribute of `Post`. `fields` has the type `array<property<Post>>`.
 var $search = Core\Attributes::get<Search>(Post::constructor);
 if ($search != null) {
     array<property<Post>> $fields = $search->fields;

@@ -2889,27 +2889,28 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 A property key is a value that names one public property of a class.
 
-You use a key when the name of a property is known only while the program runs. An example is a
-sort column in a web address. The type `property<User>` contains the names of the public properties of
-`User`, and inherited ones. `as` converts a string to a key, and throws an error if the string
-does not name a public property. `as ?property<User>` gives `null` instead. `$user->$key` reads or
-writes the named property.
+You use a key when the name of a property is known only while the program runs, such as a sort
+column from a URL. A value of type `property<User>` is the name of a public property of `User`,
+including inherited ones. `as` converts a string to a key, and throws an error if the string names
+no public property. `as ?property<User>` gives `null` instead. `$user->$key` reads or writes the
+named property.
 
-In an attribute declaration, a field typed `property<static>` takes the name of a public property
-of the class the attribute is written on. A wrong name does not compile.
+An attribute is data written above a class or a property, as in `#[Search(fields: ['title'])]`.
+When you declare an attribute, a field typed `property<static>` takes the name of a public property.
+`static` is the class the attribute is used in. A wrong name does not compile.
 
-**Good to know:** a `private` or `protected` property never converts to a key. A write through a key
-does not compile when the class has a public `readonly` property.
+**Good to know:** a `private` or `protected` property never converts to a key. If a class has a public
+`readonly` property, no write through a key of that class compiles, whatever property the key names.
 
-**The examples below** sort a table by a column from the web address and update properties by name.
-Then they show a wrong write, a parent key on a child object, and an attribute that names properties.
+**The examples below** sort a table and update properties by name. Then they show two wrong
+writes, a key of a parent class on a child object, and an attribute.
 
 In `property<T>`, `T` must be a class with at least one public property. An interface, an enum or a
 type such as `int` is the error `E0799`.
 
 A name written directly in the code is checked while compiling. `"emial" as property<User>` is the
-error `E0405`. A string literal at a parameter typed `property<User>` or `?property<User>` is
-converted to a key while compiling. It needs no `as`, and a wrong name is also `E0405`. In a
+error `E0405`. You can pass a string literal to a parameter of type `property<User>` or
+`?property<User>` without `as`. The compiler converts it to a key, and a wrong name is `E0405`. In a
 variable, a return value or an array, a string literal stays a `string`.
 
 `as` gives the same `RuntimeError` for an unknown name and for a `private` or `protected` property.
@@ -2921,24 +2922,31 @@ type `string` there, the program does not compile (`E0235`).
 A read through a key has the type of every property the key can name, as a union. For a class with
 a `string` property and an `int` property, the type is `string|int`.
 
-A write through a key is checked twice. While compiling, the value must have the type of at least
-one property. `true` written through a key of a class with only `string` properties is `E0401`.
-While the program runs, the value must have the type of the property the key names. If it does not,
-the write throws a `RuntimeError`. A `tainted` or `secret` value must fit every property the key can
-name. If one property is a plain `string`, writing a `tainted string` is `E0401`.
+A write through a key is checked when the program compiles and again when it runs. When it compiles,
+the value must have the type of at least one property. `true` written through a key of a class with
+only `string` properties is `E0401`. When it runs, the value must have the type of the property the
+key names. If it does not, the write throws a `RuntimeError`.
+
+A `tainted` value is input from outside the program, such as a request. A `secret` value, such as a
+password, must not be printed. Such a value can only be written through a key when every property
+the key can name allows it. If one property is a plain `string`, writing a `tainted string` is `E0401`.
 
 If the class has a public `readonly` property, a write through a key does not compile (`E0782`). A
-`private readonly` property does not stop the write.
+`private readonly` property is never named by a key, so a write through a key still compiles.
 
 A `property<Animal>` key works on a `Dog` when `Dog` extends `Animal`. You can also store it in a
 variable of type `property<Dog>`. A `property<Dog>` key on an `Animal` is the error `E0235`.
 
-In an attribute declaration, `static` is the class the attribute is written on. A field typed
-`property<static>` or `array<property<static>>` takes the names of that class's public properties.
-For an attribute on a property, a method or a parameter, the class is the one that declares it. A
-name of a `private` property, or of a property of another class, is `E0405` at the string.
-`Core\Attributes::get<Search>(Post::constructor)` gives `fields` the type `array<property<Post>>`.
-So `$post->$field` reads each named property.
+An attribute declaration lists the fields of an attribute. In such a field, `static` is the class
+that uses the attribute. For `#[Search(...)]` above `class Post`, `static` is `Post`. For an
+attribute above a property, a method or a parameter, `static` is the class that contains it. A field
+typed `property<static>` or `array<property<static>>` takes the names of that class's public
+properties. The name of a `private` property, or of a property of another class, is `E0405` at the
+string.
+
+`Core\Attributes::get<Search>(Post::constructor)` reads the `Search` attribute of `Post`. It gives
+`fields` the type `array<property<Post>>`, so `$post->$field` reads each property that `fields`
+names.
 
 `$key as string` gives the property name. Two keys are equal when they name the same property. A
 key written in the code and a key converted from a variable are equal when the name is the same.
@@ -3253,9 +3261,9 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 ```nvs
 <?nvs
-// Shows an attribute whose field contains property names of the class it is written on.
+// Shows an attribute (data written above a class) with a list of the class's property names.
 
-// `static` is the class the attribute is written on. Each name must be a public property of it.
+// In the declaration, `static` is the class that uses the attribute. Here that class is `Post`.
 attribute Search on class { fields: array<property<static>> }
 
 #[Search(fields: ['title', 'author'])]
@@ -3268,7 +3276,7 @@ class Post
 
 Post $post = new Post();
 
-// For `Post`, the field has the type `array<property<Post>>`.
+// `Core\Attributes::get` reads the attribute of `Post`. `fields` has the type `array<property<Post>>`.
 var $search = Core\Attributes::get<Search>(Post::constructor);
 if ($search != null) {
     array<property<Post>> $fields = $search->fields;
