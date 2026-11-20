@@ -48,9 +48,12 @@
 //!
 //! `ObjectMap`, `ObjectSet` and `Heap` are the only mutable `Core` types: a
 //! persistent structure would give up the O(log n) that is their reason to
-//! exist. A `foreach` over a map yields its *keys*, because a key gives `get`
-//! its value while a value gives nothing back; over a set, its members; over a
-//! heap, its elements in `pop` order. Each walk sees the collection as it was
+//! exist. A `foreach` with a value binding alone over a map yields its *keys*,
+//! because a key gives `get` its value while a value gives nothing back. A
+//! `foreach` with a key binding yields each key with its value, through
+//! `iterateKeyed()` and [`crate::cursor::KEYED_CLASS`]
+//! (`rule:iteration/keyed-interfaces`). Over a set it yields its members, and
+//! over a heap its elements in `pop` order. Each walk sees the collection as it was
 //! when the walk began, so it is re-iterable and a mutation in the body does
 //! not disturb it. A map's or set's walk shares its store, and a write in the
 //! body separates the collection once ([`crate::cursor`]).
@@ -85,6 +88,10 @@ pub(crate) const NEW_OBJECT_SYMBOL: &str = "nvs_core_object_map_new_object";
 /// class's method table rather than as a registered member — see
 /// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
 pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_object_map_iterate";
+
+/// The symbol behind `KeyedIterable<K, V>::iterateKeyed()`, reached by name as
+/// [`ITERATE_SYMBOL`] is.
+pub(crate) const ITERATE_KEYED_SYMBOL: &str = "nvs_core_object_map_iterate_keyed";
 
 /// `new Core\ObjectMap<K, V>()` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers, which takes nothing: a map's
@@ -348,6 +355,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_object_map_values" => (nvs_core_object_map_values as *const ()).cast(),
         "nvs_core_object_map_clear" => (nvs_core_object_map_clear as *const ()).cast(),
         ITERATE_SYMBOL => (nvs_core_object_map_iterate as *const ()).cast(),
+        ITERATE_KEYED_SYMBOL => (nvs_core_object_map_iterate_keyed as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -759,6 +767,33 @@ nvs_runtime::nvs_helper! {
             };
             let walked = store::borrow(receiver, slot, &CLASS, nvs_runtime::sequence::ITERATE)?;
             Ok(crate::cursor::yielding(NvsArray::clone(&walked), yields))
+        });
+        crate::cursor::consume(args[0]);
+        cursor
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `KeyedIterable<K, V>::iterateKeyed(): KeyedIterator<K, V>` — a keyed
+    /// cursor over the map's own stores, which gives each key with its value.
+    /// It takes one reference on each store it reads and copies nothing, so a
+    /// write in the loop separates the map ([`crate::cursor`]).
+    ///
+    /// Reached by name, as [`nvs_core_object_map_iterate`] is, so its receiver
+    /// is transferred.
+    fn nvs_core_object_map_iterate_keyed(_ctx, args: [1]) {
+        let member = nvs_runtime::sequence::ITERATE_KEYED;
+        let cursor = map_of(args[0], member).and_then(|receiver| {
+            let values = store::borrow(receiver, VALUES, &CLASS, member)?;
+            let (keys, keys_from) = match keying_of(receiver) {
+                store::Keying::Chain | store::Keying::Object => {
+                    let keys = store::borrow(receiver, KEYS, &CLASS, member)?;
+                    (NvsArray::clone(&keys), crate::cursor::Yield::Value)
+                }
+                store::Keying::Str => (NvsArray::new(), crate::cursor::Yield::StrKey),
+                store::Keying::Int => (NvsArray::new(), crate::cursor::Yield::IntKey),
+            };
+            Ok(crate::cursor::keyed(keys, NvsArray::clone(&values), keys_from))
         });
         crate::cursor::consume(args[0]);
         cursor

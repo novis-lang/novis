@@ -3,6 +3,11 @@
 //! array it holds one reference on: a map's or set's own store, or a heap's
 //! sorted copy.
 //!
+//! Beside it, [`KEYED_CLASS`] is the keyed cursor `Core\ObjectMap::iterateKeyed()`
+//! hands a `foreach` with a key binding, `rule:iteration/keyed-interfaces`'s
+//! `KeyedIterator<K, V>` half. It shares the map's stores the same way, and
+//! everything below holds for it too.
+//!
 //! # Decision: a `Core` collection answers a `foreach` through its method table
 //!
 //! Not through a native drive of its own. `foreach` over an object is one
@@ -145,7 +150,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         ADVANCE_SYMBOL => (nvs_core_cursor_advance as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_cursor_current as *const ()).cast(),
-        _ => return None,
+        _ => keyed_address(symbol)?,
     }))
 }
 
@@ -263,6 +268,210 @@ nvs_runtime::nvs_helper! {
     /// `Iterator<T>::current(): T` for a `Core` collection's cursor.
     fn nvs_core_cursor_current(_ctx, args: [1]) {
         let read = read(args[0]);
+        consume(args[0]);
+        read
+    }
+}
+
+/// The keyed cursor's fully-qualified name. It is internal for [`NAME`]'s
+/// reason: `iterateKeyed()` declares the seeded `KeyedIterator<K, V>`, so no
+/// signature names this class.
+pub(crate) const KEYED_NAME: &str = r"Core\KeyedCursor";
+
+/// [`KEYED_CLASS`]'s slots, by index: the map's key store, which a chain or
+/// identity-keyed map reads its keys from …
+const KEYED_KEYS: usize = 0;
+/// … the map's value store, which the cursor steps through …
+const KEYED_VALUES: usize = 1;
+/// … the slot of the key store the cursor is on, `-1` before the first
+/// [`ADVANCE`] …
+const KEYED_KEY_INDEX: usize = 2;
+/// … the slot of the value store the cursor is on, `-1` before the first
+/// [`ADVANCE`] …
+const KEYED_INDEX: usize = 3;
+/// … and where each key comes from, a [`Yield`]: [`Yield::Value`] reads it from
+/// the key store, and [`Yield::StrKey`] or [`Yield::IntKey`] from the value
+/// store's own key.
+const KEYED_KEYS_FROM: usize = 4;
+
+/// The keyed cursor `Core\ObjectMap::iterateKeyed()` returns:
+/// `rule:iteration/keyed-interfaces`'s `KeyedIterator<K, V>` half, over the
+/// map's own stores.
+///
+/// It holds one reference on each store and copies nothing, so a loop sees the
+/// map as it was when the loop began, as [`CLASS`] does. A chain or
+/// identity-keyed map pairs its two stores by order (`crate::objmap`'s docs own
+/// that alignment), so the cursor keeps one slot per store and steps both. A
+/// `string` or `int` map has one store, and the key is that store's own key.
+///
+/// **What it spends:** one more reference than a value-only loop over a chain
+/// or identity-keyed map, held for the length of the loop, and nothing per
+/// entry beyond the key and the value it returns.
+pub(crate) const KEYED_CLASS: CoreClass = CoreClass {
+    name: KEYED_NAME,
+    doc: None,
+    methods: &[],
+    instance: &[],
+    slots: &["keys", "values", "keyIndex", "index", "keysFrom"],
+    constants: &[],
+};
+
+/// The symbol behind the keyed cursor's [`ADVANCE`].
+pub(crate) const KEYED_ADVANCE_SYMBOL: &str = "nvs_core_keyed_cursor_advance";
+/// The symbol behind the keyed cursor's `key`.
+pub(crate) const KEYED_KEY_SYMBOL: &str = "nvs_core_keyed_cursor_key";
+/// The symbol behind the keyed cursor's [`CURRENT`].
+pub(crate) const KEYED_CURRENT_SYMBOL: &str = "nvs_core_keyed_cursor_current";
+
+/// The address of one of this module's keyed symbols, or `None`. [`address`]
+/// asks it after its own rows.
+fn keyed_address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        KEYED_ADVANCE_SYMBOL => (nvs_core_keyed_cursor_advance as *const ()).cast(),
+        KEYED_KEY_SYMBOL => (nvs_core_keyed_cursor_key as *const ()).cast(),
+        KEYED_CURRENT_SYMBOL => (nvs_core_keyed_cursor_current as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+/// A fresh keyed cursor over a map's `values` store, taking over the reference
+/// on each store. `keys_from` says where each key comes from: [`Yield::Value`]
+/// reads it from `keys`, and [`Yield::StrKey`] or [`Yield::IntKey`] from the
+/// `values` store's own key, in which case `keys` is the empty array.
+pub(crate) fn keyed(keys: NvsArray, values: NvsArray, keys_from: Yield) -> Value {
+    crate::instance::build(
+        &KEYED_CLASS,
+        [
+            Value::array(keys),
+            Value::array(values),
+            Value::int(-1),
+            Value::int(-1),
+            keys_from.value(),
+        ],
+    )
+}
+
+/// The `int` a keyed cursor's index slot has.
+fn keyed_index(receiver: *mut ObjHeader, index: usize, member: &str) -> Result<i64, Fault> {
+    let held = crate::instance::slot(receiver, index);
+    held.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{KEYED_NAME}::{member} expected an int in slot {index}, got tag {}",
+            held.tag_byte()
+        ))
+    })
+}
+
+/// The slot `index` names, once [`ADVANCE`] has moved there.
+fn keyed_slot(receiver: *mut ObjHeader, index: usize, member: &str) -> Result<usize, Fault> {
+    usize::try_from(keyed_index(receiver, index, member)?).map_err(|_| {
+        Fault::fatal(format!(
+            "{KEYED_NAME}::{member} was asked for an entry before the first `{ADVANCE}`"
+        ))
+    })
+}
+
+/// The keyed cursor's [`ADVANCE`]: moves the value slot to the next entry, and
+/// the key slot with it when the keys have a store of their own.
+fn keyed_stepped(value: Value) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(value, &KEYED_CLASS, ADVANCE)?;
+    let values = store::borrow(receiver, KEYED_VALUES, &KEYED_CLASS, ADVANCE)?;
+    let from = usize::try_from(keyed_index(receiver, KEYED_INDEX, ADVANCE)? + 1).unwrap_or(0);
+    let Some(slot) = values.next_slot(from) else {
+        return Ok(Value::bool(false));
+    };
+    let as_int = |slot: usize| {
+        i64::try_from(slot)
+            .map_err(|_| Fault::fatal(format!("{KEYED_NAME}::{ADVANCE} walked past slot {slot}")))
+    };
+    crate::instance::set_slot(receiver, KEYED_INDEX, Value::int(as_int(slot)?));
+    if Yield::of(crate::instance::slot(receiver, KEYED_KEYS_FROM)) == Yield::Value {
+        let keys = store::borrow(receiver, KEYED_KEYS, &KEYED_CLASS, ADVANCE)?;
+        let from =
+            usize::try_from(keyed_index(receiver, KEYED_KEY_INDEX, ADVANCE)? + 1).unwrap_or(0);
+        let key_slot = keys.next_slot(from).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{KEYED_NAME}::{ADVANCE} found a value at slot {slot} and no key to pair with it"
+            ))
+        })?;
+        crate::instance::set_slot(receiver, KEYED_KEY_INDEX, Value::int(as_int(key_slot)?));
+    }
+    Ok(Value::bool(true))
+}
+
+/// Retains a value that belongs to a store the cursor holds, so the caller owns
+/// what it is given.
+fn owned(held: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the value belongs to a store that outlives this call, so the \
+                  value handed back needs a reference of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    held
+}
+
+/// The keyed cursor's `key`: the key of the entry [`ADVANCE`] last moved to,
+/// as a value the caller owns.
+fn keyed_key(value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::KEY;
+    let receiver = crate::instance::receiver(value, &KEYED_CLASS, member)?;
+    let found = match Yield::of(crate::instance::slot(receiver, KEYED_KEYS_FROM)) {
+        Yield::Value => {
+            let slot = keyed_slot(receiver, KEYED_KEY_INDEX, member)?;
+            let keys = store::borrow(receiver, KEYED_KEYS, &KEYED_CLASS, member)?;
+            keys.value_at(slot).map(owned)
+        }
+        from @ (Yield::StrKey | Yield::IntKey) => {
+            let slot = keyed_slot(receiver, KEYED_INDEX, member)?;
+            let values = store::borrow(receiver, KEYED_VALUES, &KEYED_CLASS, member)?;
+            let keying = if from == Yield::StrKey {
+                store::Keying::Str
+            } else {
+                store::Keying::Int
+            };
+            store::key_value(&values, slot, keying)
+        }
+    };
+    found.ok_or_else(|| Fault::fatal(format!("{KEYED_NAME}::{member} found no key")))
+}
+
+/// The keyed cursor's [`CURRENT`]: the value of the entry [`ADVANCE`] last
+/// moved to, as a value the caller owns.
+fn keyed_value(value: Value) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(value, &KEYED_CLASS, CURRENT)?;
+    let slot = keyed_slot(receiver, KEYED_INDEX, CURRENT)?;
+    let values = store::borrow(receiver, KEYED_VALUES, &KEYED_CLASS, CURRENT)?;
+    values
+        .value_at(slot)
+        .map(owned)
+        .ok_or_else(|| Fault::fatal(format!("{KEYED_NAME}::{CURRENT} found no value at slot {slot}")))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `KeyedIterator<K, V>::advance(): bool` for a `Core\ObjectMap`'s keyed cursor.
+    fn nvs_core_keyed_cursor_advance(_ctx, args: [1]) {
+        let stepped = keyed_stepped(args[0]);
+        consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `KeyedIterator<K, V>::key(): K` for a `Core\ObjectMap`'s keyed cursor.
+    fn nvs_core_keyed_cursor_key(_ctx, args: [1]) {
+        let key = keyed_key(args[0]);
+        consume(args[0]);
+        key
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `KeyedIterator<K, V>::current(): V` for a `Core\ObjectMap`'s keyed cursor.
+    fn nvs_core_keyed_cursor_current(_ctx, args: [1]) {
+        let read = keyed_value(args[0]);
         consume(args[0]);
         read
     }
@@ -439,6 +648,145 @@ mod tests {
                 key.release();
             }
         }
+    }
+
+    /// Every `(key, value)` pair a keyed cursor gives, rendered, and the cursor
+    /// released. Driven as a keyed `foreach` drives it: `advance`, `key`, then
+    /// `current`.
+    fn drained_pairs(cursor: Value) -> Vec<String> {
+        let render = |value: Value| {
+            value
+                .as_text()
+                .map_or_else(|| format!("{:?}", value.as_int()), ToOwned::to_owned)
+        };
+        let mut ctx = Ctx::buffered();
+        let mut seen = Vec::new();
+        loop {
+            #[expect(unsafe_code, reason = "each call consumes a reference")]
+            unsafe {
+                cursor.retain();
+            }
+            let more = call(nvs_core_keyed_cursor_advance, &mut ctx, &[cursor]).expect("advance");
+            if more.as_bool() != Some(true) {
+                break;
+            }
+            let mut pair = Vec::new();
+            for member in [nvs_core_keyed_cursor_key, nvs_core_keyed_cursor_current] {
+                #[expect(unsafe_code, reason = "each call consumes a reference")]
+                unsafe {
+                    cursor.retain();
+                }
+                let value = call(member, &mut ctx, &[cursor]).expect("key or current");
+                pair.push(render(value));
+                #[expect(unsafe_code, reason = "the member gave back a reference this frame owns")]
+                unsafe {
+                    value.release();
+                }
+            }
+            seen.push(pair.join("="));
+        }
+        #[expect(unsafe_code, reason = "the loop's own reference")]
+        unsafe {
+            cursor.release();
+        }
+        seen
+    }
+
+    /// Releases the values this frame owns.
+    fn release_all(values: &[Value]) {
+        for value in values {
+            #[expect(unsafe_code, reason = "this frame owns one reference on each")]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// A keyed cursor gives each key with its own value, for a map with a key
+    /// store and for a map whose keys are its store's keys. A removed entry
+    /// leaves a hole, and the pairs after it still match.
+    #[test]
+    fn a_keyed_cursor_pairs_each_key_with_its_value() {
+        let mut ctx = Ctx::buffered();
+        let keys = [Value::text("a"), Value::text("b"), Value::text("c")];
+        for constructor in [
+            crate::objmap::nvs_core_object_map_new as nvs_runtime::NvsFn,
+            crate::objmap::nvs_core_object_map_new_string,
+        ] {
+            let map = call(constructor, &mut ctx, &[]).expect("a fresh map does not throw");
+            for (key, n) in keys.iter().zip([1, 2, 3]) {
+                on(
+                    map,
+                    crate::objmap::nvs_core_object_map_set,
+                    &[*key, Value::int(n)],
+                );
+            }
+            on(map, crate::objmap::nvs_core_object_map_remove, &[keys[0]]);
+            on(
+                map,
+                crate::objmap::nvs_core_object_map_set,
+                &[keys[0], Value::int(4)],
+            );
+            let cursor = iterate(map, crate::objmap::nvs_core_object_map_iterate_keyed);
+            assert_eq!(drained_pairs(cursor), vec!["b=Some(2)", "c=Some(3)", "a=Some(4)"]);
+            release_all(&[map]);
+        }
+
+        let map = call(crate::objmap::nvs_core_object_map_new_int, &mut ctx, &[])
+            .expect("a fresh map does not throw");
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[Value::int(10), keys[1]],
+        );
+        let cursor = iterate(map, crate::objmap::nvs_core_object_map_iterate_keyed);
+        assert_eq!(drained_pairs(cursor), vec!["Some(10)=b"]);
+        release_all(&[map]);
+        release_all(&keys);
+    }
+
+    /// A keyed cursor holds the map's own value store, so a loop starts with no
+    /// copy. A write during the loop gives the map another store, and the
+    /// cursor still walks the first one, with the values it had.
+    #[test]
+    fn a_keyed_cursor_shares_the_maps_store() {
+        let mut ctx = Ctx::buffered();
+        let map = call(crate::objmap::nvs_core_object_map_new_string, &mut ctx, &[])
+            .expect("a fresh map does not throw");
+        let keys = [Value::text("a"), Value::text("b")];
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[keys[0], Value::int(1)],
+        );
+        let cursor = iterate(map, crate::objmap::nvs_core_object_map_iterate_keyed);
+        let store = array_in(map, crate::objmap::VALUES);
+        assert_eq!(
+            array_in(cursor, KEYED_VALUES),
+            store,
+            "the cursor and the map hold the same array"
+        );
+
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[keys[0], Value::int(9)],
+        );
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[keys[1], Value::int(2)],
+        );
+        assert_ne!(array_in(map, crate::objmap::VALUES), store);
+        assert_eq!(array_in(cursor, KEYED_VALUES), store, "the cursor keeps the first");
+        assert_eq!(drained_pairs(cursor), vec!["a=Some(1)"]);
+        assert_eq!(
+            drained_pairs(iterate(map, crate::objmap::nvs_core_object_map_iterate_keyed)),
+            vec!["a=Some(9)", "b=Some(2)"],
+            "the next loop sees both writes"
+        );
+        release_all(&[map]);
+        release_all(&keys);
     }
 
     /// A heap's cursor walks a sorted list that is not the heap's store and

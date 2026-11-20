@@ -7,6 +7,20 @@
 
 use super::*;
 
+/// How [`Lowering::lower_foreach_cursor`] gets and reads its cursor, decided by
+/// the `nvs_types::ForeachDrive` the checker recorded.
+#[derive(Clone, Copy)]
+pub(crate) struct CursorDrive<'k> {
+    /// The key binding, which only the keyed pair may have.
+    pub(crate) key: Option<&'k ForeachBinding>,
+    /// The subject hands out a fresh cursor (`iterate()` or `iterateKeyed()`),
+    /// where `false` means the subject is the cursor.
+    pub(crate) via_iterable: bool,
+    /// The subject is the keyed pair (`rule:iteration/keyed-interfaces`), so a
+    /// fresh cursor comes from `iterateKeyed()` and a key binding reads `key()`.
+    pub(crate) keyed: bool,
+}
+
 impl<'a> Lowering<'a> {
     /// `if (cond) then (elseif (cond2) then2)* (else else_)?` — the module
     /// docs describe the merge-point construction this drives.
@@ -900,23 +914,18 @@ impl<'a> Lowering<'a> {
                 subject.span
             )
         });
-        assert!(
-            !matches!(
-                drive,
-                ForeachDrive::KeyedIterable | ForeachDrive::KeyedCursor
-            ),
-            "nvs-ir: a `foreach` over a `KeyedIterable`/`KeyedIterator` subject reached \
-             lowering, and the keyed loop is not lowered yet (`rule:iteration/keyed-interfaces`)"
-        );
         if drive != ForeachDrive::Array {
             assert!(
                 !value_inout,
-                "nvs-ir: a `foreach (… as inout $v)` over an `Iterable`/`Iterator` subject reached \
-                 lowering — a cursor has no element storage to write back to, and nvs_types \
-                 reports E0490 for one"
+                "nvs-ir: a `foreach (… as inout $v)` over a cursor subject reached lowering — a \
+                 cursor has no element storage to write back to, and nvs_types reports E0490 for one"
+            );
+            let keyed = matches!(
+                drive,
+                ForeachDrive::KeyedIterable | ForeachDrive::KeyedCursor
             );
             assert!(
-                key.is_none(),
+                keyed || key.is_none(),
                 "nvs-ir: a `foreach` key binding over an `Iterable`/`Iterator` subject reached \
                  lowering — `rule:iteration/two-interfaces` gives a cursor no key at all, and nvs_types reports \
                  E0444 for one"
@@ -924,7 +933,14 @@ impl<'a> Lowering<'a> {
             self.lower_foreach_cursor(
                 subject,
                 value,
-                drive == ForeachDrive::Iterable,
+                CursorDrive {
+                    key,
+                    via_iterable: matches!(
+                        drive,
+                        ForeachDrive::Iterable | ForeachDrive::KeyedIterable
+                    ),
+                    keyed,
+                },
                 body,
                 cur,
                 env,
@@ -1579,10 +1595,23 @@ impl<'a> Lowering<'a> {
     ///   the single reference `Self::lower_expr` produced, which is why
     ///   that value is never entered into the `Env` and the after-block
     ///   releases the *cursor* instead.
-    /// * **There is no cursor phi and no key.** The driven value never
-    ///   changes — the position it walks lives inside the cursor object, not
-    ///   in this frame — and `rule:iteration/two-interfaces` gives `Iterator<T>` no key member
-    ///   for a binding to read.
+    /// * **There is no cursor phi.** The driven value never changes — the
+    ///   position it walks lives inside the cursor object, not in this frame.
+    ///   `rule:iteration/two-interfaces` gives `Iterator<T>` no key member, so
+    ///   only the keyed pair below binds a key.
+    ///
+    /// # Panics
+    ///
+    /// # The keyed pair
+    ///
+    /// A `KeyedIterable<K, V>` or `KeyedIterator<K, V>` (`rule:iteration/keyed-interfaces`)
+    /// takes the same loop with two differences, both on [`CursorDrive::keyed`]:
+    /// the fresh cursor comes from `iterateKeyed()` in place of `iterate()`,
+    /// and when a key is bound, each iteration calls `key()` after `advance()`
+    /// and before `current()`, in that order. The key is widened and released
+    /// per iteration as the value is. A keyed loop that binds a key therefore
+    /// costs one more dispatched call per entry than a value-only loop, and
+    /// allocates nothing more.
     ///
     /// # Panics
     ///
@@ -1593,13 +1622,20 @@ impl<'a> Lowering<'a> {
         &mut self,
         subject: &Expr,
         value: &ForeachBinding,
-        via_iterable: bool,
+        drive: CursorDrive<'_>,
         body: &'a Stmt,
         cur: &mut BlockId,
         env: &mut Env,
     ) {
         let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
         let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
+        let key = drive.key.map(|k| {
+            (
+                k,
+                binding_ty(k, "key", self.exprs, self.checked_types),
+                strip_sigil(span_text(self.src, k.name)).to_owned(),
+            )
+        });
 
         let (subject_v, subject_ty) = self.lower_expr(subject, None, env, cur);
         assert!(
@@ -1612,8 +1648,9 @@ impl<'a> Lowering<'a> {
             self.emit_retain(*cur, subject_v);
         }
 
-        let cursor_v = if via_iterable {
-            self.emit_iface_call(*cur, subject_v, false, "iterate", Ty::Object, env)
+        let cursor_v = if drive.via_iterable {
+            let iterate = if drive.keyed { "iterateKeyed" } else { "iterate" };
+            self.emit_iface_call(*cur, subject_v, false, iterate, Ty::Object, env)
         } else {
             subject_v
         };
@@ -1663,7 +1700,11 @@ impl<'a> Lowering<'a> {
             after_block,
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
-            iteration_owned: vec![value_name.clone()],
+            iteration_owned: key
+                .iter()
+                .map(|(_, _, name)| name.clone())
+                .chain([value_name.clone()])
+                .collect(),
             carried: header_env.keys().cloned().collect(),
             loop_private: vec![cursor_name.clone()],
             try_depth: self.try_stack.len(),
@@ -1671,6 +1712,12 @@ impl<'a> Lowering<'a> {
 
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
+        if let Some((k, key_ty, key_name)) = key {
+            let k_v = self.emit_iface_call(body_cur, cursor_v, true, "key", key_ty, &body_env);
+            let (k_v, _) =
+                self.widen_marked_binding(k.span, k_v, key_ty, &mut body_env, body_cur);
+            body_env.insert(key_name, (k_v, key_ty));
+        }
         let v_v = self.emit_iface_call(body_cur, cursor_v, true, "current", value_ty, &body_env);
         let (v_v, _) =
             self.widen_marked_binding(value.span, v_v, value_ty, &mut body_env, body_cur);

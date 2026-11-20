@@ -140,7 +140,7 @@ use crate::registry::{self, CoreClass, CoreTy};
 /// registered classes because a descriptor is a descriptor: everything below
 /// [`ClassDesc`] is the same for both. A row-less *family* is a slice of its
 /// own instead, chained in [`descriptors`] where this one is.
-const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
+const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS, &crate::cursor::KEYED_CLASS];
 
 /// Every `Core` class whose instance holds a **host handle** — the roster
 /// behind [`ClassDesc::holds_host_handle`], which is what
@@ -790,7 +790,10 @@ fn scalar_tag(ty: &CoreTy) -> Option<Tag> {
 const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
     (
         crate::objmap::NAME,
-        &[(sequence::ITERATE, crate::objmap::ITERATE_SYMBOL)],
+        &[
+            (sequence::ITERATE, crate::objmap::ITERATE_SYMBOL),
+            (sequence::ITERATE_KEYED, crate::objmap::ITERATE_KEYED_SYMBOL),
+        ],
     ),
     (
         crate::objset::NAME,
@@ -1007,6 +1010,14 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
         &[
             (sequence::ADVANCE, crate::cursor::ADVANCE_SYMBOL),
             (sequence::CURRENT, crate::cursor::CURRENT_SYMBOL),
+        ],
+    ),
+    (
+        crate::cursor::KEYED_NAME,
+        &[
+            (sequence::ADVANCE, crate::cursor::KEYED_ADVANCE_SYMBOL),
+            (sequence::KEY, crate::cursor::KEYED_KEY_SYMBOL),
+            (sequence::CURRENT, crate::cursor::KEYED_CURRENT_SYMBOL),
         ],
     ),
 ];
@@ -2192,6 +2203,33 @@ mod tests {
             assert!(
                 cursor.iter().any(|row| row.name == member),
                 "the cursor every `iterate()` hands back owes `{member}`"
+            );
+        }
+    }
+
+    /// The keyed half of the pairing above: a class the checker calls a
+    /// `KeyedIterable` answers `iterateKeyed` at run time, and the keyed
+    /// cursor it returns answers all three members.
+    #[test]
+    fn every_keyed_iterable_class_answers_the_keyed_protocol() {
+        assert!(
+            !registry::KEYED_ITERABLES.is_empty(),
+            "no `Core` class is a `KeyedIterable`, so this asserted nothing"
+        );
+        for (class, _, _) in registry::KEYED_ITERABLES {
+            assert!(
+                dispatch_table(class)
+                    .iter()
+                    .any(|row| row.name == sequence::ITERATE_KEYED),
+                "{class} is a `KeyedIterable` to the checker and answers no `{}` at run time",
+                sequence::ITERATE_KEYED
+            );
+        }
+        let cursor = dispatch_table(crate::cursor::KEYED_NAME);
+        for member in [sequence::ADVANCE, sequence::KEY, sequence::CURRENT] {
+            assert!(
+                cursor.iter().any(|row| row.name == member),
+                "the cursor every `iterateKeyed()` hands back owes `{member}`"
             );
         }
     }
