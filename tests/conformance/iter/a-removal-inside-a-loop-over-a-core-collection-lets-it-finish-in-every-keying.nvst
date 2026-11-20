@@ -1,0 +1,303 @@
+--TEST--
+A `Core\ObjectMap` or `Core\ObjectSet` whose `foreach` removes the current entry, removes one not reached yet or calls `clear` still walks every entry it had when the loop began, and the removals are there after the loop, for keys of exactly `string`, exactly `int`, a class and a union
+--FILE--
+<?nvs
+// The first loop removes the second and fourth keys at the second key, then
+// adds the second key back at the third. A line prints the keys that loop
+// reached, the count, `has` of the fourth key, the re-added value (maps only)
+// and a walk after the loop. The second loop calls `clear` at its first key.
+// The line ends with the keys that loop reached and the count after it.
+final class Item {
+    public function constructor(public string $name) {}
+}
+
+final class Show {
+    public static function yn(bool $b): string {
+        return $b ? "yes" : "no";
+    }
+
+    public static function key(int|string $k): string {
+        return $k is int ? "i" . $k : "s" . $k;
+    }
+}
+
+final class Shrink {
+    public static function mapString(): void {
+        var $m = new Core\ObjectMap<string, int>();
+        $m->set("a", 1);
+        $m->set("b", 2);
+        $m->set("c", 3);
+        $m->set("d", 4);
+        string $seen = "";
+        foreach ($m as string $k) {
+            $seen = $seen . $k;
+            if ($k == "b") {
+                $m->remove("b");
+                $m->remove("d");
+            }
+            if ($k == "c") {
+                $m->set("b", 5);
+            }
+        }
+        echo "map string ", $seen, " ", $m->count(), " ", Show::yn($m->has("d")), " ", $m->get("b"), " ";
+        string $again = "";
+        foreach ($m as string $k2) {
+            $again = $again . $k2;
+        }
+        string $cleared = "";
+        foreach ($m as string $k3) {
+            $cleared = $cleared . $k3;
+            if ($k3 == "a") {
+                $m->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $m->count(), "\n";
+    }
+
+    public static function mapInt(): void {
+        var $m = new Core\ObjectMap<int, int>();
+        $m->set(1, 1);
+        $m->set(2, 2);
+        $m->set(3, 3);
+        $m->set(4, 4);
+        string $seen = "";
+        foreach ($m as int $k) {
+            $seen = $seen . $k;
+            if ($k == 2) {
+                $m->remove(2);
+                $m->remove(4);
+            }
+            if ($k == 3) {
+                $m->set(2, 5);
+            }
+        }
+        echo "map int ", $seen, " ", $m->count(), " ", Show::yn($m->has(4)), " ", $m->get(2), " ";
+        string $again = "";
+        foreach ($m as int $k2) {
+            $again = $again . $k2;
+        }
+        string $cleared = "";
+        foreach ($m as int $k3) {
+            $cleared = $cleared . $k3;
+            if ($k3 == 1) {
+                $m->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $m->count(), "\n";
+    }
+
+    public static function mapClass(Item $a, Item $b, Item $c, Item $d): void {
+        var $m = new Core\ObjectMap<Item, int>();
+        $m->set($a, 1);
+        $m->set($b, 2);
+        $m->set($c, 3);
+        $m->set($d, 4);
+        string $seen = "";
+        foreach ($m as Item $k) {
+            $seen = $seen . $k->name;
+            if ($k->name == "b") {
+                $m->remove($b);
+                $m->remove($d);
+            }
+            if ($k->name == "c") {
+                $m->set($b, 5);
+            }
+        }
+        echo "map class ", $seen, " ", $m->count(), " ", Show::yn($m->has($d)), " ", $m->get($b), " ";
+        string $again = "";
+        foreach ($m as Item $k2) {
+            $again = $again . $k2->name;
+        }
+        string $cleared = "";
+        foreach ($m as Item $k3) {
+            $cleared = $cleared . $k3->name;
+            if ($k3->name == "a") {
+                $m->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $m->count(), "\n";
+    }
+
+    // The int 1 and the string "1" are two different keys.
+    public static function mapUnion(): void {
+        var $m = new Core\ObjectMap<int|string, int>();
+        $m->set(1, 1);
+        $m->set("1", 2);
+        $m->set(2, 3);
+        $m->set("2", 4);
+        string $seen = "";
+        foreach ($m as int|string $k) {
+            $seen = $seen . Show::key($k);
+            if (Show::key($k) == "s1") {
+                $m->remove("1");
+                $m->remove("2");
+            }
+            if (Show::key($k) == "i2") {
+                $m->set("1", 5);
+            }
+        }
+        echo "map union ", $seen, " ", $m->count(), " ", Show::yn($m->has("2")), " ", $m->get("1"), " ";
+        string $again = "";
+        foreach ($m as int|string $k2) {
+            $again = $again . Show::key($k2);
+        }
+        string $cleared = "";
+        foreach ($m as int|string $k3) {
+            $cleared = $cleared . Show::key($k3);
+            if (Show::key($k3) == "i1") {
+                $m->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $m->count(), "\n";
+    }
+
+    public static function setString(): void {
+        var $s = new Core\ObjectSet<string>();
+        $s->add("a");
+        $s->add("b");
+        $s->add("c");
+        $s->add("d");
+        string $seen = "";
+        foreach ($s as string $m) {
+            $seen = $seen . $m;
+            if ($m == "b") {
+                $s->remove("b");
+                $s->remove("d");
+            }
+            if ($m == "c") {
+                $s->add("b");
+            }
+        }
+        echo "set string ", $seen, " ", $s->count(), " ", Show::yn($s->has("d")), " ";
+        string $again = "";
+        foreach ($s as string $m2) {
+            $again = $again . $m2;
+        }
+        string $cleared = "";
+        foreach ($s as string $m3) {
+            $cleared = $cleared . $m3;
+            if ($m3 == "a") {
+                $s->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $s->count(), "\n";
+    }
+
+    public static function setInt(): void {
+        var $s = new Core\ObjectSet<int>();
+        $s->add(1);
+        $s->add(2);
+        $s->add(3);
+        $s->add(4);
+        string $seen = "";
+        foreach ($s as int $m) {
+            $seen = $seen . $m;
+            if ($m == 2) {
+                $s->remove(2);
+                $s->remove(4);
+            }
+            if ($m == 3) {
+                $s->add(2);
+            }
+        }
+        echo "set int ", $seen, " ", $s->count(), " ", Show::yn($s->has(4)), " ";
+        string $again = "";
+        foreach ($s as int $m2) {
+            $again = $again . $m2;
+        }
+        string $cleared = "";
+        foreach ($s as int $m3) {
+            $cleared = $cleared . $m3;
+            if ($m3 == 1) {
+                $s->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $s->count(), "\n";
+    }
+
+    public static function setClass(Item $a, Item $b, Item $c, Item $d): void {
+        var $s = new Core\ObjectSet<Item>();
+        $s->add($a);
+        $s->add($b);
+        $s->add($c);
+        $s->add($d);
+        string $seen = "";
+        foreach ($s as Item $m) {
+            $seen = $seen . $m->name;
+            if ($m->name == "b") {
+                $s->remove($b);
+                $s->remove($d);
+            }
+            if ($m->name == "c") {
+                $s->add($b);
+            }
+        }
+        echo "set class ", $seen, " ", $s->count(), " ", Show::yn($s->has($d)), " ";
+        string $again = "";
+        foreach ($s as Item $m2) {
+            $again = $again . $m2->name;
+        }
+        string $cleared = "";
+        foreach ($s as Item $m3) {
+            $cleared = $cleared . $m3->name;
+            if ($m3->name == "a") {
+                $s->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $s->count(), "\n";
+    }
+
+    public static function setUnion(): void {
+        var $s = new Core\ObjectSet<int|string>();
+        $s->add(1);
+        $s->add("1");
+        $s->add(2);
+        $s->add("2");
+        string $seen = "";
+        foreach ($s as int|string $m) {
+            $seen = $seen . Show::key($m);
+            if (Show::key($m) == "s1") {
+                $s->remove("1");
+                $s->remove("2");
+            }
+            if (Show::key($m) == "i2") {
+                $s->add("1");
+            }
+        }
+        echo "set union ", $seen, " ", $s->count(), " ", Show::yn($s->has("2")), " ";
+        string $again = "";
+        foreach ($s as int|string $m2) {
+            $again = $again . Show::key($m2);
+        }
+        string $cleared = "";
+        foreach ($s as int|string $m3) {
+            $cleared = $cleared . Show::key($m3);
+            if (Show::key($m3) == "i1") {
+                $s->clear();
+            }
+        }
+        echo $again, " clear ", $cleared, " ", $s->count(), "\n";
+    }
+}
+
+Item $a = new Item("a");
+Item $b = new Item("b");
+Item $c = new Item("c");
+Item $d = new Item("d");
+Shrink::mapString();
+Shrink::mapInt();
+Shrink::mapClass($a, $b, $c, $d);
+Shrink::mapUnion();
+Shrink::setString();
+Shrink::setInt();
+Shrink::setClass($a, $b, $c, $d);
+Shrink::setUnion();
+--EXPECT--
+map string abcd 3 no 5 acb clear acb 0
+map int 1234 3 no 5 132 clear 132 0
+map class abcd 3 no 5 acb clear acb 0
+map union i1s1i2s2 3 no 5 i1i2s1 clear i1i2s1 0
+set string abcd 3 no acb clear acb 0
+set int 1234 3 no 132 clear 132 0
+set class abcd 3 no acb clear acb 0
+set union i1s1i2s2 3 no i1i2s1 clear i1i2s1 0

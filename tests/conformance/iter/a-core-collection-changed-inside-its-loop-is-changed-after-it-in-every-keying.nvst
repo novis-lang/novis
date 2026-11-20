@@ -1,0 +1,204 @@
+--TEST--
+A `Core\ObjectMap` or `Core\ObjectSet` that gains an entry, or has a map value overwritten, inside its own `foreach` is walked as it was when the loop began, and the change is there after the loop, for keys of exactly `string`, exactly `int`, a class and a union
+--FILE--
+<?nvs
+// Each line prints: the keys the loop reached, then the count, `has` of the
+// new key, the overwritten value (maps only) and a second walk after the loop.
+final class Item {
+    public function constructor(public string $name) {}
+}
+
+final class Show {
+    public static function yn(bool $b): string {
+        return $b ? "yes" : "no";
+    }
+
+    public static function key(int|string $k): string {
+        return $k is int ? "i" . $k : "s" . $k;
+    }
+}
+
+final class Grow {
+    public static function mapString(): void {
+        var $m = new Core\ObjectMap<string, int>();
+        $m->set("a", 1);
+        $m->set("b", 2);
+        $m->set("c", 3);
+        string $seen = "";
+        foreach ($m as string $k) {
+            $seen = $seen . $k;
+            if ($k == "a") {
+                $m->set("x", 9);
+                $m->set("b", 20);
+            }
+        }
+        string $again = "";
+        foreach ($m as string $k2) {
+            $again = $again . $k2;
+        }
+        echo "map string ", $seen, " ", $m->count(), " ", Show::yn($m->has("x")), " ",
+             $m->get("b"), " ", $again, "\n";
+    }
+
+    public static function mapInt(): void {
+        var $m = new Core\ObjectMap<int, int>();
+        $m->set(1, 1);
+        $m->set(2, 2);
+        $m->set(3, 3);
+        string $seen = "";
+        foreach ($m as int $k) {
+            $seen = $seen . $k;
+            if ($k == 1) {
+                $m->set(4, 9);
+                $m->set(2, 20);
+            }
+        }
+        string $again = "";
+        foreach ($m as int $k2) {
+            $again = $again . $k2;
+        }
+        echo "map int ", $seen, " ", $m->count(), " ", Show::yn($m->has(4)), " ",
+             $m->get(2), " ", $again, "\n";
+    }
+
+    public static function mapClass(Item $a, Item $b, Item $c, Item $x): void {
+        var $m = new Core\ObjectMap<Item, int>();
+        $m->set($a, 1);
+        $m->set($b, 2);
+        $m->set($c, 3);
+        string $seen = "";
+        foreach ($m as Item $k) {
+            $seen = $seen . $k->name;
+            if ($k->name == "a") {
+                $m->set($x, 9);
+                $m->set($b, 20);
+            }
+        }
+        string $again = "";
+        foreach ($m as Item $k2) {
+            $again = $again . $k2->name;
+        }
+        echo "map class ", $seen, " ", $m->count(), " ", Show::yn($m->has($x)), " ",
+             $m->get($b), " ", $again, "\n";
+    }
+
+    // The int 1 and the string "1" are two different keys.
+    public static function mapUnion(): void {
+        var $m = new Core\ObjectMap<int|string, int>();
+        $m->set(1, 1);
+        $m->set("1", 2);
+        $m->set(2, 3);
+        string $seen = "";
+        foreach ($m as int|string $k) {
+            $seen = $seen . Show::key($k);
+            if (Show::key($k) == "i1") {
+                $m->set("2", 9);
+                $m->set("1", 20);
+            }
+        }
+        string $again = "";
+        foreach ($m as int|string $k2) {
+            $again = $again . Show::key($k2);
+        }
+        echo "map union ", $seen, " ", $m->count(), " ", Show::yn($m->has("2")), " ",
+             $m->get("1"), " ", $again, "\n";
+    }
+
+    public static function setString(): void {
+        var $s = new Core\ObjectSet<string>();
+        $s->add("a");
+        $s->add("b");
+        $s->add("c");
+        string $seen = "";
+        foreach ($s as string $m) {
+            $seen = $seen . $m;
+            if ($m == "a") {
+                $s->add("x");
+            }
+        }
+        string $again = "";
+        foreach ($s as string $m2) {
+            $again = $again . $m2;
+        }
+        echo "set string ", $seen, " ", $s->count(), " ", Show::yn($s->has("x")), " ", $again, "\n";
+    }
+
+    public static function setInt(): void {
+        var $s = new Core\ObjectSet<int>();
+        $s->add(1);
+        $s->add(2);
+        $s->add(3);
+        string $seen = "";
+        foreach ($s as int $m) {
+            $seen = $seen . $m;
+            if ($m == 1) {
+                $s->add(4);
+            }
+        }
+        string $again = "";
+        foreach ($s as int $m2) {
+            $again = $again . $m2;
+        }
+        echo "set int ", $seen, " ", $s->count(), " ", Show::yn($s->has(4)), " ", $again, "\n";
+    }
+
+    public static function setClass(Item $a, Item $b, Item $c, Item $x): void {
+        var $s = new Core\ObjectSet<Item>();
+        $s->add($a);
+        $s->add($b);
+        $s->add($c);
+        string $seen = "";
+        foreach ($s as Item $m) {
+            $seen = $seen . $m->name;
+            if ($m->name == "a") {
+                $s->add($x);
+            }
+        }
+        string $again = "";
+        foreach ($s as Item $m2) {
+            $again = $again . $m2->name;
+        }
+        echo "set class ", $seen, " ", $s->count(), " ", Show::yn($s->has($x)), " ", $again, "\n";
+    }
+
+    public static function setUnion(): void {
+        var $s = new Core\ObjectSet<int|string>();
+        $s->add(1);
+        $s->add("1");
+        $s->add(2);
+        string $seen = "";
+        foreach ($s as int|string $m) {
+            $seen = $seen . Show::key($m);
+            if (Show::key($m) == "i1") {
+                $s->add("2");
+            }
+        }
+        string $again = "";
+        foreach ($s as int|string $m2) {
+            $again = $again . Show::key($m2);
+        }
+        echo "set union ", $seen, " ", $s->count(), " ", Show::yn($s->has("2")), " ", $again, "\n";
+    }
+}
+
+Item $a = new Item("a");
+Item $b = new Item("b");
+Item $c = new Item("c");
+Item $x = new Item("x");
+Grow::mapString();
+Grow::mapInt();
+Grow::mapClass($a, $b, $c, $x);
+Grow::mapUnion();
+Grow::setString();
+Grow::setInt();
+Grow::setClass($a, $b, $c, $x);
+Grow::setUnion();
+--EXPECT--
+map string abc 4 yes 20 abcx
+map int 123 4 yes 20 1234
+map class abc 4 yes 20 abcx
+map union i1s1i2 4 yes 20 i1s1i2s2
+set string abc 4 yes abcx
+set int 123 4 yes 1234
+set class abc 4 yes abcx
+set union i1s1i2 4 yes i1s1i2s2
