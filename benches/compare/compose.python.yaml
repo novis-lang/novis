@@ -1,0 +1,61 @@
+# Python: nginx with TLS in front of an ASGI program under `uvicorn`, with one worker per CPU of the budget.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-python
+
+services:
+  app:
+    # `python/Dockerfile` installs `python/requirements.txt` and starts `uvicorn` with every flag but these two.
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    image: nvs-compare-python:local
+
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    # The `loop`, `memory` and `flood` rows' cap, as `compose.nvs.yaml` says.
+    mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+    memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+
+    # Started again when it exits, as `compose.nvs.yaml` says.
+    restart: unless-stopped
+
+    # The deploy programs read their part count from `DEPLOY_PARTS`. Python writes no `.pyc` files: the
+    # cases' folders are read-only, and in the deploy rows a part rewritten with the same size could
+    # otherwise be read from a cached copy whose time stamp matches.
+    environment:
+      DEPLOY_PARTS: ${DEPLOY_PARTS:-}
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    volumes:
+      # The case's folder read-only, or the deploy rows' `site` volume, as `compose.nvs.yaml` says.
+      - ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}
+      - ./deploy/deploy.sh:/srv/deploy.sh:ro
+
+    # `APP_DIR` is the folder `uvicorn` imports `app.py` from, as `compose.nvs.yaml` says. One worker per
+    # CPU of the budget is what uvicorn's deployment documentation runs.
+    command: ["--app-dir", "${APP_DIR:?the driver sets APP_DIR}", "--workers", "${BACKEND_CPUS:?the driver sets BACKEND_CPUS}"]
+
+    # A TCP connect, made by Python itself because the slim image has no curl: not every case has a
+    # route at `/`.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8080), 2).close()"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }
+
+# The deploy rows' program, as `compose.nvs.yaml` says.
+volumes:
+  site: {}

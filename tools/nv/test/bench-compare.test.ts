@@ -89,6 +89,7 @@ import {
   RUNAWAY_PROBE_SECONDS,
   type Scenario,
   totalsOf,
+  peersNamed,
   warmRequests,
   profileArgs,
   rowLine,
@@ -290,8 +291,8 @@ describe("the work a recording does", () => {
 });
 
 describe("the peer table", () => {
-  test("names Novis, PHP, Bun, Go, Node.js and .NET, in that order", () => {
-    expect(PEERS.map((p) => p.id)).toEqual(["nvs", "php", "bun", "go", "node", "dotnet"]);
+  test("names Novis, PHP, Bun, Go, Node.js, .NET and Python, in that order", () => {
+    expect(PEERS.map((p) => p.id)).toEqual(["nvs", "php", "bun", "go", "node", "dotnet", "python"]);
   });
 
   test("every peer has its own compose file and port, and an nginx config that exists", () => {
@@ -352,7 +353,7 @@ describe("the peer table", () => {
   });
 
   test("every stack that serves a program from /app mounts it from APP_SOURCE, and deploy.sh read-only, and declares the site volume", () => {
-    for (const id of ["nvs", "php", "bun", "node"]) {
+    for (const id of ["nvs", "php", "bun", "node", "python"]) {
       const text = readFileSync(join(COMPARE_DIR, PEERS.find((p) => p.id === id)!.stack), "utf8");
       expect(text).toContain("- ${APP_SOURCE:?the driver sets APP_SOURCE}:/app:${APP_MOUNT_MODE:?the driver sets APP_MOUNT_MODE}");
       expect(text).toContain(`- ./deploy/deploy.sh:${DEPLOY_SCRIPT}:ro`);
@@ -375,13 +376,21 @@ describe("the peer table", () => {
     expect(of("go").GOMAXPROCS).toBe(4);
     expect(of("bun").processes).toBe(4);
     expect(of("node").cluster_workers).toBe(4);
+    expect(of("python").workers).toBe(4);
     expect(of("php")["pm.max_children"]).toBe(128);
     expect(phpChildren(8)).toBe(96);
     expect(phpChildren(1000)).toBe(2000);
   });
 
+  test("--peer names one peer or several, in the table's order, and refuses an unknown one", () => {
+    expect(peersNamed(undefined)).toBeNull();
+    expect(peersNamed("go")!.map((p) => p.id)).toEqual(["go"]);
+    expect(peersNamed("python,node")!.map((p) => p.id)).toEqual(["node", "python"]);
+    expect(() => peersNamed("node,ruby")).toThrow("invalid choice: 'ruby'");
+  });
+
   test("every case has a program for every peer", () => {
-    const files = ["main.nvs", "index.php", "server.ts", "main.go", "server.mjs", "Program.cs"];
+    const files = ["main.nvs", "index.php", "server.ts", "main.go", "server.mjs", "Program.cs", "app.py"];
     for (const c of CASES) for (const f of files) expect(existsSync(join(COMPARE_DIR, "cases", c.id, f))).toBe(true);
   });
 });
@@ -441,7 +450,7 @@ describe("the agreement mapping", () => {
 
 describe("the feature scenarios", () => {
   test("every row has a program for every peer it does not give a fixed result", () => {
-    const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go", node: "server.mjs", dotnet: "Program.cs" };
+    const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go", node: "server.mjs", dotnet: "Program.cs", python: "app.py" };
     for (const s of SCENARIOS) {
       for (const peer of PEERS) {
         // A row that serves a case serves every peer's program, fixed or not. In a deploy row, `deploy.sh`
@@ -999,7 +1008,7 @@ describe("--direct", () => {
 
   test("runs every peer behind the HTTP config, in the table's order, and not PHP", () => {
     expect(directPeers().map((p) => p.id)).toEqual(PEERS.filter((p) => p.nginx === "http.conf").map((p) => p.id));
-    expect(directPeers().map((p) => p.id)).toEqual(["nvs", "bun", "go", "node", "dotnet"]);
+    expect(directPeers().map((p) => p.id)).toEqual(["nvs", "bun", "go", "node", "dotnet", "python"]);
     expect(DIRECT_RUNS.php).toBeUndefined();
     expect([...DIRECT_CASES]).toEqual(["hello", "json-api", "html-page"]);
   });

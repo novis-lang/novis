@@ -1,4 +1,4 @@
-// `bun nv bench-compare`: Novis, PHP-FPM, Bun, Go, Node.js and .NET, each behind the same nginx terminating TLS 1.3.
+// `bun nv bench-compare`: Novis, PHP-FPM, Bun, Go, Node.js, .NET and Python, each behind the same nginx terminating TLS 1.3.
 //
 //     bun nv bench-compare --smoke                               # every peer and case, a few hundred requests
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
@@ -9,6 +9,7 @@
 //     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 //     bun nv bench-compare --scenarios --fresh --record benches/compare.json   # every row again, none kept
 //     bun nv bench-compare --smoke --peer go                     # one peer's cases, a few hundred requests
+//     bun nv bench-compare --smoke --peer node,python            # two peers, so their answers are compared
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
 //     bun nv bench-compare --profile json-api                    # perf and strace on Novis serving one case
@@ -29,7 +30,7 @@
 // image a peer builds from this checkout, once (`buildImages`), and no stack comes up with `--build`.
 // Rep 1 of a case also takes each peer's answers, and the run checks that they agree before rep 2.
 // `--smoke` is one pass at a few hundred requests that checks the answers and records nothing.
-// `--peer ID` runs one peer only, and `--record` refuses it.
+// `--peer ID,...` runs the named peers only, in `PEERS` order, and `--record` refuses it.
 //
 // `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
 // up fresh over the row's own programs, runs its probe, and maps what the peer did to one of the four
@@ -67,7 +68,7 @@ import { type Arm, build, compose, down, type Load, logsOf, ohaArm, requireDocke
 import { effectivePhp, PHP_INI } from "./bench-proxied.ts";
 import { messageOf } from "../lib/proc.ts";
 
-export const summary = "Novis, PHP-FPM, Bun and Go behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH] [--profile CASE] [--direct]";
+export const summary = "Novis and six peers behind one TLS nginx, in containers: nv bench-compare [--smoke] [--scenarios] [--arm fair|deployed] [--record PATH] [--profile CASE] [--direct]";
 
 export const COMPARE_DIR = join(ROOT, "benches", "compare");
 const GENERATED = join(COMPARE_DIR, "generated");
@@ -209,6 +210,17 @@ export const PEERS: Peer[] = [
     env: () => ({}),
     settings: () => ({ server: "Kestrel, ASP.NET Core minimal API", build: "framework-dependent Release", gc: "server", tiered_pgo: true }),
     compiled: true,
+    built: true,
+  },
+  {
+    id: "python",
+    label: "Python",
+    stack: "compose.python.yaml",
+    nginx: "http.conf",
+    port: 18447,
+    image: "python:3.15.2-slim-trixie, with uvicorn 0.54.0, uvloop 0.23.0 and httptools 0.9.0",
+    env: () => ({}),
+    settings: (ctx) => ({ server: "uvicorn", workers: ctx.cpus, loop: "uvloop", http: "httptools", access_log: false, timeout_keep_alive: 65 }),
     built: true,
   },
 ];
@@ -685,7 +697,7 @@ export function mergeRunaways(_peer: string, results: RowResult[]): RowResult {
 /**
  * The limit each peer starts with that stops the loop row's and the memory row's runaway request. Both
  * rows run every peer at its defaults. Novis's `[limits]` and PHP's ini stop a request at 128 MB or 30
- * seconds of CPU time unless a setting turns the limit off. Bun, Go, Node.js and .NET have no such limit.
+ * seconds of CPU time unless a setting turns the limit off. Bun, Go, Node.js, .NET and Python have no such limit.
  */
 export const LOOP_DEFAULT: Record<string, Setting> = {
   nvs: { name: "[limits] cpu_time", default: true },
@@ -701,7 +713,9 @@ export const MEMORY_DEFAULT: Record<string, Setting> = {
  * Bun's `Worker.terminate()` stops a worker that never yields within milliseconds, so a program that
  * runs each request in a worker under a time limit stops it, and Node.js's `worker_threads` do the same.
  * A goroutine cannot be stopped from outside at all, and neither can a .NET thread: `Thread.Abort` throws
- * `PlatformNotSupportedException`, and a `CancellationToken` is only read by code that checks it.
+ * `PlatformNotSupportedException`, and a `CancellationToken` is only read by code that checks it. A Python
+ * thread cannot be stopped either, and a coroutine that never awaits is never cancelled. Each of those
+ * peers could start a process per request and kill it, which is a second program and not a way in its own.
  */
 export const LOOP_IN_CODE: Record<string, string> = {
   bun: "each request in a Worker, and terminate() after a time limit",
@@ -995,6 +1009,7 @@ export const LIVE_EDIT_SETTING: Record<string, Setting> = {
   php: { name: "opcache.validate_timestamps", default: true },
   bun: { name: "bun --hot", default: false },
   node: { name: "node --watch", default: false },
+  python: { name: "uvicorn --reload", default: false },
 };
 
 /** The live-edit row's result for a peer whose program is compiled into its image: a new image and a restart. */
@@ -1073,10 +1088,11 @@ export const DEPLOY_WAYS: Record<string, DeployWay> = {
   go: { name: "a new image and a restart", run: "restart" },
   node: { name: "a restart", run: "restart" },
   dotnet: { name: "a new image and a restart", run: "restart" },
+  python: { name: "a restart", run: "restart" },
 };
 
 /** The extension of the parts each peer's program reads. Go's and .NET's parts are compiled into their images. */
-export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts", node: "mjs" };
+export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts", node: "mjs", python: "py" };
 
 /**
  * What the deploy rows' checking load saw: every reply, each failed (an exception or a status but
@@ -1338,6 +1354,7 @@ export const PARALLEL_WAY: Record<string, string> = {
   go: "goroutines",
   node: "worker_threads",
   dotnet: "Task.Run",
+  python: "ProcessPoolExecutor",
 };
 
 /** The setting a peer needs before its program may run a part elsewhere. Novis denies `spawn script` by default. */
@@ -1413,6 +1430,7 @@ export const SCENARIOS: Scenario[] = [
       go: noCheck("https://go.dev/doc/database/sql-injection"),
       node: noCheck("https://nodejs.org/api/sqlite.html#statementrunnamedparameters-anonymousparameters"),
       dotnet: noCheck("https://learn.microsoft.com/en-us/ef/core/querying/sql-queries#passing-parameters"),
+      python: noCheck("https://docs.python.org/3/library/sqlite3.html#sqlite3-placeholders"),
     },
     probe: async (p) => {
       const c = p.check("main.nvs");
@@ -1430,6 +1448,7 @@ export const SCENARIOS: Scenario[] = [
       go: noCheck("https://pkg.go.dev/log/slog#LogValuer"),
       node: noCheck("https://nodejs.org/api/util.html#utilinspectcustom"),
       dotnet: noCheck("https://learn.microsoft.com/en-us/dotnet/core/extensions/data-redaction"),
+      python: noCheck("https://docs.python.org/3/reference/datamodel.html#object.__repr__"),
     },
     probe: async (p) => {
       const c = p.check("main.nvs");
@@ -1456,7 +1475,7 @@ export const SCENARIOS: Scenario[] = [
     id: "config",
     tree: "cases",
     case: "hello",
-    fixed: { bun: headersInCode, go: headersInCode, node: headersInCode, dotnet: headersInCode },
+    fixed: { bun: headersInCode, go: headersInCode, node: headersInCode, dotnet: headersInCode, python: headersInCode },
     probe: async (p) => {
       const change = CONFIG_CHANGES[p.peer]!;
       if (change.applied(ok(await p.get("/"), "hello"))) throw new Fail("the header already has the value the change sets");
@@ -1532,6 +1551,7 @@ export const SCENARIOS: Scenario[] = [
       bun: noSession("https://bun.sh/docs/api/cookie"),
       go: noSession("https://pkg.go.dev/net/http#Cookie"),
       node: noSession("https://nodejs.org/api/http.html#responsesetheadername-value"),
+      python: noSession("https://docs.python.org/3/library/http.cookies.html"),
     },
     probe: sessionProbe,
   },
@@ -1991,6 +2011,8 @@ const TUNABLES = [
   join(COMPARE_DIR, "dotnet", "Dockerfile"),
   join(COMPARE_DIR, "dotnet", "App.csproj"),
   join(COMPARE_DIR, "dotnet", "appsettings.json"),
+  join(COMPARE_DIR, "python", "Dockerfile"),
+  join(COMPARE_DIR, "python", "requirements.txt"),
   PHP_INI,
   FILE_CHECK_INI,
   join(ROOT, "benches", "proxied", "php", "pool.conf.in"),
@@ -2287,7 +2309,7 @@ interface DirectRun {
   /** Bind mounts, as `[host path, container path]`, each read-only. */
   mounts(c: string): [string, string][];
   env: Record<string, string>;
-  /** The arguments after the image: the image's entrypoint for Novis, the whole command for the others. */
+  /** The arguments after the image: the entrypoint's arguments for Novis and Python, the whole command for the others. */
   command(c: string): string[];
 }
 
@@ -2322,6 +2344,12 @@ export const DIRECT_RUNS: Record<string, DirectRun> = {
     mounts: () => [],
     env: {},
     command: (c) => ["dotnet", `/srv/cases/${c}/app.dll`, "--contentRoot", `/srv/cases/${c}`],
+  },
+  python: {
+    image: "nvs-compare-python:local",
+    mounts: (c) => [[join(COMPARE_DIR, "cases", c), "/app"]],
+    env: { PYTHONDONTWRITEBYTECODE: "1" },
+    command: () => ["--app-dir", "/app", "--workers", String(DIRECT_CPUS)],
   },
 };
 
@@ -2569,13 +2597,13 @@ async function direct(smoke: boolean, commit: string): Promise<number> {
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
   "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
-  "                        [--record PATH] [--fresh] [--peer ID] [--down] [--profile CASE] [--direct] [--plan]";
+  "                        [--record PATH] [--fresh] [--peer ID,...] [--down] [--profile CASE] [--direct] [--plan]";
 
 interface Options {
   /** Run every row again, and reuse no recorded result. */
   fresh: boolean;
-  /** The one peer a smoke run or a row runs against, or `null` for every peer. */
-  peer: Peer | null;
+  /** The peers a smoke run or a row runs against, in `PEERS` order, or `null` for every peer. */
+  peers: Peer[] | null;
   smoke: boolean;
   scenarios: boolean;
   arm: "fair" | "deployed";
@@ -2648,14 +2676,12 @@ function options(args: string[]): Options | null {
   if (direct && others.length > 0) throw new ArgError(`argument --direct: not with ${others.join(", ")}; only --smoke goes with it`);
   const plan = p.flags.has("--plan");
   if (plan && (direct || profiled !== null || p.flags.has("--down"))) throw new ArgError("argument --plan: not with --direct, --profile or --down");
-  const peerId = p.values.get("--peer");
-  const peer = peerId === undefined ? null : PEERS.find((x) => x.id === peerId);
-  if (peer === undefined) throw new ArgError(`argument --peer: invalid choice: ${pyRepr(peerId!)} (choose from ${PEERS.map((x) => `'${x.id}'`).join(", ")})`);
-  if (peer !== null && (p.values.has("--record") || direct || profiled !== null)) throw new ArgError("argument --peer: not with --record, --direct or --profile; a record is one run of every peer");
+  const peers = peersNamed(p.values.get("--peer"));
+  if (peers !== null && (p.values.has("--record") || direct || profiled !== null)) throw new ArgError("argument --peer: not with --record, --direct or --profile; a record is one run of every peer");
   if (p.flags.has("--fresh") && !p.flags.has("--scenarios")) throw new ArgError("argument --fresh: only with --scenarios; the cases are never reused");
   return {
     fresh: p.flags.has("--fresh"),
-    peer,
+    peers,
     smoke: p.flags.has("--smoke"),
     scenarios: p.flags.has("--scenarios"),
     arm,
@@ -2696,7 +2722,8 @@ function help(): string {
     "                        for a row when the peer's image, the row's programs, this tool and the",
     "                        host are all unchanged",
     "  --fresh               with --scenarios, run every row again and keep no recorded result",
-    "  --peer ID             run one peer only, to check it quickly. Not with --record",
+    "  --peer ID,...         run the named peers only, to check them quickly. Name a second",
+    "                        peer to compare a new peer's answers with. Not with --record",
     "  --row ID              with --scenarios, run only the row ID",
     "  --expect PEER=RESULT,...",
     "                        with --scenarios, exit 1 when a row's result for PEER is not RESULT",
@@ -2743,8 +2770,21 @@ function rowsOf(o: Options): Scenario[] {
   return rows;
 }
 
-/** The peer `--peer` names, or every peer. */
-const peersOf = (o: Options): Peer[] => (o.peer === null ? PEERS : [o.peer]);
+/** The peers `--peer` names, or every peer. */
+const peersOf = (o: Options): Peer[] => o.peers ?? PEERS;
+
+/**
+ * The peers a `--peer` value names, comma-separated, in `PEERS` order so the first is the reference
+ * the others' answers are compared with. `null` when the option is absent.
+ */
+export function peersNamed(value: string | undefined): Peer[] | null {
+  if (value === undefined) return null;
+  const ids = value.split(",").map((id) => id.trim());
+  for (const id of ids) {
+    if (!PEERS.some((x) => x.id === id)) throw new ArgError(`argument --peer: invalid choice: ${pyRepr(id)} (choose from ${PEERS.map((x) => `'${x.id}'`).join(", ")})`);
+  }
+  return PEERS.filter((x) => ids.includes(x.id));
+}
 
 /**
  * Takes the build passes of `plan`: each image a peer builds from this checkout, once, before any stack

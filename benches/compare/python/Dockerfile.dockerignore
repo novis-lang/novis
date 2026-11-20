@@ -1,0 +1,4 @@
+# Scoped to this directory's `Dockerfile` alone, as `go/Dockerfile.dockerignore` says. The image copies
+# only `python/requirements.txt`, so everything else is left out of the build context.
+*
+!python/requirements.txt

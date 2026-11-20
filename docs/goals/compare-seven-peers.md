@@ -22,7 +22,7 @@ stages:
     context: [benches/compare/compose.go.yaml, benches/compare/go/Dockerfile, benches/compare/nginx/http.conf]
   - id: 5
     title: Python is a peer
-    status: open
+    status: done
     context: [benches/compare/compose.go.yaml, benches/compare/nginx/http.conf, docs/rules/tooling.md]
   - id: 6
     title: the seven-peer comparison is recorded, and its passes decide whether three reps are enough
@@ -185,8 +185,21 @@ same holds for .NET and Python where a crash ends a process. Node.js's `memory` 
 through `MEMORY_IN_CODE` (`Worker` `resourceLimits`), and its programs stay the plain ones its
 documentation shows, as Bun's do.
 
-**`--peer <id>` narrows a smoke run or a row to one peer,** for checking one new peer cheaply.
-`--record` refuses it, because a record is one run of every peer.
+**`--peer <id>,...` narrows a smoke run or a row to the named peers,** for checking a new peer
+cheaply. `--record` refuses it, because a record is one run of every peer. One peer alone compares
+its answers with nothing, so a new peer's smoke names a checked peer beside it (stage 5's call):
+stages 3 and 4 smoked Node.js and .NET alone, and their agreement was first checked in stage 5.
+
+**What Python's programs are (stage 5's calls).** CPython 3.15.2 on `python:3.15.2-slim-trixie`,
+the standard build with the GIL. `python/Dockerfile` installs the wheels with `--only-binary` and
+holds every `uvicorn` flag in its `ENTRYPOINT`: `uvloop`, `httptools`, `--lifespan off`,
+`--no-access-log` (no line per request, as .NET), and `--timeout-keep-alive 65` (as Node.js). The
+compose file and `--direct` pass only `--app-dir` and `--workers`. `PYTHONDONTWRITEBYTECODE=1`, so a
+deploy part rewritten at the same size is never read from a stale `.pyc`. `escape` uses an f-string,
+because the standard library has no HTML template. `parallel` uses a `ProcessPoolExecutor`, because
+threads run one at a time. `loop` and `memory` have no `your-code` entry: a Python thread cannot be
+stopped, and a child process per request is a second program, as for Go and .NET. `json-api` turns
+`NaN` and `Infinity` away, which `json.loads` reads and JSON does not have.
 
 **What it costs.** No request path changes, and no memory is spent. The nightly `flood` job in
 `.github/workflows/ci.yml` builds three more images, with .NET's SDK the largest. That job gates
@@ -265,14 +278,14 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 **Split:** as stage 3. A writing subagent writes `app.py` for the 4 cases and every row.
 
-- [ ] `benches/compare/compose.python.yaml:1` and `benches/compare/python/requirements.txt:1`: the image
+- [x] `benches/compare/compose.python.yaml:1` and `benches/compare/python/requirements.txt:1`: the image
   pin, and `uvicorn`, `uvloop` and `httptools` at exact versions.
-- [ ] `tools/nv/cmd/bench-compare.ts:126` `PEERS`, `tools/nv/cmd/bench-compare.ts:1932` `DIRECT_RUNS`,
+- [x] `tools/nv/cmd/bench-compare.ts:126` `PEERS`, `tools/nv/cmd/bench-compare.ts:1932` `DIRECT_RUNS`,
   and the `Setting` and deploy tables.
-- [ ] The programs for the 4 cases and every row with per-peer programs.
-- [ ] Requirement: both smoke runs with `--peer python` are green.
-- [ ] `tools/nv/test/bench-compare.test.ts:101`: the peer-table test names all seven, in that order.
-- [ ] `benches/compare/README.md:14`: § *Why these four peers* becomes § *Why these seven peers*. It
+- [x] The programs for the 4 cases and every row with per-peer programs.
+- [x] Requirement: both smoke runs with `--peer python` are green.
+- [x] `tools/nv/test/bench-compare.test.ts:101`: the peer-table test names all seven, in that order.
+- [x] `benches/compare/README.md:14`: the section is § *Why these peers*, with no count to go stale. It
   gives each new peer's server and why, says `uvicorn` is the one non-standard piece, and replaces
   the Python sentence.
 
@@ -319,42 +332,37 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1 to 4 are done. .NET 10 (the current LTS) is the sixth peer: `dotnet/Dockerfile` publishes
-each folder's `Program.cs`, a minimal API on Kestrel, with the shared `dotnet/App.csproj` and
-`dotnet new web`'s `dotnet/appsettings.json`, so no line is logged per request. `PEERS` has
-`dotnet` as `built` and `compiled`, and `DIRECT_RUNS` has it. `direct()` now builds every `built`
-direct peer. Fixed results: `taint`, `secret`, `config` and `live-edit` (`compiledIn`, shared with
-Go). `session` runs a program, because ASP.NET Core's session ships with the framework.
+Stages 1 to 5 are done. Python is the seventh peer: `compose.python.yaml` builds `python/Dockerfile`
+(CPython 3.15.2 with `uvicorn` 0.54.0, `uvloop` 0.23.0 and `httptools` 0.9.0 from
+`python/requirements.txt`) and mounts the case at `/app`, as Node.js does. Each case and served row
+has an `app.py`, a plain ASGI program. `PEERS` has `python` as `built` and not `compiled`, and
+`DIRECT_RUNS`, `DEPLOY_EXT` (`py`, which `deploy/deploy.sh` now takes), `DEPLOY_WAYS`,
+`LIVE_EDIT_SETTING` (`uvicorn --reload`), `PARALLEL_WAY` and `TUNABLES` have it. Fixed results:
+`taint`, `secret`, `config` and `session`. `--peer` now takes a comma list (`peersNamed`).
 
-Checked with docker: `--smoke --peer dotnet` agreed in all 4 cases, and `--scenarios --smoke --peer
-dotnet` ran every row. Rows: escape, config, csrf and headers `your-code`; taint, secret, live-edit,
-loop and the three deploys `no` (502s during the restart, as Go's); cores, crash, memory, flood,
-session, waiting and parallel `built-in`. `memory` is `built-in` because the GC caps its heap at
-75% of the container's memory, so the runaway request throws `OutOfMemoryException` and answers
-500. The README says so. The peer-table, program and `--direct` tests pass by name, and tsc is
-clean. No six-peer smoke ran. Stage 6's recording runs every peer together.
+Checked with docker: `--smoke --peer node,python` agreed in all 4 cases, and `--smoke --peer
+php,bun,go,node,dotnet,python` agreed in all 4, so Node.js and .NET are now checked too. `--scenarios
+--smoke --peer python` ran every row: escape, config, csrf, session and headers `your-code`;
+live-edit `one-setting (uvicorn --reload)`; taint, secret, the three deploys (502s during the
+restart), loop (the runaway never answered), memory (502, the container restarted) and flood
+(502s, 6 restarts) `no`; cores (5.28x), crash (500, then 200), waiting and parallel (3.63x)
+`built-in`. tsc and `bun nv links` are clean. The peer-table, program, `--direct`, plan and
+recording tests pass by name (33), and the new `--peer` test passes.
+
+`--plan` with seven peers and nothing reused: cases 140 stacks, rows 262 stacks, 4 builds. The
+four-peer baseline's total is 247 stacks. A routine recording reuses every row but Novis's, so it
+should come in under the baseline at 5 reps. Stage 6's check decides it.
 
 The nightly failures the sweep named ran on `5d053fc6e6`, origin/main, again. Local main's
 `e5a100b18f` and `438e9c44af` fix them, and they clear when the next full gate pushes.
 
 ### Next
 
-Stage 5 from its first item: Python. .NET's commit is the model for a peer with its own build, and
-Node.js's `993032307d` for a peer that mounts `/app`, which Python does. Anchors in
-`tools/nv/cmd/bench-compare.ts`: `PEERS` `:146`, `CORES_IN_CODE` `:535`, `LOOP_IN_CODE` `:706`,
-`MEMORY_IN_CODE` `:716`, `LIVE_EDIT_SETTING` `:994`, `DEPLOY_WAYS` `:1071`, `CONFIG_CHANGES`
-`:1310`, `PARALLEL_WAY` `:1335`, `TUNABLES` `:1981`, `DIRECT_RUNS` `:2295`, and the `fixed` maps of
-`taint` `:1406`, `secret` `:1423`, `config` `:1456` and `session` `:1528`. Tests in
-`tools/nv/test/bench-compare.test.ts`: `:293` (the peer table), `:356` (the stacks that mount
-`/app`), `:383` and `:443` (the program file per peer) and `:1000` (`--direct` peers).
-
-- Python mounts `/app` as Node.js does, so `DEPLOY_EXT` needs `py`, `deploy/deploy.sh` takes it,
-  and `:356`'s list of stacks that mount `/app` gains `python`. `live-edit` runs: `uvicorn` without
-  `--reload` is `one-setting` if the run shows it.
-- `requirements.txt` pins `uvicorn`, `uvloop` and `httptools` at exact versions. Install them in a
-  small image of the compose file's own, or with `pip install` at start. The first is faster and
-  the plan counts it as a build, so prefer it, and set `built: true`.
-- The README's Python sentence in § *Why these peers* is replaced, as the standing decision says.
-- Expect the four tests above to go red once `python` is in `PEERS`. Stage 5 updates them.
+Stage 6 from its first item: the seven-peer recording, in a detached worktree at `HEAD`, run in the
+background with the session ending its turn to wait. It brings up 402 stacks with nothing reused, so
+expect several hours. Then `repsHold` and `--reps-check`. Anchors in `tools/nv/cmd/bench-compare.ts`:
+the reps default `:2949` (`o.reps ?? (o.smoke ? 1 : 5)`), `planOf` `:1667`, `PEERS` `:147`,
+`peersNamed` `:2780`. Tests: the three `the record` tests go in `tools/nv/test/bench-compare.test.ts`,
+which has no such `describe` yet, so the `recorded` acceptance check stays red until they exist.
 
 ### Backlog

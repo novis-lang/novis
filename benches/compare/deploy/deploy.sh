@@ -11,9 +11,10 @@
 #   deploy.sh copy   EXT COUNT LAYOUT VERSION PAUSE   every part at VERSION, PAUSE seconds between two files
 #   deploy.sh switch EXT COUNT LAYOUT VERSION         points /app/current at releases/VERSION in one rename
 #
-# EXT is the parts' language: `nvs`, `php`, `ts` or `mjs`. COUNT is the number of parts. LAYOUT `flat` serves
-# `/app` with its parts in `/app/parts/`. LAYOUT `release` serves the link `/app/current`, which points
-# at `/app/releases/N/`, each a whole program. Go compiles its parts into its image and never runs this.
+# EXT is the parts' language: `nvs`, `php`, `ts`, `mjs` or `py`. COUNT is the number of parts. LAYOUT `flat`
+# serves `/app` with its parts in `/app/parts/`. LAYOUT `release` serves the link `/app/current`, which points
+# at `/app/releases/N/`, each a whole program. Go and .NET compile their parts into their images and never
+# run this.
 # `APP` and `SRC` replace `/app` and `/src`, so the driver's test can run it in a scratch folder.
 #
 # POSIX `sh` only: it runs under dash in the Debian images and must run under busybox too.
@@ -34,7 +35,7 @@ count=$3
 layout=$4
 shift 4
 
-case $ext in nvs | php | ts | mjs) ;; *) die "EXT is nvs, php, ts or mjs, not '$ext'" ;; esac
+case $ext in nvs | php | ts | mjs | py) ;; *) die "EXT is nvs, php, ts, mjs or py, not '$ext'" ;; esac
 case $layout in flat | release) ;; *) die "LAYOUT is flat or release, not '$layout'" ;; esac
 case $count in '' | *[!0-9]*) die "COUNT is a number, not '$count'" ;; esac
 
@@ -59,6 +60,7 @@ part_text() {
     nvs) printf '<?nvs\necho "%s";\n' "$1" ;;
     php) printf '<?php echo "%s";\n' "$1" ;;
     ts | mjs) printf 'export const version = "%s";\n' "$1" ;;
+    py) printf 'version = "%s"\n' "$1" ;;
   esac
 }
 

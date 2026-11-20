@@ -95,7 +95,7 @@ first (§ *Decisions for the user*).
 
 ## The peers
 
-`benches/compare/README.md` § *Why these four peers* is the home of which peers are measured and why.
+`benches/compare/README.md` § *Why these peers* is the home of which peers are measured and why.
 The goal `compare-seven-peers` adds .NET, Node.js and Python, and cuts a recording's fixed work so
 seven peers do not take twice as long. This section is the reasoning it was written from.
 
@@ -165,6 +165,6 @@ The goal asks these before its first stage, one at a time:
       follows*, and passes `bun nv site --check stale`, `changes` and `review`.
 - [ ] Every figure on those pages comes from `benches/compare.json` through a component, with its stamp.
 - [ ] The JSON-LD validates in Google's Rich Results Test, and `/llms.txt` starts with *Choosing Novis*.
-- [ ] `benches/compare/README.md` § *Why these four peers* names every peer the user approved.
+- [ ] `benches/compare/README.md` § *Why these peers* names every peer the user approved.
 - [ ] AGENTS.md and `docs/agent/prose.md` state the `/choose/` exception.
 - [ ] This file is deleted.
