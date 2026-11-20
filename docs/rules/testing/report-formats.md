@@ -24,7 +24,8 @@ document is `schemaVersion: 3`, and every record also carries `coverage`: each f
 sorted lines that test reached in any attempt. A run without one writes version 2 unchanged. Under
 `--mutate` (`rule:testing/mutation-testing`) it is `schemaVersion: 5`: version 3's document plus a
 `mutants` array, one `{file, line, function, key, change, outcome, tests}` record per mutant, and
-`sameAs`, the first mutant's key, on a `duplicate`.
+`sameAs`, the first mutant's key, on a `duplicate`. A survived record that `mutants.toml` judged also
+has `judged: true`, its `reason` and its `equivalent` flag.
 Version 4 had the same array without `function` and `key`. A failed
 `#[Property]` also carries `counterexample` (`rule:testing/property-testing`): `{seed, call, inputs,
 generatedInputs}`, each input as the report prints it and `inputs` shrunk. It is a new key and needs

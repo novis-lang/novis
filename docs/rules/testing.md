@@ -1250,6 +1250,14 @@ by its slot, which an earlier test does not untag, so the line is drawn on the s
 
 The set is enumerated where it is implemented, so adding an operator changes no rule.
 
+**Glue makes no mutant.** A site whose nearest enclosing call is a `Core\Log` method, or that is in
+the arguments of the `new` a `throw` throws, changes a message and never a result. Google's mutation
+work calls these *arid nodes*. A call nested inside a glue call decides for its own arguments, so
+`Log::write(..., ['n' => $cart->total($a + 1)])` still mutates `$a + 1`. Output written with `echo`
+or `Core\Html` is not glue: in a web program the page is the result, and a view class is kept out
+with `#[NoMutate]`. The list is enumerated where it is implemented, beside the operators
+(`nvs_ir::lower::mutate`), so adding a case changes no rule.
+
 `--mutate` runs on a program's `#[Test]` methods only. On a `.nvst` tree it exits with an error, as
 the coverage flags do, because per-test coverage exists only for program tests.
 
@@ -1293,12 +1301,40 @@ Each mutant has one of six outcomes:
 | `equivalent` | its function compiles to the program's own code, so nothing ran |
 | `duplicate` | its function compiles to an earlier mutant's code, so nothing ran |
 
-The score is killed plus timed out over every mutant that ran a test. The human report prints the
-four counts of mutants that were judged by tests, then the `equivalent` and `duplicate` counts when
-either is not zero, then the score, then each survived mutant with its file, line and change.
+**`mutants.toml` holds the judged survivors.** It is an optional file in the program's folder (the
+folder `nvs.toml` is in, or with no project the entry file's), read only under `--mutate`:
+
+```toml
+[[judged]]
+mutant = "Shop\\Cart::total#2: `<` to `<=`"
+reason = "the loop ends on the same item either way"
+equivalent = true
+```
+
+`mutant` and a non-empty `reason` are required, `equivalent` defaults to `false`, and no other key is
+allowed. A malformed file, a missing or empty `reason` and a key judged twice exit with status 2
+before any test runs. A survivor whose key has an entry is *judged*: the human report counts it and
+does not list it. A judged survivor that is `equivalent` leaves the score, like an `equivalent`
+mutant; any other still counts as survived, so the score stays a measurement. An entry whose key no
+mutant of the program has is printed as a warning on stderr and changes no exit status, so the file
+does not rot. The key is checked against every mutant of the program, not only the ones an aimed
+run kept, so `--mutate=<target>` and `--since` warn about nothing they left out. No command writes
+the file: each entry is a person's judgment, and the human report prints each survivor's key as a
+line ready to paste.
+
+The score is killed plus timed out over every mutant that ran a test, less the judged `equivalent`
+survivors. The human report prints the four counts of mutants that were judged by tests, then the
+`equivalent` and `duplicate` counts when either is not zero, then the judged count when it is not
+zero, then the score, then the survivors no entry judged, **grouped by function**. Functions are
+ordered by their number of survivors, most first, then by name, under a `survived in <function>
+(<n>):` line. Within a function each source line is one line: its file and line, the first
+survivor's change, `(+N more on this line)` when there are more, and `mutant = "<key>"`, the line to
+paste into `mutants.toml`. A `duplicate` of an unjudged survivor is listed with it and counted in
+`+N`, because it would have come out the same, and its line names the first mutant's key.
 `--format json` writes `schemaVersion: 5` ([`testing/report-formats`](testing.md#testing-report-formats)): version 3's document, plus
 a `mutants` array with one record per mutant, `{file, line, function, key, change, outcome, tests}`,
-and `sameAs` on a `duplicate`, in the order the program lowers its sites. `tests` is how many tests
+`sameAs` on a `duplicate`, and `judged: true` with its `reason` and `equivalent` on a judged
+survivor, in the order the program lowers its sites. `tests` is how many tests
 reached the mutant's line and ran against it, `0` for a mutant that ran none. It is what the
 covering-test filter decides and what the bench of a mutation run counts. A JUnit document has no place for a mutant, so `--mutate` with
 `--format junit` exits with an error. The exit status is the coverage run's: a survived mutant does not
@@ -1311,7 +1347,8 @@ tests that reach the mutant's line. It also lowers the unchanged program once an
 run, to hash each original function. A mutant compiles with no artifact cache, since its cache key
 would be the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in
 flight, and the run keeps one record per mutant for the report, its function label and key included.
-A compile records one label per `#[NoMutate]` class or method.
+A compile records one label per `#[NoMutate]` class or method. `mutants.toml` is held as one key and
+one reason per entry for the run, and the run keeps every mutant's key to check the entries against.
 
 Since the mutants grow with the program and each compiles all of it, a run's compile time grows with
 the square of the program's size; that is the price of the whole-program recompile, and a team runs
@@ -1335,6 +1372,9 @@ program under test, and its ramp fails when the test runs per mutant grow with t
 - *Globs in a target.* A folder, a class and a method name every set a run has needed.
 - *A per-test limit from each test's own coverage-run time.* It is closer for a fast test, and it
   needs a table carried into every test's run; one bound for the run is one number.
+- *A command that writes `mutants.toml`.* Each entry is a judgment, and a command would accept a
+  survivor nobody read.
+- *Output as glue.* `echo` and `Core\Html` write the page, which is a web program's result.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
@@ -1397,7 +1437,8 @@ document is `schemaVersion: 3`, and every record also carries `coverage`: each f
 sorted lines that test reached in any attempt. A run without one writes version 2 unchanged. Under
 `--mutate` ([`testing/mutation-testing`](testing.md#testing-mutation-testing)) it is `schemaVersion: 5`: version 3's document plus a
 `mutants` array, one `{file, line, function, key, change, outcome, tests}` record per mutant, and
-`sameAs`, the first mutant's key, on a `duplicate`.
+`sameAs`, the first mutant's key, on a `duplicate`. A survived record that `mutants.toml` judged also
+has `judged: true`, its `reason` and its `equivalent` flag.
 Version 4 had the same array without `function` and `key`. A failed
 `#[Property]` also carries `counterexample` ([`testing/property-testing`](testing.md#testing-property-testing)): `{seed, call, inputs,
 generatedInputs}`, each input as the report prints it and `inputs` shrunk. It is a new key and needs

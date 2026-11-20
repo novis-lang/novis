@@ -494,6 +494,181 @@ fn nvs_test_mutate_runs_one_of_two_mutants_that_compile_alike() {
     assert!(human.contains("1 duplicate"), "{human}");
 }
 
+/// Three survivors on `Shelf::fits`'s one line, one survivor in
+/// `Shelf::count`, and a log call and an exception message that make no
+/// mutant.
+const JUDGED: &str = r#"<?nvs
+use Core\Test;
+use Core\Log;
+
+final class Shelf {
+    public static function fits(int $size, int $room): bool {
+        return $size <= $room && $size >= 0;
+    }
+
+    public static function count(int $n): int {
+        Log::write(Log::Level::Info, 'counting', ['n' => $n + 1]);
+        if ($n < 0) {
+            throw new LogicError('negative ' . ($n - 1));
+        }
+        return $n;
+    }
+}
+
+final class ShelfTest {
+    #[Test]
+    public function fitsFarInside(): void {
+        Test::assertTrue(Shelf::fits(2, 10));
+    }
+
+    #[Test]
+    public function counts(): void { Test::assertSame(Shelf::count(3), 3); }
+}
+"#;
+
+/// The key of `Shelf::count`'s one survivor.
+const COUNT_SURVIVOR: &str = "Shelf::count#1: `<` to `<=`";
+
+/// A scratch folder with [`JUDGED`] and the given `mutants.toml`.
+fn judged_dir(case: &str, judged: &str) -> PathBuf {
+    let dir = scratch(case);
+    fs::write(dir.join("shelf_test.nvs"), JUDGED).unwrap();
+    fs::write(dir.join("mutants.toml"), judged).unwrap();
+    dir
+}
+
+/// A survivor `mutants.toml` judged is counted and not listed, and an
+/// `equivalent` one leaves the score. Its key still matches once a class is
+/// added above its function.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_reads_judged_survivors_from_mutants_toml() {
+    let dir = judged_dir(
+        "mutate-judged",
+        &format!(
+            "[[judged]]\nmutant = \"{COUNT_SURVIVOR}\"\nreason = \"a count is never negative\"\nequivalent = true\n"
+        ),
+    );
+    let check = |out: &std::process::Output| {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "{stdout}{stderr}");
+        assert!(
+            stdout.contains("judged: 1 survived")
+                && !stdout.contains("survived in Shelf::count")
+                && stdout.contains("survived in Shelf::fits (3):")
+                && stdout.contains("of 4 reached mutants"),
+            "the judged survivor is counted, not listed, and out of the score: {stdout}"
+        );
+        assert!(!stderr.contains("warning:"), "{stderr}");
+    };
+    check(&test_in(&dir, &["shelf_test.nvs", "--mutate"]));
+
+    fs::write(
+        dir.join("shelf_test.nvs"),
+        JUDGED.replace(
+            "final class Shelf {",
+            "final class Above {\n    public static function one(int $n): int {\n        return $n - 1;\n    }\n}\n\nfinal class Shelf {",
+        ),
+    )
+    .unwrap();
+    check(&test_in(&dir, &["shelf_test.nvs", "--mutate"]));
+
+    let json = test_in(&dir, &["shelf_test.nvs", "--mutate", "--format", "json"]);
+    let document: serde_json::Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let record = document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .find(|m| m["key"] == COUNT_SURVIVOR)
+        .expect("the judged survivor has a record");
+    assert_eq!(record["outcome"], "survived");
+    assert_eq!(record["judged"], true);
+    assert_eq!(record["reason"], "a count is never negative");
+}
+
+/// An entry whose key no mutant of the program has is named in a warning,
+/// and the run still passes.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_names_a_judged_entry_that_matches_no_mutant() {
+    let dir = judged_dir(
+        "mutate-judged-stale",
+        "[[judged]]\nmutant = \"Shelf::gone#1: `<` to `<=`\"\nreason = \"it was removed\"\n",
+    );
+    let out = test_in(&dir, &["shelf_test.nvs", "--mutate"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
+    assert!(
+        stderr.contains(
+            "warning: mutants.toml: no mutant of this program has the key `Shelf::gone#1: `<` to `<=``"
+        ),
+        "{stderr}"
+    );
+}
+
+/// An entry with no reason is an error, and no test runs.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_refuses_a_judged_entry_with_no_reason() {
+    let dir = judged_dir(
+        "mutate-judged-no-reason",
+        &format!("[[judged]]\nmutant = \"{COUNT_SURVIVOR}\"\nreason = \"\"\n"),
+    );
+    let out = test_in(&dir, &["shelf_test.nvs", "--mutate"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{stdout}{stderr}");
+    assert!(
+        stderr.contains("error: ") && stderr.contains("needs a non-empty `reason`"),
+        "{stderr}"
+    );
+    assert!(!stdout.contains("fitsFarInside"), "no test ran: {stdout}");
+}
+
+/// Survivors are grouped by function, most first, one line per source line
+/// with the key to paste. A log call and an exception message make no
+/// mutant.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_groups_survivors_by_function_with_one_line_per_source_line() {
+    let dir = judged_dir("mutate-grouped", "");
+    let out = test_in(&dir, &["shelf_test.nvs", "--mutate"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{stdout}");
+    let listed: Vec<&str> = stdout
+        .lines()
+        .skip_while(|line| !line.starts_with("  survived in"))
+        .collect();
+    assert_eq!(listed.len(), 4, "{stdout}");
+    assert_eq!(listed[0], "  survived in Shelf::fits (3):", "{stdout}");
+    assert!(
+        listed[1].starts_with("    shelf_test.nvs:7  ")
+            && listed[1].contains(" (+2 more on this line)  mutant = \"Shelf::fits#1: "),
+        "{stdout}"
+    );
+    assert_eq!(listed[2], "  survived in Shelf::count (1):", "{stdout}");
+    assert_eq!(
+        listed[3],
+        format!("    shelf_test.nvs:12  `<` to `<=`  mutant = \"{COUNT_SURVIVOR}\""),
+    );
+
+    let json = test_in(&dir, &["shelf_test.nvs", "--mutate", "--format", "json"]);
+    let document: serde_json::Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let lines: Vec<u64> = document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .filter_map(|m| m["line"].as_u64())
+        .collect();
+    assert!(
+        !lines.contains(&11) && !lines.contains(&13),
+        "the log call and the exception message made a mutant: {lines:?}"
+    );
+}
+
 /// The entry of a program in three files: `Cart` under `shop/`, `Post` under
 /// `blog/`, and the tests beside them.
 const AIMED_ENTRY: &str = r#"<?nvs
@@ -1191,7 +1366,8 @@ fn nvs_test_mutate_reports_each_mutant_and_fails_only_on_a_failing_test() {
         "{stdout}"
     );
     assert!(
-        stdout.contains("survived  stock_test.nvs:6  `>=` to `>`"),
+        stdout.contains("survived in Stock::atLeast (1):")
+            && stdout.contains("stock_test.nvs:6  `>=` to `>`"),
         "the survivor is named with its line and change: {stdout}"
     );
 

@@ -39,6 +39,15 @@
 //! function is `equivalent`, and one equal to an earlier mutant's in that
 //! function is a `duplicate`. Neither runs a test or counts in the score.
 //!
+//! # Judged survivors, and the report grouped by function
+//!
+//! [`Judgments`] reads `mutants.toml` from the program's folder before any
+//! test runs. A survivor whose key has an entry is judged: the report counts
+//! it and does not list it, and an `equivalent` one leaves the score. An
+//! entry no mutant of the program has is a warning. [`report`] lists the
+//! other survivors by function, most first, one line per source line, each
+//! ending with its key as a line to paste.
+//!
 //! # One mutant at a time
 //!
 //! Each mutant is lowered and compiled whole, with no artifact cache: the
@@ -117,6 +126,113 @@ pub(super) struct Scored {
     pub(super) tests: usize,
     /// For a `duplicate`, the key of the first mutant that compiled alike.
     pub(super) same_as: Option<String>,
+    /// For a survivor, its `mutants.toml` entry when it has one.
+    pub(super) judged: Option<Judgment>,
+}
+
+/// The file of judged survivors, in the program's folder.
+pub(super) const JUDGED_FILE: &str = "mutants.toml";
+
+/// One `[[judged]]` entry of [`JUDGED_FILE`]: a person read the survivor and
+/// wrote why it may stay.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Judgment {
+    pub(super) reason: String,
+    /// No test can tell the mutant from the program, so the score leaves it
+    /// out the way it leaves out an `equivalent` mutant.
+    pub(super) equivalent: bool,
+}
+
+/// [`JUDGED_FILE`]'s entries, by mutant key. Read once per `--mutate` run.
+///
+/// What it spends: one key and one reason per entry, for the run.
+#[derive(Default)]
+pub(super) struct Judgments(BTreeMap<String, Judgment>);
+
+impl Judgments {
+    /// Reads [`JUDGED_FILE`] from `folder`. No file is no entry. `Err` says
+    /// what is wrong with the file, and the run exits with status 2.
+    pub(super) fn read(folder: &std::path::Path) -> Result<Self, String> {
+        let path = folder.join(JUDGED_FILE);
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default());
+            }
+            Err(error) => return Err(format!("{} cannot be read: {error}", path.display())),
+        };
+        Self::parse(&text).map_err(|error| format!("{}: {error}", path.display()))
+    }
+
+    /// Parses the text of [`JUDGED_FILE`]. Every entry needs a `mutant` key
+    /// and a non-empty `reason`, and no other key but `equivalent` is allowed.
+    fn parse(text: &str) -> Result<Self, String> {
+        let mut table: toml::Table = text.parse().map_err(|error| format!("{error}"))?;
+        let entries = match table.remove("judged") {
+            None => Vec::new(),
+            Some(toml::Value::Array(entries)) => entries,
+            Some(_) => return Err("`judged` must be an array of tables: `[[judged]]`".to_owned()),
+        };
+        if let Some(other) = table.keys().next() {
+            return Err(format!(
+                "`{other}` is not a setting of this file; only `[[judged]]` is"
+            ));
+        }
+        let mut judgments = BTreeMap::new();
+        for (at, entry) in entries.into_iter().enumerate() {
+            let nth = at + 1;
+            let toml::Value::Table(mut entry) = entry else {
+                return Err(format!("entry {nth} of `judged` is not a table"));
+            };
+            let text = |entry: &mut toml::Table, name: &str| match entry.remove(name) {
+                Some(toml::Value::String(value)) if !value.trim().is_empty() => Ok(value),
+                Some(toml::Value::String(_)) | None => Err(format!(
+                    "entry {nth} of `judged` needs a non-empty `{name}`"
+                )),
+                Some(_) => Err(format!(
+                    "`{name}` in entry {nth} of `judged` must be a string"
+                )),
+            };
+            let mutant = text(&mut entry, "mutant")?;
+            let reason = text(&mut entry, "reason")?;
+            let equivalent = match entry.remove("equivalent") {
+                None => false,
+                Some(toml::Value::Boolean(value)) => value,
+                Some(_) => {
+                    return Err(format!(
+                        "`equivalent` in entry {nth} of `judged` must be `true` or `false`"
+                    ));
+                }
+            };
+            if let Some(other) = entry.keys().next() {
+                return Err(format!(
+                    "`{other}` in entry {nth} of `judged` is not allowed; use `mutant`, `reason` and `equivalent`"
+                ));
+            }
+            if judgments
+                .insert(mutant.clone(), Judgment { reason, equivalent })
+                .is_some()
+            {
+                return Err(format!("`{mutant}` is judged twice"));
+            }
+        }
+        Ok(Self(judgments))
+    }
+
+    /// Marks each survivor in `scored` whose key has an entry. Gives each
+    /// entry's key that none of `keys`, every mutant of the program, has.
+    pub(super) fn apply(&self, scored: &mut [Scored], keys: &BTreeSet<String>) -> Vec<String> {
+        for mutant in scored.iter_mut() {
+            if mutant.verdict == Verdict::Survived {
+                mutant.judged = self.0.get(&mutant.key).cloned();
+            }
+        }
+        self.0
+            .keys()
+            .filter(|key| !keys.contains(*key))
+            .cloned()
+            .collect()
+    }
 }
 
 /// What every mutant's run shares.
@@ -141,8 +257,9 @@ pub(super) struct Listed {
 }
 
 /// Every mutant of `checked` that `aim` keeps, in the order its sites are
-/// lowered, each with its key.
-pub(super) fn list(checked: &crate::Checked, aim: &Aim) -> Vec<Listed> {
+/// lowered, each with its key; and the key of every mutant of the program,
+/// kept or not.
+pub(super) fn list(checked: &crate::Checked, aim: &Aim) -> (Vec<Listed>, BTreeSet<String>) {
     let files = checked.program_files();
     let mutants = nvs_ir::lower::mutants(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
@@ -153,12 +270,14 @@ pub(super) fn list(checked: &crate::Checked, aim: &Aim) -> Vec<Listed> {
         &checked.layouts,
     );
     let keys = keys(&mutants);
-    mutants
+    let every = keys.iter().cloned().collect();
+    let listed = mutants
         .into_iter()
         .zip(keys)
         .filter(|(mutant, _)| aim.keeps(checked, mutant))
         .map(|(mutant, key)| Listed { mutant, key })
-        .collect()
+        .collect();
+    (listed, every)
 }
 
 /// Each mutant's key, in `mutants`' order. The count runs over the mutants of
@@ -363,6 +482,7 @@ pub(super) fn score(
             verdict,
             tests: reached,
             same_as,
+            judged: None,
         });
     }
     Ok(scored)
@@ -541,8 +661,9 @@ fn limit(baseline: &[Case]) -> Duration {
     slowest.saturating_mul(10) + Duration::from_secs(1)
 }
 
-/// The human report's lines: the four counts, the score, then each survived
-/// mutant.
+/// The human report's lines: the four counts, the skipped and judged counts,
+/// the score, then the survivors no `mutants.toml` entry judged, grouped by
+/// function ([`survivors`]).
 pub(super) fn report(scored: &[Scored]) -> String {
     let count = |verdict: Verdict| scored.iter().filter(|s| s.verdict == verdict).count();
     let (killed, survived, timed_out, unreached) = (
@@ -560,7 +681,17 @@ pub(super) fn report(scored: &[Scored]) -> String {
             "  skipped: {equivalent} equivalent, {duplicate} duplicate (compiled to the same code, so no test ran)\n"
         ));
     }
-    let reached = scored.len() - unreached - equivalent - duplicate;
+    let judged = scored.iter().filter(|s| s.judged.is_some()).count();
+    let judged_equivalent = scored
+        .iter()
+        .filter(|s| s.judged.as_ref().is_some_and(|j| j.equivalent))
+        .count();
+    if judged > 0 {
+        out.push_str(&format!(
+            "  judged: {judged} survived (in {JUDGED_FILE}, so they are not listed below)\n"
+        ));
+    }
+    let reached = scored.len() - unreached - equivalent - duplicate - judged_equivalent;
     if reached > 0 {
         out.push_str(&format!(
             "  mutation score: {:.1}% ({} of {reached} reached mutants made a test fail or time out)\n",
@@ -568,13 +699,68 @@ pub(super) fn report(scored: &[Scored]) -> String {
             killed + timed_out
         ));
     }
-    for survivor in scored.iter().filter(|s| s.verdict == Verdict::Survived) {
-        out.push_str(&format!(
-            "  survived  {}:{}  {}\n",
-            survivor.file, survivor.line, survivor.change
-        ));
+    out.push_str(&survivors(scored));
+    out
+}
+
+/// The survivors no `mutants.toml` entry judged, grouped by function: the
+/// function with the most first, then by name. Each source line is one line:
+/// its first survivor's change, how many more are on that line, and the
+/// survivor's key as a `mutants.toml` line. A `duplicate` of such a survivor
+/// is listed with it, since it would have come out the same.
+fn survivors(scored: &[Scored]) -> String {
+    let by_key: BTreeMap<&str, &Scored> = scored.iter().map(|s| (s.key.as_str(), s)).collect();
+    let open = |s: &Scored| s.verdict == Verdict::Survived && s.judged.is_none();
+    let mut functions: BTreeMap<&str, Vec<&Scored>> = BTreeMap::new();
+    for mutant in scored {
+        let listed = open(mutant)
+            || (mutant.verdict == Verdict::Duplicate
+                && mutant
+                    .same_as
+                    .as_deref()
+                    .and_then(|first| by_key.get(first))
+                    .is_some_and(|first| open(first)));
+        if listed {
+            functions
+                .entry(mutant.function.as_str())
+                .or_default()
+                .push(mutant);
+        }
+    }
+    let mut functions: Vec<(&str, Vec<&Scored>)> = functions.into_iter().collect();
+    functions.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.0.cmp(b.0)));
+    let mut out = String::new();
+    for (function, mutants) in functions {
+        out.push_str(&format!("  survived in {function} ({}):\n", mutants.len()));
+        let mut lines: BTreeMap<(&str, usize), Vec<&Scored>> = BTreeMap::new();
+        for mutant in mutants {
+            lines
+                .entry((mutant.file.as_str(), mutant.line))
+                .or_default()
+                .push(mutant);
+        }
+        for ((file, line), mut on) in lines {
+            // A real survivor names the line before a duplicate of one.
+            on.sort_by_key(|mutant| mutant.verdict == Verdict::Duplicate);
+            let first = on[0];
+            let more = match on.len() {
+                1 => String::new(),
+                n => format!(" (+{} more on this line)", n - 1),
+            };
+            let key = first.same_as.as_deref().unwrap_or(&first.key);
+            out.push_str(&format!(
+                "    {file}:{line}  {}{more}  mutant = \"{}\"\n",
+                first.change,
+                toml_escaped(key)
+            ));
+        }
     }
     out
+}
+
+/// `text` as the inside of a TOML basic string.
+fn toml_escaped(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 #[cfg(test)]
@@ -631,7 +817,7 @@ mod tests {
                 .all(|case| case.outcome.verdict() == "passed"),
             "every test passes before any change is made"
         );
-        let listed = list(&checked, &Aim::default());
+        let (listed, _) = list(&checked, &Aim::default());
         // Every mutant compiles, the unreached ones included, which `score` never compiles.
         let files = checked.program_files();
         for super::Listed { mutant, .. } in &listed {
@@ -706,7 +892,7 @@ mod tests {
         );
         let report = super::report(&scored);
         assert!(
-            report.contains("  survived  ") && report.contains("`>=` to `>`"),
+            report.contains("  survived in ") && report.contains("`>=` to `>`"),
             "the human report lists the survived mutant: {report}"
         );
     }
@@ -724,6 +910,10 @@ mod tests {
                 verdict: Verdict::Survived,
                 tests: 2,
                 same_as: None,
+                judged: Some(super::Judgment {
+                    reason: "the loop ends on the same item".to_owned(),
+                    equivalent: true,
+                }),
             },
             Scored {
                 file: "src/Shop.nvs".to_owned(),
@@ -734,6 +924,7 @@ mod tests {
                 verdict: Verdict::TimedOut,
                 tests: 1,
                 same_as: None,
+                judged: None,
             },
             Scored {
                 file: "src/Shop.nvs".to_owned(),
@@ -744,6 +935,7 @@ mod tests {
                 verdict: Verdict::Duplicate,
                 tests: 0,
                 same_as: Some(r"Shop\Cart::empty#1: `==` to `!=`".to_owned()),
+                judged: None,
             },
         ];
         let document = json_document(
@@ -794,5 +986,112 @@ mod tests {
             same_as,
             [None, None, Some(r"Shop\Cart::empty#1: `==` to `!=`")]
         );
+        let judged: Vec<(Option<bool>, Option<&str>, Option<bool>)> = mutants
+            .iter()
+            .map(|record| {
+                (
+                    record["judged"].as_bool(),
+                    record["reason"].as_str(),
+                    record["equivalent"].as_bool(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            judged,
+            [
+                (
+                    Some(true),
+                    Some("the loop ends on the same item"),
+                    Some(true)
+                ),
+                (None, None, None),
+                (None, None, None),
+            ]
+        );
+    }
+
+    /// One survivor for `function` at `line`, with the `n`th key of `change`.
+    fn survivor(function: &str, line: usize, change: &str, n: usize) -> Scored {
+        Scored {
+            file: "shop.nvs".to_owned(),
+            line,
+            function: function.to_owned(),
+            key: format!("{function}#{n}: {change}"),
+            change: change.to_owned(),
+            verdict: Verdict::Survived,
+            tests: 1,
+            same_as: None,
+            judged: None,
+        }
+    }
+
+    /// `rule:testing/mutation-testing`: survivors are grouped by function,
+    /// most first, with one line per source line and the key to paste.
+    #[test]
+    fn the_report_groups_survivors_by_function() {
+        let mut duplicate = survivor(r"Shop\Cart::total", 7, "`condition` to `!condition`", 1);
+        duplicate.verdict = Verdict::Duplicate;
+        duplicate.same_as = Some(r"Shop\Cart::total#1: `<` to `<=`".to_owned());
+        let scored = vec![
+            survivor(r"Shop\Cart::empty", 20, "`true` to `false`", 1),
+            survivor(r"Shop\Cart::total", 7, "`<` to `<=`", 1),
+            duplicate,
+            survivor(r"Shop\Cart::total", 9, "`+` to `-`", 1),
+        ];
+        let report = super::report(&scored);
+        let listed: Vec<&str> = report
+            .lines()
+            .skip_while(|line| !line.starts_with("  survived in"))
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                r"  survived in Shop\Cart::total (3):",
+                r#"    shop.nvs:7  `<` to `<=` (+1 more on this line)  mutant = "Shop\\Cart::total#1: `<` to `<=`""#,
+                r#"    shop.nvs:9  `+` to `-`  mutant = "Shop\\Cart::total#1: `+` to `-`""#,
+                r"  survived in Shop\Cart::empty (1):",
+                r#"    shop.nvs:20  `true` to `false`  mutant = "Shop\\Cart::empty#1: `true` to `false`""#,
+            ],
+        );
+    }
+
+    /// `mutants.toml` needs a key and a reason in each entry, and allows no
+    /// other setting.
+    #[test]
+    fn a_judged_file_is_read_strictly() {
+        let read = super::Judgments::parse(
+            "[[judged]]\nmutant = \"Cart::total#1: `<` to `<=`\"\nreason = \"same item\"\nequivalent = true\n",
+        )
+        .expect("a well-formed file");
+        assert_eq!(
+            read.0.get("Cart::total#1: `<` to `<=`"),
+            Some(&super::Judgment {
+                reason: "same item".to_owned(),
+                equivalent: true,
+            })
+        );
+        for (text, error) in [
+            ("[[judged]]\nmutant = \"a\"\n", "needs a non-empty `reason`"),
+            (
+                "[[judged]]\nmutant = \"a\"\nreason = \" \"\n",
+                "needs a non-empty `reason`",
+            ),
+            ("[[judged]]\nreason = \"r\"\n", "needs a non-empty `mutant`"),
+            (
+                "[[judged]]\nmutant = \"a\"\nreason = \"r\"\nwhy = 1\n",
+                "`why`",
+            ),
+            ("judged = 1\n", "array of tables"),
+            ("[other]\n", "`other`"),
+            (
+                "[[judged]]\nmutant = \"a\"\nreason = \"r\"\n[[judged]]\nmutant = \"a\"\nreason = \"s\"\n",
+                "judged twice",
+            ),
+        ] {
+            match super::Judgments::parse(text) {
+                Ok(_) => panic!("{text:?} was read"),
+                Err(message) => assert!(message.contains(error), "{text:?}: {message}"),
+            }
+        }
     }
 }

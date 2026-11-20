@@ -1049,8 +1049,9 @@ pub(crate) fn run(
         },
         None => mutation::Aim::default(),
     };
-    // `--since`'s changed lines, read from git in the program's folder before any test runs.
-    if let Some(reference) = since.as_deref() {
+    // The program's folder: the one `nvs.toml` is in, or with no project the
+    // entry file's. `--since` runs git there, and `mutants.toml` is read there.
+    let program_folder = || {
         let folder = snapshot.folder().or_else(|| {
             checked
                 .map
@@ -1061,10 +1062,26 @@ pub(crate) fn run(
                 .map(Path::to_path_buf)
         });
         let folder = folder.unwrap_or_else(|| PathBuf::from("."));
-        let folder = match folder.as_os_str().is_empty() {
+        match folder.as_os_str().is_empty() {
             true => PathBuf::from("."),
             false => folder,
-        };
+        }
+    };
+    // `mutants.toml`'s judged survivors, read before any test runs so a
+    // malformed file costs no suite.
+    let judgments = match mutate {
+        true => match mutation::Judgments::read(&program_folder()) {
+            Ok(judgments) => judgments,
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        },
+        false => mutation::Judgments::default(),
+    };
+    // `--since`'s changed lines, read from git in the program's folder before any test runs.
+    if let Some(reference) = since.as_deref() {
+        let folder = program_folder();
         let changed = match since::changed(&folder, reference) {
             Ok(changed) => changed,
             Err(error) => {
@@ -1212,7 +1229,7 @@ pub(crate) fn run(
             Some(Vec::new())
         }
         (true, true) => {
-            let listed = mutation::list(&checked, &aim);
+            let (listed, keys) = mutation::list(&checked, &aim);
             let note = match listed.len() {
                 1 => "\n  1 mutant: it runs the tests that reach its line".to_owned(),
                 n => format!("\n  {n} mutants: each one runs the tests that reach its line"),
@@ -1238,7 +1255,15 @@ pub(crate) fn run(
                 select,
             };
             match mutation::score(&checked, &listed, &cases, &stmts, &runs) {
-                Ok(scored) => Some(scored),
+                Ok(mut scored) => {
+                    for key in judgments.apply(&mut scored, &keys) {
+                        eprintln!(
+                            "warning: {}: no mutant of this program has the key `{key}`",
+                            mutation::JUDGED_FILE
+                        );
+                    }
+                    Some(scored)
+                }
                 Err(error) => {
                     crate::report_internal(error);
                     return ExitCode::FAILURE;
@@ -4788,7 +4813,9 @@ fn report(
 ///
 /// **Version 5 is what `--mutate` writes**: version 4 with `function` and `key`
 /// on each mutant record, the label of the function the mutant is in and
-/// [`mutation::Listed::key`].
+/// [`mutation::Listed::key`]; `sameAs` on a `duplicate`; and on a survived
+/// mutant that `mutants.toml` judged, `judged: true`, its `reason` and its
+/// `equivalent` flag.
 fn json_document(
     cases: &[Case],
     counts: Counts,
@@ -4904,6 +4931,11 @@ fn json_document(
             if let Some(first) = &mutant.same_as {
                 out.push_str(", \"sameAs\": ");
                 json_string(first, &mut out);
+            }
+            if let Some(judged) = &mutant.judged {
+                out.push_str(", \"judged\": true, \"reason\": ");
+                json_string(&judged.reason, &mut out);
+                out.push_str(&format!(", \"equivalent\": {}", judged.equivalent));
             }
             out.push_str(&format!(", \"tests\": {}}}", mutant.tests));
         }
