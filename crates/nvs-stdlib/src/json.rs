@@ -1687,6 +1687,10 @@ impl Frame {
                 while *next < desc.field_count() {
                     let slot = *next;
                     *next += 1;
+                    // A revocable class's hidden slot is no property.
+                    if desc.is_hidden_slot(slot) {
+                        continue;
+                    }
                     let value = object.field(slot);
                     // An optional field the document a hydration read did not
                     // carry (`rule:types/shape-type`) is the never-written

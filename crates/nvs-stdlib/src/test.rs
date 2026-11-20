@@ -4291,7 +4291,7 @@ fn object_difference(
                   outlives every instance of the class it describes"
     )]
     let desc = unsafe { &*left.class() };
-    for slot in 0..left.field_count().min(right.field_count()) {
+    for slot in desc.first_property_slot()..left.field_count().min(right.field_count()) {
         let name = desc
             .field_name(slot)
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);

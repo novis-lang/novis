@@ -433,7 +433,14 @@ fn walk<C: Carrier>(
             let holder = carrier.open_object(class, adopt.then_some(value));
             seen.insert(ptr, holder.clone());
             for index in 0..object.field_count() {
-                let field = object.field(index);
+                // A revocable class's hidden slot is copied as `null`: the
+                // copy is in no collection, and a shared memberships list
+                // would be freed twice.
+                let field = if class.is_hidden_slot(index) {
+                    Value::null()
+                } else {
+                    object.field(index)
+                };
                 retain(field);
                 let child = match walk(carrier, field, seen, depth + 1) {
                     Ok(child) => child,

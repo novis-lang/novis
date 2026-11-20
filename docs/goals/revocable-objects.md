@@ -318,6 +318,14 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
     hidden slot is a `null` `Value` whose payload is zero, the `Memberships` box while the object is
     not revoked, or the site blob once it is. `crate::revoke`'s module doc and
     `rule:core-api/collections-drop-revoked-objects` say so.
+17. **The hidden slot is a named field, and its name is the class's flag (stage 2's call).**
+    `flatten_fields` gives a revocable root, and so each subclass, a first slot named
+    `nvs_runtime::revoke::HIDDEN_SLOT_NAME` (`#revocable`, which no property can be). Codegen calls
+    `set_revocable` for a class whose first slot has that name, so no `revocable` field is carried
+    through `ClassLayout` and `nvs_ir::ir::Class`, and the slot and the flag cannot disagree.
+    `ClassDesc::field_slot` and `field_name` never return the hidden slot, so reflection by a name
+    a program passes cannot reach it. `clone` leaves it null, the graph copy writes it as null, and
+    `ClassDesc::first_property_slot` and `is_hidden_slot` are what every other walker asks.
 
 ### More choices the authoring session made (settled)
 
@@ -473,17 +481,17 @@ the hidden slot, `revoke()`, `isRevoked()` and the thrower. Nothing calls the th
 - [x] `crates/nvs-codegen/src/emit.rs:4766`: the inline release's "above one" bound becomes the flag
   bit, as decision 8 says. The asserts at `emit.rs:112` gain the flag's. `emit.rs:4795`'s retain needs
   no change.
-- [ ] `crates/nvs-types/src/layout.rs:1002` `flatten_fields`: a revocable root class gets the hidden
+- [x] `crates/nvs-types/src/layout.rs:1002` `flatten_fields`: a revocable root class gets the hidden
   slot first, and the runtime's class descriptor carries it. A class that is not revocable is
   unchanged.
-  - [ ] List every walker of a descriptor's field names or slots (reflection, `Core\Json`, `Core\Debug`,
+  - [x] List every walker of a descriptor's field names or slots (reflection, `Core\Json`, `Core\Debug`,
     `serialize`, the graph copy, `clone`, the codecs, the constructor's defaults) with an `Explore`
     subagent.
-  - [ ] `flatten_fields` puts the hidden slot first for a class whose root implements `Revocable`,
-    and `ClassLayout` carries `revocable`; `nvs_ir::ir::Class` carries it down and codegen calls
-    `ClassTable::set_revocable`.
-  - [ ] Every walker skips slot 0 of a revocable descriptor; `clone` and the graph copy start it null.
-  - [ ] `a_class_that_is_not_revocable_has_no_hidden_slot` in `layout.rs`'s tests.
+  - [x] `flatten_fields` puts the hidden slot first for a class whose root implements `Revocable`,
+    and codegen calls `ClassTable::set_revocable` for a class whose first slot is the hidden one
+    (decision 17: no `revocable` field on `ClassLayout` or `nvs_ir::ir::Class`).
+  - [x] Every walker skips slot 0 of a revocable descriptor; `clone` and the graph copy start it null.
+  - [x] `a_class_that_is_not_revocable_has_no_hidden_slot` in `layout.rs`'s tests.
 - [ ] `revoke()` and `isRevoked()` lower to calls of `revoke` and `is_revoked` with the call site's
   constant. A reflective or erased call of either reaches the same functions.
 - [ ] The four tests of the `runtime-flag` check in `revoke.rs`'s test module, and

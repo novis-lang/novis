@@ -1912,6 +1912,21 @@ impl ClassDesc {
         self.fields.len()
     }
 
+    /// The first slot that holds a property: 1 for a revocable class, whose
+    /// slot 0 is the hidden slot ([`crate::revoke`]), and 0 for every other
+    /// class. A walk over a class's properties starts here.
+    #[must_use]
+    pub fn first_property_slot(&self) -> usize {
+        usize::from(self.revocable)
+    }
+
+    /// Whether slot `index` is a revocable class's hidden slot, which no walk
+    /// of properties reads, copies or names.
+    #[must_use]
+    pub fn is_hidden_slot(&self, index: usize) -> bool {
+        self.revocable && index == crate::revoke::HIDDEN_SLOT
+    }
+
     /// The slot `name` occupies on an instance of this class, or `None` if
     /// this class has no such field —
     /// `rule:types/erased-member-access`'s
@@ -1936,6 +1951,11 @@ impl ClassDesc {
         clippy::arithmetic_side_effects
     )]
     pub fn field_slot(&self, name: &str, hint: usize) -> Option<usize> {
+        // A revocable class's hidden slot is no property, and a name a program
+        // passes to reflection must never reach it.
+        if self.revocable && name == crate::revoke::HIDDEN_SLOT_NAME {
+            return None;
+        }
         if self.fields.get(hint).is_some_and(|field| field == name) {
             return Some(hint);
         }
@@ -1951,6 +1971,11 @@ impl ClassDesc {
     /// here — a `$obj->prop` on a named class is a fixed offset.
     #[must_use]
     pub fn field_name(&self, index: usize) -> Option<&str> {
+        // A revocable class's hidden slot is no property, so it has no name a
+        // reader could print or look up.
+        if self.is_hidden_slot(index) {
+            return None;
+        }
         self.fields.get(index).map(String::as_str)
     }
 
@@ -5269,7 +5294,12 @@ pub unsafe extern "C" fn nvs_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
         let copy = NvsObj::alloc(source.class());
         (source, copy)
     };
-    for index in 0..source.field_count() {
+    // A copy is in no collection and is not revoked, so a revocable class's
+    // hidden slot stays the `null` the allocation wrote. Copying it would give
+    // two objects one memberships list, freed twice.
+    #[expect(unsafe_code, reason = "a live object's descriptor outlives it")]
+    let first = unsafe { &*source.class() }.first_property_slot();
+    for index in first..source.field_count() {
         let value = source.field(index);
         #[expect(
             unsafe_code,

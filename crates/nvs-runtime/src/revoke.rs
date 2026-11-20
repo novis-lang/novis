@@ -50,6 +50,12 @@ const _: () = assert!(crate::IMMORTAL_REFCOUNT & REVOKED != 0);
 /// The slot index of a revocable class's hidden slot.
 pub const HIDDEN_SLOT: usize = 0;
 
+/// The name the hidden slot has in a class's field list. No property can have
+/// it, because a property's name is an identifier and this starts with `#`.
+/// [`crate::ClassDesc::field_slot`] never returns the hidden slot, so no lookup
+/// by a name a program gives reaches it.
+pub const HIDDEN_SLOT_NAME: &str = "#revocable";
+
 /// The reference count a count word holds, without the revoked flag. The
 /// immortal count is returned unchanged.
 #[must_use]

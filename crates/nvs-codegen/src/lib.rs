@@ -2107,6 +2107,16 @@ impl Classes {
         if class.no_instances {
             self.table.set_no_instances(id);
         }
+        // `rule:classes/revocable-objects`: `nvs_types::layout` gives a
+        // revocable class, and each of its subclasses, the hidden slot first,
+        // so that slot is the one sign the class is revocable.
+        if class
+            .fields
+            .first()
+            .is_some_and(|field| field == nvs_runtime::revoke::HIDDEN_SLOT_NAME)
+        {
+            self.table.set_revocable(id);
+        }
         // `rule:routing/a-gate-answers-around-every-handler`'s `Responder`
         // bit, read off the supertype set the front end resolved. The edge
         // above skips the label, because a `Core` contract has no descriptor,

@@ -33,6 +33,14 @@
 //! [`crate::signatures::PropertyHooks`] owns that decision and what it
 //! spends.
 //!
+//! A root class that implements `Revocable` claims one more slot, slot 0,
+//! before its own properties (`rule:classes/revocable-objects`). It is named
+//! [`nvs_runtime::revoke::HIDDEN_SLOT_NAME`], which no property can be, so no
+//! lookup by a property's name finds it. Every subclass inherits it at the same
+//! index, and `nvs-codegen` reads a first slot of that name as the class being
+//! revocable, so the slot and the class's flag cannot disagree. A class that is
+//! not revocable has no such slot.
+//!
 //! Two kinds of type have no entry at all, by decision rather than by
 //! omission. An **enum** has none: `rule:enums/closed-integer-type` makes it a closed integer
 //! value type, not an instance with fields. A **`Core` class** has none
@@ -1045,6 +1053,24 @@ fn flatten_fields<'a>(
         for parent in &links.extends {
             flatten_fields(parent, graph, own, fields, seen);
         }
+        // A revocable root's hidden slot comes before its own properties, so
+        // it is slot 0 in every class of its tree. Only a root may implement
+        // `Revocable`; one below the root is already an error, and gets none.
+        let revocable = QName::parse(nvs_hir::interfaces::REVOCABLE);
+        if links.extends.is_empty()
+            && links.implements.contains(&revocable)
+            && seen
+                .names
+                .insert((nvs_runtime::revoke::HIDDEN_SLOT_NAME, false))
+        {
+            fields.push((
+                nvs_runtime::revoke::HIDDEN_SLOT_NAME.to_owned(),
+                false,
+                false,
+                false,
+                String::new(),
+            ));
+        }
     }
     if let Some(names) = own.get(qname) {
         for slot in names {
@@ -1208,6 +1234,25 @@ mod tests {
         assert_eq!(layout.slot_of("y"), Some(1));
         assert_eq!(layout.slot_of("z"), None);
         assert!(layout.conforms.is_empty());
+    }
+
+    // covers: lang:classes/revocable-objects
+    #[test]
+    fn a_class_that_is_not_revocable_has_no_hidden_slot() {
+        let table = layouts(
+            "<?nvs\nclass Plain {\n  public int $a = 0;\n}\n\
+             class Root implements Revocable {\n  public int $a = 0;\n}\n\
+             class Leaf extends Root {\n  public int $b = 0;\n}\n",
+        );
+        let hidden = nvs_runtime::revoke::HIDDEN_SLOT_NAME;
+        let plain = table.get("Plain").expect("Plain has a layout");
+        assert_eq!(plain.fields, ["a"]);
+        assert_eq!(plain.slot_of("a"), Some(0));
+        let root = table.get("Root").expect("Root has a layout");
+        assert_eq!(root.fields, [hidden, "a"]);
+        let leaf = table.get("Leaf").expect("Leaf has a layout");
+        assert_eq!(leaf.fields, [hidden, "a", "b"]);
+        assert_eq!(leaf.slot_of("a"), root.slot_of("a"));
     }
 
     #[test]
