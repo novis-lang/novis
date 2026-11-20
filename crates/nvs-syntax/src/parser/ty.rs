@@ -864,10 +864,26 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// it cannot be confused with the `?` of a nullable type after it: `{a?:
     /// ?int}` says both, and `{a?: int}` and `{a: ?int}` say different things.
     pub(super) fn parse_shape_type(&mut self) -> Type {
+        let (fields, span) = self.parse_shape_fields();
+        Type {
+            kind: TypeKind::Atom(TypeAtom::Shape(fields)),
+            span,
+        }
+    }
+
+    /// A shape's braces and the fields between them, and the span from `{`
+    /// through `}`. The body of an attribute declaration is this list too
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`).
+    ///
+    /// A `///` run above a field is that field's doc, taken as any
+    /// declaration takes its own, so it is attached and never reported as
+    /// documenting nothing.
+    pub(super) fn parse_shape_fields(&mut self) -> (Vec<ShapeField>, Span) {
         let start = self.bump().span; // '{'
         let mut fields = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let field_start = self.peek().span;
+            let doc = self.take_doc_comment(field_start);
             // A keyword is a field name here for the reason the value literal
             // gives in `Self::parse_anon_object_expr`: `{ class: string }`
             // is the type of `{ class: … }`, and a value the literal can build
@@ -886,16 +902,14 @@ impl<'src, 'd> Parser<'src, 'd> {
                 ty,
                 required,
                 span,
+                doc,
             });
             if self.eat(TokenKind::Comma).is_none() {
                 break;
             }
         }
         let close = self.expect(TokenKind::RBrace, "`}`");
-        Type {
-            kind: TypeKind::Atom(TypeAtom::Shape(fields)),
-            span: start.to(close),
-        }
+        (fields, start.to(close))
     }
 
     /// `tainted {…}`'s distribution — `rule:security/tainted-qualifier`. Every

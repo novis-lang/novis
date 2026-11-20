@@ -6074,6 +6074,7 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
                 ty: int(),
                 required: true,
                 span: at,
+                doc: None,
             }]),
             Some(Ty::Object),
         ),

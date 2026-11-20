@@ -33,7 +33,7 @@
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_syntax::Parsed;
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumDecl, Stmt, StmtKind,
+    ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumDecl, ShapeField, Stmt, StmtKind,
 };
 
 /// Whether `diagnostic` is a doc tag error the parse raises, which leaves the
@@ -94,8 +94,19 @@ fn push_stmts(edits: &mut Vec<Edit>, stmts: &[Stmt], text: &str) {
             }
             StmtKind::EnumDecl(decl) => push_enum(edits, decl, text),
             StmtKind::TypeAliasDecl(decl) => push(edits, decl.doc.as_ref(), &[], text),
+            StmtKind::AttributeDecl(decl) => {
+                push(edits, decl.doc.as_ref(), &[], text);
+                push_fields(edits, &decl.fields, text);
+            }
             _ => {}
         }
+    }
+}
+
+/// The doc of each field of an attribute declaration's body.
+fn push_fields(edits: &mut Vec<Edit>, fields: &[ShapeField], text: &str) {
+    for field in fields {
+        push(edits, field.doc.as_ref(), &[], text);
     }
 }
 
@@ -122,6 +133,10 @@ fn push_members(edits: &mut Vec<Edit>, members: &[ClassMember], text: &str) {
             ClassMemberKind::Enum(decl) => {
                 push(edits, member.doc.as_ref(), &[], text);
                 push_enum(edits, decl, text);
+            }
+            ClassMemberKind::Attribute(decl) => {
+                push(edits, member.doc.as_ref(), &[], text);
+                push_fields(edits, &decl.fields, text);
             }
             _ => push(edits, member.doc.as_ref(), &[], text),
         }

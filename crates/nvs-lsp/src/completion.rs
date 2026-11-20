@@ -2462,7 +2462,13 @@ fn namespace_kind(kind: DeclKind) -> Option<CompletionItemKind> {
         DeclKind::Interface => Some(CompletionItemKind::INTERFACE),
         DeclKind::Enum => Some(CompletionItemKind::ENUM),
         DeclKind::TypeAlias => Some(CompletionItemKind::TYPE_PARAMETER),
-        DeclKind::Method | DeclKind::Property | DeclKind::Const | DeclKind::EnumCase => None,
+        // An attribute is offered at `#[` alone, never after a separator in a
+        // type or an expression.
+        DeclKind::Attribute
+        | DeclKind::Method
+        | DeclKind::Property
+        | DeclKind::Const
+        | DeclKind::EnumCase => None,
     }
 }
 

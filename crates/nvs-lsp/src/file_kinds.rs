@@ -98,13 +98,18 @@ pub fn answer(index: &SymbolIndex) -> Vec<FileKind> {
 }
 
 /// The word the wire carries for a type-level kind, and `None` for a member,
-/// which no file declares on its own.
+/// which no file declares on its own. An attribute declaration is `None` too:
+/// the wire's four words are the ones the editor's list shows.
 const fn word(kind: DeclKind) -> Option<&'static str> {
     match kind {
         DeclKind::Class => Some("class"),
         DeclKind::Interface => Some("interface"),
         DeclKind::Enum => Some("enum"),
         DeclKind::TypeAlias => Some("type"),
-        DeclKind::Method | DeclKind::Property | DeclKind::Const | DeclKind::EnumCase => None,
+        DeclKind::Attribute
+        | DeclKind::Method
+        | DeclKind::Property
+        | DeclKind::Const
+        | DeclKind::EnumCase => None,
     }
 }

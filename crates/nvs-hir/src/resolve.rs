@@ -163,6 +163,9 @@ impl Resolver {
                 StmtKind::TypeAliasDecl(decl) => {
                     self.declare(SymbolKind::TypeAlias, &current_ns, &decl.name, src, diags);
                 }
+                StmtKind::AttributeDecl(decl) => {
+                    self.declare(SymbolKind::Attribute, &current_ns, &decl.name, src, diags);
+                }
                 _ => {}
             }
         }

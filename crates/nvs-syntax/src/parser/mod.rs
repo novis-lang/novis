@@ -55,15 +55,16 @@ use std::collections::VecDeque;
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    AnonClassDecl, AnonObjectField, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup,
-    AutoloadDecl, AutoloadKind, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl,
-    ClassMember, ClassMemberKind, ConstMember, DestructureElement, DestructureTarget, DocComment,
-    DocTag, DocTagKind, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit,
-    ForeachBinding, ForeachBindingTy, IfArm, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm,
-    MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget, Param, PropertyHook,
-    PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey,
-    StaticVar, Stmt, StmtKind, StringPart, SwitchCase, TestOperand, Type, TypeAliasDecl, TypeAtom,
-    TypeKind, UnaryOp, UseDecl, Visibility, WrittenModifier,
+    AnonClassDecl, AnonObjectField, Arg, ArrayItem, AssignOp, Attribute, AttributeDecl,
+    AttributeGroup, AttributeSite, AttributeSiteWord, AutoloadDecl, AutoloadKind, BinaryOp, Block,
+    CallArgs, CatchArm, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember,
+    DestructureElement, DestructureTarget, DocComment, DocTag, DocTagKind, EnumCase, EnumDecl,
+    Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ForeachBindingTy, IfArm,
+    ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
+    NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, PropertyHookKind,
+    PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart,
+    SwitchCase, TestOperand, Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
+    WrittenModifier,
 };
 use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;
@@ -859,11 +860,13 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     fn at_contextual(&mut self, word: &str) -> bool {
-        if !matches!(self.peek().kind, TokenKind::Ident) {
-            return false;
-        }
-        let span = self.peek().span;
-        self.ident_text(span) == word
+        self.contextual_at(0, word)
+    }
+
+    /// [`Self::at_contextual`] for the token `n` places ahead.
+    fn contextual_at(&mut self, n: usize, word: &str) -> bool {
+        let token = self.peek_at(n);
+        token.kind == TokenKind::Ident && self.ident_text(token.span) == word
     }
 
     fn error_expected(&mut self, what: &str) -> Span {

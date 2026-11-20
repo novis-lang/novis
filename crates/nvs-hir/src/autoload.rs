@@ -1503,8 +1503,8 @@ pub fn check_file_shape(
 
 /// The one declaration a file makes and its kind, when the file has the shape
 /// [`check_file_shape`] holds an autoloaded file to: exactly one class,
-/// interface, enum or `type` alias, and nothing else but `namespace` and
-/// `use`. Any other file is `None`, however it was reached.
+/// interface, enum, `type` alias or attribute declaration, and nothing else
+/// but `namespace` and `use`. Any other file is `None`, however it was reached.
 ///
 /// This is the same scan the check runs, so the shape an editor shows a file
 /// as and the shape the compiler accepts it in cannot disagree.
@@ -1536,6 +1536,7 @@ fn scan_shape(
             StmtKind::InterfaceDecl(d) => (d.name.span, SymbolKind::Interface),
             StmtKind::EnumDecl(d) => (d.name.span, SymbolKind::Enum),
             StmtKind::TypeAliasDecl(d) => (d.name.span, SymbolKind::TypeAlias),
+            StmtKind::AttributeDecl(d) => (d.name.span, SymbolKind::Attribute),
             StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
                 let named = name.as_ref().map_or_else(Vec::new, |name| {
                     let text = src.span_text(name.span).unwrap_or_default();

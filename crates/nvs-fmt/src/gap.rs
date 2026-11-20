@@ -141,6 +141,10 @@ const COLONS: &[&str] = &[
     "EnumDecl",
 ];
 
+/// The node kind of an attribute declaration, whose header's words take
+/// [`Pairs::words`]' own row.
+const ATTRIBUTE_DECL: &str = "AttributeDecl";
+
 /// The node kinds whose own `:` ends a label: nothing before it, and the run
 /// after it is the author's.
 const LABELS: &[&str] = &["Case", "Switch"];
@@ -384,6 +388,21 @@ impl<'a> Pairs<'a> {
     /// and the word after it.
     fn words(&self, at: usize) -> Option<&'static str> {
         let right = self.tokens[at + 1];
+        // An attribute declaration's header is contextual words, a name and
+        // site words, all of them identifiers to the lexer, and the body's
+        // `{` after them: one space between each two.
+        if self.node_at(at) == Some(ATTRIBUTE_DECL)
+            && matches!(
+                self.tokens[at].kind,
+                TokenKind::Ident | TokenKind::Keyword(_)
+            )
+            && matches!(
+                right.kind,
+                TokenKind::Ident | TokenKind::Keyword(_) | TokenKind::LBrace
+            )
+        {
+            return Some(SPACE);
+        }
         let right_is_keyword = self.keyword(at + 1).is_some();
         if self.keyword(at).is_some() {
             let follows = matches!(

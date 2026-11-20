@@ -2029,13 +2029,15 @@ fn call_item(
 ///
 /// A type alias is `TypeParameter` because LSP has no kind for an alias and
 /// that is the one whose icon says "a name standing for a type" rather than
-/// "a thing with members".
+/// "a thing with members". An attribute declaration is `Struct`, the kind for
+/// a set of named fields with no methods.
 const fn symbol_kind(kind: DeclKind) -> SymbolKind {
     match kind {
         DeclKind::Class => SymbolKind::CLASS,
         DeclKind::Interface => SymbolKind::INTERFACE,
         DeclKind::Enum => SymbolKind::ENUM,
         DeclKind::TypeAlias => SymbolKind::TYPE_PARAMETER,
+        DeclKind::Attribute => SymbolKind::STRUCT,
         DeclKind::Method => SymbolKind::METHOD,
         DeclKind::Property => SymbolKind::PROPERTY,
         DeclKind::Const => SymbolKind::CONSTANT,

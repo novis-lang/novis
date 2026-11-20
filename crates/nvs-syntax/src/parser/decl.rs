@@ -7,7 +7,9 @@
 //! ([`Parser::parse_enum_decl`]); their members — properties with PHP 8.4's
 //! hooks, consts, methods; `#[...]` attribute groups
 //! ([`Parser::parse_attribute_groups`], `rule:attributes/inert-metadata`); and `namespace`, `use`,
-//! `autoload` (`rule:programs/autoload`) and the `type`-alias declaration (`rule:statements/nothing-gets-a-second-name`).
+//! `autoload` (`rule:programs/autoload`), the `type`-alias declaration (`rule:statements/nothing-gets-a-second-name`)
+//! and the attribute declaration ([`Parser::at_attribute_decl`],
+//! `rule:attributes/an-attribute-is-declared-with-its-sites`).
 //!
 //! `trait`, class-body `use TraitName, ...;` and `insteadof` are all
 //! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
@@ -181,10 +183,25 @@ impl<'src, 'd> Parser<'src, 'd> {
     pub(super) fn parse_attribute(&mut self) -> Attribute {
         let start = self.peek().span;
         if self.at(TokenKind::LBrace) {
+            // `rule:attributes/an-attribute-is-declared-with-its-sites`: the
+            // bare form is gone. It is still parsed through its `}`, so the
+            // group closes where it was written and the declaration after it
+            // keeps its own diagnostics.
             let open = self.bump().span; // '{'
             let fields = self.parse_anon_object_fields(TokenKind::RBrace);
             let close = self.expect(TokenKind::RBrace, "`}`");
             let payload = open.to(close);
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_ATTRIBUTE_WITHOUT_A_NAME,
+                    "an attribute needs the name of an attribute declaration",
+                )
+                .with_primary(payload, "this attribute has no name")
+                .with_help(
+                    "declare the attribute with `attribute Name on <site> { … }`. Then write \
+                     `#[Name(…)]` here",
+                ),
+            );
             return Attribute {
                 name: None,
                 member: None,
@@ -548,6 +565,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | StmtKind::InterfaceDecl(_)
                 | StmtKind::EnumDecl(_)
                 | StmtKind::TypeAliasDecl(_)
+                | StmtKind::AttributeDecl(_)
                 | StmtKind::TopLevelFunction(_)
                 | StmtKind::TopLevelConst(_) => {
                     first.get_or_insert((stmt.span, false));
@@ -930,6 +948,133 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
+    /// `[repeatable] attribute Name` followed by `on` or the body's `{`
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). All three
+    /// words are contextual, so they are read by spelling here and nowhere
+    /// else, and `attribute` stays a name a program may use. A missing `on`
+    /// still starts the declaration, so its absence is one `E0141` and not a
+    /// cascade of statement errors.
+    pub(super) fn at_attribute_decl(&mut self) -> bool {
+        if self.at_contextual("repeatable") {
+            return self.contextual_at(1, "attribute");
+        }
+        self.at_contextual("attribute")
+            && Self::is_name_segment(self.peek_at(1).kind)
+            && (self.contextual_at(2, "on") || self.peek_at(2).kind == TokenKind::LBrace)
+    }
+
+    /// An attribute declaration at file or namespace scope.
+    pub(super) fn parse_attribute_decl(&mut self, start: Span) -> Stmt {
+        let doc = self.take_doc_comment(start);
+        let decl = self.parse_attribute_decl_body(start, doc);
+        Stmt {
+            span: decl.span,
+            kind: StmtKind::AttributeDecl(decl),
+        }
+    }
+
+    /// The declaration from `repeatable` or `attribute` through its `}`,
+    /// shared by the file-scope form and the class or interface member. `doc`
+    /// is the run the caller already took: a member's hangs on its
+    /// [`ClassMember`], so that site passes `None`.
+    fn parse_attribute_decl_body(&mut self, start: Span, doc: Option<DocComment>) -> AttributeDecl {
+        let repeatable = self.at_contextual("repeatable").then(|| self.bump().span);
+        self.bump(); // 'attribute' (contextual — see `Self::at_attribute_decl`)
+        let name = self.parse_decl_name("an attribute name");
+        let sites = self.parse_attribute_sites(name.span);
+        let (fields, body) = if self.at(TokenKind::LBrace) {
+            self.parse_shape_fields()
+        } else {
+            let at = self.error_expected("`{`");
+            (Vec::new(), at)
+        };
+        AttributeDecl {
+            span: start.to(self.last_span),
+            doc,
+            repeatable,
+            name,
+            sites,
+            fields,
+            body,
+        }
+    }
+
+    /// The `on` list of an attribute declaration. A missing or empty list is
+    /// one `E0141` at the name, and a word that is not one of the nine sites is
+    /// one `E0141` at the word, which is left out of the list.
+    fn parse_attribute_sites(&mut self, name: Span) -> Vec<AttributeSiteWord> {
+        let mut sites = Vec::new();
+        let Some(on) = self.at_contextual("on").then(|| self.bump().span) else {
+            self.report_no_attribute_sites(name, "add `on` and the places, such as `on class`");
+            return sites;
+        };
+        if !matches!(self.peek().kind, TokenKind::Ident | TokenKind::Keyword(_)) {
+            self.report_no_attribute_sites(on, "add the places after `on`, such as `on class`");
+            return sites;
+        }
+        loop {
+            if !matches!(self.peek().kind, TokenKind::Ident | TokenKind::Keyword(_)) {
+                self.error_expected("a place an attribute can be used, such as `class`");
+                break;
+            }
+            let span = self.bump().span;
+            match AttributeSite::from_word(self.ident_text(span)) {
+                Some(site) => sites.push(AttributeSiteWord { site, span }),
+                None => {
+                    let word = self.ident_text(span).to_owned();
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_ATTRIBUTE_SITES,
+                            format!("`{word}` is not a place an attribute can be used"),
+                        )
+                        .with_primary(span, "not a place")
+                        .with_help(Self::attribute_sites_help()),
+                    );
+                }
+            }
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        sites
+    }
+
+    fn report_no_attribute_sites(&mut self, at: Span, label: &str) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_SITES,
+                "an attribute declaration needs the places where the attribute can be used",
+            )
+            .with_primary(at, label.to_owned())
+            .with_help(Self::attribute_sites_help()),
+        );
+    }
+
+    /// The nine site words, as a help line names them.
+    fn attribute_sites_help() -> String {
+        let words: Vec<String> = AttributeSite::ALL
+            .iter()
+            .map(|site| format!("`{}`", site.word()))
+            .collect();
+        let (last, rest) = words.split_last().expect("nine sites");
+        format!("the places are {} and {last}", rest.join(", "))
+    }
+
+    /// An attribute declaration in an enum body is `E0142`: an enum has no
+    /// descendants, so nothing could use the attribute
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). It is
+    /// parsed through its `}` and then dropped, so the body after it parses.
+    fn refuse_attribute_decl_in_an_enum(&mut self, span: Span) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_DECL_IN_AN_ENUM,
+                "an attribute is not declared in an enum body",
+            )
+            .with_primary(span, "declared in an enum")
+            .with_help("declare it in a class or interface body, or at file scope"),
+        );
+    }
+
     /// The declaration from `type` through its `;`, shared by the file-scope
     /// form and the body member. `doc` is the run the caller already took: a
     /// member's hangs on its [`ClassMember`], so that site passes `None`.
@@ -1229,6 +1374,19 @@ impl<'src, 'd> Parser<'src, 'd> {
                 span: start.to(self.last_span),
                 doc: None,
                 kind: ClassMemberKind::TypeAlias(alias),
+            });
+            return;
+        }
+        // Asked before `can_start_type` for the same reason as `type`. An
+        // attribute declaration is reachable wherever its owner is, and an
+        // attribute on one would be a meta-attribute, which the rule declines.
+        if self.at_attribute_decl() {
+            self.refuse_decoration_on_a_type_alias(&attributes, modifiers_span);
+            let decl = self.parse_attribute_decl_body(start, None);
+            out.push(ClassMember {
+                span: start.to(self.last_span),
+                doc: None,
+                kind: ClassMemberKind::Attribute(decl),
             });
             return;
         }
@@ -1885,6 +2043,11 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if self.eat(TokenKind::Semicolon).is_none() {
                     self.eat(TokenKind::Comma);
                 }
+            } else if self.at_attribute_decl() {
+                // Ahead of the case arm, which would otherwise read the
+                // contextual `attribute` as a case's name.
+                let decl = self.parse_attribute_decl_body(before, None);
+                self.refuse_attribute_decl_in_an_enum(decl.span);
             } else if self.at_type_alias() {
                 // Ahead of the case arm, which would otherwise read the
                 // contextual `type` as the case's own name.
@@ -1922,7 +2085,15 @@ impl<'src, 'd> Parser<'src, 'd> {
                         .all(|m| matches!(m.kind, ClassMemberKind::TypeAlias(_)));
                 let an_enum = members.len() > first
                     && matches!(members[first].kind, ClassMemberKind::Enum(_));
-                if an_enum {
+                let an_attribute = members.len() > first
+                    && matches!(members[first].kind, ClassMemberKind::Attribute(_));
+                if an_attribute {
+                    // A modifier run in front of `attribute` reaches here.
+                    // `E0133` has refused the run, and the declaration is
+                    // refused as the arm above refuses it.
+                    members.truncate(first);
+                    self.refuse_attribute_decl_in_an_enum(before.to(self.last_span));
+                } else if an_enum {
                     // `rule:enums/class-scoped-enum`: a case list does not own
                     // another one. The enum is refused and not kept, so nothing
                     // after the parser meets an enum whose owner is an enum.
@@ -1997,6 +2168,14 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Keyword(Keyword::Function) if self.at_named_function_decl() => {
                 self.parse_toplevel_function_reject(start, attributes)
+            }
+            _ if self.at_attribute_decl() => {
+                self.refuse_decoration_on_a_type_alias(&attributes, None);
+                let decl = self.parse_attribute_decl_body(start, None);
+                Stmt {
+                    span: decl.span,
+                    kind: StmtKind::AttributeDecl(decl),
+                }
             }
             _ => {
                 self.error_expected("a declaration after `#[...]`");

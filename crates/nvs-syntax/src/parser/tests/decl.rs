@@ -1156,14 +1156,13 @@ fn an_autoload_declaration_owes_a_from_and_a_root() {
     }
 }
 
-/// `rule:attributes/attach-sites-and-forms`'s two attach forms carry one payload between them: the named
-/// `Name(field: value)` and the bare `{ field: value }` differ in whether a
-/// name was written and in nothing else, and a name written with no list at
-/// all attaches an empty literal rather than a second kind of attribute.
+/// `rule:attributes/attach-sites-and-forms` has one form, `Name(field: value)`,
+/// and a name written with no list at all attaches an empty literal rather
+/// than a second kind of attribute.
 #[test]
-fn both_attach_forms_carry_one_anon_object_payload() {
+fn a_named_attribute_and_a_listless_one_carry_one_anon_object_payload() {
     let s = parse_stmt_ok(
-        "#[Route(path: \"/users\", method: \"GET\"), {tag: 1}] \
+        "#[Route(path: \"/users\", method: \"GET\"), Tag(tag: 1)] \
          #[Audit] \
          class UserController {}",
     );
@@ -1174,9 +1173,9 @@ fn both_attach_forms_carry_one_anon_object_payload() {
     let named = &class.attributes[0].attributes[0];
     assert!(named.name.is_some());
     assert_eq!(named.fields.len(), 2);
-    let bare = &class.attributes[0].attributes[1];
-    assert!(bare.name.is_none());
-    assert_eq!(bare.fields.len(), 1);
+    let second = &class.attributes[0].attributes[1];
+    assert!(second.name.is_some());
+    assert_eq!(second.fields.len(), 1);
     let listless = &class.attributes[1].attributes[0];
     assert!(listless.name.is_some());
     assert!(listless.fields.is_empty());
@@ -1503,5 +1502,146 @@ fn let_and_is_name_no_method_and_no_parameter() {
     // A name that only starts with either word is not reserved.
     parse_stmt_ok(
         "class C { public static function isEven(int $isSet, int $letter): bool { return true; } }",
+    );
+}
+
+/// Parses `src` as a whole file, returning its map, its statements and every
+/// diagnostic.
+fn parse_whole(src: &str) -> (SourceMap, nvs_diagnostics::SourceId, Vec<Stmt>, Diagnostics) {
+    let mut map = SourceMap::new();
+    let id = map.add("t.nvs", src.to_owned());
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(id), &mut diags);
+    (map, id, stmts, diags)
+}
+
+/// The codes `src` reports, in order.
+fn codes_of(src: &str) -> Vec<&'static str> {
+    let (_, _, _, diags) = parse_whole(src);
+    diags
+        .iter()
+        .filter_map(|d| d.code.map(|code| code.as_str()))
+        .collect()
+}
+
+/// `rule:attributes/an-attribute-is-declared-with-its-sites`: a file-scope
+/// declaration keeps `repeatable`, its name, each site word with its span, its
+/// fields and the `///` doc of the declaration and of each field.
+#[test]
+fn an_attribute_declaration_at_file_scope() {
+    let (map, id, stmts, diags) = parse_whole(
+        "<?nvs\n/// Adds an index.\nrepeatable attribute Index on class, method {\n    \
+         /// The columns.\n    columns: string,\n    unique?: bool,\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let StmtKind::AttributeDecl(decl) = &stmts[0].kind else {
+        panic!("expected an attribute declaration: {stmts:?}");
+    };
+    assert!(decl.doc.is_some());
+    assert_eq!(
+        decl.repeatable.map(|s| text(&map, id, s)),
+        Some("repeatable")
+    );
+    assert_eq!(text(&map, id, decl.name.span), "Index");
+    let sites: Vec<_> = decl.sites.iter().map(|w| w.site).collect();
+    assert_eq!(sites, [AttributeSite::Class, AttributeSite::Method]);
+    assert_eq!(text(&map, id, decl.sites[1].span), "method");
+    assert_eq!(decl.fields.len(), 2);
+    assert!(decl.fields[0].required && !decl.fields[1].required);
+    assert!(decl.fields[0].doc.is_some() && decl.fields[1].doc.is_none());
+    assert!(text(&map, id, decl.body).starts_with('{'));
+}
+
+/// A class or interface body owns an attribute declaration, and the run above
+/// it hangs on the member. `attribute` stays a name a program may use.
+#[test]
+fn an_attribute_declaration_in_a_class_and_an_interface_body() {
+    for owner in ["abstract class Storable", "interface Exportable"] {
+        let (map, id, stmts, diags) = parse_whole(&format!(
+            "<?nvs\n{owner} {{\n    /// Sets a column.\n    \
+             attribute Column on property, parameter {{ name: string }}\n}}\n"
+        ));
+        assert!(!diags.has_errors(), "`{owner}`: {diags:?}");
+        let members = match &stmts[0].kind {
+            StmtKind::ClassDecl(class) => &class.members,
+            StmtKind::InterfaceDecl(iface) => &iface.members,
+            other => panic!("expected a body declaration: {other:?}"),
+        };
+        assert!(members[0].doc.is_some());
+        let ClassMemberKind::Attribute(decl) = &members[0].kind else {
+            panic!("expected an attribute member: {:?}", members[0]);
+        };
+        assert_eq!(text(&map, id, decl.name.span), "Column");
+        assert!(decl.repeatable.is_none() && decl.doc.is_none());
+    }
+    assert!(codes_of("<?nvs\nclass attribute {}\n$attribute = 1;\n").is_empty());
+}
+
+/// A `///` run above a field of any shape type is that field's doc, and is
+/// never reported as documenting nothing.
+#[test]
+fn a_doc_comment_above_a_shape_field_is_its_doc() {
+    let (_, _, stmts, diags) =
+        parse_whole("<?nvs\ntype Address = {\n    /// The street.\n    street: string,\n};\n");
+    assert!(diags.is_empty(), "{diags:?}");
+    let StmtKind::TypeAliasDecl(alias) = &stmts[0].kind else {
+        panic!("expected an alias: {stmts:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = &alias.ty.kind else {
+        panic!("expected a shape: {alias:?}");
+    };
+    assert!(fields[0].doc.is_some());
+}
+
+/// `E0140`: the bare `#[{…}]` is one error, and the class after it parses.
+#[test]
+fn the_bare_attribute_form_is_one_error() {
+    assert_eq!(codes_of("<?nvs\n#[{a: 1}]\nclass Box {}\n"), ["E0140"]);
+    let (_, _, stmts, _) = parse_whole("<?nvs\n#[{a: 1}]\nclass Box {}\n");
+    assert!(matches!(stmts[0].kind, StmtKind::ClassDecl(_)), "{stmts:?}");
+}
+
+/// `E0141`: a missing `on`, an empty list and a word that is not a site are
+/// each one error, and the declaration is kept.
+#[test]
+fn an_attribute_declaration_needs_its_sites() {
+    assert_eq!(codes_of("<?nvs\nattribute A { a: int }\n"), ["E0141"]);
+    assert_eq!(codes_of("<?nvs\nattribute A on { a: int }\n"), ["E0141"]);
+    assert_eq!(
+        codes_of("<?nvs\nattribute A on class, any { a: int }\n"),
+        ["E0141"]
+    );
+    let (_, _, stmts, _) = parse_whole("<?nvs\nattribute A on class, any { a: int }\n");
+    let StmtKind::AttributeDecl(decl) = &stmts[0].kind else {
+        panic!("expected an attribute declaration: {stmts:?}");
+    };
+    assert_eq!(decl.sites.len(), 1);
+    assert_eq!(decl.fields.len(), 1);
+}
+
+/// `E0142`: an enum body declares no attribute, and the case after it parses.
+#[test]
+fn an_enum_body_declares_no_attribute() {
+    let src =
+        "<?nvs\nenum Color: int {\n    attribute Shade on class { a: int }\n    Red = 1,\n}\n";
+    assert_eq!(codes_of(src), ["E0142"]);
+    let (_, _, stmts, _) = parse_whole(src);
+    let StmtKind::EnumDecl(decl) = &stmts[0].kind else {
+        panic!("expected an enum: {stmts:?}");
+    };
+    assert_eq!(decl.cases.len(), 1);
+    assert!(decl.members.is_empty());
+}
+
+/// `E0133`: an attribute declaration takes no modifier and no attribute group.
+#[test]
+fn an_attribute_declaration_takes_no_decoration() {
+    assert_eq!(
+        codes_of("<?nvs\nclass C {\n    public attribute A on class { a: int }\n}\n"),
+        ["E0133"]
+    );
+    assert_eq!(
+        codes_of("<?nvs\n#[Meta]\nattribute A on class { a: int }\n"),
+        ["E0133"]
     );
 }

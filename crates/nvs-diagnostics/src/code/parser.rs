@@ -262,10 +262,14 @@ codes! {
     /// An `enum` in a class body gets the same code for a modifier run, for
     /// the same reason (`rule:enums/class-scoped-enum`), and keeps its
     /// attributes.
+    ///
+    /// An attribute declaration gets it too: it is reachable wherever its
+    /// owner is, and an attribute on it would be a meta-attribute, which
+    /// `rule:attributes/an-attribute-is-declared-with-its-sites` declines.
     pub const E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE: Code = Code::new("E0133").card(
         "A `type` alias cannot have a modifier such as `public`, or an attribute. Delete them. \
-         An enum in a class cannot have a modifier either. Both can be used wherever their \
-         class can be used.",
+         An attribute declaration cannot have them either. An enum in a class cannot have a \
+         modifier. All three can be used wherever their class can be used.",
     );
     /// A bare shape type written in front of a local's name (`{x: int}
     /// $point;`) — `rule:types/shape-type`. A statement-initial `{` is a block
@@ -327,5 +331,28 @@ codes! {
     pub const E_DOC_TAG_HAS_NO_TEXT: Code = Code::new("E0139").card(
         "An `@param`, `@return` or `@throws` tag needs a sentence after it. Write what the \
          parameter means, what the returned value means, or when the error is thrown.",
+    );
+    /// The bare `#[{…}]` — `rule:attributes/an-attribute-is-declared-with-its-sites`.
+    /// It names no declaration, so nothing can find it and nothing says
+    /// where it may be used.
+    pub const E_ATTRIBUTE_WITHOUT_A_NAME: Code = Code::new("E0140").card(
+        "An attribute needs a name. Declare it first, for example \
+         `attribute Cache on method { seconds: int }`. Then write `#[Cache(seconds: 60)]`.",
+    );
+    /// An attribute declaration with no `on` list, an empty one, or a word in
+    /// it that is not one of the nine sites —
+    /// `rule:attributes/an-attribute-is-declared-with-its-sites`.
+    pub const E_ATTRIBUTE_SITES: Code = Code::new("E0141").card(
+        "An attribute declaration needs `on` and a list of places where the attribute can be \
+         used, for example `attribute Cache on method { seconds: int }`. The places are \
+         `class`, `interface`, `enum`, `method`, `property`, `hook`, `constant`, `case` and \
+         `parameter`.",
+    );
+    /// An attribute declaration in an enum body —
+    /// `rule:attributes/an-attribute-is-declared-with-its-sites`. An enum has
+    /// no descendants, so nothing could use it.
+    pub const E_ATTRIBUTE_DECL_IN_AN_ENUM: Code = Code::new("E0142").card(
+        "An enum cannot declare an attribute. Declare it in a class or an interface, or \
+         outside every class.",
     );
 }

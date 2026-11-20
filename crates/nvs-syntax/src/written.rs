@@ -20,7 +20,7 @@ use nvs_diagnostics::{BytePos, Span};
 
 use crate::ast::{
     ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, ForInit, MethodMember, NewTarget, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, TestOperand, Type,
+    PropertyHook, PropertyHookBody, ShapeField, Stmt, StmtKind, TestOperand, Type,
 };
 use crate::visit::each_child_expr;
 
@@ -59,6 +59,7 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
     }
     match &stmt.kind {
         StmtKind::TypeAliasDecl(decl) => root(&decl.ty, start, end, found),
+        StmtKind::AttributeDecl(decl) => fields_types(&decl.fields, start, end, found),
         StmtKind::ClassDecl(decl) => members_types(&decl.members, start, end, found),
         StmtKind::InterfaceDecl(decl) => members_types(&decl.members, start, end, found),
         StmtKind::EnumDecl(decl) => members_types(&decl.members, start, end, found),
@@ -245,9 +246,22 @@ fn members_types<'a>(
                 }
             }
             ClassMemberKind::TypeAlias(alias) => root(&alias.ty, start, end, found),
+            ClassMemberKind::Attribute(decl) => fields_types(&decl.fields, start, end, found),
             ClassMemberKind::Method(method) => method_types(method, start, end, found),
             _ => {}
         }
+    }
+}
+
+/// The field types of an attribute declaration's body that meet the range.
+fn fields_types<'a>(
+    fields: &'a [ShapeField],
+    start: BytePos,
+    end: BytePos,
+    found: &mut Vec<&'a Type>,
+) {
+    for field in fields {
+        root(&field.ty, start, end, found);
     }
 }
 

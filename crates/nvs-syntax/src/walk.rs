@@ -121,8 +121,8 @@ use crate::ast::{
     AnonClassDecl, AssignOp, AttributeGroup, BinaryOp, Block, CallArgs, ClassMember,
     ClassMemberKind, DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody,
     FnExpr, ForInit, ForeachBinding, ForeachBindingTy, IncDecOp, MemberName, MethodMember,
-    NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, SwitchCase,
-    TestOperand, Type, TypeAtom, TypeKind, UnaryOp,
+    NewTarget, Param, PropertyHook, PropertyHookBody, ShapeField, Stmt, StmtKind, StringPart,
+    SwitchCase, TestOperand, Type, TypeAtom, TypeKind, UnaryOp,
 };
 use crate::parse_file_within;
 
@@ -193,6 +193,7 @@ pub const KINDS: &[&str] = &[
     "ArrayLiteral",
     "Assign",
     "Attribute",
+    "AttributeDecl",
     "AutoloadDecl",
     "Await",
     "Binary",
@@ -609,6 +610,11 @@ fn stmt(s: &Stmt) -> Node {
             name = Some(decl.name.span);
             push_type(&mut kids, &decl.ty);
             "TypeAliasDecl"
+        }
+        StmtKind::AttributeDecl(decl) => {
+            name = Some(decl.name.span);
+            push_shape(&mut kids, decl.body, &decl.fields);
+            "AttributeDecl"
         }
         StmtKind::TopLevelFunction(f) => {
             name = Some(f.name);
@@ -1052,6 +1058,12 @@ fn member(m: &ClassMember) -> Node {
             push_type(&mut kids, &a.ty);
             "TypeAliasDecl"
         }
+        // The same node a file-scope declaration is.
+        ClassMemberKind::Attribute(decl) => {
+            name = Some(decl.name.span);
+            push_shape(&mut kids, decl.body, &decl.fields);
+            "AttributeDecl"
+        }
         // The same node a file-scope enum is, so a tool reading the tree
         // treats the two alike (`rule:enums/class-scoped-enum`).
         ClassMemberKind::Enum(decl) => {
@@ -1188,21 +1200,26 @@ fn push_type(kids: &mut Vec<Node>, ty: &Type) {
         TypeKind::Union(members) | TypeKind::Intersection(members) => {
             members.iter().for_each(|member| push_type(kids, member));
         }
-        TypeKind::Atom(TypeAtom::Shape(fields)) => {
-            let mut inner = Vec::new();
-            for field in fields {
-                push_type(&mut inner, &field.ty);
-            }
-            kids.push(Node {
-                kind: "ShapeType",
-                span: ty.span,
-                name: None,
-                children: inner,
-                fields: Vec::new(),
-            });
-        }
+        TypeKind::Atom(TypeAtom::Shape(fields)) => push_shape(kids, ty.span, fields),
         TypeKind::Atom(atom) => push_atom(kids, atom),
     }
+}
+
+/// A shape's field list over `span`, its braces included. An attribute
+/// declaration's body is this node too, so the formatter lays the two out
+/// alike.
+fn push_shape(kids: &mut Vec<Node>, span: Span, fields: &[ShapeField]) {
+    let mut inner = Vec::new();
+    for field in fields {
+        push_type(&mut inner, &field.ty);
+    }
+    kids.push(Node {
+        kind: "ShapeType",
+        span,
+        name: None,
+        children: inner,
+        fields: Vec::new(),
+    });
 }
 
 /// The shape types written inside an atom that is not one itself.

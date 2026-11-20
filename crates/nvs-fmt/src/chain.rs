@@ -232,6 +232,7 @@ pub const LAID_OUT: &[(&str, &str)] = &[
 /// on (`rule:tooling/fmt-every-construct-has-a-broken-layout`).
 pub const AUTHORS_BREAKS: &[&str] = &[
     "Assign",
+    "AttributeDecl",
     "AutoloadDecl",
     "Await",
     "Block",

@@ -193,7 +193,11 @@ fn site_key(declared: &Declaration) -> (&str, Option<(&str, MemberKind)>) {
         DeclKind::Method => member(MemberKind::Method),
         DeclKind::Property => member(MemberKind::Property),
         DeclKind::Const | DeclKind::EnumCase => member(MemberKind::Constant),
-        DeclKind::Class | DeclKind::Interface | DeclKind::Enum | DeclKind::TypeAlias => None,
+        DeclKind::Class
+        | DeclKind::Interface
+        | DeclKind::Enum
+        | DeclKind::TypeAlias
+        | DeclKind::Attribute => None,
     };
     split.unwrap_or((symbol, None))
 }

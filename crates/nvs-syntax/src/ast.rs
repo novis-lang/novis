@@ -15,7 +15,7 @@
 //! enums ([`ClassDecl`]/[`InterfaceDecl`]/[`EnumDecl`]), their members
 //! ([`ClassMember`]: properties with PHP 8.4's hooks, consts, methods),
 //! attributes ([`AttributeGroup`]), and the file-scope declarations that sit
-//! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) complete
+//! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]/[`AttributeDecl`]) complete
 //! the tree. There is no `trait` declaration and no class-body
 //! `use Trait, ...;` — `rule:classes/no-traits` replaces both with an
 //! `interface` method that carries a body (`rule:classes/interface-default-methods`,
@@ -286,6 +286,11 @@ pub struct ShapeField {
     pub required: bool,
     /// The whole field, name and all.
     pub span: Span,
+    /// The `///` run above the field, if one is attached: the key's own doc,
+    /// which hover and completion show wherever the key is written
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). A shape
+    /// in any type position may carry one, not only an attribute's body.
+    pub doc: Option<DocComment>,
 }
 
 // ============================================================================
@@ -1593,6 +1598,9 @@ pub enum StmtKind {
     /// `type Name = TypeExpr;` (`rule:types/grammar`.5 / `rule:types/type-alias`), at
     /// file/namespace scope.
     TypeAliasDecl(TypeAliasDecl),
+    /// `[repeatable] attribute Name on <site>, … { field, … }` at
+    /// file/namespace scope (`rule:attributes/an-attribute-is-declared-with-its-sites`).
+    AttributeDecl(AttributeDecl),
     /// `function foo() { ... }` outside any class body — rejected, `rule:classes/no-free-functions-or-constants`. Still parses to a full [`MethodMember`] shape, for a precise
     /// diagnostic; nothing downstream ever acts on it.
     TopLevelFunction(MethodMember),
@@ -1985,6 +1993,12 @@ pub enum ClassMemberKind {
     /// (`rule:enums/class-scoped-enum`). Its `///` run hangs on the
     /// [`ClassMember`], so the declaration's own `doc` is `None`.
     Enum(EnumDecl),
+    /// An attribute the class or interface body owns, usable only on that
+    /// type's descendants
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). Its `///`
+    /// run hangs on the [`ClassMember`], so the declaration's own `doc` is
+    /// `None`. An enum body never holds one: the parser refuses it there.
+    Attribute(AttributeDecl),
     /// A placeholder produced during error recovery — also what a rejected
     /// class-body `use TraitName, ...;` becomes, since `rule:classes/no-traits` leaves no
     /// AST node to carry it.
@@ -2196,6 +2210,108 @@ pub struct TypeAliasDecl {
     pub name: Name,
     /// The type it stands for.
     pub ty: Type,
+}
+
+/// `[repeatable] attribute Name on <site>, <site> { field, … }`
+/// (`rule:attributes/an-attribute-is-declared-with-its-sites`), at
+/// file/namespace scope or as a member of a class or interface body
+/// ([`ClassMemberKind::Attribute`]).
+///
+/// `attribute`, `repeatable` and `on` are contextual words, read only in this
+/// position, so no identifier is taken from programs. The body is a shape's
+/// field list, parsed by the production a `{…}` type is, so a field and its
+/// `///` doc mean what they mean in any shape.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AttributeDecl {
+    /// The whole declaration, `repeatable` through the closing `}`.
+    pub span: Span,
+    /// The `///` run above it, if one is attached. A body member's run hangs on
+    /// its [`ClassMember`] instead, so the member form leaves this `None`.
+    pub doc: Option<DocComment>,
+    /// The `repeatable` word, when it is written. Without it, a second use of
+    /// the attribute on one declaration does not compile.
+    pub repeatable: Option<Span>,
+    /// The attribute's declared name.
+    pub name: Name,
+    /// The site words after `on`, in the order they are written. A word that
+    /// is not one of the nine was refused where it was written and is left
+    /// out, so the list may be empty only in a file that already has an error.
+    pub sites: Vec<AttributeSiteWord>,
+    /// The fields of the body, in source order.
+    pub fields: Vec<ShapeField>,
+    /// The body, `{` through `}`.
+    pub body: Span,
+}
+
+/// One site word of an [`AttributeDecl`]'s `on` list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AttributeSiteWord {
+    /// Which site the word names.
+    pub site: AttributeSite,
+    /// Where the word is written.
+    pub span: Span,
+}
+
+/// A place an attribute may be used: one of the nine fixed words an `on` list
+/// takes (`rule:attributes/an-attribute-is-declared-with-its-sites`). There
+/// is no wildcard.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AttributeSite {
+    /// A class declaration.
+    Class,
+    /// An interface declaration.
+    Interface,
+    /// An enum declaration.
+    Enum,
+    /// A method, a constructor included.
+    Method,
+    /// A property, a promoted constructor parameter included.
+    Property,
+    /// A property hook.
+    Hook,
+    /// A class constant.
+    Constant,
+    /// An enum case.
+    Case,
+    /// A method's parameter, a promoted constructor parameter included.
+    Parameter,
+}
+
+impl AttributeSite {
+    /// Every site, in the order a message lists them.
+    pub const ALL: [Self; 9] = [
+        Self::Class,
+        Self::Interface,
+        Self::Enum,
+        Self::Method,
+        Self::Property,
+        Self::Hook,
+        Self::Constant,
+        Self::Case,
+        Self::Parameter,
+    ];
+
+    /// The word an `on` list writes for this site.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Class => "class",
+            Self::Interface => "interface",
+            Self::Enum => "enum",
+            Self::Method => "method",
+            Self::Property => "property",
+            Self::Hook => "hook",
+            Self::Constant => "constant",
+            Self::Case => "case",
+            Self::Parameter => "parameter",
+        }
+    }
+
+    /// The site `word` names, if it is one of the nine.
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|site| site.word() == word)
+    }
 }
 
 /// Whether `body` is a generator's body — `rule:iteration/generators`'s rule that "a

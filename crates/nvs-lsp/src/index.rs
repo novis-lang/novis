@@ -156,6 +156,8 @@ pub enum DeclKind {
     Enum,
     /// A `type Name = TypeExpr;` alias.
     TypeAlias,
+    /// An `attribute Name on … { … }` declaration.
+    Attribute,
     /// A method of one of the above.
     Method,
     /// A property of one of the above.
@@ -175,6 +177,7 @@ impl DeclKind {
             SymbolKind::Interface => Self::Interface,
             SymbolKind::Enum => Self::Enum,
             SymbolKind::TypeAlias => Self::TypeAlias,
+            SymbolKind::Attribute => Self::Attribute,
         }
     }
 
@@ -187,6 +190,7 @@ impl DeclKind {
             Self::Interface => "an interface",
             Self::Enum => "an enum",
             Self::TypeAlias => "a type alias",
+            Self::Attribute => "an attribute",
             Self::Method => "a method",
             Self::Property => "a property",
             Self::Const => "a constant",

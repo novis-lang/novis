@@ -737,6 +737,7 @@ fn substitute(ty: &Type, scope: Scope<'_>, ctx: &mut ResolveCtx<'_>) -> Type {
                         ty: substitute(&field.ty, scope, ctx),
                         required: field.required,
                         span: field.span,
+                        doc: field.doc.clone(),
                     })
                     .collect(),
             )),

@@ -28,6 +28,11 @@ pub enum SymbolKind {
     /// A `type Name = TypeExpr;` declaration
     /// (`rule:types/type-alias`).
     TypeAlias,
+    /// An `attribute Name on … { … }` declaration at file or namespace
+    /// scope (`rule:attributes/an-attribute-is-declared-with-its-sites`). It
+    /// is a name of its own kind, not a type: only `#[`, a retrieval's type
+    /// argument and an `implementingWith` argument name it.
+    Attribute,
 }
 
 impl SymbolKind {
@@ -39,6 +44,7 @@ impl SymbolKind {
             Self::Interface => "an interface",
             Self::Enum => "an enum",
             Self::TypeAlias => "a type alias",
+            Self::Attribute => "an attribute",
         }
     }
 }

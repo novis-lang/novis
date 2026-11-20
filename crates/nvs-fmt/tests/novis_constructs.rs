@@ -373,15 +373,15 @@ var $wrapped = {
 }
 
 #[test]
-fn an_attribute_in_its_bare_form_is_spaced_as_an_anon_object() {
-    // The bare form on a method and on a parameter, beside a named attribute
-    // whose argument list is not an object and keeps its parentheses tight.
+fn an_object_in_an_attribute_payload_is_spaced_as_an_anon_object() {
+    // An object in a payload field, on a method and on a parameter, beside a
+    // named attribute whose argument list keeps its parentheses tight.
     let mangled = "\
 <?nvs
 class Mailer
 {
-    #[{audit: true}]
-    public function send(#[{   from: 'config'}] string $to, #[Core\\Inject] int $n): void
+    #[Audit(on: {audit: true})]
+    public function send(#[Inject(from: {   key: 'config'})] string $to, #[Core\\Inject] int $n): void
     {
     }
 }
@@ -390,8 +390,8 @@ class Mailer
 <?nvs
 class Mailer
 {
-    #[{ audit: true }]
-    public function send(#[{ from: 'config' }] string $to, #[Core\\Inject] int $n): void
+    #[Audit(on: { audit: true })]
+    public function send(#[Inject(from: { key: 'config' })] string $to, #[Core\\Inject] int $n): void
     {
     }
 }

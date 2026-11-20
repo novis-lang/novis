@@ -358,6 +358,7 @@ pub fn each_child_of_stmt<'a>(s: &'a Stmt, f: &mut dyn FnMut(StmtChild<'a>)) {
         | StmtKind::UseDecl(_)
         | StmtKind::AutoloadDecl(_)
         | StmtKind::TypeAliasDecl(_)
+        | StmtKind::AttributeDecl(_)
         | StmtKind::TopLevelFunction(_)
         | StmtKind::TopLevelConst(_) => {}
     }

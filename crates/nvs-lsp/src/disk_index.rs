@@ -440,6 +440,7 @@ const fn kind_tag(kind: DeclKind) -> u8 {
         DeclKind::Property => 5,
         DeclKind::Const => 6,
         DeclKind::EnumCase => 7,
+        DeclKind::Attribute => 8,
     }
 }
 
@@ -454,6 +455,7 @@ const fn kind_of(tag: u8) -> Option<DeclKind> {
         5 => DeclKind::Property,
         6 => DeclKind::Const,
         7 => DeclKind::EnumCase,
+        8 => DeclKind::Attribute,
         _ => return None,
     })
 }

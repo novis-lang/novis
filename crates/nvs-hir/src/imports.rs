@@ -167,6 +167,7 @@ impl SitesAbove {
 /// A `type` alias is not among them: an alias is a spelling of another type,
 /// and importing one where a class was written would make the reference mean
 /// something the writer did not (`rule:types/alias-is-never-a-bare-class`).
+/// An attribute declaration is not among them either: it is not a type.
 #[must_use]
 pub fn candidates<'a>(
     short: &str,
@@ -181,7 +182,7 @@ pub fn candidates<'a>(
     found.extend(
         symbols
             .iter()
-            .filter(|symbol| symbol.kind != SymbolKind::TypeAlias)
+            .filter(|symbol| !matches!(symbol.kind, SymbolKind::TypeAlias | SymbolKind::Attribute))
             .filter(|symbol| symbol.qname.short_name() == short)
             .map(|symbol| symbol.qname.clone()),
     );

@@ -40,10 +40,7 @@
 //! brace and one before the closing one. Only an object its author wrote on one
 //! line is this rule's — across lines it is one field per line, which is
 //! [`crate::indent`]'s depth and [`crate::tokens`]'s trailing comma rather than
-//! a space. An empty literal has no inside to space. An attribute written in
-//! its bare form, `#[{ a: 1 }]`, is an `Attribute` node and no anonymous object,
-//! and the node opens at its `{`, so its braces are spaced the same way: the
-//! object a declaration carries reads as the object a call is given.
+//! a space. An empty literal has no inside to space.
 //!
 //! A shape type's braces are the same layout in the same rule: `{ a: string }`
 //! goes out as `{ a: string }`. Its node starts at a qualifier written in front
@@ -183,7 +180,7 @@ fn anon_object(
     };
     let start = node.span.start as usize;
     let opens = match node.kind {
-        "AnonObject" | "Attribute" => start == offset,
+        "AnonObject" => start == offset,
         "ShapeType" => !text[start..offset].contains('{'),
         _ => false,
     };

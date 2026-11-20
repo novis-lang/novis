@@ -373,6 +373,9 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
         StmtKind::TypeAliasDecl(decl) => {
             check_type_name(decl.name.span, src, "type alias", diags);
         }
+        StmtKind::AttributeDecl(decl) => {
+            check_type_name(decl.name.span, src, "attribute", diags);
+        }
         StmtKind::InterfaceDecl(decl) => {
             check_type_name(decl.name.span, src, "interface", diags);
             check_members(&decl.members, src, diags);
@@ -539,6 +542,11 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
             // production, so they get one answer.
             ClassMemberKind::TypeAlias(alias) => {
                 check_type_name(alias.name.span, src, "type alias", diags);
+            }
+            // An attribute is named like the class it decorates, and the
+            // file-scope form is checked in [`check_stmt`].
+            ClassMemberKind::Attribute(decl) => {
+                check_type_name(decl.name.span, src, "attribute", diags);
             }
             // An owned enum is named like a file-scope one, and so are its
             // cases: one production, one answer (`rule:enums/class-scoped-enum`).
